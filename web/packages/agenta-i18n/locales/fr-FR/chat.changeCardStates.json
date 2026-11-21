@@ -1,5 +1,6 @@
 {
     "answerSaved": "Votre réponse est enregistrée.",
+    "autoApproved": "Approuvé automatiquement",
     "changesCount_one": "{{count}} modification",
     "changesCount_many": "{{count}} modifications",
     "changesCount_other": "{{count}} modifications",
@@ -28,6 +29,7 @@
     "saved": "Enregistré",
     "savedTogether": "Enregistrés ensemble en v{{version}}",
     "tryAgain": "Réessayer",
+    "turnOff": "Désactiver",
     "valueFromTo": "{{old}} vers {{new}}",
     "view": "Voir",
     "waiting": "En attente de l’agent"

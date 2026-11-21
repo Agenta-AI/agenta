@@ -1,5 +1,6 @@
 {
     "answerSaved": "Ihre Antwort ist gespeichert.",
+    "autoApproved": "Automatisch genehmigt",
     "changesCount_one": "{{count}} Änderung",
     "changesCount_other": "{{count}} Änderungen",
     "denied": "Sie haben diese Änderung abgelehnt",
@@ -24,6 +25,7 @@
     "saved": "Gespeichert",
     "savedTogether": "Zusammen gespeichert als v{{version}}",
     "tryAgain": "Erneut versuchen",
+    "turnOff": "Ausschalten",
     "valueFromTo": "{{old}} zu {{new}}",
     "view": "Ansehen",
     "waiting": "Warten auf den Agent"

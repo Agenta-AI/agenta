@@ -1,12 +1,13 @@
-"""The server's answer at the approval gate of a session write (design D12, D34).
+"""The server's answer at the approval gate (design D12, D32, D34).
 
 The runner asks `tools.agenta.resolve_gate` when its own configuration says `ask` for
-`start_session`, `send_session_message` or `cancel_session`. The runner sends what it
-knows: the call, its execution, and the tool spec's `configured_permission` and
-`target_permissions`. The server adds what only it knows: whether that execution is the
-one that runs in the calling session now, whether a person sent the turn, and which agent
-a named child session runs. The answer is advice to the runner that asked. Every fault
-answers `ask`, so the card shows as it does without this op.
+`start_session`, `send_session_message`, `cancel_session`, `create_agent` or
+`edit_agent_config`. The runner sends what it knows: the call, its execution, and the
+tool spec's `configured_permission` and `target_permissions`. The server adds what only
+it knows: whether that execution is the one that runs in the calling session now,
+whether a person sent the turn, which agent a named child session runs, the session's
+sharing and the person's approval choices. The answer is advice to the runner that
+asked. Every fault answers `ask`, so the card shows as it does without this op.
 """
 
 import json
@@ -24,8 +25,15 @@ from agenta.sdk.agents.tools.models import (
     target_permission,
 )
 
-from oss.src.core.access.dtos import ResourceKind, ResourceRef, RunEnvelope
+from oss.src.core.access.dtos import (
+    PrincipalKind,
+    ResourceKind,
+    ResourceRef,
+    RunEnvelope,
+)
 from oss.src.core.access.permissions.types import Permission as AccessPermission
+from oss.src.core.approval_choices.dtos import APPROVAL_CHOICE_CALL_REFS
+from oss.src.core.approval_choices.interfaces import ApprovalChoicesDAOInterface
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.sessions.executions.senders import is_sent_by_person
 from oss.src.core.sessions.inputs.interfaces import SessionInputsDAOInterface
@@ -34,15 +42,19 @@ from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
 from oss.src.core.sessions.types import ReferenceKey, SessionReference
 from oss.src.core.shared.dtos import Reference
+from oss.src.core.sharing.dtos import SessionRole, Visibility
+from oss.src.core.sharing.interfaces import SharingDAOInterface
 from oss.src.core.tools.platform_handlers import SessionCaller, caller_may
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.static_catalog import BUILDER_AGENT_ID, is_builder_agent
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
 # Why the server answered `allow` or `deny`: the configured permission for this call,
-# the Subagent entry's included. `approval_choice` (auto-approve, design D32) is not built.
+# the Subagent entry's included; or the person's approval choice (design D32).
 CONFIGURED_PERMISSION_BASIS = "configured_permission"
+APPROVAL_CHOICE_BASIS = "approval_choice"
 
 
 class GateRequest(BaseModel):
@@ -63,8 +75,8 @@ class GateRequest(BaseModel):
 
 class GateAnswer(BaseModel):
     permission: Permission
-    # `configured_permission` on `allow` and `deny`; None on `ask`.
-    basis: Optional[Literal["configured_permission"]] = None
+    # None on `ask`.
+    basis: Optional[Literal["configured_permission", "approval_choice"]] = None
 
 
 ASK = GateAnswer(permission="ask")
@@ -82,12 +94,16 @@ class GateReader:
         inputs_dao: SessionInputsDAOInterface,
         turns_dao: SessionTurnsDAOInterface,
         workflows_service: WorkflowsService,
+        sharing_dao: SharingDAOInterface,
+        approval_choices_dao: ApprovalChoicesDAOInterface,
     ) -> None:
         self._streams = streams_dao
         self._executions = executions_dao
         self._inputs = inputs_dao
         self._turns = turns_dao
         self._workflows = workflows_service
+        self._sharing = sharing_dao
+        self._approval_choices = approval_choices_dao
 
     async def session(
         self, *, project_id: UUID, session_id: str
@@ -107,6 +123,30 @@ class GateReader:
             session_id=session_id,
             execution_id=execution_id,
         )
+
+    async def has_other_participant(
+        self, *, project_id: UUID, stream_id: UUID, user_id: UUID
+    ) -> bool:
+        """Whether another person holds a `participant` grant on the session."""
+        grants = await self._sharing.list_session_grants(
+            project_id=project_id, stream_id=stream_id
+        )
+        return any(
+            grant.role == SessionRole.PARTICIPANT and grant.user_id != user_id
+            for grant in grants
+        )
+
+    async def has_approval_choice(
+        self, *, project_id: UUID, user_id: UUID, tool_key: str
+    ) -> bool:
+        """Whether the person chose "always approve" for this builder tool."""
+        choice = await self._approval_choices.fetch_by_tool(
+            project_id=project_id,
+            user_id=user_id,
+            artifact_id=BUILDER_AGENT_ID,
+            tool_key=tool_key,
+        )
+        return choice is not None
 
     async def agent_slug(
         self, *, project_id: UUID, reference: Reference, envelope: RunEnvelope
@@ -232,10 +272,11 @@ async def resolve_gate(
     arguments: Any,
     reader: GateReader,
 ) -> GateAnswer:
-    """`allow` only for a session write whose configured permission for this call is
-    `allow`, in the execution that runs in the calling session now, in a turn that a
-    person sent. `deny` when that permission is `deny`. `ask` in every other case,
-    any fault included."""
+    """`allow` for a session write whose configured permission for this call is
+    `allow`, or for a builder tool the sender chose to always approve (D32), in the
+    execution that runs in the calling session now, in a turn that a person sent.
+    `deny` when the configured permission is `deny`. `ask` in every other case, any
+    fault included."""
     try:
         return await _resolve(
             caller=caller, project_id=project_id, arguments=arguments, reader=reader
@@ -253,10 +294,9 @@ async def _resolve(
     reader: GateReader,
 ) -> GateAnswer:
     request = _parse(arguments)
-    if (
-        request is None
-        or request.call_ref not in SESSION_WRITE_CALL_REFS
-        or request.configured_permission is None
+    if request is None or (
+        request.call_ref not in SESSION_WRITE_CALL_REFS
+        and request.call_ref not in APPROVAL_CHOICE_CALL_REFS
     ):
         return ASK
 
@@ -266,6 +306,32 @@ async def _resolve(
         project_id=project_id, session_id=caller.run_session_id
     )
     if calling is None or calling.turn_id != request.execution_id:
+        return ASK
+
+    answer = ASK
+    if request.call_ref in SESSION_WRITE_CALL_REFS:
+        answer = await _configured_answer(
+            caller=caller, project_id=project_id, request=request, reader=reader
+        )
+    if answer.permission == "ask" and await _approval_choice_applies(
+        caller=caller,
+        project_id=project_id,
+        request=request,
+        calling=calling,
+        reader=reader,
+    ):
+        return GateAnswer(permission="allow", basis=APPROVAL_CHOICE_BASIS)
+    return answer
+
+
+async def _configured_answer(
+    *,
+    caller: SessionCaller,
+    project_id: UUID,
+    request: GateRequest,
+    reader: GateReader,
+) -> GateAnswer:
+    if request.configured_permission is None:
         return ASK
 
     if request.call_ref == CANCEL_SESSION_CALL_REF:
@@ -300,3 +366,48 @@ async def _resolve(
     ):
         return GateAnswer(permission="allow", basis=CONFIGURED_PERMISSION_BASIS)
     return ASK
+
+
+async def _approval_choice_applies(
+    *,
+    caller: SessionCaller,
+    project_id: UUID,
+    request: GateRequest,
+    calling: SessionStream,
+    reader: GateReader,
+) -> bool:
+    """The rules of design D32: a builder tool, the sender's own choice, the sender's
+    own turn, in a session private to the sender that is not a child session."""
+    if request.call_ref not in APPROVAL_CHOICE_CALL_REFS:
+        return False
+    if not is_builder_agent(caller.run_agent_id):
+        return False
+    sender = caller.envelope.sender
+    principal = caller.envelope.authority.principal
+    if (
+        sender is None
+        or sender.user_id is None
+        or principal.kind != PrincipalKind.HUMAN
+        or principal.id != sender.user_id
+    ):
+        return False
+    person = sender.user_id
+    if (
+        calling.calling_session is not None
+        or calling.visibility != Visibility.PRIVATE
+        or calling.owner_user_id != person
+    ):
+        return False
+    if await reader.has_other_participant(
+        project_id=project_id, stream_id=calling.id, user_id=person
+    ):
+        return False
+    if not await reader.is_sent_by_person(
+        project_id=project_id,
+        session_id=caller.run_session_id,
+        execution_id=request.execution_id,
+    ):
+        return False
+    return await reader.has_approval_choice(
+        project_id=project_id, user_id=person, tool_key=request.call_ref
+    )

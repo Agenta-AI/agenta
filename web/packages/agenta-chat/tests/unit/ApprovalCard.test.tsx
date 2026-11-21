@@ -119,6 +119,84 @@ describe("the auto-approve row", () => {
     })
 })
 
+describe("the auto-approve row in the builder chat", () => {
+    const builderGate = {
+        approvalId: "a1",
+        toolName: "start_session",
+        input: {agent: "email-writer", message: "Draft it"},
+    }
+
+    it("offers the builder tools the person can choose, whatever the configuration", () => {
+        const markup = (toolNames: string[]) =>
+            renderToStaticMarkup(
+                <ApprovalCard
+                    approvals={[builderGate]}
+                    entityId="rev-1"
+                    alwaysAllowOffered={false}
+                    alwaysApprove={{toolNames: new Set(toolNames), choose: () => undefined}}
+                    onRespond={() => undefined}
+                    onApproveAll={() => undefined}
+                />,
+            )
+        expect(markup(["start_session"])).toContain("Always auto-approve")
+        expect(markup(["edit_agent_config"])).not.toContain("Always auto-approve")
+    })
+
+    it("a viewer sees no control", () => {
+        const markup = renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[builderGate]}
+                readOnly
+                alwaysApprove={{toolNames: new Set(["start_session"]), choose: () => undefined}}
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+        expect(markup).not.toContain("Always auto-approve")
+    })
+
+    it("approving with it armed stores the choice, not the configuration", () => {
+        const chosen: string[][] = []
+        const answers: boolean[] = []
+        const host = document.createElement("div")
+        document.body.appendChild(host)
+        const root = createRoot(host)
+        act(() => {
+            root.render(
+                <ApprovalCard
+                    approvals={[builderGate]}
+                    entityId="rev-1"
+                    alwaysAllowOffered={false}
+                    alwaysApprove={{
+                        toolNames: new Set(["start_session"]),
+                        choose: (toolNames) => chosen.push(toolNames),
+                    }}
+                    onRespond={({approved}) => answers.push(approved)}
+                    onApproveAll={() => undefined}
+                />,
+            )
+        })
+        act(() => {
+            host.querySelector('[role="checkbox"]')!.dispatchEvent(
+                new MouseEvent("click", {bubbles: true}),
+            )
+        })
+        const approve = [...host.querySelectorAll("button")].find((node) =>
+            node.textContent?.startsWith("Approve"),
+        )!
+        act(() => {
+            approve.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+        })
+        expect(chosen).toEqual([["start_session"]])
+        expect(answers).toEqual([true])
+        expect(granted.calls).toEqual([])
+        act(() => {
+            root.unmount()
+            host.remove()
+        })
+    })
+})
+
 describe("durable response state", () => {
     it("shows that the answer was accepted while the continuation catches up", () => {
         const markup = renderToStaticMarkup(

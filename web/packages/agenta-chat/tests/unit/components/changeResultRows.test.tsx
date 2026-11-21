@@ -125,3 +125,82 @@ describe("the result rows (task 26.1)", () => {
         expect(html).not.toContain("Try again")
     })
 })
+
+describe("the rows of calls the person's approval choice ran (design D32)", () => {
+    const mark = (toolCallId: string, toolName: string) => ({
+        type: "data-auto-approved",
+        data: {toolCallId, toolName},
+    })
+    const auto = (fields: Record<string, unknown>) => {
+        const {approval: _approval, ...part} = edit("c1", "gpt-6", fields)
+        return part
+    }
+    const on = (isOn: boolean, turnedOff: string[] = []) => ({
+        isOn: () => isOn,
+        turnOff: (toolName: string) => turnedOff.push(toolName),
+    })
+
+    it("shows the saved change card's row, marked, with Turn off while the choice is on", () => {
+        const parts = [
+            auto({state: "output-available", output: saved}),
+            mark("c1", "edit_agent_config"),
+        ]
+        const html = renderToStaticMarkup(
+            <ChangeResultRows
+                parts={parts}
+                actions={{onView: () => undefined, autoApprove: on(true)}}
+            />,
+        )
+        expect(html).toContain("Saved as v5")
+        expect(html).toContain("Change the model")
+        expect(html).toContain("Approved automatically")
+        expect(html).toContain(">View<")
+        expect(html).toContain(">Turn off<")
+
+        const off = renderToStaticMarkup(
+            <ChangeResultRows parts={parts} actions={{autoApprove: on(false)}} />,
+        )
+        expect(off).toContain("Approved automatically")
+        expect(off).not.toContain("Turn off")
+    })
+
+    it("says approved automatically, not 'your answer', while the call runs", () => {
+        const html = renderToStaticMarkup(
+            <ChangeResultRows
+                parts={[auto({state: "input-available"}), mark("c1", "edit_agent_config")]}
+            />,
+        )
+        expect(html).toContain("Waiting for the agent")
+        expect(html).toContain("Approved automatically")
+        expect(html).not.toContain("Your answer is saved.")
+    })
+
+    it("gives a test start one row that names the agent and the first message", () => {
+        const html = renderToStaticMarkup(
+            <ChangeResultRows
+                parts={[
+                    {
+                        type: "tool-start_session",
+                        toolCallId: "s1",
+                        state: "output-available",
+                        input: {agent: "email-writer", message: "Draft the reply"},
+                    },
+                    mark("s1", "start_session"),
+                ]}
+                actions={{autoApprove: on(true)}}
+            />,
+        )
+        expect(html).toContain('data-testid="change-result-auto-approved"')
+        expect(html).toContain("email-writer")
+        expect(html).toContain("Draft the reply")
+        expect(html).toContain("Approved automatically")
+        expect(html).toContain(">Turn off<")
+    })
+
+    it("a call with no mark and no approval keeps no row", () => {
+        const html = renderToStaticMarkup(
+            <ChangeResultRows parts={[auto({state: "output-available", output: saved})]} />,
+        )
+        expect(html).toBe("")
+    })
+})

@@ -11,7 +11,9 @@ import {
 } from "@agenta/playground-ui/agent-version-history/store"
 import {useSetAtom} from "jotai"
 
+import {useIsBuilderChat} from "./builderChat"
 import {ChangeResultHostContext} from "./changeResultHost"
+import {useBuilderApprovalChoices} from "./useBuilderApprovalChoices"
 
 // Sent and saved as the person's message, and read by the model: never translated.
 const TRY_AGAIN_MESSAGE = "Read the agent again and propose the same change on its latest version."
@@ -38,6 +40,8 @@ export const ChangeResults = ({
     const [retried, setRetried] = useState(false)
     const openHistory = useSetAtom(openAgentVersionHistoryAtom)
     const selectVersion = useSetAtom(selectAgentVersionAtom)
+    // A row of a call the person's "always approve" ran offers to turn it off (design D32).
+    const {autoApprove} = useBuilderApprovalChoices(useIsBuilderChat())
     const actions = useMemo<ChangeResultActions>(() => {
         const showVersion = (version: ChangeVersionRef) => {
             selectVersion(version)
@@ -54,7 +58,8 @@ export const ChangeResults = ({
                           send(TRY_AGAIN_MESSAGE)
                       }
                     : undefined,
+            autoApprove: readOnly ? undefined : autoApprove,
         }
-    }, [readOnly, send, latest, finished, retried, openHistory, selectVersion])
+    }, [readOnly, send, latest, finished, retried, openHistory, selectVersion, autoApprove])
     return <ChangeResultRows parts={parts} actions={actions} finished={finished} touch />
 }

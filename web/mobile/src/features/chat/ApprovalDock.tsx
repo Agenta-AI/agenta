@@ -7,6 +7,7 @@ import {useIsBuilderChat} from "./builderChat"
 import {ownsShortcutAt} from "./conversationFocus"
 import {isSteerEnabled} from "./steer"
 import type {ApprovalActions} from "./useApprovalActions"
+import {useBuilderApprovalChoices} from "./useBuilderApprovalChoices"
 
 /**
  * Bottom-anchored human-in-the-loop dock — the SAME `ApprovalCard` the desktop dock renders
@@ -40,6 +41,8 @@ export const ApprovalDock = ({
 }) => {
     const locked = readOnly || Boolean(readOnlyNote)
     const builderChat = useIsBuilderChat()
+    // In the builder chat, "Always auto-approve" stores the person's choice (design D32).
+    const {alwaysApprove} = useBuilderApprovalChoices(builderChat)
     const busy = actions.phase === "resuming"
     const answered = actions.phase === "answered" || actions.phase === "recoverable"
 
@@ -65,6 +68,7 @@ export const ApprovalDock = ({
                     readOnly={locked}
                     readOnlyNote={readOnlyNote}
                     alwaysAllowOffered={!builderChat}
+                    alwaysApprove={alwaysApprove}
                     // Two conversations can each show a card: a key answers the focused one only.
                     ownsShortcut={ownsShortcutAt}
                     errorText={actions.phase === "error" ? actions.errorText : null}

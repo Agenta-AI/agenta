@@ -63,7 +63,14 @@ export interface StoredPermissionDecision {
 }
 
 export type Verdict =
-  | { kind: "allow" | "deny"; interactionToken?: string }
+  | {
+      kind: "allow" | "deny";
+      interactionToken?: string;
+      /** Set when the server answered at the gate (`resolve_gate`), not the configuration. */
+      byGateAnswer?: true;
+      /** The server's `allow` came from the person's approval choice (`basis: approval_choice`). */
+      autoApproved?: true;
+    }
   | { kind: "pendingApproval" };
 
 export interface StoredPermissionDecisions {

@@ -1,5 +1,6 @@
 {
     "answerSaved": "Tu respuesta está guardada.",
+    "autoApproved": "Aprobado automáticamente",
     "changesCount_one": "{{count}} cambio",
     "changesCount_many": "{{count}} cambios",
     "changesCount_other": "{{count}} cambios",
@@ -28,6 +29,7 @@
     "saved": "Guardado",
     "savedTogether": "Guardados juntos como v{{version}}",
     "tryAgain": "Reintentar",
+    "turnOff": "Desactivar",
     "valueFromTo": "{{old}} a {{new}}",
     "view": "Ver",
     "waiting": "Esperando al agente"

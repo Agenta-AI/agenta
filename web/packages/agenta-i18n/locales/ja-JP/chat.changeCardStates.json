@@ -1,5 +1,6 @@
 {
     "answerSaved": "回答は保存されました。",
+    "autoApproved": "自動で承認済み",
     "changesCount_other": "{{count}} 件の変更",
     "denied": "この変更を拒否しました",
     "filesCount_other": "{{count}} 個のファイル",
@@ -20,6 +21,7 @@
     "saved": "保存済み",
     "savedTogether": "まとめて v{{version}} として保存",
     "tryAgain": "再試行",
+    "turnOff": "オフにする",
     "valueFromTo": "{{old}} から {{new}}",
     "view": "表示",
     "waiting": "エージェントを待っています"

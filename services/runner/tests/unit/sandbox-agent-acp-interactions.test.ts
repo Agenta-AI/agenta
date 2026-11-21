@@ -133,6 +133,8 @@ describe("attachPermissionResponder", () => {
     assert.equal(seen.permission?.[0].gate.toolName, "edit");
     assert.equal(seen.permission?.[0].gate.executor, "harness");
     assert.deepEqual(seen.permission?.[0].gate.args, { path: "a" });
+    // The gate passes the call's id, which names the server request at the gate.
+    assert.equal(seen.permission?.[0].toolCallId, "tool-1");
   });
 
   it("deny verdict replies reject and emits no interaction_request", async () => {
@@ -730,6 +732,161 @@ describe("attachPermissionResponder", () => {
       await flushPromises();
 
       assert.deepEqual(replies, [{ id: "permission-cold", reply: "once" }]);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("a call the person's approval choice allowed mints at the gate, runs once, and is marked", async () => {
+    // Design D32 under option A: a saved change runs with no card, so it takes the step a card
+    // takes before the call runs. The relay's commit check then holds as it does for a card.
+    const { cwd, state, wiring } = coldWorkspace();
+    try {
+      const replies: Array<{ id: string; reply: string }> = [];
+      const events: AgentEvent[] = [];
+      const { session, emit } = makeSession(async (id, reply) => {
+        replies.push({ id, reply });
+      });
+      const asked: string[] = [];
+
+      attachPermissionResponder({
+        session,
+        run: { emitEvent: (event) => events.push(event) },
+        responder: new ApprovalResponder(
+          permissionPlan("ask"),
+          new ConversationDecisions(new Map()),
+          () => {},
+          ({ toolName }) => {
+            asked.push(String(toolName));
+            return Promise.resolve({
+              permission: "allow",
+              basis: "approval_choice",
+            });
+          },
+        ),
+        toolSpecsByName: specsByName([
+          { name: "commit_revision", permission: "ask", readOnly: false },
+        ]),
+        onResolveApprovedContent: wiring.onResolveApprovedContent,
+        shouldRegateStaleApproval: wiring.shouldRegateStaleApproval,
+      });
+      emitCommitGate(emit);
+      await waitFor(() => replies.length > 0);
+
+      assert.deepEqual(asked, ["commit_revision"]);
+      assert.deepEqual(replies, [{ id: "permission-cold", reply: "once" }]);
+      assert.deepEqual(
+        events,
+        [
+          {
+            type: "data",
+            name: "auto-approved",
+            data: { toolCallId: "tool-cold", toolName: "commit_revision" },
+          },
+        ],
+        "no card, and one mark for the chat",
+      );
+      assert.equal(state.store.recordsFor("tool-cold").length, 1);
+
+      const spec = {
+        name: "commit_revision",
+        kind: "callback" as const,
+        callRef: "tools.agenta.commit_revision",
+        permission: "ask" as const,
+      };
+      const run = await wiring.authorizer(spec, {
+        toolCallId: "tool-cold",
+        args: COMMIT_ARGS,
+      } as any);
+      assert.equal(run.ok, true, "the approved call runs");
+      const again = await wiring.authorizer(spec, {
+        toolCallId: "tool-cold",
+        args: COMMIT_ARGS,
+      } as any);
+      assert.equal(again.ok, false, "and runs once");
+      const forged = await wiring.authorizer(spec, {
+        toolCallId: "tool-forged",
+        args: COMMIT_ARGS,
+      } as any);
+      assert.equal(forged.ok, false);
+      assert.match(
+        String((forged as { reason: string }).reason),
+        /authorization_missing/,
+        "a forged relay record for the same tool is refused",
+      );
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("a server allow that is not an approval choice mints but leaves no mark", async () => {
+    const { cwd, state, wiring } = coldWorkspace();
+    try {
+      const replies: Array<{ id: string; reply: string }> = [];
+      const events: AgentEvent[] = [];
+      const { session, emit } = makeSession(async (id, reply) => {
+        replies.push({ id, reply });
+      });
+      attachPermissionResponder({
+        session,
+        run: { emitEvent: (event) => events.push(event) },
+        responder: new ApprovalResponder(
+          permissionPlan("ask"),
+          new ConversationDecisions(new Map()),
+          () => {},
+          () =>
+            Promise.resolve({
+              permission: "allow",
+              basis: "configured_permission",
+            }),
+        ),
+        toolSpecsByName: specsByName([
+          { name: "commit_revision", permission: "ask", readOnly: false },
+        ]),
+        onResolveApprovedContent: wiring.onResolveApprovedContent,
+        shouldRegateStaleApproval: wiring.shouldRegateStaleApproval,
+      });
+      emitCommitGate(emit);
+      await waitFor(() => replies.length > 0);
+
+      assert.deepEqual(replies, [{ id: "permission-cold", reply: "once" }]);
+      assert.deepEqual(events, []);
+      assert.equal(state.store.recordsFor("tool-cold").length, 1);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("an approval choice whose markers do not resolve refuses the call with no card", async () => {
+    const { cwd, wiring } = coldWorkspace();
+    rmSync(join(cwd, ".agenta-imports", "x.py"));
+    try {
+      const replies: Array<{ id: string; reply: string }> = [];
+      const events: AgentEvent[] = [];
+      const { session, emit } = makeSession(async (id, reply) => {
+        replies.push({ id, reply });
+      });
+      attachPermissionResponder({
+        session,
+        run: { emitEvent: (event) => events.push(event) },
+        responder: new ApprovalResponder(
+          permissionPlan("ask"),
+          new ConversationDecisions(new Map()),
+          () => {},
+          () =>
+            Promise.resolve({ permission: "allow", basis: "approval_choice" }),
+        ),
+        toolSpecsByName: specsByName([
+          { name: "commit_revision", permission: "ask", readOnly: false },
+        ]),
+        onResolveApprovedContent: wiring.onResolveApprovedContent,
+        shouldRegateStaleApproval: wiring.shouldRegateStaleApproval,
+      });
+      emitCommitGate(emit);
+      await waitFor(() => replies.length > 0);
+
+      assert.deepEqual(replies, [{ id: "permission-cold", reply: "reject" }]);
+      assert.deepEqual(events, [], "no mark for a call that did not run");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
