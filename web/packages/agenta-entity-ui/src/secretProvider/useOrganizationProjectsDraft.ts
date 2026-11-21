@@ -14,13 +14,17 @@ import {useSetAtom, useStore} from "jotai"
 
 const t = createT(organizationProjectsCatalog)
 
-// The newest write of each connection and the choice it sends. Each write waits for the one
-// before it, also across a closed and reopened view, so a choice made during a save is never lost
-// or overwritten. A view that opens while one runs starts from that choice.
-const writeQueues = new Map<
-    string,
-    {write: Promise<boolean>; projects: OrganizationSecretProjects}
->()
+interface QueuedWrite {
+    write: Promise<boolean>
+    projects: OrganizationSecretProjects
+    /** Set when the write failed: what the view that opened meanwhile shows. */
+    error?: string
+}
+
+// The newest write of each connection. Each write waits for the one before it, also across a
+// closed and reopened view, so a choice made during a save is never lost or overwritten. A view
+// that opens while one runs starts from its choice and shows how it ends.
+const writeQueues = new Map<string, QueuedWrite>()
 
 /** The toast an organization save shows: who may use the connection now. */
 export const organizationSavedToast = (name: string, projects: OrganizationSecretProjects) => {
@@ -114,9 +118,13 @@ export const useOrganizationProjectsDraft = ({
         setDraft(queued?.projects ?? saved)
         setError(null)
         setSaving(Boolean(queued))
-        // The write of a closed view: this view shows it as saving until the queue is done.
-        void queued?.write.finally(() => {
-            if (!writeQueues.has(identity)) setSaving(false)
+        // The write of a closed view: this view shows it as saving, then its failure, if any.
+        void queued?.write.then((ok) => {
+            if (writeQueues.has(identity)) return
+            setSaving(false)
+            if (ok) return
+            written.current = null
+            setError(queued.error ?? null)
         })
     }, [connection?.id, saved])
 
@@ -130,34 +138,31 @@ export const useOrganizationProjectsDraft = ({
         const id = connection.id
         // The project is read now: the write may run after a switch to another one.
         const scope = store.get(projectIdAtom) ?? undefined
-        const write: Promise<boolean> = (writeQueues.get(id)?.write ?? Promise.resolve(true)).then(
-            async () => {
-                // A newer choice is queued behind this one, so this one is not sent.
-                if (writeQueues.get(id)?.write !== write) return true
-                setError(null)
-                try {
-                    await setProjects({connectionId: id, projects, projectId: scope})
-                    message.success(organizationSavedToast(connection.name, projects))
-                    return true
-                } catch (failure) {
-                    if (written.current === projects) written.current = null
-                    setError(
-                        organizationRefusal(failure, organizationName) ||
-                            t("entityUi.organizationProjects.couldNotSave", {
-                                name: connection.name,
-                            }),
-                    )
-                    return false
-                } finally {
-                    if (writeQueues.get(id)?.write === write) {
-                        writeQueues.delete(id)
-                        setSaving(false)
-                    }
+        const entry: QueuedWrite = {projects, write: Promise.resolve(true)}
+        entry.write = (writeQueues.get(id)?.write ?? Promise.resolve(true)).then(async () => {
+            // A newer choice is queued behind this one, so this one is not sent.
+            if (writeQueues.get(id) !== entry) return true
+            setError(null)
+            try {
+                await setProjects({connectionId: id, projects, projectId: scope})
+                message.success(organizationSavedToast(connection.name, projects))
+                return true
+            } catch (failure) {
+                if (written.current === projects) written.current = null
+                entry.error =
+                    organizationRefusal(failure, organizationName) ||
+                    t("entityUi.organizationProjects.couldNotSave", {name: connection.name})
+                setError(entry.error)
+                return false
+            } finally {
+                if (writeQueues.get(id) === entry) {
+                    writeQueues.delete(id)
+                    setSaving(false)
                 }
-            },
-        )
-        writeQueues.set(id, {write, projects})
-        return write
+            }
+        })
+        writeQueues.set(id, entry)
+        return entry.write
     }, [connection, enabled, organizationName, projects, saved, setProjects, store])
 
     /** An existing connection whose projects the admin changed: Save can write them alone. */

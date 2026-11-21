@@ -129,6 +129,28 @@ describe("useOrganizationProjectsDraft", () => {
         expect(written()).toEqual([["p2"]])
     })
 
+    it("shows the failure of a closed view's write when it reopened meanwhile", async () => {
+        let fail: (error: Error) => void = () => undefined
+        setProjects.mockImplementationOnce(
+            () => new Promise<void>((_resolve, reject) => (fail = reject)),
+        )
+        await choose(only("p2"))
+        close()
+
+        await open()
+        expect(draft.changed).toBe(false)
+        await act(async () => fail(new Error("offline")))
+        await act(async () => undefined)
+        expect(draft.saving).toBe(false)
+        expect(draft.error).toContain("ChatGPT (Organization)")
+        // The choice is not saved, so it reads as changed and the next apply sends it again.
+        expect(draft.changed).toBe(true)
+        await (
+            await act(async () => ({write: draft.apply()}))
+        ).write
+        expect(written()).toEqual([["p2"], ["p2"]])
+    })
+
     it("sends a queued choice to the project it was made in", async () => {
         const finishFirst = holdNextWrite()
         await choose(only("p2"))
