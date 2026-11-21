@@ -22,7 +22,7 @@ const state = vi.hoisted(() => ({
 }))
 
 vi.mock("@/lib/env", () => ({getEnv: () => state.key}))
-vi.mock("@agenta/shared/api/env", () => ({isEE: () => state.cloud}))
+vi.mock("@agenta/shared/api/env", () => ({isCloud: () => state.cloud}))
 vi.mock("@agenta/entities/profile", () => ({useProfile: () => ({user: state.user})}))
 vi.mock("@agenta/entities/workflow/agentCreationTelemetry", () => ({
     setAgentCreationFailureReporter: (reporter: typeof state.reporter) => {

@@ -12,7 +12,6 @@
  * So the 403 is what says "member": the role is never asked for on its own.
  */
 
-import {isEE} from "@agenta/shared/api"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -77,7 +76,7 @@ export const organizationConnectionsAccessAtom = atom<OrganizationConnectionsAcc
 
 /**
  * Every project of the organization, for an owner or admin choosing who may use a connection
- * (EE: OSS has no choice). Read only once the organization list said "owner or admin": a member
+ * Read only once the organization list said "owner or admin": a member
  * never asks.
  */
 export const organizationProjectsQueryAtom = atomWithQuery<OrganizationProject[]>((get) => {
@@ -90,7 +89,7 @@ export const organizationProjectsQueryAtom = atomWithQuery<OrganizationProject[]
             if (!projectId) throw new Error("[vault] Missing projectId for organization projects")
             return fetchOrganizationProjects({projectId})
         },
-        enabled: manage && isEE() && !!user && !!projectId,
+        enabled: manage && !!user && !!projectId,
         staleTime: 1000 * 60 * 5,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,

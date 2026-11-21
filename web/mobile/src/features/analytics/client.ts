@@ -1,12 +1,12 @@
 import {
     CLOUD_CONFIG,
-    OSS_CONFIG,
+    SELF_HOSTED_CONFIG,
     POSTHOG_CONFIG,
     captureFirstAgentIntent,
     generateOrRetrieveDistinctId,
     type FirstAgentIntentPayload,
 } from "@agenta/shared/analytics"
-import {isEE} from "@agenta/shared/api/env"
+import {isCloud} from "@agenta/shared/api/env"
 import {atom, getDefaultStore} from "jotai"
 import type {PostHog} from "posthog-js"
 
@@ -32,7 +32,7 @@ export function loadPostHog(): Promise<PostHog | null> {
                 return await new Promise<PostHog>((resolve) => {
                     posthog.init(key, {
                         ...POSTHOG_CONFIG,
-                        ...(isEE() ? CLOUD_CONFIG : OSS_CONFIG),
+                        ...(isCloud() ? CLOUD_CONFIG : SELF_HOSTED_CONFIG),
                         loaded: (client) => {
                             if (process.env.NODE_ENV === "development") client.debug()
                             try {

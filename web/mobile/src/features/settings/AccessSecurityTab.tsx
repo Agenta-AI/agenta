@@ -33,7 +33,6 @@ import {DomainDnsInstructions} from "./DomainDnsInstructions"
 import {LockedAccessFeature} from "./LockedAccessFeature"
 import {OrganizationSlugField} from "./OrganizationSlugField"
 import type {SettingsTabProps} from "./settingsTabProps"
-import {useMobileSettingsAccess} from "./settingsTabs"
 import {SsoProviderDialog, type SsoProviderFormValues} from "./SsoProviderDialog"
 import {OrganizationLoading, OrganizationNoFlags} from "./states/OrganizationStates"
 import {useSettingsOrg} from "./useSettingsOrg"
@@ -41,9 +40,8 @@ import {useSettingsOrg} from "./useSettingsOrg"
 /** Settings > Access & Security: sign-in policy, verified domains and SSO, each gated by plan. */
 export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const t = useT(commonCatalog, settingsAccessSecurityTabCatalog)
-    const access = useMobileSettingsAccess()
     const {organizationId, org, loading, failed, retry} = useSettingsOrg(workspaceId)
-    const entitlements = useEntitlements({projectId, enabled: access.isEE})
+    const entitlements = useEntitlements({projectId})
     // A locked section never calls the routes it stands in for.
     const domains = useQuery({
         queryKey: ["organization-domains", organizationId, projectId],

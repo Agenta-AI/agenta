@@ -1,6 +1,6 @@
 import {useEffect, useRef} from "react"
 
-import {isBillingEnabled, isEE} from "@agenta/shared/api"
+import {isBillingEnabled} from "@agenta/shared/api"
 
 import {capture} from "@/features/analytics/client"
 
@@ -8,9 +8,8 @@ import {capture} from "@/features/analytics/client"
 export type UpgradeFeature = "access" | "audit" | "domains" | "sso"
 /** The settings tab that shows the locked section. */
 export type UpgradeScreen = "organization" | "auditLog"
-export type UpgradeAction = "get_free_key" | "add_license_key" | "upgrade_docs" | "talk_to_us"
+export type UpgradeAction = "get_free_key" | "add_license_key" | "talk_to_us"
 
-export const UPGRADE_DOCS_URL = "https://docs.agenta.ai/self-host/upgrades/oss-to-ee-switch"
 export const CONTACT_URL = "https://agenta.ai/contact"
 export const contactUrl = (feature: UpgradeFeature) => `${CONTACT_URL}?feature=${feature}`
 
@@ -18,10 +17,7 @@ export const contactUrl = (feature: UpgradeFeature) => `${CONTACT_URL}?feature=$
  * The actions a locked section offers on a self-hosted instance, in display order.
  * `get_free_key` joins when the registered plan includes a feature; no plan does yet.
  */
-export const availableUpgradeActions = (enterprise: boolean): UpgradeAction[] => [
-    enterprise ? "add_license_key" : "upgrade_docs",
-    "talk_to_us",
-]
+export const availableUpgradeActions = (): UpgradeAction[] => ["add_license_key", "talk_to_us"]
 
 export interface UpgradePrompt {
     /** Self-hosted (no billing). Cloud keeps its plan notice and sends no upgrade events. */
@@ -57,7 +53,7 @@ export const useUpgradePrompt = ({
         capture("upgrade_prompt_viewed", {feature, screen})
     }, [shown, selfHosted, feature, screen])
 
-    return {selfHosted, actions: selfHosted ? availableUpgradeActions(isEE()) : []}
+    return {selfHosted, actions: selfHosted ? availableUpgradeActions() : []}
 }
 
 export const captureUpgradeClick = (

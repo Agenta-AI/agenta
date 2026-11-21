@@ -4,7 +4,6 @@ import {Button} from "@agenta/ui/ui"
 import {useRouter} from "next/router"
 
 import {
-    UPGRADE_DOCS_URL,
     captureUpgradeClick,
     contactUrl,
     type UpgradeAction,
@@ -15,7 +14,6 @@ import {
 const LABELS: Record<UpgradeAction, CatalogKey<typeof settingsLicenseCatalog>> = {
     get_free_key: "settings.license.actionGetFreeKey",
     add_license_key: "settings.license.actionAddLicenseKey",
-    upgrade_docs: "settings.license.actionUpgradeDocs",
     talk_to_us: "settings.license.actionTalkToUs",
 }
 
@@ -56,10 +54,14 @@ export const UpgradeActions = ({
                         </Button>
                     )
                 }
-                const href = action === "upgrade_docs" ? UPGRADE_DOCS_URL : contactUrl(feature)
                 return (
                     <Button key={action} asChild size="sm" variant={variant}>
-                        <a href={href} target="_blank" rel="noreferrer" onClick={onClick}>
+                        <a
+                            href={contactUrl(feature)}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={onClick}
+                        >
                             {t(LABELS[action])}
                         </a>
                     </Button>

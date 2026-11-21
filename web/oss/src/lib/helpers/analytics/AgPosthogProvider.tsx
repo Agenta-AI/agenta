@@ -2,7 +2,7 @@ import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
     CLOUD_CONFIG,
-    OSS_CONFIG,
+    SELF_HOSTED_CONFIG,
     POSTHOG_CONFIG,
     generateOrRetrieveDistinctId,
 } from "@agenta/shared/analytics"
@@ -61,7 +61,7 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
                         posthog.capture?.("$pageview", {$current_url: window.location.href})
                     }
                 },
-                ...((isDemo() ? CLOUD_CONFIG : OSS_CONFIG) as Partial<PostHogConfig>),
+                ...((isDemo() ? CLOUD_CONFIG : SELF_HOSTED_CONFIG) as Partial<PostHogConfig>),
             })
         } catch (error) {
             failedAttemptsRef.current += 1

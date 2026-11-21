@@ -12,7 +12,6 @@ vi.mock("react", () => ({useMemo: (fn: () => unknown) => fn()}))
 vi.mock("next/router", () => ({useRouter: () => ({query: {}, asPath: env.path})}))
 vi.mock("@agenta/shared/api", () => ({
     isBillingEnabled: () => true,
-    isEE: () => true,
     isMcpGatewayEnabled: () => true,
     isToolsEnabled: () => true,
     isWalletsEnabled: () => false,

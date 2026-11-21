@@ -7,7 +7,7 @@ export const CLOUD_CONFIG = {
     },
 }
 
-export const OSS_CONFIG = {persistence: "localStorage+cookie" as const}
+export const SELF_HOSTED_CONFIG = {persistence: "localStorage+cookie" as const}
 
 export const POSTHOG_CONFIG = {
     api_host: "https://alef.agenta.ai",

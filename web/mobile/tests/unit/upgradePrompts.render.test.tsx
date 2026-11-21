@@ -6,7 +6,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 const fixture = vi.hoisted(() => ({
-    edition: "oss" as "oss" | "ee" | "cloud",
+    edition: "self_hosted" as "self_hosted" | "cloud",
     capture: vi.fn(),
     replace: vi.fn(),
     api: {
@@ -23,12 +23,7 @@ vi.mock("@/features/analytics/client", () => ({capture: fixture.capture}))
 
 vi.mock("@agenta/shared/api", async (importOriginal) => ({
     ...(await importOriginal<object>()),
-    isEE: () => fixture.edition !== "oss",
     isBillingEnabled: () => fixture.edition === "cloud",
-}))
-
-vi.mock("../../src/features/settings/settingsTabs", () => ({
-    useMobileSettingsAccess: () => ({isEE: fixture.edition !== "oss"}),
 }))
 
 vi.mock("../../src/features/context/useProjectPermission", () => ({
@@ -87,7 +82,7 @@ describe("locked enterprise settings", () => {
     let host: HTMLDivElement
 
     beforeEach(() => {
-        fixture.edition = "oss"
+        fixture.edition = "self_hosted"
         fixture.capture.mockReset()
         fixture.replace.mockReset()
         fixture.api.fetchOrganizationDomains.mockReset()
@@ -109,13 +104,12 @@ describe("locked enterprise settings", () => {
         })
     }
 
-    it("shows Audit Log as locked on OSS, with the upgrade docs and the contact page", async () => {
+    it("shows Audit Log as locked on self-hosted, with a license key and the contact page", async () => {
         await mount(<AuditLogTab workspaceId="ws-1" projectId="proj-1" />)
 
         expect(document.body.textContent).toContain("Audit Log is not available on your plan")
         expect(document.body.textContent).toContain("Available with an Enterprise license.")
-        expect(labels()).toEqual(expect.arrayContaining(["How to upgrade", "Talk to us"]))
-        expect(labels()).not.toContain("Add a license key")
+        expect(labels()).toEqual(expect.arrayContaining(["Add a license key", "Talk to us"]))
         expect(control("Talk to us")?.getAttribute("href")).toBe(
             "https://agenta.ai/contact?feature=audit",
         )
@@ -140,14 +134,14 @@ describe("locked enterprise settings", () => {
     it("sends upgrade_prompt_clicked with the action", async () => {
         await mount(<AuditLogTab workspaceId="ws-1" projectId="proj-1" />)
 
-        act(() => control("How to upgrade")!.click())
+        act(() => control("Talk to us")!.click())
 
         expect(events("upgrade_prompt_clicked")).toEqual([
-            {feature: "audit", screen: "auditLog", action: "upgrade_docs"},
+            {feature: "audit", screen: "auditLog", action: "talk_to_us"},
         ])
     })
 
-    it("shows each Access & Security feature as locked on OSS and calls none of their routes", async () => {
+    it("shows each Access & Security feature as locked on self-hosted and calls none of their routes", async () => {
         await mount(<AccessSecurityTab workspaceId="ws-1" projectId="proj-1" />)
 
         expect(events("upgrade_prompt_viewed")).toEqual([
@@ -160,12 +154,10 @@ describe("locked enterprise settings", () => {
         expect(fixture.api.fetchOrganizationProviders).not.toHaveBeenCalled()
     })
 
-    it("offers Add a license key on EE without a key, which opens the License tab", async () => {
-        fixture.edition = "ee"
+    it("offers Add a license key without a key, which opens the License tab", async () => {
         await mount(<AccessSecurityTab workspaceId="ws-1" projectId="proj-1" />)
 
         expect(labels()).toContain("Add a license key")
-        expect(labels()).not.toContain("How to upgrade")
         expect(labels()).not.toContain("Get a free key")
 
         act(() => control("Add a license key")!.click())
@@ -194,8 +186,7 @@ describe("locked enterprise settings", () => {
 })
 
 describe("availableUpgradeActions", () => {
-    it("offers a license key on EE and the upgrade docs on OSS, then the contact page", () => {
-        expect(availableUpgradeActions(true)).toEqual(["add_license_key", "talk_to_us"])
-        expect(availableUpgradeActions(false)).toEqual(["upgrade_docs", "talk_to_us"])
+    it("offers a license key, then the contact page, on every self-hosted install", () => {
+        expect(availableUpgradeActions()).toEqual(["add_license_key", "talk_to_us"])
     })
 })

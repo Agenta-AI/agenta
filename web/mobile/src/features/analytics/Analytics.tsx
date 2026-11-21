@@ -3,7 +3,7 @@ import {useEffect, useRef} from "react"
 import {useProfile} from "@agenta/entities/profile"
 import {setAgentCreationFailureReporter} from "@agenta/entities/workflow/agentCreationTelemetry"
 import {analyticsIdentity, generateOrRetrieveDistinctId} from "@agenta/shared/analytics"
-import {isEE} from "@agenta/shared/api/env"
+import {isCloud} from "@agenta/shared/api/env"
 import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -36,12 +36,12 @@ export const Analytics = () => {
         if (!client || !enabled || authRoute) return
         if (!user?.email) aliasedIdRef.current = null
         const baseId = generateOrRetrieveDistinctId()
-        const {id, properties} = analyticsIdentity(user, isEE(), baseId)
+        const {id, properties} = analyticsIdentity(user, isCloud(), baseId)
         const key = JSON.stringify([id, properties])
         if (identityRef.current === key) return
         try {
             if (
-                isEE() &&
+                isCloud() &&
                 user?.email &&
                 baseId !== id &&
                 aliasedIdRef.current !== id &&

@@ -1,9 +1,8 @@
 import {useEffect, useState} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
-import {createT, richText, useT} from "@agenta/i18n"
+import {createT, useT} from "@agenta/i18n"
 import settingsLicenseCatalog from "@agenta/i18n/catalogs/settings.license"
-import {isEE} from "@agenta/shared/api"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
 
 import {ConfirmModal} from "./ConfirmModal"
@@ -15,7 +14,6 @@ import type {SettingsTabProps} from "./settingsTabProps"
 import {BillingLoadError} from "./states/BillingLoadError"
 import {LicenseAdminOnly} from "./states/LicenseAdminOnly"
 import {SettingsTabSkeleton} from "./states/SettingsTabSkeleton"
-import {UPGRADE_DOCS_URL} from "./upgradePrompt"
 import {useActivationLinkKey} from "./useActivationLinkKey"
 import {instanceLicenseQueryKey, useInstanceLicense} from "./useInstanceLicense"
 
@@ -28,8 +26,7 @@ const errorMessage = (error: unknown) =>
 
 /**
  * The instance license, for the instance admin: the plan, the key behind it, and a field to add
- * a key. An activation link (`#key=`) asks to confirm, then adds its key. On the OSS image the key
- * check is not there, so the page points to the Enterprise image instead of the field.
+ * a key. An activation link (`#key=`) asks to confirm, then adds its key.
  */
 export const LicenseTab = ({projectId}: SettingsTabProps) => {
     const t = useT(settingsLicenseCatalog)
@@ -53,9 +50,7 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
     })
 
     // A reader who cannot add the key: drop it, so the `/m` root stops sending them here.
-    const cannotAddKey =
-        license.notInstanceAdmin ||
-        (license.data && (!isEE() || license.data.source === "environment"))
+    const cannotAddKey = license.notInstanceAdmin || license.data?.source === "environment"
     useEffect(() => {
         if (linkKey && cannotAddKey) dismissLinkKey()
     }, [linkKey, cannotAddKey, dismissLinkKey])
@@ -70,9 +65,7 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
         )
     if (!license.data) return <SettingsTabSkeleton />
 
-    const enterprise = isEE()
     const fromEnvironment = license.data.source === "environment"
-    const canAddKey = enterprise && !fromEnvironment
 
     return (
         <div className="flex flex-col gap-5">
@@ -92,22 +85,7 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
                 </section>
             ) : null}
 
-            {!enterprise ? (
-                <p className="text-muted-foreground m-0 text-[13px]">
-                    {richText(t("settings.license.needsEnterpriseImage"), {
-                        link: (text) => (
-                            <a
-                                href={UPGRADE_DOCS_URL}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-foreground underline"
-                            >
-                                {text}
-                            </a>
-                        ),
-                    })}
-                </p>
-            ) : fromEnvironment ? (
+            {fromEnvironment ? (
                 <p className="text-muted-foreground m-0 text-[13px]">
                     {t("settings.license.fromEnvironment")}
                 </p>
@@ -120,7 +98,7 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
             )}
 
             <ConfirmModal
-                open={canAddKey && Boolean(linkKey)}
+                open={!fromEnvironment && Boolean(linkKey)}
                 title={t("settings.license.confirmTitle")}
                 description={t("settings.license.confirmDescription")}
                 confirmLabel={t("settings.license.addKey")}

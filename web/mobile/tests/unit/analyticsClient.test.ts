@@ -2,7 +2,7 @@ import {beforeEach, describe, expect, it, vi} from "vitest"
 
 const state = vi.hoisted(() => ({key: "test-key", cloud: false, init: vi.fn(), reset: vi.fn()}))
 vi.mock("@/lib/env", () => ({getEnv: () => state.key}))
-vi.mock("@agenta/shared/api/env", () => ({isEE: () => state.cloud}))
+vi.mock("@agenta/shared/api/env", () => ({isCloud: () => state.cloud}))
 vi.mock("posthog-js", () => ({default: {init: state.init, reset: state.reset}}))
 
 beforeEach(() => {
