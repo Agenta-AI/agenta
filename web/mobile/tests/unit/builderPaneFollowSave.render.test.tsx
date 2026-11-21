@@ -30,7 +30,7 @@ vi.mock("@/features/builder-page/PaneSessions", () => ({
     PaneSessions: () => null,
     usePaneSessionPick: () => ({query: {data: undefined}}),
 }))
-vi.mock("@/features/builder-page/PaneSessionSwitcher", () => ({PaneSessionSwitcher: () => null}))
+vi.mock("@/features/builder-page/PaneSessionBar", () => ({PaneSessionBar: () => null}))
 vi.mock("@agenta/entity-ui/drive", () => ({
     DriveSessionProvider: ({children}: {children: ReactNode}) => children,
     SessionFilesPane: () => null,

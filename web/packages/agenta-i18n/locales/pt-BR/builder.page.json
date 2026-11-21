@@ -78,6 +78,7 @@
     "sessions": "Sessões",
     "noSessions": "Este agente ainda não tem sessões.",
     "sessionsFailed": "Não foi possível carregar as sessões.",
+    "newSessionShort": "Nova",
     "openItem": "Abrir um item",
     "closeTab": "Fechar {{name}}",
     "moreTabs": "Mais {{count}}",

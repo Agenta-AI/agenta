@@ -35,8 +35,8 @@ import {viewFormDirtyAtom} from "../chat/viewFormDirty"
 import {useProjectPermissionState} from "../context/useProjectPermission"
 
 import {followAction} from "./followBuilder"
+import {PaneSessionBar} from "./PaneSessionBar"
 import {PaneSessions, usePaneSessionPick} from "./PaneSessions"
-import {PaneSessionSwitcher} from "./PaneSessionSwitcher"
 
 /** The pane tabs of an agent tab (B03): the Configuration tabs, then Drives and Sessions. */
 export const PANE_TABS = [
@@ -213,46 +213,43 @@ export const AgentPane = ({
                 lastPointerDown.current = Date.now()
             }}
         >
-            {/* 12 px on the right: the session switcher ends 12 px from the pane's edge (B04). */}
-            <div className="flex h-12 shrink-0 items-center gap-4 border-0 border-b border-solid border-colorBorderSecondary pl-4 pr-3">
-                {/* The tabs scroll in a narrow pane, so the session switcher stays in view. */}
-                <div
-                    role="tablist"
-                    className="ag-scroll-quiet flex h-12 min-w-0 flex-1 items-center gap-4 overflow-x-auto"
-                >
-                    {PANE_TABS.map((key) => (
-                        <button
-                            key={key}
-                            type="button"
-                            role="tab"
-                            aria-selected={tab === key}
-                            onClick={() => void openTab(key)}
-                            className={cn(
-                                "flex h-12 shrink-0 cursor-pointer items-center gap-1 border-0 border-b-2 border-solid bg-transparent px-0 text-[13px]",
-                                tab === key
-                                    ? "border-colorText font-medium text-colorText"
-                                    : "border-transparent text-colorTextSecondary hover:text-colorText",
-                            )}
-                        >
-                            {label(key)}
-                            {key === "agent" && agentDot ? (
-                                <span
-                                    data-testid="pane-tab-dot"
-                                    role="img"
-                                    aria-label={t("builder.page.changedByBuilder")}
-                                    className="size-1.5 shrink-0 rounded-full bg-colorPrimary"
-                                />
-                            ) : null}
-                            {key === "sessions" && sessionCount > 0 ? (
-                                <span className="text-[12px] font-normal leading-5 text-colorTextTertiary">
-                                    {formatNumber(sessionCount)}
-                                </span>
-                            ) : null}
-                        </button>
-                    ))}
-                </div>
-                {tab === "sessions" ? <PaneSessionSwitcher pick={sessionPick} /> : null}
+            {/* The tab row holds only the tabs (B07, B08); they scroll in a narrow pane. */}
+            <div
+                role="tablist"
+                className="ag-scroll-quiet flex h-12 shrink-0 items-center gap-4 overflow-x-auto border-0 border-b border-solid border-colorBorderSecondary px-4 max-md:gap-[9px] max-md:px-3"
+            >
+                {PANE_TABS.map((key) => (
+                    <button
+                        key={key}
+                        type="button"
+                        role="tab"
+                        aria-selected={tab === key}
+                        onClick={() => void openTab(key)}
+                        className={cn(
+                            "flex h-12 shrink-0 cursor-pointer items-center gap-1 border-0 border-b-2 border-solid bg-transparent px-0 text-[13px] max-md:text-[14px]",
+                            tab === key
+                                ? "border-colorText font-medium text-colorText"
+                                : "border-transparent text-colorTextSecondary hover:text-colorText",
+                        )}
+                    >
+                        {label(key)}
+                        {key === "agent" && agentDot ? (
+                            <span
+                                data-testid="pane-tab-dot"
+                                role="img"
+                                aria-label={t("builder.page.changedByBuilder")}
+                                className="size-1.5 shrink-0 rounded-full bg-colorPrimary"
+                            />
+                        ) : null}
+                        {key === "sessions" && sessionCount > 0 ? (
+                            <span className="text-[12px] font-normal leading-5 text-colorTextTertiary">
+                                {formatNumber(sessionCount)}
+                            </span>
+                        ) : null}
+                    </button>
+                ))}
             </div>
+            {tab === "sessions" ? <PaneSessionBar pick={sessionPick} /> : null}
             <div role="tabpanel" className="min-h-0 flex-1">
                 <DrillInBridgeProvider projectId={projectId} onWorkflowRevisionCommitted={pin}>
                     <AgentEditorContext.Provider value={editor}>
