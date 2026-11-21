@@ -8,12 +8,14 @@ const AgentChannels = dynamic(() =>
 /** The Channels tab of the agent's right panel: the same view as the agent's Channels page. */
 export const ChannelsTab = ({
     agentId,
+    workspaceId,
+    projectId,
 }: {
     agentId: string
     workspaceId: string
     projectId: string
 }) => (
     <div className="h-full min-h-0 overflow-y-auto p-4">
-        <AgentChannels agentId={agentId} />
+        <AgentChannels agentId={agentId} workspaceId={workspaceId} projectId={projectId} />
     </div>
 )
