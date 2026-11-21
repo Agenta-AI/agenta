@@ -458,6 +458,7 @@ class TriggersDispatcher:
                 kind=kind,
                 delivery_id=delivery_id,
             ),
+            envelope=envelope,
             access=self.sharing_service.initial_policy(
                 principal=entity.principal,
                 origin=(

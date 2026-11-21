@@ -5,7 +5,7 @@ import {useSetAtom} from "jotai"
 
 import {viewFormDirtyAtom} from "../chat/viewFormDirty"
 
-import {useLeaveSource} from "./leaveGuard"
+import {useLeaveSource} from "./LeaveGuardProvider"
 
 /** The view stack registers with the leave guard and tells open sessions a form has edits. */
 export const StackGuards = () => {

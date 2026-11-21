@@ -454,7 +454,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // Controlled open-state for the list sections so the accordion can react to the agent
     // populating a section. Seeded once from the initial counts; the edge hook below flips it.
     const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>(() => ({
-        tools: integrationCount > 0,
+        // Integrations open also when empty: its "No integrations yet" line shows (canvas F02).
+        tools: true,
         subagents: subagentCount > 0,
         mcp: mcpServers.length > 0,
         // Skills start closed (canvas S02 opens Instructions and Integrations only).

@@ -41,6 +41,13 @@ const readOnlyView = defineView<object>({
     Component: Body,
 })
 
+const noWidenView = defineView<object>({
+    id: "test.noWiden",
+    apply: "on_save",
+    widenButton: false,
+    Component: Body,
+})
+
 const OpenOnMount = ({def}: {def: ViewDef<object>}) => {
     const stack = useViewStack()
     const {open} = stack
@@ -79,6 +86,12 @@ describe("PanelViewChrome", () => {
         expect(screen.getByRole("button", {name: "Close"})).toBeTruthy()
         expect(screen.getByRole("button", {name: "Agent"})).toBeTruthy()
         expect(screen.queryByTestId("phone-screen-header")).toBeNull()
+    })
+
+    it("on the desktop a view with widenButton: false keeps Close but has no widen button", async () => {
+        render(tree(false, noWidenView))
+        expect(await screen.findByRole("button", {name: "Close"})).toBeTruthy()
+        expect(screen.queryByRole("button", {name: "Widen the panel"})).toBeNull()
     })
 
     it("a resize across the phone width keeps the open view and its edits", async () => {

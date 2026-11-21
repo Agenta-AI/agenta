@@ -105,7 +105,8 @@ const AgentOnlySkillBody = ({
                           : t("entityUi.skillView.publishToRegistry"),
                       icon: <UploadSimple size={14} className="text-muted-foreground" />,
                       onSelect: () => void publish(),
-                      disabled: publishing,
+                      // The same checks as Save: the registry must not store a path the editor blocks.
+                      disabled: publishing || invalid,
                   },
               ]
             : []),

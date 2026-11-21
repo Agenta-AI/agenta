@@ -467,7 +467,7 @@ export const ActivityTimeline = ({
                 // Nothing to open yet (no step, no raw failure): a plain line, not a toggle.
                 disabled={!nodes}
                 aria-expanded={nodes ? open : undefined}
-                className={`-ml-1.5 flex w-fit max-w-full cursor-pointer disabled:cursor-default items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary group/row ${PHONE_TOUCH_TARGET_CLASS}`}
+                className={`-ml-1.5 flex w-fit max-w-full cursor-pointer disabled:cursor-default items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary max-md:leading-5 group/row ${PHONE_TOUCH_TARGET_CLASS}`}
             >
                 {awaiting ? (
                     <WaitingGlyph kind={waitingKind(steps)} />

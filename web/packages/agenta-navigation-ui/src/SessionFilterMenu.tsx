@@ -22,7 +22,6 @@ import {
 import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
 import {
     ClockIcon,
-    FadersHorizontalIcon,
     LightningIcon,
     ListBulletsIcon,
     PulseIcon,
@@ -34,6 +33,22 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 const ALL_AGENTS = "__all__"
 
 const ICON = 14
+
+/** The canvas filter glyph: three sliders (Lucide's sliders-horizontal; Phosphor has no match). */
+const FilterGlyph = () => (
+    <svg
+        aria-hidden
+        className="size-3.5 max-md:size-[18px]"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+    >
+        <path d="M10 5H3M12 19H3M14 3v4M16 17v4M21 12h-9M21 19h-5M21 5h-7M8 10v4M8 12H3" />
+    </svg>
+)
 
 type FilterTextKey = CatalogKey<typeof sessionFilterCatalog> | CatalogKey<typeof commonCatalog>
 
@@ -255,13 +270,13 @@ export const SessionFilterMenu = ({
                 onOpenChange={onOpenChange}
                 label={null}
                 triggerAriaLabel={t("shell.sessionFilter.filterSessions")}
-                icon={<FadersHorizontalIcon size={ICON} />}
+                icon={<FilterGlyph />}
                 variant="ghost"
-                // The rail's own control geometry, not the toolbar button's: a 22px square on a
-                // 28px group row. Square, so its hover fill reads as one hit area rather than a
-                // wide slab behind a small glyph.
-                triggerClassName="mr-1 size-[22px] p-0 text-colorTextTertiary hover:text-colorText"
-                // No applied-dot here, unlike the automations toolbar: this trigger is 22px on a
+                // The rail's own control geometry, not the toolbar button's: a 24 px square, radius
+                // 6, on a 28 px group row. Square, so its hover fill reads as one hit area rather
+                // than a wide slab behind a small glyph.
+                triggerClassName="size-6 rounded-[6px] p-0 text-colorTextSecondary hover:text-colorText"
+                // No applied-dot here, unlike the automations toolbar: this trigger is 24 px on a
                 // 28px group row beside the search glyph, and a dot in its corner read as a
                 // status on the Sessions row rather than as a state of the control.
                 onReset={onReset}

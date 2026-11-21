@@ -78,6 +78,7 @@
     "sessions": "セッション",
     "noSessions": "このエージェントにはまだセッションがありません。",
     "sessionsFailed": "セッションを読み込めませんでした。",
+    "newSessionShort": "新規",
     "openItem": "項目を開く",
     "closeTab": "{{name}} を閉じる",
     "moreTabs": "他 {{count}} 件",

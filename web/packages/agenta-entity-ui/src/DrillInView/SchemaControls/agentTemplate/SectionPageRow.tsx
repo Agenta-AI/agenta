@@ -5,8 +5,8 @@
  */
 import type {ReactNode} from "react"
 
+import {ConfigRowTriangle} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
-import {CollapseCaret} from "@agenta/ui/ui"
 
 export interface SectionPageRowProps {
     icon?: ReactNode
@@ -16,9 +16,9 @@ export interface SectionPageRowProps {
     trailing?: ReactNode
 }
 
-// Rows of one card are divided by a line.
+// Rows of one card are divided by a light line (canvas A04).
 const ROW =
-    "flex w-full items-center gap-3 border-0 border-t border-solid border-colorBorderSecondary px-3.5 py-3 text-left first:border-t-0"
+    "flex w-full items-center gap-3 border-0 border-t border-solid border-[var(--ag-colorSplit)] px-3.5 py-3 text-left first:border-t-0"
 
 export const SectionPageRow = ({icon, title, summary, onClick, trailing}: SectionPageRowProps) => {
     const body = (
@@ -26,13 +26,13 @@ export const SectionPageRow = ({icon, title, summary, onClick, trailing}: Sectio
             {icon ? (
                 <span
                     aria-hidden
-                    className="flex size-7 shrink-0 items-center justify-center rounded-md bg-colorFillTertiary text-colorTextSecondary"
+                    className="flex size-7 shrink-0 items-center justify-center rounded-md bg-[var(--ag-colorBgLayout)] text-colorTextSecondary"
                 >
                     {icon}
                 </span>
             ) : null}
             <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm text-colorText">{title}</span>
+                <span className="truncate text-sm leading-5 text-colorText">{title}</span>
                 {summary ? (
                     <span className="truncate text-[12px] leading-4 text-colorTextSecondary">
                         {summary}
@@ -52,7 +52,7 @@ export const SectionPageRow = ({icon, title, summary, onClick, trailing}: Sectio
                 onClick={onClick}
             >
                 {body}
-                <CollapseCaret size={12} />
+                <ConfigRowTriangle />
             </button>
         )
     }

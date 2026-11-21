@@ -1,6 +1,6 @@
 import type {ReactNode} from "react"
 
-/** One numbered step of a connect flow, with a rail to the next. */
+/** One numbered step of a connect flow (F11 f10): the number, no rail to the next. */
 export const SignInStep = ({
     index,
     title,
@@ -13,11 +13,8 @@ export const SignInStep = ({
     children: ReactNode
 }) => (
     <li className="flex gap-3">
-        <span className="flex flex-col items-center">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-solid border-border bg-background text-[12px] font-medium text-foreground">
-                {index}
-            </span>
-            {last ? null : <span aria-hidden className="my-1 w-px flex-1 bg-border" />}
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-solid border-border bg-background text-[12px] text-foreground">
+            {index}
         </span>
         <span
             className={

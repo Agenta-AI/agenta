@@ -13,6 +13,7 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
+    PHONE_TOUCH_TARGET_CLASS,
 } from "@agenta/ui/ui"
 import {DotsThree} from "@phosphor-icons/react"
 
@@ -51,7 +52,7 @@ export const SessionRowMenu = ({
                         size="icon-xs"
                         variant="ghost"
                         aria-label={`Actions for ${label}`}
-                        className="text-muted-foreground hover:bg-foreground/10 dark:hover:bg-foreground/15 max-md:relative max-md:after:absolute max-md:after:-inset-[10px] max-md:after:content-['']"
+                        className={`text-muted-foreground hover:bg-foreground/10 dark:hover:bg-foreground/15 ${PHONE_TOUCH_TARGET_CLASS}`}
                     >
                         {/* `size-3.5` as a CLASS, not a `size` prop: the button's own
                         `[&_svg:not([class*='size-'])]:size-3` wins over the attribute, so the prop

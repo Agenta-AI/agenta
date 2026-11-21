@@ -115,6 +115,8 @@ export const SessionHeader = ({
                 onUpdate={onUpdate}
                 autoUpdate={autoUpdate}
                 checkKey={heldCommit ? `${sessionId}:${heldCommit}` : sessionId}
+                // On a phone the failed-save notice keeps its "Not saved" words.
+                phone={panel.phone}
             />
         ) : null
     // On a phone the Configuration tab row shows the version; row 2 shows it only on a failed save.
@@ -189,26 +191,27 @@ export const SessionHeader = ({
                         />
                     ) : null}
                     {/* Mounted even when hidden: it drives session follow. A save can fail after
-                        the person leaves Configuration, so the notice and retry show here. Hit
-                        areas grow to 44 px; the retry is a span with the button role. */}
+                        the person leaves Configuration, so the notice and retry show here. With
+                        `phone` the status gives the retry and the version pill their own 44 px
+                        hit areas. */}
                     {revisionStatus ? (
                         <span
                             data-testid="session-header-save-status"
-                            className={cn(
-                                "shrink-0 items-center [&_:is(button,[role=button])]:relative [&_:is(button,[role=button])]:after:absolute [&_:is(button,[role=button])]:after:-inset-3 [&_:is(button,[role=button])]:after:content-['']",
-                                saveFailed ? "flex" : "hidden",
-                            )}
+                            className={cn("shrink-0 items-center", saveFailed ? "flex" : "hidden")}
                         >
                             {revisionStatus}
                         </span>
                     ) : null}
                     <div className="min-w-0 flex-1" />
-                    {icon(
-                        "files",
-                        t("agentLayout.header.files"),
-                        <FolderSimple className="size-5" />,
-                    )}
-                    {sharing}
+                    {/* Files and Share sit 8 px apart (M01). */}
+                    <span className="flex shrink-0 items-center gap-2">
+                        {icon(
+                            "files",
+                            t("agentLayout.header.files"),
+                            <FolderSimple className="size-5" />,
+                        )}
+                        {sharing}
+                    </span>
                 </div>
             </header>
         )
@@ -228,7 +231,7 @@ export const SessionHeader = ({
                     {sharingCopy.privateAgent}
                 </span>
             ) : agentId ? (
-                <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+                <div className="flex min-w-[96px] items-center gap-2 overflow-hidden">
                     <AgentMenu
                         agentId={agentId}
                         name={name}
@@ -241,11 +244,9 @@ export const SessionHeader = ({
             ) : (
                 <span className="truncate text-[15px] font-semibold">{name}</span>
             )}
-            {/* A narrow column (a wide panel) shrinks the name, the version and the session
-                button first, so the icons stay in the row. */}
-            {revisionStatus ? (
-                <span className="flex min-w-0 overflow-hidden">{revisionStatus}</span>
-            ) : null}
+            {/* A narrow column (a wide panel) shrinks the name and the session button down to a
+                few letters and "…", so the version, its retry and the icons stay in the row. */}
+            {revisionStatus ? <span className="flex shrink-0">{revisionStatus}</span> : null}
             <div className="flex-1" />
             {agentId ? (
                 <SessionMenu

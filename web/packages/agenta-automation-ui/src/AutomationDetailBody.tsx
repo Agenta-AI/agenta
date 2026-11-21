@@ -194,7 +194,10 @@ export const AutomationDetailBody = ({
     return (
         <div
             className={
-                className ?? "mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px] pt-1"
+                // On a phone 8px of top room (the header gives back 4px) keeps the name and the
+                // actions menu, the first row, from losing their 44px tap areas to the scroll clip.
+                className ??
+                "mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px] pt-1 max-md:pt-2"
             }
         >
             {header}

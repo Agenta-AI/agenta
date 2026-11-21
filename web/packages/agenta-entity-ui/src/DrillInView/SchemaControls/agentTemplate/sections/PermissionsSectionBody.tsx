@@ -5,6 +5,7 @@
 import type {ReactNode} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 
 import {PermissionPolicySelect, type PermissionPolicySelectProps} from "../PermissionPolicySelect"
 
@@ -48,7 +49,7 @@ export const permissionsSectionBody = ({
                 options={runnerPermissionOptions}
                 disabled={disabled}
                 // The canvas scale (F04 f8): a 28 px trigger, radius 6, 13 px text and options.
-                triggerClassName="h-7 w-full rounded-[6px] text-[13px]"
+                triggerClassName={`h-7 w-full rounded-[6px] text-[13px] ${PHONE_TOUCH_TARGET_CLASS}`}
                 contentClassName="[&_[role=option]]:text-[13px]"
                 aria-label={t("entityUi.modelHarness.policy")}
             />

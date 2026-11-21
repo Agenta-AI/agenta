@@ -112,7 +112,7 @@ const groupedChildren = (
             isDynamic: true,
             isCollapsed,
             groupAdd: entity.groupAddLink?.(group, projectURL),
-            groupEnter: entity.groupEnter?.(group),
+            groupEnter: entity.groupEnter?.(group, projectURL),
             dragItem:
                 groupZone && groupId ? {kind: "group", id: groupId, zone: groupZone} : undefined,
             onClick: entity.toggleGroupAtom

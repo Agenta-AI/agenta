@@ -110,8 +110,9 @@ export function SecretAttachFields({
                 <Select value={form.selected} onValueChange={form.select} disabled={form.loading}>
                     <SelectTrigger
                         id={SECRET_FIELD_ID}
+                        size="compact"
                         // The "+" of "Create new secret" shows in the list only, not in the trigger.
-                        className="md:h-9 md:rounded-[6px] md:text-[13px] [&>span:first-child>svg]:hidden [&>span:first-child]:flex [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1 [&>span:first-child]:items-center [&>span:first-child]:gap-2"
+                        className="[&>span:first-child>svg]:hidden [&>span:first-child]:flex [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1 [&>span:first-child]:items-center [&>span:first-child]:gap-2"
                     >
                         <SelectValue
                             placeholder={
@@ -135,6 +136,7 @@ export function SecretAttachFields({
                             <SelectItem
                                 key={entry.value}
                                 value={entry.value}
+                                size="compact"
                                 className="[&>span:first-child]:flex [&>span:first-child]:items-center [&>span:first-child]:gap-2"
                             >
                                 <span className="min-w-0 truncate font-mono text-[13px]">
@@ -148,6 +150,7 @@ export function SecretAttachFields({
                                 {form.entries.length > 0 ? <SelectSeparator /> : null}
                                 <SelectItem
                                     value={NEW_SECRET}
+                                    size="compact"
                                     className="[&>span:first-child]:flex [&>span:first-child]:items-center [&>span:first-child]:gap-2"
                                 >
                                     <Plus
@@ -155,9 +158,7 @@ export function SecretAttachFields({
                                         aria-hidden
                                         className="shrink-0 text-colorTextSecondary"
                                     />
-                                    <span className="md:text-[13px]">
-                                        {ACCOUNT_COPY.createNewSecret}
-                                    </span>
+                                    <span>{ACCOUNT_COPY.createNewSecret}</span>
                                 </SelectItem>
                             </>
                         ) : null}

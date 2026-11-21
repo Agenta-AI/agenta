@@ -82,7 +82,7 @@ const KindIcon = ({vm}: {vm: SessionRowVm}) => {
             title={vm.status.label}
             className="relative flex shrink-0 text-muted-foreground"
         >
-            <Glyph size={15} aria-hidden />
+            <Glyph size={14} aria-hidden />
             <span
                 aria-hidden
                 className={cn(

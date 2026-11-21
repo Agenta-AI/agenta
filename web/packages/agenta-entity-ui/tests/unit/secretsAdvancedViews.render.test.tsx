@@ -332,6 +332,16 @@ describe("Attach a secret: the attach", () => {
         expect(envField().value).toBe("GITHUB_TOKEN")
     })
 
+    it("Create new secret after a pick starts with no variable, not the picked one's", async () => {
+        await openIn(secretAttachView, {}, AGENT)
+        await findByText("here:Attach a secret")
+        await choose(secretSelect(), "billing-prod")
+        expect(envField().value).toBe("BILLING_API_KEY")
+        await choose(secretSelect(), "Create new secret")
+        expect(envField().value).toBe("")
+        expect(document.body.textContent).not.toContain("already attached")
+    })
+
     it("a variable the person typed stays when the secret changes", async () => {
         await openIn(secretAttachView, {}, AGENT)
         await findByText("here:Attach a secret")
@@ -584,7 +594,8 @@ describe("Advanced", () => {
         await openIn(advancedView, {}, AGENT)
         await findByText("here:Advanced")
         const execution = await findByText("", '[data-testid="advanced-part-execution"]')
-        expect(execution.textContent).toContain("Sandbox: local")
+        // The schema label of the kind, as the picker names it.
+        expect(execution.textContent).toContain("Sandbox: Local")
         const tools = document.querySelector('[data-testid="advanced-part-agenta-tools"]')!
         expect(tools.textContent).toContain("Agenta tools")
         expect(tools.textContent).toContain("· 2 tools")

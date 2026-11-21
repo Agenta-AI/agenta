@@ -15,8 +15,6 @@
     "chatgpt": "ChatGPT subscription",
     "chatgptHint": "Run agents on your Plus or Pro plan.",
     "chatgptReadyHint": "Agents can run on your ChatGPT plan.",
-    "chatgptDialogTitle": "Connect ChatGPT",
-    "chatgptDialogBody": "Sign in with your ChatGPT subscription. Your agent runs on it through the Codex harness.",
     "chatgptConnected": "ChatGPT connected. Your agent will run on it.",
     "claude": "Claude subscription",
     "claudeHint": "Run agents on your Pro or Max plan.",
