@@ -2355,8 +2355,9 @@ open it and reply in it.
 
 `agent` is the slug or id of the agent. An agent may start its own agent and the agents
 that its configuration names as Subagents. The Builder may start any agent that the
-person can run, but not itself. `name` names the new session. A child session cannot start
-sessions of its own.
+person can run, but not itself. `name` names the new session. A child session can start
+sessions of its own, down to a limit of levels below the session that a person started.
+Past that limit the call is refused: then do the work yourself.
 
 {_CHILD_TIMING_NOTE}
 

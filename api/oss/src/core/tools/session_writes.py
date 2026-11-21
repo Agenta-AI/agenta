@@ -84,9 +84,13 @@ from oss.src.core.sessions.types import (
 )
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY
-from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+from oss.src.core.sharing.dtos import (
+    AccessPolicy,
+    SessionGrant,
+    SessionRole,
+    Visibility,
+)
 from oss.src.core.sharing.service import get_sharing_service
-from oss.src.core.sharing.widening import is_wider
 from oss.src.core.tools.dtos import AgentError, PlatformHandlerResult
 from oss.src.core.tools.exceptions import PlatformToolHandlerRefused
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
@@ -101,8 +105,6 @@ from oss.src.core.tools.platform_handlers import (
     _not_found,
     _parse_arguments,
     _refuse_unknown_arguments,
-    _calling_readers,
-    _source_would_widen,
     caller_may,
 )
 from oss.src.core.triggers.dtos import TriggerScheduleSessionInput
@@ -140,7 +142,7 @@ STILL_RUNNING_EVENT_KEY = "still_running"
 START_KEY_PREFIX = "ag:start:"
 SEND_KEY_PREFIX = "ag:send:"
 
-SESSION_START_IN_CHILD = "session_start_in_child"
+SESSION_DEPTH_LIMIT_REACHED = "session_depth_limit_reached"
 CHILD_SESSION_LIMIT_REACHED = "child_session_limit_reached"
 CHILD_QUEUE_LIMIT_REACHED = "child_queue_limit_reached"
 SESSION_NOT_CHILD = "session_not_child"
@@ -219,32 +221,33 @@ def _session_not_child(session_id: str) -> _Refusal:
     )
 
 
-def _session_start_in_child() -> _Refusal:
+def _session_depth_limit_reached(limit: int) -> _Refusal:
     return _refusal(
-        SESSION_START_IN_CHILD,
-        "This session was started by another session, and a child session cannot "
-        "start sessions.",
+        SESSION_DEPTH_LIMIT_REACHED,
+        f"This session is {limit} levels below the session that a person started, "
+        f"and a child session may be at most {limit} levels deep.",
         "Do the work yourself in this session.",
+        details={"limit": limit},
     )
 
 
-def _sharing_would_widen_wait(session_id: str) -> _Refusal:
-    return _refusal(
-        "sharing_would_widen",
-        f"Fewer people can read the child session '{session_id}' than this one, so "
-        "its text would reach people who cannot read it.",
-        "Leave that session out of `wait_for_sessions`.",
-        details={"session_id": session_id},
-    )
-
-
-def _sharing_would_widen_send() -> _Refusal:
-    return _refusal(
-        "sharing_would_widen",
-        "More people can read that child session than this one, so this text would "
-        "reach people who cannot read it.",
-        "Start a new child session; it copies the current sharing of this session.",
-    )
+async def check_session_depth(
+    services: SessionWriteServices, *, project_id: UUID, stream: SessionStream
+) -> None:
+    """Refuse a start when the new child would be deeper than the depth limit. The
+    level of a session is the number of calling sessions above it, read up the chain of
+    `calling_session` records: at most the limit less one reads. A calling session row
+    that is gone ends the chain."""
+    limit = env.agenta.sessions.child_session_depth_limit
+    level = 0
+    current: Optional[SessionStream] = stream
+    while current is not None and current.calling_session is not None:
+        level += 1
+        if level >= limit:
+            raise _session_depth_limit_reached(limit)
+        current = await services.streams_dao.get_by_session_id(
+            project_id=project_id, session_id=current.calling_session.id
+        )
 
 
 def _calling_turn_not_found(message: str) -> _Refusal:
@@ -287,9 +290,9 @@ def _agent_not_allowed(raw: str, allowed: Sequence[str]) -> _Refusal:
 
 
 def _access_denied_private() -> _Refusal:
-    """A child copies this session's sharing. A private session is its owner's alone,
-    so a child of it may run only for the owner: not for another person who sent the
-    turn, and not for a channel installation."""
+    """A child copies this session's sharing: its policy and, when private, the people
+    named on it. A child of a private session runs only for the owner or a participant:
+    not for another person who sent the turn, and not for a channel installation."""
     return _refusal(
         "access_denied",
         "This session is private to its owner, so a session that it starts would be "
@@ -794,17 +797,21 @@ def child_envelope(*, caller: SessionCaller, calling_execution_id: str) -> RunEn
     )
 
 
-def _authority_may_run(policy: AccessPolicy, caller: SessionCaller) -> bool:
-    """Whether the run authority may run a new session with this copied policy. A
-    private copy has no grants, so only its owner runs it; an installation (a private
-    agent's channel session) never does, and the start fails closed."""
+def _authority_may_run(
+    policy: AccessPolicy, grants: Sequence[SessionGrant], caller: SessionCaller
+) -> bool:
+    """Whether the run authority may run a new session with this copied policy and
+    these copied grants. A private copy runs for its owner and for a participant; an
+    installation (a private agent's channel session) never runs it, and the start
+    fails closed."""
     if policy.visibility != Visibility.PRIVATE:
         return True
     principal = caller.envelope.authority.principal
-    return (
-        principal.kind == PrincipalKind.HUMAN
-        and policy.owner_user_id is not None
-        and principal.id == policy.owner_user_id
+    if principal.kind != PrincipalKind.HUMAN:
+        return False
+    return principal.id == policy.owner_user_id or any(
+        grant.user_id == principal.id and grant.role == SessionRole.PARTICIPANT
+        for grant in grants
     )
 
 
@@ -1279,8 +1286,9 @@ async def start_session(
         calling = await calling_turn(
             services=services, caller=caller, project_id=project_id
         )
-        if calling.stream.calling_session is not None:
-            raise _session_start_in_child()
+        await check_session_depth(
+            services, project_id=project_id, stream=calling.stream
+        )
         entries = (
             []
             if is_builder_agent(caller.run_agent_id)
@@ -1298,14 +1306,22 @@ async def start_session(
         revision = await start_revision(
             services=services, project_id=project_id, target=target
         )
-        readers = await get_sharing_service().session_readers(
+        sharing = get_sharing_service()
+        policy = await sharing.session_policy(
             project_id=project_id, session_id=caller.run_session_id
         )
-        # A session with no stored policy fails closed, as a policy the authority may
-        # not run with does.
-        if readers is None or not _authority_may_run(readers.policy, caller):
+        # A private child copies the people named on its calling session, so as many
+        # people read it. A session with no stored policy fails closed, as a policy the
+        # authority may not run with does.
+        grants = (
+            await sharing.session_grants(
+                project_id=project_id, session_id=caller.run_session_id
+            )
+            if policy is not None and policy.visibility == Visibility.PRIVATE
+            else []
+        )
+        if policy is None or not _authority_may_run(policy, grants, caller):
             raise _access_denied_private()
-        policy = readers.policy
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
@@ -1357,6 +1373,7 @@ async def start_session(
                 access=AccessPolicy(
                     visibility=policy.visibility, owner_user_id=policy.owner_user_id
                 ),
+                grants=grants,
                 calling_session=SessionCallingSession(
                     id=caller.run_session_id,
                     turn_id=calling.first_execution_id,
@@ -1512,19 +1529,6 @@ async def send_session_message(
                     (agent.slug if agent else None) or session_id,
                     await _allowed_agents(services, caller, project_id, entries),
                 )
-        sharing = get_sharing_service()
-        calling_readers = await sharing.session_readers(
-            project_id=project_id, session_id=caller.run_session_id
-        )
-        child_readers = await sharing.session_readers(
-            project_id=project_id, session_id=session_id
-        )
-        if (
-            calling_readers is None
-            or child_readers is None
-            or is_wider(child_readers, calling_readers)
-        ):
-            raise _sharing_would_widen_send()
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
@@ -1663,13 +1667,6 @@ async def wait_for_sessions(
                 session_id=session_id,
                 action=Permission.VIEW_SESSIONS,
             )
-        # A child that fewer people can read than this session now (its owner made it
-        # private): its text would reach people who cannot read it.
-        narrower = await _narrower_child(
-            caller=caller, project_id=project_id, session_ids=session_ids
-        )
-        if narrower is not None:
-            raise _sharing_would_widen_wait(narrower)
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
@@ -1713,10 +1710,10 @@ async def _status_block(
     session_id: str,
 ) -> str:
     """The current block of a child that gave no update in this wait. The access and
-    the sharing are read again without the request memo, which still holds the
-    policies from before the wait. A child that is gone, that this authority may no
-    longer see, or that fewer people can read now gives no details. A failed read
-    gives no details either, so the updates this wait already removed still return."""
+    access is read again without the request memo, which still holds the policies
+    from before the wait. A child that is gone, or that this authority may no longer
+    see, gives no details. A failed read gives no details either, so the updates this
+    wait already removed still return."""
     no_details = _running_block(
         session_id=session_id, agent=None, revision=None, turn_id=None
     )
@@ -1724,11 +1721,6 @@ async def _status_block(
         with fresh_request_memo():
             if not await caller_may(
                 caller, session_id=session_id, action=Permission.VIEW_SESSIONS
-            ) or (
-                await _narrower_child(
-                    caller=caller, project_id=project_id, session_ids=[session_id]
-                )
-                is not None
             ):
                 return no_details
             stream = await services.streams_dao.get_by_session_id(
@@ -1745,20 +1737,6 @@ async def _status_block(
             exc_info=True,
         )
         return no_details
-
-
-async def _narrower_child(
-    *, caller: SessionCaller, project_id: UUID, session_ids: Sequence[str]
-) -> Optional[str]:
-    """The first named child that fewer people can read than the calling session, as
-    the session reads decide it (`is_wider(calling session, child)`)."""
-    calling = await _calling_readers(caller=caller, project_id=project_id)
-    for session_id in session_ids:
-        if await _source_would_widen(
-            project_id=project_id, calling=calling, session_id=session_id
-        ):
-            return session_id
-    return None
 
 
 # -- cancel_session -----------------------------------------------------------------------

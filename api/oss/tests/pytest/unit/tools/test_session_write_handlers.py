@@ -13,21 +13,28 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from oss.src.core.access.dtos import Decision, DecisionReason, RunOrigin, RunSender
+from oss.src.core.access.dtos import (
+    Decision,
+    DecisionReason,
+    PrincipalKind,
+    PrincipalRef,
+    ResourceKind,
+    ResourceRef,
+    RunOrigin,
+    RunSender,
+)
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import AccessService
 from oss.src.core.sessions.child_updates.dtos import ChildTurnResult, ChildTurnStatus
 from oss.src.core.sessions.child_updates.form import (
-    WITHHELD_NOTE,
     child_update_message,
-    withheld_child_update_message,
 )
 from oss.src.core.sessions.child_updates.service import still_running_schedule_id
 from oss.src.core.sessions.inputs.dtos import PendingInputKind, PendingInputState
 from oss.src.core.sessions.inputs.types import carries_approval_answer
 from oss.src.core.sessions.types import SessionCallingSession, SessionReference
 from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY
-from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+from oss.src.core.sharing.dtos import AccessPolicy, SessionRole, Visibility
 from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.tools import session_writes as writes
 from oss.src.core.tools.platform_handlers import (
@@ -244,6 +251,12 @@ class _Starts:
                 agent_id=kwargs["workflow_id"],
                 is_running=True,
             )
+            # The real start gives the row it creates the copied grants.
+            state = self.world.sharing.dao.sessions[(self.world.project_id, session_id)]
+            for grant in kwargs.get("grants", ()):
+                self.world.sharing.add_grant(
+                    state=state, user_id=grant.user_id, role=grant.role
+                )
         # One input per request key, as the real start stores one row per key.
         input_id = self.inputs.setdefault(kwargs["request_key"], uuid4())
         self.world.store.started_inputs[input_id] = SimpleNamespace(
@@ -465,21 +478,13 @@ class _World:
             turn_id=str(uuid4()),
         )
 
-    def update_row(
-        self, caller, child_session_id, *, status, turn_id=None, withheld=False
-    ):
-        message = (
-            withheld_child_update_message(
-                session_id=child_session_id, turn_id=turn_id, status=status
-            )
-            if withheld
-            else child_update_message(
-                ChildTurnResult(
-                    session_id=child_session_id,
-                    status=status,
-                    turn_id=turn_id,
-                    last_message=f"{status.value} answer",
-                )
+    def update_row(self, caller, child_session_id, *, status, turn_id=None):
+        message = child_update_message(
+            ChildTurnResult(
+                session_id=child_session_id,
+                status=status,
+                turn_id=turn_id,
+                last_message=f"{status.value} answer",
             )
         )
         row = SimpleNamespace(
@@ -507,6 +512,7 @@ def world(monkeypatch) -> _World:
     sessions = env.agenta.sessions
     monkeypatch.setattr(sessions, "child_sessions_limit", 5)
     monkeypatch.setattr(sessions, "child_queued_messages_limit", 3)
+    monkeypatch.setattr(sessions, "child_session_depth_limit", 3)
     monkeypatch.setattr(sessions, "still_running_update_minutes", 30)
     world = _World()
     monkeypatch.setattr(access_module, "_access_service", world.access)
@@ -943,13 +949,48 @@ async def test_a_workflow_that_is_not_an_agent_is_refused(world):
     assert _error(result)["code"] == "workflow_is_not_agent"
 
 
+def _chain(world, agent, level):
+    """Make the calling session `level` levels below a session that a person started:
+    `s-calling` has `level` calling sessions above it."""
+    above = "s-calling"
+    for depth in range(level):
+        parent = f"s-level-{level - depth - 1}"
+        world.store.streams[above].calling_session = SessionCallingSession(
+            id=parent, turn_id=str(uuid4()), agent_id=agent.id, revision_id=uuid4()
+        )
+        world.add_stream(
+            parent,
+            AccessPolicy(visibility=Visibility.PRIVATE, owner_user_id=world.ana),
+            agent_id=agent.id,
+        )
+        above = parent
+
+
 @pytest.mark.asyncio
-async def test_a_child_session_cannot_start_a_session(world):
+@pytest.mark.parametrize("level", [0, 1, 2])
+async def test_a_session_starts_a_child_up_to_the_depth_limit(world, level):
+    """A child at level 1, 2 and 3 starts: its calling session is at level 0 to 2."""
     research = world.workflows.add("market-research")
     caller, _ = world.calling(agent=research)
-    world.store.streams["s-calling"].calling_session = SessionCallingSession(
-        id="s-parent", turn_id=str(uuid4()), agent_id=research.id, revision_id=uuid4()
+    _chain(world, research, level)
+    result = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="market-research",
+        text="Go",
+        tool_call_id="t",
     )
+    assert result.ok, result.content
+    assert len(world.starts.starts) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_child_deeper_than_the_depth_limit_is_refused(world):
+    """A session at level 3 would start a child at level 4."""
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research)
+    _chain(world, research, 3)
     result = await _call(
         world,
         "start_session",
@@ -959,9 +1000,42 @@ async def test_a_child_session_cannot_start_a_session(world):
         tool_call_id="t",
     )
     error = _error(result)
-    assert error["code"] == "session_start_in_child"
+    assert error["code"] == "session_depth_limit_reached"
     assert error["next_step"] == "Do the work yourself in this session."
+    assert error["details"] == {"limit": 3}
     assert world.starts.starts == []
+
+
+@pytest.mark.asyncio
+async def test_the_depth_limit_is_the_setting(world, monkeypatch):
+    from oss.src.utils.env import env  # noqa: PLC0415
+
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research)
+    _chain(world, research, 1)
+
+    monkeypatch.setattr(env.agenta.sessions, "child_session_depth_limit", 1)
+    refused = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="market-research",
+        text="Go",
+        tool_call_id="t-1",
+    )
+    assert _error(refused)["code"] == "session_depth_limit_reached"
+    assert _error(refused)["details"] == {"limit": 1}
+
+    monkeypatch.setattr(env.agenta.sessions, "child_session_depth_limit", 2)
+    started = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="market-research",
+        text="Go",
+        tool_call_id="t-2",
+    )
+    assert started.ok, started.content
 
 
 @pytest.mark.asyncio
@@ -1078,40 +1152,6 @@ async def test_the_short_wait_returns_the_child_update_and_removes_it(world):
     assert rows["done"].state == PendingInputState.removed
     # A still-running update never ends a wait, and is left to run as a queued input.
     assert rows["running"].state == PendingInputState.pending
-
-
-@pytest.mark.asyncio
-async def test_the_short_wait_returns_an_update_that_gives_the_status_only(world):
-    research = world.workflows.add("market-research")
-    caller, _ = world.calling(agent=research)
-    rows = {}
-
-    def arrive(now):
-        if now >= 3 and "done" not in rows:
-            child_id = next(
-                iter(s for s in world.store.streams if s.startswith("child-"))
-            )
-            rows["done"] = world.update_row(
-                caller,
-                child_id,
-                status=ChildTurnStatus.completed,
-                turn_id=str(UUID(int=len(child_id))),
-                withheld=True,
-            )
-
-    world.clock.on_sleep = arrive
-    result = await _call(
-        world,
-        "start_session",
-        caller,
-        agent="market-research",
-        text="Go",
-        tool_call_id="t",
-    )
-
-    assert _lines(result.content)["status"] == "completed"
-    assert WITHHELD_NOTE in result.content
-    assert rows["done"].state == PendingInputState.removed
 
 
 @pytest.mark.asyncio
@@ -1302,7 +1342,7 @@ async def test_a_send_to_a_hidden_session_reads_as_unknown(world):
 
 
 @pytest.mark.asyncio
-async def test_a_send_to_a_wider_child_is_refused(world):
+async def test_a_send_to_a_child_that_more_people_can_read_goes_through(world):
     email = world.workflows.add("email-writer")
     # The calling session was made private after it started a project-visible child.
     caller, _ = world.calling(agent=None)
@@ -1319,10 +1359,8 @@ async def test_a_send_to_a_wider_child_is_refused(world):
         text="Hi",
         tool_call_id="t",
     )
-    error = _error(result)
-    assert error["code"] == "sharing_would_widen"
-    assert error["next_step"].startswith("Start a new child session")
-    assert world.starts.enqueued == []
+    assert result.ok, result.content
+    assert len(world.starts.enqueued) == 1
 
 
 @pytest.mark.asyncio
@@ -1615,9 +1653,97 @@ async def test_a_wait_returns_a_paused_child_and_leaves_other_sessions_rows(worl
     assert other_row.state == PendingInputState.pending
 
 
+async def _can_view(world, user_id, session_id):
+    reason = await world.sharing.service.evaluate(
+        principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=user_id),
+        action=Permission.VIEW_SESSIONS,
+        project_id=world.project_id,
+        resource=ResourceRef(kind=ResourceKind.SESSION, id=session_id),
+    )
+    return reason is None
+
+
 @pytest.mark.asyncio
-async def test_a_participant_in_a_private_session_is_told_why_and_what_to_do(world):
-    # Ana's private session; Ben sent the calling turn. The child would be private to
+async def test_a_participant_starts_a_child_that_the_same_people_can_read(world):
+    # Ana's private session, where Ana added Ben as a participant; Ben sent the turn.
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research, user=world.ben)
+    calling_state = world.sharing.dao.sessions[(world.project_id, "s-calling")]
+    world.sharing.add_grant(
+        state=calling_state, user_id=world.ben, role=SessionRole.PARTICIPANT
+    )
+    cy = world.sharing.add_member(uuid4())
+    world.principals.human(cy)
+    result = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="market-research",
+        text="Go",
+        wait_ms=0,
+        tool_call_id="t",
+    )
+    assert result.ok
+    start = world.starts.starts[0]
+    assert [(g.user_id, g.role) for g in start["grants"]] == [
+        (world.ben, SessionRole.PARTICIPANT)
+    ]
+    child_id = f"child-{start['request_key']}"
+    assert await _can_view(world, world.ben, child_id)
+    assert await _can_view(world, world.ana, child_id)
+    assert not await _can_view(world, cy, child_id)
+
+
+@pytest.mark.asyncio
+async def test_a_child_of_a_project_session_copies_no_grants(world):
+    research = world.workflows.add("market-research")
+    shared = AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=world.ana)
+    caller, _ = world.calling(agent=research, user=world.ben, policy=shared)
+    world.sharing.add_grant(
+        state=world.sharing.dao.sessions[(world.project_id, "s-calling")],
+        user_id=world.ben,
+        role=SessionRole.PARTICIPANT,
+    )
+    result = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="market-research",
+        text="Go",
+        wait_ms=0,
+        tool_call_id="t",
+    )
+    assert result.ok
+    assert world.starts.starts[0]["access"] == shared
+    assert world.starts.starts[0]["grants"] == []
+
+
+@pytest.mark.asyncio
+async def test_a_viewer_in_a_private_session_cannot_start_a_child(world):
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research, user=world.ben)
+    world.sharing.add_grant(
+        state=world.sharing.dao.sessions[(world.project_id, "s-calling")],
+        user_id=world.ben,
+        role=SessionRole.VIEWER,
+    )
+    result = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="market-research",
+        text="Go",
+        tool_call_id="t",
+    )
+    assert _error(result)["code"] == "access_denied"
+    assert world.starts.starts == []
+
+
+@pytest.mark.asyncio
+async def test_a_person_not_named_in_a_private_session_is_told_why_and_what_to_do(
+    world,
+):
+    # Ana's private session; Ben is not named on it. The child would be private to
     # Ana, so it may not run for Ben.
     research = world.workflows.add("market-research")
     caller, _ = world.calling(agent=research, user=world.ben)
@@ -1819,21 +1945,23 @@ async def test_a_retried_send_at_the_queue_cap_is_not_counted_again(world):
 
 
 @pytest.mark.asyncio
-async def test_a_wait_on_a_child_that_fewer_people_can_read_is_refused(world):
+async def test_a_wait_on_a_child_that_fewer_people_can_read_returns_it(world):
     research = world.workflows.add("market-research")
-    # The calling session is project-visible; Ana made the child private.
+    # The calling session is project-visible; Ana made the child private. Ana sent the
+    # turn and may read the child.
     caller, _ = world.calling(
         agent=research,
         policy=AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=world.ana),
     )
     child = world.child(caller, agent=research)
+    world.update_row(
+        caller, child.session_id, status=ChildTurnStatus.completed, turn_id="t-1"
+    )
     result = await _call(
         world, "wait_for_sessions", caller, session_ids=[child.session_id]
     )
-    error = _error(result)
-    assert error["code"] == "sharing_would_widen"
-    assert error["details"] == {"session_id": child.session_id}
-    assert "wait_for_sessions" in error["next_step"]
+    assert result.ok, result.content
+    assert "completed answer" in result.content
 
 
 @pytest.mark.asyncio

@@ -1091,3 +1091,56 @@ async def test_a_template_start_keeps_its_boundary_and_a_cold_sandbox():
     assert admission.calls[0][1]["boundary"] == "template_start"
     invoke = service._workflows.invoke_workflow_detached.await_args.kwargs
     assert invoke["keep_session_warm"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("raced", [False, True])
+async def test_the_row_a_start_creates_gets_the_copied_grants_before_the_invoke(
+    monkeypatch, raced
+):
+    """A child of a private session gets the grants of its calling session when its
+    row is created, before the invoke. A row that already existed is not changed."""
+    import oss.src.core.sharing.service as sharing_module
+    from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
+    from oss.src.core.sharing.dtos import (
+        AccessPolicy,
+        SessionGrant,
+        SessionRole,
+        Visibility,
+    )
+    from oss.tests.pytest.utils.sharing import SharingWorld
+
+    world = SharingWorld()
+    monkeypatch.setattr(sharing_module, "_sharing_service", world.service)
+    ben = uuid4()
+    policy = AccessPolicy(visibility=Visibility.PRIVATE, owner_user_id=USER_ID)
+    events = []
+    streams = AsyncMock()
+
+    async def create(**kwargs):
+        events.append("create")
+        if raced:
+            raise SessionStreamAlreadyExists("s")
+        return SimpleNamespace(
+            id=world.dao.add_session(
+                project_id=PROJECT_ID,
+                policy=policy,
+                session_id=kwargs["stream"].session_id,
+            ).stream_id
+        )
+
+    streams.create.side_effect = create
+    grant = SessionGrant(stream_id=uuid4(), user_id=ben, role=SessionRole.PARTICIPANT)
+
+    result = await _start_with_streams(streams, events).start_once(
+        **_args(), access=policy, grants=[grant]
+    )
+
+    assert events == ["create", "invoke"]
+    copied = [
+        (g.user_id, g.role)
+        for (_, _), grants in world.dao.grants.items()
+        for g in grants
+    ]
+    assert copied == ([] if raced else [(ben, SessionRole.PARTICIPANT)])
+    assert result.replayed is False
