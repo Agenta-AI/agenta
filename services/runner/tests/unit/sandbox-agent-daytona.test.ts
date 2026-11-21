@@ -357,6 +357,21 @@ describe("createDaytonaFetch", () => {
     assert.deepEqual(seen, ["token-1", null]);
   });
 
+  it("follows no redirect on a request that carries a token", async () => {
+    const { source } = tokenFor("3000-sb.proxy.test", "token-1");
+    const redirects: Array<string | undefined> = [];
+    const inner = (async (_input: any, init?: any) => {
+      redirects.push(init?.redirect);
+      return new Response("body");
+    }) as typeof fetch;
+    const daemonFetch = createDaytonaFetch(inner, {}, source);
+
+    await daemonFetch("https://3000-sb.proxy.test/v1/health");
+    await daemonFetch("https://other.proxy.test/v1/health");
+
+    assert.deepEqual(redirects, ["error", undefined]);
+  });
+
   it("on a 401 gets a new token once and sends the request again", async () => {
     const { source, refreshes } = tokenFor("3000-sb.proxy.test", "old");
     const { seen, inner } = recordingFetch([401, 200]);

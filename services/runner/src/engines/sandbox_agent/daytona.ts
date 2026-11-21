@@ -469,7 +469,10 @@ export function createDaytonaFetch(
     const token = previewToken(url.host);
     const sent = token?.value;
     if (sent) headers.set(PREVIEW_TOKEN_HEADER, sent);
-    const response = await base(input, { ...init, headers });
+    // A redirect would carry the token header to wherever it points, so a request with a token
+    // follows none.
+    const request = { ...init, headers, ...(sent ? { redirect: "error" as const } : {}) };
+    const response = await base(input, request);
     // Only a string or empty body can be sent twice; every daemon request of the SDK has one.
     const body = init?.body;
     if (
@@ -482,6 +485,6 @@ export function createDaytonaFetch(
     }
     await response.body?.cancel().catch(() => {});
     headers.set(PREVIEW_TOKEN_HEADER, await token.refresh(sent));
-    return base(input, { ...init, headers });
+    return base(input, request);
   };
 }
