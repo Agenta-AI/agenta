@@ -17,6 +17,7 @@ import chatChangeCardStatesCatalog from "@agenta/i18n/catalogs/chat.changeCardSt
 import {Button} from "@agenta/ui/ui"
 import {Check, CircleNotch, Lock, Warning, X} from "@phosphor-icons/react"
 
+import {useAgentDisplayName} from "../hooks/useAgentDisplayName"
 import {useChangeVersions} from "../hooks/useChangeVersions"
 import {agentCallTarget} from "../model/approvalDescribers/describeAgentChanges"
 import {describeApproval} from "../model/approvalPreview"
@@ -299,7 +300,10 @@ export const AutoApprovedCallRow = ({
 }) => {
     const t = useT(chatChangeCardStatesCatalog)
     // Not memoized: the describers translate with the active language, which can change.
-    const preview = describeApproval({approvalId: "", toolName: call.toolName, input: call.input})
+    const approval = {approvalId: "", toolName: call.toolName, input: call.input}
+    // A test start names its agent by a slug or an id: describe it again with the agent's name.
+    const agentName = useAgentDisplayName(describeApproval(approval).agentRef)
+    const preview = describeApproval(approval, undefined, null, agentName)
     const detail = (preview.items ?? [])
         .map((item) => (item.detail ? `${item.title}: ${item.detail}` : item.title))
         .join(" · ")

@@ -1,7 +1,28 @@
+import {atom} from "jotai"
 import {renderToStaticMarkup} from "react-dom/server"
-import {describe, expect, it} from "vitest"
+import {describe, expect, it, vi} from "vitest"
 
-import {ChangeResultRow, ChangeResultRows} from "../../../src/components/ChangeResultRow"
+// The test start names its agent by the slug `email-writer`; the row shows the agent's name.
+vi.mock("@agenta/entities/workflow", async (importOriginal) => {
+    const original = await importOriginal<typeof import("@agenta/entities/workflow")>()
+    const named = atom({data: {id: "agent-9", name: "Email writer"}, isError: false})
+    const revision = atom({
+        data: {id: "rev-9", workflowId: "agent-9", parameters: null},
+        isSuccess: true,
+        isError: false,
+    })
+    return {
+        ...original,
+        retrievedWorkflowRevisionQueryAtomFamily: (key: string) =>
+            key.includes('"email-writer"')
+                ? revision
+                : original.retrievedWorkflowRevisionQueryAtomFamily(key),
+        workflowArtifactQueryAtomFamily: (workflowId: string) =>
+            workflowId === "agent-9" ? named : original.workflowArtifactQueryAtomFamily(workflowId),
+    }
+})
+
+const {ChangeResultRow, ChangeResultRows} = await import("../../../src/components/ChangeResultRow")
 
 const conflict = `tool call tools.agenta.edit_agent_config failed: The workflow head changed. No revision was committed.\n${JSON.stringify(
     {code: "revision_conflict", message: "The workflow head changed.", retryable: false},
@@ -183,7 +204,7 @@ describe("the rows of calls the person's approval choice ran (design D32)", () =
                         type: "tool-start_session",
                         toolCallId: "s1",
                         state: "output-available",
-                        input: {agent: "email-writer", message: "Draft the reply"},
+                        input: {agent: "email-writer", text: "Draft the reply"},
                     },
                     mark("s1", "start_session"),
                 ]}
@@ -191,8 +212,9 @@ describe("the rows of calls the person's approval choice ran (design D32)", () =
             />,
         )
         expect(html).toContain('data-testid="change-result-auto-approved"')
-        expect(html).toContain("email-writer")
-        expect(html).toContain("Draft the reply")
+        expect(html).toContain("Start a session of Email writer.")
+        expect(html).not.toContain("email-writer")
+        expect(html).toContain("First message: Draft the reply")
         expect(html).toContain("Approved automatically")
         expect(html).toContain(">Turn off<")
     })
