@@ -50,11 +50,16 @@ export const AutomationCreateBody = ({
                         onRename={state.setName}
                         autoEdit={autoEditName}
                         placeholder={t("automations.editor.namePlaceholder")}
-                        fallback={generatedAutomationLabel(
-                            preview,
-                            agentName,
-                            t("automations.editor.untitledAutomation"),
-                        )}
+                        // The heading in the reader's language; for an event, the event's own
+                        // name, the same one `create` saves (see `defaultAutomationName`).
+                        fallback={
+                            state.eventName ||
+                            generatedAutomationLabel(
+                                preview,
+                                agentName,
+                                t("automations.editor.untitledAutomation"),
+                            )
+                        }
                         compact={fixedKind}
                     />
                 </div>

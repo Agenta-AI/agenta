@@ -29,6 +29,14 @@ vi.mock("@agenta/entities/gatewayTrigger", async (importOriginal) => ({
         revoke: vi.fn(),
         setActive: vi.fn(),
     }),
+    // The lists `useAgentTriggers` reads (mocked below), loaded.
+    useTriggerSchedules: () => ({schedules: [], error: null, isLoading: false, refetch: vi.fn()}),
+    useTriggerSubscriptions: () => ({
+        subscriptions: [],
+        error: null,
+        isLoading: false,
+        refetch: vi.fn(),
+    }),
 }))
 
 vi.mock(
