@@ -15,7 +15,10 @@ export const NewBuilderChat = ({heroState}: {heroState: HeroState}) => {
     const t = useT(builderPageCatalog)
     return (
         <div className="flex flex-col items-center text-center" data-testid="builder-page-new-chat">
-            <BuilderHero state={heroState} className="size-[180px]" />
+            {/* The canvas hero box is 236 px high (B01): the title sits under it. */}
+            <div className="flex h-[236px] items-center justify-center">
+                <BuilderHero state={heroState} className="size-[180px]" />
+            </div>
             <h1 className="m-0 mt-1.5 text-[28px] leading-[34px] font-semibold tracking-tight text-colorText">
                 {t("builder.page.builder")}
             </h1>

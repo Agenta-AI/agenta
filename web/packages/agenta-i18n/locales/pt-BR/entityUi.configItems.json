@@ -65,5 +65,6 @@
     "countTool_many": "{{count}} ferramentas",
     "countTool_other": "{{count}} ferramentas",
     "change": "Alterar",
-    "policyHint": "O que o agente pode fazer sem perguntar"
+    "policyHint": "O que o agente pode fazer sem perguntar",
+    "modelVia": "via {{harness}}"
 }

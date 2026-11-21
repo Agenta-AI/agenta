@@ -31,9 +31,13 @@ const ModelViewBody = ({target}: ViewProps<ModelViewParams>) => {
     const modelReq = modelRequirement(requirements?.filter((r) => !isPersonalRequirement(r)) ?? [])
     useViewTitle(t("entityUi.agentTemplate.model"))
     return (
-        <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 py-3">
+        // No side or bottom padding: the list sets its own gutter, and "Manage model providers"
+        // ends the view on a full-width band.
+        <div className="flex min-h-0 flex-1 flex-col gap-2 pt-3.5">
             {modelReq ? (
-                <NeedsSetupTag tag={false} reason={needsSetupReasonText(modelReq.reason)} />
+                <div className="px-4">
+                    <NeedsSetupTag tag={false} reason={needsSetupReasonText(modelReq.reason)} />
+                </div>
             ) : null}
             <ModelPickerLayoutContext.Provider value="list">
                 <ModelHarnessSectionBody

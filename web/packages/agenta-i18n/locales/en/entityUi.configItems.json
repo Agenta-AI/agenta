@@ -58,5 +58,6 @@
     "countTool_one": "{{count}} tool",
     "countTool_other": "{{count}} tools",
     "change": "Change",
-    "policyHint": "What the agent may do without asking"
+    "policyHint": "What the agent may do without asking",
+    "modelVia": "via {{harness}}"
 }

@@ -55,16 +55,15 @@ export const instructionsSection = ({
             phoneSummary,
             indicator: sectionIndicator("instructions"),
             defaultOpen: true,
+            insetBody: true,
             pageAction: <SectionPageAction action="edit" onClick={openInstruction} />,
             content: (
-                <div className="flex flex-col gap-2">
-                    <InstructionsFileRow
-                        filename={FILENAME}
-                        content={agentsMd ?? ""}
-                        onOpen={openInstruction}
-                        status={instructionsStatus}
-                    />
-                </div>
+                <InstructionsFileRow
+                    filename={FILENAME}
+                    content={agentsMd ?? ""}
+                    onOpen={openInstruction}
+                    status={instructionsStatus}
+                />
             ),
         }
     )

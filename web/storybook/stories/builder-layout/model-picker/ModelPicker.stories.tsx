@@ -1,7 +1,6 @@
 import {useState} from "react"
 
 import {ModelPickerList} from "@agenta/ui/select-llm-provider"
-import {Button} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 import {MODEL_PICKER_GROUPS} from "../../../fixtures/builderLayout/model-picker"
@@ -15,18 +14,14 @@ const ModelViewFrame = () => {
             className="ag-panel-raised flex h-[720px] flex-col border border-solid border-border"
             style={{width: 440}}
         >
-            <div data-testid="panel-view" className="flex min-h-0 flex-1 flex-col px-4 py-3">
+            <div data-testid="panel-view" className="flex min-h-0 flex-1 flex-col pt-3.5">
                 <ModelPickerList
                     options={MODEL_PICKER_GROUPS}
                     selectedKey={picked}
                     onChange={(_value, option) => setPicked(option.key ?? option.value)}
                     searchPlaceholder="Search models"
                     disabledGroupAction={{label: "Sign in", onClick: () => undefined}}
-                    panelFooter={
-                        <Button variant="outline" className="w-full">
-                            Manage model providers
-                        </Button>
-                    }
+                    onManageProviders={() => undefined}
                 />
             </div>
         </div>

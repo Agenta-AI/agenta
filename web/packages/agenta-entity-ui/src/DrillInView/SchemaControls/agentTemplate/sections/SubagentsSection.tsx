@@ -64,6 +64,7 @@ export const subagentsSection = ({
         title: t("entityUi.agentTemplate.subagents"),
         // "None" when empty, as the canvas draws the Agent tab.
         summary: countSummary(subagentCount, "subagent") || tNow("common.none"),
+        empty: subagentCount === 0,
         indicator: sectionIndicator("subagents"),
         // Compact "+" for the header's `extra` slot. The header keeps a uniform height regardless of
         // this button: ConfigAccordionSection collapses the extra slot's vertical footprint (see its

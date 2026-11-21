@@ -86,7 +86,7 @@ export const AutomationTitle = ({
                     className={
                         compact
                             ? "h-auto border-transparent bg-transparent px-0 py-0.5 text-[16px] font-semibold shadow-none placeholder:font-semibold placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0 md:text-[16px]"
-                            : "text-[16px] font-semibold placeholder:font-medium placeholder:text-muted-foreground focus-visible:border-input focus-visible:ring-0 md:text-[16px]"
+                            : "text-[16px] font-semibold placeholder:font-medium placeholder:text-muted-foreground focus-visible:border-input focus-visible:ring-0 max-md:h-11 md:text-[16px]"
                     }
                 />
             ) : (

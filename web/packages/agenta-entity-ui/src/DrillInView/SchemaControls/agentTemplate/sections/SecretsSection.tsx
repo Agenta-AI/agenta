@@ -73,6 +73,7 @@ export const secretsSection = ({
         summary: bindings.length
             ? tNow("entityUi.modelHarness.attachedCount", {count: bindings.length})
             : tNow("common.none"),
+        empty: bindings.length === 0,
         // The phone row lists the variables (M07: "BILLING_API_KEY, GITHUB_TOKEN").
         phoneSummary:
             bindings.map((binding) => binding.binding.name).join(", ") || tNow("common.none"),
