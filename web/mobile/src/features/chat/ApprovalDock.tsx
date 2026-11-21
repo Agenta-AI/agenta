@@ -9,6 +9,7 @@ import {useIsBuilderChat} from "./builderChat"
 import {ownsShortcutAt} from "./conversationFocus"
 import {isSteerEnabled} from "./steer"
 import type {ApprovalActions} from "./useApprovalActions"
+import {useBuilderApprovalChoices} from "./useBuilderApprovalChoices"
 
 /**
  * Bottom-anchored human-in-the-loop dock — the SAME `ApprovalCard` the desktop dock renders
@@ -26,6 +27,7 @@ export const ApprovalDock = ({
     bottomMost = true,
     readOnly = false,
     readOnlyNote,
+    privateSession = false,
     heading,
     shortcuts = true,
 }: {
@@ -41,6 +43,8 @@ export const ApprovalDock = ({
     readOnly?: boolean
     /** Shown in place of the actions while read-only (it names who can answer). */
     readOnlyNote?: string | null
+    /** The session is private to the reader (`isPrivateToViewer`). False while unknown. */
+    privateSession?: boolean
     /** A line above the card: on another session's card, which session asks. */
     heading?: ReactNode
     /** False for another session's card, so the chat's own shortcuts answer only its own card. */
@@ -48,6 +52,9 @@ export const ApprovalDock = ({
 }) => {
     const locked = readOnly || Boolean(readOnlyNote)
     const builderChat = useIsBuilderChat()
+    // In the builder chat, "Always auto-approve" stores the person's choice (design D32). The
+    // server applies it only in a session private to the person, so only such a session offers it.
+    const {alwaysApprove} = useBuilderApprovalChoices(builderChat && privateSession)
     const busy = actions.phase === "resuming"
     const answered = actions.phase === "answered" || actions.phase === "recoverable"
 
@@ -76,6 +83,7 @@ export const ApprovalDock = ({
                     readOnly={locked}
                     readOnlyNote={readOnlyNote}
                     alwaysAllowOffered={!builderChat}
+                    alwaysApprove={alwaysApprove}
                     // Two conversations can each show a card: a key answers the focused one only.
                     // Another session's card (shortcuts off) never takes the keys.
                     ownsShortcut={shortcuts ? ownsShortcutAt : () => false}

@@ -20,6 +20,7 @@ import {
   type PiGateEnvelope,
 } from "./pi-gate-envelope.ts";
 import type { AgentChangePreviewFetcher } from "../../tools/agent-change-preview.ts";
+import { autoApprovedEvent } from "../../tools/gate-answer.ts";
 import { redactContextBoundArgs } from "../../tools/relay.ts";
 import { bareToolName } from "./client-tools.ts";
 import {
@@ -441,6 +442,42 @@ export function attachPermissionResponder({
     await replyPermission(id, "deny", availableReplies, toolCallId);
   };
 
+  /**
+   * A server `allow` at the gate (`resolve_gate`) takes the step a card takes before the call
+   * runs: the call's `@ag.file` markers are resolved and their records minted, or the commit
+   * check refuses the call with `authorization_missing`. A resolution failure refuses the call,
+   * as it does for a card. A call the person's approval choice allowed is marked, so the chat
+   * shows it as approved automatically. Returns whether the call may go on.
+   */
+  const takeServerAllow = async (
+    verdict: Verdict,
+    gate: GateDescriptor,
+    id: string,
+    availableReplies: string[],
+    toolCallId: string | undefined,
+  ): Promise<boolean> => {
+    if (verdict.kind !== "allow" || !verdict.byGateAnswer) return true;
+    if (onResolveApprovedContent) {
+      const outcome = await onResolveApprovedContent({
+        toolName: gate.toolName,
+        toolCallId,
+        args: gate.args,
+      });
+      if (!outcome.ok) {
+        log?.(
+          `[HITL] approved-content resolution failed id=${id} tool=${gate.toolName}: ` +
+            `${outcome.reason}; deny (fail closed)`,
+        );
+        await replyPermission(id, "deny", availableReplies, toolCallId);
+        return false;
+      }
+    }
+    if (verdict.autoApproved && toolCallId) {
+      run.emitEvent(autoApprovedEvent(toolCallId, gate.toolName));
+    }
+    return true;
+  };
+
   const pauseClientTool = (
     req: any,
     id: string,
@@ -631,7 +668,8 @@ export function attachPermissionResponder({
     });
     if (
       verdict.kind === "pendingApproval" ||
-      isStaleApproval(verdict, gate, envelope.toolCallId) ||
+      (!verdict.byGateAnswer &&
+        isStaleApproval(verdict, gate, envelope.toolCallId)) ||
       !id
     ) {
       await pauseWithApprovedContent(
@@ -644,6 +682,10 @@ export function attachPermissionResponder({
       );
       return;
     }
+    if (
+      !(await takeServerAllow(verdict, gate, id, availableReplies, envelope.toolCallId))
+    )
+      return;
     // The grant must exist BEFORE the harness reply: the extension writes the execute record
     // the moment the confirm resolves, and the relay guard consumes the grant to accept it.
     if (verdict.kind === "allow" && envelope.gate === "pi-custom-tool") {
@@ -751,7 +793,7 @@ export function attachPermissionResponder({
     });
     if (
       verdict.kind === "pendingApproval" ||
-      isStaleApproval(verdict, gate, toolCallId) ||
+      (!verdict.byGateAnswer && isStaleApproval(verdict, gate, toolCallId)) ||
       !id
     ) {
       await pauseWithApprovedContent(
@@ -764,6 +806,8 @@ export function attachPermissionResponder({
       );
       return;
     }
+    if (!(await takeServerAllow(verdict, gate, id, availableReplies, toolCallId)))
+      return;
     // The grant must exist BEFORE the harness reply: the harness issues the gated `tools/call`
     // the moment it is allowed, and the loopback MCP seam consumes the grant to let it through
     // instead of prompting a second time for the same call.

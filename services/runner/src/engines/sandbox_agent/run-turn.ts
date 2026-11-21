@@ -1501,6 +1501,7 @@ export async function runTurn(
             executionGrants,
             resolveChangePreview: changePreview,
             pauseSignal: pause.signal,
+            resolveApprovedContent: approvedContent.onResolveApprovedContent,
             log: logger,
           })
         : undefined;

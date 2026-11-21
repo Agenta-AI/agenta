@@ -665,6 +665,19 @@ function applyEvent(
             })
             return
         }
+        case "data": {
+            // The runner's mark of a call the person's approval choice ran with no card. The
+            // live stream projects the same event as a `data-auto-approved` part; replay rebuilds
+            // it so the call keeps its approved-automatically row (design D32).
+            if (
+                payload.name === "auto-approved" &&
+                payload.data &&
+                typeof payload.data === "object"
+            ) {
+                draft.parts.push({type: "data-auto-approved", data: payload.data})
+            }
+            return
+        }
         case "mcp_server_failed": {
             // A configured MCP server that failed its handshake. The live stream projects the
             // same runner event as a `data-mcp-server-failed` part

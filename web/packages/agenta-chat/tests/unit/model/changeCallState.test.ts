@@ -2,6 +2,7 @@ import {describe, expect, it} from "vitest"
 
 import {
     answeredChangeCalls,
+    autoApprovedCalls,
     changeCallState,
     isChangeTool,
 } from "../../../src/model/changeCallState"
@@ -166,5 +167,73 @@ describe("answeredChangeCalls", () => {
         expect(isChangeTool("edit_agent_config")).toBe(true)
         expect(isChangeTool("mcp__agenta-tools__commit_revision")).toBe(true)
         expect(isChangeTool("run_tool")).toBe(false)
+    })
+})
+
+describe("calls the person's approval choice ran with no card", () => {
+    const mark = (toolCallId: string, toolName: string) => ({
+        type: "data-auto-approved",
+        data: {toolCallId, toolName},
+    })
+    const edit = (toolCallId: string, fields: Record<string, unknown>) => ({
+        type: "tool-edit_agent_config",
+        toolCallId,
+        input: {agent: "support-triage", base_revision_id: "rev-4", operations: []},
+        ...fields,
+    })
+
+    it("keeps the change card's row: waiting, then saved, marked auto-approved", () => {
+        const running = answeredChangeCalls([
+            edit("c1", {state: "input-available"}),
+            mark("c1", "edit_agent_config"),
+        ])
+        expect(running.map((call) => [call.state.kind, call.autoApproved])).toEqual([
+            ["waiting", true],
+        ])
+        const saved = answeredChangeCalls([
+            edit("c1", {state: "output-available", output: committed("5")}),
+            mark("c1", "edit_agent_config"),
+        ])
+        expect(saved[0]).toMatchObject({
+            state: {kind: "saved", version: "5"},
+            autoApproved: true,
+            baseRevisionId: "rev-4",
+        })
+    })
+
+    it("marks only the call the runner named", () => {
+        const calls = answeredChangeCalls([
+            edit("c1", {state: "output-available", output: committed("5")}),
+            edit("c2", {
+                state: "output-available",
+                output: committed("6"),
+                approval: {id: "perm-c2", approved: true},
+            }),
+            mark("c1", "edit_agent_config"),
+        ])
+        expect(calls.map((call) => call.autoApproved ?? false)).toEqual([true, false])
+    })
+
+    it("lists a test start the choice ran, and no other tool", () => {
+        const parts = [
+            {
+                type: "tool-start_session",
+                toolCallId: "s1",
+                state: "output-available",
+                input: {agent: "email-writer", message: "Draft it"},
+            },
+            {type: "tool-start_session", toolCallId: "s2", state: "input-available", input: {}},
+            edit("c1", {state: "input-available"}),
+            mark("s1", "start_session"),
+            mark("c1", "edit_agent_config"),
+        ]
+        expect(autoApprovedCalls(parts)).toEqual([
+            {
+                toolCallId: "s1",
+                toolName: "start_session",
+                input: {agent: "email-writer", message: "Draft it"},
+            },
+        ])
+        expect(autoApprovedCalls(parts.slice(0, 3))).toEqual([])
     })
 })

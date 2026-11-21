@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
 
-import { buildExecutableToolGate } from "../../src/engines/sandbox_agent/executable-tools.ts";
+import {
+  buildExecutableToolGate,
+  type BuildExecutableToolGateInput,
+} from "../../src/engines/sandbox_agent/executable-tools.ts";
 import { createToolCallCorrelationIndex } from "../../src/engines/sandbox_agent/client-tools.ts";
 import type {
   AgentEvent,
@@ -346,8 +349,13 @@ describe("buildExecutableToolGate with a server answer at the gate", () => {
   function serverSeam(
     permission: "allow" | "ask" | "deny",
     executionGrants?: ApprovedExecutionGrants,
-    opts: { recordCard?: boolean } = {},
+    opts: {
+      recordCard?: boolean;
+      basis?: string;
+      resolveApprovedContent?: BuildExecutableToolGateInput["resolveApprovedContent"];
+    } = {},
   ) {
+    const events: AgentEvent[] = [];
     let pauses = 0;
     let asked = 0;
     const permissionPlan: PermissionPlan = {
@@ -363,13 +371,16 @@ describe("buildExecutableToolGate with a server answer at the gate", () => {
         return Promise.resolve(
           permission === "ask"
             ? { permission }
-            : { permission, basis: "configured_permission" },
+            : { permission, basis: opts.basis ?? "configured_permission" },
         );
       },
     );
     const gate = buildExecutableToolGate({
       responder,
-      run: { emitEvent: () => {}, wasForceSettled: () => false },
+      run: {
+        emitEvent: (event) => events.push(event),
+        wasForceSettled: () => false,
+      },
       pause: {
         markPausedToolCall: () => {},
         pause: () => {
@@ -381,14 +392,58 @@ describe("buildExecutableToolGate with a server answer at the gate", () => {
       },
       permissionPlan,
       executionGrants,
+      resolveApprovedContent: opts.resolveApprovedContent,
     });
-    return { gate, pauses: () => pauses, asked: () => asked };
+    return { gate, events, pauses: () => pauses, asked: () => asked };
   }
 
   it("runs the call with no card on allow", async () => {
-    const { gate, pauses } = serverSeam("allow");
+    const { gate, events, pauses } = serverSeam("allow");
     assert.deepEqual(await gate.onExecutableTool(request), { kind: "allow" });
     assert.equal(pauses(), 0);
+    assert.deepEqual(events, [], "a configured allow leaves no mark");
+  });
+
+  it("marks a call that the person's approval choice allowed", async () => {
+    const { gate, events } = serverSeam("allow", undefined, {
+      basis: "approval_choice",
+    });
+    assert.deepEqual(await gate.onExecutableTool(request), { kind: "allow" });
+    assert.deepEqual(events, [
+      {
+        type: "data",
+        name: "auto-approved",
+        data: { toolCallId: request.toolCallId, toolName: "publish" },
+      },
+    ]);
+  });
+
+  it("mints the approved content before an allowed call runs, as a card does", async () => {
+    const resolved: unknown[] = [];
+    const { gate, events } = serverSeam("allow", undefined, {
+      basis: "approval_choice",
+      resolveApprovedContent: async (call) => {
+        resolved.push(call);
+        return { ok: true };
+      },
+    });
+    assert.deepEqual(await gate.onExecutableTool(request), { kind: "allow" });
+    assert.deepEqual(resolved, [
+      { toolName: "publish", toolCallId: request.toolCallId, args: input },
+    ]);
+    assert.equal(events.length, 1);
+  });
+
+  it("refuses an allowed call whose approved content does not resolve, with no mark", async () => {
+    const { gate, events } = serverSeam("allow", undefined, {
+      basis: "approval_choice",
+      resolveApprovedContent: async () => ({ ok: false, reason: "no such file" }),
+    });
+    assert.deepEqual(await gate.onExecutableTool(request), {
+      kind: "deny",
+      reason: "no such file",
+    });
+    assert.deepEqual(events, []);
   });
 
   it("spends the grant that the harness gate left and does not ask the server again", async () => {

@@ -68,6 +68,8 @@ export type Verdict =
       interactionToken?: string;
       /** Set when the server answered at the gate (`resolve_gate`), not the configuration. */
       byGateAnswer?: true;
+      /** The server's `allow` came from the person's approval choice (`basis: approval_choice`). */
+      autoApproved?: true;
     }
   | { kind: "pendingApproval" };
 

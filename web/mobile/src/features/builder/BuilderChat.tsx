@@ -15,6 +15,7 @@ import {BuilderChatContext} from "../chat/builderChat"
 import {ConversationRoleContext} from "../chat/conversationRole"
 import {LiveConversation} from "../chat/LiveConversation"
 import {pageSessionIdAtom} from "../chat/pageSessionId"
+import {isPrivateToViewer} from "../chat/privateSession"
 import {ChatLoading} from "../chat/states/ChatStates"
 import {ChatUnreachable} from "../chat/states/ChatUnreachable"
 import {useSessionHeader} from "../chat/useSessionHeader"
@@ -190,6 +191,7 @@ export const BuilderChat = ({
                 sessionTurnId={liveStream?.turn_id}
                 stoppingTurnId={liveStream?.stopping_turn_id}
                 sharedReader={Boolean(liveStream?.capabilities?.shared_reader)}
+                privateSession={isPrivateToViewer(header.data)}
                 beforeSend={beforeSend}
                 inputRef={inputRef}
                 hideSlashCommands

@@ -1,5 +1,6 @@
 {
     "answerSaved": "Your answer is saved.",
+    "autoApproved": "Approved automatically",
     "changesCount_one": "{{count}} change",
     "changesCount_other": "{{count}} changes",
     "denied": "You denied this change",
@@ -24,6 +25,8 @@
     "saved": "Saved",
     "savedTogether": "Saved together as v{{version}}",
     "tryAgain": "Try again",
+    "turnOff": "Turn off",
+    "turnOffFailed": "Retry turning off",
     "valueFromTo": "{{old}} to {{new}}",
     "view": "View",
     "waiting": "Waiting for the agent"

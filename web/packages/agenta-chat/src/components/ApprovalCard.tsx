@@ -20,6 +20,7 @@ import {useT} from "@agenta/i18n"
 import chatApprovalCardCatalog from "@agenta/i18n/catalogs/chat.approvalCard"
 import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
 import chatChangeCardStatesCatalog from "@agenta/i18n/catalogs/chat.changeCardStates"
+import {canonicalClientToolName} from "@agenta/shared/clientTools"
 import {isOnScreen, isOverlayOpen, shortcutAria} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {useIsPhone} from "@agenta/ui/phone"
@@ -70,6 +71,16 @@ export interface ApprovalCardProps {
      *  itself, not to the agent it edits (OPEN-QUESTIONS 2.67). */
     alwaysAllowOffered?: boolean
     /**
+     * The builder chat: "Always auto-approve" stores the person's approval choice for these
+     * tools (`choose`) instead of writing the agent's configuration. Set, it replaces
+     * `alwaysAllowOffered` and the configuration grant.
+     */
+    alwaysApprove?: {
+        /** The tools the person can choose now, by their canonical name. */
+        toolNames: ReadonlySet<string>
+        choose: (toolNames: string[]) => void
+    }
+    /**
      * The viewer cannot answer (they can view the chat but not send to it): the card keeps the
      * eyebrow, the ask and the details, and drops every answer control and shortcut.
      */
@@ -100,6 +111,7 @@ export const ApprovalCard = ({
     readOnlyNote,
     ownsShortcut,
     alwaysAllowOffered = true,
+    alwaysApprove,
     className = "gap-2.5 border border-solid border-colorBorderSecondary bg-colorBgContainer p-3.5",
 }: ApprovalCardProps) => {
     const current = approvals[0]
@@ -236,10 +248,11 @@ export const ApprovalCard = ({
             (batched ? approvals : current ? [current] : []).map((approval) => approval.toolName),
         ),
     ].filter((toolName) => {
+        if (alwaysApprove) return alwaysApprove.toolNames.has(canonicalClientToolName(toolName))
         const info = infoFor(toolName)
         return info.eligible && !info.alreadyAllowed
     })
-    const canAlwaysAllow = alwaysAllowOffered && grantableTools.length > 0
+    const canAlwaysAllow = (alwaysApprove ? true : alwaysAllowOffered) && grantableTools.length > 0
     // On a phone the actions are drawn 44 px high (M05). Touch elsewhere keeps the chrome and
     // extends the tap target invisibly.
     const phone = useIsPhone()
@@ -265,7 +278,10 @@ export const ApprovalCard = ({
     const approve = () => {
         if (!current || responding || readOnly || answered) return
         setFiredAction("approve")
-        if (alwaysAllowArmed && canAlwaysAllow) grantMany(grantableTools)
+        if (alwaysAllowArmed && canAlwaysAllow) {
+            if (alwaysApprove) alwaysApprove.choose(grantableTools)
+            else grantMany(grantableTools)
+        }
         if (batched) return onApproveAll(approvals.map((a) => a.approvalId))
         onRespond({approvalId: current.approvalId, approved: true})
     }

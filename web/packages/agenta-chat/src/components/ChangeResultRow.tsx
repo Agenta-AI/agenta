@@ -4,8 +4,12 @@
  * change", or "Not saved" with the reason (a conflict offers "Try again"). A card that waits for
  * an answer this reader cannot give shows "Only the owner can approve". The state comes from
  * `changeCallState`; this file only draws it.
+ *
+ * A call the person's "always approve" ran with no card keeps the same row, marked "Approved
+ * automatically", with "Turn off" while the choice is on (design D32). A test start the choice
+ * ran gets one row too: what the card would have asked, and the same mark.
  */
-import {useMemo, type ReactNode} from "react"
+import {useMemo, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
@@ -13,11 +17,14 @@ import chatChangeCardStatesCatalog from "@agenta/i18n/catalogs/chat.changeCardSt
 import {Button} from "@agenta/ui/ui"
 import {Check, CircleNotch, Lock, Warning, X} from "@phosphor-icons/react"
 
+import {useAgentDisplayName} from "../hooks/useAgentDisplayName"
 import {useChangeVersions} from "../hooks/useChangeVersions"
 import {agentCallTarget} from "../model/approvalDescribers/describeAgentChanges"
 import {describeApproval} from "../model/approvalPreview"
 import {
     answeredChangeCalls,
+    autoApprovedCalls,
+    type AutoApprovedCall,
     type ChangeCall,
     type ChangeCallState,
     type NotSavedReason,
@@ -70,10 +77,46 @@ export interface ChangeResultRowProps {
     onRevert?: () => void
     /** Asks the builder to read the agent again (a conflict). */
     onTryAgain?: () => void
+    /** The person's approval choice answered the call: the row says so. */
+    autoApproved?: boolean
+    /** Turns the person's approval choice for the tool off; shown while it is on. A rejected
+     *  promise keeps the button, worded as a retry. */
+    onTurnOff?: () => Promise<unknown>
     /** Touch mode: the buttons keep the 44 px tap area of the card's buttons. */
     touch?: boolean
     /** The row's padding; a card that holds the row passes its own. */
     className?: string
+}
+
+const TurnOffButton = ({
+    onClick,
+    className,
+}: {
+    onClick: () => Promise<unknown>
+    className: string
+}) => {
+    const t = useT(chatChangeCardStatesCatalog)
+    const [phase, setPhase] = useState<"idle" | "busy" | "failed">("idle")
+    const turnOff = () => {
+        setPhase("busy")
+        onClick().then(
+            () => setPhase("idle"),
+            () => setPhase("failed"),
+        )
+    }
+    return (
+        <Button
+            variant="ghost"
+            size="compact"
+            className={className}
+            disabled={phase === "busy"}
+            onClick={turnOff}
+        >
+            {phase === "failed"
+                ? t("chat.changeCardStates.turnOffFailed")
+                : t("chat.changeCardStates.turnOff")}
+        </Button>
+    )
 }
 
 export const ChangeResultRow = ({
@@ -83,6 +126,8 @@ export const ChangeResultRow = ({
     onView,
     onRevert,
     onTryAgain,
+    autoApproved = false,
+    onTurnOff,
     touch = false,
     className = "px-3 py-[7px]",
 }: ChangeResultRowProps) => {
@@ -103,7 +148,9 @@ export const ChangeResultRow = ({
                 </Mark>
             )
             title = t("chat.changeCardStates.waiting")
-            detail = t("chat.changeCardStates.answerSaved")
+            detail = autoApproved
+                ? t("chat.changeCardStates.autoApproved")
+                : t("chat.changeCardStates.answerSaved")
             break
         case "saved":
             mark = (
@@ -179,26 +226,128 @@ export const ChangeResultRow = ({
             detail = readOnlyNote || t("chat.changeCardStates.readOnlyDetail")
             break
     }
+    // The waiting row already says it in its detail line.
+    const note =
+        autoApproved && state.kind !== "waiting"
+            ? t("chat.changeCardStates.autoApproved")
+            : undefined
     return (
-        <div
-            className={`flex min-w-0 items-center gap-2 ${className}`}
-            data-testid={`change-result-${state.kind === "not_saved" ? state.reason : state.kind}`}
-            {...(state.kind === "waiting" ? {role: "status", "aria-live": "polite" as const} : {})}
-        >
-            {mark}
-            <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[13px] font-medium text-colorText">{title}</span>
-                {detail ? (
-                    <span
-                        className="truncate text-[12px] leading-4 text-colorTextSecondary"
-                        title={detail}
-                    >
-                        {detail}
-                    </span>
-                ) : null}
-            </div>
-            {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
+        <ResultRowFrame
+            mark={mark}
+            title={title}
+            detail={detail}
+            note={note}
+            actions={
+                actions || onTurnOff ? (
+                    <>
+                        {actions}
+                        {onTurnOff ? (
+                            <TurnOffButton onClick={onTurnOff} className={touchCls} />
+                        ) : null}
+                    </>
+                ) : null
+            }
+            className={className}
+            testId={`change-result-${state.kind === "not_saved" ? state.reason : state.kind}`}
+            status={state.kind === "waiting"}
+            autoApproved={autoApproved}
+        />
+    )
+}
+
+/** The layout every result row shares: the mark, the text lines, the buttons. */
+const ResultRowFrame = ({
+    mark,
+    title,
+    detail,
+    note,
+    actions,
+    className,
+    testId,
+    status = false,
+    autoApproved = false,
+}: {
+    mark: ReactNode
+    title: string
+    detail?: string
+    /** A third line, under the detail. */
+    note?: string
+    actions: ReactNode
+    className: string
+    testId: string
+    status?: boolean
+    autoApproved?: boolean
+}) => (
+    <div
+        className={`flex min-w-0 items-center gap-2 ${className}`}
+        data-testid={testId}
+        {...(autoApproved ? {"data-auto-approved": true} : {})}
+        {...(status ? {role: "status", "aria-live": "polite" as const} : {})}
+    >
+        {mark}
+        <div className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-[13px] font-medium text-colorText">{title}</span>
+            {detail ? (
+                <span
+                    className="truncate text-[12px] leading-4 text-colorTextSecondary"
+                    title={detail}
+                >
+                    {detail}
+                </span>
+            ) : null}
+            {note ? (
+                <span className="truncate text-[12px] leading-4 text-colorTextSecondary">
+                    {note}
+                </span>
+            ) : null}
         </div>
+        {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
+    </div>
+)
+
+/**
+ * A test start (or any other call that is not a change) that the person's approval choice ran
+ * with no card: what the card would have asked (the tool and its readable arguments, such as the
+ * agent and the first message), marked "Approved automatically".
+ */
+const AutoApprovedCallRow = ({
+    call,
+    onTurnOff,
+    touch = false,
+    className = "px-3 py-[7px]",
+}: {
+    call: AutoApprovedCall
+    onTurnOff?: () => Promise<unknown>
+    touch?: boolean
+    className?: string
+}) => {
+    const t = useT(chatChangeCardStatesCatalog)
+    // Not memoized: the describers translate with the active language, which can change.
+    const approval = {approvalId: "", toolName: call.toolName, input: call.input}
+    // A test start names its agent by a slug or an id: describe it again with the agent's name.
+    const agentName = useAgentDisplayName(describeApproval(approval).agentRef)
+    const preview = describeApproval(approval, undefined, null, agentName)
+    const detail = (preview.items ?? [])
+        .map((item) => (item.detail ? `${item.title}: ${item.detail}` : item.title))
+        .join(" · ")
+    const touchCls = touch
+        ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
+        : ""
+    return (
+        <ResultRowFrame
+            mark={
+                <Mark tone="added">
+                    <Check size={12} weight="bold" />
+                </Mark>
+            }
+            title={preview.sentence}
+            detail={detail || undefined}
+            note={t("chat.changeCardStates.autoApproved")}
+            actions={onTurnOff ? <TurnOffButton onClick={onTurnOff} className={touchCls} /> : null}
+            className={className}
+            testId="change-result-auto-approved"
+            autoApproved
+        />
     )
 }
 
@@ -237,6 +386,11 @@ export interface ChangeResultActions {
     onRevert?: (version: ChangeVersionRef) => void
     /** Ask the builder to read the agent again. */
     onTryAgain?: () => void
+    /** The person's "always approve" per tool: whether it is on, and turning it off. */
+    autoApprove?: {
+        isOn: (toolName: string) => boolean
+        turnOff: (toolName: string) => Promise<unknown>
+    }
 }
 
 const CallRow = ({
@@ -249,7 +403,7 @@ const CallRow = ({
     touch?: boolean
 }) => {
     const summary = useChangeCallSummary(call)
-    const {onView, onRevert, onTryAgain} = actions ?? {}
+    const {onView, onRevert, onTryAgain, autoApprove} = actions ?? {}
     const saved = call.state.kind === "saved" ? call.state : null
     const workflowId = saved?.workflowId
     const viewed =
@@ -264,6 +418,12 @@ const CallRow = ({
             onView={viewed && onView ? () => onView(viewed) : undefined}
             onRevert={base && onRevert ? () => onRevert(base) : undefined}
             onTryAgain={onTryAgain}
+            autoApproved={Boolean(call.autoApproved)}
+            onTurnOff={
+                call.autoApproved && autoApprove?.isOn(call.toolName)
+                    ? () => autoApprove.turnOff(call.toolName)
+                    : undefined
+            }
         />
     )
 }
@@ -288,7 +448,9 @@ export const ChangeResultRows = ({
     className?: string
 }) => {
     const calls = useMemo(() => answeredChangeCalls(parts ?? [], {finished}), [parts, finished])
-    if (!calls.length) return null
+    const started = useMemo(() => autoApprovedCalls(parts ?? []), [parts])
+    const autoApprove = actions?.autoApprove
+    if (!calls.length && !started.length) return null
     // "Try again" only where the builder did not recover: a later call of the turn that saved the
     // same agent has already made the change on the new version.
     const recovered = (index: number) => {
@@ -309,6 +471,18 @@ export const ChangeResultRows = ({
                     call={call}
                     actions={recovered(index) ? {...actions, onTryAgain: undefined} : actions}
                     touch={touch}
+                />
+            ))}
+            {started.map((call) => (
+                <AutoApprovedCallRow
+                    key={call.toolCallId}
+                    call={call}
+                    touch={touch}
+                    onTurnOff={
+                        autoApprove?.isOn(call.toolName)
+                            ? () => autoApprove.turnOff(call.toolName)
+                            : undefined
+                    }
                 />
             ))}
         </div>

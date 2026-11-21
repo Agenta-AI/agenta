@@ -1,7 +1,33 @@
-import {renderToStaticMarkup} from "react-dom/server"
-import {describe, expect, it} from "vitest"
+import {act} from "react"
 
-import {ChangeResultRow, ChangeResultRows} from "../../../src/components/ChangeResultRow"
+import {atom} from "jotai"
+import {createRoot} from "react-dom/client"
+import {renderToStaticMarkup} from "react-dom/server"
+import {describe, expect, it, vi} from "vitest"
+
+// The test start names its agent by the slug `email-writer`; the row shows the agent's name.
+vi.mock("@agenta/entities/workflow", async (importOriginal) => {
+    const original = await importOriginal<typeof import("@agenta/entities/workflow")>()
+    const named = atom({data: {id: "agent-9", name: "Email writer"}, isError: false})
+    const revision = atom({
+        data: {id: "rev-9", workflowId: "agent-9", parameters: null},
+        isSuccess: true,
+        isError: false,
+    })
+    return {
+        ...original,
+        retrievedWorkflowRevisionQueryAtomFamily: (key: string) =>
+            key.includes('"email-writer"')
+                ? revision
+                : original.retrievedWorkflowRevisionQueryAtomFamily(key),
+        workflowArtifactQueryAtomFamily: (workflowId: string) =>
+            workflowId === "agent-9" ? named : original.workflowArtifactQueryAtomFamily(workflowId),
+    }
+})
+;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
+    true
+
+const {ChangeResultRow, ChangeResultRows} = await import("../../../src/components/ChangeResultRow")
 
 const conflict = `tool call tools.agenta.edit_agent_config failed: The workflow head changed. No revision was committed.\n${JSON.stringify(
     {code: "revision_conflict", message: "The workflow head changed.", retryable: false},
@@ -123,5 +149,129 @@ describe("the result rows (task 26.1)", () => {
         )
         expect(html).toContain('data-testid="change-result-conflict"')
         expect(html).not.toContain("Try again")
+    })
+})
+
+describe("the rows of calls the person's approval choice ran (design D32)", () => {
+    const mark = (toolCallId: string, toolName: string) => ({
+        type: "data-auto-approved",
+        data: {toolCallId, toolName},
+    })
+    const auto = (fields: Record<string, unknown>) => {
+        const {approval: _approval, ...part} = edit("c1", "gpt-6", fields)
+        return part
+    }
+    const on = (isOn: boolean, turnedOff: string[] = []) => ({
+        isOn: () => isOn,
+        turnOff: (toolName: string) => {
+            turnedOff.push(toolName)
+            return Promise.resolve()
+        },
+    })
+
+    it("words Turn off as a retry when turning off fails", async () => {
+        const host = document.createElement("div")
+        document.body.appendChild(host)
+        const root = createRoot(host)
+        let calls = 0
+        act(() => {
+            root.render(
+                <ChangeResultRows
+                    parts={[
+                        auto({state: "output-available", output: saved}),
+                        mark("c1", "edit_agent_config"),
+                    ]}
+                    actions={{
+                        autoApprove: {
+                            isOn: () => true,
+                            turnOff: () => {
+                                calls += 1
+                                return Promise.reject(new Error("offline"))
+                            },
+                        },
+                    }}
+                />,
+            )
+        })
+        const button = () =>
+            [...host.querySelectorAll("button")].find((node) =>
+                node.textContent?.includes("Turn"),
+            ) ??
+            [...host.querySelectorAll("button")].find((node) =>
+                node.textContent?.includes("Retry"),
+            )!
+        expect(button().textContent).toBe("Turn off")
+        await act(async () => {
+            button().dispatchEvent(new MouseEvent("click", {bubbles: true}))
+        })
+        expect(calls).toBe(1)
+        expect(button().textContent).toBe("Retry turning off")
+        act(() => root.unmount())
+        host.remove()
+    })
+
+    it("shows the saved change card's row, marked, with Turn off while the choice is on", () => {
+        const parts = [
+            auto({state: "output-available", output: saved}),
+            mark("c1", "edit_agent_config"),
+        ]
+        const html = renderToStaticMarkup(
+            <ChangeResultRows
+                parts={parts}
+                actions={{onView: () => undefined, autoApprove: on(true)}}
+            />,
+        )
+        expect(html).toContain("Saved as v5")
+        expect(html).toContain("Change the model")
+        expect(html).toContain("Approved automatically")
+        expect(html).toContain(">View<")
+        expect(html).toContain(">Turn off<")
+
+        const off = renderToStaticMarkup(
+            <ChangeResultRows parts={parts} actions={{autoApprove: on(false)}} />,
+        )
+        expect(off).toContain("Approved automatically")
+        expect(off).not.toContain("Turn off")
+    })
+
+    it("says approved automatically, not 'your answer', while the call runs", () => {
+        const html = renderToStaticMarkup(
+            <ChangeResultRows
+                parts={[auto({state: "input-available"}), mark("c1", "edit_agent_config")]}
+            />,
+        )
+        expect(html).toContain("Waiting for the agent")
+        expect(html).toContain("Approved automatically")
+        expect(html).not.toContain("Your answer is saved.")
+    })
+
+    it("gives a test start one row that names the agent and the first message", () => {
+        const html = renderToStaticMarkup(
+            <ChangeResultRows
+                parts={[
+                    {
+                        type: "tool-start_session",
+                        toolCallId: "s1",
+                        state: "output-available",
+                        input: {agent: "email-writer", text: "Draft the reply"},
+                    },
+                    mark("s1", "start_session"),
+                ]}
+                actions={{autoApprove: on(true)}}
+            />,
+        )
+        expect(html).toContain('data-testid="change-result-auto-approved"')
+        expect(html).toContain("Start a session of Email writer.")
+        expect(html).not.toContain("email-writer")
+        expect(html).toContain("First message: Draft the reply")
+        expect(html).toContain("Approved automatically")
+        expect(html).toContain(">Turn off<")
+    })
+
+    it("a call with no mark and no approval keeps no row", () => {
+        const html = renderToStaticMarkup(
+            <ChangeResultRows parts={[auto({state: "output-available", output: saved})]} />,
+        )
+        expect(html).toBe("")
     })
 })

@@ -10,6 +10,8 @@ import {
 } from "../../tools/denial-text.ts";
 import type { ApprovedExecutionGrants, Responder } from "../../responder.ts";
 import type { AgentChangePreviewFetcher } from "../../tools/agent-change-preview.ts";
+import { autoApprovedEvent } from "../../tools/gate-answer.ts";
+import type { AttachPermissionResponderInput } from "./acp-interactions.ts";
 import type {
   ExecutableToolGate,
   ExecutableToolGateRequest,
@@ -52,6 +54,12 @@ export interface BuildExecutableToolGateInput {
   resolveChangePreview?: AgentChangePreviewFetcher;
   /** Resolves when the turn pauses; a pending preview fetch stops waiting then. */
   pauseSignal?: Promise<unknown>;
+  /**
+   * Resolves the call's `@ag.file` markers and mints their records, the step a card takes. A
+   * server `allow` with no harness gate before takes it here, or the commit check refuses the
+   * call with `authorization_missing`. A failure refuses the call.
+   */
+  resolveApprovedContent?: AttachPermissionResponderInput["onResolveApprovedContent"];
   log?: (message: string) => void;
 }
 
@@ -66,6 +74,7 @@ export function buildExecutableToolGate({
   executionGrants,
   resolveChangePreview,
   pauseSignal,
+  resolveApprovedContent,
   log = () => {},
 }: BuildExecutableToolGateInput): ExecutableToolGate {
   return {
@@ -100,7 +109,33 @@ export function buildExecutableToolGate({
             (preApproved ? " grant=consumed" : ""),
         );
       }
-      if (verdict.kind === "allow") return { kind: "allow" };
+      if (verdict.kind === "allow") {
+        if (!verdict.byGateAnswer) return { kind: "allow" };
+        // The server allowed it here, with no harness gate before: take the step a card takes,
+        // under the id the chat's card attaches to, and mark a call the person's approval
+        // choice allowed, as the harness gate does.
+        const toolCallId =
+          toolCallIndex?.lookup(request.spec.name, request.input) ??
+          request.toolCallId;
+        if (resolveApprovedContent) {
+          const outcome = await resolveApprovedContent({
+            toolName: request.spec.name,
+            toolCallId,
+            args: request.input,
+          });
+          if (!outcome.ok) {
+            log(
+              `[executable-tool] approved-content resolution failed tool=${request.spec.name}: ` +
+                `${outcome.reason}; deny (fail closed)`,
+            );
+            return { kind: "deny", reason: outcome.reason };
+          }
+        }
+        if (verdict.autoApproved) {
+          run.emitEvent(autoApprovedEvent(toolCallId, request.spec.name));
+        }
+        return { kind: "allow" };
+      }
       if (verdict.kind === "deny") {
         // A server deny at the gate refuses one target (D34), not the tool and not a person's
         // answer, so the model may still pick another target.

@@ -11,6 +11,7 @@
 import {AccessClient} from "@agentaai/api-client/resources/access"
 import {AccountChoicesClient} from "@agentaai/api-client/resources/accountChoices"
 import {ApplicationsClient} from "@agentaai/api-client/resources/applications"
+import {ApprovalChoicesClient} from "@agentaai/api-client/resources/approvalChoices"
 import {ChannelsClient} from "@agentaai/api-client/resources/channels"
 import {EvaluationsClient} from "@agentaai/api-client/resources/evaluations"
 import {EventsClient} from "@agentaai/api-client/resources/events"
@@ -192,6 +193,11 @@ export function getAccountChoicesClient(): AccountChoicesClient {
 let _gateway: GatewayClient | undefined
 export function getGatewayClient(): GatewayClient {
     return (_gateway ??= new GatewayClient(buildClientOptions()))
+}
+
+let _approvalChoices: ApprovalChoicesClient | undefined
+export function getApprovalChoicesClient(): ApprovalChoicesClient {
+    return (_approvalChoices ??= new ApprovalChoicesClient(buildClientOptions()))
 }
 
 let _gatewayMcp: GatewayMcpClient | undefined

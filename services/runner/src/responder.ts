@@ -25,7 +25,10 @@ import {
   type StoredPermissionDecisions,
   type Verdict,
 } from "./permission-plan.ts";
-import type { GateAnswerFetcher } from "./tools/gate-answer.ts";
+import {
+  APPROVAL_CHOICE_BASIS,
+  type GateAnswerFetcher,
+} from "./tools/gate-answer.ts";
 
 export type PermissionDecision = "allow" | "deny";
 
@@ -395,7 +398,14 @@ export class ApprovalResponder implements Responder {
     if (!answer || answer.permission === "ask") {
       return { kind: "pendingApproval" };
     }
-    return { kind: answer.permission, byGateAnswer: true };
+    return {
+      kind: answer.permission,
+      byGateAnswer: true,
+      ...(answer.permission === "allow" &&
+      answer.basis === APPROVAL_CHOICE_BASIS
+        ? { autoApproved: true as const }
+        : {}),
+    };
   }
 
   async onClientTool(

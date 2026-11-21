@@ -2,8 +2,9 @@
  * The server's answer at the approval gate (`tools.agenta.resolve_gate`).
  *
  * The runner decides one permission per tool from the run's configuration. It cannot know which
- * agent a session id names, or whether a person sent the turn. So when the gate of a session
- * write is about to ask a person, the runner asks the API first. The API answers with the
+ * agent a session id names, whether a person sent the turn, or whether the person chose to always
+ * approve a builder tool. So when the gate of one of those calls is about to ask a person, the
+ * runner asks the API first. The API answers with the
  * runner's own permission words: `allow` runs the call with no card, `deny` refuses it with no
  * card, and `ask` shows the card.
  *
@@ -13,6 +14,7 @@
  * an older API, a malformed answer) reads as `ask`, and the card shows as it does without this.
  */
 import type {
+  AgentEvent,
   ResolvedToolSpec,
   RunContext,
   ToolPermission,
@@ -24,14 +26,38 @@ import type { ToolCallbackRuntime } from "./run-credential.ts";
 const RESOLVE_GATE_CALL_REF = "tools.agenta.resolve_gate";
 
 /**
- * The calls the runner asks about, by the call ref their spec carries. Only the three session
- * writes for now; other `tools.agenta.` ops keep the card that their configuration gives them.
+ * The calls the runner asks about, by the call ref their spec carries: the three session writes,
+ * and the builder's agent writes, which a person's approval choice can allow (design D32). Other
+ * `tools.agenta.` ops keep the card that their configuration gives them.
  */
 const GATE_ANSWER_CALL_REFS = new Set([
   "tools.agenta.start_session",
   "tools.agenta.send_session_message",
   "tools.agenta.cancel_session",
+  "tools.agenta.create_agent",
+  "tools.agenta.edit_agent_config",
 ]);
+
+/** The basis of an `allow` that the person's stored approval choice gave (design D32). */
+export const APPROVAL_CHOICE_BASIS = "approval_choice";
+
+/**
+ * The `data` event that marks a call the person's approval choice allowed, `{toolCallId,
+ * toolName}`. The chat shows the call's card as approved automatically from it.
+ */
+export const AUTO_APPROVED_DATA_NAME = "auto-approved";
+
+/** The mark of one call that the person's approval choice allowed. */
+export function autoApprovedEvent(
+  toolCallId: string,
+  toolName: string | undefined,
+): AgentEvent {
+  return {
+    type: "data",
+    name: AUTO_APPROVED_DATA_NAME,
+    data: { toolCallId, toolName },
+  };
+}
 
 /** The card waits at most this long for the answer, then shows. */
 export const GATE_ANSWER_TIMEOUT_MS = 5_000;

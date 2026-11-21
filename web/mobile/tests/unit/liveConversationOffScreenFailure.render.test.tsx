@@ -185,6 +185,10 @@ vi.mock("@/features/chat/usePersonalSetupStep", () => ({
     usePersonalSetupStep: () => ({open: false, items: [], pendingKeys: new Set()}),
 }))
 vi.mock("@agenta/shared/utils", () => ({isOnScreen: () => true, isOverlayOpen: () => false}))
+// The builder's approval choices load the entities package, which needs the real utils.
+vi.mock("@/features/chat/useBuilderApprovalChoices", () => ({
+    useBuilderApprovalChoices: () => ({alwaysApprove: undefined, autoApprove: undefined}),
+}))
 vi.mock("@agenta/ui/app-message", () => ({
     message: {warning: vi.fn()},
     modal: dialog,
