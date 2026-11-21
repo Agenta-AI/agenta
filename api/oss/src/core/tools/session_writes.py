@@ -232,7 +232,7 @@ def _sharing_would_widen_wait(session_id: str) -> _Refusal:
     return _refusal(
         "sharing_would_widen",
         f"Fewer people can read the child session '{session_id}' than this one, so "
-        "its status would reach people who cannot read it.",
+        "its text would reach people who cannot read it.",
         "Leave that session out of `wait_for_sessions`.",
         details={"session_id": session_id},
     )
@@ -1664,7 +1664,7 @@ async def wait_for_sessions(
                 action=Permission.VIEW_SESSIONS,
             )
         # A child that fewer people can read than this session now (its owner made it
-        # private): its status would reach people who cannot read it.
+        # private): its text would reach people who cannot read it.
         narrower = await _narrower_child(
             caller=caller, project_id=project_id, session_ids=session_ids
         )

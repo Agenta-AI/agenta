@@ -141,16 +141,17 @@ def child_update_message(result: ChildTurnResult) -> Dict[str, Any]:
 
 
 def withheld_child_update_message(
-    *, session_id: str, status: ChildTurnStatus
+    *, session_id: str, turn_id: Optional[str], status: ChildTurnStatus
 ) -> Dict[str, Any]:
     """The one message of a `child_update` row when fewer people can read the child
-    session than the calling session: the status and the child session id only. No
-    last message, no error text, no result path, and the part names no turn."""
-    result = ChildTurnResult(session_id=session_id, status=status)
+    session than the calling session: the status and the ids only. No last message, no
+    error text, no agent, no revision and no result path. The part keeps the turn id,
+    so the short wait of the start or send that sent the turn finds the row."""
+    result = ChildTurnResult(session_id=session_id, turn_id=turn_id, status=status)
     return {
         "role": "user",
         "content": "\n".join([_header(result), *_lines(result), WITHHELD_NOTE]),
         "child_update": child_update_part(
-            session_id=session_id, turn_id=None, status=status
+            session_id=session_id, turn_id=turn_id, status=status
         ),
     }

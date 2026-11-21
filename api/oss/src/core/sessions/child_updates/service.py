@@ -279,7 +279,7 @@ class SessionChildUpdatesService:
                 **context,
             )
             message = withheld_child_update_message(
-                session_id=session_id, status=status
+                session_id=session_id, turn_id=chain[0], status=status
             )
         else:
             message = child_update_message(

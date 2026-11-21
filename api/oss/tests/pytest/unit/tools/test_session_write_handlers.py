@@ -17,7 +17,11 @@ from oss.src.core.access.dtos import Decision, DecisionReason, RunOrigin, RunSen
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import AccessService
 from oss.src.core.sessions.child_updates.dtos import ChildTurnResult, ChildTurnStatus
-from oss.src.core.sessions.child_updates.form import child_update_message
+from oss.src.core.sessions.child_updates.form import (
+    WITHHELD_NOTE,
+    child_update_message,
+    withheld_child_update_message,
+)
 from oss.src.core.sessions.child_updates.service import still_running_schedule_id
 from oss.src.core.sessions.inputs.dtos import PendingInputKind, PendingInputState
 from oss.src.core.sessions.inputs.types import carries_approval_answer
@@ -461,13 +465,21 @@ class _World:
             turn_id=str(uuid4()),
         )
 
-    def update_row(self, caller, child_session_id, *, status, turn_id=None):
-        message = child_update_message(
-            ChildTurnResult(
-                session_id=child_session_id,
-                status=status,
-                turn_id=turn_id,
-                last_message=f"{status.value} answer",
+    def update_row(
+        self, caller, child_session_id, *, status, turn_id=None, withheld=False
+    ):
+        message = (
+            withheld_child_update_message(
+                session_id=child_session_id, turn_id=turn_id, status=status
+            )
+            if withheld
+            else child_update_message(
+                ChildTurnResult(
+                    session_id=child_session_id,
+                    status=status,
+                    turn_id=turn_id,
+                    last_message=f"{status.value} answer",
+                )
             )
         )
         row = SimpleNamespace(
@@ -1066,6 +1078,40 @@ async def test_the_short_wait_returns_the_child_update_and_removes_it(world):
     assert rows["done"].state == PendingInputState.removed
     # A still-running update never ends a wait, and is left to run as a queued input.
     assert rows["running"].state == PendingInputState.pending
+
+
+@pytest.mark.asyncio
+async def test_the_short_wait_returns_an_update_that_gives_the_status_only(world):
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research)
+    rows = {}
+
+    def arrive(now):
+        if now >= 3 and "done" not in rows:
+            child_id = next(
+                iter(s for s in world.store.streams if s.startswith("child-"))
+            )
+            rows["done"] = world.update_row(
+                caller,
+                child_id,
+                status=ChildTurnStatus.completed,
+                turn_id=str(UUID(int=len(child_id))),
+                withheld=True,
+            )
+
+    world.clock.on_sleep = arrive
+    result = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="market-research",
+        text="Go",
+        tool_call_id="t",
+    )
+
+    assert _lines(result.content)["status"] == "completed"
+    assert WITHHELD_NOTE in result.content
+    assert rows["done"].state == PendingInputState.removed
 
 
 @pytest.mark.asyncio
