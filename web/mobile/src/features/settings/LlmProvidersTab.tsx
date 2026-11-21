@@ -5,6 +5,7 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsLlmProvidersTabCatalog from "@agenta/i18n/catalogs/settings.llmProvidersTab"
 import {AIProvidersPage, useEntitlements, type AIProvidersOrganization} from "@agenta/settings-ui"
+import {isBillingEnabled} from "@agenta/shared/api"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -42,8 +43,11 @@ const useProvidersOrganization = (
                 : entitlements.isLoading || !manage
                   ? "pending"
                   : "plan",
-            // A plain link, so it carries this app's base path itself.
-            plansHref: `${basePath}/w/${workspaceId}/p/${projectId}/settings?tab=billing`,
+            // A plain link, so it carries this app's base path itself. Self-hosted, the plan
+            // comes from a license key, so the link opens the License tab.
+            plansHref: `${basePath}/w/${workspaceId}/p/${projectId}/settings?tab=${
+                isBillingEnabled() ? "billing" : "license"
+            }`,
         }
     }, [group, current, workspaceId, projectId, entitlements, manage, basePath])
 }

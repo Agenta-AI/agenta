@@ -291,7 +291,8 @@ async def _plan_checks(
 
     entitlements = get_plan_entitlements(plan) if plan else None
 
-    # The free plan is a cloud plan. A self-hosted plan without throttles has none.
+    # The free plan is a cloud plan. Self-hosted, an organization with no plan, an
+    # unknown plan or a plan without throttles has none.
     if not is_cloud() and not (entitlements or {}).get(Tracker.THROTTLES):
         return [], Algorithm.GCRA
 
