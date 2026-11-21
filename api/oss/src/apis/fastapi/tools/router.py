@@ -92,6 +92,7 @@ from oss.src.core.gateway.connections.utils import decode_oauth_state
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.tracing.service import TracingService
+from oss.src.core.tools.gate import GateReader
 from oss.src.core.tools.exceptions import PlatformToolHandlerError
 from oss.src.core.tools.platform_handlers import (
     COMMIT_REVISION_CALL_REF,
@@ -424,6 +425,7 @@ class ToolsRouter:
         workflows_service: Optional[WorkflowsService] = None,
         tracing_service: Optional[TracingService] = None,
         mounts_service: Optional[MountsService] = None,
+        gate_reader: Optional[GateReader] = None,
     ):
         self.tools_service = tools_service
         # Admits each child run (the parent's principal and the child's agent).
@@ -435,6 +437,8 @@ class ToolsRouter:
         self.tracing_service = tracing_service
         # Drive-backed platform handlers (create_app, list_starters) write through it.
         self.mounts_service = mounts_service
+        # Reads the session facts `resolve_gate` answers from.
+        self.gate_reader = gate_reader
 
         self.router = APIRouter()
 
@@ -1702,6 +1706,7 @@ class ToolsRouter:
                 ),
                 # The calling run of a session op comes from the credential only.
                 access=get_request_access(),
+                gate_reader=self.gate_reader,
             )
         except AdmissionDenied as refusal:
             return _admission_error_result(body=body, child=envelope, refusal=refusal)

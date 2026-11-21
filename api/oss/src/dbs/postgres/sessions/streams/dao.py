@@ -391,16 +391,19 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         *,
         project_id: UUID,
         session_id: str,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionStream]:
         """Like `get_by_session_id`, but also returns a soft-archived row — the
         confirmation read for `archive`/`unarchive` (S7/F2, WP5)."""
-        async with self.engine.session() as session:
-            stmt = select(SessionStreamDBE).where(
-                SessionStreamDBE.project_id == project_id,
-                SessionStreamDBE.session_id == session_id,
-            )
-            result = await session.execute(stmt)
-            dbe = result.scalar_one_or_none()
+        stmt = select(SessionStreamDBE).where(
+            SessionStreamDBE.project_id == project_id,
+            SessionStreamDBE.session_id == session_id,
+        )
+        if transaction is not None:
+            dbe = (await transaction.execute(stmt)).scalar_one_or_none()
+        else:
+            async with self.engine.session() as session:
+                dbe = (await session.execute(stmt)).scalar_one_or_none()
         if dbe is None:
             return None
         return map_stream_dbe_to_dto(stream_dbe=dbe)

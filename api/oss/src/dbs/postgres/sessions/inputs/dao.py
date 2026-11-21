@@ -176,9 +176,14 @@ class SessionInputsDAO(SessionInputsDAOInterface):
             return await execute(session)
 
     async def fetch_by_execution_id(
-        self, *, project_id: UUID, session_id: str, execution_id: str
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+        transaction: Optional[Any] = None,
     ) -> Optional[PendingInput]:
-        async with self.engine.session() as session:
+        async def execute(session: Any) -> Optional[PendingInput]:
             row = (
                 await session.execute(
                     select(SessionInputDBE).where(
@@ -189,6 +194,11 @@ class SessionInputsDAO(SessionInputsDAOInterface):
                 )
             ).scalar_one_or_none()
             return to_pending_input(row) if row else None
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
 
     async def list_pending(
         self,

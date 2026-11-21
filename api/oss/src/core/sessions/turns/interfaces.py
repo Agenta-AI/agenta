@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.shared.dtos import Reference, Windowing
@@ -68,6 +68,7 @@ class SessionTurnsDAOInterface(ABC):
         #
         query: Optional[SessionTurnQuery] = None,
         windowing: Optional[Windowing] = None,
+        transaction: Optional[Any] = None,
     ) -> List[SessionTurn]: ...
 
     @abstractmethod
@@ -101,6 +102,7 @@ class SessionTurnsDAOInterface(ABC):
         session_id: Optional[str] = None,
         turn_id: Optional[UUID] = None,
         trace_id: Optional[UUID] = None,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionTurn]: ...
 
     @abstractmethod
