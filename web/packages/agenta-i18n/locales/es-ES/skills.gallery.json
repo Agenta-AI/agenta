@@ -4,6 +4,8 @@
     "filesParsed_many": "{{count}} archivos analizados",
     "filesParsed_other": "{{count}} archivos analizados",
     "noSkillMdFound": "No se encontró ningún SKILL.md en la subida.",
+    "manySkillMdFound": "La subida contiene más de un SKILL.md.",
+    "duplicateUploadPath": "Dos archivos de la subida tienen la misma ruta: {{path}}",
     "readUploadFailed": "No se pudo leer la subida.",
     "createFailedDetail": "Error al crear: {{error}}",
     "createFailed": "Error al crear.",

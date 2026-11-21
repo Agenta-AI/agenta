@@ -4,6 +4,8 @@
     "filesParsed_many": "{{count}} arquivos analisados",
     "filesParsed_other": "{{count}} arquivos analisados",
     "noSkillMdFound": "Nenhum SKILL.md encontrado no envio.",
+    "manySkillMdFound": "O envio contém mais de um SKILL.md.",
+    "duplicateUploadPath": "Dois arquivos do envio têm o mesmo caminho: {{path}}",
     "readUploadFailed": "Não foi possível ler o envio.",
     "createFailedDetail": "Falha ao criar: {{error}}",
     "createFailed": "Falha ao criar.",

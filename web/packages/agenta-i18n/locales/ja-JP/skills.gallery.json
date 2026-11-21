@@ -2,6 +2,8 @@
     "newSkill": "新しいスキル",
     "filesParsed_other": "{{count}} 個のファイルを解析しました",
     "noSkillMdFound": "アップロードに SKILL.md が見つかりませんでした。",
+    "manySkillMdFound": "アップロードに SKILL.md が複数含まれています。",
+    "duplicateUploadPath": "アップロード内の 2 つのファイルのパスが同じです: {{path}}",
     "readUploadFailed": "アップロードを読み取れませんでした。",
     "createFailedDetail": "作成に失敗しました: {{error}}",
     "createFailed": "作成に失敗しました。",

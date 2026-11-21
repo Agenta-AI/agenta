@@ -232,6 +232,33 @@ describe("applySkillUpload", () => {
         ])
     })
 
+    it("Replace refuses an upload with two skills, so one skill's files never land in the other", () => {
+        const two = readSkillUpload([
+            raw("alpha/SKILL.md", "---\nname: alpha\n---\nA"),
+            raw("beta/SKILL.md", "---\nname: beta\n---\nB"),
+            raw("beta/notes.md", "n"),
+        ])
+        expect(applySkillUpload(skill, two, "replace")).toEqual({error: "manySkills"})
+    })
+
+    it("refuses two uploaded files with the same path instead of keeping only the last", () => {
+        const distinct = readSkillUpload([raw("one/notes.md", "first"), raw("notes.md", "second")])
+        const withSkill = readSkillUpload([
+            raw("SKILL.md", "---\nname: a\n---\nA"),
+            raw("notes.md", "first"),
+            raw("notes.md", "second"),
+        ])
+        expect(applySkillUpload(skill, withSkill, "add")).toEqual({
+            error: "duplicatePath",
+            path: "notes.md",
+        })
+        expect(applySkillUpload(skill, withSkill, "replace")).toEqual({
+            error: "duplicatePath",
+            path: "notes.md",
+        })
+        expect("skill" in applySkillUpload(skill, distinct, "add")).toBe(true)
+    })
+
     it("Replace with no SKILL.md changes nothing and says so", () => {
         const noSkillMd = readSkillUpload([raw("notes.md", "n")])
         expect(applySkillUpload(skill, noSkillMd, "replace")).toEqual({error: "noSkillMd"})

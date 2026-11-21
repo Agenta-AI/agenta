@@ -295,6 +295,10 @@ export async function scanSkillFromDataTransfer(dt: DataTransfer): Promise<Skill
 export interface SkillUpload {
     /** The upload held a SKILL.md (as text). */
     hasSkillMd: boolean
+    /** It held more than one, so it is more than one skill. */
+    manySkills?: boolean
+    /** A path two uploaded files share: one would silently replace the other. */
+    duplicatePath?: string
     skill: ParsedSkill
     /** Files that are not text, or too large, with the reason. */
     skipped: {path: string; reason: string}[]
@@ -303,9 +307,15 @@ export interface SkillUpload {
 /** Split an upload into its text files and the files that are skipped. */
 export function readSkillUpload(raw: RawFile[]): SkillUpload {
     const {usable, skipped} = splitTextFiles(raw)
+    const skillMds = usable.filter((f) => SKILL_MD.test(f.path)).length
+    const skill = buildSkillFromFiles(usable)
+    const paths = skill.files.map((file) => file.path)
+    const duplicatePath = paths.find((path, i) => paths.indexOf(path) !== i)
     return {
-        hasSkillMd: usable.some((f) => SKILL_MD.test(f.path)),
-        skill: buildSkillFromFiles(usable),
+        hasSkillMd: skillMds > 0,
+        ...(skillMds > 1 ? {manySkills: true} : {}),
+        ...(duplicatePath !== undefined ? {duplicatePath} : {}),
+        skill,
         skipped,
     }
 }
@@ -334,8 +344,13 @@ export function applySkillUpload(
     skill: Record<string, unknown>,
     upload: SkillUpload,
     mode: SkillUploadMode,
-): {skill: Record<string, unknown>} | {error: "noSkillMd"} {
+):
+    | {skill: Record<string, unknown>}
+    | {error: "noSkillMd" | "manySkills"}
+    | {error: "duplicatePath"; path: string} {
     const parsed = upload.skill
+    if (upload.duplicatePath !== undefined)
+        return {error: "duplicatePath", path: upload.duplicatePath}
     if (mode === "add") {
         const files = [...skillFilesOf(skill)]
         for (const file of parsed.files) {
@@ -350,6 +365,8 @@ export function applySkillUpload(
         return {skill: next}
     }
     if (!upload.hasSkillMd) return {error: "noSkillMd"}
+    // Replace takes one skill; the files of a second one would land in this one.
+    if (upload.manySkills) return {error: "manySkills"}
     const next: Record<string, unknown> = {...skill, body: parsed.body}
     // As production: a SKILL.md with no name or description keeps the ones the skill has.
     if (parsed.name) next.name = parsed.name
