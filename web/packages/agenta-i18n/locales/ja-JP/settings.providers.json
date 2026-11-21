@@ -21,6 +21,7 @@
     "orgEmptyBody": "下でプロバイダーを接続してください。その後、どのプロジェクトで使えるかを選びます。",
     "orgEmptyTitle": "組織の接続はまだありません",
     "orgLoadFailed": "組織の接続を読み込めませんでした。",
+    "projectConnectionsLoadFailed": "プロジェクトの接続を読み込めませんでした。",
     "removeFailed": "Agenta は {{name}} を削除できませんでした。もう一度お試しください。",
     "signInAgain": "再度サインイン",
     "vertexFields": "プロジェクト、ロケーション、認証情報"

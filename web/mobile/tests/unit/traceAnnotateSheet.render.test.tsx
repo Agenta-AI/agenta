@@ -206,9 +206,9 @@ describe("trace annotate sheet", () => {
 
     it("Add Evaluator opens Select Evaluators and Annotate returns with the picked evaluator", async () => {
         await mount()
-        expect(body().textContent).toContain("There are no available annotations")
+        expect(body().textContent).toContain("No annotations yet")
 
-        await click(buttonNamed("Add Evaluator"))
+        await click(buttonNamed("Add evaluator"))
         expect(title()).toBe("Select Evaluators")
         expect(buttonNamed("Annotate")?.disabled).toBe(true)
 
@@ -222,7 +222,7 @@ describe("trace annotate sheet", () => {
 
     it("Back returns to Annotate without a change", async () => {
         await mount()
-        await click(buttonNamed("Add Evaluator"))
+        await click(buttonNamed("Add evaluator"))
         await click(buttonNamed("Back"))
         expect(title()).toBe("Annotate")
     })
@@ -262,6 +262,6 @@ describe("trace annotate sheet", () => {
         await click(buttonNamed("Save"))
 
         expect(body().querySelector("[inert]")?.textContent).toContain("friendly")
-        expect(buttonNamed("Add Evaluator")?.disabled).toBe(true)
+        expect(buttonNamed("Add evaluator")?.disabled).toBe(true)
     })
 })

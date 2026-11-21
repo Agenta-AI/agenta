@@ -19,6 +19,7 @@ export const MetricCardsSection = ({
     runId,
     runName,
     online,
+    human = false,
     metrics,
     hasEvaluators,
     pending,
@@ -28,6 +29,8 @@ export const MetricCardsSection = ({
     runId: string
     runName: string
     online: boolean
+    /** A human run's scores come from annotations, so its empty state asks for them. */
+    human?: boolean
     metrics: readonly OverviewMetric[]
     hasEvaluators: boolean
     pending: boolean
@@ -71,6 +74,14 @@ export const MetricCardsSection = ({
                 <OverviewEmpty
                     title="Temporal evaluator metrics"
                     description="We will chart evaluator scores here as soon as this online run collects trace results for the selected evaluators."
+                />
+            )
+        }
+        if (human && hasEvaluators) {
+            return (
+                <OverviewEmpty
+                    title="No annotations yet"
+                    description="Annotate the scenarios of this run to see each evaluator's scores here."
                 />
             )
         }

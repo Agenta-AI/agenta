@@ -74,7 +74,7 @@ export const PromptsScreen = ({
         [projectId, workspaceId],
     )
     const projectBase = `/w/${workspaceId}/p/${projectId}`
-    const createPrompt = useCreatePrompt({projectBase})
+    const createPrompt = useCreatePrompt({projectBase, folderId: browser.folderId})
     // A new prompt opens in the playground, so New prompt needs it: developer mode only.
     const newPrompt = playgroundEnabled && actions.canEditPrompts ? createPrompt.action : null
     const [settingUpWorkflow, setSettingUpWorkflow] = useState(false)

@@ -263,6 +263,17 @@ export const PI_MODELS_AHEAD_OF_CATALOG: Record<string, PiModelAheadOfCatalog> =
       ],
     },
   },
+  // Pi 1.5.2 does not carry Hy4 Flash, which joined the OpenRouter defaults. It inherits Hy4's
+  // image input, reasoning and 1M context, at Flash's own price.
+  "openrouter/tencent/hy4-flash": {
+    inheritsFrom: "tencent/hy4",
+    cost: {
+      input: 0.035,
+      output: 0.1405,
+      cacheRead: 0.0015,
+      cacheWrite: 0,
+    },
+  },
 };
 
 function entryAheadOfCatalog(

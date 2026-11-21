@@ -62,7 +62,7 @@ export const TestcaseEditorDrawerContent = ({
         >
             <div className="flex-1 overflow-y-auto overflow-x-hidden">
                 {isNewRow && rootViewMode === "form" ? (
-                    <p className="m-4 mb-0 rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
+                    <p className="m-4 mb-2 rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
                         This is a new testcase that hasn&apos;t been saved to the server yet. Fill
                         in the fields below and click &quot;Commit&quot; to save all changes.
                     </p>

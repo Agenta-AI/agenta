@@ -6,5 +6,10 @@
     "confirmMany": "Möchten Sie wirklich {{count}} Traces löschen?",
     "notReversible": "Diese Aktion kann nicht rückgängig gemacht werden.",
     "cancel": "Abbrechen",
-    "delete": "Löschen"
+    "delete": "Löschen",
+    "descriptionOne": "Dieser Trace und alle seine Spans werden dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden.",
+    "descriptionMany": "Diese Traces und alle ihre Spans werden dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden.",
+    "deleting": "Wird gelöscht…",
+    "deletedOne": "Trace gelöscht",
+    "deletedMany": "{{count}} Traces gelöscht"
 }

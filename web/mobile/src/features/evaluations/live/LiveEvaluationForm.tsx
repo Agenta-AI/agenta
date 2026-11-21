@@ -45,7 +45,7 @@ export const LiveEvaluationForm = ({
     onCreated,
     initial,
 }: {
-    /** Where "Open evaluator registry" goes. Null while the evaluators view is off. */
+    /** Where "Open evaluators" goes. Null while the evaluators view is off. */
     evaluatorsHref: string | null
     isCreating: boolean
     create: (
@@ -91,7 +91,7 @@ export const LiveEvaluationForm = ({
                             autoFocus
                             name="name"
                             value={draft.name}
-                            placeholder="Testing evaluator"
+                            placeholder="Enter a name"
                             disabled={isCreating}
                             aria-invalid={Boolean(errors.name)}
                             onChange={(event) => update({name: event.target.value})}

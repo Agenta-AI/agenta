@@ -25,5 +25,6 @@
     "testcaseData": "テストケースのデータ",
     "root": "ルート",
     "unsavedChanges": "未保存の変更",
-    "noTestcases": "テストケースが見つかりません"
+    "noTestcases": "テストケースが見つかりません",
+    "invalidCode": "無効な {{format}}: {{error}}。修正すると変更が適用されます。"
 }

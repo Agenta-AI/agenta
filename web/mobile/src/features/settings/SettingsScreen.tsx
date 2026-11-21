@@ -80,7 +80,11 @@ export const SettingsScreen = ({
 
     const selectTab = useCallback(
         (tab: SettingsTabKey) =>
-            void router.replace({query: {...router.query, tab}}, undefined, {shallow: true}),
+            void router.replace(
+                {pathname: router.pathname, query: {...router.query, tab}},
+                undefined,
+                {shallow: true},
+            ),
         [router],
     )
 
@@ -88,6 +92,10 @@ export const SettingsScreen = ({
     const scrollRef = useRef<HTMLDivElement>(null)
     // A pinned catalog search keeps its colour; the top fade starts below it.
     useScrollFadeEdges(scrollRef, {insetSelector: "[data-sticky-search]"})
+    // A new tab opens at its top, not at the previous tab's scroll offset.
+    useEffect(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = 0
+    }, [active])
 
     const openWalkthrough = useSetAtom(openFeatureGuideAtom)
     const walkthrough = SETTINGS_WALKTHROUGHS[active]

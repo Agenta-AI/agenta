@@ -107,7 +107,6 @@ export const ApplicationConfigSection = ({
                 <ConfigJsonDisclosure value={application.snapshot} defaultOpen />
             ) : (
                 <section aria-label="Prompt Template" className="flex min-w-0 flex-col gap-2">
-                    <h3 className="m-0 text-sm font-semibold text-foreground">Prompt Template</h3>
                     <RevisionConfigView revisionId={application.revisionId} kind="variant" />
                 </section>
             )}

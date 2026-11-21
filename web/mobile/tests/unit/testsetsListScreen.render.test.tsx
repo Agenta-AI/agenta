@@ -64,7 +64,6 @@ vi.mock("@/features/testsets/list/useTestsetRowActions", () => ({
     }),
 }))
 
-import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
 import {TestsetsListScreen} from "@/features/testsets/list/TestsetsListScreen"
 import TestsetsPage from "@/pages/w/[workspace_id]/p/[project_id]/testsets/index"
 
@@ -98,11 +97,10 @@ describe("Testsets list screen", () => {
         vi.useRealTimers()
     })
 
-    it("Testsets route shows not found while the view is hidden", async () => {
-        expect(DEVELOPER_VIEWS.find((view) => view.id === "testsets")?.stage).toBe("hidden")
+    it("Testsets route shows not found without beta developer mode", async () => {
         await mount(<TestsetsPage />)
         expect(host.querySelector('[data-testid="not-found"]')).not.toBeNull()
-        expect(host.textContent).not.toContain("Testsets")
+        expect(host.textContent).not.toContain("Test sets")
     })
 
     it("The search term is kept in the URL", async () => {
@@ -180,10 +178,10 @@ describe("Testsets list screen", () => {
 
     it("Create new testset shows only to a reader who may edit", async () => {
         await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" />)
-        expect(host.textContent).not.toContain("Create new testset")
+        expect(host.textContent).not.toContain("Create test set")
         state.allowed = new Set(["edit_testsets"])
         await mount(<TestsetsListScreen workspaceId="ws" projectId="pr" />)
-        expect(host.textContent).toContain("Create new testset")
+        expect(host.textContent).toContain("Create test set")
     })
 
     it("Create new testset opens the create dialog", {timeout: 25000}, async () => {
@@ -195,7 +193,7 @@ describe("Testsets list screen", () => {
             </QueryClientProvider>,
         )
         const button = Array.from(host.querySelectorAll("button")).find(
-            (item) => item.textContent === "Create new testset",
+            (item) => item.textContent === "Create test set",
         )!
         await act(async () => button.click())
         // The dialog is a lazy chunk; the first load transforms its files.
@@ -218,7 +216,7 @@ describe("Testsets list screen", () => {
         )
         await mount(screen("pr"))
         const button = Array.from(host.querySelectorAll("button")).find(
-            (item) => item.textContent === "Create new testset",
+            (item) => item.textContent === "Create test set",
         )!
         await act(async () => button.click())
         await act(async () => {
@@ -256,7 +254,7 @@ describe("Testsets list screen", () => {
         await mount(screen("pr"))
         await act(async () => {
             document
-                .querySelector('[aria-label="Testset actions"]')
+                .querySelector('[aria-label="Test set actions"]')
                 ?.dispatchEvent(
                     new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
                 )
@@ -276,7 +274,7 @@ describe("Testsets list screen", () => {
 
         // The reader moves to another project and opens a new dialog while the rename runs.
         await mount(screen("other"))
-        await act(async () => byText("button", "Create new testset").click())
+        await act(async () => byText("button", "Create test set").click())
         await until(() => expect(document.body.textContent).toContain("Create new test set"))
 
         await act(async () => finish())

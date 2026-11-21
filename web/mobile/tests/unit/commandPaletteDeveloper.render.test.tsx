@@ -119,7 +119,7 @@ describe("the command palette in beta developer mode", () => {
                 "Test sets",
                 "Evaluators",
                 "Evaluation runs",
-                "Annotation Queues",
+                "Annotation queues",
                 "Observability",
             ]),
         )
