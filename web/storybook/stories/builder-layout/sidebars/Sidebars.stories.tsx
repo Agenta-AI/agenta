@@ -21,6 +21,7 @@ import {
 } from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {atom, type PrimitiveAtom} from "jotai"
+import {UnfoldVertical} from "lucide-react"
 
 import {AgentSidebarHeader} from "../../../../mobile/src/features/agent-sidebar/AgentSidebarHeader"
 import {agentSidebarItems} from "../../../../mobile/src/features/agent-sidebar/agentSidebarItems"
@@ -83,6 +84,7 @@ const mainScope = {
                     },
                     groupEnter: {
                         label: t("nav.agentSections.openAgent", {agent: agent.name}),
+                        icon: createElement(UnfoldVertical, {size: 14}),
                         onClick: noop,
                     },
                 },

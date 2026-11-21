@@ -760,9 +760,13 @@ describe("heading open button and per-heading cap", () => {
         listAtom: null as never,
         getLabel: (r: SidebarEntityRef) => r.name ?? r.id,
         childPath: (r: SidebarEntityRef) => `/sessions/${r.id}`,
-        groupEnter: (group) =>
+        groupEnter: (group, projectURL) =>
             group.agentId
-                ? {label: `Open ${group.label}`, onClick: () => opened.push(group.agentId!)}
+                ? {
+                      label: `Open ${group.label}`,
+                      icon: null,
+                      onClick: () => opened.push(`${projectURL} ${group.agentId}`),
+                  }
                 : undefined,
         groupMaxItems: (group) => (group.agentId ? 2 : undefined),
     })
@@ -781,7 +785,7 @@ describe("heading open button and per-heading cap", () => {
     ]
     const groups = [{key: "pinned", label: "Pinned"}, agentGroup]
 
-    it("puts the open button on the agent heading only, and it runs the host's click", () => {
+    it("puts the open button on the agent heading only, and it runs the host's click with the project URL", () => {
         const children = resolveChildren(grouped, ready(refs, {groups}), "/w/w1/p/p1")
         const headings = children.filter((child) => child.isGroupLabel)
 
@@ -790,7 +794,7 @@ describe("heading open button and per-heading cap", () => {
             ["Demo shoot", "Open Demo shoot"],
         ])
         headings[1].groupEnter?.onClick()
-        expect(opened).toEqual(["a1"])
+        expect(opened).toEqual(["/w/w1/p/p1 a1"])
     })
 
     it("caps the rows of a heading that has a cap, and keeps every row of one that has none", () => {

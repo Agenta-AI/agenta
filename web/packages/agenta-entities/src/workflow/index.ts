@@ -100,7 +100,11 @@ export {
     retrievedWorkflowRevisionQueryAtomFamily,
     retrievedWorkflowRevisionFamilyKey,
 } from "./state/retrievedRevision"
-export {BUILDER_AGENT_SLUG, builderAgentRevisionIdQueryAtom} from "./state/builderAgent"
+export {
+    BUILDER_AGENT_SLUG,
+    builderAgentRevisionIdQueryAtom,
+    builderAgentWorkflowIdAtom,
+} from "./state/builderAgent"
 export {
     AGENT_NEEDS_SETUP_CODE,
     canFixRequirement,

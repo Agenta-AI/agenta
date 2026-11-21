@@ -495,25 +495,15 @@ export function useMcpPermissionSource({
      * What a row's control shows.
      *
      * A tool with no entry in the table holds NO value on this wire, so its control reads as the
-     * fourth value rather than borrowing the one that governs it, and its trigger says what the run
-     * will actually do. A bare "Allow" on a row nobody set would claim a rule that does not exist,
-     * and it would go on claiming it after the governing value changed underneath.
+     * fourth value rather than borrowing the one that governs it, and it reads "Follow agent
+     * policy". A bare "Allow" on a row nobody set would claim a rule that does not exist, and it
+     * would go on claiming it after the governing value changed underneath.
      */
     const rowValue = useCallback(
         (toolKey: string) => {
             const explicit = permissions.tools[toolKey]
             if (explicit) return {value: explicit}
-            return {
-                value: "inherit" as GatewayPermission,
-                // Nothing governs it either, so there is no provenance to add and the row says
-                // which value it holds.
-                triggerTitle:
-                    permissions.default === "inherit"
-                        ? undefined
-                        : tNow("entityUi.mcpPermissions.inheritsPermission", {
-                              permission: permissions.default,
-                          }),
-            }
+            return {value: "inherit" as GatewayPermission}
         },
         [permissions],
     )
