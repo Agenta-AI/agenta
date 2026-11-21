@@ -30,7 +30,7 @@ export const TOUCH_TARGET_MINIMUM_PX = 44
 export type TouchTargetControlHeight = 24 | 28
 
 /** Rendered control widths the expansion is defined for, in px. */
-export type TouchTargetControlWidth = 28 | 30
+export type TouchTargetControlWidth = 24 | 28 | 30
 
 /** A control's own border, in px: the shared Button's 1, or 0 for a button that zeroes it. */
 export type TouchTargetControlBorder = 0 | 1
@@ -76,6 +76,8 @@ const horizontalByWidth: Record<
     TouchTargetControlWidth,
     Record<TouchTargetControlBorder, string>
 > = {
+    // Reach 10: 24 + 20 = 44 bare, (24 - 2) + 22 = 44 bordered (an `icon-xs` button).
+    24: {0: "after:-inset-x-2.5", 1: "after:-inset-x-[11px]"},
     // Reach 8: 28 + 16 = 44 bare, (28 - 2) + 18 = 44 bordered.
     28: {0: "after:-inset-x-2", 1: "after:-inset-x-[9px]"},
     // Reach 7: 30 + 14 = 44 bare, (30 - 2) + 16 = 44 bordered. No spacing step is 7px, so the

@@ -1,4 +1,4 @@
-import {createElement, useCallback, useEffect, useMemo, type ReactNode} from "react"
+import {createElement, Fragment, useCallback, useEffect, useMemo, type ReactNode} from "react"
 
 import {promptWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {createT, useT} from "@agenta/i18n"
@@ -53,18 +53,21 @@ import {
     LightningIcon,
     PaperPlaneIcon,
     QuestionIcon,
-    RobotIcon,
     ScrollIcon,
     SlackLogoIcon,
     SquaresFourIcon,
 } from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
+import {Bot, UnfoldVertical} from "lucide-react"
 import {useRouter} from "next/router"
 
 import {sessionBullet} from "@/features/agent-sidebar/agentSidebarItems"
 import {openAgentSidebar} from "@/features/agent-sidebar/selectedSidebar"
 import {agentEntryHref} from "@/features/agents/agentEntry"
+import {builderChatPath} from "@/features/builder/builderChatHref"
+import {isBuilderAgent} from "@/features/builder/isBuilderAgent"
+import {openBuilderPage, showBuilderSidebar} from "@/features/builder-page/builderSidebarState"
 import {shareDialogRequestAtom} from "@/features/chat/shareDialogState"
 import {useLeaveSession} from "@/features/chat/useLeaveSession"
 import {startBlankSession} from "@/features/chat/useStartBlankSession"
@@ -81,6 +84,7 @@ import {useSyncLocalSessionRefs} from "./localSessionRefs"
 /** Outside React: the row-level labels the entity registry builds at call time. */
 const tNow = createT(navigationCatalog)
 const tAgentSections = createT(agentSectionsCatalog)
+const tBuilderPage = createT(builderPageCatalog)
 
 /** How many sessions an agent section of the main sidebar lists. */
 export const AGENT_SECTION_SESSION_LIMIT = 4
@@ -107,7 +111,11 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         // cannot narrow this drawer. Mobile has no filter UI, so this scope keeps the defaults.
         listAtom: sidebarSessionsListAtomFamily(MOBILE_NAV_SCOPE_ID),
         getLabel: (session) => session.name || tNow("navigation.items.untitledSession"),
-        childPath: (session) => `/sessions/${session.sessionId}`,
+        // A builder chat opens on the builder page, where the builder sidebar lists it too.
+        childPath: (session) =>
+            isBuilderAgent(session.agentId)
+                ? builderChatPath(session.sessionId)
+                : `/sessions/${session.sessionId}`,
         emptyLabel: "No sessions yet",
         // No caret on this row to protect, and "No sessions yet" under a heading that already
         // says Sessions is the same sentence twice.
@@ -143,24 +151,39 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         // other "+" in the app makes. The session id is minted on the click, so the anchor's
         // own href is the agent entry link: what a long-press / open-in-new-tab lands on.
         groupAdd: (group, projectURL) =>
-            group.agentId
+            // The builder's "+" is its "New chat": the builder page on a new chat.
+            isBuilderAgent(group.agentId)
                 ? {
-                      link: agentEntryHref(projectURL, group.agentId),
-                      label: tNow("navigation.items.newSessionWith", {agent: group.label}),
-                      onClick: (event) => {
-                          event.preventDefault()
-                          startBlankSession(projectURL, group.agentId!)
-                      },
+                      link: `${projectURL}/builder`,
+                      label: tBuilderPage("builder.page.newChat"),
+                      // After "Back" on a new chat the link goes nowhere new, so the click itself
+                      // brings the builder sidebar back, as "Builder" does.
+                      onClick: showBuilderSidebar,
                   }
-                : undefined,
-        // The open button shows that agent's sidebar in place of this one; the page stays.
-        groupEnter: (group) =>
-            group.agentId
-                ? {
-                      label: tAgentSections("nav.agentSections.openAgent", {agent: group.label}),
-                      onClick: () => openAgentSidebar(group.agentId!, "main"),
-                  }
-                : undefined,
+                : group.agentId
+                  ? {
+                        link: agentEntryHref(projectURL, group.agentId),
+                        label: tNow("navigation.items.newSessionWith", {agent: group.label}),
+                        onClick: (event) => {
+                            event.preventDefault()
+                            startBlankSession(projectURL, group.agentId!)
+                        },
+                    }
+                  : undefined,
+        // The open button shows that agent's sidebar in place of this one; the page stays. The
+        // builder sidebar lives on the builder page, so the builder's button opens that page, as
+        // "Builder" above does. The glyph mirrors the agent sidebar's fold button, which comes back.
+        groupEnter: (group, projectURL) => {
+            const agentId = group.agentId
+            if (!agentId) return undefined
+            return {
+                label: tAgentSections("nav.agentSections.openAgent", {agent: group.label}),
+                icon: createElement(UnfoldVertical, {size: 14}),
+                onClick: isBuilderAgent(agentId)
+                    ? () => openBuilderPage(projectURL)
+                    : () => openAgentSidebar(agentId, "main"),
+            }
+        },
         // Each agent section lists its latest sessions; the Sessions page lists them all.
         groupMaxItems: (group) => (group.agentId ? AGENT_SECTION_SESSION_LIMIT : undefined),
         toggleGroupAtom: sidebarSessionToggledGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
@@ -283,7 +306,14 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
     const wrapSession = useRailSessionRowWrapper(projectURL)
     const wrapSessionRow = useCallback(
-        (ref: SidebarEntityRef, node: ReactNode) => wrapSession(ref as SessionSidebarRef, node),
+        // A builder chat gets no row menu, as in the builder sidebar: its verbs (share link,
+        // leave on archive) know only the session page.
+        (ref: SidebarEntityRef, node: ReactNode) => {
+            const session = ref as SessionSidebarRef
+            return isBuilderAgent(session.agentId)
+                ? createElement(Fragment, null, node)
+                : wrapSession(session, node)
+        },
         [wrapSession],
     )
 
@@ -304,24 +334,27 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
 
     return useMemo(
         () => [
-            // Builder first, then Home: the design's order.
-            {
-                key: "mobile-builder",
-                title: tBuilder("builder.page.builder"),
-                icon: createElement(BuilderIcon, {size: 16}),
-                link: `${projectURL}/builder`,
-            },
             {
                 key: "mobile-home",
                 title: t("navigation.items.home"),
                 icon: createElement(HouseIcon, {size: 16}),
                 link: `${projectURL}/apps`,
             },
+            {
+                key: "mobile-builder",
+                title: tBuilder("builder.page.builder"),
+                icon: createElement(BuilderIcon, {size: 16}),
+                link: `${projectURL}/builder`,
+                // After "Back" on a new chat the link goes nowhere new, so the click itself
+                // brings the builder sidebar back.
+                onClick: showBuilderSidebar,
+            },
             ...developerSlots.afterHome,
             {
                 key: AGENTS_SIDEBAR_KEY,
                 title: t("navigation.items.agents"),
-                icon: createElement(RobotIcon, {size: 16}),
+                // The canvas Agents glyph is an outline robot (Lucide); Phosphor's robot has a filled face.
+                icon: createElement(Bot, {size: 16}),
                 link: `${projectURL}/agents`,
                 // Start or open an agent without leaving the page: a "+" on the row, the same
                 // panel as a hover flyout on the collapsed rail.

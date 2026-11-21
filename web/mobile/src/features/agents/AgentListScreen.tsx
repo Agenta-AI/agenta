@@ -12,7 +12,7 @@ import {userAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
 
@@ -197,8 +197,9 @@ export const AgentListScreen = ({
                                     newAgent={newAgent}
                                     base={base}
                                     align="end"
-                                    // The canvas size (A03): 28 px high, radius 6, 13 px.
-                                    className="h-control-sm rounded-[6px] px-btn-sm text-btn-sm"
+                                    // The canvas size (A03): 28 px high, radius 6, 13 px; a 44 px
+                                    // tap area on a phone.
+                                    className={`h-control-sm rounded-[6px] px-btn-sm text-btn-sm ${PHONE_TOUCH_TARGET_CLASS}`}
                                 />
                             </div>
                         </div>

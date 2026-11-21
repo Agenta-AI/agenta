@@ -12,7 +12,7 @@ import providerConnectionCatalog from "@agenta/i18n/catalogs/entityUi.providerCo
 import providerKeyFormCatalog from "@agenta/i18n/catalogs/entityUi.providerKeyForm"
 import {Tag} from "@agenta/ui"
 import {Button, Checkbox, InputAffix} from "@agenta/ui/ui"
-import {ArrowClockwise, MagnifyingGlass, Plus} from "@phosphor-icons/react"
+import {ArrowClockwise, ClockCounterClockwise, MagnifyingGlass, Plus} from "@phosphor-icons/react"
 
 import ScrollScrim from "./ScrollScrim"
 
@@ -103,6 +103,7 @@ const ActiveModelsSection = ({
         </span>
     ) : fetchedAt ? (
         <span className="flex items-center gap-1 text-colorTextTertiary">
+            <ClockCounterClockwise size={12} aria-hidden className="shrink-0" />
             {t("entityUi.providerKeyForm.listUpdated", {time: relativeFetchTime(fetchedAt)})}
             {updateButton}
         </span>

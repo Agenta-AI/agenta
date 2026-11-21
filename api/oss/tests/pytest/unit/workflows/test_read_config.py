@@ -371,7 +371,7 @@ class TestTheResponseCarriesTheWarnings:
         )
 
     def _response(self, outcome):
-        from oss.src.apis.fastapi.workflows.models import (
+        from oss.src.core.workflows.dtos import (
             ReadConfigResponse,
             ReadConfigRevision,
         )

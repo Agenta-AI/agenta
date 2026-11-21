@@ -21,10 +21,9 @@ import { describe, it } from "vitest";
 import {
   approvalKeyDigest,
   approvedCallKey,
-  extractApprovalDecisions,
   topLevelArgNames,
 } from "../../src/responder.ts";
-import type { AgentRunRequest } from "../../src/protocol.ts";
+import { decisionsFromInteractionRows } from "../../src/sessions/interactions.ts";
 
 /** The live shape from the log above: outer `run_tool` wrapping the provider arguments. */
 const OUTER_INPUT = {
@@ -45,25 +44,18 @@ describe("the approval key digest", () => {
     const gateKey = approvedCallKey("run_tool", OUTER_INPUT);
     assert.ok(gateKey, "the fixture must produce a key");
 
-    const request = {
-      messages: [
-        { role: "user", content: "draft it" },
-        {
-          role: "assistant",
-          content: [
-            {
-              type: "tool_result",
-              toolCallId: "tc-1",
-              toolName: "run_tool",
-              input: OUTER_INPUT,
-              output: { approved: true, interactionToken: "tok-1" },
-            },
-          ],
+    // The stored side is the session's answered row: the only source of a decision.
+    const storedKeys = decisionsFromInteractionRows([
+      {
+        kind: "user_approval",
+        status: "responded",
+        token: "tok-1",
+        data: {
+          request: { tool: "run_tool", args: OUTER_INPUT },
+          resolution: { verdict: "approved" },
         },
-      ],
-    } as unknown as AgentRunRequest;
-
-    const storedKeys = [...extractApprovalDecisions(request).keys()];
+      },
+    ]).map((entry) => entry.key);
     assert.deepEqual(
       storedKeys.map(approvalKeyDigest),
       [approvalKeyDigest(gateKey)],

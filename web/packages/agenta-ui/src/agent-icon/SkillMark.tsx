@@ -1,9 +1,10 @@
-import {BookOpenText} from "@phosphor-icons/react"
+import {Book} from "@phosphor-icons/react"
 
 import {IconTile, type IconTileSize} from "../components/ui/icon-tile"
 
 /**
- * The canvas skill mark (F04, F07): an orange tile with a white book, the same for every skill.
+ * The canvas skill mark (F04, F07): an orange tile with a white closed book, the same for every
+ * skill.
  * The palette has no token for this orange; the value is the canvas one, like the agent icon
  * colors in `colors.ts`.
  */
@@ -21,7 +22,7 @@ export function SkillMark({size = 28}: {size?: IconTileSize}) {
             aria-hidden
             style={{background: SKILL_MARK_COLOR, color: "#fff"}}
         >
-            <BookOpenText weight="bold" style={{width: GLYPH[size], height: GLYPH[size]}} />
+            <Book weight="bold" style={{width: GLYPH[size], height: GLYPH[size]}} />
         </IconTile>
     )
 }

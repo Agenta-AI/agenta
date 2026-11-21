@@ -21,6 +21,7 @@ import type {ConfigItemRef} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
 import {ConfigItemList} from "./ConfigItemList"
+import {describeMcp} from "./itemDescriptors"
 import {type ItemRowStatus} from "./ItemRow"
 import {customMcpEndpoints, findMcpIndex, mcpItemNeedsRepair, mcpItemRef} from "./mcpRail"
 import {needsSetupStatus} from "./needsSetup"
@@ -103,7 +104,9 @@ export function McpServersSectionBody({
             const record = (item ?? {}) as Record<string, unknown>
             const endpoint = endpointForItem(item)
             const req = requirementFor(item)
-            const ref = mcpItemRef(item, items)
+            // Two identical entries share every address: then only the index names this one.
+            const address = mcpItemRef(item, items)
+            const ref = address && findMcpIndex(items, address) >= 0 ? address : null
             // An expired sign-in opens the server view, whose title offers "Reconnect".
             if (ref && req?.kind === "mcp_sign_in" && endpoint) {
                 openServer(ref)
@@ -116,7 +119,17 @@ export function McpServersSectionBody({
             }
             openServer(ref)
         },
-        [endpointForItem, openForm, openServer, requirementFor],
+        [endpointForItem, items, openForm, openServer, requirementFor],
+    )
+
+    // The rows name a server as every other place does, by its connection's name
+    // ("audit2-mock"), not by the tool prefix the item stores ("audit2_mock").
+    const describeRow = useCallback(
+        (item: unknown) => {
+            const name = endpointForItem(item)?.name
+            return describeMcp(name ? {...(item as Record<string, unknown>), name} : item)
+        },
+        [endpointForItem],
     )
 
     return (
@@ -125,6 +138,7 @@ export function McpServersSectionBody({
                 kind="mcp"
                 items={items}
                 openEdit={openRow}
+                describeFor={describeRow}
                 removeItem={(_kind, index) => {
                     const item = items[index]
                     const ref = mcpItemRef(item, items)

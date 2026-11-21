@@ -38,5 +38,6 @@ export const useTriggerEvent = (integrationKey: string, eventKey: string) => {
         // gate on actual in-flight fetching to avoid a perpetual spinner.
         isLoading: query.isFetching,
         error: query.error,
+        refetch: query.refetch,
     }
 }

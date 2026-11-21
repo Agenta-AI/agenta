@@ -37,11 +37,6 @@ import {
     type IntegrationPreset,
     type PermissionPresetValue,
 } from "../integrationPolicy"
-import {
-    permissionPolicyLabel,
-    DEFAULT_PERMISSION_POLICY,
-    type PermissionPolicy,
-} from "../permissionPolicy"
 import {ProviderLogo} from "../sectionGroups"
 import {findTargetConnection} from "../toolUtils"
 import type {
@@ -77,11 +72,9 @@ const permissionGroupsExpandedAtom = atomWithStorage<Record<string, boolean>>(
     {},
 )
 
-/** What one row's control shows, where the saved default is not the whole answer. */
+/** What one row's control shows, where it is not the saved default. */
 export interface PermissionRowValue {
     value: GatewayPermission
-    /** What the TRIGGER says, where the menu's name for that value is not the whole truth. */
-    triggerTitle?: string
 }
 
 /** One entry in the default-permission menu, before the drawer adds the glyph and the count. */
@@ -113,12 +106,6 @@ export interface PermissionPresetSource {
     /** Per-tool rules behind it, for the Custom count. */
     overrideCount: number
     onPick: (preset: PermissionPresetValue) => void
-    /**
-     * The preset whose meaning is "the agent's own permission policy decides", so the note naming
-     * that policy is drawn under it. Both tables have one and they are not the same preset, which
-     * is why a source names its own.
-     */
-    agentPolicyPreset?: PermissionPresetValue
     /**
      * The source cannot say which preset this policy is yet, so the select gives way to the
      * loading affordance the list area uses. Naming a preset is making its help line's promise,
@@ -162,10 +149,8 @@ export interface PermissionDrawerSource {
     /** The per-tool menu, when a source needs its own labels. Defaults to the four shared values. */
     toolOptions?: PermissionPolicyOption[]
     /**
-     * The default-permission menu, when the Composio five do not describe this source.
-     *
-     * A source that brings its own owns its help lines too, so it names the preset the note about
-     * the agent's policy is drawn under through `agentPolicyPreset`.
+     * The default-permission menu, when the Composio five do not describe this source. A source
+     * that brings its own owns its help lines too.
      */
     presets?: PermissionPresetSource
     /**
@@ -178,9 +163,8 @@ export interface PermissionDrawerSource {
     /**
      * What one row's control shows.
      *
-     * An MCP tool with no entry of its own carries no value at all: the row reads `inherit` and its
-     * trigger says what the run resolves that to, so a bare permission never appears without its
-     * provenance. Absent, a row shows the saved value, which is the Composio rule.
+     * An MCP tool with no entry of its own carries no value at all: the row reads `inherit`, which
+     * the menu names "Follow agent policy". Absent, a row shows the saved value, which is the Composio rule.
      */
     rowValue?: (toolKey: string) => PermissionRowValue | undefined
     /** Above the controls: the login-expired banner (D4). */
@@ -201,6 +185,11 @@ export interface PermissionDrawerSource {
      * text, with no select and no footer. The search stays. Off, nothing changes.
      */
     valuesAsText?: boolean
+    /**
+     * A tool set to "deny" draws as every other value. For a source where "deny" means the tool
+     * is off ("Deactivate", the Agenta tools), not a refusal. Off, "deny" is red.
+     */
+    plainDeny?: boolean
 }
 
 /** What the Composio list of one integration needs. */
@@ -213,8 +202,6 @@ export interface IntegrationPermissionListProps {
     onChangePermissions: (next: GatewayConnectionPermissions) => void
     /** Write one tool's value. Saved even when it equals the default — see contracts section 10. */
     onChangeToolPermission: (toolKey: string, permission: GatewayPermission) => void
-    /** The agent-wide `runner.permissions.default`, for the note under the select. */
-    agentPolicy?: PermissionPolicy | null
     disabled?: boolean
     /**
      * The "Account" block: whose account the item runs under. Drawn above "Default permission",
@@ -260,11 +247,11 @@ const ToolRow = memo(function ToolRow({
     disabled,
     options,
     lockedReason,
-    triggerTitle,
     readOnly,
     valuesAsText,
     staleLabel,
     phone,
+    plainDeny,
 }: {
     tool: CatalogToolInfo
     permission: GatewayPermission
@@ -272,12 +259,12 @@ const ToolRow = memo(function ToolRow({
     disabled?: boolean
     options: PermissionPolicyOption[]
     lockedReason?: string | null
-    triggerTitle?: string
     readOnly?: boolean
     valuesAsText?: boolean
     staleLabel: string
     /** On a phone the select takes its own line, so the name is never cut (M09). */
     phone?: boolean
+    plainDeny?: boolean
 }) {
     const t = useT(permissionDrawerCatalog)
     // Only the row's tint depends on this; the clamp and the toggle live in ExpandableDescription.
@@ -302,7 +289,7 @@ const ToolRow = memo(function ToolRow({
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <div className="flex min-w-0 items-center gap-1.5">
                         <span
-                            className={`${phone ? "min-w-0 break-words text-[15px]" : "truncate text-[13px]"} font-medium leading-5`}
+                            className={`${phone ? "min-w-0 break-words text-[14px]" : "truncate text-[13px]"} font-medium leading-5`}
                         >
                             {tool.name || humanizeActionKey(tool.key)}
                         </span>
@@ -331,9 +318,7 @@ const ToolRow = memo(function ToolRow({
                 </div>
                 {readOnly ? null : valuesAsText ? (
                     <span className="shrink-0 text-sm text-colorTextSecondary">
-                        {triggerTitle ??
-                            options.find((option) => option.value === permission)?.title ??
-                            permission}
+                        {options.find((option) => option.value === permission)?.title ?? permission}
                     </span>
                 ) : (
                     <PermissionPolicySelect
@@ -343,17 +328,16 @@ const ToolRow = memo(function ToolRow({
                         disabled={disabled || Boolean(lockedReason)}
                         size="sm"
                         canvas="chip"
-                        triggerTitle={triggerTitle}
                         aria-label={t("entityUi.permissionDrawer.permissionFor", {tool: tool.key})}
                         // A compact 28px chip (radius 6, canvas F02 f6), so a long list reads as
                         // rows, not a column of fields. On a phone a full-width 44px field on its
                         // own line (radius 8, M09).
                         triggerClassName={`${
                             phone
-                                ? "w-full !h-11 !rounded-[8px] !text-[15px]"
+                                ? "w-full !h-11 !rounded-[8px] !text-[14px] !leading-5"
                                 : "w-auto min-w-[96px] shrink-0 gap-2 !h-7 !rounded-[6px] !px-2 !text-[13px] sm:min-w-[116px]"
                         } ${
-                            permission === "deny"
+                            permission === "deny" && !plainDeny
                                 ? "border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorErrorText)]"
                                 : ""
                         }`}
@@ -389,6 +373,7 @@ function ToolGroup({
     valuesAsText,
     staleLabel,
     phone,
+    plainDeny,
 }: {
     label: string
     groupKey: string
@@ -405,6 +390,7 @@ function ToolGroup({
     valuesAsText?: boolean
     staleLabel: string
     phone?: boolean
+    plainDeny?: boolean
 }) {
     const t = useT(permissionDrawerCatalog)
     const [expanded, setExpanded] = useAtom(permissionGroupsExpandedAtom)
@@ -475,11 +461,11 @@ function ToolGroup({
                                 disabled={disabled}
                                 options={options}
                                 lockedReason={lockedTool?.(tool.key)}
-                                triggerTitle={shownValue?.triggerTitle}
                                 readOnly={readOnly}
                                 valuesAsText={valuesAsText}
                                 staleLabel={staleLabel}
                                 phone={phone}
+                                plainDeny={plainDeny}
                             />
                         )
                     })}
@@ -510,7 +496,6 @@ export function PermissionDrawerBody({
     permissions,
     onChangePermissions,
     onChangeToolPermission,
-    agentPolicy,
     disabled,
     readOnlyLabel,
     writeLabel,
@@ -524,6 +509,7 @@ export function PermissionDrawerBody({
     footNote,
     readOnly,
     valuesAsText,
+    plainDeny,
     account,
     flush = false,
 }: {
@@ -537,7 +523,6 @@ export function PermissionDrawerBody({
     permissions: GatewayConnectionPermissions
     onChangePermissions: (next: GatewayConnectionPermissions) => void
     onChangeToolPermission: (toolKey: string, permission: GatewayPermission) => void
-    agentPolicy?: PermissionPolicy | null
     disabled?: boolean
 } & Omit<
     PermissionDrawerSource,
@@ -591,20 +576,6 @@ export function PermissionDrawerBody({
             })),
         [presetList, overrideCount],
     )
-
-    // "Follow agent policy" leans on the agent-wide mode entirely, so the note names that mode
-    // when it is not the default. "Ask for write and delete" writes what it says in both sources
-    // and needs no qualifying (decision 45).
-    const notePreset = presets ? presets.agentPolicyPreset : "follow_agent"
-    const agentPolicyNote =
-        notePreset &&
-        preset === notePreset &&
-        agentPolicy &&
-        agentPolicy !== DEFAULT_PERMISSION_POLICY
-            ? t("entityUi.permissionDrawer.agentPolicyNote", {
-                  policy: permissionPolicyLabel(agentPolicy)?.toLowerCase() ?? agentPolicy,
-              })
-            : null
 
     const inert = disabled || controlsDisabled
     // The server has tools; this query names none of them.
@@ -676,11 +647,6 @@ export function PermissionDrawerBody({
                                 }
                             />
                         )}
-                        {agentPolicyNote ? (
-                            <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                                {agentPolicyNote}
-                            </span>
-                        ) : null}
                     </div>
                 )}
 
@@ -747,6 +713,7 @@ export function PermissionDrawerBody({
                             valuesAsText={valuesAsText}
                             staleLabel={stale}
                             phone={phone}
+                            plainDeny={plainDeny}
                         />
                         <ToolGroup
                             label={writeLabel ?? t("entityUi.permissionDrawer.writeGroup")}
@@ -764,20 +731,12 @@ export function PermissionDrawerBody({
                             valuesAsText={valuesAsText}
                             staleLabel={stale}
                             phone={phone}
+                            plainDeny={plainDeny}
                         />
                     </div>
                 )}
 
                 {footNote}
-
-                {readOnly || valuesAsText ? null : (
-                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                        {t("entityUi.permissionDrawer.customSwitchNote")}
-                        {preset === "custom"
-                            ? ` ${t("entityUi.permissionDrawer.presetResetsNote")}`
-                            : ""}
-                    </span>
-                )}
             </div>
         </ScrollFadeArea>
     )
@@ -886,10 +845,10 @@ export function IntegrationTitle({
     const tCommon = useT(commonCatalog)
     const phone = useIsPhone()
     const {integration} = useToolIntegrationDetail(target.integration)
-    const {connections, isLoading} = useToolConnectionsQuery()
+    const {connections, isLoading, error} = useToolConnectionsQuery()
     const connection = findTargetConnection(connections, target, connectionSlug)
-    // A saved shared connection that the project no longer has needs attention too.
-    const missing = Boolean(connectionSlug) && !isLoading && !connection
+    // A saved shared connection the project no longer has needs attention; a failed read says nothing.
+    const missing = Boolean(connectionSlug) && !isLoading && !error && !connection
     const displayName = integration?.name || target.integration
     const showSlug = displayName.toLowerCase() !== target.integration.toLowerCase()
     // A healthy connection shows no tag.
@@ -919,7 +878,11 @@ export function IntegrationTitle({
                 ) : null}
             </div>
             {notConnected || missing ? (
-                <Badge variant="outlined" className={`${tag} text-colorTextSecondary`}>
+                // Canvas F10 f3: a square white tag with a light border.
+                <Badge
+                    variant="outlined"
+                    className={`${tag} h-5 rounded-[4px] border-colorBorderSecondary bg-colorBgContainer px-[7px] text-colorTextSecondary`}
+                >
                     {tCommon("common.notConnected")}
                 </Badge>
             ) : attention !== undefined ? (

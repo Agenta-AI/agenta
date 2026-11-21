@@ -2,11 +2,12 @@ import {useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import agentChannelsCatalog from "@agenta/i18n/catalogs/agentPages.channels"
+import channelsHubCatalog from "@agenta/i18n/catalogs/channels.hub"
 import channelsPageCatalog from "@agenta/i18n/catalogs/channels.page"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {PhoneScreenHeader, useIsPhone} from "@agenta/ui/phone"
 import {Button, Sheet, SheetContent, SheetTitle, SkeletonBlock} from "@agenta/ui/ui"
-import {ArrowLeft, CaretRight} from "@phosphor-icons/react"
+import {ArrowLeft, CaretRight, ChatCircleText, Code} from "@phosphor-icons/react"
 
 import {
     CHANNEL_PLATFORMS,
@@ -34,15 +35,17 @@ export interface AgentChannelsViewProps extends Pick<
     | "loadError"
     | "actions"
     | "hostedHandle"
+    | "api"
+    | "embed"
 > {
     agentId: string
 }
 
 /**
  * The Channels page of an agent, and the Channels tab of the agent's right panel. The
- * connected channels first, then the ones to add. "Manage" and "Connect" open the production
- * manage view and connect steps in place, under the breadcrumb "Channels › Slack". Changes apply
- * at once.
+ * connected channels first, then the ones to add, then API and Embed when the host gives them.
+ * "Manage" and "Connect" open the production manage view and connect steps in place, under the
+ * breadcrumb "Channels › Slack". Changes apply at once.
  */
 export const AgentChannelsView = (props: AgentChannelsViewProps) => {
     const {
@@ -52,8 +55,10 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
         loadError = null,
         actions,
         hostedHandle,
+        api,
+        embed,
     } = props
-    const t = useT(agentChannelsCatalog, channelsPageCatalog, commonCatalog)
+    const t = useT(agentChannelsCatalog, channelsHubCatalog, channelsPageCatalog, commonCatalog)
     const agentName = props.agentName ?? t("channels.page.yourAgent")
     const [retrying, setRetrying] = useState(false)
     const phone = useIsPhone()
@@ -74,6 +79,7 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
         summary.action === "manage" || agentConnectionsOf(connections, platform).length > 0
     const connected = summaries.filter(isConnected)
     const toAdd = summaries.filter((entry) => !isConnected(entry))
+    const ready = !loading && !loadError
     // A connected row opens what the agent has there, not the setup of a pending link.
     const manage = (platform: ChannelPlatform) => {
         const mine = agentConnectionsOf(connections, platform)
@@ -118,81 +124,105 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                 </div>
             ) : loading ? (
                 <ChannelRowsSkeleton phone={phone} />
-            ) : (
-                <>
-                    {connected.length ? (
-                        <ChannelGroup title={t("agentPages.channels.connected")} phone={phone}>
-                            {connected.map(({platform, summary}) => {
-                                const mine = agentConnectionsOf(connections, platform)
-                                // Any of the agent's connections can need attention, not only
-                                // the one the platform summary is about. With several, the line
-                                // names the one that does.
-                                const brokenConnection = mine.find(
-                                    (c) => summarizeConnection(platform, c, agentId).needsAttention,
-                                )
-                                const broken = brokenConnection
-                                    ? summarizeConnection(platform, brokenConnection, agentId)
-                                    : null
-                                // "Reconnect" only when a connection lost its access; other
-                                // problems are fixed in the manage view.
-                                const revoked = mine.some((c) => c.status === "revoked")
-                                const sub =
-                                    broken && brokenConnection
-                                        ? mine.length > 1
-                                            ? `${connectionLabel(brokenConnection, hostedHandle)} · ${broken.sub}`
-                                            : broken.sub
-                                        : mine.length > 1
-                                          ? mine
-                                                .map((c) => connectionLabel(c, hostedHandle))
-                                                .join(", ")
-                                          : summary.sub
-                                return (
-                                    <ChannelRow
-                                        key={platform}
-                                        platform={platform}
-                                        sub={sub}
-                                        subClass={
-                                            broken ? broken.subClass : "text-muted-foreground"
-                                        }
-                                        tag={
-                                            broken ? (
-                                                <span className="rounded bg-colorErrorBg px-1.5 py-0.5 text-xs text-colorError">
-                                                    {t("common.needsAttention")}
-                                                </span>
-                                            ) : null
-                                        }
-                                        action={
-                                            revoked ? t("common.reconnect") : t("common.manage")
-                                        }
-                                        connected
-                                        phone={phone}
-                                        onClick={() => manage(platform)}
-                                    />
-                                )
-                            })}
-                        </ChannelGroup>
-                    ) : null}
-                    <ChannelGroup title={t("agentPages.channels.addChannel")} phone={phone}>
-                        {toAdd.map(({platform, summary}) => (
+            ) : connected.length ? (
+                <ChannelGroup title={t("agentPages.channels.connected")} phone={phone}>
+                    {connected.map(({platform, summary}) => {
+                        const mine = agentConnectionsOf(connections, platform)
+                        // Any of the agent's connections can need attention, not only
+                        // the one the platform summary is about. With several, the line
+                        // names the one that does.
+                        const brokenConnection = mine.find(
+                            (c) => summarizeConnection(platform, c, agentId).needsAttention,
+                        )
+                        const broken = brokenConnection
+                            ? summarizeConnection(platform, brokenConnection, agentId)
+                            : null
+                        // "Reconnect" only when a connection lost its access; other
+                        // problems are fixed in the manage view.
+                        const revoked = mine.some((c) => c.status === "revoked")
+                        const sub =
+                            broken && brokenConnection
+                                ? mine.length > 1
+                                    ? `${connectionLabel(brokenConnection, hostedHandle)} · ${broken.sub}`
+                                    : broken.sub
+                                : mine.length > 1
+                                  ? mine.map((c) => connectionLabel(c, hostedHandle)).join(", ")
+                                  : summary.sub
+                        return (
                             <ChannelRow
                                 key={platform}
-                                platform={platform}
-                                sub={summary.sub}
-                                subClass={
-                                    summary.dotClass ? summary.subClass : "text-muted-foreground"
+                                testId={`agent-channels-${platform}`}
+                                icon={platformLogo(platform, phone ? 22 : 32)}
+                                label={platformLabel(platform)}
+                                sub={sub}
+                                subClass={broken ? broken.subClass : "text-muted-foreground"}
+                                tag={
+                                    broken ? (
+                                        <span className="rounded bg-colorErrorBg px-1.5 py-0.5 text-xs text-colorError">
+                                            {t("common.needsAttention")}
+                                        </span>
+                                    ) : null
                                 }
-                                action={
-                                    summary.action === "connect-here"
-                                        ? t("channels.page.connectHere")
-                                        : t("common.connect")
-                                }
+                                action={revoked ? t("common.reconnect") : t("common.manage")}
+                                whole
                                 phone={phone}
-                                onClick={() => open(platform)}
+                                onClick={() => manage(platform)}
                             />
-                        ))}
-                    </ChannelGroup>
-                </>
-            )}
+                        )
+                    })}
+                </ChannelGroup>
+            ) : null}
+            {/* API and Embed need no channel read: they stay while it loads or fails. */}
+            {ready || api || embed ? (
+                <ChannelGroup title={t("agentPages.channels.addChannel")} phone={phone}>
+                    {ready
+                        ? toAdd.map(({platform, summary}) => (
+                              <ChannelRow
+                                  key={platform}
+                                  testId={`agent-channels-${platform}`}
+                                  icon={platformLogo(platform, phone ? 22 : 32)}
+                                  label={platformLabel(platform)}
+                                  sub={summary.sub}
+                                  subClass={
+                                      summary.dotClass ? summary.subClass : "text-muted-foreground"
+                                  }
+                                  action={
+                                      summary.action === "connect-here"
+                                          ? t("channels.page.connectHere")
+                                          : t("common.connect")
+                                  }
+                                  phone={phone}
+                                  onClick={() => open(platform)}
+                              />
+                          ))
+                        : null}
+                    {/* API and Embed, as the production Publish panel lists them. */}
+                    {api ? (
+                        <ChannelRow
+                            testId="agent-channels-api"
+                            icon={<PublishMark icon={<Code weight="bold" />} phone={phone} />}
+                            label="API"
+                            sub={t("channels.hub.apiAlwaysOn")}
+                            subClass="text-muted-foreground"
+                            whole
+                            phone={phone}
+                            onClick={() => openRoute({view: "api"})}
+                        />
+                    ) : null}
+                    {embed ? (
+                        <ChannelRow
+                            testId="agent-channels-embed"
+                            icon={<PublishMark icon={<ChatCircleText />} phone={phone} />}
+                            label={t("channels.hub.embed")}
+                            sub={t("channels.hub.embedDescription")}
+                            subClass="text-muted-foreground"
+                            whole
+                            phone={phone}
+                            onClick={() => openRoute({view: "embed", connectionId: null})}
+                        />
+                    ) : null}
+                </ChannelGroup>
+            ) : null}
         </div>
     )
 }
@@ -229,37 +259,53 @@ const ROW_DESKTOP =
 const ROW_PHONE =
     "box-border flex min-h-14 w-full items-center gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer py-1.5 pl-4 pr-2 text-left text-[15px] leading-5"
 
+/** The mark of API and Embed: their production icon on a muted square, a platform logo's size. */
+const PublishMark = ({icon, phone}: {icon: React.ReactElement; phone: boolean}) => (
+    <span
+        className={`flex items-center justify-center bg-muted text-foreground ${phone ? "size-[22px] rounded text-[14px]" : "size-8 rounded-md text-base"}`}
+    >
+        {icon}
+    </span>
+)
+
 /**
- * One channel. A connected channel is one button that opens its manage view, with the action
- * and a caret at the right; a channel to add has a "Connect" button.
+ * One channel. A connected channel is one button (`whole`) that opens its manage view, with the
+ * action and a caret at the right; a channel to add has a "Connect" button. API and Embed are one
+ * button with only a caret, as in the production Publish panel.
  */
 const ChannelRow = ({
-    platform,
+    testId,
+    icon,
+    label,
     sub,
     subClass,
     tag,
     action,
-    connected = false,
+    whole = false,
     phone,
     onClick,
 }: {
-    platform: ChannelPlatform
+    testId: string
+    icon: React.ReactNode
+    label: string
     sub: string
     subClass: string
     tag?: React.ReactNode
-    action: string
-    connected?: boolean
+    /** The action's words; API and Embed have none. */
+    action?: string
+    /** The whole row is one button. */
+    whole?: boolean
     phone: boolean
     onClick: () => void
 }) => {
     const body = (
         <>
             <span className="flex flex-none items-center" aria-hidden>
-                {platformLogo(platform, phone ? 22 : 32)}
+                {icon}
             </span>
             <span className="flex min-w-0 flex-1 flex-col">
                 <span className="flex items-center gap-1.5 font-medium text-foreground">
-                    {platformLabel(platform)}
+                    {label}
                     {tag}
                 </span>
                 <span className={`text-[12px] leading-4 ${phone ? "" : "truncate"} ${subClass}`}>
@@ -268,16 +314,16 @@ const ChannelRow = ({
             </span>
         </>
     )
-    if (connected) {
+    if (whole) {
         return (
             <button
                 type="button"
                 className={`${phone ? ROW_PHONE : ROW_DESKTOP} cursor-pointer font-[inherit] hover:bg-muted/40`}
-                data-testid={`agent-channels-${platform}`}
+                data-testid={testId}
                 onClick={onClick}
             >
                 {body}
-                {phone ? (
+                {!action ? null : phone ? (
                     <span className="sr-only">{action}</span>
                 ) : (
                     <span className="flex-none text-[13px] text-muted-foreground">{action}</span>
@@ -292,7 +338,7 @@ const ChannelRow = ({
         )
     }
     return (
-        <div className={phone ? ROW_PHONE : ROW_DESKTOP} data-testid={`agent-channels-${platform}`}>
+        <div className={phone ? ROW_PHONE : ROW_DESKTOP} data-testid={testId}>
             {body}
             <Button
                 variant="outline"

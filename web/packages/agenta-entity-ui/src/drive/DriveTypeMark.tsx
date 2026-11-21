@@ -24,11 +24,16 @@ const TONE_BAR_CLASS: Record<DriveKindTone, string> = {
     neutral: "bg-colorTextQuaternary",
 }
 
-const Page = ({size}: {size: number}) => (
+/**
+ * The page glyph. `tight` crops the view box to the drawn page (its stroke included), so the box
+ * is the page: the tile draws it at the canvas's 44 x 54. The mini mark keeps the full box, which
+ * its tone bar is placed on.
+ */
+const Page = ({size, tight = false}: {size: number; tight?: boolean}) => (
     <svg
-        width={(size * 46) / 56}
+        width={tight ? (size * 43) / 52 : (size * 46) / 56}
         height={size}
-        viewBox="0 0 46 56"
+        viewBox={tight ? "0 2 43 52" : "0 0 46 56"}
         fill="none"
         aria-hidden
         // `size-auto`: a kit Button would size the svg as its icon.
@@ -56,9 +61,9 @@ export const DriveTypeMark = ({path, size = "mini"}: {path: string; size?: "tile
         return (
             // The same 56 px mark on a phone (M03 draws the full page there too).
             <span className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center">
-                <Page size={56} />
+                <Page size={54} tight />
                 <span
-                    className={`absolute bottom-[7px] left-1/2 -translate-x-1/2 rounded-[3px] px-[5px] py-px text-[8.5px] font-bold uppercase leading-[1.4] tracking-[0.4px] ${TONE_CLASS[tone]}`}
+                    className={`absolute bottom-[8px] left-1/2 -translate-x-1/2 rounded-[3px] px-[5px] py-px text-[8.5px] font-bold uppercase leading-[1.4] tracking-[0.4px] ${TONE_CLASS[tone]}`}
                 >
                     {fileTypeChip(path)}
                 </span>

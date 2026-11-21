@@ -594,7 +594,7 @@ describe("BuilderPanel: on a phone (M04, M06)", () => {
             [...container.querySelectorAll('[role="heading"], h1')].map((h) => h.textContent),
         ).toContain("Chat history")
         expect(byTestId("builder-chat-row")?.className).toContain("min-h-14")
-        await click(container.querySelector('[aria-label="Back to Chat"]'))
+        await click(container.querySelector('[aria-label="Back to the chat"]'))
         expect(byTestId("builder-chat-history")).toBeNull()
         expect(seen.props?.sessionId).toBe(sessionId)
         // The history's back arrow returns to the chat; it does not close the builder.

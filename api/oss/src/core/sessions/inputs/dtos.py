@@ -9,6 +9,15 @@ from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.shared.dtos import Identifier, Lifecycle
 
 
+class PendingInputKind(str, Enum):
+    """What a queued input is. Server-owned: only `enqueue_session_input` writes a kind
+    other than `message`, and no request has a field for it. A row stored before the
+    column existed reads as `message`."""
+
+    message = "message"
+    child_update = "child_update"
+
+
 class PendingInputState(str, Enum):
     pending = "pending"
     promoted = "promoted"
@@ -22,6 +31,7 @@ class PendingInput(Identifier, Lifecycle):
     position: int
     state: PendingInputState
     policy: Literal["queue", "steer"]
+    kind: PendingInputKind = PendingInputKind.message
     idempotency_key: str
     request_fingerprint: str
     promoted_execution_id: Optional[str] = None
@@ -35,6 +45,7 @@ class PendingInputCreate(BaseModel):
     session_id: str
     content: Dict[str, Any]
     policy: Literal["queue", "steer"]
+    kind: PendingInputKind = PendingInputKind.message
     idempotency_key: str
     request_fingerprint: str
     # The admitting request's run envelope; the delivery of this input runs under it.

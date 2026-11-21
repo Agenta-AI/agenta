@@ -46,6 +46,7 @@ import {
     EmptyTitle,
     RadioGroup,
     RadioGroupItem,
+    PHONE_TOUCH_TARGET_CLASS,
     SearchInput,
     cn,
 } from "@agenta/ui/ui"
@@ -299,6 +300,12 @@ function ConnectedRow({
     const logo = integration?.logo ?? null
     // One connection reads as Settings reads it: the connection's own name, then "App · Auth".
     const attention = multiple ? null : attentionOf(single)
+    // "Added" only while the connection the agent uses works; with several connections that is
+    // the one its entry names.
+    const addedConnection = multiple
+        ? group.connections.find((connection) => connection.slug === currentSlug)
+        : single
+    const addedWorks = !addedConnection || attentionOf(addedConnection) === null
     // The panel names the app and puts the account under it (canvas F02 f4).
     const title = multiple || canvas ? name : singleLabel
 
@@ -388,7 +395,9 @@ function ConnectedRow({
             }
             action={
                 <span className={`flex items-center ${canvas ? "gap-2" : "gap-0.5"}`}>
-                    {canvas && added && !choosing ? (
+                    {/* "Added" only on a working connection; a pending or inactive one shows its
+                        tag instead (canvas F02 f4). */}
+                    {canvas && added && !choosing && addedWorks ? (
                         <span className="flex shrink-0 items-center gap-1 text-[12px] leading-4 text-colorTextSecondary">
                             <Check size={14} />
                             {t("entityUi.integrationDrawer.added")}
@@ -405,8 +414,9 @@ function ConnectedRow({
                             className={
                                 canvas
                                     ? // Zero width, not hidden, so Tab still reaches the menu button;
-                                      // -ml-2 takes back the row's gap while it is closed.
-                                      "-ml-2 flex max-w-0 overflow-hidden group-focus-within/row:ml-0 group-focus-within/row:max-w-none group-hover/row:ml-0 group-hover/row:max-w-none has-[[data-state=open]]:ml-0 has-[[data-state=open]]:max-w-none [@media(hover:none)]:ml-0 [@media(hover:none)]:max-w-none"
+                                      // -ml-2 takes back the row's gap while it is closed. Touch
+                                      // does not clip, so the button keeps its 44px tap area.
+                                      "-ml-2 flex max-w-0 overflow-hidden group-focus-within/row:ml-0 group-focus-within/row:max-w-none group-hover/row:ml-0 group-hover/row:max-w-none has-[[data-state=open]]:ml-0 has-[[data-state=open]]:max-w-none [@media(hover:none)]:ml-0 [@media(hover:none)]:max-w-none [@media(hover:none)]:overflow-visible"
                                     : "contents"
                             }
                         >
@@ -556,6 +566,7 @@ function CatalogRow({
                         name: integration.name,
                     })}
                     title={t("entityUi.integrationDrawer.connect")}
+                    className={canvas ? undefined : PHONE_TOUCH_TARGET_CLASS}
                     onClick={onConnect}
                 >
                     {canvas ? <Plus className="size-3.5 max-md:size-5" /> : <Plus size={16} />}
@@ -930,7 +941,9 @@ export function IntegrationCatalog({
                     ref={listRef}
                     className={
                         page
-                            ? "flex flex-col gap-8 pt-2"
+                            ? // 12px on a phone, so the pinned bar does not cover the first
+                              // heading's 44px tap area.
+                              "flex flex-col gap-8 pt-2 max-md:pt-3"
                             : "ag-scroll-fade flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4"
                     }
                 >

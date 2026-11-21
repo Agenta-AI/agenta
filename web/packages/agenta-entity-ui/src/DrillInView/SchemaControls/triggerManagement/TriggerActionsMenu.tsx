@@ -15,7 +15,7 @@ export function TriggerActionsMenu({
 }: {
     /** The automation's name: the button is "More actions for <name>". */
     name: string
-    /** The composed menu body (`DropdownMenuItem` / `DropdownMenuSeparator` JSX). */
+    /** The composed menu body (`DropdownMenuItem` JSX). */
     menu: ReactNode
     /** Force open — controlled usage and forced-open parity stories. */
     open?: boolean
@@ -49,7 +49,7 @@ export function TriggerActionsMenu({
                 className={
                     phone
                         ? "w-[220px] [&_[role=menuitem]]:min-h-11 [&_[role=menuitem]]:text-[15px]"
-                        : "w-[180px] [&_[role=menuitem]]:h-7 [&_[role=menuitem]]:text-[13px] [&_[role=menuitem]_svg]:!size-3.5"
+                        : "w-[180px] [&_[role=menuitem]]:h-8 [&_[role=menuitem]]:text-[13px] [&_[role=menuitem]_svg]:!size-3.5"
                 }
             >
                 {menu}

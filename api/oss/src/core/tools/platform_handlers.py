@@ -120,6 +120,8 @@ from oss.src.core.tracing.dtos import (
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.workflows.dtos import (
     CommitWarning,
+    ReadConfigResponse,
+    ReadConfigRevision,
     WorkflowRevisionCommit,
     WorkflowRevisionDelta,
     WorkflowServiceBatchResponse,
@@ -866,10 +868,6 @@ async def handle_read_config(
 
 def _read_config_response(outcome: Any, *, is_draft: bool):
     """The read answer, shared by `read_config` and `read_agent_config`."""
-    from oss.src.apis.fastapi.workflows.models import (
-        ReadConfigResponse,
-        ReadConfigRevision,
-    )
     from oss.src.core.workflows.read_config import draft_warning
 
     revision = outcome.revision
@@ -1456,7 +1454,7 @@ async def _allowed_on_agent(
 
 
 def _agent_summary(
-    workflow: Any, *, project_id: UUID, workspace_id: Optional[UUID]
+    workflow: Any, *, project_id: UUID, organization_id: Optional[UUID]
 ) -> Dict[str, Any]:
     """The agent as every answer names it. `name` comes first, because it is what the model
     tells the person; `id` and `slug` are tool arguments. `url` opens the agent in the web
@@ -1464,7 +1462,7 @@ def _agent_summary(
     summary = {"name": workflow.name, "id": str(workflow.id), "slug": workflow.slug}
     url = agent_page_url(
         web_url=env.agenta.web_url,
-        workspace_id=workspace_id,
+        organization_id=organization_id,
         project_id=project_id,
         agent_id=workflow.id,
     )
@@ -1610,7 +1608,7 @@ async def handle_list_agents(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
     """The agents in the caller's project, one page at a time, in a fixed order.
@@ -1687,7 +1685,7 @@ async def handle_list_agents(
                 continue
             agent = {
                 **_agent_summary(
-                    workflow, project_id=project_id, workspace_id=workspace_id
+                    workflow, project_id=project_id, organization_id=organization_id
                 ),
                 "description": workflow.description,
                 "revision": _revision_summary(head),
@@ -1715,7 +1713,7 @@ async def handle_read_agent_config(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
     """Another agent's latest saved configuration, with the same answer `read_config` gives.
@@ -1773,7 +1771,7 @@ async def handle_read_agent_config(
     return PlatformHandlerResult(
         content={
             "agent": _agent_summary(
-                workflow, project_id=project_id, workspace_id=workspace_id
+                workflow, project_id=project_id, organization_id=organization_id
             ),
             **_read_config_response(outcome, is_draft=False).model_dump(
                 mode="json", exclude_none=True
@@ -1791,7 +1789,7 @@ async def handle_edit_agent_config(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
     """Commit ordered operations to another agent's latest revision. Never deploys.
@@ -1873,7 +1871,7 @@ async def handle_edit_agent_config(
         content={
             "status": outcome.status,
             "agent": _agent_summary(
-                workflow, project_id=project_id, workspace_id=workspace_id
+                workflow, project_id=project_id, organization_id=organization_id
             ),
             "revision": _revision_summary(revision),
             # The base the next edit of this agent sends: the head after this call.
@@ -1914,7 +1912,7 @@ async def handle_create_agent(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     first_agent_owner_user_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
@@ -2076,7 +2074,7 @@ async def handle_create_agent(
         content={
             "status": "created",
             "agent": _agent_summary(
-                created, project_id=project_id, workspace_id=workspace_id
+                created, project_id=project_id, organization_id=organization_id
             ),
             "visibility": result.visibility.value,
             "revision": _revision_summary(result.revision),
@@ -2100,7 +2098,7 @@ async def handle_preview_agent_change(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
     """What a waiting `edit_agent_config` or `create_agent` call would change, saving nothing.
@@ -3460,8 +3458,8 @@ class PlatformToolHandlerRegistration:
     # Handlers that commit a revision take the calling run's agent owner as
     # `first_agent_owner_user_id`.
     needs_agent_owner: bool = False
-    # Handlers that link to a page of the web app take the caller's `workspace_id`.
-    needs_workspace: bool = False
+    # Handlers that link to a page of the web app take the caller's `organization_id`.
+    needs_organization: bool = False
     # Handlers that show or name an agent take the caller's `agent_read_scope`: they answer
     # only about agents it shows.
     needs_agent_read_scope: bool = False
@@ -3510,7 +3508,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         timeout_ms=READ_CONFIG_DEFAULT_TIMEOUT_MS,
         handler=handle_list_agents,
         elevated_permission=Permission.VIEW_WORKFLOWS,
-        needs_workspace=True,
+        needs_organization=True,
         needs_agent_read_scope=True,
     ),
     READ_AGENT_CONFIG_CALL_REF: PlatformToolHandlerRegistration(
@@ -3518,7 +3516,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         timeout_ms=READ_CONFIG_DEFAULT_TIMEOUT_MS,
         handler=handle_read_agent_config,
         elevated_permission=Permission.VIEW_WORKFLOWS,
-        needs_workspace=True,
+        needs_organization=True,
         needs_agent_read_scope=True,
     ),
     CREATE_AGENT_CALL_REF: PlatformToolHandlerRegistration(
@@ -3526,7 +3524,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         timeout_ms=COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
         handler=handle_create_agent,
         elevated_permission=Permission.EDIT_WORKFLOWS,
-        needs_workspace=True,
+        needs_organization=True,
         needs_agent_read_scope=True,
         needs_agent_owner=True,
     ),
@@ -3535,7 +3533,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         timeout_ms=COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
         handler=handle_edit_agent_config,
         elevated_permission=Permission.EDIT_WORKFLOWS,
-        needs_workspace=True,
+        needs_organization=True,
         needs_agent_read_scope=True,
     ),
     # Reads the target like `read_agent_config` and writes nothing.
@@ -3651,7 +3649,7 @@ async def dispatch_platform_tool_handler(
     mounts_service: Any = None,
     envelope: Optional[RunEnvelope] = None,
     agent_owner_user_id: Optional[UUID] = None,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
     access: Optional[RequestAccess] = None,
     sessions_service: Optional[SessionsService] = None,
@@ -3675,8 +3673,8 @@ async def dispatch_platform_tool_handler(
         extra["envelope"] = envelope
         # A handler that starts a run admits it.
         extra["run_admission"] = run_admission
-    if registration.needs_workspace:
-        extra["workspace_id"] = workspace_id
+    if registration.needs_organization:
+        extra["organization_id"] = organization_id
     if registration.needs_agent_read_scope:
         extra["agent_read_scope"] = agent_read_scope
     if registration.needs_session_caller:

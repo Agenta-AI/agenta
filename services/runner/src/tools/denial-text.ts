@@ -85,3 +85,17 @@ export function deniedByPolicyText(toolName: string): string {
     `Tell the user the tool is unavailable, and ask what they would like to do instead.`
   );
 }
+
+/**
+ * The server refused the call for its target (`resolve_gate` answered `deny`): the agent or
+ * session it names is not allowed for this agent. The tool itself stays usable for an allowed
+ * target, so this does not say the tool is unavailable. The code and the next step are the
+ * spec's `agent_not_allowed` refusal, which the session handlers return for the same case.
+ */
+export function targetNotAllowedText(toolName: string): string {
+  return (
+    `The '${toolName}' call was refused (agent_not_allowed): its target is not one of the ` +
+    `agents this agent may use. Sending the same call again will be refused too. Pick one of ` +
+    `the allowed agents, or do the work yourself.`
+  );
+}

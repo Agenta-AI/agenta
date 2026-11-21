@@ -2,7 +2,7 @@
  * The Model section's body: the connection-first model picker, with the catalog picker as its
  * fallback. `useModelHarness` owns the model state and passes it in.
  */
-import type {ReactNode} from "react"
+import {useContext, type ReactNode} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import type {HarnessCapabilitiesMap} from "@agenta/entities/workflow"
@@ -13,6 +13,7 @@ import type {buildModelOptionGroups, connectionFromConfig} from "../../connectio
 import {GroupedChoiceControl} from "../../GroupedChoiceControl"
 import {CatalogUnavailableNotice} from "../CatalogUnavailableNotice"
 import ModelPickerControl from "../ModelPickerControl"
+import {ModelPickerLayoutContext} from "../modelPickerLayout"
 
 import type {ModelHarnessT} from "./types"
 
@@ -41,6 +42,19 @@ export interface ModelSectionBodyParams {
     modelInFocus: boolean
     harnessKindInFocus: boolean
 }
+
+/**
+ * The catalog alert. The Model view gives the picker its full width (`modelView`), so there the
+ * alert keeps the view's 16px gutter itself.
+ */
+const CatalogNotice = ({onRetry}: {onRetry: () => void}) =>
+    useContext(ModelPickerLayoutContext) === "list" ? (
+        <div className="px-4">
+            <CatalogUnavailableNotice onRetry={onRetry} />
+        </div>
+    ) : (
+        <CatalogUnavailableNotice onRetry={onRetry} />
+    )
 
 export const modelSectionBody = ({
     t,
@@ -144,7 +158,7 @@ export const modelSectionBody = ({
     // only restate the section title and cost the narrow panel its label gutter. A focus filter
     // keeps it as long as either property it owns is in scope: the model, or the harness a picked
     // row sets.
-    const catalogUnavailableNotice = <CatalogUnavailableNotice onRetry={() => retryCatalog()} />
+    const catalogUnavailableNotice = <CatalogNotice onRetry={() => retryCatalog()} />
 
     const modelHarnessControls = (
         <>

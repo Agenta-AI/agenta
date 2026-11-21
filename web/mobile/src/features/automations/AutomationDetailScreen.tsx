@@ -9,6 +9,7 @@ import {
 } from "@agenta/automation-ui"
 import {useT} from "@agenta/i18n"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
+import {useIsPhone} from "@agenta/ui/phone"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -50,6 +51,7 @@ export const AutomationDetailScreen = ({
 }) => {
     useBindProjectContext(projectId)
     const t = useT(automationsScreensCatalog)
+    const phone = useIsPhone()
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
 
@@ -149,11 +151,13 @@ export const AutomationDetailScreen = ({
                                         automation?.name ||
                                         t("automations.screens.detailFallbackTitle")
                                     }
-                                    onBack={closeRuns}
-                                    backLabel={
-                                        automation?.name ||
-                                        t("automations.screens.detailFallbackTitle")
-                                    }
+                                    runHistory={{
+                                        listHref: `${base}/automations`,
+                                        name:
+                                            automation?.name ||
+                                            t("automations.screens.detailFallbackTitle"),
+                                        onAutomation: closeRuns,
+                                    }}
                                     // The view's own 30px grid, so the arrow lines up with
                                     // "Run history" below it.
                                     className="w-full shrink-0 pb-2 pl-[30px] pr-5 pt-3 lg:pt-5"
@@ -161,6 +165,7 @@ export const AutomationDetailScreen = ({
                             }
                             renderConversation={renderConversation}
                             initialRunId={openRunId}
+                            phone={phone}
                             runNow={
                                 automation ? (
                                     <AutomationRunNowButton

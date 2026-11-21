@@ -26,5 +26,6 @@ export interface IntegrationConnectViewParams {
 export const integrationConnectView = defineView<IntegrationConnectViewParams>({
     id: "integration.connect",
     apply: "on_save",
+    widenButton: false,
     Component: lazyView(() => import("./IntegrationConnectViewBody")),
 })

@@ -11,6 +11,7 @@ import skillViewCatalog from "@agenta/i18n/catalogs/entityUi.skillView"
 import {cn} from "@agenta/ui/styles"
 import {InputAffix} from "@agenta/ui/ui"
 import {
+    ArrowUp,
     CaretDown,
     Check,
     DownloadSimple,
@@ -20,7 +21,6 @@ import {
     PencilSimple,
     Plus,
     Trash,
-    UploadSimple,
 } from "@phosphor-icons/react"
 
 import {fileFolder, fileName, groupFilesByFolder, pathOf, searchFiles} from "./skillFiles"
@@ -226,7 +226,7 @@ export function SkillFileMenu({
                                             size={12}
                                             className="shrink-0 text-colorTextSecondary"
                                         />
-                                        <span className="min-w-0 flex-1 truncate font-mono text-[12px] leading-5 text-colorTextSecondary">
+                                        <span className="min-w-0 flex-1 truncate font-mono text-[12px] leading-5 text-[var(--ag-zinc-8)]">
                                             {group.folder}
                                         </span>
                                         <span className="shrink-0 text-[12px] text-colorTextTertiary">
@@ -260,7 +260,7 @@ export function SkillFileMenu({
                 ) : null}
                 {!disabled && !searching ? (
                     <button type="button" onClick={onUpload} className={SKILL_ACTION_ROW}>
-                        <UploadSimple size={14} className="text-colorText" />
+                        <ArrowUp size={14} className="text-colorText" />
                         {t("entityUi.skillView.uploadFolderOrZip")}
                     </button>
                 ) : null}

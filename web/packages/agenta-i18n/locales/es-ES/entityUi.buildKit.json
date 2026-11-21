@@ -86,7 +86,7 @@
     "applySkillUpdateDescription": "Actualiza uno de los skills de este agente a su versión más reciente.",
     "buildKitSettingApplies": "{{description}} En el playground se aplica el ajuste del kit de construcción.",
     "agentaTools": "Herramientas de Agenta",
-    "agentaToolsHint": "Herramientas que tu agente puede usar dondequiera que se ejecute: el playground, la API, Slack, Telegram, WhatsApp y las automatizaciones. Se guardan con el agente.",
+    "agentaToolsHint": "Herramientas que tu agente puede usar dondequiera que se ejecute. Se guardan con el agente.",
     "noAgentaTools": "No hay herramientas de Agenta disponibles.",
     "couldNotLoadAgentaTools": "No se pudieron cargar las herramientas de Agenta. Recarga la página para volver a intentarlo."
 }

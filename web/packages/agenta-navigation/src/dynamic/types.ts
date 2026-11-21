@@ -65,10 +65,12 @@ export interface SidebarEntityGroup {
     agentId?: string
 }
 
-/** A heading's open button: what it reads as, and what it does. It does not navigate. */
+/** A heading's open button: what it reads as, its glyph, and what it does. */
 export interface SidebarGroupEnter {
     /** Accessible name and tooltip, e.g. "Open Demo shoot". */
     label: string
+    /** The app's glyph: the mirror of the Back control that leaves the sidebar it opens. */
+    icon: ReactNode
     onClick: () => void
 }
 
@@ -138,8 +140,9 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     /** A heading's "+", or nothing for a heading that gets none. Given the project URL, since
      * the add's own click may need to build a route. */
     groupAdd?: (group: SidebarEntityGroup, projectURL: string) => SidebarGroupAdd | undefined
-    /** A heading's open button, beside the "+", or nothing for a heading that gets none. */
-    groupEnter?: (group: SidebarEntityGroup) => SidebarGroupEnter | undefined
+    /** A heading's open button, beside the "+", or nothing for a heading that gets none. Given
+     * the project URL, since the click may need to build a route. */
+    groupEnter?: (group: SidebarEntityGroup, projectURL: string) => SidebarGroupEnter | undefined
     /** How many rows a heading shows at most, or undefined for no cap of its own. The entity's
      * `maxItems` still bounds the whole list. */
     groupMaxItems?: (group: SidebarEntityGroup) => number | undefined
@@ -180,6 +183,6 @@ export interface SidebarEntity {
     }>
     toggleGroupAtom?: WritableAtom<string[], [string], void>
     groupAddLink?: (group: SidebarEntityGroup, projectURL: string) => SidebarGroupAdd | undefined
-    groupEnter?: (group: SidebarEntityGroup) => SidebarGroupEnter | undefined
+    groupEnter?: (group: SidebarEntityGroup, projectURL: string) => SidebarGroupEnter | undefined
     groupMaxItems?: (group: SidebarEntityGroup) => number | undefined
 }

@@ -18,6 +18,7 @@ from agenta.sdk.decorators.routing import (
     create_app,
     apply_invoke_prelude,
     admit_session_input,
+    record_inband_approval_answers,
     handle_invoke_success,
     handle_invoke_failure,
     handle_inspect_success,
@@ -135,6 +136,7 @@ async def services_invoke(req: Request, request: WorkflowInvokeRequest):
     credentials = req.state.auth.get("credentials")
     apply_invoke_prelude(req, request)
     try:
+        await record_inband_approval_answers(req, request)
         admission_response = await admit_session_input(req, request, credentials)
         if admission_response is not None:
             return admission_response

@@ -822,6 +822,12 @@ class SessionsConfig(BaseModel):
     commands: SessionsCommandsConfig = SessionsCommandsConfig()
     records: SessionsRecordsConfig = SessionsRecordsConfig()
     watchdog: SessionWatchdogConfig = SessionWatchdogConfig()
+    # Turns in a row in one session that no person sent. At this count a server input
+    # waits in the queue until a person sends a message.
+    turns_without_person_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_TURNS_WITHOUT_PERSON_LIMIT")
+        or 20
+    )
 
     model_config = ConfigDict(extra="ignore")
 
@@ -2354,6 +2360,16 @@ class TriggersConfig(BaseModel):
             "AGENTA_TRIGGERS_SCHEDULE_MIN_INTERVAL_MINUTES"
         )
         or 15
+    )
+
+    # The most one-time schedules (`data.run_at`) that one schedule tick fires,
+    # earliest `run_at` first; the rest fire in the next tick. A total over all
+    # projects: there is no limit per project.
+    one_time_schedules_max_per_tick: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_TRIGGERS_ONE_TIME_SCHEDULES_MAX_PER_TICK"
+        )
+        or 2000
     )
 
 

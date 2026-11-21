@@ -180,7 +180,7 @@ export const BuilderChat = ({
         body = (
             <LiveConversation
                 key={builderSessionId}
-                embedded
+                parentOwnsShell
                 entityId={builderRevisionId}
                 sessionId={builderSessionId}
                 projectId={projectId}
@@ -202,7 +202,7 @@ export const BuilderChat = ({
                 newChatLayout={phone ? "top" : "middle"}
                 belowComposer={
                     isUnlinked ? (
-                        <div className="px-3 pt-3">
+                        <div className="px-4">
                             <QuickActions
                                 sessionId={builderSessionId}
                                 onPick={fillComposer}
