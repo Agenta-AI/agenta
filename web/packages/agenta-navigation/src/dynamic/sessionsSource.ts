@@ -7,6 +7,7 @@ import {
 import {
     agentWorkflowsListQueryStateAtom,
     appWorkflowsListQueryAtom,
+    builderAgentWorkflowIdAtom,
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {isAutomationSession, sessionOpenTarget} from "@agenta/sessions/row"
@@ -643,14 +644,19 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
 export const localSessionRefsAtom = atom<SessionSidebarRef[]>([])
 
 /**
- * Every agent the catalog still lists, or `null` while it loads. It excludes archived agents, so
- * "absent here" IS "archived". Requires an UNPAGED catalog: a limit on `appWorkflowsListQueryAtom`
- * would make every agent past the cap read as archived and lose its sessions.
+ * Every agent the catalog still lists, plus the builder, or `null` while the catalog loads. The
+ * catalog excludes archived agents, so "absent here" IS "archived". The builder lives in code, not
+ * in the catalog, and cannot be archived; its sessions show once its id has loaded. Requires an
+ * UNPAGED catalog: a limit on `appWorkflowsListQueryAtom` would make every agent past the cap read
+ * as archived and lose its sessions.
  */
 const liveAgentIdsAtom = atom<ReadonlySet<string> | null>((get) => {
     const query = get(appWorkflowsListQueryAtom)
     if (!query.data) return null
-    return new Set((query.data.refs ?? []).map((ref: {id: string}) => ref.id))
+    const ids = new Set((query.data.refs ?? []).map((ref: {id: string}) => ref.id))
+    const builderId = get(builderAgentWorkflowIdAtom)
+    if (builderId) ids.add(builderId)
+    return ids
 })
 
 /** Each listed agent's name, by id, from the same unpaged catalog as `liveAgentIdsAtom`. */
@@ -1297,10 +1303,19 @@ export const sidebarSessionAgentOptionsAtomFamily = atomFamily((scopeId: string)
         if (!sessionFilterMenuOpen(get, scopeId)) return []
 
         const agents = get(agentWorkflowsListQueryStateAtom)
-        return agents.data.map((agent) => ({
+        const options = agents.data.map((agent) => ({
             value: agent.id,
             label: agent.name || agent.slug || "Untitled agent",
         }))
+        // The builder is not in the catalog, but the sidebar lists its chats: offer it too.
+        const builderId = get(builderAgentWorkflowIdAtom)
+        if (builderId && !options.some((option) => option.value === builderId)) {
+            options.push({
+                value: builderId,
+                label: get(agentDisplayNameAtomFamily(builderId)) || "Builder",
+            })
+        }
+        return options
     }),
 )
 

@@ -6,8 +6,8 @@ import {
 import { parseGatewayErrorDetail } from "../../gateway-error.ts";
 import { isCooperativeCancelAbort } from "../../sessions/stop-signal.ts";
 import { acquireEnvironment } from "./environment.ts";
-import { runCredential } from "./runtime-policy.ts";
-import { loadDurableDecisions } from "../../sessions/interactions.ts";
+import { platformCredentialForRequest } from "./runtime-policy.ts";
+import { loadTurnApprovalRows } from "../../sessions/interactions.ts";
 import { runTurn } from "./run-turn.ts";
 import { withDaytonaActivityHeartbeat } from "./daytona-heartbeat.ts";
 import { normalizeRequestModel } from "./model.ts";
@@ -140,7 +140,10 @@ export async function runSandboxAgent(
   emit?: EmitEvent,
   signal?: AbortSignal,
   deps: SandboxAgentDeps = {},
-  turnOptions: Pick<RunTurnOptions, "credentialLease" | "seededDecisions"> = {},
+  turnOptions: Pick<
+    RunTurnOptions,
+    "credentialLease" | "seededDecisions" | "approvalRows"
+  > = {},
 ): Promise<AgentRunResult> {
   normalizeRequestModel(request);
   const acquired = await acquireEnvironment(
@@ -165,11 +168,14 @@ export async function runSandboxAgent(
         // Read + claim BEFORE the turn: runTurn must not suspend before its responder is wired.
         seededDecisions:
           turnOptions.seededDecisions ??
-          (await loadDurableDecisions(
-            env.sessionId,
-            runCredential(request),
-            env.logger,
-          )),
+          (await (
+            turnOptions.approvalRows ??
+            (await loadTurnApprovalRows(
+              env.sessionId,
+              platformCredentialForRequest(request),
+              env.logger,
+            ))
+          ).claimAll()),
       }),
     );
     result = withGatewayErrorDetail(result);

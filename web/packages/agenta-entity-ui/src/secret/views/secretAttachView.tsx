@@ -14,5 +14,6 @@ export interface SecretAttachViewParams {
 export const secretAttachView = defineView<SecretAttachViewParams>({
     id: "agent.secret.attach",
     apply: "on_save",
+    widenButton: false,
     Component: lazyView(() => import("./SecretAttachViewBody")),
 })

@@ -661,6 +661,7 @@ class SessionCommandsService:
         expected_execution_id: Optional[str],
         idempotency_key: str,
         approved_by: RunApproval,
+        deliver: bool = True,
     ) -> InteractionContinuationAdmission:
         return await self.respond_interactions(
             project_id=project_id,
@@ -669,6 +670,7 @@ class SessionCommandsService:
             expected_execution_id=expected_execution_id,
             idempotency_key=idempotency_key,
             approved_by=approved_by,
+            deliver=deliver,
         )
 
     async def respond_interactions(
@@ -680,9 +682,16 @@ class SessionCommandsService:
         expected_execution_id: Optional[str],
         idempotency_key: str,
         approved_by: RunApproval,
+        deliver: bool = True,
     ) -> InteractionContinuationAdmission:
         """`approved_by` is the answering principal. The continuation keeps the asked
-        run's authority, sender and origin, and records the approver."""
+        run's authority, sender and origin, and records the approver.
+
+        With `deliver=False` the caller runs the continuation in its own request (an
+        in-band answer that the agent service records before its run): the command is
+        stored and left `pending`, and the runner's admission report settles it. A
+        caller that never runs it leaves it to the abandoned-command sweep, which then
+        delivers it as usual."""
         if self._executions is None:
             raise RuntimeError(
                 "durable interaction responses require executions storage"
@@ -953,7 +962,8 @@ class SessionCommandsService:
                 error,
             )
         if (
-            admission.command is not None
+            deliver
+            and admission.command is not None
             and admission.command.state == SessionCommandState.pending
         ):
             try:

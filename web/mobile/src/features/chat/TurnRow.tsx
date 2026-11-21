@@ -58,6 +58,12 @@ import {UserMessageAccessoryContext} from "./userMessageAccessory"
 import {UserQuoteBlock} from "./UserQuoteBlock"
 import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
 
+/**
+ * An assistant turn clips its overflow. On a phone the clip starts 6px above the text, so the
+ * turn's first control ("Worked for") keeps its 44px tap area. Nothing moves.
+ */
+const ASSISTANT_CLIP_ROOM = "max-md:-mt-1.5 max-md:pt-1.5"
+
 /** The byte size the transcript replay records on an attachment part, when it has one. */
 const attachmentSize = (metadata: unknown): number | undefined => {
     const size = (metadata as {agenta?: {size?: unknown}} | undefined)?.agenta?.size
@@ -320,7 +326,7 @@ const TurnRowInner = ({
                 <div {...quoteProps} className="flex min-w-0 flex-col gap-3">
                     {/* The builder signs its answers (S03, M05): 12 px, secondary, above the text. */}
                     {builderChat ? (
-                        <div className="-mb-2 flex items-center gap-1.5 text-xs leading-4 text-colorTextSecondary">
+                        <div className="-mb-2 flex items-center gap-1.5 text-[12px] leading-4 text-colorTextSecondary">
                             <BuilderIcon size={12} aria-hidden />
                             {t("builder.page.builder")}
                         </div>
@@ -437,9 +443,14 @@ const TurnRowInner = ({
             <ChatBubble
                 placement={turn.isUser ? "end" : "start"}
                 variant={turn.isUser && hasBubbleContent ? "filled" : "borderless"}
-                // No avatar column; the 85% inset is what reads as a user bubble.
+                // No avatar column; the 85% inset is what reads as a user bubble. The builder's
+                // answers take the whole column (S03, B03).
                 className={
-                    turn.isUser ? "min-w-0 max-w-[85%]" : "min-w-0 max-w-full sm:max-w-[85%]"
+                    turn.isUser
+                        ? "min-w-0 max-w-[85%]"
+                        : builderChat
+                          ? "min-w-0 max-w-full"
+                          : "min-w-0 max-w-full sm:max-w-[85%]"
                 }
                 classNames={{
                     content: turn.isUser
@@ -448,8 +459,11 @@ const TurnRowInner = ({
                               // The canvas bubble: radius 12 with a 2 px corner, 10 / 14 padding (M01, X-8).
                               "rounded-[12px] rounded-br-[2px] bg-muted px-3.5 py-2.5 text-xs",
                           )
-                        : "min-w-0 max-w-full overflow-hidden text-xs",
-                    body: "min-w-0 max-w-full overflow-hidden",
+                        : cn("min-w-0 max-w-full overflow-hidden text-xs", ASSISTANT_CLIP_ROOM),
+                    body: cn(
+                        "min-w-0 max-w-full overflow-hidden",
+                        !turn.isUser && ASSISTANT_CLIP_ROOM,
+                    ),
                 }}
                 // A refused file-only send has no words to paint, but its failure still has to be
                 // said, or the cards sit there looking like an upload that worked.

@@ -313,7 +313,7 @@ export const ProjectOrgSwitcherView = ({
                             // pl-2.5 tucks the wider avatar 2px left of the nav rows' icon column.
                             collapsed
                                 ? "size-7 justify-center p-0"
-                                : "h-10 min-w-0 flex-1 gap-[10px] pl-2.5 pr-1",
+                                : "h-10 min-w-0 flex-1 gap-3 pl-2.5 pr-1",
                         )}
                         title={`${projectLabel} · ${orgLabel}`}
                     >
@@ -328,7 +328,7 @@ export const ProjectOrgSwitcherView = ({
                             tallest. */}
                         {!collapsed && (
                             <>
-                                <span className="min-w-0 flex-1 truncate text-left text-sm leading-none text-colorText">
+                                <span className="min-w-0 flex-1 truncate text-left text-sm leading-5 text-colorText">
                                     {projectLabel}
                                 </span>
                                 {triggerMeta ? (
@@ -337,8 +337,8 @@ export const ProjectOrgSwitcherView = ({
                                     </span>
                                 ) : null}
                                 <CaretUpDown
-                                    size={12}
-                                    className="shrink-0 text-colorTextSecondary"
+                                    size={14}
+                                    className="shrink-0 text-[var(--ag-zinc-8)]"
                                 />
                             </>
                         )}

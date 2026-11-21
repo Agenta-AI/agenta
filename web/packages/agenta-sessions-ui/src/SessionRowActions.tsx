@@ -263,7 +263,10 @@ const SessionRowActions = ({
                     // right edge. Only session rows are wrapped, so no other nav row shifts.
                     // w-6, not w-7: at 28 the 20px button sat 2px left of the group carets and the
                     // filter trigger above it, and the rail's right-hand controls read as a column.
-                    className="relative z-[1] -mr-2 flex h-5 w-6 shrink-0 items-center justify-center"
+                    // With a fine pointer the kebab floats over the title's faded tail (placed
+                    // against the nav row, the link overlay's own box, at the same spot), so the
+                    // title keeps the whole row at rest and nothing moves when it shows (N10).
+                    className="relative z-[1] -mr-2 flex h-5 w-6 shrink-0 items-center justify-center pointer-fine:absolute pointer-fine:right-1 pointer-fine:top-1/2 pointer-fine:mr-0 pointer-fine:-translate-y-1/2"
                     onClick={swallow}
                 >
                     {armed ? (

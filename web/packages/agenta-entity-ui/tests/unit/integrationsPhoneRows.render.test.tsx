@@ -85,7 +85,7 @@ describe("ToolManagementList on a phone", () => {
         expect(container.querySelector("[aria-label=Remove]")).toBeNull()
     })
 
-    it("keeps whose account it uses next to the setup reason and tag (M08)", () => {
+    it("keeps whose account it uses next to the setup reason, with no tag (M08)", () => {
         renderList({shownKey: "tools", show: vi.fn()}, vi.fn(), vi.fn(), (_item, index) =>
             index === 0
                 ? {tone: "incomplete", label: "Needs setup", reason: "Sign-in expired"}
@@ -93,7 +93,8 @@ describe("ToolManagementList on a phone", () => {
         )
         const first = container.querySelectorAll("button")[0]
         expect(first.textContent).toContain("Each person's own account · Sign-in expired")
-        expect(first.textContent).toContain("Needs setup")
+        // The reason says the problem; a tag would take the account line's room.
+        expect(first.textContent).not.toContain("Needs setup")
     })
 
     it("opens the integration on a tap", () => {

@@ -51,5 +51,6 @@
     "countSkill_other": "{{count}} 个 Skill",
     "countTool_other": "{{count}} 个工具",
     "change": "更改",
-    "policyHint": "Agent 无需询问即可执行的操作"
+    "policyHint": "Agent 无需询问即可执行的操作",
+    "modelVia": "通过 {{harness}}"
 }

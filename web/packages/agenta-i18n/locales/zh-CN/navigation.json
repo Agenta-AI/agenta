@@ -1,7 +1,9 @@
 {
     "chrome.closeNavigation": "关闭导航",
     "chrome.collapseGroup": "收起{{title}}",
+    "chrome.collapseSidebar": "收起侧边栏",
     "chrome.expandGroup": "展开{{title}}",
+    "chrome.expandSidebar": "展开侧边栏",
     "chrome.itemFallback": "项目",
     "chrome.itemMoved": "{{item}} 已移至第 {{position}} 位，共 {{total}} 项",
     "chrome.navigationTitle": "导航",

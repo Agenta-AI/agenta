@@ -1,6 +1,6 @@
 import type {ReactNode} from "react"
 
-import {cn} from "@agenta/ui/ui"
+import {cn, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
 
 const HEADING = "m-0 text-[13px] font-medium leading-[18px] text-muted-foreground"
@@ -43,6 +43,7 @@ export const SettingsGroupHeading = ({
                     className={cn(
                         "flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent p-0 font-[inherit] text-inherit hover:text-foreground",
                         FOCUS_RING,
+                        PHONE_TOUCH_TARGET_CLASS,
                     )}
                 >
                     {label}

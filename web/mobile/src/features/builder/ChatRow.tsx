@@ -40,12 +40,7 @@ export const ChatRow = ({
             <span className="min-w-0 flex-1 truncate">
                 {row.name?.trim() || t("builder.panel.untitledChat")}
             </span>
-            <span
-                className={cn(
-                    "shrink-0 text-colorTextTertiary",
-                    layout === "panel" ? "text-[12px] leading-4" : "text-xs",
-                )}
-            >
+            <span className="shrink-0 text-[12px] leading-4 text-colorTextTertiary">
                 {age(row.updated_at, now)}
             </span>
         </button>

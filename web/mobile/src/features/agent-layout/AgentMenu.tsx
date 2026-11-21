@@ -13,7 +13,13 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {CaretDown} from "@phosphor-icons/react"
+import {
+    Archive,
+    CaretDown,
+    ClockCounterClockwise,
+    DownloadSimple,
+    PencilSimple,
+} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {useProjectPermission} from "../context/useProjectPermission"
@@ -24,6 +30,8 @@ import {LeaveWhenArchived} from "./LeaveWhenArchived"
 interface AgentMenuEntry {
     key: string
     label: ReactNode
+    /** Each menu sizes it: 16 px in the desktop menu, 18 px in the phone sheet. */
+    icon: ReactNode
     disabled?: boolean
     onSelect: () => void
 }
@@ -66,6 +74,7 @@ export const AgentMenu = ({
         {
             key: "history",
             label: t("agentLayout.header.history"),
+            icon: <ClockCounterClockwise />,
             onSelect: () => openHistory(agentId),
         },
         ...(canEdit
@@ -73,6 +82,7 @@ export const AgentMenu = ({
                   {
                       key: "rename",
                       label: t("agentLayout.header.rename"),
+                      icon: <PencilSimple />,
                       onSelect: () => actions.rename(target),
                   },
               ]
@@ -82,6 +92,7 @@ export const AgentMenu = ({
                   {
                       key: "export",
                       label: t("agentLayout.header.exportAgent"),
+                      icon: <DownloadSimple />,
                       disabled: pending,
                       onSelect: () => {
                           // Production "Save as template": the agent builds the download.
@@ -99,6 +110,7 @@ export const AgentMenu = ({
                   {
                       key: "archive",
                       label: t("agentLayout.header.archiveAgent"),
+                      icon: <Archive />,
                       onSelect: () => {
                           setArchiveAskedFor(agentId)
                           actions.remove(target)
@@ -114,7 +126,8 @@ export const AgentMenu = ({
             <>
                 {leave}
                 {/* The trigger is a div with the button role: the identity renders block
-                    elements, which a <button> may not hold. */}
+                    elements, which a <button> may not hold. It starts 4 px after the menu
+                    button; the header row's gap is 2 px (M01). */}
                 <BottomSheetMenu
                     open={sheetOpen}
                     onOpenChange={setSheetOpen}
@@ -125,7 +138,7 @@ export const AgentMenu = ({
                             role="button"
                             tabIndex={0}
                             aria-haspopup="dialog"
-                            className="box-border flex h-11 min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-colorText outline-none active:bg-colorFillTertiary focus-visible:bg-colorFillTertiary"
+                            className="ml-0.5 box-border flex h-11 min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-colorText outline-none active:bg-colorFillTertiary focus-visible:bg-colorFillTertiary"
                             onKeyDown={(event) => {
                                 if (event.key !== "Enter" && event.key !== " ") return
                                 event.preventDefault()
@@ -172,6 +185,7 @@ export const AgentMenu = ({
                             disabled={entry.disabled}
                             onSelect={entry.onSelect}
                         >
+                            {entry.icon}
                             {entry.label}
                         </DropdownMenuItem>
                     ))}

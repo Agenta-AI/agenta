@@ -19,8 +19,8 @@ import type { ClientToolVerdict, Responder } from "../../src/responder.ts";
 import {
   ApprovalResponder,
   ConversationDecisions,
-  extractApprovalDecisions,
 } from "../../src/responder.ts";
+import { answeredDecisions } from "../utils/answered-decisions.ts";
 import type { PermissionPlan, Verdict } from "../../src/permission-plan.ts";
 import {
   attachPermissionResponder,
@@ -133,6 +133,8 @@ describe("attachPermissionResponder", () => {
     assert.equal(seen.permission?.[0].gate.toolName, "edit");
     assert.equal(seen.permission?.[0].gate.executor, "harness");
     assert.deepEqual(seen.permission?.[0].gate.args, { path: "a" });
+    // The gate passes the call's id, which names the server request at the gate.
+    assert.equal(seen.permission?.[0].toolCallId, "tool-1");
   });
 
   it("deny verdict replies reject and emits no interaction_request", async () => {
@@ -571,7 +573,7 @@ describe("attachPermissionResponder", () => {
 
   /** The replayed conversation: the model's commit, and the human's answer to it. */
   function replayedApproval(): Map<string, unknown[]> {
-    return extractApprovalDecisions({
+    return answeredDecisions({
       messages: [
         {
           role: "assistant",
@@ -768,7 +770,7 @@ describe("attachPermissionResponder", () => {
   });
 
   it("resolves the original interaction token after a cold stored-decision reply", async () => {
-    const decisions = extractApprovalDecisions({
+    const decisions = answeredDecisions({
       messages: [
         {
           role: "assistant",

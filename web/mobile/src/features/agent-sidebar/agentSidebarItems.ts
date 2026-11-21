@@ -8,13 +8,13 @@ import {Spinner} from "@agenta/ui/ui"
 import {
     ArrowClockwiseIcon,
     BroadcastIcon,
-    ChartBarIcon,
     LightningIcon,
     SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
+import {ChartColumn} from "lucide-react"
 
 import {agentPageHref, isAgentPageView, type AgentPageView} from "./agentPages"
-import {groupByDay} from "./dayGroups"
+import {dayGroupedRows} from "./dayGroups"
 
 /** One session row of the agent sidebar: what the row draws and what its menu needs. */
 export interface AgentSidebarSession extends SessionRowTarget {
@@ -146,26 +146,20 @@ export const agentSidebarItems = ({
         prefetch: false,
     })
 
-    const rows: SidebarConfig[] = groupByDay(sessions, (session) => session.activityAt).flatMap(
-        (group) => [
-            {
-                key: `agent-sidebar-day-${group.key}`,
-                title: t(`agentSidebar.${group.key}`),
-                isGroupLabel: true,
-            },
-            ...group.rows.map(
-                (session): SidebarConfig => ({
-                    key: agentSidebarSessionKey(session.sessionId),
-                    title: session.title,
-                    tooltip: session.title,
-                    icon: sessionIcon(session),
-                    link: `${projectURL}/sessions/${session.sessionId}`,
-                    prefetch: false,
-                    wrapRow: wrapSessionRow ? (node) => wrapSessionRow(session, node) : undefined,
-                }),
-            ),
-        ],
-    )
+    const rows = dayGroupedRows(sessions, {
+        activityAt: (session) => session.activityAt,
+        keyPrefix: "agent-sidebar-day",
+        label: (key) => t(`agentSidebar.${key}`),
+        toRow: (session) => ({
+            key: agentSidebarSessionKey(session.sessionId),
+            title: session.title,
+            tooltip: session.title,
+            icon: sessionIcon(session),
+            link: `${projectURL}/sessions/${session.sessionId}`,
+            prefetch: false,
+            wrapRow: wrapSessionRow ? (node) => wrapSessionRow(session, node) : undefined,
+        }),
+    })
     if (sessions.length === 0 && status === "loading")
         rows.push({
             key: "agent-sidebar-sessions-loading",
@@ -205,7 +199,8 @@ export const agentSidebarItems = ({
             link: sessionsHref,
             matchLinks: [],
             prefetch: false,
-            rowClassName: `text-[13px] ${phone ? "text-colorTextTertiary" : "text-colorTextSecondary"}`,
+            // The phone row keeps its 44 px line box, so the text sits in the middle (M02).
+            rowClassName: `text-[13px] ${phone ? "leading-[44px] text-colorTextTertiary" : "text-colorTextSecondary"}`,
         })
 
     return [
@@ -215,7 +210,8 @@ export const agentSidebarItems = ({
             createElement(SlidersHorizontalIcon, {size: 16}),
         ),
         pageRow("channels", t("agentSidebar.channels"), createElement(BroadcastIcon, {size: 16})),
-        pageRow("analytics", t("agentSidebar.analytics"), createElement(ChartBarIcon, {size: 16})),
+        // The canvas draws Analytics as a bar chart with axes (Lucide); Phosphor has none.
+        pageRow("analytics", t("agentSidebar.analytics"), createElement(ChartColumn, {size: 16})),
         {
             key: AGENT_SIDEBAR_SESSIONS_KEY,
             title: t("agentSidebar.sessions"),

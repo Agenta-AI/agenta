@@ -3,7 +3,7 @@ import {useContext, type ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
 import {SidebarLayoutContext} from "@agenta/navigation-ui"
-import {ArrowsInLineVerticalIcon} from "@phosphor-icons/react"
+import {FoldVertical} from "lucide-react"
 
 import {SidebarTopRow} from "./SidebarTopRow"
 
@@ -50,7 +50,8 @@ export const AgentSidebarHeader = ({
                             onClick={onFold}
                             className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-colorTextSecondary [font-family:inherit] hover:bg-colorSplit hover:text-colorText"
                         >
-                            <ArrowsInLineVerticalIcon size={16} />
+                            {/* The canvas fold glyph: arrows on a dashed bar (Lucide). */}
+                            <FoldVertical size={16} />
                         </button>
                     )}
                 </div>

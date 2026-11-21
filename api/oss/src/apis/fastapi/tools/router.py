@@ -1698,7 +1698,7 @@ class ToolsRouter:
                     if required_agent_owner(call_ref=call_ref)
                     else None
                 ),
-                workspace_id=_workspace_id(request),
+                organization_id=_organization_id(request),
                 agent_read_scope=(
                     await agent_read_scope_for_request(request)
                     if required_agent_read_scope(call_ref=call_ref)
@@ -2193,11 +2193,11 @@ async def _emit_data_event(
 # ---------------------------------------------------------------------------
 
 
-def _workspace_id(request: Request) -> Optional[UUID]:
-    """The caller's workspace, for links into the web app; None when the credential has none."""
-    workspace_id = getattr(request.state, "workspace_id", None)
+def _organization_id(request: Request) -> Optional[UUID]:
+    """The caller's organization, for links into the web app; None when the credential has none."""
+    organization_id = getattr(request.state, "organization_id", None)
     try:
-        return UUID(str(workspace_id)) if workspace_id else None
+        return UUID(str(organization_id)) if organization_id else None
     except ValueError:
         return None
 

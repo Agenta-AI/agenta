@@ -130,22 +130,27 @@ export function AgentaToolsSection({
         return {
             key: op,
             name,
+            // One line per tool, the name and its select (canvas F04 f10). Only a tool the build
+            // kit overrides keeps a second line, because it says the setting does not apply now.
             description: buildKitOps.has(op)
                 ? t("entityUi.buildKit.buildKitSettingApplies", {description: description ?? ""})
-                : description,
+                : undefined,
             readOnly: kind === "read",
         }
     })
     const preset = agentaToolsPreset(tools, access)
     return (
-        <div className="flex min-h-0 flex-col">
+        // The list keeps its own gutter (a quiet 6 px bar, 16 px on both sides, canvas F04 f10), so
+        // this body undoes the view's 16 px sides and its bottom padding, and pads the hint itself.
+        <div className="-mx-4 -mb-3.5 flex min-h-0 flex-col">
             {/* The view's breadcrumb names the part, so the body starts at its description (F04 f10). */}
-            <span className="text-[13px] leading-5 text-colorTextSecondary">
+            <span className="px-4 text-[13px] leading-5 text-colorTextSecondary">
                 {t("entityUi.buildKit.agentaToolsHint")}
             </span>
             <PermissionDrawerBody
-                flush
                 catalogKey="agenta-tools"
+                // "Deactivate" turns a tool off; it is not a refusal, so it is not red (L8-22).
+                plainDeny
                 catalog={{status: "ready", complete: true, tools: rows}}
                 emptyLabel={t("entityUi.buildKit.noAgentaTools")}
                 permissions={{

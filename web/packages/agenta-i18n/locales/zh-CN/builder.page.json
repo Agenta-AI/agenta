@@ -78,6 +78,7 @@
     "sessions": "会话",
     "noSessions": "这个 Agent 还没有会话。",
     "sessionsFailed": "无法加载会话。",
+    "newSessionShort": "新建",
     "openItem": "打开项目",
     "closeTab": "关闭 {{name}}",
     "moreTabs": "还有 {{count}} 个",

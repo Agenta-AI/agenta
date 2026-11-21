@@ -11,7 +11,7 @@
     "noSessionsMatch": "没有符合这些筛选条件的会话",
     "retry": "重试",
     "searchAgents": "搜索 Agent",
-    "seeAllSessions": "在表格中查看所有会话",
+    "seeAllSessions": "查看所有会话",
     "sessions": "会话",
     "showOlderSessionsShort": "显示更早的会话",
     "showOlderSessions_other": "显示 {{count}} 个更早的会话",

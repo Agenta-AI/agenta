@@ -78,6 +78,14 @@ export function findSubagentIndex(tools: unknown[], ref: ConfigItemRef): number 
     return matches.length === 1 ? matches[0] : -1
 }
 
+/** The slug address of `tool` when no other entry has its slug, else null. */
+export function uniqueSlugRef(tool: unknown, tools: unknown[]): ConfigItemRef | null {
+    const slug = toolReferenceSlug(tool)
+    if (!slug) return null
+    const ref = subagentSlugRef(slug)
+    return findSubagentIndex(tools, ref) >= 0 ? ref : null
+}
+
 /** The tools without the subagent `ref` names; unchanged when it is gone already. */
 export function removeSubagentByRef(tools: unknown[], ref: ConfigItemRef): unknown[] {
     const index = findSubagentIndex(tools, ref)
@@ -92,11 +100,12 @@ export function setSubagentDescription(
 ): unknown[] {
     const index = findSubagentIndex(tools, ref)
     if (index < 0) return tools
+    const entry = tools[index] as Record<string, unknown>
+    const saved = normalizeSubagentReference({...entry, description})
+    // Entries that share a slug stay apart only by their copied names, so the name stays.
+    if (!uniqueSlugRef(entry, tools) && typeof entry.name === "string") saved.name = entry.name
     const next = [...tools]
-    next[index] = normalizeSubagentReference({
-        ...(tools[index] as Record<string, unknown>),
-        description,
-    })
+    next[index] = saved
     return next
 }
 

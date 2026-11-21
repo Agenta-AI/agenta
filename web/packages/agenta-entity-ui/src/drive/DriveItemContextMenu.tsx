@@ -35,6 +35,7 @@ import {
 } from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
+import {PHONE_MENU_ROWS} from "./DriveFolderMenu"
 import {DriveLinkContext} from "./driveLink"
 import {useDriveFileDownload} from "./useDriveFileDownload"
 
@@ -182,7 +183,11 @@ export const DriveItemContextMenu = ({
             <ContextMenuTrigger asChild>
                 <div className={className}>{children}</div>
             </ContextMenuTrigger>
-            <ContextMenuContent onClick={stop} onCloseAutoFocus={(e) => e.preventDefault()}>
+            <ContextMenuContent
+                onClick={stop}
+                onCloseAutoFocus={(e) => e.preventDefault()}
+                className={PHONE_MENU_ROWS}
+            >
                 <ContextMenuItem onSelect={onOpen}>
                     {isFolder ? <FolderOpen size={14} /> : <ArrowSquareOut size={14} />}
                     {isFolder

@@ -10,7 +10,7 @@ import {cn, Tooltip, TooltipContent, TooltipTrigger} from "@agenta/ui/ui"
 
 /** The row frame on a desktop: a white card with a border. */
 export const ROW_CLASS =
-    "group flex items-center gap-2.5 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] py-2.5 pl-3 pr-2 transition-colors"
+    "group flex items-center gap-2.5 rounded-[8px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] py-2.5 pl-3 pr-2 transition-colors"
 
 /** The name on a desktop. */
 export const NAME_CLASS = "truncate text-sm leading-5"

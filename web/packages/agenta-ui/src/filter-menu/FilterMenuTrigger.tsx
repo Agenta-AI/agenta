@@ -5,6 +5,7 @@ import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 
 import {Button} from "../components/ui/button"
 import {PopoverTrigger} from "../components/ui/popover"
+import {PHONE_TOUCH_TARGET_CLASS} from "../components/ui/touch-target"
 import {cn} from "../components/ui/utils"
 
 import type {FilterMenuTriggerProps} from "./types"
@@ -42,7 +43,11 @@ export const FilterMenuTrigger = ({
                 variant={variant}
                 size={iconOnly ? iconSize : size}
                 aria-label={triggerAriaLabel ?? (iconOnly ? defaultLabel : undefined)}
-                className={cn("relative gap-1.5 font-normal", triggerClassName)}
+                className={cn(
+                    "relative gap-1.5 font-normal",
+                    PHONE_TOUCH_TARGET_CLASS,
+                    triggerClassName,
+                )}
             >
                 {icon}
                 {iconOnly ? null : <span className="truncate">{text}</span>}

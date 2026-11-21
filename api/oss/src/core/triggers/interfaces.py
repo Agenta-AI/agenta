@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
@@ -446,8 +447,16 @@ class TriggersDAOInterface(ABC):
     ) -> List[TriggerSchedule]: ...
 
     @abstractmethod
-    async def fetch_active_schedules_with_project(
+    async def fetch_active_recurring_schedules_with_project(
         self,
         *,
         project_id: Optional[UUID] = None,
+    ) -> List[Tuple[UUID, TriggerSchedule]]: ...
+
+    @abstractmethod
+    async def fetch_due_one_time_schedules(
+        self,
+        *,
+        due_by: datetime,
+        limit: int,
     ) -> List[Tuple[UUID, TriggerSchedule]]: ...

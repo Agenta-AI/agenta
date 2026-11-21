@@ -72,4 +72,12 @@ describe("ListTable look options", () => {
         expect(headerRow().className).toContain("font-normal")
         expect(headerRow().className).not.toContain("font-medium")
     })
+
+    it("pads the first rows under a sticky header unless flushFirstRows is set", () => {
+        const {unmount} = renderTable({stickyHeader: true})
+        expect(document.querySelector(".pt-1")).not.toBeNull()
+        unmount()
+        renderTable({stickyHeader: true, flushFirstRows: true})
+        expect(document.querySelector(".pt-1")).toBeNull()
+    })
 })
