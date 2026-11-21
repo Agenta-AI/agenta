@@ -14,7 +14,7 @@ export const PROMPTS_ROW_KEY = developerRowKey("prompts")
 
 /** The developer rows, by where they go in the main rail. */
 export interface DeveloperNavSlots {
-    /** Right after Home. */
+    /** After Home and Builder. */
     afterHome: SidebarConfig[]
     /** After Sessions, at the end of the main section. */
     afterSessions: SidebarConfig[]

@@ -1,0 +1,11 @@
+{
+    "scheduledTriggers": "Gatilhos agendados",
+    "appTriggers": "Gatilhos de app",
+    "deleteFailed": "Não foi possível excluir esta automação. Tente novamente.",
+    "runs": "Execuções",
+    "settings": "Configurações",
+    "history": "Histórico",
+    "seeAllRuns": "Ver todas as execuções",
+    "lastRun": "Última execução",
+    "didNotFinish": "não terminou"
+}

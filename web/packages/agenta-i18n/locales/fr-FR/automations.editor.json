@@ -7,7 +7,6 @@
     "kindScheduleShort": "Planification",
     "kindEvent": "Quand quelque chose se produit",
     "kindEventShort": "Événement",
-    "kindFixed": "Le type de déclencheur d’une automatisation est fixé une fois celle-ci créée.",
     "helperPaused": "En pause : elle ne s’exécutera pas tant que vous ne l’aurez pas activée.",
     "helperEvent": "S’exécute à chaque arrivée de cet événement.",
     "instruction": "Instruction",
@@ -108,5 +107,12 @@
     "noFilters": "Cet événement n’a besoin d’aucun filtre : il s’exécute à chaque arrivée.",
     "allApps": "Toutes les apps",
     "done": "Terminé",
-    "untitledAutomation": "Automatisation sans titre"
+    "untitledAutomation": "Automatisation sans titre",
+    "schedule": "Planification",
+    "event": "Événement",
+    "app": "App",
+    "preview": "Aperçu",
+    "nextRunLabel": "Prochaine exécution",
+    "nextRunAt": "{{date}}, {{time}} UTC · {{relative}}",
+    "moreActionsFor": "Autres actions pour {{name}}"
 }

@@ -4,7 +4,7 @@ import buildKitCatalog from "@agenta/i18n/catalogs/entityUi.buildKit"
 
 import type {GatewayConnectionPermissions} from "../toolUtils"
 
-import {PermissionDrawerBody, type PermissionPresetOption} from "./IntegrationPermissionDrawer"
+import {PermissionDrawerBody, type PermissionPresetOption} from "./IntegrationPermissionList"
 import type {ItemDescriptor} from "./itemDescriptors"
 import {ItemRow} from "./ItemRow"
 import {PolicyGlyph} from "./PermissionGlyph"
@@ -23,6 +23,8 @@ export interface BuildKitSectionProps {
     state: BuildKitUiState
     onChange: (next: BuildKitUiState) => void
     disabled?: boolean
+    /** A read-only view (a phone): the permissions show as text. */
+    readOnly?: boolean
     tools: BuildKitTool[]
 }
 
@@ -86,7 +88,13 @@ export const buildKitToolOptions: PermissionPolicyOption[] = [
     toolOption("deny", "entityUi.buildKit.toolDeactivate", "entityUi.buildKit.toolDeactivateHelp"),
 ]
 
-export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSectionProps) {
+export function BuildKitSection({
+    state,
+    onChange,
+    disabled,
+    readOnly,
+    tools,
+}: BuildKitSectionProps) {
     const t = useT(buildKitCatalog)
     const platform = tools.filter((tool) => tool.op)
     const permissions: GatewayConnectionPermissions = {
@@ -128,6 +136,8 @@ export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSect
             <PermissionDrawerBody
                 flush
                 catalogKey="playground-build-kit"
+                // "Deactivate" turns a tool off; it is not a refusal, so it is not red (L8-22).
+                plainDeny
                 catalog={{
                     status: "ready",
                     complete: true,
@@ -179,6 +189,7 @@ export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSect
                     },
                 }}
                 disabled={disabled}
+                valuesAsText={readOnly}
                 lockedTool={() =>
                     state.enabled ? null : t("entityUi.buildKit.buildKitDeactivated")
                 }

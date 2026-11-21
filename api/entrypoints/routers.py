@@ -181,8 +181,14 @@ from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
+from oss.src.core.tools.gate import GateReader
+from oss.src.core.tools.session_writes import SessionWriteServices
 from oss.src.apis.fastapi.tools.router import ToolsRouter
 from oss.src.apis.fastapi.account_choices.router import AccountChoicesRouter
+from oss.src.apis.fastapi.approval_choices.router import ApprovalChoicesRouter
+from oss.src.core.approval_choices.service import ApprovalChoicesService
+from oss.src.dbs.postgres.approval_choices.dao import ApprovalChoicesDAO
+from oss.src.dbs.postgres.sharing.dao import SharingDAO
 from oss.src.core.account_choices.lifecycle import AccountsLifecycle
 from oss.src.core.account_choices.service import get_account_choices_service
 from oss.src.dbs.postgres.triggers.dao import TriggersDAO
@@ -1094,6 +1100,7 @@ triggers_service = TriggersService(
     triggers_dao=triggers_dao,
     connections_service=connections_service,
     workflows_service=workflows_service,
+    executions_dao=session_executions_dao,
 )
 
 
@@ -1310,12 +1317,33 @@ simple_queues = SimpleQueuesRouter(
     simple_queues_service=simple_queues_service,
 )
 
+sessions_service = SessionsService(
+    streams_service=session_streams_service,
+    turns_service=session_turns_service,
+    interactions_service=interactions_service,
+    mounts_service=mounts_service,
+    # Read-only, for the list's message preview — records themselves stay the records router's.
+    records_service=records_service,
+)
+
+approval_choices_dao = ApprovalChoicesDAO(engine=_transactions_engine)
+
 tools = ToolsRouter(
     tools_service=tools_service,
     run_admission=run_admission,
     workflows_service=workflows_service,
     tracing_service=tracing_service,
     mounts_service=mounts_service,
+    sessions_service=sessions_service,
+    gate_reader=GateReader(
+        streams_dao=session_streams_dao,
+        executions_dao=session_executions_dao,
+        inputs_dao=session_inputs_dao,
+        turns_dao=session_turns_dao,
+        workflows_service=workflows_service,
+        sharing_dao=SharingDAO(engine=_transactions_engine),
+        approval_choices_dao=approval_choices_dao,
+    ),
 )
 
 triggers = TriggersRouter(
@@ -1409,6 +1437,8 @@ session_commands_service = SessionCommandsService(
     ),
     executions_dao=session_executions_dao,
     inputs_dao=session_inputs_dao,
+    streams_dao=session_streams_dao,
+    turns_dao=session_turns_dao,
 )
 
 _channels_inbox_dispatcher = InboxDispatcher(
@@ -1665,15 +1695,6 @@ ai_services = AIServicesRouter(
 # Session header rename (name/description) lives on the streams router
 # (PUT /sessions/streams/header) via streams_service.set_header.
 
-sessions_service = SessionsService(
-    streams_service=session_streams_service,
-    turns_service=session_turns_service,
-    interactions_service=interactions_service,
-    mounts_service=mounts_service,
-    # Read-only, for the list's message preview — records themselves stay the records router's.
-    records_service=records_service,
-)
-
 session_inputs_service = SessionInputsService(
     inputs_dao=session_inputs_dao,
     interactions_dao=interactions_dao,
@@ -1686,8 +1707,27 @@ session_starts_service = SessionStartsService(
     run_admission=run_admission,
     executions_dao=session_executions_dao,
     streams_dao=session_streams_dao,
+    inputs_dao=session_inputs_dao,
+    turns_dao=session_turns_dao,
+    cancelled_by_steer=session_commands_service.cancelled_by_steer,
     workflows_service=workflows_service,
     lock_engine=_lock_engine,
+)
+# A schedule's fire into an existing session puts its input on the session queue.
+_triggers_dispatcher.session_starts_service = session_starts_service
+# The session writes start child sessions and send them messages through the same
+# queue, and create the still-running schedules through the triggers service.
+tools.session_writes = SessionWriteServices(
+    streams_dao=session_streams_dao,
+    executions_dao=session_executions_dao,
+    inputs_dao=session_inputs_dao,
+    turns_dao=session_turns_dao,
+    interactions_service=interactions_service,
+    records_service=records_service,
+    starts_service=session_starts_service,
+    commands_service=session_commands_service,
+    triggers_service=triggers_service,
+    workflows_service=workflows_service,
 )
 agent_template_catalog_path = (
     Path(__file__).resolve().parents[1]
@@ -2140,6 +2180,18 @@ app.include_router(
     router=account_choices.router,
     prefix="/account-choices",
     tags=["Account Choices"],
+)
+
+approval_choices = ApprovalChoicesRouter(
+    approval_choices_service=ApprovalChoicesService(
+        approval_choices_dao=approval_choices_dao
+    ),
+)
+
+app.include_router(
+    router=approval_choices.router,
+    prefix="/approval-choices",
+    tags=["Approval Choices"],
 )
 
 app.include_router(

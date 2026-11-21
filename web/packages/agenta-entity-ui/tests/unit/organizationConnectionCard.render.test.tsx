@@ -1,7 +1,7 @@
 /**
- * The connection card on an organization connection: a member reads it locked and may still
- * Test it as saved, only where the current project may use it; a manager tests it from any
- * project; a typed key is tested from any project.
+ * The connection card on an organization connection: a member reads it locked, and its list is
+ * fetched as saved, only where the current project may use it; a manager's form checks it from
+ * any project; a typed key is checked from any project.
  */
 import {act, createElement} from "react"
 
@@ -41,6 +41,7 @@ vi.mock("jotai", async (importOriginal) => ({
 }))
 
 import ProviderConnectionCard from "../../src/secretProvider/ProviderConnectionCard"
+
 import {SecretKind, type ProviderConnection} from "@agenta/entities/secret"
 
 let host: HTMLDivElement
@@ -79,19 +80,17 @@ const render = async (connection: ProviderConnection | null, readOnly: boolean) 
     })
 }
 
-/** Type into the first editable field, the key, as a person would. */
-const typeKey = async (value: string) => {
-    const input = [...host.querySelectorAll("input")].find((field) => !field.disabled)
-    if (!input) throw new Error("no editable field")
+/** Paste into the key field, as a person would; a paste starts the key check. */
+const pasteKey = async (value: string) => {
+    const input = host.querySelector<HTMLInputElement>('input[type="password"]')
+    if (!input || input.disabled) throw new Error("no editable key field")
     const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
     await act(async () => {
+        input.dispatchEvent(new Event("paste", {bubbles: true}))
         setValue?.call(input, value)
         input.dispatchEvent(new Event("input", {bubbles: true}))
     })
 }
-
-const testButton = () =>
-    [...host.querySelectorAll("button")].find((button) => button.textContent === "Test")
 
 beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
@@ -109,15 +108,12 @@ afterEach(async () => {
 })
 
 describe("an organization connection in the card", () => {
-    it("is locked for a member, who still tests it as saved", async () => {
+    it("is locked for a member, and its list is fetched as saved when it opens", async () => {
         await render(companyKey(), true)
         const inputs = [...host.querySelectorAll("input")]
         expect(inputs.length).toBeGreaterThan(0)
         expect(inputs.every((input) => input.disabled)).toBe(true)
 
-        const test = testButton()
-        expect(test?.disabled).toBe(false)
-        await act(async () => test?.click())
         expect(probeMutation.mutateAsync).toHaveBeenCalledWith(
             expect.objectContaining({
                 secretId: "org-1",
@@ -127,7 +123,7 @@ describe("an organization connection in the card", () => {
         )
     })
 
-    it("a member cannot test it where the current project may not use it", async () => {
+    it("a member's form checks nothing where the current project may not use it", async () => {
         await render(
             companyKey({
                 availability: "selected_projects",
@@ -135,10 +131,10 @@ describe("an organization connection in the card", () => {
             } as Partial<ProviderConnection>),
             true,
         )
-        expect(testButton()?.disabled).toBe(true)
+        expect(probeMutation.mutateAsync).not.toHaveBeenCalled()
     })
 
-    it("a manager tests it from a project that may not use it", async () => {
+    it("a manager's form checks it from a project that may not use it", async () => {
         await render(
             companyKey({
                 availability: "selected_projects",
@@ -146,22 +142,21 @@ describe("an organization connection in the card", () => {
             } as Partial<ProviderConnection>),
             false,
         )
-        expect(testButton()?.disabled).toBe(false)
+        expect(probeMutation.mutateAsync).toHaveBeenCalledWith(
+            expect.objectContaining({secretId: "org-1", secretScope: "organization"}),
+        )
     })
 
-    it("tests a new key on its own, without the organization scope", async () => {
+    it("checks a new key on its own, without the organization scope", async () => {
         await render(null, false)
-        await typeKey("sk-new")
-        const test = testButton()
-        expect(test?.disabled).toBe(false)
-        await act(async () => test?.click())
+        await pasteKey("sk-new")
         const request = probeMutation.mutateAsync.mock.calls[0]?.[0]
         expect(request).toMatchObject({kind: "openai", provider: {key: "sk-new"}})
         expect(request?.secretId).toBeUndefined()
         expect(request).not.toHaveProperty("secretScope")
     })
 
-    it("tests a replacement key even where the current project may not use the connection", async () => {
+    it("checks a replacement key even where the current project may not use the connection", async () => {
         await render(
             companyKey({
                 availability: "selected_projects",
@@ -169,10 +164,8 @@ describe("an organization connection in the card", () => {
             } as Partial<ProviderConnection>),
             false,
         )
-        await typeKey("sk-replacement")
-        const test = testButton()
-        expect(test?.disabled).toBe(false)
-        await act(async () => test?.click())
+        probeMutation.mutateAsync.mockClear()
+        await pasteKey("sk-replacement")
         const request = probeMutation.mutateAsync.mock.calls[0]?.[0]
         expect(request).toMatchObject({provider: {key: "sk-replacement"}})
         expect(request?.secretId).toBeUndefined()

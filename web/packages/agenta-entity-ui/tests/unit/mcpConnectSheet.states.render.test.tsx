@@ -191,6 +191,12 @@ const control = (label: string) =>
 const button = (label: string) =>
     [...document.querySelectorAll("button")].find((candidate) => candidate.textContent === label)
 
+/** The OAuth Advanced section row: its title, then what it holds. */
+const advancedRow = () =>
+    [...document.querySelectorAll("button")].find((candidate) =>
+        candidate.textContent?.startsWith("Advanced"),
+    )
+
 /** Control heights in px, restated here so this file does not lean on the kit for them. */
 const SIZE_BY_CLASS_UNDER_TEST: Record<string, number> = {
     "h-control-xs": 24,
@@ -249,15 +255,15 @@ describe("C1, the address", () => {
             "https://mcp.example.com/mcp",
         )
         expect(button("Cancel")).toBeDefined()
-        expect(button("Continue")).toBeDefined()
+        expect(button("Connect")).toBeDefined()
     })
 
-    it("holds Continue until the address is one a check can be pointed at", async () => {
+    it("holds Connect until the check has answered, which it does by itself", async () => {
         await open(state({status: "url_entry", url: "mcp.example.com"}))
-        expect(button("Continue")?.disabled).toBe(true)
+        expect(button("Connect")?.disabled).toBe(true)
 
         await open(state({status: "url_entry", url: " https://mcp.example.com/mcp "}))
-        expect(button("Continue")?.disabled).toBe(false)
+        expect(button("Connect")?.disabled).toBe(true)
     })
 })
 
@@ -453,26 +459,30 @@ describe("C3, the server signs in with OAuth", () => {
         probe: OAUTH_PROBE,
     })
 
-    it("shows what was found, what it will be called, and what Connect will do", async () => {
+    it("keeps the address in its field, with what was found under it, in one form", async () => {
         await open(naming)
 
-        expect(text()).toContain("https://mcp.linear.app/mcp")
+        // The address stays an editable field above the finding (canvas F03 f5).
+        expect((control("Server URL") as HTMLInputElement | null)?.value).toBe(
+            "https://mcp.linear.app/mcp",
+        )
+        expect((control("Server URL") as HTMLInputElement | null)?.disabled).toBe(false)
         expect(text()).toContain("Reachable · signs in with OAuth")
         expect(text()).toContain("Change")
-        expect(text()).toContain("Shown across this project. Tools are prefixed Linear_")
-        expect(text()).toContain(
-            "Connect opens Linear's authorization page in a new window; Linear asks which permissions to grant (usually read and write). The login is stored for this project only.",
-        )
+        // No prefix helper and no notice box: the canvas draws neither.
+        expect(text()).not.toContain("Tools are prefixed")
+        expect(text()).not.toContain("authorization page")
         expect(button("Connect")).toBeDefined()
     })
 
-    it("sends Change back to the address with it kept", async () => {
+    it("sends Change to the address field, with the address kept", async () => {
         // Retyping an address to correct one character in it is how a person ends up
         // connecting a different server than the one they meant.
         await open(naming)
         await press(button("Change"))
 
-        expect(asked.setUrl).toHaveBeenCalledWith("https://mcp.linear.app/mcp")
+        expect(document.activeElement).toBe(control("Server URL"))
+        expect(asked.setUrl).not.toHaveBeenCalled()
     })
 
     it("opens a new window when the first attempt is retried", async () => {
@@ -530,7 +540,7 @@ describe("the OAuth screen's Advanced section", () => {
     it("is collapsed, so the usual screen stays as it was", async () => {
         await open(naming())
 
-        expect(button("Advanced")?.getAttribute("aria-expanded")).toBe("false")
+        expect(advancedRow()?.getAttribute("aria-expanded")).toBe("false")
         expect(control("Client ID")).toBeNull()
         expect(checkboxes()).toHaveLength(0)
         expect(button("Connect")?.disabled).toBe(false)
@@ -538,7 +548,7 @@ describe("the OAuth screen's Advanced section", () => {
 
     it("opens on the client fields and the offered scopes, all checked", async () => {
         await open(naming())
-        await press(button("Advanced"))
+        await press(advancedRow())
 
         expect(control("Client ID")?.getAttribute("placeholder")).toBe("Optional")
         expect(control("Client secret")).not.toBeNull()
@@ -555,7 +565,7 @@ describe("the OAuth screen's Advanced section", () => {
 
     it("asks for less when a scope is unchecked", async () => {
         await open(naming({scopesSelected: ["read", "offline_access"]}))
-        await press(button("Advanced"))
+        await press(advancedRow())
 
         expect(checkboxes()[1]?.getAttribute("aria-checked")).toBe("false")
         await press(checkboxes()[1])
@@ -564,7 +574,7 @@ describe("the OAuth screen's Advanced section", () => {
 
     it("shows no scope list for a server that offers none", async () => {
         await open(naming({scopesOffered: [], scopesSelected: []}))
-        await press(button("Advanced"))
+        await press(advancedRow())
 
         expect(control("Client ID")).not.toBeNull()
         expect(text()).not.toContain("Scopes")
@@ -577,7 +587,7 @@ describe("the OAuth screen's Advanced section", () => {
         }
         await open(naming({probe}))
 
-        expect(button("Advanced")?.getAttribute("aria-expanded")).toBe("true")
+        expect(advancedRow()?.getAttribute("aria-expanded")).toBe("true")
         expect(text()).toContain(
             "This server needs an OAuth app you register yourself. Add the callback URL to it, then paste its client ID and secret.",
         )
@@ -616,7 +626,7 @@ describe("the OAuth screen's Advanced section", () => {
                 oauthClientAuthMethod: "none",
             }),
         )
-        await press(button("Advanced"))
+        await press(advancedRow())
 
         expect(control("Client authentication")?.textContent).toBe("No secret")
         expect(control("Client secret")).toBeNull()
@@ -625,7 +635,7 @@ describe("the OAuth screen's Advanced section", () => {
 
     it("shows the method only once an app is entered", async () => {
         await open(naming())
-        await press(button("Advanced"))
+        await press(advancedRow())
 
         expect(control("Client authentication")).toBeNull()
     })
@@ -639,7 +649,7 @@ describe("the OAuth screen's Advanced section", () => {
                 probe: {...OAUTH_PROBE, auth: {...OAUTH_PROBE.auth, redirect_uri: redirect}},
             }),
         )
-        await press(button("Advanced"))
+        await press(advancedRow())
 
         expect(text()).toContain(redirect)
         await press(button("Copy"))
@@ -655,7 +665,7 @@ describe("the OAuth screen's Advanced section", () => {
                 probe: {...OAUTH_PROBE, auth: {...OAUTH_PROBE.auth, redirect_uri: redirect}},
             }),
         )
-        await press(button("Advanced"))
+        await press(advancedRow())
         await press(button("Copy"))
 
         expect(text()).toContain("Select the URL and copy it.")
@@ -664,7 +674,7 @@ describe("the OAuth screen's Advanced section", () => {
 
     it("hands the typed client ID to the journey", async () => {
         await open(naming())
-        await press(button("Advanced"))
+        await press(advancedRow())
         const input = control("Client ID") as HTMLInputElement
         await act(async () => {
             const setValue = Object.getOwnPropertyDescriptor(
@@ -1221,6 +1231,7 @@ describe("C6, the key was refused", () => {
         // The address and the label are this connection's already. Editing either here
         // would repoint or rename a server agents are pointing at.
         expect((control("Name") as HTMLInputElement).disabled).toBe(true)
+        expect((control("Server URL") as HTMLInputElement).disabled).toBe(true)
         expect(button("Change")).toBeUndefined()
         expect(control("Header name")).toBeTruthy()
     })
@@ -1324,7 +1335,12 @@ describe("the Authentication selector", () => {
         expect(radio("OAuth")?.getAttribute("aria-checked")).toBe("true")
         expect(radio("OAuth")?.textContent).toBe("OAuthDetected")
         expect(radio("API key")?.textContent).toBe("API key")
-        expect(text()).toContain("authorization page")
+        // Chips in the canvas order, OAuth first.
+        expect(
+            [...document.querySelectorAll('[role="radio"]')].map((node) => node.textContent),
+        ).toEqual(["OAuthDetected", "API key", "None"])
+        // The OAuth-only Advanced row is there.
+        expect(text()).toContain("Callback URL, client ID, scopes")
         expect(control("Header name")).toBeNull()
     })
 
@@ -1349,14 +1365,14 @@ describe("the Authentication selector", () => {
         )
         expect(control("Header name")).toBeTruthy()
         expect(control("Project secret")).toBeTruthy()
-        expect(text()).not.toContain("authorization page")
+        expect(text()).not.toContain("Callback URL, client ID, scopes")
     })
 
     it("shows only the name when None is selected", async () => {
         await open(state({...GITHUB, authMode: "none"}))
 
         expect(control("Header name")).toBeNull()
-        expect(text()).not.toContain("authorization page")
+        expect(text()).not.toContain("Callback URL, client ID, scopes")
         expect(button("Connect")?.disabled).toBe(false)
     })
 

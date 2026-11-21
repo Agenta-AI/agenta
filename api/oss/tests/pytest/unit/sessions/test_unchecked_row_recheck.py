@@ -163,6 +163,7 @@ async def test_header_create_race_checks_the_winning_row(
 
     with pytest.raises(_Hidden):
         await service.set_header(
+            envelope=None,
             project_id=_PROJECT,
             user_id=_BOB,
             session_id="s1",
@@ -183,6 +184,7 @@ async def test_header_on_a_checked_existing_row_never_rechecks(redis, request_me
     recheck = _refusing_recheck()
 
     await service.set_header(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_ALICE,
         session_id="s2",
@@ -208,6 +210,7 @@ async def test_send_to_a_row_created_after_the_check_is_checked_before_any_lock(
 
     with pytest.raises(_Hidden):
         await service.command(
+            envelope=None,
             project_id=_PROJECT,
             user_id=_BOB,
             request=SessionStreamCommandRequest(
@@ -235,6 +238,7 @@ async def test_start_turn_create_race_checks_the_winner_and_hands_back_the_locks
 
     with pytest.raises(_Hidden):
         await service.command(
+            envelope=None,
             project_id=_PROJECT,
             user_id=_BOB,
             request=SessionStreamCommandRequest(
@@ -260,6 +264,7 @@ async def test_start_turn_row_appearing_between_reads_is_checked(redis, request_
 
     with pytest.raises(_Hidden):
         await service.command(
+            envelope=None,
             project_id=_PROJECT,
             user_id=_BOB,
             request=SessionStreamCommandRequest(
@@ -281,6 +286,7 @@ async def test_send_to_a_checked_existing_row_adds_no_read(redis, request_memo):
     recheck = _refusing_recheck()
 
     await service.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_ALICE,
         request=SessionStreamCommandRequest(
@@ -318,6 +324,7 @@ async def test_a_live_private_session_created_after_the_check_is_not_disclosed_o
 
     with pytest.raises(_Hidden):
         await service.command(
+            envelope=None,
             project_id=_PROJECT,
             user_id=_BOB,
             request=SessionStreamCommandRequest(
@@ -344,6 +351,7 @@ async def test_a_cancel_of_a_session_that_does_not_exist_cancels_nothing(
     recheck = _refusing_recheck()
 
     response = await service.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_BOB,
         request=SessionStreamCommandRequest(session_id="s8"),
@@ -369,6 +377,7 @@ async def test_a_cancel_racing_a_new_private_session_never_displaces_it(
     recheck = _refusing_recheck()
 
     response = await service.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_BOB,
         request=SessionStreamCommandRequest(session_id="s9"),
@@ -382,6 +391,7 @@ async def test_a_cancel_racing_a_new_private_session_never_displaces_it(
 
     with pytest.raises(_Hidden):
         await service.command(
+            envelope=None,
             project_id=_PROJECT,
             user_id=_BOB,
             request=SessionStreamCommandRequest(session_id="s9"),
@@ -402,6 +412,7 @@ async def test_a_first_send_creates_its_row_before_the_locks_and_lists_it(
     recheck = _refusing_recheck()
 
     response = await service.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_BOB,
         request=SessionStreamCommandRequest(
@@ -436,6 +447,7 @@ async def test_an_attach_racing_a_new_private_session_ends_before_any_lock(
 
     with pytest.raises(SessionStreamNotFound):
         await service.command(
+            envelope=None,
             project_id=_PROJECT,
             user_id=_BOB,
             request=SessionStreamCommandRequest(session_id="s11", force=True),

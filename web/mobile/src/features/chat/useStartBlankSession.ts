@@ -36,6 +36,20 @@ export const useStartBlankSession = (base: string) =>
  */
 let pending: string | null = null
 
+/**
+ * A blank session's id, with no navigation: for a surface that shows the new session in place
+ * (the builder page's pane). The session becomes real when its first message lands.
+ */
+export const mintBlankSession = (): string => {
+    const sessionId = newId()
+    // Brand-new, never-run: the backend has no records for it yet. Without this the
+    // conversation treats the empty hydration as a KNOWN session whose history was pruned
+    // and shows "this session has no replayable history", which is alarming and false —
+    // nothing was lost, it simply has not happened yet.
+    markSessionFresh(sessionId)
+    return sessionId
+}
+
 /** The same start, outside React — for callbacks built where no hook can run (the rail's config). */
 export const startBlankSession = (
     base: string,
@@ -46,13 +60,8 @@ export const startBlankSession = (
     // A second tap is the same intent, so it gets the session already opening rather than
     // nothing: a caller that seeds state by id then seeds the one that mounts.
     if (pending) return pending
-    const sessionId = newId()
+    const sessionId = mintBlankSession()
     pending = sessionId
-    // Brand-new, never-run: the backend has no records for it yet. Without this the
-    // conversation treats the empty hydration as a KNOWN session whose history was pruned
-    // and shows "this session has no replayable history", which is alarming and false —
-    // nothing was lost, it simply has not happened yet.
-    markSessionFresh(sessionId)
     // Released on both outcomes: a cancelled navigation RESOLVES false rather than throwing,
     // and a refused one throws, and either way the person has to be able to ask again.
     void Promise.resolve(Router[navigate](`${base}/sessions/${sessionId}?agent=${agentId}`))
