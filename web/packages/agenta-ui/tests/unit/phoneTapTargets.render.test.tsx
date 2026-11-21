@@ -73,6 +73,7 @@ describe("phone tap-area classes on shared controls", () => {
         const toggle = classesOf(screen.getByRole("button", {name: /Today/}))
         expect(toggle.has("max-md:after:-top-3.5")).toBe(true)
         expect(toggle.has("max-md:after:-bottom-2.5")).toBe(true)
+        expect(toggle.has("max-md:min-h-5")).toBe(true)
         expect(
             classesOf(screen.getByRole("button", {name: /Today/}).parentElement!).has(
                 "max-md:pb-2.5",

@@ -370,6 +370,9 @@ export const ListTable = <Row,>({
                                                     "border-0 bg-transparent p-0 text-left font-[inherit]",
                                                     "text-[13px] text-muted-foreground hover:text-foreground",
                                                     FOCUS_RING,
+                                                    // 20px high however the label sets its line height, so
+                                                    // the tap area below adds up to 44px.
+                                                    "max-md:min-h-5",
                                                     GROUP_TOGGLE_PHONE_TARGET,
                                                 )}
                                             >
