@@ -14,8 +14,9 @@ import type {ListTableColumn, ListTableGroup} from "../../src/list-table/types"
 
 /**
  * Below 768 px every control has a 44 px tap area (release QA bug 3). The shared controls carry
- * it themselves, so each list, filter and search field that uses them gets it without a change
- * of its own. The desktop sizes do not change: every added class is a `max-md:` one.
+ * the phone classes themselves, so each list, filter and search field that uses them gets them
+ * without a change of its own. jsdom has no layout: these tests check that the classes are on the
+ * right element; the 44 px result is measured in a browser (elementFromPoint at 390 x 844).
  */
 
 afterEach(cleanup)
@@ -33,7 +34,7 @@ const GROUPS: ListTableGroup<Row>[] = [
     {key: "today", label: "Today", rows: [{id: "1", name: "First"}]},
 ]
 
-describe("phone tap areas on shared controls", () => {
+describe("phone tap-area classes on shared controls", () => {
     it("gives the filter trigger a 44 px tap area, labelled or icon only", () => {
         render(
             <Popover>

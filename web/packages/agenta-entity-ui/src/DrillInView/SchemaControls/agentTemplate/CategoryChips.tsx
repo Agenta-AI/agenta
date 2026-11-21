@@ -71,8 +71,9 @@ export function CategoryChips({
             aria-label={t("entityUi.integrationDrawer.category")}
             // Flush with the content edge; the row clips, so chips draw their focus ring inside.
             // On a phone the row pads out (and margins back) by the reach of each chip's 44px tap
-            // area, so the scroller does not clip it; nothing moves.
-            className="ag-scroll-fade-x flex gap-1.5 overflow-x-auto pt-2 [scrollbar-width:none] max-md:-mx-[5px] max-md:-mb-2.5 max-md:-mt-0.5 max-md:px-[5px] max-md:pb-2.5 max-md:pt-2.5"
+            // area, so the scroller does not clip it. The chips sit 16px under the search field,
+            // not 8, so the field's 44px area and theirs do not overlap.
+            className="ag-scroll-fade-x flex gap-1.5 overflow-x-auto pt-2 [scrollbar-width:none] max-md:-mx-[5px] max-md:-mb-2.5 max-md:mt-1.5 max-md:px-[5px] max-md:pb-2.5 max-md:pt-2.5"
         >
             <Chip on={value === null} onClick={() => onChange(null)}>
                 {t("common.all")}

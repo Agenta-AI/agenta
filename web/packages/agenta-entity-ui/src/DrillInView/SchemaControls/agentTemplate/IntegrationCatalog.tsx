@@ -940,7 +940,9 @@ export function IntegrationCatalog({
                     ref={listRef}
                     className={
                         page
-                            ? "flex flex-col gap-8 pt-2"
+                            ? // 12px on a phone, so the pinned bar does not cover the first
+                              // heading's 44px tap area.
+                              "flex flex-col gap-8 pt-2 max-md:pt-3"
                             : "ag-scroll-fade flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4"
                     }
                 >

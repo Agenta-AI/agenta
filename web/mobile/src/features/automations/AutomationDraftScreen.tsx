@@ -56,8 +56,9 @@ export const AutomationDraftScreen = ({
                         />
                     }
                 >
-                    {/* pt-1: the name field's focus ring would otherwise be clipped by the scroller's edge. */}
-                    <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px] pt-1">
+                    {/* pt-1: the name field's focus ring would otherwise be clipped by the scroller's edge.
+                        A phone takes back the 4px the header gives up, as the detail screen does. */}
+                    <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px] pt-1 max-md:pt-2">
                         <AutomationCreateBody
                             state={state}
                             autoEditName

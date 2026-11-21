@@ -25,6 +25,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuShortcut,
     DropdownMenuTrigger,
+    PHONE_TOUCH_TARGET_CLASS,
     SimpleTooltip as Tooltip,
     Tabs,
     TabsList,
@@ -63,12 +64,6 @@ import {isCommentableKind, usePreviewCommentMode} from "./previewCommentMode"
 /** Row 2's text buttons: the kit's ghost sm, muted until hover. */
 const ROW_TEXT_BTN =
     "h-[26px] gap-1 rounded-[6px] px-2 text-[12px] leading-5 text-colorTextSecondary hover:text-colorText"
-/**
- * A phone's 36 px text button; a transparent ::after grows its hit area to 44 px high. The inset
- * counts from inside the 1 px border, so 5 px reaches 4 px past the drawn edge. The label makes it
- * wide enough, so it does not reach sideways into the view pill.
- */
-const PHONE_HIT = "relative after:absolute after:inset-x-0 after:-inset-y-[5px] after:content-['']"
 /** `mr-1` leaves the last segment room for its tap area before the Sort button. */
 const PHONE_PILL = "mr-1 h-9 rounded-[6px] p-0.5"
 /**
@@ -79,7 +74,7 @@ const PHONE_PILL = "mr-1 h-9 rounded-[6px] p-0.5"
  */
 const PHONE_PILL_TRIGGER =
     "relative h-full rounded-[5px] px-[9px] py-0 after:absolute after:inset-x-0 after:-inset-y-[7px] first:after:-left-[11px] last:after:-right-[11px] after:content-['']"
-const PHONE_TEXT_BTN = `h-9 gap-1 rounded-[6px] px-2 text-[13px] leading-5 text-colorTextSecondary hover:text-colorText ${PHONE_HIT}`
+const PHONE_TEXT_BTN = `h-9 gap-1 rounded-[6px] px-2 text-[13px] leading-5 text-colorTextSecondary hover:text-colorText ${PHONE_TOUCH_TARGET_CLASS}`
 
 /**
  * A phone's one 52 px row: the crumb at the left, then the row's controls and its ⋯ menu.
