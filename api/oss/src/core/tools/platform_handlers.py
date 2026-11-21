@@ -2365,18 +2365,29 @@ def _file_answer(
     }
 
 
-def _file_text(path: str, content: str) -> Dict[str, Any]:
-    """The `kind: file` answer for a file the mounts service read as text. A NUL byte or a
-    byte that is not UTF-8 (the service reads it as U+FFFD) marks a binary file, whose
-    bytes are not returned; a text file that holds U+FFFD itself reads as binary too.
-    Text longer than the limit is cut on a character boundary."""
-    if "\x00" in content or "\ufffd" in content:
+def _file_text(path: str, file: Any) -> Dict[str, Any]:
+    """The `kind: file` answer for a file the mounts service read. Bytes that are not
+    UTF-8, or a NUL byte, mark a binary file, whose bytes are not returned. Text longer
+    than the limit is cut on a character boundary."""
+    content = file.content
+    if not file.is_utf8 or "\x00" in content:
         return _file_answer(path, None, is_binary=True)
     encoded = content.encode("utf-8")
     is_truncated = len(encoded) > READ_DRIVE_TEXT_MAX_BYTES
     if is_truncated:
         content = encoded[:READ_DRIVE_TEXT_MAX_BYTES].decode("utf-8", "ignore")
     return _file_answer(path, content, is_truncated=is_truncated)
+
+
+async def _drive_folder_exists(
+    mounts_service: Any, *, project_id: UUID, mount_id: UUID, path: str
+) -> bool:
+    """Whether a folder whose answer is empty exists: the raw listing still holds its
+    hidden entries (a repository with only `.git`) or its empty-folder marker."""
+    raw = await mounts_service.list_files(
+        project_id=project_id, mount_id=mount_id, path=path, depth=1
+    )
+    return bool(raw.files)
 
 
 async def handle_read_drive(
@@ -2434,7 +2445,7 @@ async def handle_read_drive(
                 content = await mounts_service.read_file(
                     project_id=project_id, mount_id=mount.id, path=path
                 )
-                return PlatformHandlerResult(content=_file_text(path, content.content))
+                return PlatformHandlerResult(content=_file_text(path, content))
             except MountFileTooLarge:
                 return PlatformHandlerResult(
                     content=_file_answer(path, None, is_too_large=True)
@@ -2453,7 +2464,13 @@ async def handle_read_drive(
             git_aware=True,
             include_gitignored=True,
         )
-        if path and not listing.files:
+        if (
+            path
+            and not listing.files
+            and not await _drive_folder_exists(
+                mounts_service, project_id=project_id, mount_id=mount.id, path=path
+            )
+        ):
             raise _drive_file_not_found()
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)

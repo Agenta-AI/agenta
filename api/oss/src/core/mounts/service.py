@@ -1752,11 +1752,11 @@ class MountsService:
             )
         except StoreObjectTooLarge as e:
             raise MountFileTooLarge(max_bytes=e.max_bytes) from e
-        return MountFileContent(
-            path=path,
-            content=body.decode("utf-8", "replace"),
-            etag=etag,
-        )
+        try:
+            content, is_utf8 = body.decode("utf-8"), True
+        except UnicodeDecodeError:
+            content, is_utf8 = body.decode("utf-8", "replace"), False
+        return MountFileContent(path=path, content=content, etag=etag, is_utf8=is_utf8)
 
     async def write_file(
         self,
