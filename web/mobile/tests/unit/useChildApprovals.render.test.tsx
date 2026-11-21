@@ -142,6 +142,27 @@ describe("useChildApprovals", () => {
         expect(result.map((entry) => entry.sessionId)).toEqual(["z-child"])
     })
 
+    it("reads the rows again when the session lists are invalidated (a child is archived)", async () => {
+        api.queryInteractions.mockResolvedValue([gate("z-child", "t-child")])
+        api.querySessionsPage.mockResolvedValue({
+            count: 1,
+            sessions: [{session_id: "z-child", calling_session: {id: OPEN}}],
+        })
+        await mount()
+        expect(result.map((entry) => entry.sessionId)).toEqual(["z-child"])
+
+        // Archived: the list leaves it out, while its interaction still waits.
+        api.querySessionsPage.mockResolvedValue({count: 0, sessions: []})
+        await act(async () => {
+            await client.invalidateQueries({
+                predicate: (query) => query.queryKey.includes("session-list"),
+            })
+        })
+        await flush()
+
+        expect(result).toEqual([])
+    })
+
     it("reads no session rows when no other session waits", async () => {
         api.queryInteractions.mockResolvedValue([gate(OPEN, "t-own")])
         await mount()

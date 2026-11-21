@@ -34,7 +34,9 @@ export const useChildApprovals = ({
         [interactions.data, sessionId],
     )
     const waiting = useQuery({
-        queryKey: ["child-approvals", "waiting-sessions", projectId, waitingIds],
+        // Under the "session-list" token, so a session change (an archive, a rename) that
+        // invalidates the lists reads these rows again.
+        queryKey: ["session-list", projectId, "child-approvals", waitingIds],
         // Every origin: a child session has the origin `calling_session`, which the default
         // lists leave out.
         queryFn: async ({signal}) => {
