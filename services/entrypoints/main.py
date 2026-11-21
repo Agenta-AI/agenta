@@ -86,8 +86,8 @@ _held_env_provider_keys = hold_env_provider_keys()
 if _held_env_provider_keys and not env_provider_keys_enabled():
     log.warning(
         "Provider keys in the services environment are not used: requests run on the "
-        "project's own keys. Set AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=true to let "
-        "every project use them.",
+        "project's own keys, because AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED is false. "
+        "Remove it to let every project use them.",
         names=_held_env_provider_keys,
     )
 
@@ -95,9 +95,9 @@ _dropped_host_aws_credentials = drop_host_aws_credentials()
 if _dropped_host_aws_credentials:
     log.warning(
         "AWS credentials in the services environment are not used: Bedrock and "
-        "SageMaker calls run on the connection's own credentials. Set "
-        "AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=true to let connections without "
-        "keys use them.",
+        "SageMaker calls run on the connection's own credentials, because "
+        "AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED is false. Remove it to let "
+        "connections without keys use them.",
         names=_dropped_host_aws_credentials,
     )
 
