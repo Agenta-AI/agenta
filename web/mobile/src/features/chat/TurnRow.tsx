@@ -320,7 +320,7 @@ const TurnRowInner = ({
                 <div {...quoteProps} className="flex min-w-0 flex-col gap-3">
                     {/* The builder signs its answers (S03, M05): 12 px, secondary, above the text. */}
                     {builderChat ? (
-                        <div className="-mb-2 flex items-center gap-1.5 text-xs leading-4 text-colorTextSecondary">
+                        <div className="-mb-2 flex items-center gap-1.5 text-[12px] leading-4 text-colorTextSecondary">
                             <BuilderIcon size={12} aria-hidden />
                             {t("builder.page.builder")}
                         </div>
@@ -437,9 +437,14 @@ const TurnRowInner = ({
             <ChatBubble
                 placement={turn.isUser ? "end" : "start"}
                 variant={turn.isUser && hasBubbleContent ? "filled" : "borderless"}
-                // No avatar column; the 85% inset is what reads as a user bubble.
+                // No avatar column; the 85% inset is what reads as a user bubble. The builder's
+                // answers take the whole column (S03, B03).
                 className={
-                    turn.isUser ? "min-w-0 max-w-[85%]" : "min-w-0 max-w-full sm:max-w-[85%]"
+                    turn.isUser
+                        ? "min-w-0 max-w-[85%]"
+                        : builderChat
+                          ? "min-w-0 max-w-full"
+                          : "min-w-0 max-w-full sm:max-w-[85%]"
                 }
                 classNames={{
                     content: turn.isUser

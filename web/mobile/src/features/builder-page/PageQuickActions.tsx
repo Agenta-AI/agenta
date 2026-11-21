@@ -1,14 +1,16 @@
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {BuilderIcon} from "@agenta/ui/agent-icon"
-import {ChartBar, Lightning, SlidersHorizontal, SquaresFour} from "@phosphor-icons/react"
+import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
+import {Lightning, SlidersHorizontal, SquaresFour} from "@phosphor-icons/react"
+import {ChartColumn} from "lucide-react"
 
 import {AgentPicker} from "./AgentPicker"
 import type {Glyph, PageKey} from "./ideas"
 import type {AgentRef} from "./paneAgent"
 
-const buttonClass =
-    "inline-flex h-[30px] cursor-pointer items-center gap-1.5 rounded-full border-0 bg-colorBgContainer px-3 text-[13px] leading-5 text-zinc-8 ring-1 ring-inset ring-colorBorderSecondary hover:bg-muted [&>svg]:text-colorTextSecondary"
+// Drawn 30 px high; a phone gets a 44 px tap area around it.
+const buttonClass = `inline-flex h-[30px] cursor-pointer items-center gap-1.5 rounded-full border-0 bg-colorBgContainer px-3 text-[13px] leading-5 text-zinc-8 ring-1 ring-inset ring-colorBorderSecondary hover:bg-muted [&>svg]:text-colorTextSecondary ${PHONE_TOUCH_TARGET_CLASS}`
 
 /** The quick actions that put a ready request in the composer (B01). */
 const READY: {
@@ -17,7 +19,8 @@ const READY: {
     icon: Glyph
 }[] = [
     {label: "builder.page.quickBuild", request: "builder.page.readyBuild", icon: BuilderIcon},
-    {label: "builder.page.quickTest", request: "builder.page.readyTest", icon: ChartBar},
+    // The canvas bar chart with axes (B01), as the panel's "Test".
+    {label: "builder.page.quickTest", request: "builder.page.readyTest", icon: ChartColumn},
     {label: "builder.page.quickAutomate", request: "builder.page.readyAutomate", icon: Lightning},
 ]
 
@@ -53,7 +56,8 @@ export const PageQuickActions = ({
     }
     return (
         <div
-            className="flex flex-wrap justify-center gap-1.5"
+            // On a phone the rows sit 44 px apart, so the tap areas do not overlap.
+            className="flex flex-wrap justify-center gap-1.5 max-md:gap-y-3.5"
             data-testid="builder-page-quick-actions"
         >
             {ready(0)}

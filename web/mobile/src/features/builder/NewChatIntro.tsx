@@ -15,10 +15,20 @@ export const NewChatIntro = ({agentName, phone = false}: {agentName: string; pho
     const t = useT(builderPanelCatalog)
     return (
         <div className="flex flex-col items-center text-center" data-testid="builder-new-chat">
-            <BuilderHero state="idle" className="size-40" />
+            {/* The ribbon fills the middle of its square, so the box takes the canvas orb's
+                height (125 px in the panel, S07; 104 px on a phone, M04) and the rest overhangs. */}
+            <div
+                className={cn(
+                    "flex items-center justify-center",
+                    phone ? "h-[104px]" : "h-[125px]",
+                )}
+            >
+                <BuilderHero state="idle" className="size-40" />
+            </div>
             <h2
                 className={cn(
-                    "m-0 mt-1 font-semibold tracking-tight text-colorText",
+                    "m-0 font-semibold tracking-tight text-colorText",
+                    phone && "mt-1.5",
                     phone ? "text-[22px] leading-7" : "text-xl leading-[26px]",
                 )}
             >

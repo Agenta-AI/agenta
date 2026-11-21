@@ -241,6 +241,12 @@ export const ApprovalCard = ({
     // The keycaps ride on the actions themselves, so the gesture reads without a hover. Gated on
     // the keyboard, not on `touch`: that prop sizes the buttons, and /m serves desktop browsers too.
     const showKeys = hasKeyboard
+    // C01: Deny reads secondary on a white ground in the footer band (no ground on a phone, M05).
+    const denyCls = !changeCard
+        ? ""
+        : phone
+          ? "text-colorTextSecondary"
+          : "bg-colorBgContainer text-colorTextSecondary"
     // A change card's buttons are the canvas's 28 px ones (C01); a phone sets 44 px above.
     const buttonSize = changeCard ? "compact" : undefined
 
@@ -538,7 +544,7 @@ export const ApprovalCard = ({
                                 size={buttonSize}
                                 disabled={responding}
                                 loading={responding && firedAction === "deny"}
-                                className={`${changeCard ? "text-colorTextSecondary" : ""} ${actionCls}`}
+                                className={`${denyCls} ${actionCls}`}
                                 onClick={deny}
                                 aria-keyshortcuts={shortcutAria("approval.deny")}
                             >

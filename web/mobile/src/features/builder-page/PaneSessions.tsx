@@ -93,6 +93,7 @@ export const PaneSessions = ({
                 projectId={projectId}
                 workspaceId={workspaceId}
                 agentId={agentId}
+                withComposer
             />
         </div>
     )
