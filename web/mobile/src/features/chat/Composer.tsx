@@ -1,5 +1,6 @@
 import {
     useCallback,
+    useContext,
     useEffect,
     useRef,
     useState,
@@ -36,6 +37,8 @@ import dynamic from "next/dynamic"
 import {ContentRail} from "@/components/ContentRail"
 import {useMotionPresets} from "@/lib/motion/presets"
 import {cn} from "@/lib/utils"
+
+import {AgentPanelContext} from "../agent-layout/agentPanelContext"
 
 import {useIsBuilderChat} from "./builderChat"
 import {ComposerModelButton} from "./ComposerModelButton"
@@ -148,6 +151,10 @@ export const Composer = ({
     const builderChat = useIsBuilderChat()
     const role = useConversationRole()
     const pageNewChat = builderChat && role === "page" && !hasTurns
+    // The session composer next to an open builder panel takes the builder composer's height:
+    // the builder's context chip row is 36 px. Null outside the agent layout.
+    const panel = useContext(AgentPanelContext)
+    const besideBuilder = !builderChat && panel?.content === "builder" && !panel.phone
     const ownInputRef = useRef<RichChatInputHandle | null>(null)
     const richInputRef = inputRef ?? ownInputRef
     // A tab switch is a route change here, so the whole composer unmounts — the per-session
@@ -454,8 +461,15 @@ export const Composer = ({
                             inputRef={richInputRef}
                             // The session and builder composer as the canvas draws it (S03, M01).
                             surface="canvas"
-                            // B01: a two-line text area, the box 112 px high.
-                            minHeightClassName={pageNewChat ? "min-h-[60px]" : undefined}
+                            // B01: a two-line text area, the box 112 px high. Beside the builder
+                            // panel, 34 px plus its 36 px chip row.
+                            minHeightClassName={
+                                pageNewChat
+                                    ? "min-h-[60px]"
+                                    : besideBuilder
+                                      ? "min-h-[70px]"
+                                      : undefined
+                            }
                             smallAttach={pageNewChat}
                             onSubmit={submit}
                             fileMentions
