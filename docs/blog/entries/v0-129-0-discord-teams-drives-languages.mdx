@@ -66,14 +66,14 @@ To change the language, open **Settings**, then **Preferences**, then **Language
 
 ## Upgrade note for self-hosted users
 
-If you deploy with Helm, set `alembic.hookPhase` to `pre` for this upgrade. The database migration then runs before the new API starts.
+If you deploy with Helm and use an external PostgreSQL, set `alembic.hookPhase` to `pre` for this upgrade. The database migration then runs before the new API starts.
 
 ```yaml
 alembic:
   hookPhase: pre
 ```
 
-The default is `post`. Keep `post` if you use the PostgreSQL that the chart installs. That database does not exist yet when the migration runs in the `pre` phase. See the [Kubernetes deployment guide](/self-host/guides/deploy-to-kubernetes) for more detail.
+The default is `post`. Keep `post` if you use the PostgreSQL that the chart installs. On a fresh install that database does not exist yet when the migration runs in the `pre` phase. See the [Kubernetes deployment guide](/self-host/guides/deploy-to-kubernetes) for more detail.
 
 ## Getting started
 
