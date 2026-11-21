@@ -87,11 +87,12 @@ export function buildGateAnswerFetcher(input: {
       const endpoint = input.callback?.endpoint;
       if (!endpoint) throw new Error("no Agenta callback endpoint");
       // The arguments the call itself would send: the note for the person removed, and the
-      // caller bindings filled from run context, so the API reads the same target.
+      // caller bindings filled from run context, so the API reads the same target. The call id
+      // is filled as the relay fills it, or a binding of `$ctx.tool.call_id` reads as missing.
       const callArgs = applyContextBindings(
         stripEphemeralArgs(args, spec.ephemeralArgs),
         spec.contextBindings ?? {},
-        input.runContext,
+        { ...input.runContext, tool: { call_id: callId } },
       );
       // `callAgentaTool` adds a grace window to its own budget, so the limit rides the signal.
       const limit = AbortSignal.timeout(

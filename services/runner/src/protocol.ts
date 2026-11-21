@@ -246,10 +246,10 @@ export interface RunContext {
     id?: string;
   };
   /**
-   * The tool call being dispatched, filled by the relay for each direct call and never by the
-   * service. Its id stays the same when the same call is relayed again (a resumed approval
-   * reuses it), so an endpoint can key a side effect on it and answer a retry without repeating
-   * the effect.
+   * The tool call being dispatched, filled by the relay for each call (direct and callRef) and
+   * by the gate answer, and never by the service. Its id stays the same when the same call is
+   * relayed again (a resumed approval reuses it), so an endpoint or a handler can key a side
+   * effect on it and answer a retry without repeating the effect.
    */
   tool?: {
     call_id?: string;

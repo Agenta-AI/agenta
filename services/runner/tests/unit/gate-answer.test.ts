@@ -259,6 +259,37 @@ describe("buildGateAnswerFetcher", () => {
     assert.equal(sent.length, 0);
   });
 
+  // The session writes bind the call id as their retry key, as the SDK op catalog emits them.
+  // The gate must fill it as the relay does, or every gate reads as missing and shows the card.
+  for (const op of ["start_session", "send_session_message"]) {
+    it(`fills the tool call id binding of ${op} from the call`, async () => {
+      const sent = stubFetch(() =>
+        toolResult({ permission: "allow", basis: "configured_permission" }),
+      );
+      const answer = await fetcher([
+        {
+          ...START,
+          name: op,
+          callRef: `tools.agenta.${op}`,
+          contextBindings: { tool_call_id: "$ctx.tool.call_id" },
+        },
+      ])({
+        toolName: op,
+        callId: "call-1",
+        args: { text: "hi", tool_call_id: "chosen-by-model" },
+      });
+      assert.deepEqual(answer, {
+        permission: "allow",
+        basis: "configured_permission",
+      });
+      assert.equal(sent.length, 1);
+      assert.deepEqual(sent[0].body.data.function.arguments.arguments, {
+        text: "hi",
+        tool_call_id: "call-1",
+      });
+    });
+  }
+
   it("reads ask when a context binding has no value", async () => {
     const sent = stubFetch(() =>
       toolResult({ permission: "allow", basis: "x" }),
