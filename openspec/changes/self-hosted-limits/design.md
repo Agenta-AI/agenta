@@ -1,162 +1,168 @@
-# Design: self-hosted project and organization limits
+# Design: one image, and self-hosted project and organization limits
+
+Research notes with full evidence: `research/` in the run folder (migrations, images and hosting, runtime). Line numbers refer to `feat/self-hosted-free-key` at `9f7fc1cc42`.
 
 ## Context
 
-### Plans and where they come from today
+### Two editions today
 
-- On self-hosted EE, every organization has the instance plan. `SubscriptionsService.read` replaces the stored plan with `instance_plan()` when the install is not cloud (`api/ee/src/core/subscriptions/service.py:175-177`).
-- `instance_plan()` (`api/ee/src/core/licenses/service.py:127`) is the plan of the active license key, else `self_hosted_community` (`LicenseState.plan`, `api/ee/src/core/licenses/types.py:61-63`). The free registration key carries `self_hosted_registered` and only the `registration-1` signing key may sign it (`api/ee/src/core/licenses/keys.py`, `SIGNING_KEYS`).
-- On cloud, the plan comes from Stripe. `is_cloud()` is true only for a valid cloud key in `AGENTA_LICENSE_KEY` (`api/ee/src/core/licenses/cloud.py`).
-- The OSS image has no key check. `GET /instance/license` answers `self_hosted_community` on OSS, and `PUT /instance/license` is registered only when `is_ee()` (`api/oss/src/apis/fastapi/licenses/router.py:90`, `:106`). The OSS image can already ask Agenta for a free key (`POST /instance/license/registrations`, `api/oss/src/core/licenses/registrations.py`), but it cannot use the key it gets.
+- The edition comes from one variable: `_LICENSE = "ee" if AGENTA_LICENSE == "ee" else "oss"` (`api/oss/src/utils/env.py:13`). `is_ee()` and `is_oss()` read it (`api/oss/src/utils/common.py:51-56`). With `ee`, the API imports `ee.src.main`, checks the cloud key, and adds the throttling middleware and the EE routes (`api/entrypoints/routers.py:359-393`, `:648`, `:727`).
+- The edition also picks the database names: the default prefix is `agenta_{license}` (`env.py:1914`, lock key `:2003`). `POSTGRES_DB_PREFIX` and `POSTGRES_URI_*` override it.
+- The edition picks the migration runner. The OSS runner runs the OSS legacy chain, `core_oss` and tracing (`api/oss/databases/postgres/migrations/runner.py:21-27`). The EE runner runs the EE legacy chain, `core_oss` and `core_ee` (`api/ee/databases/postgres/migrations/runner.py:31-39`). Both legacy chains end at the empty revision `park00000000`, first shipped in v0.104.0. `ee0000000002` adopts an OSS database: it creates the EE tables and backfills one subscription per organization.
+- Images: the OSS images are public (`agenta-api`, `agenta-web`, `agenta-services`, `agenta-runner`, `agenta-web-mobile`). The EE images are private (`internal-ee-*`; an anonymous pull is refused). The API Dockerfiles differ only in `COPY ./api/ee` and three crons (`api/ee/docker/Dockerfile.gh:49`, `:102-127`). Services and runner images are the same apart from a label. `web-mobile` is already one image. Classic web (`/w`) has two different Next.js builds (`oss/server.js` and `ee/server.js`).
+- Builds: the cloud repo's workflow 19 calls workflow 63 once per edition; `scripts/ci/build.sh` picks `./api/${LICENSE}/docker/Dockerfile.gh` and names `internal-${LICENSE}-agenta-<svc>`. Workflow 43 mirrors `internal-oss-*` to the public names. Cloud deploys `internal-ee-*` with workflow 29.
+- Hosting: the OSS compose file pulls the public names and hardcodes `node ./oss/server.js`, `/app/crontab` and `oss.databases.postgres.migrations.runner` (`hosting/docker-compose/oss/docker-compose.gh.yml:14`, `:238`, `:264`). The Helm chart picks image repositories, the web server path, the alembic module and the database names from `agenta.license` (`hosting/kubernetes/helm/templates/_helpers.tpl:314-364`, `:575-645`). Railway wrappers hardcode `AGENTA_LICENSE=oss`, `oss/server.js` and the OSS runner.
+- License: the root `LICENSE` is MIT except `ee/` folders, which are under the Agenta Enterprise License. That license allows production use only with a valid Agenta Enterprise License (`api/ee/LICENSE`).
 
-### Projects today
+### Plans and limits today
 
-- `create_project` checks a limit only on EE (`api/oss/src/routers/projects_router.py:243-246`). It calls `project_limit_refusal`, which reads the organization's plan, looks it up in `PROJECT_LIMITS`, and compares with `count_organization_projects` (`api/ee/src/core/access/entitlements/service.py:317-331`). It fails open when the plan read fails.
-- `PROJECT_LIMITS` has one entry, `cloud_v0_hobby: 1`. The refusal is the fixed English string `PROJECT_LIMIT_MESSAGE` about the Hobby plan (`api/ee/src/core/access/entitlements/types.py:811-816`).
-- `/m` shows `detail` as is when it is a string (`web/mobile/src/features/nav/DrawerProjectSwitcher.tsx:110-114`). The text is not translated.
-- Result: OSS has unlimited projects. Self-hosted EE has unlimited projects on every plan.
+- `instance_plan()` (`api/ee/src/core/licenses/service.py:127`) is the plan of the active key, else `self_hosted_community`. On self-hosted EE, `SubscriptionsService.read` replaces the stored plan with it (`api/ee/src/core/subscriptions/service.py:175-177`). The OSS image has no key check, and `PUT /instance/license` exists only on EE (`api/oss/src/apis/fastapi/licenses/router.py:90`).
+- Projects: `create_project` checks a limit only on EE (`api/oss/src/routers/projects_router.py:243-246`) through `project_limit_refusal` and `PROJECT_LIMITS = {cloud_v0_hobby: 1}` (`api/ee/src/core/access/entitlements/service.py:317-331`, `types.py:811-816`). The refusal is a fixed English string that `/m` shows as is (`web/mobile/src/features/nav/DrawerProjectSwitcher.tsx:110-114`).
+- Organizations: `create_organization_for_user` checks the owner allowlist, blocked domains and the per-user cap `AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS` (`api/oss/src/services/commoners.py:208-221`). `create_accounts` gives every new user a personal organization through `create_organization_for_signup`; if that raises, it deletes the user (`:282-312`). A user with no organization sees "No projects found." (`web/mobile/src/features/context/ContextResolver.tsx:123`).
+- Typed errors use `detail = {"code": ..., "message": ...}` (`api/oss/src/apis/fastapi/vault/router.py:136`).
 
-### Organizations today
+### What breaks if an OSS install simply runs the EE path
 
-- `create_organization_for_user` (`POST /organizations/`) checks the owner allowlist, blocked domains, and the per-user cap `AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS` (`api/oss/src/services/commoners.py:208-221`). The router turns `OrganizationCreationNotAllowedError` into HTTP 403 with `detail` as a string (`api/oss/src/routers/organization_router.py:396-400`).
-- `create_accounts` gives every new user a personal organization when the allowlist allows it (`api/oss/src/services/commoners.py:282-298`). If that setup raises, it deletes the new user and the sign-up fails (`:299-312`).
-- A signed-in user with no organization sees "No projects found." on `/m` (`web/mobile/src/features/context/ContextResolver.tsx:123`). This already happens today for users outside the allowlist.
-- Result: every instance has unlimited organizations.
+From the runtime research:
 
-### Error shape convention
+1. It opens empty `agenta_ee_*` databases if the edition sets the name.
+2. The OSS runner skips `core_ee`, so `check_entitlements` raises "No subscription found" (`entitlements/service.py:285-288`).
+3. EE checks project access by project rows; OSS gives every member every project (`api/entrypoints/access.py:38-43`). Members lose access unless rows are written (`memberships_check --materialize`, a manual step today).
+4. With no key, the throttling middleware falls back to the `cloud_v0_hobby` throttles (`api/ee/src/middlewares/throttling.py:297-325`): on slow routes a burst of 120, then 1 request per minute. Self-hosted EE with no key has this bug today.
+5. The SDK uses provider keys from the environment only when `AGENTA_LICENSE != "ee"` (`sdks/python/agenta/sdk/middlewares/running/vault.py:70-74`).
+6. `/m` treats EE as cloud: analytics settings (session recording, email as id) and the "unavailable in cloud" label (`web/mobile/src/features/analytics/client.ts:35`, `web/mobile/src/features/chat/DrillInBridgeProvider.tsx:73`). Server analytics stop sending the OSS deployment event (`api/oss/src/middlewares/analytics.py:118`).
+7. Stored plan rows say `self_hosted_enterprise` (`api/ee/src/core/subscriptions/types.py:31-47`); most reads replace it, a few do not.
 
-Newer routes answer typed errors as `detail = {"code": ..., "message": ...}` (for example `api/oss/src/apis/fastapi/vault/router.py:136`, `api/oss/src/apis/fastapi/shared/personal.py:58`). `/m` can switch on `code` and translate.
+Harmless on self-hosted: Loops (no key), fraud checks (no key), Stripe and the meters cron (no key), roles (community offers admin and member, as OSS), SSO and audit (shown locked).
 
 ## Goals / Non-Goals
 
 Goals:
 
-- Without a key, an organization has 1 project, on OSS and on EE.
-- The free key and a paid key give more projects.
-- Without a paid key, an instance has 1 organization. A paid key and cloud have no organization limit.
-- The OSS image accepts, checks and stores a key, through the same route and the same License tab as EE.
+- One image per component, under today's public names. An existing OSS install upgrades by pulling and restarting, with no file edits and no manual migration.
+- The key check, plans and limits stay in `ee/`.
+- Without a key, an organization has 1 project, and an instance has 1 organization. The free key removes the project limit. A paid key and cloud remove both.
 - Existing projects and organizations stay. Only new ones are refused.
 - `/m` shows a translated refusal with a next step.
 
 Non-goals:
 
-- Limits on users or seats. Seats stay counted and never block.
-- Enterprise features on the OSS image. A paid key on OSS lifts the limits. The full role catalog (`Flag.RBAC`), the audit log and the other flags still need the EE image. Role checks themselves run on both images, as today.
-- Limit numbers inside the key payload (see Decision 2).
-- Changes to cloud plans or to `cloud_v0_hobby`.
+- Removing the dead OSS-only code paths. They stop running and are removed in a follow-up.
+- Merging the two classic web (`/w`) builds (Decision 3).
+- Limits on users or seats.
+- Limit numbers inside the key payload.
+- A retention policy for the events that self-hosted installs now store (status quo of self-hosted EE).
 - A redesign of roles.
 
 ## Decisions
 
-### Decision 1: Where the key check lives (reopened 2026-11-21: one image is under review)
-
-The OSS image must check a key to lift its limits. The OSS image does not ship `api/ee/`.
-
-| Option | What it means | Trade-off |
-| --- | --- | --- |
-| **A. Move the key check, its storage and `PUT /instance/license` to OSS code** | `keys.py`, the key types, `LicensesService`, the DAO and the `licenses` table move under `api/oss/`. `is_cloud()` moves to OSS `core/licenses/cloud.py`. EE keeps `validate_cloud_license`, the plan table and the flags. | One code path for both images. The check becomes MIT code, so anyone can patch it out. That is true of the EE code today too (it is in the public repo), so nothing is lost. |
-| B. Copy the check into OSS, keep EE's | Two copies of the signature check and the signing keys. | Two places to rotate keys. Drift risk. |
-| C. OSS reads only `AGENTA_LICENSE_KEY`, no in-app entry | No table on OSS. | The activation link in the free key email opens the License tab and cannot work on OSS. Breaks the #8242 flow. |
-
-The license split stays correct with A: the key format and check are a lock, not an enterprise feature. The enterprise features they unlock (the flags in `DEFAULT_ENTITLEMENTS`) stay in `api/ee/`.
-
-Details of A:
-
-- `api/oss/src/core/licenses/`: `keys.py`, `types.py` (`LicenseKey`, `LicenseState`, `InvalidLicenseKey`, `LicenseKeyInEnvironment`, `CLOUD_PLAN`, the self-hosted plan slugs), `interfaces.py`, `service.py` (`instance_plan`, `activate`).
-- `api/oss/src/dbs/postgres/licenses/`: `dao.py`, `dbes.py`.
-- The plan check in `parse_license_key` today accepts `cloud` or a plan in `get_plans()` (EE). On OSS it accepts `cloud` or a plan in the OSS self-hosted plan set (`self_hosted_community`, `self_hosted_registered`, `self_hosted_enterprise`). On EE it keeps `get_plans()`. One `is_ee()` seam in `keys.py`, like the other seams in the API.
-- `DefaultPlan` in EE keeps its members and takes the self-hosted values from the OSS constants, so the slugs have one source.
-- `PUT /instance/license` is registered on both images. The `if is_ee()` branches in the router go away.
-- A cloud key on the OSS image is valid but never makes the install cloud (`is_cloud()` is false on the OSS image). `activate` already refuses a cloud key in the app.
-
-### Decision 2: The limits table
+### Decision 1: One image, the EE path always on (decided 2026-11-21: one image)
 
 | Option | Trade-off |
 | --- | --- |
-| **A. A fixed table by plan in OSS code** (`api/oss/src/core/licenses/limits.py`) | Small. Changing a number needs a release. |
-| B. Limits in the key payload (`projects`, `organizations`) | Per-customer numbers without a release. Needs a payload change in the website worker and the signing tool, and every key must carry them. No paid customers exist yet. |
-| C. Add self-hosted rows to EE `PROJECT_LIMITS` | Not visible from the OSS image. |
+| A. Move the key check, storage and route into MIT code; keep two images | Small. Keeps the open source image pure MIT. Mahmoud chose against it. |
+| **D. One image with MIT and `ee/` code; the key picks the plan** | No image switch to go from free to paid. Every open source install moves to the EE code path and schema on upgrade. Needs the license text change (Decision 8). |
 
-The table:
+What "the EE path always on" means in code:
 
-| Plan | Projects per organization | Organizations per instance |
+- `is_ee()` is true when the `ee` package is in the image, which is always for a shipped image. `is_oss()` is its opposite. `AGENTA_LICENSE` no longer changes them.
+- `AGENTA_LICENSE` keeps one meaning: the default database prefix `agenta_{AGENTA_LICENSE}`, with `oss` when unset. Existing OSS env files and the Helm default set `oss`, so they keep `agenta_oss_*`. Existing EE installs set `ee` and keep `agenta_ee_*`. New installs get `agenta_oss_*` unless they set a prefix. The docs describe the variable as the database prefix choice.
+- Cloud stays `is_cloud()`: a valid cloud key in `AGENTA_LICENSE_KEY` (`api/ee/src/core/licenses/cloud.py`).
+- The limits, the key check and the plans stay in `api/ee/`. The OSS routers call them through the existing `is_ee()` seams.
+
+### Decision 2: The edition-dependent behavior that must change
+
+| Today's rule | New rule |
+| --- | --- |
+| Throttling falls back to the free cloud plan's throttles for a plan with none | Outside `is_cloud()`, a plan with no throttles has none |
+| SDK reads provider keys from the environment when `AGENTA_LICENSE != "ee"` | It reads them unless `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=false`. The cloud deploy sets it to false before it deploys the new services image (the services image and the API can be on different versions) |
+| `/m` uses `isEE()` for cloud analytics, cloud labels and the provider key guard | `/m` uses `isCloud()`. `web/entrypoint.sh` already detects the cloud key for billing (`web/entrypoint.sh:64-76`) and writes the flag into `__env.js` |
+| `/m` hides the add-a-key form when not EE (`LicenseTab.tsx`) | The form shows on every self-hosted install; the `isEE()` branch goes away |
+| Server analytics: `is_oss()` for the deployment event, `is_ee` in the sign-up event | `not is_cloud()` and `is_cloud()` |
+| New subscriptions outside cloud store `self_hosted_enterprise` | They store `self_hosted_community`; reads keep using the instance plan |
+
+### Decision 3: Images and names
+
+- API: one Dockerfile, today's EE one (with `ee/` and the three crons). Published as `agenta-api`. The crons are valid on every install because the EE path is always on.
+- Services and runner: one Dockerfile each (today they differ only in a label), published as `agenta-services` and `agenta-runner`.
+- `web-mobile`: no change.
+- Classic web (`/w`): keep both builds. The public `agenta-web` stays the OSS build, so `node ./oss/server.js` keeps working; cloud keeps the private EE build. `/w` is the abandoned desktop app and `/m` already serves both editions. Question 7 on the decision page.
+- Private names: cloud keeps deploying `internal-ee-*`. The build pushes the same API, services and runner digests under both the public and the private names, so workflow 29 is unchanged.
+- Builds: workflows 19 and 63 drop the edition loop for API, services and runner. Workflow 43 mirrors the combined build to the public names. Public workflows 42 and 17 point at the combined Dockerfiles. The cloud repo change is its own PR.
+
+### Decision 4: One migration runner
+
+- `oss.databases.postgres.migrations.runner` and `ee.databases.postgres.migrations.runner` run the same sequence: the legacy chain, `core_oss`, `core_ee`, then the tracing chains. Old compose, Helm and Railway files that name the OSS module keep working.
+- The legacy chain is picked from the database, not from `AGENTA_LICENSE`: no `alembic_version` table or `park00000000` skips it. Any other revision is a database older than v0.104.0. The runner stops before any change and tells the operator to upgrade to v0.129.x first (Question 6, option A in spec).
+- Adoption of an OSS database (detected before `core_ee` runs: no `alembic_version_ee` and no `subscriptions` table): after `core_ee`, the runner writes project membership rows (today's `memberships_check --materialize`), so every member keeps the projects they had. It does not run on an EE database, where it would widen access.
+- `ee0000000010_add_licenses` stays in `core_ee`, unchanged.
+- Tests: replay a fresh database, an OSS database at v0.104.0, an OSS database at v0.129.x, and an EE database at v0.129.x through the runner in CI, and check the member access before and after.
+
+### Decision 5: The limits table, in `ee/`
+
+`api/ee/src/core/licenses/limits.py`:
+
+| Plan | `max_projects` (per organization) | `max_organizations` (per instance) |
 | --- | --- | --- |
-| `self_hosted_community` (no key, expired key, invalid key) | 1 | 1 |
-| `self_hosted_registered` (free key) | no limit (decided 2026-11-21) | 1 |
-| any other plan (paid key) | no limit | no limit |
-| cloud (`is_cloud()`) | from `PROJECT_LIMITS` by Stripe plan, as today | no limit |
+| `self_hosted_community` (no key, expired, invalid) | 1 | 1 |
+| `self_hosted_registered` (free key) | None (no limit) | 1 |
+| any other self-hosted plan (paid key) | None | None |
+| cloud | from `PROJECT_LIMITS` by Stripe plan, as today | None |
 
-The cloud project limit stays in EE `PROJECT_LIMITS`, because cloud plans are EE.
+A plan missing from the table has no limit, the same rule as `PROJECT_LIMITS`. `FREE_SELF_HOSTED_PLANS` already exists in `api/ee/src/core/access/entitlements/controls.py:36`; the table reuses it.
 
-### Decision 3: One module decides the limits, with one cloud check
+### Decision 6: The two checks
 
-All limit logic lives in `api/oss/src/core/licenses/limits.py`. It has two checks with the same shape. Each raises an error class that carries its `code` and `limit`:
-
-| Check | Raises | `code` |
+| Check (`limits.py`) | Raises | `detail.code` |
 | --- | --- | --- |
 | `check_project_limit(organization_id)` | `ProjectLimitReachedError` | `project_limit_reached` |
 | `check_instance_organization_limit()` | `InstanceOrganizationLimitReachedError` | `instance_organization_limit_reached` |
 
-`InstanceOrganizationLimitReachedError` lives in `api/oss/src/core/organizations/exceptions.py`, next to the per-user `OrganizationLimitReachedError`. `ProjectLimitReachedError` lives in `api/oss/src/core/licenses/types.py`.
+- `check_project_limit`: on cloud, the plan from `plan_for` and `PROJECT_LIMITS` (replaces `project_limit_refusal`; the English message stays `PROJECT_LIMIT_MESSAGE`). Else `SELF_HOSTED_LIMITS[instance_plan()].max_projects` against `count_organization_projects`.
+- `check_instance_organization_limit`: returns at once on cloud. Else `max_organizations` against a new `db_manager.count_organizations()` (not deleted).
+- Both fail open: a failed plan read logs and allows the creation, as today.
+- `ProjectLimitReachedError` lives in `api/ee/src/core/licenses/types.py`. `InstanceOrganizationLimitReachedError` lives in `api/oss/src/core/organizations/exceptions.py`, next to the per-user `OrganizationLimitReachedError`, and subclasses `OrganizationCreationNotAllowedError`, so the router must catch it first.
+- Response shape: HTTP 403, `detail = {"code", "message" (English), "limit"}`, flat like `vault` and `mounts`.
 
-`SELF_HOSTED_LIMITS` maps a plan to `Limits(max_projects, max_organizations)`. `None` means no limit. A plan that is not in the table has no limit, the same rule as `PROJECT_LIMITS`.
-
-The cloud check moves to OSS too. `is_cloud()` moves to `api/oss/src/core/licenses/cloud.py`. It returns false on the OSS image, so a cloud key on OSS never makes the install cloud. `validate_cloud_license` (the start-up check against Stripe) stays in EE. Every caller uses the one OSS `is_cloud()`. The license router's `_is_cloud()` wrapper is removed.
-
-`check_project_limit` picks the limit in one place:
-
-1. Cloud: the EE function `cloud_project_limit(organization_id)` reads the Stripe plan with `plan_for` and looks it up in `PROJECT_LIMITS`. It replaces `project_limit_refusal`. `check_project_limit` puts the EE `PROJECT_LIMIT_MESSAGE` in the cloud refusal as its English `message`.
-2. Not cloud: `SELF_HOSTED_LIMITS[instance_plan()].max_projects`.
-
-If the limit is set and `count_organization_projects(org) >= limit`, it raises. Fail open, as today: a failed plan read logs and allows the creation.
-
-`check_instance_organization_limit` returns at once on cloud. Else it reads `SELF_HOSTED_LIMITS[instance_plan()].max_organizations` and compares with a new helper `db_manager.count_organizations()` (organizations not deleted). Fail open the same way.
-
-`SELF_HOSTED_PLANS` (community, registered, enterprise), the set a key may carry on OSS, and `FREE_SELF_HOSTED_PLANS` (community, registered), the set without a paid key, live in `licenses/types.py` next to the plan slugs. EE `controls.py` drops its own `FREE_SELF_HOSTED_PLANS` and imports this one. `keys.py` and `limits.py` both import them from there, so the key check does not depend on the limits. The router's own `COMMUNITY_PLAN` copy goes away.
-
-### Decision 4: Where the checks run
+Where they run:
 
 | Path | Project check | Organization check |
 | --- | --- | --- |
-| `POST /projects/` (`create_project`) | yes, both images | n/a |
-| `POST /organizations/` (`create_organization_for_user`) | n/a | yes, raises; the router answers HTTP 403 |
-| Sign-up (`oss.src.services.commoners.create_accounts`) | n/a | yes; before it calls `create_organization_for_signup`, it calls `check_instance_organization_limit()`, catches the error, logs, and skips the personal organization |
-| Platform admin routes (`/admin/...`, `PlatformAdminAccountsService`) | no | no |
+| `POST /projects/` (`create_project`) | yes | n/a |
+| `POST /organizations/` (`create_organization_for_user`) | n/a | yes, raises |
+| Sign-up (`oss.src.services.commoners.create_accounts`) | n/a | yes: it calls the check before `create_organization_for_signup`, catches the error, logs, and skips the personal organization |
+| Platform admin routes (`PlatformAdminAccountsService`) | no | no |
 
-The platform admin routes are the operator's own tool, authorized by `AUTH_KEY`, and the test suites create accounts through them. They stay outside the limits.
+The platform admin routes are the operator's tool, authorized by `AUTH_KEY`, and the test suites create accounts through them. Two sign-ups at the same moment on an empty instance can both create an organization; no lock.
 
-The router error shape is `detail = {"code": ..., "message": <English>, "limit": <int>}`, the same flat shape as `vault` and `mounts`. `InstanceOrganizationLimitReachedError` subclasses `OrganizationCreationNotAllowedError`, so the router's existing handler order must catch it first. The per-user cap `AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS` keeps its string `detail`, as today.
+### Decision 7: `/m` refusal and next step (decided 2026-11-21: option A)
 
-Two sign-ups at the same moment on an empty instance can both create an organization. This needs two people to sign up within milliseconds on a new install; the instance then has 2 organizations and refuses more. No lock.
-
-### Decision 5: `/m` refusal and next step (decided 2026-11-21: option A)
-
-The create-project dialog and the Organizations tab read `detail.code`. For `project_limit_reached` and `instance_organization_limit_reached` they show a translated message and one next step:
-
-- Instance admin (the License tab is visible to them): a button "Open License settings" that opens the License tab. The tab already has the free key form (#8242) and the add-a-key form (#8238).
-- Anyone else: the message ends with "Ask your instance admin."
+- `DrawerProjectSwitcher.tsx` and `OrganizationsTab.tsx` read `detail.code` and show translated text for the two codes; other errors keep the string fallback.
+- The instance admin gets "Open License settings", which opens the License tab with the free key form (#8242) and the add-a-key form (#8238). Others get "Ask your instance admin."
 - Cloud project refusal: the existing upgrade path to Billing, translated.
+- The zero-organization screen says the person needs an invitation.
 
-New strings go in all 7 locales. Exact text is in `tasks.md`; Question 4 on the decision page covers the shape.
+### Decision 8: The Enterprise License text
 
-The License tab shows the add-a-key form on the OSS image too. Today `LicenseTab.tsx` hides it behind `isEE()` and says license keys need the Enterprise image; that branch goes away, so the activation link and the refusal's next step work on OSS.
+A public image distributes the `ee/` code, and every install without a key runs it in production. The current text allows production use only with a valid Agenta Enterprise License. The text must allow production use of the `ee/` code on the free plans (no key, and the free registration key), while the features those plans do not turn on stay licensed only with a paid key. Draft wording is on the decision page (Question 8). It needs Mahmoud and a lawyer before the release. The code does not change with it.
 
-The zero-organization screen changes from "No projects found." to a text that says the person has no organization yet and needs an invitation. This also helps the existing allowlist case.
+### Decision 9: Existing installs on upgrade (decided 2026-11-21: no notice)
 
-### Decision 6: Existing installs on upgrade (decided 2026-11-21: no notice)
-
-No data changes. A count above the limit is kept; only creating a new one is refused. The release notes and the editions page say what changes. The instance admin sees no extra notice in `/m`.
+No extra notice in `/m`. The release notes, the editions page and the upgrade page say: take a database backup; the first start migrates the open source database to the full schema; a second project and a second organization need a key. Counts above the limit are kept.
 
 ## Risks / Trade-offs
 
-- Existing OSS teams that add a project a week hit the limit right after upgrade. Mitigation: the refusal names the free key and the License tab has the form.
-- Existing OSS installs where every person signs up and gets their own organization change behavior: new people get no organization and need an invitation. Mahmoud decided this on 2026-11-21.
-- Moving `ee0000000010` to the OSS chain needs a one-time downgrade on dev stacks that ran it (see Migration). No released version has it.
-- The key check is MIT code and can be patched out. Same as today.
-- `keys.py` is being edited on #8238 (real public keys). This change moves the file, so it must start after that edit lands on #8238.
+- Size and timing: this is a Program-size change for v0.130.1. The migration runner and the image build are the slow parts. If they slip, the limits cannot ship alone, because the open source image would not have the key check.
+- Migration on first start for every open source install. The adoption only adds tables and rows, but a bad legacy chain choice cannot be undone. The runner stops before any change on an unknown revision. Release notes ask for a backup.
+- Rollback: an OSS image v0.104.0 or later can start again on an adopted database with `ALEMBIC_AUTO_MIGRATIONS=false`; the added tables and rows do not affect it.
+- The open source image now contains code under the Enterprise License. Community packagers may object.
+- Services and API version skew: cloud must set `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=false` before it deploys the new services image.
+- CI: `12-check-unit-tests.yml` and `44-railway-tests.yml` pin `oss`. The OSS-only test paths in the three `run-tests.py` stop matching what ships; CI moves to the EE path.
+- Existing open source teams hit the project limit after upgrade. The refusal names the free key.
+- Self-hosted installs now store events with no retention and write meters on ingest, as self-hosted EE does today.
 
 ## Migration
 
-- New migration `oss000000064_add_licenses` in `api/oss/databases/postgres/migrations/core_oss/versions/` with the same `licenses` table. EE runs the `core_oss` chain before `core_ee` (`api/ee/databases/postgres/migrations/runner.py:34-35`), so EE gets it too.
-- Remove `ee0000000010_add_licenses.py`, so the `core_oss` chain alone creates and drops the table. #8238 and this change ship in the same release (v0.130.1), so no released version has `ee0000000010`. A dev stack that ran it repairs once: with the old checkout, downgrade `core_ee` to `ee0000000009` (this drops `licenses` and records the right revision), then upgrade with the new checkout and add the license key again.
-- Rollback: drop the table with the OSS migration's downgrade. A rollback to a version without the OSS key check loses the limits and the key on OSS only.
+- No new table for the limits. `ee0000000010` stays.
+- The runner change in Decision 4 is the migration path for open source installs.
+- Dev stacks: no repair needed.

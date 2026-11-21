@@ -4,14 +4,14 @@
 
 On an install that is not cloud, `POST /projects/` SHALL refuse a new project when the organization already has as many projects as the instance plan allows: 1 for `self_hosted_community`, no limit for every other plan unless the limits table says otherwise.
 
-#### Scenario: OSS with no key, second project
+#### Scenario: Upgraded open source install with no key, second project
 
-- **WHEN** an organization on the OSS image with no license key has 1 project and a member with the right to create projects calls `POST /projects/`
+- **WHEN** an organization on an install that came from the open source image, with no license key has 1 project and a member with the right to create projects calls `POST /projects/`
 - **THEN** the API answers HTTP 403 with `detail.code` equal to `project_limit_reached` and `detail.limit` equal to 1, and no project is created
 
-#### Scenario: EE with no key
+#### Scenario: Enterprise install with no key
 
-- **WHEN** an organization on the EE image with no license key has 1 project and a member calls `POST /projects/`
+- **WHEN** an organization on an install that came from the enterprise image, with no license key has 1 project and a member calls `POST /projects/`
 - **THEN** the API answers HTTP 403 with `detail.code` equal to `project_limit_reached`
 
 #### Scenario: Free key
