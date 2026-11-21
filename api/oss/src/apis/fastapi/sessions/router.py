@@ -2093,6 +2093,7 @@ class InteractionsRouter:
                     expected_execution_id=body.expected_execution_id,
                     idempotency_key=idempotency_key,
                     approved_by=approved_by,
+                    deliver=body.delivery == "server",
                 )
             else:
                 admission = await self.commands_service.respond_interaction(
@@ -2103,6 +2104,7 @@ class InteractionsRouter:
                     expected_execution_id=body.expected_execution_id,
                     idempotency_key=idempotency_key,
                     approved_by=approved_by,
+                    deliver=body.delivery == "server",
                 )
         except MissingEnvelope:
             # Parked before this release: the interaction was cancelled (committed).
@@ -2145,6 +2147,9 @@ class InteractionsRouter:
                     "awaiting_interactions"
                     if getattr(admission, "waiting_for_interactions", False)
                     else admission.execution_state.value
+                ),
+                session_turn_id=(getattr(admission.command, "data", None) or {}).get(
+                    "session_turn_id"
                 ),
             ),
         )
