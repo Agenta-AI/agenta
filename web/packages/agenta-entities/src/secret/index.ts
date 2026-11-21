@@ -129,6 +129,7 @@ export {
     subscriptionHarnesses,
     subscriptionIsReady,
     subscriptionPairModels,
+    subscriptionPairModelRows,
     subscriptionPairsFrom,
     subscriptionPlanName,
     subscriptionProviderFamily,
