@@ -4,6 +4,7 @@ import tempfile
 from typing import List, Optional
 
 from sqlalchemy import make_url, text
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from sqlalchemy.exc import ProgrammingError
@@ -40,6 +41,10 @@ RENAME_MAP = {
     f"supertokens_{_LEGACY_SUFFIX}": f"{DB_PREFIX}_supertokens",
     f"{DB_PREFIX}_tracing": f"{DB_PREFIX}_tracing",
 }
+
+
+# The prefix comes from the environment, so quote the names it builds in SQL.
+_quote = postgresql.dialect().identifier_preparer.quote
 
 
 NODES_TF = {
@@ -251,7 +256,9 @@ async def split_core_and_tracing():
                 print(f"Renaming database '{old_name}' → '{new_name}'...")
                 try:
                     await conn.execute(
-                        text(f"ALTER DATABASE {old_name} RENAME TO {new_name}")
+                        text(
+                            f"ALTER DATABASE {_quote(old_name)} RENAME TO {_quote(new_name)}"
+                        )
                     )
                     print(f"✔ Renamed '{old_name}' to '{new_name}'")
                 except ProgrammingError as e:
@@ -284,13 +291,13 @@ async def split_core_and_tracing():
                     print(f"✔ Ensured role '{DB_USER}' exists")
 
                     # Create the new database
-                    await conn.execute(text(f"CREATE DATABASE {new_name}"))
+                    await conn.execute(text(f"CREATE DATABASE {_quote(new_name)}"))
                     print(f"✔ Created database '{new_name}'")
 
                     # Grant privileges on the database to the role
                     await conn.execute(
                         text(
-                            f"GRANT ALL PRIVILEGES ON DATABASE {new_name} TO {DB_USER}"
+                            f"GRANT ALL PRIVILEGES ON DATABASE {_quote(new_name)} TO {DB_USER}"
                         )
                     )
                     print(

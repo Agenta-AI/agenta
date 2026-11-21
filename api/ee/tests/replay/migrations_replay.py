@@ -54,6 +54,15 @@ WS_A, WS_B = str(uuid.UUID(int=201)), str(uuid.UUID(int=202))
 P_A1, P_A2, P_B1 = (str(uuid.UUID(int=n)) for n in (301, 302, 303))
 
 
+_PROJECTS = {ORG_A: {P_A1, P_A2}, ORG_B: {P_B1}}
+
+
+def _in_org(access: set, organization_id: str) -> set:
+    """Keep the "user project role" lines of one organization's projects."""
+
+    return {line for line in access if line.split()[1] in _PROJECTS[organization_id]}
+
+
 def _row_id() -> str:
     return str(uuid.uuid4())
 
@@ -371,10 +380,12 @@ class Replay:
                 "runner.run_materialize = interrupted\n"
                 "runner.main()\n"
             )
+            seeded = self.access(core, "project_rows")
             result = self.runner("oss", None, code)
             self.check(
                 case,
-                result.returncode != 0,
+                result.returncode != 0
+                and "start interrupted during the membership step" in result.stderr,
                 f"interrupted run exit code {result.returncode}",
             )
             heads = self.heads(core)
@@ -384,8 +395,10 @@ class Replay:
             partial = self.access(core, "project_rows")
             self.check(
                 case,
-                partial and partial != before,
-                f"some rows written ({len(partial)} of {len(before)})",
+                _in_org(partial, ORG_A) == _in_org(before, ORG_A)
+                and _in_org(partial, ORG_B) == _in_org(seeded, ORG_B)
+                and _in_org(partial, ORG_B) != _in_org(before, ORG_B),
+                "organization A written, organization B not yet",
             )
 
         # The old image's own module name, as old compose files call it.
