@@ -57,10 +57,12 @@ def test_viewer_cannot_create_a_project(admin_api, team):
 
 
 def test_admin_can_create_and_rename_a_project(admin_api, team):
+    # The admin passes the permission check; a stack without a license key then refuses
+    # a second project.
     resp = _create(admin_api, team, "admin", "admin-project")
-    assert resp.status_code == 201, resp.text
-    project_id = resp.json()["project_id"]
-    assert resp.json()["user_role"] == "admin"
+    assert resp.status_code == 403, resp.text
+    assert resp.json()["detail"]["code"] == "project_limit_reached"
+    project_id = team.add_project("admin-project")
 
     # An API key stays in its own project (M2): rename with the admin's key of the
     # new project. The admin's key of the first project is refused there.

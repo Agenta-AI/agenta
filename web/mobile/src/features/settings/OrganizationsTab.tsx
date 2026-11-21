@@ -45,8 +45,12 @@ import {switchSettingsContext} from "./switchContext"
 import {useSettingsOrg} from "./useSettingsOrg"
 
 const errorText = (error: unknown, fallback: string): string => {
-    const axiosLike = error as {response?: {data?: {detail?: string}}; message?: string}
-    return axiosLike?.response?.data?.detail || axiosLike?.message || fallback
+    const axiosLike = error as {
+        response?: {data?: {detail?: string | {message?: string}}}
+        message?: string
+    }
+    const detail = axiosLike?.response?.data?.detail
+    return (typeof detail === "object" ? detail?.message : detail) || axiosLike?.message || fallback
 }
 
 /** Mobile binding: create, rename in place, transfer ownership and delete for organizations. */
