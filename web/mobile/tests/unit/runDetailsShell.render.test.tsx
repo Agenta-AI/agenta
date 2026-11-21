@@ -326,10 +326,9 @@ describe("run details page", () => {
         expect(host.textContent).toContain("Could not load this evaluation")
     })
 
-    it("Run details route shows not found while the view is hidden", async () => {
+    it("Run details route shows not found without beta developer mode", async () => {
         vi.unstubAllEnvs()
         expect(DEVELOPER_VIEWS.find((view) => view.id === "evaluations")).toMatchObject({
-            stage: "hidden",
             routes: ["/evaluations", "/evaluations/results/[evaluation_id]"],
         })
         serveRun({})
