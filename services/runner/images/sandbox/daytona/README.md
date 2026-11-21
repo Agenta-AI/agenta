@@ -87,6 +87,8 @@ deletes or overwrites still counts. v0.120.0 hit the cap at 5.53 GB. The script 
 when Daytona reports a size over `SIZE_BUDGET_GB` (4.85), so a staging or trial build flags lost
 headroom before a production build hits the cap. To save space, clean caches in the `RUN` that
 creates them, and do not reinstall what the base image already ships.
+The recipe also drops files no sandbox run uses, in the `RUN` that brings them: the Codex voice
+host (about 51 MB) and imageio-ffmpeg's bundled ffmpeg (about 80 MB; the apt ffmpeg serves it).
 
 The Pi CLI and Pi ACP adapter are separate dependencies. Keep both pins explicit. The CLI
 runs the agent; the adapter translates Pi events and dialogs onto ACP. In particular, the
@@ -102,8 +104,8 @@ Any change to a pinned harness version or to any build input of this recipe need
 commit, a bump of that `version` and a regenerated `sandbox-recipe-fingerprint.json`:
 
 ```bash
-uv run --with pytest --with daytona python -c "import json, test_recipe_fingerprint as t; open('sandbox-recipe-fingerprint.json', 'w').write(json.dumps({'fingerprint': t.recipe_fingerprint()}, indent=2) + '\n')"
-uv run --with pytest --with daytona python -m pytest -q test_recipe_fingerprint.py
+uv run --with pytest --with 'daytona<2' python -c "import json, test_recipe_fingerprint as t; open('sandbox-recipe-fingerprint.json', 'w').write(json.dumps({'fingerprint': t.recipe_fingerprint()}, indent=2) + '\n')"
+uv run --with pytest --with 'daytona<2' python -m pytest -q test_recipe_fingerprint.py
 ```
 
 The fingerprint test fails when the inputs change and the fingerprint does not. CI runs it. A new

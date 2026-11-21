@@ -145,8 +145,8 @@ SUBSCRIPTION_PROVIDER_MODELS = {
         "default",
         "sonnet",
         "haiku",
-        "opus[1m]",
-        "claude-fable-5-1",
+        "opus",
+        "fable",
     ],
 }
 

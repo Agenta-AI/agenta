@@ -124,17 +124,28 @@ Probe live sessions by reading the model config options (the same `getConfigOpti
 session's set blindly. Account entitlements and promotions can add or remove context-hinted variants
 such as `claude-fable-5-1[1m]` while keeping the same model family.
 
-Use the stable bare canonical id when the runner can safely widen it to the session's hinted option.
-For Fable, publish `claude-fable-5-1`: an API-key session offers it bare, and the runner resolves it
-to `claude-fable-5-1[1m]` on a subscription session, where that is the only offered variant. Drop an
-id the pinned build no longer offers at all (Claude Code 2.1.280 dropped `claude-fable-5`); keeping
-it publishes a picker option that fails at run time. Do not publish the friendly forms
-`fable` or `fable[1m]`; the harness does not recognize that model family under those ids. Requires
-an authenticated Claude session, so this is a manual/periodic step, not a CI gate.
+Publish the values that every session shape lists. claude-agent-acp 0.109.0 lists the tier
+aliases `default`, `opus`, `fable`, `sonnet` and `haiku` for both an API key and a subscription
+login, and a subscription login also lists older concrete ids (`claude-fable-5-1`,
+`claude-haiku-4-5-20251001`). Neither lists the current concrete ids (`claude-fable-5-2`,
+`claude-haiku-5-5`), so the catalog publishes the tier aliases and names the model each one
+resolves to. The runner widens a bare alias to a `[1m]` option when that is the only variant on
+offer, and runs a concrete id the build does not list on its tier alias (`CLAUDE_TIER_ALIASES` in
+`services/runner/src/engines/sandbox_agent/model.ts`, mirrored by `MODEL_ID_ALIASES`). Do not
+publish a value one shape lacks; it fails at run time with `ModelNotSettableError`, because the
+daemon refuses a value the model option does not list before it reaches the adapter.
+
+To probe without a runner, start the adapter over stdio, send `initialize` and `session/new`, and
+read the `model` config option. Run it with a clean env (`env -i HOME=$HOME PATH=$PATH`) so an
+outer Claude Code session's variables do not change the listed set. A placeholder
+`ANTHROPIC_API_KEY` with an empty `HOME` gives the API-key shape, since the list is built
+locally. Requires an authenticated Claude login for the subscription shape, so this is a
+manual/periodic step, not a CI gate.
 
 Without a running runner, `probe_claude_models.mjs` (job 0) shows which models the pinned build
-offers. Its `value` column holds the SDK's short names (`fable`, `haiku`), not the adapter's config
-option values, so read the claude-agent-acp source for the exact values the picker sends.
+offers. Its `value` column holds the SDK's names. claude-agent-acp 0.109.0 lists the tier aliases
+under those same names, but an adapter build can rename a value (for example to a concrete id such
+as `claude-fable-5-2`), so read the claude-agent-acp source for the exact values the picker sends.
 
 ### 3. Refresh curated metadata from current public sources (before a release / on demand)
 
