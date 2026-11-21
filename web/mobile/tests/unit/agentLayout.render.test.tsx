@@ -51,8 +51,16 @@ vi.mock("@/features/chat/SessionWorkspaceDrawers", () => ({SessionWorkspaceDrawe
 vi.mock("@agenta/entity-ui/drive", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/entity-ui/drive")>()),
     DriveSessionProvider: ({children}: {children: React.ReactNode}) => children,
-    SessionFilesPane: ({readOnly}: {readOnly?: boolean}) => (
-        <div data-testid="files" data-read-only={String(Boolean(readOnly))} />
+    SessionFilesPane: ({
+        readOnly,
+        onToggleExpand,
+    }: {
+        readOnly?: boolean
+        onToggleExpand?: () => void
+    }) => (
+        <div data-testid="files" data-read-only={String(Boolean(readOnly))}>
+            {onToggleExpand ? <button onClick={onToggleExpand}>Expand</button> : null}
+        </div>
     ),
     useSessionFilesPane: () => ({
         open: files.open,
@@ -278,6 +286,55 @@ describe("the session screen on the agent layout", () => {
         expect(screen.getByRole("heading", {name: "Files"})).toBeTruthy()
         await act(async () => back.click())
         expect(files.close).toHaveBeenCalledTimes(1)
+        files.open = false
+    })
+
+    it("opens Files at the width Configuration and Builder use, and Expand widens it over the page", async () => {
+        files.open = true
+        localStorage.setItem(
+            panelStateKey("anonymous", "proj-1"),
+            JSON.stringify({content: "files", width: 520, configTab: "agent"}),
+        )
+        await render(createStore())
+        const panel = q("agent-panel")[0]?.parentElement as HTMLElement
+        expect(panel.style.width).toBe("520px")
+        expect(panel.className).toContain("relative")
+        await act(async () => screen.getByRole("button", {name: "Expand"}).click())
+        expect(panel.style.width).toBe("760px")
+        expect(panel.className).not.toContain("relative")
+        await act(async () => screen.getByRole("button", {name: "Expand"}).click())
+        expect(panel.style.width).toBe("520px")
+        files.open = false
+    })
+
+    it("opens another session at the stored width after a widen", async () => {
+        files.open = true
+        localStorage.setItem(
+            panelStateKey("anonymous", "proj-1"),
+            JSON.stringify({content: "files", width: 520, configTab: "agent"}),
+        )
+        const store = createStore()
+        const mount = (sessionId: string) =>
+            act(async () =>
+                root.render(
+                    <Provider store={store}>
+                        <SessionWorkspace
+                            entityId="rev-1"
+                            agentId="agent-1"
+                            sessionId={sessionId}
+                            workspaceId="ws-1"
+                            projectId="proj-1"
+                            chat={<div data-testid="chat-column" />}
+                        />
+                    </Provider>,
+                ),
+            )
+        await mount("session-1")
+        await act(async () => screen.getByRole("button", {name: "Expand"}).click())
+        const panel = q("agent-panel")[0]?.parentElement as HTMLElement
+        expect(panel.style.width).toBe("760px")
+        await mount("session-2")
+        expect(panel.style.width).toBe("520px")
         files.open = false
     })
 
