@@ -24,6 +24,7 @@ import {
     findSubagentIndex,
     removeSubagentByRef,
     subagentItemRef,
+    uniqueSlugRef,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/subagentReference"
 import {subagentAddView} from "../../src/DrillInView/SchemaControls/agentTemplate/views/subagentAddView"
 import {subagentView} from "../../src/DrillInView/SchemaControls/agentTemplate/views/subagentView"
@@ -382,6 +383,35 @@ describe("two legacy subagents with the same copied name", () => {
         await findByText("", '[data-testid="remove-from-agent-dialog"]')
         await click(byText("Remove"))
         expect(tools().map((tool) => tool.slug)).toEqual(["support-us"])
+    })
+})
+
+describe("two legacy subagents with the same slug and different copied names", () => {
+    const v1 = {...reference("support", "First"), name: "Support v1"}
+    const v2 = {...reference("support", "Second"), name: "Support v2"}
+
+    it("keep their name addresses, since the slug names neither one", () => {
+        expect(uniqueSlugRef(v2, [v1, v2])).toBeNull()
+        expect(uniqueSlugRef(v2, [v2])).toEqual({list: "tools", key: "@slug:support"})
+    })
+
+    it("open and save the second one only", async () => {
+        writer.agent = {tools: [v1, v2]}
+        await openIn(subagentView, {item: subagentItemRef(v2, [v1, v2])!})
+        const field = await findByText("", 'textarea[aria-label="Subagent description"]')
+        expect((field as HTMLTextAreaElement).value).toBe("Second")
+        await change(field, "Changed")
+        await click(byText("Save"))
+        expect(tools().map((tool) => tool.description)).toEqual(["First", "Changed"])
+    })
+
+    it("remove the second one only", async () => {
+        writer.agent = {tools: [v1, v2]}
+        await openIn(subagentView, {item: subagentItemRef(v2, [v1, v2])!})
+        await click(await findByText("Remove from agent"))
+        await findByText("", '[data-testid="remove-from-agent-dialog"]')
+        await click(byText("Remove"))
+        expect(tools().map((tool) => tool.description)).toEqual(["First"])
     })
 })
 
