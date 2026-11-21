@@ -6,6 +6,7 @@ import {
 import {
   declinedByUserText,
   deniedByPolicyText,
+  targetNotAllowedText,
 } from "../../tools/denial-text.ts";
 import type { ApprovedExecutionGrants, Responder } from "../../responder.ts";
 import type {
@@ -68,17 +69,22 @@ export function buildExecutableToolGate({
         readOnlyHint: request.spec.readOnly,
         args: request.input,
       };
+      let preApproved = false;
       const verdict = await responder.onPermission({
         id: request.id,
         availableReplies: ["once", "reject"],
         gate,
         raw: { spec: request.spec },
+        // Only a call the seam would otherwise park looks for a grant, so a policy allow or deny
+        // still wins outright and grants are spent only where they change the outcome. A grant
+        // also stands for a server allow at the harness gate, so the server is not asked twice.
+        takeGrant: () => {
+          preApproved = Boolean(
+            executionGrants?.consume(request.spec.name, request.input),
+          );
+          return preApproved;
+        },
       });
-      // Only a call the seam would otherwise park looks for a grant, so a policy allow or deny
-      // still wins outright and grants are spent only where they change the outcome.
-      const preApproved =
-        verdict.kind === "pendingApproval" &&
-        Boolean(executionGrants?.consume(request.spec.name, request.input));
       if (process.env.AGENTA_RUNNER_DEBUG_TOOLS) {
         log(
           `[executable-tool] ${request.toolName} id=${request.toolCallId} ` +
@@ -86,9 +92,16 @@ export function buildExecutableToolGate({
             (preApproved ? " grant=consumed" : ""),
         );
       }
-      if (preApproved) return { kind: "allow" };
       if (verdict.kind === "allow") return { kind: "allow" };
       if (verdict.kind === "deny") {
+        // A server deny at the gate refuses one target (D34), not the tool and not a person's
+        // answer, so the model may still pick another target.
+        if (verdict.byGateAnswer) {
+          return {
+            kind: "deny",
+            reason: targetNotAllowedText(request.toolName),
+          };
+        }
         const byPolicy =
           !permissionPlan ||
           effectivePermission(gate, permissionPlan) === "deny";
