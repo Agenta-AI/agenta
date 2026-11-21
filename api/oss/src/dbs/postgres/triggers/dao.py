@@ -56,6 +56,15 @@ from oss.src.dbs.postgres.triggers.upsert_utils import (
 log = get_module_logger(__name__)
 
 
+def _schedule_is_visible():
+    """Not a hidden schedule (`flags.is_hidden`). A later version writes hidden
+    one-time schedule rows that this version cannot read, so every schedule read
+    leaves them out and a get on one returns nothing."""
+    return func.coalesce(
+        TriggerScheduleDBE.flags["is_hidden"].astext.cast(Boolean), False
+    ).is_(False)
+
+
 def _set_principal(dbe, *, principal: PrincipalRef) -> None:
     dbe.principal_kind = principal.kind.value
     dbe.principal_id = principal.id
@@ -946,6 +955,7 @@ class TriggersDAO(TriggersDAOInterface):
                 TriggerScheduleDBE.project_id == project_id,
                 TriggerScheduleDBE.id == schedule_id,
                 TriggerScheduleDBE.deleted_at.is_(None),
+                _schedule_is_visible(),
             )
 
             result = await session.execute(stmt)
@@ -970,6 +980,7 @@ class TriggersDAO(TriggersDAOInterface):
             stmt = select(TriggerScheduleDBE).where(
                 TriggerScheduleDBE.project_id == project_id,
                 TriggerScheduleDBE.id == schedule_id,
+                _schedule_is_visible(),
             )
             schedule_dbe = (await session.execute(stmt)).scalar_one_or_none()
             if schedule_dbe is None:
@@ -994,6 +1005,7 @@ class TriggersDAO(TriggersDAOInterface):
                     TriggerScheduleDBE.id == schedule.id,
                     TriggerScheduleDBE.project_id == project_id,
                     TriggerScheduleDBE.deleted_at.is_(None),
+                    _schedule_is_visible(),
                 )
                 .with_for_update()
             )
@@ -1043,6 +1055,7 @@ class TriggersDAO(TriggersDAOInterface):
                     TriggerScheduleDBE.project_id == project_id,
                     TriggerScheduleDBE.id == schedule_id,
                     TriggerScheduleDBE.deleted_at.is_(None),
+                    _schedule_is_visible(),
                 )
                 .values(
                     deleted_at=now,
@@ -1085,6 +1098,7 @@ class TriggersDAO(TriggersDAOInterface):
             stmt = select(TriggerScheduleDBE).filter(
                 TriggerScheduleDBE.project_id == project_id,
                 TriggerScheduleDBE.deleted_at.is_(None),
+                _schedule_is_visible(),
             )
 
             if schedule:
@@ -1110,10 +1124,22 @@ class TriggersDAO(TriggersDAOInterface):
 
             result = await session.execute(stmt)
 
-            return [
-                map_schedule_dbe_to_dto(schedule_dbe=dbe)
-                for dbe in result.scalars().all()
-            ]
+            schedules: List[TriggerSchedule] = []
+            for dbe in result.scalars().all():
+                try:
+                    schedules.append(map_schedule_dbe_to_dto(schedule_dbe=dbe))
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    # One row this version cannot read must not fail the whole
+                    # list. Log the exception type only: a ValidationError
+                    # message embeds the row data.
+                    log.warning(
+                        "[SCHEDULE] Skipping unreadable schedule row",
+                        schedule_id=str(dbe.id),
+                        project_id=str(dbe.project_id),
+                        error_type=type(e).__name__,
+                    )
+
+            return schedules
 
     async def fetch_active_schedules(
         self,
@@ -1124,6 +1150,7 @@ class TriggersDAO(TriggersDAOInterface):
             stmt = select(TriggerScheduleDBE).where(
                 TriggerScheduleDBE.flags.contains({"is_active": True}),
                 TriggerScheduleDBE.deleted_at.is_(None),
+                _schedule_is_visible(),
             )
 
             if project_id is not None:
@@ -1147,6 +1174,7 @@ class TriggersDAO(TriggersDAOInterface):
             stmt = select(TriggerScheduleDBE).where(
                 TriggerScheduleDBE.flags.contains({"is_active": True}),
                 TriggerScheduleDBE.deleted_at.is_(None),
+                _schedule_is_visible(),
             )
 
             if project_id is not None:
