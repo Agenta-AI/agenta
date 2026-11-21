@@ -1,0 +1,9 @@
+{
+    "askInstanceAdmin": "Wenden Sie sich an den Administrator Ihrer Instanz.",
+    "openLicenseSettings": "Lizenzeinstellungen öffnen",
+    "organizationLimit": "Diese Instanz erlaubt {{limit}} Organisation(en). Bitten Sie um eine Einladung in eine bestehende Organisation oder fügen Sie einen kostenpflichtigen Lizenzschlüssel hinzu.",
+    "projectLimit": "Diese Organisation hat ihr Limit von {{limit}} Projekt(en) erreicht.",
+    "projectLimitCloud": "Der Hobby-Tarif umfasst 1 Projekt. Wechseln Sie zu Starter für unbegrenzte Projekte.",
+    "projectLimitFreeKey": "Mit einem kostenlosen Schlüssel erhalten Sie mehr Projekte.",
+    "upgradePlan": "Tarif upgraden"
+}

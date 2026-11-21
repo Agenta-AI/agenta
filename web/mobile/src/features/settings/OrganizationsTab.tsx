@@ -35,6 +35,8 @@ import {useRouter} from "next/router"
 import {fetchProjects} from "@/lib/context"
 
 import {groupByOrganization} from "../context/workspaceGroups"
+import {readLimitRefusal, type LimitRefusal} from "../limits/limitRefusal"
+import {LimitRefusalNotice} from "../limits/LimitRefusalNotice"
 
 import {ConfirmModal} from "./ConfirmModal"
 import {NameDialog} from "./NameDialog"
@@ -48,7 +50,7 @@ const errorText = (error: unknown, fallback: string): string => {
 }
 
 /** Mobile binding: create, rename in place, transfer ownership and delete for organizations. */
-export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
+export const OrganizationsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const t = useT(commonCatalog, settingsOrganizationsTabCatalog)
     const router = useRouter()
     const queryClient = useQueryClient()
@@ -69,16 +71,20 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
     const [deleting, setDeleting] = useState<Org | null>(null)
     const [pending, setPending] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [refusal, setRefusal] = useState<LimitRefusal | null>(null)
 
     const run = async (action: () => Promise<unknown>, fallback: string) => {
         setPending(true)
         setError(null)
+        setRefusal(null)
         try {
             await action()
             onChanged()
             return true
         } catch (cause) {
-            setError(errorText(cause, fallback))
+            const limitRefusal = readLimitRefusal(cause)
+            if (limitRefusal) setRefusal(limitRefusal)
+            else setError(errorText(cause, fallback))
             return false
         } finally {
             setPending(false)
@@ -117,6 +123,7 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
             }}
             onCreate={() => {
                 setError(null)
+                setRefusal(null)
                 setCreating(true)
             }}
             onRename={async (org, name) => {
@@ -144,6 +151,16 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
                 submitLabel={t("common.create")}
                 pending={pending}
                 error={error}
+                notice={
+                    refusal ? (
+                        <LimitRefusalNotice
+                            refusal={refusal}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            onNavigate={() => setCreating(false)}
+                        />
+                    ) : null
+                }
                 onClose={() => setCreating(false)}
                 onSubmit={async (name) => {
                     if (

@@ -1,5 +1,5 @@
 {
-    "noProjects": "No projects found.",
+    "noOrganization": "You are not in an organization yet. Ask an organization admin to invite you.",
     "retry": "Retry",
     "somethingWrong": "Something went wrong."
 }

@@ -810,10 +810,43 @@ AGENT_TURN_CAPS: dict[str, AgentTurnCaps] = {
 # organization already above it keeps its projects and cannot create more.
 PROJECT_LIMITS: dict[str, int] = {
     DefaultPlan.CLOUD_V0_HOBBY.value: 1,
+    DefaultPlan.SELF_HOSTED_COMMUNITY.value: 1,
 }
 PROJECT_LIMIT_MESSAGE = (
     "The Hobby plan includes 1 project. Upgrade to Starter for unlimited projects."
 )
+
+# The most organizations an instance that is not cloud can hold, by instance plan. A
+# plan not listed here has no limit. Never read on cloud.
+ORGANIZATION_LIMITS: dict[str, int] = {
+    DefaultPlan.SELF_HOSTED_COMMUNITY.value: 1,
+    DefaultPlan.SELF_HOSTED_REGISTERED.value: 1,
+}
+
+
+class ProjectLimitReachedError(Exception):
+    code = "project_limit_reached"
+
+    def __init__(self, *, limit: int, message: str):
+        self.limit = limit
+        self.message = message
+        super().__init__(message)
+
+
+class InstanceOrganizationLimitReachedError(Exception):
+    """The instance holds as many organizations as its plan allows. Not an
+    `OrganizationCreationNotAllowedError`: that one means the person may not create
+    organizations."""
+
+    code = "instance_organization_limit_reached"
+
+    def __init__(self, *, limit: int):
+        self.limit = limit
+        self.message = (
+            f"This instance allows {limit} organization(s). Ask for an invitation to an "
+            "existing organization, or add a paid license key."
+        )
+        super().__init__(self.message)
 
 
 # Internal Counter/Gauge slug -> Stripe-side meter slot name. Membership in

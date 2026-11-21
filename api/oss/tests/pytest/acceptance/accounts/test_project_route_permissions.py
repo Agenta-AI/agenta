@@ -97,9 +97,7 @@ def test_editor_cannot_rename_a_project(admin_api, team):
 
 
 def test_admin_cannot_delete_a_project(admin_api, team):
-    resp = _create(admin_api, team, "owner", "to-keep")
-    assert resp.status_code == 201, resp.text
-    project_id = resp.json()["project_id"]
+    project_id = team.add_project("to-keep")
 
     # The admin's key of that project, so the refusal is the role's, not the key's.
     resp = admin_api(
@@ -111,9 +109,7 @@ def test_admin_cannot_delete_a_project(admin_api, team):
 
 
 def test_owner_can_delete_a_project(admin_api, team):
-    resp = _create(admin_api, team, "owner", "to-delete")
-    assert resp.status_code == 201, resp.text
-    project_id = resp.json()["project_id"]
+    project_id = team.add_project("to-delete")
 
     resp = admin_api(
         "DELETE",

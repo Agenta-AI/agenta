@@ -1,0 +1,9 @@
+{
+    "askInstanceAdmin": "Peça ao administrador da sua instância.",
+    "openLicenseSettings": "Abrir configurações de licença",
+    "organizationLimit": "Esta instância permite {{limit}} organização(ões). Peça um convite para uma organização existente ou adicione uma chave de licença paga.",
+    "projectLimit": "Esta organização atingiu o limite de {{limit}} projeto(s).",
+    "projectLimitCloud": "O plano Hobby inclui 1 projeto. Faça upgrade para o Starter para ter projetos ilimitados.",
+    "projectLimitFreeKey": "Uma chave gratuita dá mais projetos.",
+    "upgradePlan": "Fazer upgrade do plano"
+}

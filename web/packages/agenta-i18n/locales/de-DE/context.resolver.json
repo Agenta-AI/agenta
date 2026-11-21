@@ -1,5 +1,5 @@
 {
-    "noProjects": "Keine Projekte gefunden.",
+    "noOrganization": "Sie sind noch in keiner Organisation. Bitten Sie einen Administrator einer Organisation, Sie einzuladen.",
     "retry": "Erneut versuchen",
     "somethingWrong": "Etwas ist schiefgegangen."
 }

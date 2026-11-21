@@ -19,6 +19,8 @@ import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {useLogout} from "../auth/useLogout"
+import {readLimitRefusal, type LimitRefusal} from "../limits/limitRefusal"
+import {LimitRefusalNotice} from "../limits/LimitRefusalNotice"
 import {switchSettingsContext} from "../settings/switchContext"
 import {LiveChatNavButton} from "../support/LiveChatNavButton"
 import {useLiveChatEnabled} from "../support/useLiveChatEnabled"
@@ -93,6 +95,7 @@ export const DrawerProjectSwitcher = ({
     )
 
     const [createOpen, setCreateOpen] = useState(false)
+    const [refusal, setRefusal] = useState<LimitRefusal | null>(null)
     // Same shared mutation the desktop rail calls; the row it feeds is already in the shared
     // view, gated on `onCreateProject`, and was invisible here only because nothing passed it.
     const createProject = useMutation({
@@ -107,8 +110,14 @@ export const DrawerProjectSwitcher = ({
             await query.refetch()
             goTo(created.organization_id ?? created.workspace_id ?? workspaceId, created.project_id)
         },
-        // The API's refusal is written for people (e.g. the plan's project limit).
+        // The plan's project limit stays in the sheet with its next step; any other refusal is
+        // written for people.
         onError: (error) => {
+            const limitRefusal = readLimitRefusal(error)
+            if (limitRefusal) {
+                setRefusal(limitRefusal)
+                return
+            }
             const detail = (error as {response?: {data?: {detail?: unknown}}})?.response?.data
                 ?.detail
             message.error(typeof detail === "string" ? detail : t("shell.createProject.failed"))
@@ -169,9 +178,25 @@ export const DrawerProjectSwitcher = ({
             <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
             <CreateProjectSheet
                 open={createOpen}
-                onOpenChange={setCreateOpen}
-                onSubmit={(name) => createProject.mutate(name)}
+                onOpenChange={(open) => {
+                    setCreateOpen(open)
+                    setRefusal(null)
+                }}
+                onSubmit={(name) => {
+                    setRefusal(null)
+                    createProject.mutate(name)
+                }}
                 isPending={createProject.isPending}
+                notice={
+                    refusal ? (
+                        <LimitRefusalNotice
+                            refusal={refusal}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            onNavigate={() => setCreateOpen(false)}
+                        />
+                    ) : null
+                }
             />
         </div>
     )

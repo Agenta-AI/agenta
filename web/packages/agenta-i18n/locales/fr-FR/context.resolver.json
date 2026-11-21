@@ -1,5 +1,5 @@
 {
-    "noProjects": "Aucun projet trouvé.",
+    "noOrganization": "Vous n’êtes encore membre d’aucune organisation. Demandez à un administrateur d’une organisation de vous inviter.",
     "retry": "Réessayer",
     "somethingWrong": "Une erreur s’est produite."
 }

@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -20,11 +20,14 @@ export const CreateProjectSheet = ({
     onOpenChange,
     onSubmit,
     isPending,
+    notice,
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
     onSubmit: (name: string) => void
     isPending?: boolean
+    /** Shown under the field, for a refusal the reader can act on. */
+    notice?: ReactNode
 }) => {
     const t = useT(createProjectCatalog, commonCatalog)
     const [name, setName] = useState("")
@@ -61,6 +64,7 @@ export const CreateProjectSheet = ({
                     {/* Enter submits; the visible Create sits in the footer, outside this form. */}
                     <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
                 </form>
+                {notice}
                 <DialogFooter>
                     {/* Pending blocks submitting only: a dismissed create still lands and refetches. */}
                     <Button variant="outline" onClick={() => onOpenChange(false)}>

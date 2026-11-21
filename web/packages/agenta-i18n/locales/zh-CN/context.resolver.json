@@ -1,5 +1,5 @@
 {
-    "noProjects": "未找到项目。",
+    "noOrganization": "你还不属于任何组织。请让组织管理员邀请你。",
     "retry": "重试",
     "somethingWrong": "出了点问题。"
 }

@@ -1882,7 +1882,7 @@
         "dialog": "69b51517d04b"
     },
     "context.resolver": {
-        "noProjects": "26e92309ba5b",
+        "noOrganization": "877075f1cd66",
         "retry": "942087cc2d41",
         "somethingWrong": "0c953ab32c60"
     },
@@ -6885,6 +6885,15 @@
         "failed": "c9920c977a44",
         "namePlaceholder": "25498193b898",
         "title": "fa67e4d0dae5"
+    },
+    "shell.limitRefusal": {
+        "askInstanceAdmin": "0136b9999f0f",
+        "openLicenseSettings": "61ab21edf36c",
+        "organizationLimit": "b0f71fba935d",
+        "projectLimit": "694be24e8c19",
+        "projectLimitCloud": "7eaffc233b85",
+        "projectLimitFreeKey": "1f8cd71eca6c",
+        "upgradePlan": "39b7ec1e8402"
     },
     "shell.sessionFilter": {
         "agent": "11b39c93777e",

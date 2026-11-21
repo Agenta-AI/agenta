@@ -1,0 +1,9 @@
+{
+    "askInstanceAdmin": "Ask your instance admin.",
+    "openLicenseSettings": "Open License settings",
+    "organizationLimit": "This instance allows {{limit}} organization(s). Ask for an invitation to an existing organization, or add a paid license key.",
+    "projectLimit": "This organization has reached its limit of {{limit}} project(s).",
+    "projectLimitCloud": "The Hobby plan includes 1 project. Upgrade to Starter for unlimited projects.",
+    "projectLimitFreeKey": "A free key gives more projects.",
+    "upgradePlan": "Upgrade plan"
+}

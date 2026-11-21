@@ -1,6 +1,8 @@
 """
 Acceptance tests for the OSS organization endpoints
-(create / rename / transfer / delete on /organizations/).
+(list / rename / transfer / delete on /organizations/). The organizations are made
+through the platform admin route, which the instance organization limit does not
+apply to.
 
 EE serves the same paths from its own router with RBAC and entitlement
 gates; those are covered by the EE suites.
@@ -11,10 +13,21 @@ from uuid import uuid4
 import pytest
 
 
-def _create_org(authed_api, name):
-    response = authed_api("POST", "/organizations/", json={"name": name})
-    assert response.status_code == 201, response.text
-    return response.json()
+def _create_org(authed_api, admin_api, name):
+    """An organization owned by the caller, through the platform admin route: the
+    public route refuses a second organization on an instance without a paid key."""
+    profile = authed_api("GET", "/profile")
+    assert profile.status_code == 200, profile.text
+    response = admin_api(
+        "POST",
+        "/admin/simple/accounts/organizations/",
+        json={
+            "organization": {"name": name},
+            "owner": {"email": profile.json()["email"]},
+        },
+    )
+    assert response.status_code == 200, response.text
+    return next(iter(response.json()["accounts"][0]["organizations"].values()))
 
 
 def _create_member_account(admin_api, *, email):
@@ -71,17 +84,17 @@ def _owner_key_headers(authed_api, admin_api, organization_id):
 
 @pytest.mark.usefixtures("cls_account")
 class TestOrganizationLifecycle:
-    def test_create_organization(self, authed_api):
+    def test_create_organization(self, authed_api, admin_api):
         name = f"org-{uuid4().hex[:8]}"
 
-        body = _create_org(authed_api, name)
+        body = _create_org(authed_api, admin_api, name)
 
         assert body["id"]
         assert body["name"] == name
 
-    def test_created_organization_is_listed(self, authed_api):
+    def test_created_organization_is_listed(self, authed_api, admin_api):
         name = f"org-{uuid4().hex[:8]}"
-        created = _create_org(authed_api, name)
+        created = _create_org(authed_api, admin_api, name)
 
         response = authed_api("GET", "/organizations/")
         assert response.status_code == 200, response.text
@@ -89,7 +102,7 @@ class TestOrganizationLifecycle:
         assert created["id"] in listed_ids
 
     def test_rename_organization(self, authed_api, admin_api):
-        created = _create_org(authed_api, f"org-{uuid4().hex[:8]}")
+        created = _create_org(authed_api, admin_api, f"org-{uuid4().hex[:8]}")
         new_name = f"renamed-{uuid4().hex[:8]}"
         path = f"/organizations/{created['id']}"
 
@@ -102,14 +115,14 @@ class TestOrganizationLifecycle:
         assert response.status_code == 200, response.text
         assert response.json()["name"] == new_name
 
-    def test_update_without_fields_returns_400(self, authed_api):
-        created = _create_org(authed_api, f"org-{uuid4().hex[:8]}")
+    def test_update_without_fields_returns_400(self, authed_api, admin_api):
+        created = _create_org(authed_api, admin_api, f"org-{uuid4().hex[:8]}")
 
         response = authed_api("PUT", f"/organizations/{created['id']}", json={})
         assert response.status_code == 400, response.text
 
     def test_delete_organization(self, authed_api, admin_api):
-        created = _create_org(authed_api, f"org-{uuid4().hex[:8]}")
+        created = _create_org(authed_api, admin_api, f"org-{uuid4().hex[:8]}")
         path = f"/organizations/{created['id']}"
 
         refused = authed_api("DELETE", path)
@@ -124,7 +137,7 @@ class TestOrganizationLifecycle:
         assert created["id"] not in listed_ids
 
     def test_transfer_organization_ownership(self, authed_api, admin_api):
-        created = _create_org(authed_api, f"org-{uuid4().hex[:8]}")
+        created = _create_org(authed_api, admin_api, f"org-{uuid4().hex[:8]}")
         email = f"transfer-target-{uuid4().hex[:8]}@test.agenta.ai"
         target = _create_member_account(admin_api, email=email)
         target_user_id = target["user"]["id"]
@@ -157,7 +170,7 @@ class TestOrganizationLifecycle:
         assert response.json()["owner_id"] == target_user_id
 
     def test_transfer_to_non_member_is_rejected(self, authed_api, admin_api):
-        created = _create_org(authed_api, f"org-{uuid4().hex[:8]}")
+        created = _create_org(authed_api, admin_api, f"org-{uuid4().hex[:8]}")
         email = f"non-member-{uuid4().hex[:8]}@test.agenta.ai"
         outsider = _create_member_account(admin_api, email=email)
         outsider_user_id = outsider["user"]["id"]

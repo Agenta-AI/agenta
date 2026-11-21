@@ -126,7 +126,7 @@ export const ContextResolver = ({workspaceId, forwardTo}: ContextResolverProps =
                 <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">
                     <p className="text-muted-foreground text-xs">
                         {result?.kind === "ok"
-                            ? t("context.resolver.noProjects")
+                            ? t("context.resolver.noOrganization")
                             : t("context.resolver.somethingWrong")}
                     </p>
                     <Button type="button" variant="outline" onClick={() => void query.refetch()}>
