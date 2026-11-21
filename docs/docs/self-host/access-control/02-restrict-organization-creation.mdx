@@ -27,7 +27,7 @@ Set `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` to a comma-separated list of emails all
 AGENTA_ACCESS_ALLOWED_OWNER_EMAILS=admin@company.com,ops@company.com
 ```
 
-When this variable is set, only the listed emails get an organization on signup and can create new ones. Everyone else must be invited to an existing organization. When it is not set, any user who signs up gets their own organization (the default).
+When this variable is set, only the listed emails get an organization on signup and can create new ones. Everyone else must be invited to an existing organization. When it is not set, any user who signs up gets their own organization (the default), as long as the instance is below its organization limit. Without a paid key, only the first person who signs up gets one. See [One organization without a paid key](#one-organization-without-a-paid-key).
 
 The legacy names `AGENTA_ORG_CREATION_ALLOWLIST` and `AGENTA_ACCESS_ORG_CREATION_ALLOWLIST` are still parsed as aliases.
 

@@ -440,6 +440,8 @@ Before updating services, apply any database schema changes. This runs the `alem
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh run --rm alembic
 ```
 
+Use the compose file and env file of your deployment. On an Enterprise install, they are `hosting/docker-compose/ee/docker-compose.gh.yml` and `hosting/docker-compose/ee/.env.ee.gh`.
+
 **3. Rolling Update Services**
 
 Update each service individually to maintain availability:
@@ -663,6 +665,8 @@ Apply all pending migrations by running the `alembic` migration job once, from t
 ```bash
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh run --rm alembic
 ```
+
+Use the compose file and env file of your deployment. On an Enterprise install, they are `hosting/docker-compose/ee/docker-compose.gh.yml` and `hosting/docker-compose/ee/.env.ee.gh`.
 
 The job is the same one that runs at every start: every core and tracing migration, in order.
 
