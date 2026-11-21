@@ -2352,8 +2352,9 @@ Subagent agents, with `text` as its first message. It runs on its own, with its 
 sandbox, and the person can open it and reply in it.
 
 `agent` is the slug or id of the agent (your own agent, or an agent your configuration
-names as a Subagent). `name` names the new session. A child session cannot start
-sessions of its own.
+names as a Subagent). `name` names the new session. A child session can start sessions
+of its own, down to a limit of levels below the session that a person started. Past that
+limit the call is refused: then do the work yourself.
 
 {_CHILD_TIMING_NOTE}
 

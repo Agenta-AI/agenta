@@ -145,7 +145,7 @@ STILL_RUNNING_EVENT_KEY = "still_running"
 START_KEY_PREFIX = "ag:start:"
 SEND_KEY_PREFIX = "ag:send:"
 
-SESSION_START_IN_CHILD = "session_start_in_child"
+SESSION_DEPTH_LIMIT_REACHED = "session_depth_limit_reached"
 CHILD_SESSION_LIMIT_REACHED = "child_session_limit_reached"
 CHILD_QUEUE_LIMIT_REACHED = "child_queue_limit_reached"
 SESSION_NOT_CHILD = "session_not_child"
@@ -224,13 +224,33 @@ def _session_not_child(session_id: str) -> _Refusal:
     )
 
 
-def _session_start_in_child() -> _Refusal:
+def _session_depth_limit_reached(limit: int) -> _Refusal:
     return _refusal(
-        SESSION_START_IN_CHILD,
-        "This session was started by another session, and a child session cannot "
-        "start sessions.",
+        SESSION_DEPTH_LIMIT_REACHED,
+        f"This session is {limit} levels below the session that a person started, "
+        f"and a child session may be at most {limit} levels deep.",
         "Do the work yourself in this session.",
+        details={"limit": limit},
     )
+
+
+async def check_session_depth(
+    services: SessionWriteServices, *, project_id: UUID, stream: SessionStream
+) -> None:
+    """Refuse a start when the new child would be deeper than the depth limit. The
+    level of a session is the number of calling sessions above it, read up the chain of
+    `calling_session` records: at most the limit less one reads. A calling session row
+    that is gone ends the chain."""
+    limit = env.agenta.sessions.child_session_depth_limit
+    level = 0
+    current: Optional[SessionStream] = stream
+    while current is not None and current.calling_session is not None:
+        level += 1
+        if level >= limit:
+            raise _session_depth_limit_reached(limit)
+        current = await services.streams_dao.get_by_session_id(
+            project_id=project_id, session_id=current.calling_session.id
+        )
 
 
 def _sharing_would_widen_wait(session_id: str) -> _Refusal:
@@ -1288,8 +1308,9 @@ async def start_session(
         calling = await calling_turn(
             services=services, caller=caller, project_id=project_id
         )
-        if calling.stream.calling_session is not None:
-            raise _session_start_in_child()
+        await check_session_depth(
+            services, project_id=project_id, stream=calling.stream
+        )
         entries = (
             []
             if is_builder_agent(caller.run_agent_id)

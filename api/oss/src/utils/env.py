@@ -833,6 +833,13 @@ class SessionsConfig(BaseModel):
     child_sessions_limit: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_CHILD_SESSIONS_LIMIT") or 5
     )
+    # Levels of child sessions. A session that a person started is level 0, its child
+    # is level 1, the child of that child is level 2. `start_session` is refused when
+    # the new child would be deeper than this level.
+    child_session_depth_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_CHILD_SESSION_DEPTH_LIMIT")
+        or 3
+    )
     # Queued messages from one calling session in one child session. A send that would
     # queue one more is refused.
     child_queued_messages_limit: int = (

@@ -523,6 +523,7 @@ def world(monkeypatch) -> _World:
     sessions = env.agenta.sessions
     monkeypatch.setattr(sessions, "child_sessions_limit", 5)
     monkeypatch.setattr(sessions, "child_queued_messages_limit", 3)
+    monkeypatch.setattr(sessions, "child_session_depth_limit", 3)
     monkeypatch.setattr(sessions, "still_running_update_minutes", 30)
     world = _World()
     monkeypatch.setattr(access_module, "_access_service", world.access)
@@ -959,13 +960,48 @@ async def test_a_workflow_that_is_not_an_agent_is_refused(world):
     assert _error(result)["code"] == "workflow_is_not_agent"
 
 
+def _chain(world, agent, level):
+    """Make the calling session `level` levels below a session that a person started:
+    `s-calling` has `level` calling sessions above it."""
+    above = "s-calling"
+    for depth in range(level):
+        parent = f"s-level-{level - depth - 1}"
+        world.store.streams[above].calling_session = SessionCallingSession(
+            id=parent, turn_id=str(uuid4()), agent_id=agent.id, revision_id=uuid4()
+        )
+        world.add_stream(
+            parent,
+            AccessPolicy(visibility=Visibility.PRIVATE, owner_user_id=world.ana),
+            agent_id=agent.id,
+        )
+        above = parent
+
+
 @pytest.mark.asyncio
-async def test_a_child_session_cannot_start_a_session(world):
+@pytest.mark.parametrize("level", [0, 1, 2])
+async def test_a_session_starts_a_child_up_to_the_depth_limit(world, level):
+    """A child at level 1, 2 and 3 starts: its calling session is at level 0 to 2."""
     research = world.workflows.add("market-research")
     caller, _ = world.calling(agent=research)
-    world.store.streams["s-calling"].calling_session = SessionCallingSession(
-        id="s-parent", turn_id=str(uuid4()), agent_id=research.id, revision_id=uuid4()
+    _chain(world, research, level)
+    result = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="market-research",
+        text="Go",
+        tool_call_id="t",
     )
+    assert result.ok, result.content
+    assert len(world.starts.starts) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_child_deeper_than_the_depth_limit_is_refused(world):
+    """A session at level 3 would start a child at level 4."""
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research)
+    _chain(world, research, 3)
     result = await _call(
         world,
         "start_session",
@@ -975,9 +1011,42 @@ async def test_a_child_session_cannot_start_a_session(world):
         tool_call_id="t",
     )
     error = _error(result)
-    assert error["code"] == "session_start_in_child"
+    assert error["code"] == "session_depth_limit_reached"
     assert error["next_step"] == "Do the work yourself in this session."
+    assert error["details"] == {"limit": 3}
     assert world.starts.starts == []
+
+
+@pytest.mark.asyncio
+async def test_the_depth_limit_is_the_setting(world, monkeypatch):
+    from oss.src.utils.env import env  # noqa: PLC0415
+
+    research = world.workflows.add("market-research")
+    caller, _ = world.calling(agent=research)
+    _chain(world, research, 1)
+
+    monkeypatch.setattr(env.agenta.sessions, "child_session_depth_limit", 1)
+    refused = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="market-research",
+        text="Go",
+        tool_call_id="t-1",
+    )
+    assert _error(refused)["code"] == "session_depth_limit_reached"
+    assert _error(refused)["details"] == {"limit": 1}
+
+    monkeypatch.setattr(env.agenta.sessions, "child_session_depth_limit", 2)
+    started = await _call(
+        world,
+        "start_session",
+        caller,
+        agent="market-research",
+        text="Go",
+        tool_call_id="t-2",
+    )
+    assert started.ok, started.content
 
 
 @pytest.mark.asyncio
