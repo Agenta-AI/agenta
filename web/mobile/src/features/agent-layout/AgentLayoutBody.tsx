@@ -44,7 +44,7 @@ import {
     PHONE_BELOW,
     type PanelContent,
 } from "./agentPanelState"
-import {useConfirmLeave} from "./leaveGuard"
+import {useConfirmLeave} from "./LeaveGuardProvider"
 
 // Each content loads on first use, so the session page does not carry it.
 const ConfigurationContent = dynamic(

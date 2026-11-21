@@ -28,7 +28,7 @@ import {
     useLeaveSource,
     type LeaveReason,
     type LeaveSource,
-} from "@/features/agent-layout/leaveGuard"
+} from "@/features/agent-layout/LeaveGuardProvider"
 
 afterEach(cleanup)
 beforeEach(() => {
