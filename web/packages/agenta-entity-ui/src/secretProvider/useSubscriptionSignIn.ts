@@ -76,6 +76,8 @@ export const useSubscriptionSignIn = ({
     const [lostPoll, setLostPoll] = useState(false)
     // A sign-in arrived and the vault refresh is on its way.
     const [finishing, setFinishing] = useState(false)
+    // A sign-in arrived; the view leaves once the vault lists the connection ready.
+    const [awaitingReady, setAwaitingReady] = useState(false)
     const onSignedInRef = useRef(onSignedIn)
     onSignedInRef.current = onSignedIn
     const [now, setNow] = useState(() => Date.now())
@@ -126,10 +128,8 @@ export const useSubscriptionSignIn = ({
         if (outcome === "succeeded") {
             setError(null)
             setFinishing(true)
-            void refreshVault().finally(() => {
-                setFinishing(false)
-                onSignedInRef.current?.()
-            })
+            setAwaitingReady(true)
+            void refreshVault().finally(() => setFinishing(false))
             return
         }
         if (outcome === "unreadable") {
@@ -163,6 +163,23 @@ export const useSubscriptionSignIn = ({
         refreshVault,
     ])
 
+    // A refresh that ends with the connection still not ready failed: the view stays, and says so.
+    useEffect(() => {
+        if (!awaitingReady) return
+        if (isReady) {
+            setAwaitingReady(false)
+            onSignedInRef.current?.()
+            return
+        }
+        if (finishing) return
+        // The refetched list reaches its readers a task after the refresh resolves.
+        const timer = window.setTimeout(() => {
+            setAwaitingReady(false)
+            setLostPoll(true)
+        }, 0)
+        return () => window.clearTimeout(timer)
+    }, [awaitingReady, finishing, isReady])
+
     // A sign-in that landed after all: the connection answers, so there is nothing to recover.
     useEffect(() => {
         if (lostPoll && isReady) setLostPoll(false)
@@ -173,6 +190,7 @@ export const useSubscriptionSignIn = ({
         setStarting(true)
         setError(null)
         setLostPoll(false)
+        setAwaitingReady(false)
         try {
             const secretId =
                 connection?.id ?? (await createSubscriptionConnection({provider, name, scope}))
@@ -228,6 +246,7 @@ export const useSubscriptionSignIn = ({
     const cancel = useCallback(() => {
         startRef.current += 1
         setStarting(false)
+        setAwaitingReady(false)
         if (!pending) return
         void cancelLogin({
             secretId: pending.secretId,
@@ -251,7 +270,7 @@ export const useSubscriptionSignIn = ({
         hasSignedInBefore,
         pending,
         starting,
-        finishing,
+        finishing: finishing || awaitingReady,
         error,
         lostPoll,
         now,
