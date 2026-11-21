@@ -106,9 +106,9 @@ The project has three images. Each has its own Dockerfile and build context. The
 API and Services use the repo root as their build context so the local Python SDK and generated Python client are available directly at `sdks/python` and `clients/python` during the build.
 
 ```bash
-docker build -f api/docker/Dockerfile.gh -t agenta-api-ee:latest .
+docker build -f api/docker/Dockerfile.gh -t agenta-api:latest .
 docker build -f web/ee/docker/Dockerfile.gh -t agenta-web-ee:latest web/
-docker build -f services/docker/Dockerfile.gh -t agenta-services-ee:latest .
+docker build -f services/docker/Dockerfile.gh -t agenta-services:latest .
 ```
 
 ### Step 2: Deploy with Docker Compose
@@ -126,18 +126,18 @@ docker compose \
 To point the compose file at your custom images, set these variables in your `.env` file:
 
 ```bash
-AGENTA_API_IMAGE_NAME=agenta-api-ee
+AGENTA_API_IMAGE_NAME=agenta-api
 AGENTA_API_IMAGE_TAG=latest
 AGENTA_WEB_IMAGE_NAME=agenta-web-ee
 AGENTA_WEB_IMAGE_TAG=latest
-AGENTA_SERVICES_IMAGE_NAME=agenta-services-ee
+AGENTA_SERVICES_IMAGE_NAME=agenta-services
 AGENTA_SERVICES_IMAGE_TAG=latest
 ```
 
 If you pushed the images to a private registry, use the full registry path:
 
 ```bash
-AGENTA_API_IMAGE_NAME=registry.example.com/agenta-api-ee
+AGENTA_API_IMAGE_NAME=registry.example.com/agenta-api
 AGENTA_API_IMAGE_TAG=v1.0.0
 ```
 
@@ -153,7 +153,7 @@ docker buildx create --name multiarch --use
 docker buildx build \
   --platform linux/arm64 \
   -f api/docker/Dockerfile.gh \
-  -t agenta-api-ee:latest \
+  -t agenta-api:latest \
   --load \
   .
 ```
@@ -185,7 +185,7 @@ cp hosting/docker-compose/ee/env.ee.gh.example hosting/docker-compose/ee/.env.ee
 Most optional variables can be left empty. A few are worth calling out:
 
 - **Stripe** (`STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICING`): Leave all three empty. Billing is disabled when these are unset. The application runs without usage limits.
-- **LLM provider keys** (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.): The EE edition does not use these for projects unless you also set `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=true`. With it set, a project without a saved key for a provider uses these. Leave them empty if your users will provide their own keys at runtime.
+- **LLM provider keys** (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.): A project without a saved key for a provider uses these. Set `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=false` to turn this off. Leave them empty if your users will provide their own keys at runtime.
 - **SSO / OAuth** (`GOOGLE_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_ID`, etc.): Set a provider's `CLIENT_ID` and `CLIENT_SECRET` to enable it. The frontend auto-detects which providers are configured. Leave empty to use email/password authentication only.
 - **Database** (`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_URI_*`): The compose stack includes Postgres with working defaults. Override these only if you bring your own database. **Change the default password in production.**
 
@@ -203,13 +203,13 @@ The compose stack runs these services:
 
 | Service | Image | Role |
 |---------|-------|------|
-| `api` | `agenta-api-ee` | FastAPI backend (gunicorn + uvicorn) |
+| `api` | `agenta-api` | FastAPI backend (gunicorn + uvicorn) |
 | `web` | `agenta-web-ee` | Next.js frontend |
-| `services` | `agenta-services-ee` | LLM proxy and evaluator execution |
-| `worker-streams` | `agenta-api-ee` | Stream consumers: tracing, events, records |
-| `worker-queues` | `agenta-api-ee` | Queue consumers: webhooks, triggers, interactions, evaluations |
-| `cron` | `agenta-api-ee` | Scheduled tasks (cleanup, metering) |
-| `alembic` | `agenta-api-ee` | Runs database migrations on startup |
+| `services` | `agenta-services` | LLM proxy and evaluator execution |
+| `worker-streams` | `agenta-api` | Stream consumers: tracing, events, records |
+| `worker-queues` | `agenta-api` | Queue consumers: webhooks, triggers, interactions, evaluations |
+| `cron` | `agenta-api` | Scheduled tasks (cleanup, metering) |
+| `alembic` | `agenta-api` | Runs database migrations on startup |
 | `postgres` | `postgres:18` | PostgreSQL (three databases: core, tracing, supertokens) |
 | `redis-volatile` | `redis:8` | Cache with LRU eviction |
 | `redis-durable` | `redis:8` | Persistent queues with append-only file |

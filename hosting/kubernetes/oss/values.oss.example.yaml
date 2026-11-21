@@ -125,8 +125,6 @@ agenta:
 # ================================================================== #
 # alembic:
 #   autoMigrations: true
-#   cfgPathCore: /app/oss/databases/postgres/migrations/core/alembic.ini
-#   cfgPathTracing: /app/oss/databases/postgres/migrations/tracing/alembic.ini
 #   # --- k8s-only job knobs ---
 #   activeDeadlineSeconds: 600
 #   backoffLimit: 3
