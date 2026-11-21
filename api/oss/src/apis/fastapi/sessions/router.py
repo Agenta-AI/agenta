@@ -750,6 +750,8 @@ class SessionStreamsRouter:
                 project_id=UUID(str(project_id)),
                 user_id=UUID(str(user_id)) if user_id else None,
                 session_id=payload.session_id,
+                expected_execution_id=payload.expected_execution_id,
+                arrived_at_ms=arrived_at_ms,
             )
         try:
             response = await self._service.command(
@@ -800,7 +802,13 @@ class SessionStreamsRouter:
         return response
 
     async def _record_running_turn_stop(
-        self, *, project_id: UUID, user_id: Optional[UUID], session_id: str
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+        expected_execution_id: Optional[str],
+        arrived_at_ms: int,
     ) -> None:
         """Record this Stop as the durable cancel command of `POST
         /sessions/{session_id}/cancel`, for the turn that runs now.
@@ -814,8 +822,23 @@ class SessionStreamsRouter:
         the turn running for a retry."""
         if self._commands_service is None:
             return
+        # The route check found no row: a turn running now is in a session created since,
+        # which this request has no right to stop.
+        if session_was_missing(project_id=project_id, session_id=session_id):
+            return
         stream = await self._service.fetch(project_id=project_id, session_id=session_id)
         if stream is None or not stream.flags.is_running or not stream.turn_id:
+            return
+        # The same two guards as the stop below, which cannot undo this command: a Stop
+        # that names a turn stops only that turn, and an unnamed Stop never stops a turn
+        # that started after it arrived.
+        if expected_execution_id is not None:
+            if expected_execution_id != stream.turn_id:
+                return
+        elif (
+            stream.turn_started_at is not None
+            and stream.turn_started_at.timestamp() * 1000 > arrived_at_ms
+        ):
             return
         try:
             await self._commands_service.request_cancel(

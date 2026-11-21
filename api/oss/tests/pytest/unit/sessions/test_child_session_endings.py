@@ -3,6 +3,7 @@ running turn (design D27), the `cancel_session` cause, and the server-owned
 `calling_turn_id` of a child input."""
 
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -380,12 +381,20 @@ async def test_start_once_passes_the_calling_turn_id_to_the_first_input():
 
 
 class _StopStreamsService(_StreamsService):
-    def __init__(self, *, running, order):
+    def __init__(self, *, running, order, turn_started_at=None):
         super().__init__(running=running)
         self.order = order
+        self.turn_started_at = turn_started_at
+
+    async def fetch(self, *, project_id, session_id):
+        return SimpleNamespace(
+            turn_id=EXECUTION_ID,
+            turn_started_at=self.turn_started_at,
+            flags=SimpleNamespace(is_running=self.running),
+        )
 
     async def clock_ms(self):
-        return 0
+        return 1_000_000
 
     async def command(self, **_kwargs):
         self.order.append("stop")
@@ -395,14 +404,23 @@ class _StopStreamsService(_StreamsService):
         )
 
 
-async def _stop_route(monkeypatch, *, running: bool):
+async def _stop_route(
+    monkeypatch,
+    *,
+    running: bool,
+    expected_execution_id=None,
+    turn_started_at=None,
+    session_missing: bool = False,
+):
     from oss.src.apis.fastapi.sessions import router as router_module
     from oss.src.core.sessions.streams.dtos import SessionStreamCommandRequest
 
     order: list = []
     commands = AsyncMock()
     commands.request_cancel.side_effect = lambda **_kwargs: order.append("command")
-    streams = _StopStreamsService(running=running, order=order)
+    streams = _StopStreamsService(
+        running=running, order=order, turn_started_at=turn_started_at
+    )
     route = router_module.SessionStreamsRouter(
         service=streams,
         interactions_service=AsyncMock(),
@@ -418,10 +436,14 @@ async def _stop_route(monkeypatch, *, running: bool):
         "session_recheck",
         lambda *a, **k: SimpleNamespace(checked=True),
     )
-    monkeypatch.setattr(router_module, "session_was_missing", lambda **_k: False)
+    monkeypatch.setattr(
+        router_module, "session_was_missing", lambda **_k: session_missing
+    )
     monkeypatch.setattr(router_module, "policy_for_request", lambda *a, **k: None)
     monkeypatch.setattr(router_module, "request_run_envelope", lambda *a, **k: None)
-    payload = SessionStreamCommandRequest(session_id=SESSION_ID)
+    payload = SessionStreamCommandRequest(
+        session_id=SESSION_ID, expected_execution_id=expected_execution_id
+    )
     return route, request, payload, commands, order
 
 
@@ -497,3 +519,44 @@ async def test_the_producer_workflows_service_resolves_a_static_agent(monkeypatc
     static = StaticWorkflowCatalog().retrieve_revision(slug=BUILD_KIT_WORKFLOW_SLUG)
     assert artifact_id == (static.artifact_id or static.workflow_id)
     assert workflows_service.workflows_dao.method_calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_stop_that_names_another_turn_records_no_command(monkeypatch):
+    # The stop below refuses a Stop that names an older turn; the command must not
+    # cancel the turn that runs now in its place.
+    route, request, payload, commands, order = await _stop_route(
+        monkeypatch, running=True, expected_execution_id="older-turn"
+    )
+
+    await route.set_session_stream(request, payload=payload)
+
+    assert order == ["stop"]
+    commands.request_cancel.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_stop_records_no_command_for_a_turn_that_started_after_it(monkeypatch):
+    route, request, payload, commands, order = await _stop_route(
+        monkeypatch,
+        running=True,
+        # After the request arrived (the stub clock says 1_000_000 ms).
+        turn_started_at=datetime.fromtimestamp(2_000, tz=timezone.utc),
+    )
+
+    await route.set_session_stream(request, payload=payload)
+
+    assert order == ["stop"]
+    commands.request_cancel.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_stop_whose_route_check_found_no_row_records_no_command(monkeypatch):
+    route, request, payload, commands, order = await _stop_route(
+        monkeypatch, running=True, session_missing=True
+    )
+
+    await route.set_session_stream(request, payload=payload)
+
+    assert order == ["stop"]
+    commands.request_cancel.assert_not_awaited()
