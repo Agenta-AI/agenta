@@ -124,7 +124,10 @@ function zipEntryNames(bytes: Uint8Array): string[] {
 function repeatedArchivePath(raw: RawFile[]): string | undefined {
     for (const f of raw) {
         if (!ARCHIVE_EXT.test(f.path)) continue
-        const names = zipEntryNames(f.bytes)
+        // Folders and ignored files never reach the skill, so their repeats do not count.
+        const names = zipEntryNames(f.bytes).filter(
+            (name) => !name.endsWith("/") && !IGNORED.test(name),
+        )
         const repeated = names.find((name, i) => names.indexOf(name) !== i)
         if (repeated !== undefined) return repeated
     }

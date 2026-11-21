@@ -197,6 +197,10 @@ const TWO_NOTES_ZIP =
 const TWO_LATIN1_ZIP =
     "UEsDBBQAAAAAAM9jdV2+sYzIEQAAABEAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogYQotLS0KQVBLAwQUAAAAAADPY3VdV+5xkgUAAAAFAAAABgAAAG7DqS5tZGZpcnN0UEsDBBQAAAAAAM9jdV1pER+2BgAAAAYAAAAGAAAAbsOpLm1kc2Vjb25kUEsBAhQDFAAAAAAAz2N1Xb6xjMgRAAAAEQAAAAgAAAAAAAAAAAAAAIABAAAAAFNLSUxMLm1kUEsBAhQDFAAAAAAAz2N1XVfucZIFAAAABQAAAAYAAAAAAAAAAAAAAIABNwAAAG7DqS5tZFBLAQIUAxQAAAAAAM9jdV1pER+2BgAAAAYAAAAGAAAAAAAAAAAAAACAAWAAAABuw6kubWRQSwUGAAAAAAMAAwCeAAAAigAAAAAA"
 
+// SKILL.md, the `references/` folder entry twice, and `references/a.md`.
+const TWO_FOLDER_ENTRIES_ZIP =
+    "UEsDBBQAAAAAAE9mdV2+sYzIEQAAABEAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogYQotLS0KQVBLAwQUAAAAAABPZnVdAAAAAAAAAAAAAAAACwAAAHJlZmVyZW5jZXMvUEsDBBQAAAAAAE9mdV0AAAAAAAAAAAAAAAALAAAAcmVmZXJlbmNlcy9QSwMEFAAAAAAAT2Z1XYMW3IwBAAAAAQAAAA8AAAByZWZlcmVuY2VzL2EubWR4UEsBAhQDFAAAAAAAT2Z1Xb6xjMgRAAAAEQAAAAgAAAAAAAAAAAAAAIABAAAAAFNLSUxMLm1kUEsBAhQDFAAAAAAAT2Z1XQAAAAAAAAAAAAAAAAsAAAAAAAAAAAAQAP1BNwAAAHJlZmVyZW5jZXMvUEsBAhQDFAAAAAAAT2Z1XQAAAAAAAAAAAAAAAAsAAAAAAAAAAAAQAP1BYAAAAHJlZmVyZW5jZXMvUEsBAhQDFAAAAAAAT2Z1XYMW3IwBAAAAAQAAAA8AAAAAAAAAAAAAAIABiQAAAHJlZmVyZW5jZXMvYS5tZFBLBQYAAAAABAAEAOUAAAC3AAAAAAA="
+
 const zipUpload = (base64: string) => {
     const zip = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
     const file = {name: "skill.zip", arrayBuffer: async () => zip.buffer} as unknown as File
@@ -290,6 +294,11 @@ describe("applySkillUpload", () => {
         expect(applySkillUpload(skill, await zipUpload(TWO_LATIN1_ZIP), "add")).toMatchObject({
             error: "duplicatePath",
         })
+    })
+
+    it("accepts a zip whose only repeat is a folder entry", async () => {
+        const result = applySkillUpload(skill, await zipUpload(TWO_FOLDER_ENTRIES_ZIP), "add")
+        expect("skill" in result).toBe(true)
     })
 
     it("the gallery scan of such a zip keeps one entry per path, as before", async () => {
