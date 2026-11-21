@@ -64,7 +64,7 @@ services:
         # === IMAGE ================================================ #
         build:
             context: ../../..
-            dockerfile: api/ee/docker/Dockerfile.gh
+            dockerfile: api/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         # A worker recycled at --max-requests finishes its open requests (an LLM gateway
         # stream can run for minutes) for --graceful-timeout seconds while the other
@@ -135,7 +135,7 @@ services:
         # === IMAGE ================================================ #
         build:
             context: ../../..
-            dockerfile: api/ee/docker/Dockerfile.gh
+            dockerfile: api/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command:
             [
@@ -178,7 +178,7 @@ services:
         # === IMAGE ================================================ #
         build:
             context: ../../..
-            dockerfile: api/ee/docker/Dockerfile.gh
+            dockerfile: api/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command:
             [
@@ -221,7 +221,7 @@ services:
         # === IMAGE ================================================ #
         build:
             context: ../../..
-            dockerfile: api/ee/docker/Dockerfile.gh
+            dockerfile: api/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         init: true
         command: supercronic /app/crontab
@@ -246,7 +246,7 @@ services:
         # === IMAGE ================================================ #
         build:
             context: ../../..
-            dockerfile: api/ee/docker/Dockerfile.gh
+            dockerfile: api/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command: sh -c "python -m ee.databases.postgres.migrations.runner"
         # === CONFIGURATION ======================================== #
@@ -269,7 +269,7 @@ services:
         # === IMAGE ================================================ #
         build:
             context: ../../..
-            dockerfile: services/ee/docker/Dockerfile.gh
+            dockerfile: services/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         # --keep-alive is longer than the idle timeout of the proxy in front (Traefik keeps an
         # idle connection to the worker for 90 s). If the worker closed first, a request the

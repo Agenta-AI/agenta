@@ -21,7 +21,7 @@ agenta:
 
 # ================================================================== #
 # Global (Bitnami subchart conventions, image pull secrets)
-# EE images live on a private registry (ghcr.io/agenta-ai). Create
+# The EE classic web image lives on a private registry (ghcr.io/agenta-ai). Create
 # a Secret named `ghcr-pull-secret` in this namespace before install:
 #   kubectl create secret docker-registry ghcr-pull-secret \
 #     --docker-server=ghcr.io \
@@ -34,7 +34,8 @@ global:
 
 # ================================================================== #
 # === Images ===
-# Image repository is supplied by the chart's edition-aware helper.
+# Image repository is supplied by the chart. Only the classic web (/w) image
+# depends on agenta.license.
 # Override tag/pullPolicy here if you need to pin a specific build.
 # ================================================================== #
 # api:

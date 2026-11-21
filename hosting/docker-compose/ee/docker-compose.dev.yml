@@ -6,7 +6,7 @@ services:
         image: agenta-ee-dev-api:latest
         build:
             context: ../../..
-            dockerfile: api/ee/docker/Dockerfile.dev
+            dockerfile: api/docker/Dockerfile.dev
         # === EXECUTION ============================================ #
         command: ["true"]
 
@@ -27,7 +27,7 @@ services:
         image: agenta-ee-dev-services:latest
         build:
             context: ../../..
-            dockerfile: services/ee/docker/Dockerfile.dev
+            dockerfile: services/docker/Dockerfile.dev
         # === EXECUTION ============================================ #
         command: ["true"]
 

@@ -10,8 +10,8 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
     UV_LINK_MODE=copy \
     PATH="/opt/venv/bin:${PATH}"
 
-RUN --mount=type=cache,id=apt-api-ee-dev-cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,id=apt-api-ee-dev-lists,target=/var/lib/apt/lists,sharing=locked \
+RUN --mount=type=cache,id=apt-api-dev-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=apt-api-dev-lists,target=/var/lib/apt/lists,sharing=locked \
     apt-get update && \
     apt-get install -y --no-install-recommends curl gnupg2 lsb-release ca-certificates && \
     echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \

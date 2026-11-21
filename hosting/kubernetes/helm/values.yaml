@@ -50,6 +50,9 @@
 # Agenta — License (https://agenta.ai/pricing)
 # ================================================================== #
 agenta:
+  # Picks the default database names (agenta_<license>_*) and the classic web
+  # (/w) build. The api, services and runner images are the same for both values.
+  # Changing it on an existing install points it at other, empty databases.
   license: oss
 
   # ================================================================ #

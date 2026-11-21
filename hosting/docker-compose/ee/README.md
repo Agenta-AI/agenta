@@ -93,22 +93,22 @@ Add `--no-cache` for a clean rebuild from scratch.
 
 If you need to build images outside of `run.sh` -- for example, to push to your own registry or to build for a different CPU architecture -- you can use `docker build` directly.
 
-The project has three images. Each has its own Dockerfile and build context:
+The project has three images. Each has its own Dockerfile and build context. The API and Services Dockerfiles are the same for both editions:
 
 | Image | Dockerfile | Build context |
 |-------|-----------|---------------|
-| API | `api/ee/docker/Dockerfile.gh` | repo root (`.`) |
+| API | `api/docker/Dockerfile.gh` | repo root (`.`) |
 | Web | `web/ee/docker/Dockerfile.gh` | `web/` |
-| Services | `services/ee/docker/Dockerfile.gh` | repo root (`.`) |
+| Services | `services/docker/Dockerfile.gh` | repo root (`.`) |
 
 ### Step 1: Build
 
 API and Services use the repo root as their build context so the local Python SDK and generated Python client are available directly at `sdks/python` and `clients/python` during the build.
 
 ```bash
-docker build -f api/ee/docker/Dockerfile.gh -t agenta-api-ee:latest .
+docker build -f api/docker/Dockerfile.gh -t agenta-api-ee:latest .
 docker build -f web/ee/docker/Dockerfile.gh -t agenta-web-ee:latest web/
-docker build -f services/ee/docker/Dockerfile.gh -t agenta-services-ee:latest .
+docker build -f services/docker/Dockerfile.gh -t agenta-services-ee:latest .
 ```
 
 ### Step 2: Deploy with Docker Compose
@@ -152,10 +152,10 @@ docker buildx create --name multiarch --use
 
 docker buildx build \
   --platform linux/arm64 \
-  -f api/ee/docker/Dockerfile.gh \
+  -f api/docker/Dockerfile.gh \
   -t agenta-api-ee:latest \
   --load \
-  api/
+  .
 ```
 
 Use the same approach for the `web` and `services` images.

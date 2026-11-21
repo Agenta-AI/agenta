@@ -21,7 +21,8 @@ agenta:
 
 # ================================================================== #
 # === Images ===
-# Image repository is supplied by the chart's edition-aware helper.
+# Image repository is supplied by the chart. Only the classic web (/w) image
+# depends on agenta.license.
 # Override tag/pullPolicy here if you need to pin a specific build.
 # ================================================================== #
 # api:

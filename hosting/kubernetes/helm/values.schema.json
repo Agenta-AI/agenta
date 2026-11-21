@@ -15,7 +15,7 @@
             "oss",
             "ee"
           ],
-          "description": "Edition. Emitted as AGENTA_LICENSE."
+          "description": "Picks the default database names (agenta_<license>_*) and the classic web (/w) build. The api, services and runner images are the same for both values. Emitted as AGENTA_LICENSE."
         },
         "webUrl": {
           "type": "string",
@@ -1108,14 +1108,6 @@
             "string"
           ],
           "description": "ALEMBIC_AUTO_MIGRATIONS."
-        },
-        "cfgPathCore": {
-          "type": "string",
-          "description": "ALEMBIC_CFG_PATH_CORE."
-        },
-        "cfgPathTracing": {
-          "type": "string",
-          "description": "ALEMBIC_CFG_PATH_TRACING."
         },
         "env": {
           "type": "object",

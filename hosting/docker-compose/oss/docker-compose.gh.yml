@@ -64,7 +64,7 @@ services:
         # === IMAGE ================================================ #
         # build:
         #     context: ../../..
-        #     dockerfile: api/oss/docker/Dockerfile.gh
+        #     dockerfile: api/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         # A worker recycled at --max-requests finishes its open requests (an LLM gateway
@@ -141,7 +141,7 @@ services:
         # === IMAGE ================================================ #
         # build:
         #     context: ../../..
-        #     dockerfile: api/oss/docker/Dockerfile.gh
+        #     dockerfile: api/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command:
@@ -186,7 +186,7 @@ services:
         # === IMAGE ================================================ #
         # build:
         #     context: ../../..
-        #     dockerfile: api/oss/docker/Dockerfile.gh
+        #     dockerfile: api/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command:
@@ -231,7 +231,7 @@ services:
         # === IMAGE ================================================ #
         # build:
         #     context: ../../..
-        #     dockerfile: api/oss/docker/Dockerfile.gh
+        #     dockerfile: api/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         init: true
@@ -258,7 +258,7 @@ services:
         # === IMAGE ================================================ #
         # build:
         #     context: ../../..
-        #     dockerfile: api/oss/docker/Dockerfile.gh
+        #     dockerfile: api/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: sh -c "python -m oss.databases.postgres.migrations.runner"
@@ -279,7 +279,7 @@ services:
         # === IMAGE ================================================ #
         # build:
         #     context: ../../..
-        #     dockerfile: services/oss/docker/Dockerfile.gh
+        #     dockerfile: services/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_SERVICES_IMAGE_NAME:-agenta-services}:${AGENTA_SERVICES_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         # --keep-alive is longer than the idle timeout of the proxy in front (Traefik keeps an

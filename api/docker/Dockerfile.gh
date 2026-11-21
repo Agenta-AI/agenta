@@ -46,6 +46,7 @@ RUN --mount=type=cache,id=pip-api,target=/root/.cache/pip \
     && find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 
 # Copy app code last (changes more frequently)
+COPY ./api/ee /app/ee/
 COPY ./api/oss /app/oss/
 COPY ./api/entrypoints /app/entrypoints/
 
@@ -99,11 +100,18 @@ COPY --chmod=755 ./api/oss/src/crons/triggers.sh /triggers.sh
 COPY --chmod=644 ./api/oss/src/crons/triggers.txt /etc/cron.d/triggers-cron
 COPY --chmod=755 ./api/oss/src/crons/gateways.sh /gateways.sh
 COPY --chmod=644 ./api/oss/src/crons/gateways.txt /etc/cron.d/gateways-cron
+COPY --chmod=755 ./api/ee/src/crons/meters.sh /meters.sh
+COPY --chmod=644 ./api/ee/src/crons/meters.txt /etc/cron.d/meters-cron
+COPY --chmod=755 ./api/ee/src/crons/spans.sh /spans.sh
+COPY --chmod=644 ./api/ee/src/crons/spans.txt /etc/cron.d/spans-cron
+COPY --chmod=755 ./api/ee/src/crons/events.sh /events.sh
+COPY --chmod=644 ./api/ee/src/crons/events.txt /etc/cron.d/events-cron
 
 # Copy dependencies from builder
 COPY --from=builder /opt/venv /opt/venv
 
 # Copy app code last (changes most frequently)
+COPY --chown=agenta:agenta --from=builder /app/ee /app/ee
 COPY --chown=agenta:agenta --from=builder /app/oss /app/oss
 COPY --chown=agenta:agenta --from=builder /app/entrypoints /app/entrypoints
 COPY --chown=agenta:agenta --from=builder /sdks/python /sdks/python
@@ -111,10 +119,11 @@ COPY --chown=agenta:agenta --from=builder /clients/python /clients/python
 
 # Generate supercronic-compatible crontab (strip user field and /proc redirects)
 RUN set -eux; \
-    for cron_file in /etc/cron.d/queries-cron /etc/cron.d/triggers-cron /etc/cron.d/gateways-cron; do \
+    for cron_file in /etc/cron.d/queries-cron /etc/cron.d/triggers-cron /etc/cron.d/gateways-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron /etc/cron.d/events-cron; do \
         sed -i -e '$a\' "${cron_file}"; \
     done; \
-    sed -E 's/^(([^[:space:]]+[[:space:]]+){5})root[[:space:]]+/\1/' /etc/cron.d/queries-cron /etc/cron.d/triggers-cron /etc/cron.d/gateways-cron \
+    cat /etc/cron.d/queries-cron /etc/cron.d/triggers-cron /etc/cron.d/gateways-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron /etc/cron.d/events-cron \
+        | sed -E 's/^(([^[:space:]]+[[:space:]]+){5})root[[:space:]]+/\1/' \
         | sed 's| >> /proc/1/fd/1 2>&1||' > /app/crontab && \
     chown agenta:agenta /app/crontab
 

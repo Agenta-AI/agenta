@@ -313,13 +313,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
    ================================================================ */}}
 {{- define "agenta.apiImageRepository" -}}
 {{- $img := default dict (default dict .Values.api).image -}}
-{{- if $img.repository -}}
-{{- $img.repository -}}
-{{- else if eq (include "agenta.edition" .) "ee" -}}
-ghcr.io/agenta-ai/internal-ee-agenta-api
-{{- else -}}
-ghcr.io/agenta-ai/agenta-api
-{{- end -}}
+{{- default "ghcr.io/agenta-ai/agenta-api" $img.repository -}}
 {{- end }}
 
 {{- define "agenta.apiImage" -}}
@@ -355,13 +349,7 @@ ghcr.io/agenta-ai/agenta-web
 
 {{- define "agenta.servicesImageRepository" -}}
 {{- $img := default dict (default dict .Values.services).image -}}
-{{- if $img.repository -}}
-{{- $img.repository -}}
-{{- else if eq (include "agenta.edition" .) "ee" -}}
-ghcr.io/agenta-ai/internal-ee-agenta-services
-{{- else -}}
-ghcr.io/agenta-ai/agenta-services
-{{- end -}}
+{{- default "ghcr.io/agenta-ai/agenta-services" $img.repository -}}
 {{- end }}
 
 {{- define "agenta.servicesImage" -}}
@@ -579,34 +567,6 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 ./ee/server.js
 {{- else -}}
 ./oss/server.js
-{{- end -}}
-{{- end }}
-
-{{- define "agenta.alembicRunnerModule" -}}
-{{- if eq (include "agenta.edition" .) "ee" -}}
-ee.databases.postgres.migrations.runner
-{{- else -}}
-oss.databases.postgres.migrations.runner
-{{- end -}}
-{{- end }}
-
-{{- define "agenta.alembicCfgPathCore" -}}
-{{- $a := default dict .Values.alembic -}}
-{{- if $a.cfgPathCore -}}{{- $a.cfgPathCore -}}
-{{- else if eq (include "agenta.edition" .) "ee" -}}
-/app/ee/databases/postgres/migrations/core/alembic.ini
-{{- else -}}
-/app/oss/databases/postgres/migrations/core/alembic.ini
-{{- end -}}
-{{- end }}
-
-{{- define "agenta.alembicCfgPathTracing" -}}
-{{- $a := default dict .Values.alembic -}}
-{{- if $a.cfgPathTracing -}}{{- $a.cfgPathTracing -}}
-{{- else if eq (include "agenta.edition" .) "ee" -}}
-/app/ee/databases/postgres/migrations/tracing/alembic.ini
-{{- else -}}
-/app/oss/databases/postgres/migrations/tracing/alembic.ini
 {{- end -}}
 {{- end }}
 
