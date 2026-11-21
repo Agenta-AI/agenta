@@ -52,6 +52,8 @@ On cloud, `POST /projects/` SHALL keep the Stripe plan limit from `PROJECT_LIMIT
 
 On an install that is not cloud, `POST /organizations/` SHALL refuse a new organization when the instance already has as many organizations (not deleted) as the plan allows: 1 for `self_hosted_community` and `self_hosted_registered`, no limit for a paid plan.
 
+The check counts and then creates, with no lock. Two requests at the same moment on an instance at its limit can both pass, and the instance then keeps both organizations. This is an accepted trade-off: the limit holds for every later request.
+
 #### Scenario: Second organization without a paid key
 
 - **WHEN** the instance has 1 organization, no paid key, and a user calls `POST /organizations/`

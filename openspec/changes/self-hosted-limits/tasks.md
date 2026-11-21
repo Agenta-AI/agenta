@@ -54,6 +54,7 @@ Shared files: M1 and M2 both touch `api/oss/src/services/commoners.py` (limit ch
 - [ ] 4.4 Railway: check the wrappers start on the new images; no template change needed if 4.2 holds.
 - [ ] 4.5 Public workflows 17 and 42 build from the combined Dockerfiles; 12 and 44 run the EE path.
 - [ ] 4.6 Cloud repo PR: workflows 19 and 63 drop the edition loop for API, services and runner and push one digest under both the public mirror source and `internal-ee-*`; workflow 43 mirrors it to the public names.
+- [ ] 4.7 Cloud repo PR: set `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=false` on the cloud services deployments. This is a release deploy step: it is in place before the new services image deploys to any cloud environment, and the release does not deploy the services image without it.
 
 ## M5. License text, docs and QA
 

@@ -78,7 +78,7 @@ Outside cloud, the API SHALL apply no throttles for a plan that has none, the SD
 
 ### Requirement: Old compose, Helm and Railway files keep working
 
-An install SHALL upgrade by pulling the new images under today's public names and restarting, with no edits to its compose file, Helm values or Railway template.
+An install at v0.104.0 or later SHALL upgrade by pulling the new images under today's public names and restarting, with no edits to its compose file, Helm values or Railway template. An older install first upgrades to v0.129.x (Decision 4 in design.md).
 
 #### Scenario: Compose pull and restart
 
