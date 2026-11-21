@@ -1306,10 +1306,10 @@ export async function uploadDirToSandbox(
   srcDir: string,
   destDir: string,
 ): Promise<void> {
-  const dirs: string[] = [];
+  const leaves: string[] = [];
   const files: Array<{ src: string; dest: string }> = [];
   const walk = (src: string, dest: string): void => {
-    dirs.push(dest);
+    let hasSubdir = false;
     for (const entry of readdirSync(src, { withFileTypes: true })) {
       const srcPath = join(src, entry.name);
       const destPath = `${dest}/${entry.name}`;
@@ -1324,12 +1324,14 @@ export async function uploadDirToSandbox(
           continue;
         }
       }
-      if (isDir) walk(srcPath, destPath);
-      else if (isFile) files.push({ src: srcPath, dest: destPath });
+      if (isDir) {
+        hasSubdir = true;
+        walk(srcPath, destPath);
+      } else if (isFile) files.push({ src: srcPath, dest: destPath });
     }
+    if (!hasSubdir) leaves.push(dest);
   };
   walk(srcDir, destDir);
-  const leaves = dirs.filter((dir) => !dirs.some((other) => other.startsWith(`${dir}/`)));
   await runPooled(leaves, (path) => sandbox.mkdirFs({ path }));
   await runPooled(files, ({ src, dest }) =>
     sandbox.writeFsFile({ path: dest }, readFileSync(src, "utf-8")),
