@@ -1,9 +1,33 @@
+import {createT} from "@agenta/i18n"
+import rangeCatalog from "@agenta/i18n/catalogs/observabilityUi.range"
 import {
     ALL_TIME_START,
     resolveRangePreset,
     type SortResult,
     type SortTypes,
 } from "@agenta/observability"
+
+const tNow = createT(rangeCatalog)
+
+type PresetLabel = Exclude<SortTypes, "custom" | "all time" | "">
+
+const PRESET_KEYS = {
+    "30 mins": {row: "observabilityUi.range.row30Mins", last: "observabilityUi.range.last30Mins"},
+    "1 hour": {row: "observabilityUi.range.row1Hour", last: "observabilityUi.range.last1Hour"},
+    "6 hours": {row: "observabilityUi.range.row6Hours", last: "observabilityUi.range.last6Hours"},
+    "24 hours": {
+        row: "observabilityUi.range.row24Hours",
+        last: "observabilityUi.range.last24Hours",
+    },
+    "3 days": {row: "observabilityUi.range.row3Days", last: "observabilityUi.range.last3Days"},
+    "7 days": {row: "observabilityUi.range.row7Days", last: "observabilityUi.range.last7Days"},
+    "14 days": {row: "observabilityUi.range.row14Days", last: "observabilityUi.range.last14Days"},
+    "1 month": {row: "observabilityUi.range.row1Month", last: "observabilityUi.range.last1Month"},
+    "3 months": {
+        row: "observabilityUi.range.row3Months",
+        last: "observabilityUi.range.last3Months",
+    },
+} as const satisfies Record<PresetLabel, {row: string; last: string}>
 
 export type CustomRange = NonNullable<SortResult["customRange"]>
 
@@ -35,8 +59,11 @@ export const selectedRangeLabel = (
 }
 
 /** The preset menu row's text: only "all time" is re-cased. */
-export const presetRowLabel = (label: SortTypes): string =>
-    label === "all time" ? "All time" : label
+export const presetRowLabel = (label: SortTypes): string => {
+    if (label === "all time") return tNow("observabilityUi.range.allTime")
+    const keys = PRESET_KEYS[label as PresetLabel]
+    return keys ? tNow(keys.row) : label
+}
 
 /**
  * The trigger readout. `verbose` is the observability toolbar button ("Last 24 hours"),
@@ -48,9 +75,15 @@ export const formatRangeLabel = (
     style: "verbose" | "compact" = "verbose",
 ): string => {
     const label = selectedRangeLabel(range, fallback)
-    if (style === "compact") return label === "custom" ? "Custom" : label
-    if (label === "custom") return "Custom date"
-    if (label === "all time") return "All time"
-    if (!label) return "Sort by Date"
-    return `Last ${label}`
+    if (style === "compact") {
+        if (label === "custom") return tNow("observabilityUi.range.custom")
+        return label === "all time"
+            ? tNow("observabilityUi.range.allTimeCompact")
+            : presetRowLabel(label)
+    }
+    if (label === "custom") return tNow("observabilityUi.range.customDate")
+    if (label === "all time") return tNow("observabilityUi.range.allTime")
+    if (!label) return tNow("observabilityUi.range.sortByDate")
+    const keys = PRESET_KEYS[label as PresetLabel]
+    return keys ? tNow(keys.last) : label
 }

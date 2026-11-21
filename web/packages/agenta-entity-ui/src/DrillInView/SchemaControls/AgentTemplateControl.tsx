@@ -30,10 +30,7 @@ import {
     agentRequirementsAtomFamily,
     invalidateAgentRequirements,
     isPersonalRequirement,
-    MODEL_NEEDS_SETUP_MESSAGE,
     modelRequirement,
-    NEEDS_SETUP_LABEL,
-    needsSetupReasonLabel,
     requirementAtPath,
     requirementForItem,
     workflowBuildKitUiStateAtomFamily,
@@ -41,6 +38,8 @@ import {
     type BuildKitUiState,
 } from "@agenta/entities/workflow"
 import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
+import {createT, getActiveLanguage, useT, type CatalogKey} from "@agenta/i18n"
+import agentTemplateCatalog from "@agenta/i18n/catalogs/entityUi.agentTemplate"
 import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
@@ -95,6 +94,11 @@ import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
 import {McpServersSectionBody} from "./agentTemplate/McpServersSectionBody"
 import {isNeedsSetupStatus, needsSetupStatus} from "./agentTemplate/needsSetup"
 import {NeedsSetupTag} from "./agentTemplate/NeedsSetupTag"
+import {
+    modelNeedsSetupMessage,
+    needsSetupLabel,
+    needsSetupReasonText,
+} from "./agentTemplate/needsSetupText"
 import {SectionAddButton} from "./agentTemplate/SectionAddButton"
 import {SectionChangeBody} from "./agentTemplate/SectionChangeBody"
 import {
@@ -133,21 +137,25 @@ import {
 } from "./toolUtils"
 import {useAgentTriggers} from "./TriggerManagementSection"
 
+const tNow = createT(agentTemplateCatalog)
+
 // Tooltip copy for the config-panel draft/validation indicators.
-const INVALID_ITEM_TIP: Record<ItemKind, string> = {
-    tool: "This tool is missing its name.",
-    mcp: "This server is missing its name or URL.",
-    skill: "This skill is missing its name.",
+type AgentTemplateKey = CatalogKey<typeof agentTemplateCatalog>
+
+const INVALID_ITEM_TIP: Record<ItemKind, AgentTemplateKey> = {
+    tool: "entityUi.agentTemplate.toolMissingName",
+    mcp: "entityUi.agentTemplate.serverMissingName",
+    skill: "entityUi.agentTemplate.skillMissingName",
 }
-const DRAFT_TIP: Record<string, string> = {
-    "model-harness": "Unsaved model or harness changes.",
-    instructions: "Unsaved instruction changes.",
-    tools: "Unsaved integration changes.",
-    subagents: "Unsaved subagent changes.",
-    mcp: "Unsaved MCP server changes.",
-    skills: "Unsaved skill changes.",
-    advanced: "Unsaved advanced-setting changes.",
-    permissions: "Unsaved permission changes.",
+const DRAFT_TIP: Record<string, AgentTemplateKey> = {
+    "model-harness": "entityUi.agentTemplate.draftModelHarness",
+    instructions: "entityUi.agentTemplate.draftInstructions",
+    tools: "entityUi.agentTemplate.draftTools",
+    subagents: "entityUi.agentTemplate.draftSubagents",
+    mcp: "entityUi.agentTemplate.draftMcp",
+    skills: "entityUi.agentTemplate.draftSkills",
+    advanced: "entityUi.agentTemplate.draftAdvanced",
+    permissions: "entityUi.agentTemplate.draftPermissions",
 }
 
 export interface AgentTemplateControlProps {
@@ -200,6 +208,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     disabled,
     className,
 }: AgentTemplateControlProps) {
+    const t = useT(agentTemplateCatalog)
     const {gatewayTools, workflowReference, skills: skillsBridge} = useDrillInUI()
     const config = (value ?? {}) as Record<string, unknown>
 
@@ -471,7 +480,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             const version = sectionChanges.agentVersion
             return {
                 tone: "agent" as const,
-                tooltip: `Updated by the agent${version ? ` in ${version}` : ""}`,
+                tooltip: version
+                    ? tNow("entityUi.agentTemplate.updatedByAgentIn", {version})
+                    : tNow("entityUi.agentTemplate.updatedByAgent"),
             }
         },
         [agentChangedKeys, sectionChanges.agentVersion],
@@ -498,7 +509,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             if (base) return {...base, pulse: true}
             return {
                 tone: "draft",
-                tooltip: `${draftSignal!.summary ?? "Changed here"} — pending, applies on the next run`,
+                tooltip: tNow("entityUi.agentTemplate.changedHerePending", {
+                    summary: draftSignal!.summary ?? tNow("entityUi.agentTemplate.changedHere"),
+                }),
                 pulse: true,
             }
         },
@@ -710,8 +723,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // back to the literal. List fields (tools/mcps/skills) carry real titles and pass through.
     const fieldTitle = useCallback(
         (field: string, fallback: string): string => {
-            const t = (props[field] as {title?: unknown} | undefined)?.title
-            return typeof t === "string" && t.trim() && !t.startsWith("_") ? t : fallback
+            // The schema's titles are English; in another language the translated label wins.
+            if (getActiveLanguage() !== "en") return fallback
+            const title = (props[field] as {title?: unknown} | undefined)?.title
+            return typeof title === "string" && title.trim() && !title.startsWith("_")
+                ? title
+                : fallback
         },
         [props],
     )
@@ -823,15 +840,27 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         (kind: ItemKind) =>
             (item: unknown, index: number): ItemRowStatus | undefined => {
                 if (ITEM_KINDS[kind].draftInvalid(item as Record<string, unknown>)) {
-                    return {tone: "invalid", label: "Incomplete", tooltip: INVALID_ITEM_TIP[kind]}
+                    return {
+                        tone: "invalid",
+                        label: tNow("entityUi.agentTemplate.incomplete"),
+                        tooltip: tNow(INVALID_ITEM_TIP[kind]),
+                    }
                 }
                 if (!committed) return undefined
                 const currentValue = stableStringify(stripAgentaMetadataDeep(item))
                 if ([...baseMaps[kind].values()].includes(currentValue)) return undefined
                 const prev = baseMaps[kind].get(agentItemIdentity(kind, item, index))
                 if (prev === undefined)
-                    return {tone: "new", label: "New", tooltip: "Added since the last version."}
-                return {tone: "edited", label: "Edited", tooltip: "Edited — not saved yet."}
+                    return {
+                        tone: "new",
+                        label: tNow("entityUi.agentTemplate.new"),
+                        tooltip: tNow("entityUi.agentTemplate.addedSinceLastVersion"),
+                    }
+                return {
+                    tone: "edited",
+                    label: tNow("entityUi.agentTemplate.edited"),
+                    tooltip: tNow("entityUi.agentTemplate.editedNotSaved"),
+                }
             },
         [committed, baseMaps],
     )
@@ -876,9 +905,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             ) {
                 return {
                     tone: "invalid",
-                    label: "Unresolved",
-                    tooltip:
-                        "Couldn't resolve this tool — the action may have been renamed or removed. Open it to inspect the raw definition.",
+                    label: tNow("entityUi.agentTemplate.unresolved"),
+                    tooltip: tNow("entityUi.agentTemplate.unresolvedTip"),
                 }
             }
             // A missing, turned-off or signed-out connection is the server's needs-setup check.
@@ -945,9 +973,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 // published item, never by its captured index.
                 const liveIndex = current.indexOf(item)
                 if (liveIndex === -1) {
-                    setPublishSkillError(
-                        "The skill was published to the registry, but this row changed while publishing — add it from the picker.",
-                    )
+                    setPublishSkillError(tNow("entityUi.agentTemplate.publishedRowChanged"))
                     return
                 }
                 onChange({
@@ -976,9 +1002,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             if (!head || Number(pinned) >= Number(head)) return undefined
             return {
                 tone: "incomplete" as const,
-                label: "Update available",
-                tooltip:
-                    "This skill is pinned and the registry has a newer version. Re-add it pinned to update, or switch the reference to Latest.",
+                label: tNow("entityUi.agentTemplate.updateAvailable"),
+                tooltip: tNow("entityUi.agentTemplate.updateAvailableTip"),
             }
         }
     }, [statusForKind, skillHeadVersions])
@@ -987,14 +1012,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const sectionInvalidTip = (key: string): string | null => {
         if (key === "model-harness") {
             if (mh.hasModelOrHarness && !modelIdFromConfig(config.llm))
-                return "No model is selected."
+                return t("entityUi.agentTemplate.noModelSelected")
             return null
         }
         if (key === "subagents") {
             return subagentTools.some(({item}) =>
                 ITEM_KINDS.tool.draftInvalid(item as Record<string, unknown>),
             )
-                ? "A subagent is missing its name."
+                ? t("entityUi.agentTemplate.subagentMissingName")
                 : null
         }
         if (key === "tools") {
@@ -1002,44 +1027,45 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             const owned = new Set(integrationRows.flatMap(integrationRowIndices))
             if (
                 tools.some(
-                    (t, i) =>
-                        owned.has(i) && ITEM_KINDS.tool.draftInvalid(t as Record<string, unknown>),
+                    (tool, i) =>
+                        owned.has(i) &&
+                        ITEM_KINDS.tool.draftInvalid(tool as Record<string, unknown>),
                 )
             )
-                return "An integration is missing its name."
+                return t("entityUi.agentTemplate.integrationMissingName")
             if (toolResolutionSummary.unresolved > 0)
-                return "A connected-app tool couldn't be resolved. Its action may have been renamed or removed."
+                return t("entityUi.agentTemplate.toolUnresolved")
             return null
         }
         if (key === "mcp")
             return mcpServers.some((m) => ITEM_KINDS.mcp.draftInvalid(m as Record<string, unknown>))
-                ? "An MCP server is missing its name or URL."
+                ? t("entityUi.agentTemplate.mcpMissingName")
                 : null
         if (key === "skills")
             return skills.some((s) => ITEM_KINDS.skill.draftInvalid(s as Record<string, unknown>))
-                ? "A skill is missing its name."
+                ? t("entityUi.agentTemplate.aSkillMissingName")
                 : null
         return null
     }
     // Structurally valid but missing setup the section needs to run (amber, ranks below invalid).
     const sectionIncompleteTip = (key: string): string | null => {
-        if (key === "model-harness" && modelReq) return MODEL_NEEDS_SETUP_MESSAGE
-        if (key === "tools" && toolResolutionSummary.needsSetup > 0) return NEEDS_SETUP_LABEL
-        if (key === "mcp" && mcpNeedsSetup) return NEEDS_SETUP_LABEL
-        if (key === "advanced" && secretReq) return NEEDS_SETUP_LABEL
+        if (key === "model-harness" && modelReq) return modelNeedsSetupMessage()
+        if (key === "tools" && toolResolutionSummary.needsSetup > 0) return needsSetupLabel()
+        if (key === "mcp" && mcpNeedsSetup) return needsSetupLabel()
+        if (key === "advanced" && secretReq) return needsSetupLabel()
         return null
     }
     const headerIndicator = (
         key: string,
     ): {tone: "draft" | "invalid" | "incomplete"; tooltip?: string} | undefined => {
         const invalid = sectionInvalidTip(key)
-        if (invalid) return {tone: "invalid", tooltip: invalid}
+        if (invalid !== null) return {tone: "invalid", tooltip: invalid}
         const incomplete = sectionIncompleteTip(key)
-        if (incomplete) return {tone: "incomplete", tooltip: incomplete}
+        if (incomplete !== null) return {tone: "incomplete", tooltip: incomplete}
         if (draftSectionKeys.has(key as PanelSectionKey))
             return {
                 tone: "draft",
-                tooltip: DRAFT_TIP[key] ?? "Unsaved changes.",
+                tooltip: t(DRAFT_TIP[key] ?? "entityUi.agentTemplate.unsavedChanges"),
             }
         return undefined
     }
@@ -1053,12 +1079,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // server has nothing to check. Everything else is the server's needs-setup check.
     const modelHarnessBadge: React.ReactNode =
         mh.hasModelOrHarness && !modelIdFromConfig(config.llm) ? (
-            <SectionTitleBadge label="No model" tone="error" />
+            <SectionTitleBadge label={t("entityUi.agentTemplate.noModel")} tone="error" />
         ) : modelReq ? (
-            <SectionTitleBadge label={NEEDS_SETUP_LABEL} tone="warning" />
+            <SectionTitleBadge label={needsSetupLabel()} tone="warning" />
         ) : null
     const advancedBadge: React.ReactNode = secretReq ? (
-        <SectionTitleBadge label={NEEDS_SETUP_LABEL} tone="warning" />
+        <SectionTitleBadge label={needsSetupLabel()} tone="warning" />
     ) : null
     // A tagged integration opens the drawer that picks or connects its account.
     const openIntegrationRow = useCallback(
@@ -1071,7 +1097,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     )
 
     const instructionsStatus: ItemRowStatus | undefined = draftSectionKeys.has("instructions")
-        ? {tone: "edited", label: "Edited", tooltip: "Edited — not saved yet."}
+        ? {
+              tone: "edited",
+              label: t("entityUi.agentTemplate.edited"),
+              tooltip: t("entityUi.agentTemplate.editedNotSaved"),
+          }
         : undefined
 
     // Opening the picker is where the workflow list is needed, so activate the lazy bridge here.
@@ -1111,7 +1141,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         mh.hasModelOrHarness && {
             key: "model-harness",
             icon: <Cpu size={16} />,
-            title: "Model",
+            title: t("entityUi.agentTemplate.model"),
             titleBadge: modelHarnessBadge,
             summary: mh.modelSummary,
             indicator: sectionIndicator("model-harness"),
@@ -1136,7 +1166,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     {modelReq ? (
                         <NeedsSetupTag
                             tag={false}
-                            reason={needsSetupReasonLabel(modelReq.reason)}
+                            reason={needsSetupReasonText(modelReq.reason)}
                             className="mt-1"
                         />
                     ) : null}
@@ -1146,7 +1176,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         hasInstructions && {
             key: "instructions",
             icon: <FileText size={16} />,
-            title: fieldTitle("instructions", "Instructions"),
+            title: fieldTitle("instructions", t("entityUi.agentTemplate.instructions")),
             indicator: sectionIndicator("instructions"),
             defaultOpen: true,
             content: (
@@ -1165,18 +1195,18 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             (Boolean(openIntegrationDrawer) || integrationCount > 0) && {
                 key: "tools",
                 icon: <Wrench size={16} />,
-                title: "Integrations",
+                title: t("entityUi.agentTemplate.integrations"),
                 summary: countSummary(integrationCount, "integration"),
                 indicator: sectionIndicator("tools"),
                 // "Create with AI" beside the drawer that adds one by hand.
                 extra:
                     !disabled && openIntegrationDrawer ? (
                         <CreateWithAIAddMenu
-                            label="Add integration"
-                            starterPrompt="I want to connect"
+                            label={t("entityUi.agentTemplate.addIntegration")}
+                            starterPrompt={t("entityUi.agentTemplate.integrationStarter")}
                             onManual={openIntegrationDrawer}
-                            manualTitle="Browse integrations"
-                            manualHint="Pick an app and its actions"
+                            manualTitle={t("entityUi.agentTemplate.browseIntegrations")}
+                            manualHint={t("entityUi.agentTemplate.browseIntegrationsHint")}
                             manualIcon={<Wrench size={16} />}
                         />
                     ) : undefined,
@@ -1200,12 +1230,15 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             (Boolean(openSubagentSelector) || subagentCount > 0) && {
                 key: "subagents",
                 icon: <Robot size={16} />,
-                title: "Subagents",
+                title: t("entityUi.agentTemplate.subagents"),
                 summary: countSummary(subagentCount, "subagent"),
                 indicator: sectionIndicator("subagents"),
                 extra:
                     !disabled && openSubagentSelector
-                        ? headerAddButton("Add subagent", openSubagentSelector)
+                        ? headerAddButton(
+                              t("entityUi.agentTemplate.addSubagent"),
+                              openSubagentSelector,
+                          )
                         : undefined,
                 defaultOpen: subagentCount > 0,
                 // Only the connected list can resolve a reference's type and mark a non-agent.
@@ -1218,10 +1251,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         hasMcp && {
             key: "mcp",
             icon: <HardDrives size={16} />,
-            title: fieldTitle("mcps", "MCP servers"),
+            title: fieldTitle("mcps", t("entityUi.agentTemplate.mcpServers")),
             summary: countSummary(mcpServers.length, "server"),
             indicator: sectionIndicator("mcp"),
-            extra: !disabled ? headerAddButton("Add MCP server", handleAddMcpServer) : undefined,
+            extra: !disabled
+                ? headerAddButton(t("entityUi.agentTemplate.addMcpServer"), handleAddMcpServer)
+                : undefined,
             defaultOpen: mcpServers.length > 0,
             content: (
                 <McpServersSectionBody
@@ -1242,16 +1277,16 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         hasSkills && {
             key: "skills",
             icon: <Compass size={16} />,
-            title: fieldTitle("skills", "Skills"),
+            title: fieldTitle("skills", t("entityUi.agentTemplate.skills")),
             summary: countSummary(skills.length, "skill"),
             indicator: sectionIndicator("skills"),
             extra: !disabled ? (
                 <CreateWithAIAddMenu
-                    label="Add skill"
-                    starterPrompt="I want a skill that"
+                    label={t("entityUi.agentTemplate.addSkill")}
+                    starterPrompt={t("entityUi.agentTemplate.skillStarter")}
                     onManual={handleAddSkill}
-                    manualTitle="Add manually"
-                    manualHint="From your library, or write one"
+                    manualTitle={t("entityUi.agentTemplate.addManually")}
+                    manualHint={t("entityUi.agentTemplate.addManuallyHint")}
                     manualIcon={<Compass size={16} />}
                 />
             ) : undefined,
@@ -1278,7 +1313,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         mh.hasPermissions && {
             key: "permissions",
             icon: <ShieldCheck size={16} />,
-            title: "Permissions",
+            title: t("entityUi.agentTemplate.permissions"),
             summary: mh.runnerPermissionSummary,
             indicator: sectionIndicator("permissions"),
             defaultOpen: true,
@@ -1299,7 +1334,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         mh.hasAdvanced && {
             key: "advanced",
             icon: <SlidersHorizontal size={16} />,
-            title: "Advanced",
+            title: t("entityUi.agentTemplate.advanced"),
             titleBadge: advancedBadge,
             indicator: sectionIndicator("advanced"),
             // Never self-opening: nothing in Advanced blocks a run (see `needsProviderKeyInline`).
@@ -1394,12 +1429,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                           ) : (
                                               <UploadSimple size={14} />
                                           )}
-                                          {publishing ? "Publishing…" : "Publish to registry"}
+                                          {publishing
+                                              ? t("entityUi.agentTemplate.publishing")
+                                              : t("entityUi.agentTemplate.publishToRegistry")}
                                       </Button>
                                   </TooltipTrigger>
                                   <TooltipContent side="top">
-                                      Move this inline skill to the registry; the agent will
-                                      reference it (following the latest version).
+                                      {t("entityUi.agentTemplate.publishToRegistryHint")}
                                   </TooltipContent>
                               </Tooltip>
                           </TooltipProvider>
@@ -1425,7 +1461,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                       : {text: desc.typeLabel, color: desc.typeColor}
                               }
                               subtitle={
-                                  bareChrome ? undefined : isSubagent ? "Subagent" : desc.subtitle
+                                  bareChrome
+                                      ? undefined
+                                      : isSubagent
+                                        ? t("entityUi.agentTemplate.subagent")
+                                        : desc.subtitle
                               }
                               // A skill's footer-left is its Publish action; the MCP drawer has
                               // no note; every other kind keeps it.
@@ -1434,7 +1474,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                       ? publishAction
                                       : shownEditing.kind === "mcp"
                                         ? undefined
-                                        : "Changes apply to this agent configuration"
+                                        : t("entityUi.agentTemplate.changesApply")
                               }
                               error={commitError}
                               saving={committing}
@@ -1500,7 +1540,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
 
             <SectionDrawer
                 open={openSection === "model-harness"}
-                title="Model"
+                title={t("entityUi.agentTemplate.model")}
                 icon={<Cpu size={16} />}
                 onCancel={cancelSection}
                 onSave={saveSection}
@@ -1531,7 +1571,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
 
             <SectionDrawer
                 open={openSection === "advanced"}
-                title="Advanced"
+                title={t("entityUi.agentTemplate.advanced")}
                 onCancel={cancelSection}
                 onSave={saveSection}
                 disabled={disabled || !sectionDirty}

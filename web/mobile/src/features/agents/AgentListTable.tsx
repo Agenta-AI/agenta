@@ -1,10 +1,10 @@
 import {useCallback, useState} from "react"
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn, type ListTableView} from "@agenta/ui/list-table"
-
-import {sharingCopy} from "@/lib/sharingCopy"
 
 import {AgentCardBody} from "./AgentCardBody"
 import type {AgentListGroup, AgentListRow} from "./agentListView"
@@ -24,35 +24,32 @@ import type {AgentRowActions} from "./useAgentRowActions"
  * Every column reads from its own left edge, header and cells alike: nothing here is a number,
  * and a right-aligned word column has a ragged edge exactly where the eye starts.
  */
-const AGENT_COLUMN: ListTableColumn = {
-    key: "agent",
-    label: "Agent",
-    width: "minmax(160px,2fr)",
-}
-const OWNER_COLUMN: ListTableColumn = {
-    key: "owner",
-    label: sharingCopy.ownerColumn,
-    width: "minmax(96px,1fr)",
-}
-const lastActiveColumn = (width: string): ListTableColumn => ({
-    key: "lastActive",
-    label: "Last active",
-    width,
-})
-const ACTIONS_COLUMN: ListTableColumn = {
-    key: "actions",
-    label: "Actions",
-    srOnly: true,
-    width: "24px",
-}
+type Translate = ReturnType<typeof useT<[typeof agentsList]>>
 
-const WIDE_COLUMNS: ListTableColumn[] = [
-    AGENT_COLUMN,
-    OWNER_COLUMN,
-    lastActiveColumn("96px"),
-    ACTIONS_COLUMN,
-]
-const NARROW_COLUMNS: ListTableColumn[] = [AGENT_COLUMN, lastActiveColumn("76px"), ACTIONS_COLUMN]
+const columnsFor = (narrow: boolean, t: Translate): ListTableColumn[] => {
+    const agent: ListTableColumn = {
+        key: "agent",
+        label: t("agents.list.columnAgent"),
+        width: "minmax(160px,2fr)",
+    }
+    const owner: ListTableColumn = {
+        key: "owner",
+        label: t("agents.list.columnOwner"),
+        width: "minmax(96px,1fr)",
+    }
+    const lastActive: ListTableColumn = {
+        key: "lastActive",
+        label: t("agents.list.columnLastActive"),
+        width: narrow ? "76px" : "96px",
+    }
+    const actions: ListTableColumn = {
+        key: "actions",
+        label: t("agents.list.columnActions"),
+        srOnly: true,
+        width: "24px",
+    }
+    return narrow ? [agent, lastActive, actions] : [agent, owner, lastActive, actions]
+}
 
 /** Tailwind's `sm`. Below it Created by goes; the minima then fit a 375px screen — 76px is
  * what the "Last active" header needs to stay on one line beside a "15d ago" cell. */
@@ -86,6 +83,7 @@ export const AgentListTable = ({
     // Picks the COLUMN SET, not a `display` value: header and body read one array. Asked as
     // "wide?" because the shared hook starts false before it reads the viewport, and a phone
     // is the common case here — the wide-first paint was visible.
+    const t = useT(agentsList)
     const narrow = !useMediaQuery(WIDE_QUERY)
 
     const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
@@ -101,7 +99,7 @@ export const AgentListTable = ({
 
     return (
         <ListTable
-            columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
+            columns={columnsFor(narrow, t)}
             minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
             view={view}
             // A card holds three lines of description; narrower than this they wrap to four

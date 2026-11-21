@@ -110,7 +110,7 @@ function DrawerHost({initial}: {initial: ParsedGatewayConnection}) {
                 : {...current, connection: account.slug, accountSource: undefined},
         )
     return (
-        <div data-vrt-subject className="min-h-[560px]">
+        <div className="min-h-[560px]">
             <IntegrationPermissionDrawer
                 open
                 onClose={() => undefined}

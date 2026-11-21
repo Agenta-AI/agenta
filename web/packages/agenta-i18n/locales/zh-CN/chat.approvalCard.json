@@ -1,0 +1,20 @@
+{
+    "alwaysAutoApprove": "始终自动审批",
+    "answerSavedRetry": "答案已保存，需要重试",
+    "answerSavedRetryHint": "答案已保存。发送下一条消息以重试继续运行。",
+    "answerSavedWaiting": "答案已保存。正在等待 Agent 的下一次更新…",
+    "answeredWaiting": "已回答，等待 Agent",
+    "approve": "审批",
+    "approveAll": "全部审批",
+    "cancel": "取消",
+    "deny": "拒绝",
+    "denyAll": "全部拒绝",
+    "denyAndSend": "拒绝并发送",
+    "hideDetails": "隐藏详情",
+    "needsApproval": "需要你的审批",
+    "redirect": "改变方向",
+    "seeWhatChanges": "查看将变更的内容（{{count}}）",
+    "seeWhatRuns": "查看将运行的内容（{{count}}）",
+    "steerHint": "拒绝此步骤，并告诉 Agent 改做什么。你的备注会作为下一条消息发送。",
+    "steerPlaceholder": "例如：写入测试环境，而不是生产环境，或者让它做完全不同的事"
+}

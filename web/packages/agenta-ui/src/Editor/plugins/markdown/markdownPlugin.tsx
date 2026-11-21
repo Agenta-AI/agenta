@@ -2,6 +2,8 @@ import {useEffect, useLayoutEffect, useCallback, useRef} from "react"
 import * as React from "react"
 import type {JSX} from "react"
 
+import {createT} from "@agenta/i18n"
+import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
 import {$createCodeNode, $isCodeNode} from "@lexical/code"
 import {$convertFromMarkdownString} from "@lexical/markdown"
 import {AutoLinkPlugin, createLinkMatcherWithRegExp} from "@lexical/react/LexicalAutoLinkPlugin"
@@ -38,6 +40,8 @@ import {$convertToMarkdownStringCustom, PLAYGROUND_TRANSFORMERS} from "./assets/
 import {SET_MARKDOWN_VIEW, TOGGLE_MARKDOWN_VIEW} from "./commands"
 import TableCellResizerPlugin from "./TableCellResizerPlugin"
 import {importMarkdownWithHtmlBatches} from "./utils/htmlImport"
+
+const tNow = createT(uiEditorCatalog)
 
 const URL_REGEX =
     /((https?:\/\/(www\.)?)|(www\.))[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)(?<![-.+():%])/
@@ -215,7 +219,7 @@ const MarkdownPlugin = ({
 
             const removeOverlay = showEditorLoadingOverlay(
                 editor,
-                overlayMessage ?? "Switching markdown view…",
+                overlayMessage ?? tNow("ui.editor.switchingMarkdown"),
             )
 
             deferLargePasteUpdate(() => {
@@ -231,7 +235,7 @@ const MarkdownPlugin = ({
         (nextMarkdownView?: boolean) => {
             let shouldRunToggle = false
             let shouldDeferToggle = false
-            let overlayMessage = "Switching markdown view…"
+            let overlayMessage = tNow("ui.editor.switchingMarkdown")
 
             editor.getEditorState().read(() => {
                 const root = $getRoot()
@@ -248,12 +252,12 @@ const MarkdownPlugin = ({
 
                 if (isCurrentlyMarkdown) {
                     shouldDeferToggle = isLargeRichTextDocument(firstChild.getTextContent())
-                    overlayMessage = "Rendering markdown preview…"
+                    overlayMessage = tNow("ui.editor.renderingMarkdown")
                     return
                 }
 
                 shouldDeferToggle = largeDocumentMode || isEditorLargeDocument(editor)
-                overlayMessage = "Switching to markdown source…"
+                overlayMessage = tNow("ui.editor.switchingToSource")
             })
 
             if (!shouldRunToggle) {

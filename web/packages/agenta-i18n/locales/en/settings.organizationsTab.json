@@ -1,0 +1,19 @@
+{
+    "chooseMember": "Choose a member",
+    "createFailed": "Couldn't create it",
+    "deleteBody": "Permanently deletes {{name}}, with every workspace, project and agent in it.",
+    "deleteFailed": "Couldn't delete this organization",
+    "deleteTitle": "Delete organization",
+    "inviteFirst": "Invite someone to this organization first; ownership can only pass to a member.",
+    "namePlaceholder": "Organization name",
+    "newDescription": "An organization groups your workspaces, projects and the people in them.",
+    "newTitle": "New organization",
+    "noProjectYet": "{{name}} has no project to open yet",
+    "renameFailed": "Couldn't rename this organization",
+    "thisOrganization": "this organization",
+    "thisOrganizationCapital": "This organization",
+    "transfer": "Transfer",
+    "transferDescription": "The new owner gets full control of {{name}}. You stay a member.",
+    "transferFailed": "Couldn't transfer ownership",
+    "transferTitle": "Transfer ownership"
+}

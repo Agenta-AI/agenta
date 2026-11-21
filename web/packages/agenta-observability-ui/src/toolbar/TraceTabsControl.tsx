@@ -1,5 +1,7 @@
 import {useCallback} from "react"
 
+import {useT} from "@agenta/i18n"
+import toolbarCatalog from "@agenta/i18n/catalogs/observabilityUi.toolbar"
 import {filtersAtom, traceTabsAtom, type TraceTabTypes} from "@agenta/observability"
 import {getHostQueryClient} from "@agenta/shared/api"
 import {Segmented, type SegmentedProps, type SegmentedValue} from "@agenta/ui/ui"
@@ -7,17 +9,17 @@ import {useAtom, useAtomValue} from "jotai"
 
 import {useDropFilterField, useUpdateFilter} from "./filterControls"
 
-const TRACE_TAB_OPTIONS: SegmentedProps["options"] = [
-    {label: "Root", value: "trace"},
-    {label: "LLM", value: "chat"},
-    {label: "All", value: "span"},
-]
-
 /**
  * Root / LLM / All. "LLM" is not a projection of its own — it is the `span` projection plus a
  * `span_type=chat` filter, so the control owns that coupling in both directions.
  */
 export const TraceTabsControl = () => {
+    const t = useT(toolbarCatalog)
+    const options: SegmentedProps["options"] = [
+        {label: t("observabilityUi.toolbar.tabRoot"), value: "trace"},
+        {label: t("observabilityUi.toolbar.tabLlm"), value: "chat"},
+        {label: t("observabilityUi.toolbar.tabAll"), value: "span"},
+    ]
     const [traceTabs, setTraceTabs] = useAtom(traceTabsAtom)
     const filters = useAtomValue(filtersAtom)
     const dropFilterField = useDropFilterField()
@@ -45,8 +47,8 @@ export const TraceTabsControl = () => {
 
     return (
         <Segmented
-            aria-label="Trace projection"
-            options={TRACE_TAB_OPTIONS}
+            aria-label={t("observabilityUi.toolbar.traceProjection")}
+            options={options}
             value={traceTabs}
             onChange={onChange}
         />

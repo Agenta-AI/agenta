@@ -5,6 +5,8 @@
  */
 import {type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {Tag} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
@@ -147,6 +149,7 @@ export function ItemRow({
     extra?: ReactNode
     status?: ItemRowStatus
 }) {
+    const t = useT(configItemsCatalog)
     // `disabled` counts: a disabled row that still reads as a button invokes a handler that no-ops.
     const interactive = Boolean(onEdit) && !locked && !disabled
     return (
@@ -202,21 +205,21 @@ export function ItemRow({
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
                 {status ? <StatusTag status={status} /> : null}
-                {descriptor.tags.map((tag) => {
+                {descriptor.tags.map((tag, index) => {
                     const label = typeof tag === "string" ? tag : tag.label
                     const tone = typeof tag === "string" ? undefined : tag.tone
                     return (
-                        <Tag key={label} tone={tone} className={TAG_CLS}>
+                        <Tag key={index} tone={tone} className={TAG_CLS}>
                             {label}
                         </Tag>
                     )
                 })}
-                {locked ? <Tag className={TAG_CLS}>Locked</Tag> : null}
+                {locked ? <Tag className={TAG_CLS}>{t("entityUi.configItems.locked")}</Tag> : null}
                 {extra}
                 {onRemove && !disabled && !locked ? (
                     <button
                         type="button"
-                        aria-label="Remove"
+                        aria-label={t("entityUi.configItems.remove")}
                         onClick={(e) => {
                             e.stopPropagation()
                             onRemove()
@@ -254,6 +257,7 @@ export function ItemChildRow({
     disabled?: boolean
     status?: ItemRowStatus
 }) {
+    const t = useT(configItemsCatalog)
     return (
         <div
             style={status ? {boxShadow: `inset 2px 0 0 ${STATUS_ACCENT[status.tone]}`} : undefined}
@@ -296,7 +300,7 @@ export function ItemChildRow({
                 {onRemove && !disabled ? (
                     <button
                         type="button"
-                        aria-label="Remove"
+                        aria-label={t("entityUi.configItems.remove")}
                         onClick={(e) => {
                             e.stopPropagation()
                             onRemove()
@@ -328,9 +332,13 @@ export function InstructionsFileRow({
     onOpen: () => void
     status?: ItemRowStatus
 }) {
+    const t = useT(configItemsCatalog)
     const descriptor = describeInstruction(filename, content)
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length
-    const meta = wordCount > 0 ? `${wordCount} word${wordCount === 1 ? "" : "s"}` : "empty"
+    const meta =
+        wordCount > 0
+            ? t("entityUi.configItems.wordCount", {count: wordCount})
+            : t("entityUi.configItems.empty")
     return (
         <div
             role="button"

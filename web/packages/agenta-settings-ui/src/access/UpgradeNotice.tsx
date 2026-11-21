@@ -1,5 +1,8 @@
 import type {ReactNode} from "react"
 
+import {richText, useT} from "@agenta/i18n"
+import settingsAccessCatalog from "@agenta/i18n/catalogs/settings.access"
+
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 
 export interface UpgradeNoticeProps {
@@ -12,18 +15,23 @@ export interface UpgradeNoticeProps {
 }
 
 /** Stands in for a section the current plan does not include, framed like every empty page. */
-export const UpgradeNotice = ({icon, title, description, action}: UpgradeNoticeProps) => (
-    <SettingsEmpty
-        icon={icon}
-        title={title}
-        description={
-            <>
-                {description}
-                <span className="mt-2 block">
-                    Available on <strong>Business</strong> and <strong>Enterprise</strong> plans.
-                </span>
-            </>
-        }
-        action={action}
-    />
-)
+export const UpgradeNotice = ({icon, title, description, action}: UpgradeNoticeProps) => {
+    const t = useT(settingsAccessCatalog)
+    return (
+        <SettingsEmpty
+            icon={icon}
+            title={title}
+            description={
+                <>
+                    {description}
+                    <span className="mt-2 block">
+                        {richText(t("settings.access.availableOnPlans"), {
+                            strong: (text) => <strong>{text}</strong>,
+                        })}
+                    </span>
+                </>
+            }
+            action={action}
+        />
+    )
+}

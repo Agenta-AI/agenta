@@ -1,0 +1,12 @@
+{
+    "remove": "移除",
+    "about": "关于 {{label}}",
+    "cancel": "取消",
+    "sections": "分区",
+    "add": "添加",
+    "notSet": "未设置",
+    "empty": "空",
+    "committedValue": "已提交的值",
+    "removeChange": "移除更改",
+    "restore": "恢复"
+}

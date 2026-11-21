@@ -4,15 +4,24 @@
  * placeholder here, so for Slack each string is the deck's own. Placeholders are functions.
  */
 import {joinNames} from "@agenta/entity-ui/sharing"
+import {createT} from "@agenta/i18n"
+import channelsSharingCatalog from "@agenta/i18n/catalogs/channels.sharing"
+
+const t = createT(channelsSharingCatalog)
 
 export const channelSharingCopy = {
     // Settings > Channels, the agent step.
     audienceNote: (project: string, platform: string) =>
-        `For a shared agent, everyone in ${project} can read its ${platform} conversations in Agenta, including direct messages. For a private agent, new conversations are private to its owner.`,
+        t("channels.sharing.audienceNote", {project, platform}),
 
     // The manage panel of a connection whose binding is off.
     connectionRow: (platform: string, place: string) => `${platform} · ${place}`,
-    off: "Off",
-    offIn: (places: readonly string[]) => `Off · in ${joinNames(places)}`,
-    turnOn: "Turn on",
+    // Getters: the text is read at render, in the current language.
+    get off() {
+        return t("channels.sharing.off")
+    },
+    offIn: (places: readonly string[]) => t("channels.sharing.offIn", {places: joinNames(places)}),
+    get turnOn() {
+        return t("channels.sharing.turnOn")
+    },
 } as const

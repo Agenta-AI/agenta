@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import addToTestsetCatalog from "@agenta/i18n/catalogs/observability.addToTestset"
 import {Alert, Button, cn, Combobox, Input, SkeletonBlock} from "@agenta/ui/ui"
 import {ArrowRightIcon, PlusIcon, TrashIcon} from "@phosphor-icons/react"
 
@@ -30,6 +32,7 @@ export const MappingRows = ({
     onAdd: () => void
     onRemove: (id: string) => void
 }) => {
+    const t = useT(addToTestsetCatalog)
     const hasDuplicates = duplicates.length > 0
     const paths = pathOptions.map((path) => ({value: path, label: path, searchValue: path}))
 
@@ -47,10 +50,10 @@ export const MappingRows = ({
                 <Alert
                     type="error"
                     showIcon
-                    message="Couldn't load the test set columns"
+                    message={t("observability.addToTestset.couldNotLoadColumns")}
                     action={
                         <Button variant="outline" size="sm" onClick={onRetryColumns}>
-                            Try again
+                            {t("observability.addToTestset.tryAgain")}
                         </Button>
                     }
                 />
@@ -66,7 +69,11 @@ export const MappingRows = ({
                             .map((other) => other.column),
                     )
                     const columnOptions = [
-                        {value: CREATE_NEW, label: "Create New", searchValue: "Create New"},
+                        {
+                            value: CREATE_NEW,
+                            label: t("observability.addToTestset.createNew"),
+                            searchValue: t("observability.addToTestset.createNew"),
+                        },
                         ...columns
                             .filter((column) => !taken.has(column))
                             .map((column) => ({value: column, label: column, searchValue: column})),
@@ -79,12 +86,14 @@ export const MappingRows = ({
                             data-testid="mapping-row"
                         >
                             <Combobox
-                                aria-label={`Data path ${index + 1}`}
+                                aria-label={t("observability.addToTestset.dataPath", {
+                                    index: index + 1,
+                                })}
                                 className="min-w-0 sm:flex-1"
                                 options={paths}
                                 value={row.path || undefined}
                                 onChange={(path) => onEdit(row.id, {path: path ?? ""})}
-                                placeholder="Select a data path"
+                                placeholder={t("observability.addToTestset.selectDataPath")}
                             />
                             <ArrowRightIcon
                                 size={16}
@@ -94,7 +103,9 @@ export const MappingRows = ({
                             <div className="flex min-w-0 flex-col gap-1 sm:flex-1">
                                 {isNewTestset ? null : (
                                     <Combobox
-                                        aria-label={`Column ${index + 1}`}
+                                        aria-label={t("observability.addToTestset.columnN", {
+                                            index: index + 1,
+                                        })}
                                         options={columnOptions}
                                         value={
                                             row.isNewColumn ? CREATE_NEW : row.column || undefined
@@ -107,13 +118,15 @@ export const MappingRows = ({
                                                     : {isNewColumn: false, column: next ?? ""},
                                             )
                                         }
-                                        placeholder="Select a column"
+                                        placeholder={t("observability.addToTestset.selectColumn")}
                                     />
                                 )}
                                 {showsName ? (
                                     <Input
-                                        aria-label={`Column name ${index + 1}`}
-                                        placeholder="Column name"
+                                        aria-label={t("observability.addToTestset.columnNameN", {
+                                            index: index + 1,
+                                        })}
+                                        placeholder={t("observability.addToTestset.columnName")}
                                         value={row.column}
                                         onChange={(event) =>
                                             onEdit(row.id, {column: event.target.value})
@@ -124,7 +137,9 @@ export const MappingRows = ({
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label={`Remove mapping ${index + 1}`}
+                                aria-label={t("observability.addToTestset.removeMapping", {
+                                    index: index + 1,
+                                })}
                                 className="self-end sm:self-start"
                                 onClick={() => onRemove(row.id)}
                             >
@@ -135,7 +150,7 @@ export const MappingRows = ({
                 })}
                 <Button variant="outline" size="sm" className="self-start" onClick={onAdd}>
                     <PlusIcon />
-                    Add field
+                    {t("observability.addToTestset.addField")}
                 </Button>
             </>
         )
@@ -145,7 +160,7 @@ export const MappingRows = ({
         <section className="flex flex-col gap-2">
             <div>
                 <h3 className={cn("m-0 text-sm font-medium", hasDuplicates && "text-destructive")}>
-                    2. Map fields
+                    {t("observability.addToTestset.step2Title")}
                 </h3>
                 <p
                     className={cn(
@@ -154,10 +169,10 @@ export const MappingRows = ({
                     )}
                 >
                     {hasDuplicates
-                        ? "Duplicate columns detected. Ensure each column is unique."
+                        ? t("observability.addToTestset.duplicateColumns")
                         : mappings.length > 0
-                          ? "Your field mappings are shown below. You can also add mappings manually."
-                          : "Add a mapping to choose what goes into each column."}
+                          ? t("observability.addToTestset.mappingsShown")
+                          : t("observability.addToTestset.addMappingHint")}
                 </p>
             </div>
             {body()}

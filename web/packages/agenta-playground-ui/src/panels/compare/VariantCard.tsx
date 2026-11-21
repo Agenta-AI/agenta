@@ -2,6 +2,8 @@ import {memo} from "react"
 
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {Tag} from "@agenta/ui/components"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
@@ -51,6 +53,7 @@ const IconAction = ({
  */
 export const VariantCard = memo(
     ({revisionId, index, count, onMove, onClose, onShow}: VariantCardProps) => {
+        const t = useT(panelsCatalog)
         const name = useAtomValue(workflowMolecule.selectors.variantLabel(revisionId)) ?? ""
         const version = useAtomValue(workflowMolecule.selectors.data(revisionId))?.version ?? null
         const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(revisionId))
@@ -72,8 +75,9 @@ export const VariantCard = memo(
                             <>
                                 <Tag draft />
                                 <span className="truncate text-muted-foreground">
-                                    from {name}
-                                    {version !== null ? ` v${version}` : ""}
+                                    {version !== null
+                                        ? t("playground.panels.fromNameVersion", {name, version})
+                                        : t("playground.panels.fromName", {name})}
                                 </span>
                             </>
                         ) : (
@@ -87,27 +91,32 @@ export const VariantCard = memo(
                         )}
                     </button>
                     <IconAction
-                        label="Move left"
+                        label={t("playground.panels.moveLeft")}
                         disabled={index === 0}
                         onClick={() => onMove(revisionId, -1)}
                     >
                         <CaretLeft aria-hidden />
                     </IconAction>
                     <IconAction
-                        label="Move right"
+                        label={t("playground.panels.moveRight")}
                         disabled={index === count - 1}
                         onClick={() => onMove(revisionId, 1)}
                     >
                         <CaretRight aria-hidden />
                     </IconAction>
-                    <IconAction label="Close" onClick={() => onClose(revisionId)}>
+                    <IconAction
+                        label={t("playground.panels.close")}
+                        onClick={() => onClose(revisionId)}
+                    >
                         <X aria-hidden />
                     </IconAction>
                 </div>
                 <dl className="m-0 grid grid-cols-[1fr_auto] gap-x-2 gap-y-1 text-xs">
-                    <dt className="text-muted-foreground">Average latency</dt>
+                    <dt className="text-muted-foreground">
+                        {t("playground.panels.averageLatency")}
+                    </dt>
                     <dd className="m-0 text-right tabular-nums">{averages.latency}</dd>
-                    <dt className="text-muted-foreground">Average cost</dt>
+                    <dt className="text-muted-foreground">{t("playground.panels.averageCost")}</dt>
                     <dd className="m-0 text-right tabular-nums">
                         {averages.tokens} / {averages.cost}
                     </dd>

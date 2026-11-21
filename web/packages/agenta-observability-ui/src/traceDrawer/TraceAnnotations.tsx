@@ -4,6 +4,8 @@ import {groupAnnotationsByReferenceId} from "@agenta/entities/annotation/dto"
 import {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {evaluatorsListDataAtom, type Workflow} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import {getStringOrJson} from "@agenta/shared/utils"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
@@ -40,6 +42,7 @@ interface AnnotationGroup {
 }
 
 const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
+    const t = useT(spanCatalog)
     const [isAnnotationsPopoverOpen, setIsAnnotationsPopoverOpen] = useState<string | null>(null)
     const getPopoverKey = (refId: string, key: string) => `${refId}-${key}`
     const evaluators = useAtomValue(evaluatorsListDataAtom)
@@ -139,7 +142,9 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
     const getSummaryValue = (metric: AnnotationChipEntry) => {
         if (metric.category === "metric") {
             if (metric.latest !== undefined) {
-                return metric.latest ? "True" : "False"
+                return metric.latest
+                    ? t("observabilityUi.traceSpan.true")
+                    : t("observabilityUi.traceSpan.false")
             }
             if (metric.average !== undefined) {
                 return `μ ${metric.average}`
@@ -199,15 +204,15 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                         <div className="flex items-center gap-2 truncate overflow-hidden">
                                             <span>
                                                 {metric.latest !== undefined
-                                                    ? "Value:"
-                                                    : "Total mean:"}
+                                                    ? t("observabilityUi.traceSpan.valueLabel")
+                                                    : t("observabilityUi.traceSpan.totalMean")}
                                             </span>
                                             <ValueTag
                                                 value={
                                                     metric.latest !== undefined
                                                         ? metric.latest
-                                                            ? "True"
-                                                            : "False"
+                                                            ? t("observabilityUi.traceSpan.true")
+                                                            : t("observabilityUi.traceSpan.false")
                                                         : `μ ${metric.average}`
                                                 }
                                                 className={booleanColorClass}

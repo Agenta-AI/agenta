@@ -1,6 +1,10 @@
+import {createT} from "@agenta/i18n"
+import sessionsRowsCatalog from "@agenta/i18n/catalogs/sessions.rows"
 import type {SessionRowVm} from "@agenta/sessions/row"
 
 import type {SessionMenuEntry} from "./menu"
+
+const tNow = createT(sessionsRowsCatalog)
 
 export const OPEN_SESSION_AUTOMATION_ACTION = "open-automation"
 export const VIEW_SESSION_DELIVERY_ACTION = "view-delivery"
@@ -17,10 +21,13 @@ export function sessionAutomationMenuEntries(
 
     const entries: SessionMenuEntry[] = []
     if (row.automation?.id) {
-        entries.push({key: OPEN_SESSION_AUTOMATION_ACTION, label: "Open automation"})
+        entries.push({
+            key: OPEN_SESSION_AUTOMATION_ACTION,
+            label: tNow("sessions.rows.openAutomation"),
+        })
     }
     if (row.deliveryId) {
-        entries.push({key: VIEW_SESSION_DELIVERY_ACTION, label: "View delivery"})
+        entries.push({key: VIEW_SESSION_DELIVERY_ACTION, label: tNow("sessions.rows.viewDelivery")})
     }
     return entries
 }

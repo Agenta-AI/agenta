@@ -1,6 +1,8 @@
 import {useEffect, useRef, useState} from "react"
 
 import type {TurnFigures} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import chatTurnFooterCatalog from "@agenta/i18n/catalogs/chat.turnFooter"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {ChatActionIconButton, MetaSeparator} from "@agenta/ui/components/presentational"
 import {ArrowClockwise, Check, Copy, TreeStructure} from "@phosphor-icons/react"
@@ -64,6 +66,7 @@ export const TurnFooter = ({
     /** Send the failed turn again. Omitted hides the button. */
     onRetry?: () => void
 }) => {
+    const t = useT(chatTurnFooterCatalog)
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     const [copied, setCopied] = useState(false)
     const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -111,7 +114,7 @@ export const TurnFooter = ({
             {hasActions ? <MetaSeparator className="first:hidden" /> : null}
             {showCopy ? (
                 <ChatActionIconButton
-                    label={copied ? "Copied" : "Copy"}
+                    label={copied ? t("chat.turnFooter.copied") : t("chat.turnFooter.copy")}
                     icon={copied ? <Check size={12} /> : <Copy size={12} />}
                     onClick={handleCopy}
                     // The check that replaces the icon is the feedback; a tooltip only repeats it.
@@ -120,21 +123,23 @@ export const TurnFooter = ({
             ) : null}
             {onRetry ? (
                 <ChatActionIconButton
-                    label="Try again"
+                    label={t("chat.turnFooter.tryAgain")}
                     icon={<ArrowClockwise size={12} />}
                     onClick={onRetry}
                 />
             ) : null}
             {onRewind ? (
                 <ChatActionIconButton
-                    label={isUser ? "Edit and re-run" : "Re-run this turn"}
+                    label={
+                        isUser ? t("chat.turnFooter.editAndRerun") : t("chat.turnFooter.rerunTurn")
+                    }
                     icon={<ArrowClockwise size={12} />}
                     onClick={onRewind}
                 />
             ) : null}
             {showTrace ? (
                 <ChatActionIconButton
-                    label="View trace"
+                    label={t("chat.turnFooter.viewTrace")}
                     icon={<TreeStructure size={12} />}
                     onClick={() => onViewTrace?.(traceId as string)}
                 />

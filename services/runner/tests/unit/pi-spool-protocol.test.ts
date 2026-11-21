@@ -14,9 +14,9 @@ describe("Pi trace spool protocol", () => {
   it("parses the bounded per-turn control contract", () => {
     assert.deepEqual(
       parsePiTurnTraceControl({
-        version: 1,
+        version: 2,
         channelId: CHANNEL,
-        turnId: "turn-1",
+        sessionTurnId: "turn-1",
         sessionId: "session-1",
         propagation: { traceparent: "00-a-b-01", baggage: "tenant=x" },
         capture: { content: false },
@@ -25,9 +25,9 @@ describe("Pi trace spool protocol", () => {
         redaction: { knownValues: ["secret-value", null] },
       }),
       {
-        version: 1,
+        version: 2,
         channelId: CHANNEL,
-        turnId: "turn-1",
+        sessionTurnId: "turn-1",
         sessionId: "session-1",
         propagation: { traceparent: "00-a-b-01", baggage: "tenant=x" },
         capture: { content: false },
@@ -39,7 +39,7 @@ describe("Pi trace spool protocol", () => {
   });
 
   it("carries the custom connection flag only when it is true", () => {
-    const base = { version: 1, channelId: CHANNEL };
+    const base = { version: 2, channelId: CHANNEL };
     assert.equal(
       parsePiTurnTraceControl({ ...base, customConnection: true })
         .customConnection,
@@ -56,11 +56,11 @@ describe("Pi trace spool protocol", () => {
 
   it("rejects unknown versions and malformed channel ids", () => {
     assert.throws(
-      () => parsePiTurnTraceControl({ version: 2, channelId: CHANNEL }),
+      () => parsePiTurnTraceControl({ version: 1, channelId: CHANNEL }),
       /Unsupported Pi trace control version/,
     );
     assert.throws(
-      () => parsePiTurnTraceControl({ version: 1, channelId: "../escape" }),
+      () => parsePiTurnTraceControl({ version: 2, channelId: "../escape" }),
       /channelId is invalid/,
     );
   });

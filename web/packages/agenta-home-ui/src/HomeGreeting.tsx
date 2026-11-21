@@ -1,4 +1,6 @@
 import {useProfile} from "@agenta/entities/profile"
+import {useT} from "@agenta/i18n"
+import greetingCatalog from "@agenta/i18n/catalogs/home.greeting"
 
 /**
  * 05:00–11:59 morning, 12:00–16:59 afternoon, 17:00–04:59 evening.
@@ -6,10 +8,10 @@ import {useProfile} from "@agenta/entities/profile"
  * The small hours read as evening rather than morning: someone up at 3am is at the end of a long
  * day, not the start of one.
  */
-const greetingFor = (hour: number): string => {
-    if (hour >= 5 && hour < 12) return "Good morning"
-    if (hour >= 12 && hour < 17) return "Good afternoon"
-    return "Good evening"
+const greetingPart = (hour: number): "morning" | "afternoon" | "evening" => {
+    if (hour >= 5 && hour < 12) return "morning"
+    if (hour >= 12 && hour < 17) return "afternoon"
+    return "evening"
 }
 
 /**
@@ -39,6 +41,7 @@ const displayName = (username: string | undefined): string | null => {
  * rendering fault, and the heading is what the eye goes to either way.
  */
 export const HomeGreeting = ({title}: {title: string}) => {
+    const t = useT(greetingCatalog)
     const {user} = useProfile()
     const name = displayName(user?.username)
 
@@ -46,7 +49,7 @@ export const HomeGreeting = ({title}: {title: string}) => {
         <div className="flex flex-col gap-1.5 px-1.5">
             {name ? (
                 <span className="font-mono text-[11px] uppercase leading-none tracking-[0.1em] text-muted-foreground">
-                    {greetingFor(new Date().getHours())}, {name}
+                    {t(`home.greeting.${greetingPart(new Date().getHours())}`, {name})}
                 </span>
             ) : null}
             <h1 className="m-0 text-[30px] font-medium leading-[1.25] tracking-[-0.015em] text-foreground">

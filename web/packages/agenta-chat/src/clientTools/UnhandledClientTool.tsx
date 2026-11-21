@@ -5,10 +5,13 @@
  */
 import {useEffect, useRef} from "react"
 
+import {useT} from "@agenta/i18n"
+import chatUnhandledClientToolCatalog from "@agenta/i18n/catalogs/chat.unhandledClientTool"
 import {Info} from "@phosphor-icons/react"
 
 import type {ClientToolWidgetProps as ClientToolHandlerProps} from "../skin"
 const UnhandledClientTool = ({meta, settle}: ClientToolHandlerProps) => {
+    const t = useT(chatUnhandledClientToolCatalog)
     const settledRef = useRef(false)
     useEffect(() => {
         if (settledRef.current || meta.settled) return
@@ -20,7 +23,7 @@ const UnhandledClientTool = ({meta, settle}: ClientToolHandlerProps) => {
         <div className="flex min-w-0 items-center gap-2 py-1" title={meta.toolName}>
             <Info size={13} className="shrink-0 text-colorTextTertiary" />
             <span className="truncate text-xs text-colorTextTertiary">
-                Not handled by this client
+                {t("chat.unhandledClientTool.notHandled")}
             </span>
         </div>
     )

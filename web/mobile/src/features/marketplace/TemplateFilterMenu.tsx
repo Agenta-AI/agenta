@@ -1,5 +1,7 @@
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
 import {FilterMenu, type FilterMenuItem} from "@agenta/ui/filter-menu"
 import {ArrowsDownUpIcon, SquaresFourIcon, TagIcon} from "@phosphor-icons/react"
 
@@ -7,6 +9,7 @@ import {AppTile} from "./AppTile"
 import {
     DEFAULT_MARKETPLACE_FILTER,
     SORT_LABELS,
+    categoryText,
     isNarrowed,
     type AppFacet,
     type FacetCount,
@@ -28,39 +31,42 @@ export const TemplateFilterMenu = ({
     categories: FacetCount[]
     apps: AppFacet[]
 }) => {
+    const t = useT(marketplaceCatalog)
     const sections = useMemo<FilterMenuItem[]>(
         () => [
             {
                 key: "sort",
-                label: "Sort",
+                label: t("marketplace.page.sort"),
                 icon: <ArrowsDownUpIcon size={ICON} />,
                 block: "sort",
                 value: filter.sort,
                 options: (Object.keys(SORT_LABELS) as MarketplaceSort[]).map((value) => ({
                     value,
-                    label: SORT_LABELS[value],
+                    label: t(SORT_LABELS[value]),
                 })),
                 onChange: (value) => onChange({...filter, sort: value as MarketplaceSort}),
             },
             {
                 key: "category",
-                label: "Category",
+                label: t("marketplace.page.category"),
                 icon: <SquaresFourIcon size={ICON} />,
                 value: filter.category,
-                valueLabel: categories.find((item) => item.value === filter.category)?.label,
+                valueLabel: categoryText(filter.category),
                 options: categories.map((item) => ({
                     value: item.value,
-                    label: `${item.label} (${item.count})`,
+                    label: `${categoryText(item.value)} (${item.count})`,
                 })),
                 onChange: (value) => onChange({...filter, category: value}),
             },
             {
                 key: "apps",
-                label: "Apps",
+                label: t("marketplace.page.apps"),
                 icon: <TagIcon size={ICON} />,
                 multi: true,
                 value: filter.apps,
-                valueLabel: filter.apps.length ? `${filter.apps.length} selected` : "Any",
+                valueLabel: filter.apps.length
+                    ? t("marketplace.page.appsSelected", {count: filter.apps.length})
+                    : t("marketplace.page.appsAny"),
                 options: apps.map(({app, count}) => ({
                     value: app.slug,
                     label: `${app.name} (${count})`,
@@ -75,7 +81,7 @@ export const TemplateFilterMenu = ({
                     }),
             },
         ],
-        [apps, categories, filter, onChange],
+        [apps, categories, filter, onChange, t],
     )
     const active = isNarrowed({...filter, query: ""}) || filter.sort !== "recommended"
 
@@ -84,7 +90,7 @@ export const TemplateFilterMenu = ({
             sections={sections}
             align="end"
             label={null}
-            triggerAriaLabel="Filter templates"
+            triggerAriaLabel={t("marketplace.page.filterTemplates")}
             size="default"
             triggerClassName="size-8"
             active={active}

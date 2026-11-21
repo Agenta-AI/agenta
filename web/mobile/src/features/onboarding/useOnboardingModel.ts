@@ -25,7 +25,6 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {useWalletSummary} from "../wallet/useWalletSummary"
 
 import {draftConfigurationAtom} from "./onboardingConfig"
-import {ONBOARDING_COPY} from "./onboardingCopy"
 import {
     useOnboardingSubscription,
     type OnboardingSubscription,
@@ -143,7 +142,7 @@ export const useOnboardingModel = (entityId: string | null, projectId: string): 
         status: candidates.status,
         selected,
         arm,
-        connectedMessage: ONBOARDING_COPY.model.chatgptConnected,
+        connected: "chatgpt",
     })
     const claudeConnection = subscriptionConnectionFor(projectConnections, "claude")
     const claude = useOnboardingSubscription({
@@ -152,7 +151,7 @@ export const useOnboardingModel = (entityId: string | null, projectId: string): 
         status: candidates.status,
         selected,
         arm,
-        connectedMessage: ONBOARDING_COPY.model.claudeConnected,
+        connected: "claude",
     })
 
     // A save lands before the vault refetch does, so it arms a switch the new list fires.

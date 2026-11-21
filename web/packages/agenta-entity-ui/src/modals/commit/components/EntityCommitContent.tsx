@@ -8,8 +8,9 @@
 import {useState, useEffect, useRef} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {richText, useT} from "@agenta/i18n"
+import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
 import {
-    formatCount,
     generateSlugWithExistingSuffix,
     generateSlugWithSuffix,
     getSlugSuffix,
@@ -91,9 +92,10 @@ export function EntityCommitContent({
     extraContent,
     modeLabel,
     entityNameEditable = false,
-    entityNameLabel = "Name",
+    entityNameLabel,
     footerSlot,
 }: EntityCommitContentProps) {
+    const t = useT(commitModalCatalog)
     const entityName = useAtomValue(commitModalEntityNameAtom)
     const originalEntityName = useAtomValue(commitModalOriginalEntityNameAtom)
     const entitySlug = useAtomValue(commitModalEntitySlugAtom)
@@ -190,9 +192,7 @@ export function EntityCommitContent({
     }
 
     const slugValidationError =
-        entitySlug && !isValidSlug(entitySlug)
-            ? "Slug may only contain a-z, 0-9, hyphens, underscores, and periods."
-            : null
+        entitySlug && !isValidSlug(entitySlug) ? t("entityUi.commitModal.slugInvalid") : null
 
     // Defer DiffView mounting until after the first paint so the modal
     // shell and form appear immediately without being blocked by Lexical
@@ -232,16 +232,26 @@ export function EntityCommitContent({
         } = context.changesSummary
         // Testcase changes
         if (modifiedCount)
-            changesDescription.push(`${formatCount(modifiedCount, "testcase")} modified`)
-        if (addedCount) changesDescription.push(`${formatCount(addedCount, "testcase")} added`)
+            changesDescription.push(
+                t("entityUi.commitModal.testcasesModified", {count: modifiedCount}),
+            )
+        if (addedCount)
+            changesDescription.push(t("entityUi.commitModal.testcasesAdded", {count: addedCount}))
         if (deletedCount)
-            changesDescription.push(`${formatCount(deletedCount, "testcase")} deleted`)
+            changesDescription.push(
+                t("entityUi.commitModal.testcasesDeleted", {count: deletedCount}),
+            )
         // Column changes
-        if (addedColumns) changesDescription.push(`${formatCount(addedColumns, "column")} added`)
+        if (addedColumns)
+            changesDescription.push(t("entityUi.commitModal.columnsAdded", {count: addedColumns}))
         if (renamedColumns)
-            changesDescription.push(`${formatCount(renamedColumns, "column")} renamed`)
+            changesDescription.push(
+                t("entityUi.commitModal.columnsRenamed", {count: renamedColumns}),
+            )
         if (deletedColumns)
-            changesDescription.push(`${formatCount(deletedColumns, "column")} deleted`)
+            changesDescription.push(
+                t("entityUi.commitModal.columnsDeleted", {count: deletedColumns}),
+            )
         if (description) changesDescription.push(description)
     }
 
@@ -276,13 +286,13 @@ export function EntityCommitContent({
         <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-2">
                 <label htmlFor="entity-name" className="font-medium text-gray-700">
-                    {entityNameLabel}
+                    {entityNameLabel ?? t("entityUi.commitModal.name")}
                 </label>
                 <Input
                     id="entity-name"
                     value={entityName}
                     onChange={(e) => setEntityName(e.target.value)}
-                    placeholder="Enter a name..."
+                    placeholder={t("entityUi.commitModal.namePlaceholder")}
                     autoFocus
                     className={isAgentCommit ? "!bg-[var(--ag-colorFillQuaternary)]" : undefined}
                 />
@@ -293,7 +303,7 @@ export function EntityCommitContent({
                     {slugEditing ? (
                         <>
                             <label htmlFor="entity-slug" className="font-medium mb-1">
-                                Slug
+                                {t("entityUi.commitModal.slug")}
                             </label>
                             <InputAffix
                                 id="entity-slug"
@@ -315,7 +325,7 @@ export function EntityCommitContent({
                                         variant="ghost"
                                         size="icon-sm"
                                         onClick={handleRegenerate}
-                                        title="Regenerate random suffix"
+                                        title={t("entityUi.commitModal.regenerateSuffix")}
                                     >
                                         <ArrowClockwise size={14} />
                                     </Button>
@@ -329,14 +339,15 @@ export function EntityCommitContent({
                             )}
                             {!slugFieldError && !slugValidationError && (
                                 <span className={cn(textColors.tertiary)}>
-                                    Edit freely - use the regenerate button to add a random suffix
-                                    back.
+                                    {t("entityUi.commitModal.slugEditHint")}
                                 </span>
                             )}
                         </>
                     ) : (
                         <div className="flex min-w-0 items-center gap-2">
-                            <span className="shrink-0 font-medium">Slug:</span>
+                            <span className="shrink-0 font-medium">
+                                {t("entityUi.commitModal.slugLabel")}
+                            </span>
                             <Badge
                                 variant="outlined"
                                 className="inline-block min-w-0 max-w-[min(220px,calc(100%-88px))] truncate bg-gray-100 font-mono text-gray-500"
@@ -350,7 +361,7 @@ export function EntityCommitContent({
                                 className="shrink-0"
                                 onClick={handleEditClick}
                             >
-                                Edit
+                                {t("entityUi.commitModal.edit")}
                             </Button>
                         </div>
                     )}
@@ -384,7 +395,14 @@ export function EntityCommitContent({
             >
                 {isAgentCommit ? (
                     <span className="shrink-0 text-base font-semibold text-colorText">
-                        {actionLabel} {appName || originalEntityName}
+                        {actionLabel === "Commit"
+                            ? t("entityUi.commitModal.commitTarget", {
+                                  name: appName || originalEntityName,
+                              })
+                            : t("entityUi.commitModal.actionTarget", {
+                                  action: actionLabel,
+                                  name: appName || originalEntityName,
+                              })}
                     </span>
                 ) : null}
 
@@ -400,9 +418,14 @@ export function EntityCommitContent({
                     {context?.versionInfo && actionLabel === "Commit" && isAgentCommit && (
                         <SectionRail
                             items={[
-                                {value: "version", label: "New version"},
+                                {value: "version", label: t("entityUi.commitModal.newVersion")},
                                 ...(hasVariantMode
-                                    ? [{value: "variant", label: "New variant"}]
+                                    ? [
+                                          {
+                                              value: "variant",
+                                              label: t("entityUi.commitModal.newVariant"),
+                                          },
+                                      ]
                                     : []),
                             ]}
                             value={selectedMode ?? "version"}
@@ -417,11 +440,19 @@ export function EntityCommitContent({
                                             textColors.secondary,
                                         )}
                                     >
-                                        Creates a separate variant.{" "}
-                                        <span className="font-medium text-[var(--ag-colorText)]">
-                                            {appName || originalEntityName}
-                                        </span>{" "}
-                                        stays on v{context.versionInfo.currentVersion}.
+                                        {richText(
+                                            t("entityUi.commitModal.variantNote", {
+                                                name: appName || originalEntityName,
+                                                version: context.versionInfo.currentVersion,
+                                            }),
+                                            {
+                                                name: (text) => (
+                                                    <span className="font-medium text-[var(--ag-colorText)]">
+                                                        {text}
+                                                    </span>
+                                                ),
+                                            },
+                                        )}
                                     </span>
                                     {nameEditorInRail ? (
                                         <div className="border-t border-[var(--ag-colorBorderSecondary)] pt-3">
@@ -433,12 +464,19 @@ export function EntityCommitContent({
                                 <span
                                     className={cn("text-xs leading-relaxed", textColors.secondary)}
                                 >
-                                    Saves as{" "}
-                                    <span className="font-medium text-[var(--ag-colorText)]">
-                                        version {context.versionInfo.targetVersion}
-                                    </span>
-                                    . Everyone using {appName || originalEntityName} gets your
-                                    changes.
+                                    {richText(
+                                        t("entityUi.commitModal.versionNote", {
+                                            name: appName || originalEntityName,
+                                            version: context.versionInfo.targetVersion,
+                                        }),
+                                        {
+                                            version: (text) => (
+                                                <span className="font-medium text-[var(--ag-colorText)]">
+                                                    {text}
+                                                </span>
+                                            ),
+                                        },
+                                    )}
                                 </span>
                             )}
                         </SectionRail>
@@ -449,10 +487,16 @@ export function EntityCommitContent({
                     {context?.versionInfo && actionLabel === "Commit" && !isAgentCommit && (
                         <div className="rounded-lg border border-zinc-2 bg-zinc-1 p-3">
                             <span className={textColors.secondary}>
-                                {selectedMode === "variant"
-                                    ? "This will create a new variant from "
-                                    : "This will create a new revision of "}
-                                <span className="font-medium">{originalEntityName}</span>.
+                                {richText(
+                                    selectedMode === "variant"
+                                        ? t("entityUi.commitModal.createsVariantFrom", {
+                                              name: originalEntityName,
+                                          })
+                                        : t("entityUi.commitModal.createsRevisionOf", {
+                                              name: originalEntityName,
+                                          }),
+                                    {name: (text) => <span className="font-medium">{text}</span>},
+                                )}
                             </span>
                             <div className="mt-2 flex items-center gap-2 min-w-0">
                                 <span className="flex items-center gap-1 min-w-0">
@@ -473,9 +517,15 @@ export function EntityCommitContent({
                                     <span className="flex items-center gap-1 min-w-0">
                                         <span
                                             className="truncate text-blue-7"
-                                            title={modeLabel || entityName || "new variant"}
+                                            title={
+                                                modeLabel ||
+                                                entityName ||
+                                                t("entityUi.commitModal.newVariantFallback")
+                                            }
                                         >
-                                            {modeLabel || entityName || "new variant"}
+                                            {modeLabel ||
+                                                entityName ||
+                                                t("entityUi.commitModal.newVariantFallback")}
                                         </span>
                                         <span className="shrink-0 rounded bg-blue-1 px-1.5 py-0.5 text-xs font-medium text-blue-7">
                                             v1
@@ -497,7 +547,9 @@ export function EntityCommitContent({
                             </div>
                             {changesDescription.length > 0 && (
                                 <div className={cn("mt-2 text-xs", textColors.tertiary)}>
-                                    Changes: {changesDescription.join(", ")}
+                                    {t("entityUi.commitModal.changesList", {
+                                        list: changesDescription.join(", "),
+                                    })}
                                 </div>
                             )}
                         </div>
@@ -507,8 +559,8 @@ export function EntityCommitContent({
                     {!canCommit && (
                         <Alert
                             type="warning"
-                            message="This entity cannot be committed"
-                            description="Check that there are changes to commit and the entity is in a valid state."
+                            message={t("entityUi.commitModal.cannotCommit")}
+                            description={t("entityUi.commitModal.cannotCommitHint")}
                             showIcon
                         />
                     )}
@@ -517,7 +569,7 @@ export function EntityCommitContent({
                     {!isAgentCommit && commitModes && commitModes.length > 0 && (
                         <div className="flex flex-col gap-2">
                             <label htmlFor="commit-mode" className="font-medium text-gray-700">
-                                Save mode
+                                {t("entityUi.commitModal.saveMode")}
                             </label>
                             <RadioGroup
                                 id="commit-mode"
@@ -561,9 +613,15 @@ export function EntityCommitContent({
                         <CommitMessageInput
                             value={message}
                             onChange={setMessage}
-                            label={`${actionLabel} message`}
+                            label={
+                                actionLabel === "Commit"
+                                    ? t("entityUi.commitModal.commitMessage")
+                                    : t("entityUi.commitModal.actionMessage", {
+                                          action: actionLabel,
+                                      })
+                            }
                             showOptional={false}
-                            placeholder="Describe your changes..."
+                            placeholder={t("entityUi.commitModal.messagePlaceholder")}
                             minRows={isAgentCommit ? 2 : 3}
                             maxRows={6}
                             disabled={!canCommit}
@@ -580,7 +638,13 @@ export function EntityCommitContent({
                     {error && (
                         <Alert
                             type="error"
-                            message={`${actionLabel} failed`}
+                            message={
+                                actionLabel === "Commit"
+                                    ? t("entityUi.commitModal.commitFailed")
+                                    : t("entityUi.commitModal.actionFailed", {
+                                          action: actionLabel,
+                                      })
+                            }
                             description={error.message}
                             showIcon
                         />
@@ -614,10 +678,10 @@ export function EntityCommitContent({
                                 textColors.secondary,
                             )}
                         >
-                            Changes preview
+                            {t("entityUi.commitModal.changesPreview")}
                         </span>
                         <span className={cn("text-xs", textColors.quaternary)}>
-                            {formatCount(totalChanges, "change")}
+                            {t("entityUi.commitModal.changeCount", {count: totalChanges})}
                         </span>
                     </div>
                     <div className="flex-1 overflow-auto">

@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {CheckIcon, Gavel, SquaresFourIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 
@@ -13,6 +15,7 @@ export const AppIdentity = ({
     showDetails?: boolean
     selected?: boolean
 }) => {
+    const t = useT(navigationCatalog)
     const Icon = evaluator ? Gavel : SquaresFourIcon
     return (
         <div className={clsx("flex w-full min-w-0 items-center", showDetails ? "gap-2" : "gap-0")}>
@@ -35,7 +38,9 @@ export const AppIdentity = ({
                         {name}
                     </span>
                     <span className="text-[12px] leading-3 text-muted-foreground">
-                        {evaluator ? "Evaluator" : "Prompt"}
+                        {evaluator
+                            ? t("navigation.items.evaluatorKind")
+                            : t("navigation.items.promptKind")}
                     </span>
                 </span>
             ) : null}

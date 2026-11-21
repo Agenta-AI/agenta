@@ -10,6 +10,8 @@ import {
     type CSSProperties,
 } from "react"
 
+import {useT} from "@agenta/i18n"
+import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
 import {createLogger} from "@agenta/shared/utils"
 import {$createCodeNode, $isCodeNode} from "@lexical/code"
 import {$convertFromMarkdownString} from "@lexical/markdown"
@@ -150,7 +152,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             initialValue = "",
             value,
             onChange,
-            placeholder = "Enter some text...",
+            placeholder: placeholderProp,
             singleLine = false,
             codeOnly = false,
             language,
@@ -182,6 +184,8 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
         }: EditorProps,
         ref,
     ) => {
+        const t = useT(uiEditorCatalog)
+        const placeholder = placeholderProp ?? t("ui.editor.enterSomeText")
         // EditorWrapper implementation
 
         useEditorInvariant({

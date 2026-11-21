@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import testsetsCatalog from "@agenta/i18n/catalogs/playground.testsets"
 import {
     AlertDialog,
     AlertDialogCancel,
@@ -21,20 +23,18 @@ export interface UnsavedTestsetDialogProps {
 
 const COPY = {
     disconnect: {
-        title: "Save changes?",
-        question:
-            "You have unsaved changes. Do you want to save them before disconnecting the test set?",
-        note: "Unsaved test cases will convert into local test cases.",
-        discard: "Discard & disconnect",
-        save: "Save & disconnect",
+        title: "playground.testsets.disconnectTitle",
+        question: "playground.testsets.disconnectQuestion",
+        note: "playground.testsets.disconnectNote",
+        discard: "playground.testsets.disconnectDiscard",
+        save: "playground.testsets.disconnectSave",
     },
     change: {
-        title: "Load different test set?",
-        question:
-            "You have unsaved changes. Do you want to save them before loading a different test set?",
-        note: "Loading test cases from a different test set will remove any previously loaded test cases.",
-        discard: "Discard & Load",
-        save: "Save & load",
+        title: "playground.testsets.changeTitle",
+        question: "playground.testsets.changeQuestion",
+        note: "playground.testsets.changeNote",
+        discard: "playground.testsets.changeDiscard",
+        save: "playground.testsets.changeSave",
     },
 } as const
 
@@ -46,6 +46,7 @@ export const UnsavedTestsetDialog = ({
     onDiscard,
     onCancel,
 }: UnsavedTestsetDialogProps) => {
+    const t = useT(testsetsCatalog)
     const copy = COPY[intent]
     return (
         <AlertDialog
@@ -62,25 +63,25 @@ export const UnsavedTestsetDialog = ({
                 }}
             >
                 <AlertDialogHeader>
-                    <AlertDialogTitle>{copy.title}</AlertDialogTitle>
+                    <AlertDialogTitle>{t(copy.title)}</AlertDialogTitle>
                     <AlertDialogDescription asChild>
                         <div className="flex flex-col gap-2">
-                            <p className="m-0">{copy.question}</p>
-                            <p className="m-0">{copy.note}</p>
+                            <p className="m-0">{t(copy.question)}</p>
+                            <p className="m-0">{t(copy.note)}</p>
                         </div>
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel asChild>
                         <Button variant="outline" onClick={onCancel} disabled={saving}>
-                            Cancel
+                            {t("playground.testsets.cancel")}
                         </Button>
                     </AlertDialogCancel>
                     <Button variant="destructive" onClick={onDiscard} disabled={saving}>
-                        {copy.discard}
+                        {t(copy.discard)}
                     </Button>
                     <Button onClick={onSave} disabled={saving}>
-                        {copy.save}
+                        {t(copy.save)}
                     </Button>
                 </AlertDialogFooter>
             </AlertDialogContent>

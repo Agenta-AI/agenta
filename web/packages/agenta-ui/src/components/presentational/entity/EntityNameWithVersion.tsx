@@ -21,6 +21,9 @@
 
 import React from "react"
 
+import {useT} from "@agenta/i18n"
+import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
+
 import {cn, sizeClasses, flexLayouts, textColors, type SizeVariant} from "../../../utils/styles"
 import {VersionBadge, type VersionBadgeProps} from "../version"
 
@@ -136,11 +139,14 @@ export function EntityNameVersionText({
     version,
     className,
 }: Pick<EntityNameWithVersionProps, "name" | "version" | "className">) {
+    const t = useT(uiStatusCatalog)
     return (
         <span className={cn(sizeClasses.default, className)}>
             {name}
             {version !== null && version !== undefined && (
-                <span className={cn("ml-1", textColors.muted)}>v{version}</span>
+                <span className={cn("ml-1", textColors.muted)}>
+                    {t("ui.status.versionShort", {version})}
+                </span>
             )}
         </span>
     )

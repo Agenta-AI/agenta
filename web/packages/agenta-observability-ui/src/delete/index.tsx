@@ -1,6 +1,8 @@
 import {useState} from "react"
 
 import {deletePreviewTrace} from "@agenta/entities/trace"
+import {useT} from "@agenta/i18n"
+import deleteCatalog from "@agenta/i18n/catalogs/observabilityUi.deleteTrace"
 import {useObservability} from "@agenta/observability"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
@@ -38,6 +40,7 @@ const DeleteTraceModal = ({openTraceId = null, onDrawerClose}: DeleteTraceModalP
     const projectIdValue = useAtomValue(projectIdAtom)
     const {fetchTraces, setSelectedTraceId: setGlobalSelectedTraceId, traces} = useObservability()
     // Closing the drawer behind the delete is the host's business, not the dialog's.
+    const t = useT(deleteCatalog)
     const closeDrawer = () => onDrawerClose?.()
     // The open trace is app routing state; a host that has one passes it in.
     const currentTraceId = openTraceId
@@ -51,7 +54,7 @@ const DeleteTraceModal = ({openTraceId = null, onDrawerClose}: DeleteTraceModalP
     const handleDelete = async () => {
         // Deleting against an empty project id silently targets nothing; fail loudly instead.
         if (!projectIdValue) {
-            message.error("Cannot delete: no project is selected.")
+            message.error(t("observabilityUi.deleteTrace.noProject"))
             return
         }
 
@@ -65,7 +68,7 @@ const DeleteTraceModal = ({openTraceId = null, onDrawerClose}: DeleteTraceModalP
             if (isCurrentTraceDeleted && traceIds.length === 1) {
                 // findIndex returns -1 when the trace is not in the current page; without
                 // this guard that becomes traces[0], sending the user to an unrelated trace.
-                const deletedIndex = traces.findIndex((t) => t.trace_id === traceIds[0])
+                const deletedIndex = traces.findIndex((item) => item.trace_id === traceIds[0])
                 const nextTrace =
                     deletedIndex === -1
                         ? undefined
@@ -95,7 +98,9 @@ const DeleteTraceModal = ({openTraceId = null, onDrawerClose}: DeleteTraceModalP
             // A failed delete used to leave the dialog open with no explanation.
             console.error(error)
             message.error(
-                traceIds.length > 1 ? "Failed to delete traces." : "Failed to delete the trace.",
+                traceIds.length > 1
+                    ? t("observabilityUi.deleteTrace.failedMany")
+                    : t("observabilityUi.deleteTrace.failedOne"),
             )
         } finally {
             setIsLoading(false)
@@ -106,14 +111,18 @@ const DeleteTraceModal = ({openTraceId = null, onDrawerClose}: DeleteTraceModalP
             <AlertDialogContent className="max-w-[400px]">
                 <AlertDialogHeader>
                     <AlertDialogTitle>
-                        {`Are you sure you want to delete${
-                            traceIds.length > 1 ? ` ${traceIds.length} traces` : ""
-                        }?`}
+                        {traceIds.length > 1
+                            ? t("observabilityUi.deleteTrace.confirmMany", {count: traceIds.length})
+                            : t("observabilityUi.deleteTrace.confirmOne")}
                     </AlertDialogTitle>
-                    <AlertDialogDescription>This action is not reversible.</AlertDialogDescription>
+                    <AlertDialogDescription>
+                        {t("observabilityUi.deleteTrace.notReversible")}
+                    </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel onClick={handleClose}>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel onClick={handleClose}>
+                        {t("observabilityUi.deleteTrace.cancel")}
+                    </AlertDialogCancel>
                     <AlertDialogAction
                         disabled={isLoading}
                         onClick={(event) => {
@@ -123,7 +132,7 @@ const DeleteTraceModal = ({openTraceId = null, onDrawerClose}: DeleteTraceModalP
                         }}
                     >
                         <Trash size={14} />
-                        Delete
+                        {t("observabilityUi.deleteTrace.delete")}
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>

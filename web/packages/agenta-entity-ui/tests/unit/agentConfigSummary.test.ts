@@ -33,7 +33,7 @@ describe("agentConfigSummary", () => {
             skills: 0,
             skillNames: [],
             sandbox: "Local",
-            permissions: "Allow reads",
+            permissions: "allow_reads",
         })
     })
 

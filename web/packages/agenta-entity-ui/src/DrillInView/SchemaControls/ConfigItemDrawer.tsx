@@ -22,6 +22,8 @@
  */
 import {type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Badge, type BadgeProps, Button} from "@agenta/ui/ui"
 
@@ -117,6 +119,7 @@ export function ConfigItemDrawer({
     contentFlush = false,
     loadingBody = <FormDrawerSkeleton />,
 }: ConfigItemDrawerProps) {
+    const t = useT(configItemsCatalog)
     // Flush layout only helps the form; keep the JSON editor padded and independently scrollable.
     const flushForm = contentFlush && !jsonOnly
 
@@ -171,14 +174,18 @@ export function ConfigItemDrawer({
                     {/* ml-auto keeps the actions right-aligned when there is no footer note. */}
                     <div className="ml-auto flex shrink-0 items-center gap-2">
                         <Button variant="outline" onClick={onCancel}>
-                            Cancel
+                            {t("entityUi.configItems.cancel")}
                         </Button>
                         <Button
                             variant="default"
                             onClick={onSave}
                             disabled={disabled || saveDisabled || saving}
                         >
-                            {saving ? "Saving…" : mode === "create" ? "Create" : "Save"}
+                            {saving
+                                ? t("entityUi.configItems.saving")
+                                : mode === "create"
+                                  ? t("entityUi.configItems.create")
+                                  : t("entityUi.configItems.save")}
                         </Button>
                     </div>
                 </div>

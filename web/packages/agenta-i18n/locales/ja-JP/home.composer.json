@@ -1,0 +1,7 @@
+{
+    "taskPlaceholder": "タスクを説明するか、会話を始めましょう…",
+    "createPlaceholder": "作りたいエージェントを説明してください。何をするのか、いつ実行するのか…",
+    "clearTemplate": "このテンプレートをクリア",
+    "newAgent": "新しいエージェント",
+    "agent": "エージェント"
+}

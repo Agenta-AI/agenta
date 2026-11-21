@@ -8,11 +8,15 @@
  * or creating new entities (save-as functionality).
  */
 
+import {createT} from "@agenta/i18n"
+import saveModalCatalog from "@agenta/i18n/catalogs/entityUi.saveModal"
 import {atom} from "jotai"
 import {atomWithReset, RESET} from "jotai/utils"
 
 import {getEntityAdapter} from "../adapters"
 import type {EntityReference, EntityType} from "../types"
+
+const t = createT(saveModalCatalog)
 
 // ============================================================================
 // CORE STATE ATOMS
@@ -115,9 +119,9 @@ export const saveModalTitleAtom = atom((get): string => {
     const entity = get(saveModalEntityAtom)
     const saveAsNew = get(saveModalSaveAsNewAtom)
 
-    if (!entity) return "Create New"
-    if (saveAsNew) return "Save As"
-    return "Save"
+    if (!entity) return t("entityUi.saveModal.titleCreate")
+    if (saveAsNew) return t("entityUi.saveModal.titleSaveAs")
+    return t("entityUi.saveModal.titleSave")
 })
 
 // ============================================================================
@@ -220,7 +224,7 @@ export const executeSaveAtom = atom(null, async (get, set) => {
     const canProceed = get(saveModalCanProceedAtom)
 
     if (!canProceed || !entityType) {
-        set(saveModalErrorAtom, new Error("Cannot save: missing name or entity type"))
+        set(saveModalErrorAtom, new Error(t("entityUi.saveModal.missingName")))
         return {success: false, error: "Missing name or entity type"}
     }
 

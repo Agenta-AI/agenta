@@ -5,6 +5,8 @@ import {
     environmentsListQueryAtomFamily,
 } from "@agenta/entities/environment"
 import {workflowDetailQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {Button} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
@@ -28,6 +30,7 @@ export const DrawerCommitButton = ({
     canDeploy: boolean
     onCommitted: (newRevisionId: string) => void
 }) => {
+    const t = useT(panelsCatalog)
     const [open, setOpen] = useState(false)
     const query = useAtomValue(workflowMolecule.selectors.query(revisionId))
     const revision = useAtomValue(workflowMolecule.selectors.data(revisionId))
@@ -58,7 +61,7 @@ export const DrawerCommitButton = ({
                 disabled={loading || !canCommit || !(dirty || ephemeral)}
                 onClick={() => setOpen(true)}
             >
-                {ephemeral ? "Create" : "Commit"}
+                {ephemeral ? t("playground.panels.create") : t("playground.panels.commit")}
             </Button>
             {open ? (
                 <Suspense fallback={null}>

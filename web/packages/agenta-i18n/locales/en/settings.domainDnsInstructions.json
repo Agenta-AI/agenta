@@ -1,0 +1,7 @@
+{
+    "copyValue": "Copy value",
+    "hint": "Add this DNS record at your domain provider, then press Verify.",
+    "name": "Name: {{name}}",
+    "type": "Type: TXT",
+    "value": "Value: {{value}}"
+}

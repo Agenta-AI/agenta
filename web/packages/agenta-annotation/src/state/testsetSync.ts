@@ -206,6 +206,7 @@ function buildAnnotationOutputEntries(params: {
     annotations: Annotation[]
     evaluators: TestsetSyncEvaluator[]
     queueId: string
+    existingData?: Record<string, unknown> | null
 }): {columnKey: string; outputs: Record<string, unknown>}[] {
     const entries: {columnKey: string; outputs: Record<string, unknown>}[] = []
     const slugByEvaluatorId = buildSlugByEvaluatorId(params.evaluators)
@@ -220,15 +221,19 @@ function buildAnnotationOutputEntries(params: {
 
         if (!selection.annotation || selection.conflictCode) continue
 
-        const outputs = getAnnotationOutputs(selection.annotation)
-        if (Object.keys(outputs).length === 0) continue
-
         const columnKey = getTestsetSyncEvaluatorColumnKey({
             evaluator,
             annotation: selection.annotation,
             slugByEvaluatorId,
         })
         if (!columnKey) continue
+
+        const outputs = getAnnotationOutputs(selection.annotation)
+        const hasExistingColumn =
+            isPlainRecord(params.existingData?.[columnKey]) &&
+            Object.keys(params.existingData[columnKey]).length > 0
+
+        if (Object.keys(outputs).length === 0 && !hasExistingColumn) continue
 
         entries.push({
             columnKey,
@@ -248,9 +253,7 @@ function applyAnnotationOutputEntries(
     entries: {columnKey: string; outputs: Record<string, unknown>}[],
 ): void {
     for (const entry of entries) {
-        const existingValue = data[entry.columnKey]
         data[entry.columnKey] = {
-            ...(isPlainRecord(existingValue) ? existingValue : {}),
             ...entry.outputs,
         }
     }
@@ -503,6 +506,7 @@ export function buildTestcaseExportRows(params: TestcaseExportRowBuilderParams):
             annotations,
             evaluators: params.evaluators,
             queueId: params.queueId,
+            existingData: testcase.data,
         })
         if (entries.length === 0) continue
 
@@ -645,15 +649,19 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
 
             if (!selection.annotation) continue
 
-            const outputs = getAnnotationOutputs(selection.annotation)
-
-            if (Object.keys(outputs).length === 0) continue
             const columnKey = getTestsetSyncEvaluatorColumnKey({
                 evaluator,
                 annotation: selection.annotation,
                 slugByEvaluatorId,
             })
             if (!columnKey) continue
+
+            const outputs = getAnnotationOutputs(selection.annotation)
+            const hasExistingColumn =
+                isPlainRecord(testcase.data?.[columnKey]) &&
+                Object.keys(testcase.data[columnKey]).length > 0
+
+            if (Object.keys(outputs).length === 0 && !hasExistingColumn) continue
 
             selected.push({
                 columnKey,

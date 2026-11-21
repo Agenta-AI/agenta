@@ -1,0 +1,10 @@
+{
+    "label": "New agent",
+    "scratchTitle": "Start from scratch",
+    "scratchHint": "Start with an empty agent and shape it in chat",
+    "uploadTitle": "Upload",
+    "uploadHint": "An agent template .zip",
+    "importTitle": "Import from a repo",
+    "importHint": "Scan a public GitHub repository for agent templates",
+    "browseAll": "Browse all templates"
+}

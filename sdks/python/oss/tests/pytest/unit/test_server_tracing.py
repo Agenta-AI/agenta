@@ -179,6 +179,17 @@ async def test_an_incoming_product_parent_is_kept(product, no_global_propagation
     assert f"{workflow.parent.span_id:016x}" == "b7ad6b7169203331"
 
 
+def test_incoming_baggage_is_read_inside_a_server_request(no_global_propagation):
+    headers = {"baggage": "ag.session.id=s1,ag.meta.user=u1"}
+    expected = {"ag.session.id": "s1", "ag.meta.user": "u1"}
+
+    assert extract(headers)[2] == expected
+
+    srv = _Server()
+    with srv.tracer.start_as_current_span("POST /invoke", kind=SpanKind.SERVER):
+        assert extract(headers)[2] == expected
+
+
 def test_current_span_helpers_skip_server_spans(product):
     srv = _Server()
     with srv.tracer.start_as_current_span("POST /invoke", kind=SpanKind.SERVER):

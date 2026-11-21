@@ -1,0 +1,7 @@
+{
+    "emptyBody": "Connectez une intégration pour que vos agents puissent l’appeler.",
+    "emptyTitle": "Aucune intégration connectée pour le moment",
+    "noMatch": "Aucune intégration ne correspond à « {{term}} »",
+    "run": "Exécuter l’action",
+    "searchPlaceholder": "Rechercher des intégrations"
+}

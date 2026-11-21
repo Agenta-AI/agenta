@@ -1,0 +1,10 @@
+{
+    "noProject": "Löschen nicht möglich: Es ist kein Projekt ausgewählt.",
+    "failedMany": "Die Traces konnten nicht gelöscht werden.",
+    "failedOne": "Der Trace konnte nicht gelöscht werden.",
+    "confirmOne": "Möchten Sie wirklich löschen?",
+    "confirmMany": "Möchten Sie wirklich {{count}} Traces löschen?",
+    "notReversible": "Diese Aktion kann nicht rückgängig gemacht werden.",
+    "cancel": "Abbrechen",
+    "delete": "Löschen"
+}

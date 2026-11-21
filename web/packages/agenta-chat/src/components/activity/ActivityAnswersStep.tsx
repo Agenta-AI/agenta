@@ -1,5 +1,7 @@
 import {useMemo, useState, type ReactNode} from "react"
 
+import {richText, useT} from "@agenta/i18n"
+import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
 import {isInteractionEndedOutput} from "@agenta/shared/clientTools"
 import {
     buildElicitationSteps,
@@ -21,6 +23,9 @@ import {
 
 /** A question on the timeline: what the dock below waits on, then what the reader said. */
 export const ActivityAnswersStep = ({part}: {part: ToolUIPart}) => {
+    const t = useT(chatActivityCatalog)
+    const withCount = (text: string) =>
+        richText(text, {count: (children) => <strong className="font-medium">{children}</strong>})
     const [open, setOpen] = useState(false)
     const input = (part as {input?: unknown}).input
     const output = (part as {output?: unknown}).output
@@ -59,37 +64,22 @@ export const ActivityAnswersStep = ({part}: {part: ToolUIPart}) => {
     let sentence: ReactNode
     let state: ActivityState = "idle"
     if (settled === "pending") {
-        sentence = pendingCount ? (
-            <>
-                Needs your answers to{" "}
-                <strong className="font-medium">
-                    {pendingCount} {pendingCount === 1 ? "question" : "questions"}
-                </strong>{" "}
-                below
-            </>
-        ) : (
-            "Needs your answer below"
-        )
+        sentence = pendingCount
+            ? withCount(t("chat.activity.needsAnswersTo", {count: pendingCount}))
+            : t("chat.activity.needsAnswerBelow")
     } else if (ended) {
-        sentence = "The question went unanswered"
+        sentence = t("chat.activity.questionUnanswered")
         state = "responded"
     } else if (settled === "declined" || settled === "cancelled") {
-        sentence = "You declined to answer"
+        sentence = t("chat.activity.youDeclined")
         state = "denied"
     } else if (settled === "degraded") {
-        sentence = "The question could not be shown"
+        sentence = t("chat.activity.questionNotShown")
         state = "not-handled"
     } else {
-        sentence = count ? (
-            <>
-                You answered{" "}
-                <strong className="font-medium">
-                    {count} {count === 1 ? "question" : "questions"}
-                </strong>
-            </>
-        ) : (
-            "You answered"
-        )
+        sentence = count
+            ? withCount(t("chat.activity.youAnsweredQuestions", {count}))
+            : t("chat.activity.youAnsweredPlain")
     }
 
     const expandable = count > 0

@@ -18,6 +18,8 @@ import {
     refreshMcpEndpointsAtom,
 } from "@agenta/entities/mcpEndpoint"
 import {McpConnectJourney} from "@agenta/entity-ui/mcpEndpoint"
+import {useT} from "@agenta/i18n"
+import chatMcpServerNoticeCatalog from "@agenta/i18n/catalogs/chat.mcpServerNotice"
 import {Button, cn, touchTargetExpansion} from "@agenta/ui/ui"
 import {ArrowClockwise, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -30,6 +32,7 @@ export interface McpServerNoticeCardProps {
 }
 
 export const McpServerNoticeCard = ({notice, className}: McpServerNoticeCardProps) => {
+    const t = useT(chatMcpServerNoticeCatalog)
     const endpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
     const refreshEndpoints = useSetAtom(refreshMcpEndpointsAtom)
     const [connecting, setConnecting] = useState(false)
@@ -60,13 +63,15 @@ export const McpServerNoticeCard = ({notice, className}: McpServerNoticeCardProp
                         size="sm"
                         variant="ghost"
                         onClick={() => setConnecting(true)}
-                        aria-label={`Reconnect ${connectionName}`}
+                        aria-label={t("chat.mcpServerNotice.reconnectNamed", {
+                            name: connectionName,
+                        })}
                         // The row's one action, in a transcript a phone scrolls: 28px of chrome,
                         // 44px to land a finger on.
                         className={cn("shrink-0", touchTargetExpansion(28))}
                     >
                         <ArrowClockwise />
-                        Reconnect
+                        {t("chat.mcpServerNotice.reconnect")}
                     </Button>
                 ) : null}
             </div>

@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import walletCreditsCatalog from "@agenta/i18n/catalogs/wallet.credits"
 import {analyticsColor} from "@agenta/observability-ui/analytics"
 
 import {AnimatedNumber} from "@/components/AnimatedNumber"
@@ -7,7 +9,8 @@ import {creditKind, formatCredits} from "./walletFormat"
 
 /** One credit the balance draws on: what it is, what is left of it, and when it runs out. */
 export const CreditSourceTile = ({credit}: {credit: WalletCredit}) => {
-    const kind = creditKind(credit.credit_kind)
+    const t = useT(walletCreditsCatalog)
+    const kind = creditKind(credit.credit_kind, t)
     const color = analyticsColor(kind.color)
     const left = credit.amount_musd > 0 ? (credit.remaining_musd / credit.amount_musd) * 100 : 0
     return (
@@ -21,7 +24,7 @@ export const CreditSourceTile = ({credit}: {credit: WalletCredit}) => {
                     <AnimatedNumber value={formatCredits(credit.remaining_musd)} />
                 </span>
                 <span className="text-muted-foreground truncate text-xs tabular-nums">
-                    of {formatCredits(credit.amount_musd)}
+                    {t("wallet.credits.ofAmount", {amount: formatCredits(credit.amount_musd)})}
                 </span>
             </span>
             <span className="bg-accent my-1.5 block h-[3px] overflow-hidden rounded-full">

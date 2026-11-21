@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
 import {RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
 
 export interface OwnerOption<Owner extends string> {
@@ -23,11 +25,12 @@ export function OwnerRadioGroup<Owner extends string>({
     value,
     options,
     onChange,
-    "aria-label": ariaLabel = "Who can use it",
+    "aria-label": ariaLabel,
 }: OwnerRadioGroupProps<Owner>) {
+    const t = useT(secretFormCatalog)
     return (
         <RadioGroup
-            aria-label={ariaLabel}
+            aria-label={ariaLabel ?? t("entityUi.secretForm.whoCanUseIt")}
             value={value}
             onValueChange={(next) => onChange(next as Owner)}
             className="flex flex-col gap-2"

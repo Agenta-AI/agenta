@@ -4,6 +4,8 @@ import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import type {ConfigViewMode} from "@agenta/entity-ui/drill-in"
 import {RevisionDetails} from "@agenta/entity-ui/variant"
+import {useT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {Segmented} from "@agenta/ui/ui"
@@ -17,11 +19,6 @@ import type {EditableRevisionDrawerKind} from "./types"
 import {useDrawerPlaygroundSession} from "./useDrawerPlaygroundSession"
 
 type Pane = "config" | "runs"
-
-const PANES: {value: Pane; label: string}[] = [
-    {value: "config", label: "Configuration"},
-    {value: "runs", label: "Generations"},
-]
 
 export interface EditableRevisionDrawerBodyProps {
     revisionId: string
@@ -53,6 +50,11 @@ export const EditableRevisionDrawerBody = ({
     onRefinePrompt,
     playground,
 }: EditableRevisionDrawerBodyProps) => {
+    const t = useT(panelsCatalog)
+    const panes: {value: Pane; label: string}[] = [
+        {value: "config", label: t("playground.panels.configuration")},
+        {value: "runs", label: t("playground.panels.generations")},
+    ]
     useDrawerPlaygroundSession(revisionId, playground)
     const twoPane = useMediaQuery("(min-width: 768px)")
     const [pane, setPane] = useState<Pane>("config")
@@ -70,7 +72,7 @@ export const EditableRevisionDrawerBody = ({
         return (
             <LoadError
                 className="m-4"
-                title="Could not load this revision"
+                title={t("playground.panels.couldNotLoadRevision")}
                 onRetry={() => void query.refetch()}
             />
         )
@@ -85,7 +87,7 @@ export const EditableRevisionDrawerBody = ({
     if (!local && !query.isPending && !query.data) {
         return (
             <p className="text-muted-foreground m-0 p-6 text-center text-sm">
-                This revision is no longer available.
+                {t("playground.panels.revisionUnavailable")}
             </p>
         )
     }
@@ -100,7 +102,7 @@ export const EditableRevisionDrawerBody = ({
                     <Segmented
                         block
                         size="sm"
-                        options={PANES}
+                        options={panes}
                         value={pane}
                         onChange={(value) => setPane(value as Pane)}
                     />

@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import addToTestsetCatalog from "@agenta/i18n/catalogs/observability.addToTestset"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
 const Section = ({rows}: {rows: number}) => (
@@ -11,10 +13,17 @@ const Section = ({rows}: {rows: number}) => (
 )
 
 /** The sheet body while the spans load: the target, the mapping rows and the preview. */
-export const AddToTestsetSkeleton = () => (
-    <div className="flex flex-col gap-6" aria-busy="true" aria-label="Loading the spans">
-        <Section rows={1} />
-        <Section rows={2} />
-        <Section rows={3} />
-    </div>
-)
+export const AddToTestsetSkeleton = () => {
+    const t = useT(addToTestsetCatalog)
+    return (
+        <div
+            className="flex flex-col gap-6"
+            aria-busy="true"
+            aria-label={t("observability.addToTestset.loadingSpans")}
+        >
+            <Section rows={1} />
+            <Section rows={2} />
+            <Section rows={3} />
+        </div>
+    )
+}

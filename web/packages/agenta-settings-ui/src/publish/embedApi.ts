@@ -1,3 +1,7 @@
+import {createT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import publishCatalog from "@agenta/i18n/catalogs/publish"
+
 import {
     answeringAgentRow,
     clientErrorMessage,
@@ -11,6 +15,8 @@ import {
     type Row,
     type Scope,
 } from "../channels/actions"
+
+const t = createT(commonCatalog, publishCatalog)
 
 // The widget's name is the connection's name, so session titles and the widget header agree.
 
@@ -65,13 +71,12 @@ export const ACCENT = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
 /** The typed domains as a list, or an error for the first one that is not a domain. */
 export const parseOrigins = (text: string): {origins: string[]; error: string | null} => {
     const origins = text.split(/\s+/).filter(Boolean)
-    if (!origins.length)
-        return {origins, error: "Add at least one domain, or turn off Specific domains."}
+    if (!origins.length) return {origins, error: t("publish.domainsRequired")}
     const bad = origins.find((origin) => !ORIGIN.test(origin))
     return bad
         ? {
               origins,
-              error: `${bad} is not a domain. Use https://example.com or https://*.example.com, with no path.`,
+              error: t("publish.domainInvalid", {domain: bad}),
           }
         : {origins, error: null}
 }
@@ -84,26 +89,30 @@ export const originsError = ({restricted, origins}: {restricted: boolean; origin
 const storedOrigins = ({restricted, origins}: {restricted: boolean; origins: string}) =>
     restricted ? origins : ""
 
-const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`
-
 /** The closed "Specific domains" section's value: "Any website" or "2 domains". */
 export const domainsSummary = ({restricted, origins}: {restricted: boolean; origins: string}) =>
-    restricted ? plural(parseOrigins(origins).origins.length, "domain") : "Any website"
+    restricted
+        ? t("publish.domainCount", {count: parseOrigins(origins).origins.length})
+        : t("publish.anyWebsite")
 
 /** The closed "Appearance" section's value, such as "System theme, 2 starter prompts". */
 export const appearanceSummary = ({theme, starters}: EmbedAppearance) => {
     const filled = starters.filter((starter) => starter.trim()).length
-    const themeName = theme === "light" ? "Light" : theme === "dark" ? "Dark" : "System"
-    return `${themeName} theme, ${filled ? plural(filled, "starter prompt") : "no starter prompts"}`
+    const themeName = t(
+        theme === "light" ? "common.light" : theme === "dark" ? "common.dark" : "common.system",
+    )
+    return filled
+        ? t("publish.appearanceSummary", {theme: themeName, count: filled})
+        : t("publish.appearanceSummaryNoStarters", {theme: themeName})
 }
 
 /** An error for appearance values the widget would ignore, or null. */
 export const appearanceError = (appearance: EmbedAppearance): string | null => {
     if (appearance.accent.trim() && !ACCENT.test(appearance.accent.trim())) {
-        return "Use a hex color for the accent, like #2563eb."
+        return t("publish.accentInvalid")
     }
     if (appearance.avatarUrl.trim() && !/^https?:\/\//.test(appearance.avatarUrl.trim())) {
-        return "Use an http or https URL for the avatar."
+        return t("publish.avatarInvalid")
     }
     return null
 }
@@ -146,7 +155,7 @@ export const listAgentEmbeds = async (
 ): Promise<Embed[]> => {
     const res = await client
         .queryChannelConnections({connection: {channel: "embed"}}, scope)
-        .catch(rethrow("Could not load the embeds."))
+        .catch(rethrow(t("publish.loadEmbedsError")))
     const embeds = asArray(asRecord(res).connections).flatMap((row) => {
         const embed = asText(row.channel) === "embed" ? mapEmbedRow(row) : null
         return embed ? [embed] : []
@@ -155,7 +164,7 @@ export const listAgentEmbeds = async (
         embeds.map(async (embed) => {
             const agents = await client
                 .queryChannelAgents({agent: {connection_id: embed.id}}, scope)
-                .catch(rethrow("Could not load the embeds."))
+                .catch(rethrow(t("publish.loadEmbedsError")))
             const row = answeringAgentRow(asArray(asRecord(agents).agents))
             return row ? referencedAppId(row) : null
         }),
@@ -181,14 +190,14 @@ export const createEmbed = async (
             },
             scope,
         )
-        .catch(rethrow("Could not create the embed."))
+        .catch(rethrow(t("publish.createEmbedError")))
     const id = asText(asRecord(asRecord(res).connection).id)
-    if (!id) throw new Error("The embed was created without an id.")
+    if (!id) throw new Error(t("publish.createdWithoutId"))
     try {
         await pointConnectionAt({client, scope, appId, connectionId: id})
     } catch (error) {
         await client.archiveChannelConnection({connection_id: id}, scope).catch(() => null)
-        throw new Error(clientErrorMessage(error, "Could not connect the embed to this agent."))
+        throw new Error(clientErrorMessage(error, t("publish.connectEmbedError")))
     }
     return id
 }
@@ -224,7 +233,7 @@ export const saveEmbed = async (
             },
             scope,
         )
-        .catch(rethrow("Could not save the embed."))
+        .catch(rethrow(t("publish.saveEmbedError")))
 }
 
 /** The iframe snippet from the connection's setup document. */
@@ -235,9 +244,9 @@ export const fetchEmbedSnippet = async (
 ): Promise<string> => {
     const res = await client
         .fetchChannelConnectionSetup({connection_id: connectionId}, scope)
-        .catch(rethrow("Could not load the snippet."))
+        .catch(rethrow(t("publish.loadSnippetError")))
     const content = asText(asRecord(asRecord(asRecord(res).setup).document).content)
-    if (!content) throw new Error("Could not load the snippet.")
+    if (!content) throw new Error(t("publish.loadSnippetError"))
     return content
 }
 
@@ -267,5 +276,5 @@ export const archiveEmbed = async (
 ): Promise<void> => {
     await client
         .archiveChannelConnection({connection_id: connectionId}, scope)
-        .catch(rethrow("Could not archive the embed."))
+        .catch(rethrow(t("publish.archiveEmbedError")))
 }

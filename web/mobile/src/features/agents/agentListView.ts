@@ -1,8 +1,8 @@
 import type {Workflow} from "@agenta/entities/workflow"
+import {createT} from "@agenta/i18n"
+import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {timeAgo} from "@agenta/shared/utils"
 import type {ListTableView} from "@agenta/ui/list-table"
-
-import {sharingCopy} from "@/lib/sharingCopy"
 
 /**
  * How the agents roster is CUT and NARROWED — the half of the view the filter menu owns, kept
@@ -89,24 +89,31 @@ export interface AgentListGroup {
 
 const DAY_MS = 86_400_000
 
-/** The activity buckets the design names, in reading order. */
-const ACTIVITY_BUCKETS = ["This week", "This month", "Older"] as const
+const tNow = createT(agentsList)
 
-const WAITING = "Waiting"
-const IDLE = "Idle"
+/** The activity buckets the design names, in reading order. Ids, never the shown words. */
+const ACTIVITY_BUCKETS = ["thisWeek", "thisMonth", "older"] as const
+
+const WAITING = "waiting"
+const IDLE = "idle"
 /** The status buckets, in the order they matter: what needs a person comes first. */
 const STATUS_BUCKETS = [WAITING, IDLE] as const
 
-/** A creator this client cannot name. A heading is read, not looked up — never the raw uuid. */
-const UNKNOWN_OWNER = "Unknown"
+const BUCKET_LABEL = {
+    thisWeek: () => tNow("agents.list.groupThisWeek"),
+    thisMonth: () => tNow("agents.list.groupThisMonth"),
+    older: () => tNow("agents.list.groupOlder"),
+    waiting: () => tNow("agents.list.groupWaiting"),
+    idle: () => tNow("agents.list.groupIdle"),
+} as const
 
 const activityBucket = (updatedAt: string | null, now: number): string => {
     const at = updatedAt ? Date.parse(updatedAt) : NaN
-    if (!Number.isFinite(at)) return "Older"
+    if (!Number.isFinite(at)) return "older"
     const age = now - at
-    if (age <= 7 * DAY_MS) return "This week"
-    if (age <= 30 * DAY_MS) return "This month"
-    return "Older"
+    if (age <= 7 * DAY_MS) return "thisWeek"
+    if (age <= 30 * DAY_MS) return "thisMonth"
+    return "older"
 }
 
 /**
@@ -130,9 +137,9 @@ export const agentOwnerLabel = (
     currentUserId: string | null | undefined,
     names: ReadonlyMap<string, string>,
 ): string => {
-    if (!ownerId) return sharingCopy.ownerNone
-    if (currentUserId && ownerId === currentUserId) return sharingCopy.ownerYou
-    return names.get(ownerId)?.trim() || sharingCopy.ownerFormer
+    if (!ownerId) return tNow("agents.list.ownerNone")
+    if (currentUserId && ownerId === currentUserId) return tNow("agents.list.ownerYou")
+    return names.get(ownerId)?.trim() || tNow("agents.list.ownerFormer")
 }
 
 /** The one place a workflow becomes a row: both views read what this resolves, never the raw
@@ -152,7 +159,7 @@ export const toAgentListRow = (
     const ownerId = workflow.access?.owner_user_id ?? null
     return {
         id: workflow.id,
-        name: workflow.name || workflow.slug || "Untitled agent",
+        name: workflow.name || workflow.slug || tNow("agents.list.untitledAgent"),
         description: workflow.description ?? null,
         updatedAt: workflow.updated_at ?? workflow.created_at ?? null,
         ownerName: agentOwnerLabel(ownerId, currentUserId, ownerNames),
@@ -165,9 +172,6 @@ export const toAgentListRow = (
         waiting,
     }
 }
-
-/** What a row and a cell both say where an agent has never been described. */
-export const NO_DESCRIPTION = "No description"
 
 /** The roster's "Last active" cell. Empty rows read as an em dash, not as "just now". */
 export const lastActiveLabel = (updatedAt: string | null): string =>
@@ -183,10 +187,14 @@ const matchesAgentStatus = (row: AgentListRow, status: AgentStatusFilter): boole
 }
 
 const groupLabel = (row: AgentListRow, group: AgentGrouping, now: number): string => {
-    if (group === "owner") return row.ownerName || UNKNOWN_OWNER
+    if (group === "owner") return row.ownerName || "unknown"
     if (group === "status") return row.waiting > 0 ? WAITING : IDLE
     return activityBucket(row.updatedAt, now)
 }
+
+/** An owner heading is the owner's name; the one id with no name is shown as Unknown. */
+const headingFor = (key: string): string =>
+    key === "unknown" ? tNow("agents.list.groupUnknown") : key
 
 /** The filtered rows, cut into groups. */
 export const deriveAgentList = (
@@ -217,5 +225,9 @@ export const deriveAgentList = (
 
     return [...buckets.keys()]
         .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
-        .map((label) => ({key: label, label, rows: buckets.get(label) ?? []}))
+        .map((key) => ({
+            key,
+            label: BUCKET_LABEL[key as keyof typeof BUCKET_LABEL]?.() ?? headingFor(key),
+            rows: buckets.get(key) ?? [],
+        }))
 }

@@ -1,5 +1,8 @@
 import {useCallback, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsApiKeysTabCatalog from "@agenta/i18n/catalogs/settings.apiKeysTab"
 import {useApiKeys} from "@agenta/settings"
 import {ApiKeysPage} from "@agenta/settings-ui"
 import {
@@ -27,6 +30,7 @@ import {useMobileSettingsAccess} from "./settingsTabs"
  * credential and the buttons should not appear for a member who cannot mint one.
  */
 export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
+    const t = useT(commonCatalog, settingsApiKeysTabCatalog)
     const canView = useMobileSettingsAccess().canViewApiKeys
     const canEdit = useProjectPermission(projectId, "edit_api_keys")
     const [pendingDelete, setPendingDelete] = useState<{resolve: (ok: boolean) => void} | null>(
@@ -58,12 +62,13 @@ export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
             setError(null)
             setCreatedKey(secret)
         },
-        onWorkspacePending: () =>
-            setError("Your workspace is still loading. Try again in a moment."),
+        onWorkspacePending: () => setError(t("settings.apiKeysTab.workspacePending")),
         onError: (verb, cause) =>
             setError(
                 (cause as Error)?.message ||
-                    (verb === "create" ? "Could not create the key" : "Could not delete the key"),
+                    (verb === "create"
+                        ? t("settings.apiKeysTab.createError")
+                        : t("settings.apiKeysTab.deleteError")),
             ),
     })
 
@@ -98,10 +103,10 @@ export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
 
             <ConfirmModal
                 open={Boolean(pendingDelete)}
-                title="Delete API key"
-                description="This cannot be undone."
-                body="Requests signed with this key stop working immediately."
-                confirmLabel="Delete"
+                title={t("settings.apiKeysTab.deleteTitle")}
+                description={t("common.thisCannotBeUndone")}
+                body={t("settings.apiKeysTab.deleteBody")}
+                confirmLabel={t("common.delete")}
                 pending={keys.deleting}
                 onClose={() => answerDelete(false)}
                 onConfirm={() => answerDelete(true)}
@@ -115,9 +120,9 @@ export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
             >
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Save your API key</DialogTitle>
+                        <DialogTitle>{t("settings.apiKeysTab.revealTitle")}</DialogTitle>
                         <DialogDescription>
-                            Shown once. It cannot be retrieved again after you close this.
+                            {t("settings.apiKeysTab.revealDescription")}
                         </DialogDescription>
                     </DialogHeader>
                     <p className="m-0 break-all rounded-md border border-solid border-border bg-muted px-3 py-2 font-mono text-xs">
@@ -130,7 +135,7 @@ export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
                     ) : null}
                     <DialogFooter>
                         <Button variant="outline" onClick={closeReveal}>
-                            Done
+                            {t("common.done")}
                         </Button>
                         <Button
                             onClick={async () => {
@@ -142,11 +147,11 @@ export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
                                     setCopyError(null)
                                     setCopied(true)
                                 } catch {
-                                    setCopyError("Couldn't copy — select the key above and copy it")
+                                    setCopyError(t("settings.apiKeysTab.copyError"))
                                 }
                             }}
                         >
-                            {copied ? "Copied" : "Copy key"}
+                            {copied ? t("common.copied") : t("settings.apiKeysTab.copyKey")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

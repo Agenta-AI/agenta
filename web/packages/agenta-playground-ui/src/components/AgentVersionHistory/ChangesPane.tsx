@@ -12,6 +12,8 @@ import {useMemo, useState} from "react"
 
 import type {ChangeSection} from "@agenta/entities/workflow/commitDiff"
 import {ChangeSections} from "@agenta/entity-ui/changes"
+import {useT} from "@agenta/i18n"
+import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import {cn, textColors} from "@agenta/ui/styles"
 
 /** The pane's own inset. Section bands fill it edge to edge and pad their content inward. */
@@ -82,8 +84,9 @@ export const ChangesPane = ({
     message,
     isLoading,
     placeholder,
-    emptyText = "This is the current configuration. Nothing to compare.",
+    emptyText,
 }: ChangesPaneProps) => {
+    const t = useT(versionCatalog)
     const [openOverrides, setOpenOverrides] = useState<Record<string, boolean>>({})
     // Sections can arrive after the first render, so resolve open state per section rather than
     // seeding a set once — a late section would otherwise land shut.
@@ -100,7 +103,7 @@ export const ChangesPane = ({
             <div className={cn("mb-3 flex flex-col gap-0.5", BAND_PAD)}>
                 {/* The title carries the tense: these rows are the version's own change. */}
                 <span className="text-[13.5px] font-medium text-colorText">
-                    What version {version ?? "—"} changed
+                    {t("playground.versionHistory.whatVersionChanged", {version: version ?? "—"})}
                 </span>
                 {message ? (
                     <span className={cn("text-xs leading-snug", textColors.tertiary)}>
@@ -115,7 +118,7 @@ export const ChangesPane = ({
                         textColors.tertiary,
                     )}
                 >
-                    {emptyText}
+                    {emptyText ?? t("playground.versionHistory.currentNothingToCompare")}
                 </div>
             ) : (
                 <ChangeSections

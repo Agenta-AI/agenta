@@ -28,7 +28,9 @@ import {
     type ToolCatalogAction,
     type ToolCatalogActionDetails,
 } from "@agenta/entities/gatewayTool"
-import {formatCount, humanizeActionKey} from "@agenta/shared/utils"
+import {createT, useT} from "@agenta/i18n"
+import permissionDrawerCatalog from "@agenta/i18n/catalogs/entityUi.permissionDrawer"
+import {humanizeActionKey} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Badge, Button, SearchInput, SkeletonRows} from "@agenta/ui/ui"
@@ -71,11 +73,10 @@ import {ExpandableDescription} from "./ExpandableDescription"
 import {PolicyGlyph} from "./PermissionGlyph"
 import {PermissionPolicySelect, type PermissionPolicyOption} from "./PermissionPolicySelect"
 
+const tNow = createT(permissionDrawerCatalog)
+
 /** Rows rendered per group before the "Show N more" link. */
 const GROUP_PAGE_SIZE = 25
-
-/** What a row says about a saved key the source no longer lists. The Composio wording. */
-const DEFAULT_STALE_LABEL = "not in catalog"
 
 /**
  * Whether one row survives the search. One rule, so the groups and the "nothing matched" message
@@ -244,10 +245,15 @@ export interface IntegrationPermissionDrawerProps {
 }
 
 /** The Composio five, in the shape a source supplies its own presets in. */
+// The texts are getters, so they read the active language when a render reads them.
 const defaultPresetOptions: PermissionPresetOption[] = INTEGRATION_PRESETS.map((def) => ({
     value: def.value,
-    label: def.label,
-    help: def.help,
+    get label() {
+        return def.label
+    },
+    get help() {
+        return def.help
+    },
     // Custom is what a non-empty per-tool map READS BACK as, never something to pick: contracts
     // section 10 gives it no default of its own to write.
     disabled: def.value === "custom",
@@ -256,8 +262,12 @@ const defaultPresetOptions: PermissionPresetOption[] = INTEGRATION_PRESETS.map((
 
 const defaultToolOptions: PermissionPolicyOption[] = TOOL_PERMISSION_OPTIONS.map((option) => ({
     value: option.value,
-    title: option.label,
-    help: option.help,
+    get title() {
+        return option.label
+    },
+    get help() {
+        return option.help
+    },
     icon: <PolicyGlyph value={option.value} size={14} />,
 }))
 
@@ -285,6 +295,7 @@ const ToolRow = memo(function ToolRow({
     readOnly?: boolean
     staleLabel: string
 }) {
+    const t = useT(permissionDrawerCatalog)
     // Only the row's tint depends on this; the clamp and the toggle live in ExpandableDescription.
     const [expanded, setExpanded] = useState(false)
 
@@ -330,7 +341,7 @@ const ToolRow = memo(function ToolRow({
                         disabled={disabled || Boolean(lockedReason)}
                         size="sm"
                         triggerTitle={triggerTitle}
-                        aria-label={`Permission for ${tool.key}`}
+                        aria-label={t("entityUi.permissionDrawer.permissionFor", {tool: tool.key})}
                         // A compact 28px chip, so a long list reads as rows, not a column of fields.
                         triggerClassName={`w-auto min-w-[96px] shrink-0 !h-7 !px-2 !text-[13px] sm:min-w-[116px] ${
                             permission === "deny"
@@ -382,6 +393,7 @@ function ToolGroup({
     readOnly?: boolean
     staleLabel: string
 }) {
+    const t = useT(permissionDrawerCatalog)
     const [expanded, setExpanded] = useAtom(permissionGroupsExpandedAtom)
     const [shown, setShown] = useState(GROUP_PAGE_SIZE)
     const storageKey = `${catalogKey}:${groupKey}`
@@ -438,7 +450,7 @@ function ToolGroup({
                 <div className="flex flex-col">
                     {search && matching.length === 0 ? (
                         <span className="px-3 py-2 text-xs text-[var(--ag-colorTextTertiary)]">
-                            No matches in this group.
+                            {t("entityUi.permissionDrawer.noMatchesInGroup")}
                         </span>
                     ) : null}
                     {visible.map((tool) => {
@@ -466,7 +478,7 @@ function ToolGroup({
                             onClick={() => setShown((value) => value + GROUP_PAGE_SIZE)}
                             className="cursor-pointer border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent px-3 py-2 text-left text-xs text-colorInfo"
                         >
-                            Show {remaining} more
+                            {t("entityUi.permissionDrawer.showMore", {count: remaining})}
                         </button>
                     ) : null}
                 </div>
@@ -489,9 +501,9 @@ export function PermissionDrawerBody({
     onChangeToolPermission,
     agentPolicy,
     disabled,
-    readOnlyLabel = "Read-only",
-    writeLabel = "Write and delete",
-    staleLabel = DEFAULT_STALE_LABEL,
+    readOnlyLabel,
+    writeLabel,
+    staleLabel,
     toolOptions = defaultToolOptions,
     presets,
     lockedTool,
@@ -519,6 +531,8 @@ export function PermissionDrawerBody({
     PermissionDrawerSource,
     "catalog" | "catalogKey" | "emptyLabel" | "title" | "footerStart"
 >) {
+    const t = useT(permissionDrawerCatalog)
+    const stale = staleLabel ?? t("entityUi.permissionDrawer.notInCatalog")
     const [query, setQuery] = useState("")
 
     // A saved key is only stale once the whole catalog has been read. Against a half-loaded one
@@ -551,9 +565,10 @@ export function PermissionDrawerBody({
                 // same thing in different words.
                 title:
                     def.value === "custom" && overrideCount > 0
-                        ? `${def.label} · ${overrideCount} ${
-                              overrideCount === 1 ? "override" : "overrides"
-                          }`
+                        ? tNow("entityUi.permissionDrawer.presetWithOverrides", {
+                              label: def.label,
+                              count: overrideCount,
+                          })
                         : def.label,
                 help: def.help,
                 icon: <PolicyGlyph value={def.value} size={14} />,
@@ -572,9 +587,9 @@ export function PermissionDrawerBody({
         preset === notePreset &&
         agentPolicy &&
         agentPolicy !== DEFAULT_PERMISSION_POLICY
-            ? `This agent's permission policy is set to ${
-                  permissionPolicyLabel(agentPolicy)?.toLowerCase() ?? agentPolicy
-              }, so these tools follow it.`
+            ? t("entityUi.permissionDrawer.agentPolicyNote", {
+                  policy: permissionPolicyLabel(agentPolicy)?.toLowerCase() ?? agentPolicy,
+              })
             : null
 
     const inert = disabled || controlsDisabled
@@ -604,7 +619,7 @@ export function PermissionDrawerBody({
                 {readOnly ? null : (
                     <div className="flex flex-col gap-1.5">
                         <span className="text-xs text-[var(--ag-colorTextSecondary)]">
-                            Default permission
+                            {t("entityUi.permissionDrawer.defaultPermission")}
                         </span>
                         {presets?.pending ? (
                             // One bar at the select's own height, so the row keeps its shape while
@@ -625,7 +640,7 @@ export function PermissionDrawerBody({
                                 }
                                 options={presetOptions}
                                 disabled={inert}
-                                aria-label="Default permission"
+                                aria-label={t("entityUi.permissionDrawer.defaultPermission")}
                             />
                         )}
                         {agentPolicyNote ? (
@@ -639,9 +654,11 @@ export function PermissionDrawerBody({
                 {/* Hidden when there are no tools to search, e.g. a list that failed to load. */}
                 {catalogTools.length > 0 || (searchCount ?? 0) > 0 ? (
                     <SearchInput
-                        // formatCount, because a one-tool server read "Search 1 tools".
-                        placeholder={`Search ${formatCount(searchCount ?? catalogTools.length, "tool")}`}
-                        aria-label="Search tools"
+                        // A plural key, because a one-tool server read "Search 1 tools".
+                        placeholder={t("entityUi.permissionDrawer.searchToolCount", {
+                            count: searchCount ?? catalogTools.length,
+                        })}
+                        aria-label={t("entityUi.permissionDrawer.searchTools")}
                         value={query}
                         onValueChange={setQuery}
                         disabled={inert}
@@ -670,12 +687,12 @@ export function PermissionDrawerBody({
                     // different answer from "this query does not name any of them". Same sentence
                     // the connection detail drawer's tool filter uses.
                     <div className="px-1 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
-                        No tool here matches that.
+                        {t("entityUi.permissionDrawer.noToolMatches")}
                     </div>
                 ) : (
                     <div className="flex flex-col gap-2">
                         <ToolGroup
-                            label={readOnlyLabel}
+                            label={readOnlyLabel ?? t("entityUi.permissionDrawer.readOnlyGroup")}
                             groupKey="read_only"
                             catalogKey={catalogKey}
                             tools={readOnlyTools}
@@ -687,10 +704,10 @@ export function PermissionDrawerBody({
                             lockedTool={lockedTool}
                             rowValue={rowValue}
                             readOnly={readOnly}
-                            staleLabel={staleLabel}
+                            staleLabel={stale}
                         />
                         <ToolGroup
-                            label={writeLabel}
+                            label={writeLabel ?? t("entityUi.permissionDrawer.writeGroup")}
                             groupKey="write"
                             catalogKey={catalogKey}
                             tools={write}
@@ -702,7 +719,7 @@ export function PermissionDrawerBody({
                             lockedTool={lockedTool}
                             rowValue={rowValue}
                             readOnly={readOnly}
-                            staleLabel={staleLabel}
+                            staleLabel={stale}
                         />
                     </div>
                 )}
@@ -711,8 +728,10 @@ export function PermissionDrawerBody({
 
                 {readOnly ? null : (
                     <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                        Setting a tool&apos;s permission switches the default to Custom.
-                        {preset === "custom" ? " Picking a preset resets them." : ""}
+                        {t("entityUi.permissionDrawer.customSwitchNote")}
+                        {preset === "custom"
+                            ? ` ${t("entityUi.permissionDrawer.presetResetsNote")}`
+                            : ""}
                     </span>
                 )}
             </div>
@@ -728,6 +747,7 @@ function IntegrationDrawerBody({
 }: Omit<IntegrationPermissionDrawerProps, "open" | "onClose" | "source"> & {
     permissions: GatewayConnectionPermissions
 }) {
+    const t = useT(permissionDrawerCatalog)
     // The COMPLETE catalog, as one settled query rather than the paginated browse query: the
     // counts, the read-only partition, and the stale-key list all describe the whole integration,
     // and a partial list misreports every one of them. Search filters client-side for the same
@@ -759,8 +779,9 @@ function IntegrationDrawerBody({
             complete,
             errorNode: (
                 <div className="px-1 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
-                    Couldn&apos;t load {target.integration}&apos;s tools, so per-tool permissions
-                    aren&apos;t listed. The default permission above still applies.
+                    {tNow("entityUi.permissionDrawer.toolsNotLoaded", {
+                        integration: target.integration,
+                    })}
                 </div>
             ),
         }),
@@ -772,7 +793,9 @@ function IntegrationDrawerBody({
             {...rest}
             catalog={catalog}
             catalogKey={target.integration}
-            emptyLabel={`No tools listed for ${target.integration}.`}
+            emptyLabel={t("entityUi.permissionDrawer.noToolsListed", {
+                integration: target.integration,
+            })}
             permissions={permissions}
         />
     )
@@ -785,17 +808,16 @@ function IntegrationDrawerBody({
  * tools of the other. The entries keep working exactly as they are.
  */
 function UnmigratedNotice({target}: {target: GatewayConnectionTarget}) {
+    const t = useT(permissionDrawerCatalog)
     return (
         <div className="flex flex-col gap-2 p-4 text-xs text-[var(--ag-colorTextSecondary)]">
-            <span className="text-sm font-medium">This integration uses the old format</span>
+            <span className="text-sm font-medium">{t("entityUi.permissionDrawer.oldFormat")}</span>
             <span>
-                Its tools are saved one at a time across more than one connection, so they cannot be
-                converted into a single {target.integration} policy automatically.
+                {t("entityUi.permissionDrawer.oldFormatDetail", {
+                    integration: target.integration,
+                })}
             </span>
-            <span>
-                They keep running as they are. To set permissions here, remove the integration and
-                add it again under one connection.
-            </span>
+            <span>{t("entityUi.permissionDrawer.oldFormatKeepRunning")}</span>
         </div>
     )
 }
@@ -856,6 +878,7 @@ export function IntegrationPermissionDrawer({
     panelRef,
     ...body
 }: IntegrationPermissionDrawerProps) {
+    const t = useT(permissionDrawerCatalog)
     const readOnly = source?.readOnly ?? false
 
     return (
@@ -888,7 +911,7 @@ export function IntegrationPermissionDrawer({
                             {source?.footerStart}
                         </div>
                         <Button variant="default" onClick={onClose}>
-                            Done
+                            {t("entityUi.permissionDrawer.done")}
                         </Button>
                     </div>
                 )

@@ -8,10 +8,14 @@
 // supplies those around this hook's state.
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {createT} from "@agenta/i18n"
+import chatMessagesCatalog from "@agenta/i18n/catalogs/chat.messages"
 import type {UIMessage} from "ai"
 
 import type {ApprovalSubmissionOutcome} from "../assets/serverOwnedApproval"
 import {getPendingApprovals, type PendingApproval} from "../model/approvals"
+
+const tNow = createT(chatMessagesCatalog)
 
 type ApprovalResponse = void | ApprovalSubmissionOutcome
 
@@ -150,7 +154,7 @@ export const useApprovalDock = ({
             setErrorText(
                 failed.reason instanceof Error
                     ? failed.reason.message
-                    : "Approval failed. Please try again.",
+                    : tNow("chat.messages.approvalFailed"),
             )
         },
         [forgetSettled],
@@ -222,7 +226,7 @@ export const useApprovalDock = ({
         if (outcomes.some((outcome) => outcome?.recoverable === true)) {
             forgetSettled(ids)
             setRecoverable(true)
-            throw new Error("The approval was answered, but the run didn't resume.")
+            throw new Error(tNow("chat.messages.approvalNotResumed"))
         }
     }, [onRespond, onRespondAll, forgetSettled])
 

@@ -16,6 +16,8 @@ import {
     type SecretOwnerScope,
 } from "@agenta/entities/secret"
 import {invalidateAgentRequirements} from "@agenta/entities/workflow"
+import {createT} from "@agenta/i18n"
+import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -33,6 +35,8 @@ export interface PendingAttempt {
     /** The family key its poll is addressed by. */
     pollKey: string
 }
+
+const tNow = createT(subscriptionSignInCatalog)
 
 /** `4:31`, or an empty string when the attempt names no expiry. */
 export const countdownLabel = (expiresAt: string | null, now: number): string => {
@@ -127,13 +131,13 @@ export const useSubscriptionSignIn = ({
                 attemptId: attempt.attemptId,
                 scope,
             })
-            setError("The sign-in did not finish in time. Start it again.")
+            setError(tNow("entityUi.subscriptionSignIn.signInTimeout"))
             return
         }
         // The server's reason is a slug, so it is said in words here.
         setError(
             attemptState === "expired"
-                ? "The sign-in code expired. Start again."
+                ? tNow("entityUi.subscriptionSignIn.codeExpired")
                 : subscriptionAttemptErrorSentence(attemptQuery.data?.error, provider),
         )
     }, [
@@ -193,7 +197,7 @@ export const useSubscriptionSignIn = ({
             setError(
                 (scope === "organization" && organizationRefusal(caught, organizationName)) ||
                     extractApiErrorMessage(caught) ||
-                    "Agenta could not start the sign-in.",
+                    tNow("entityUi.subscriptionSignIn.couldNotStart"),
             )
         } finally {
             if (start === startRef.current) setStarting(false)
@@ -225,7 +229,7 @@ export const useSubscriptionSignIn = ({
     const statusLine = useMemo(
         () =>
             pending
-                ? "Waiting for you to sign in"
+                ? tNow("entityUi.subscriptionSignIn.waitingForSignIn")
                 : subscriptionStatusLine(connection?.subscription),
         [connection?.subscription, pending],
     )

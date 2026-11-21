@@ -12,6 +12,8 @@ import {
     type ReactNode,
 } from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionsRowsCatalog from "@agenta/i18n/catalogs/sessions.rows"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -66,6 +68,7 @@ const SessionRowActions = ({
     chrome: SessionRowChrome
     children: ReactNode
 }) => {
+    const t = useT(sessionsRowsCatalog)
     const {menuItems, onMenuClick, renameSession} = chrome
     const router = useRouter()
     const [open, setOpen] = useState(false)
@@ -262,7 +265,9 @@ const SessionRowActions = ({
                             <DropdownMenuTrigger asChild>
                                 <button
                                     type="button"
-                                    aria-label={`Actions for ${session.name || "Untitled session"}`}
+                                    aria-label={t("sessions.rows.actionsFor", {
+                                        name: session.name || t("sessions.rows.untitledSession"),
+                                    })}
                                     data-open={open || undefined}
                                     className={KEBAB_CLASS}
                                 >
@@ -298,7 +303,9 @@ const SessionRowActions = ({
                     ) : (
                         <button
                             type="button"
-                            aria-label={`Actions for ${session.name || "Untitled session"}`}
+                            aria-label={t("sessions.rows.actionsFor", {
+                                name: session.name || t("sessions.rows.untitledSession"),
+                            })}
                             aria-haspopup="menu"
                             aria-expanded={false}
                             className={KEBAB_CLASS}

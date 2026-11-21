@@ -1,6 +1,8 @@
 import {useCallback} from "react"
 
 import {downloadSkill} from "@agenta/entity-ui/drill-in"
+import {createT} from "@agenta/i18n"
+import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {projectIdAtom} from "@agenta/shared/state"
 import {archiveSkill, fetchSkillRevisions, unarchiveSkill} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
@@ -8,6 +10,8 @@ import {skillRevisionsQueryKey} from "@agenta/skills-ui"
 import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
+
+const tNow = createT(skillsListCatalog)
 
 /**
  * The registry verbs a row's kebab runs. Each one is the same call the detail drawer makes,
@@ -21,7 +25,7 @@ export const useSkillActions = () => {
         async (workflowId: string) => {
             await archiveSkill({projectId, workflowId})
             invalidateSkillsListCache()
-            message.success("Skill archived")
+            message.success(tNow("skills.list.archived"))
         },
         [projectId],
     )
@@ -31,9 +35,9 @@ export const useSkillActions = () => {
             try {
                 await unarchiveSkill({projectId, workflowId})
                 invalidateSkillsListCache()
-                message.success("Skill restored")
+                message.success(tNow("skills.list.restored"))
             } catch {
-                message.error("Couldn't restore this skill")
+                message.error(tNow("skills.list.restoreFailed"))
             }
         },
         [projectId],
@@ -43,7 +47,7 @@ export const useSkillActions = () => {
     const download = useCallback(
         async (workflowId: string) => {
             const queryKey = skillRevisionsQueryKey(projectId, workflowId)
-            const hide = message.loading("Preparing download…", 0)
+            const hide = message.loading(tNow("skills.list.preparingDownload"), 0)
             const skill = await queryClient
                 .fetchQuery({
                     queryKey,
@@ -54,7 +58,7 @@ export const useSkillActions = () => {
                 .then((revisions) => revisions[0]?.skill)
                 .catch(() => undefined)
                 .finally(() => hide())
-            if (!skill || !downloadSkill(skill)) message.error("Couldn't download this skill")
+            if (!skill || !downloadSkill(skill)) message.error(tNow("skills.list.downloadFailed"))
         },
         [projectId, queryClient],
     )

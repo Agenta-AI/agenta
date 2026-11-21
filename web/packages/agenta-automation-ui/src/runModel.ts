@@ -1,4 +1,6 @@
 import type {TriggerDelivery} from "@agenta/entities/gatewayTrigger"
+import {createT, formatLocale} from "@agenta/i18n"
+import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 
 import {deliveryOutcome, type Automation} from "./automationModel"
 
@@ -9,6 +11,8 @@ import {deliveryOutcome, type Automation} from "./automationModel"
  * branches on the raw payload, so the row, the pane header and the empty state can never
  * disagree about what a run was called or whether it produced anything.
  */
+
+const tNow = createT(automationsModelCatalog)
 
 /** The window the run-history caption counts over, and the only one this screen claims. */
 export const RUN_WINDOW_DAYS = 30
@@ -29,7 +33,7 @@ export function countRecentRuns(deliveries: TriggerDelivery[], now = Date.now())
 
 /** "12 runs in the last 30 days" — the caption under both the card and the heading. */
 export function runCountCaption(count: number): string {
-    return `${count} ${count === 1 ? "run" : "runs"} in the last ${RUN_WINDOW_DAYS} days`
+    return tNow("automations.model.runCount", {count, days: RUN_WINDOW_DAYS})
 }
 
 /** One run of rows under one heading — a day by default, whatever the view groups by otherwise. */
@@ -65,10 +69,13 @@ function dayKey(ms: number): string {
  */
 function dayLabel(ms: number, now: number): string {
     const days = Math.round((startOfDay(now) - startOfDay(ms)) / DAY_MS)
-    if (days <= 0) return "Today"
-    if (days === 1) return "Yesterday"
+    if (days <= 0) return tNow("automations.model.dayToday")
+    if (days === 1) return tNow("automations.model.dayYesterday")
     const date = new Date(ms)
-    if (days < 7) return date.toLocaleDateString(undefined, {weekday: "short"})
+    const locale = formatLocale()
+    if (days < 7) return date.toLocaleDateString(locale, {weekday: "short"})
+    // English keeps its day-first form; another language writes the date its own way.
+    if (locale) return date.toLocaleDateString(locale, {day: "numeric", month: "short"})
     return `${date.getDate()} ${date.toLocaleDateString(undefined, {month: "short"})}`
 }
 
@@ -82,7 +89,7 @@ function dayLabel(ms: number, now: number): string {
 export function runTimeOfDay(delivery: TriggerDelivery): string {
     const at = Date.parse(delivery.created_at ?? "")
     if (!Number.isFinite(at)) return ""
-    return new Date(at).toLocaleTimeString(undefined, {
+    return new Date(at).toLocaleTimeString(formatLocale(), {
         hour: "2-digit",
         minute: "2-digit",
         hourCycle: "h23",
@@ -116,7 +123,7 @@ export function runDayGroups(deliveries: TriggerDelivery[], now = Date.now()): R
         }
         groups.push({
             key,
-            label: dated ? dayLabel(at, now) : "Earlier",
+            label: dated ? dayLabel(at, now) : tNow("automations.model.dayEarlier"),
             runs: [delivery],
         })
     }
@@ -132,10 +139,10 @@ export function runDayGroups(deliveries: TriggerDelivery[], now = Date.now()): R
  * event that arrived.
  */
 export function runLabel(delivery: TriggerDelivery): string {
-    if (delivery.data?.is_test) return "Test run"
-    if (delivery.schedule_id) return "Scheduled run"
+    if (delivery.data?.is_test) return tNow("automations.model.runTest")
+    if (delivery.schedule_id) return tNow("automations.model.runScheduled")
     const event = readableEventKey(delivery.data?.event_key ?? "")
-    return event || "Run"
+    return event || tNow("automations.model.runDefault")
 }
 
 /** "GITHUB_STAR_ADDED_EVENT" → "Github star added". The trailing "EVENT" adds nothing. */
@@ -151,7 +158,7 @@ export function readableEventKey(eventKey: string): string {
     return sentence.charAt(0).toUpperCase() + sentence.slice(1)
 }
 
-export const SKIPPED_NEEDS_SETUP_LABEL = "Skipped: agent needs setup"
+export const skippedNeedsSetupLabel = (): string => tNow("automations.model.skippedNeedsSetup")
 
 /** Dot colour, from `deliveryOutcome` — never `status.type`, which the backend never sets. */
 export function runDotClass(delivery: TriggerDelivery): string {
@@ -171,16 +178,16 @@ export function runDotClass(delivery: TriggerDelivery): string {
 export function runOutcomeLabel(delivery: TriggerDelivery): string {
     switch (deliveryOutcome(delivery)) {
         case "ok":
-            return "Succeeded"
+            return tNow("automations.model.outcomeSucceeded")
         case "bad":
-            return "Failed"
+            return tNow("automations.model.outcomeFailed")
         // The dispatcher skips a fire only when the agent's model needs setup.
         case "skipped":
-            return SKIPPED_NEEDS_SETUP_LABEL
+            return skippedNeedsSetupLabel()
         default:
             // "Running", not "Pending": a delivery that is neither succeeded nor failed has
             // been handed to the runner, which has it in flight rather than queued.
-            return "Running"
+            return tNow("automations.model.outcomeRunning")
     }
 }
 
@@ -244,15 +251,15 @@ export function runFailureReason(delivery: TriggerDelivery): string {
     const code = String(delivery.status?.code ?? "")
     const detail = runError(delivery)?.trim()
     if (code === "409") {
-        return "The app connection is no longer valid. Reconnect it, then turn the automation back on."
+        return tNow("automations.model.failureConnection")
     }
     const lead =
         code === "400"
-            ? "The run couldn't be prepared from this event's data."
+            ? tNow("automations.model.failurePrepare")
             : code === "500"
-              ? "The agent couldn't be started."
-              : "The agent stopped before finishing."
-    return detail ? `${lead} ${detail}` : lead
+              ? tNow("automations.model.failureStart")
+              : tNow("automations.model.failureStopped")
+    return detail ? tNow("automations.model.failureWithDetail", {lead, detail}) : lead
 }
 
 /** The owner filter `useTriggerDeliveries` takes, in this app's vocabulary. */

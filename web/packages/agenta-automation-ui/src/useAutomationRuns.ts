@@ -2,7 +2,7 @@ import {useMemo} from "react"
 
 import {useTriggerDeliveries, type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 
-import {deliveryOutcome, type Automation} from "./automationModel"
+import {deliveryOutcome, useAutomationText, type Automation} from "./automationModel"
 import {
     countRecentRuns,
     deliveriesOwner,
@@ -22,6 +22,7 @@ import {
  * kind (schedule vs subscription) is only known once the automation resolves.
  */
 export const useAutomationRuns = (automation: Automation | null, {recent = false} = {}) => {
+    const text = useAutomationText()
     const owner = useMemo(() => deliveriesOwner(automation), [automation])
     const {deliveries, isLoading, error, refetch} = useTriggerDeliveries(owner, {recent})
 
@@ -34,7 +35,7 @@ export const useAutomationRuns = (automation: Automation | null, {recent = false
         const newest = runs[0]
         if (!newest || deliveryOutcome(newest) !== "bad") return null
         return runFailureReason(newest)
-    }, [runs])
+    }, [runs, text])
 
     // A count is a claim. Before the automation resolves the query has no owner and never runs,
     // so `isLoading` is false with zero rows — reporting "0 runs" off that would be a lie told

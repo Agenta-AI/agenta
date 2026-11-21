@@ -1,3 +1,5 @@
+import {createT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {
     autoscrollSpeed,
     insertionIndex,
@@ -58,6 +60,7 @@ interface DragState {
 }
 
 const store = getDefaultStore()
+const tNow = createT(navigationCatalog)
 
 const readItem = (el: HTMLElement): SidebarDragItem | null => {
     const {dragZone, dragId, dragKind} = el.dataset
@@ -365,5 +368,9 @@ export const moveByKeyboard = (el: HTMLElement, delta: -1 | 1): string | null =>
     const at = ids.indexOf(item.id)
     if (at < 0 || at + delta < 0 || at + delta >= ids.length) return null
     store.set(moveSidebarManualOrderAtom, {zone: item.zone, ids, id: item.id, delta})
-    return `${el.textContent?.trim() ?? "Item"} moved to position ${at + delta + 1} of ${ids.length}`
+    return tNow("navigation.chrome.itemMoved", {
+        item: el.textContent?.trim() ?? tNow("navigation.chrome.itemFallback"),
+        position: at + delta + 1,
+        total: ids.length,
+    })
 }

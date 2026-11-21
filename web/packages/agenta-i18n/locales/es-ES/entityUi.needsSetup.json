@@ -1,0 +1,12 @@
+{
+    "agentTitle": "Este agente necesita configuración",
+    "label": "Requiere configuración",
+    "modelMessage": "El modelo necesita configuración antes de que este agente pueda ejecutarse.",
+    "modelPlaceholder": "Configura el modelo para enviar mensajes",
+    "reasonNotAvailable": "Ya no está disponible",
+    "reasonNotChosen": "No se ha elegido ninguna cuenta",
+    "reasonNotFound": "No se encuentra en este proyecto",
+    "reasonNotShared": "No compartido con este proyecto",
+    "reasonSignInExpired": "El inicio de sesión ha caducado",
+    "reasonTurnedOff": "Desactivado"
+}

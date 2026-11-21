@@ -11,6 +11,9 @@
  */
 import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import catalogAppCardCatalog from "@agenta/i18n/catalogs/entityUi.catalogAppCard"
+import catalogChooserCatalog from "@agenta/i18n/catalogs/entityUi.catalogChooser"
 import {ScrollSentinel} from "@agenta/ui"
 import {
     Button,
@@ -142,14 +145,15 @@ function CatalogItemList<I, T, C>({
     connection: C
     props: CatalogChooserProps<I, T, C>
 }) {
+    const t = useT(catalogChooserCatalog, catalogAppCardCatalog)
     const {items, isLoading, hasNextPage, isFetchingNextPage, requestMore, setSearch} =
         props.useItems(props.connection.integrationKey(connection))
     const [query, setQuery] = useState("")
     const [listEl, setListEl] = useState<HTMLDivElement | null>(null)
     // Debounce into the server-side item search; clear the shared atom when leaving this app.
     useEffect(() => {
-        const t = setTimeout(() => setSearch(query.trim()), 250)
-        return () => clearTimeout(t)
+        const timer = setTimeout(() => setSearch(query.trim()), 250)
+        return () => clearTimeout(timer)
     }, [query, setSearch])
     useEffect(() => () => setSearch(""), [setSearch])
 
@@ -160,7 +164,7 @@ function CatalogItemList<I, T, C>({
         <div className="flex min-h-0 flex-1 flex-col gap-2.5">
             <InputAffix
                 allowClear
-                placeholder={props.itemsSearchPlaceholder ?? "Search…"}
+                placeholder={props.itemsSearchPlaceholder ?? t("entityUi.catalogChooser.search")}
                 prefix={
                     <MagnifyingGlass size={13} className="text-[var(--ag-colorTextTertiary)]" />
                 }
@@ -177,7 +181,9 @@ function CatalogItemList<I, T, C>({
                     </div>
                 ) : items.length === 0 ? (
                     <div className="px-2 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
-                        {searching ? `No matches for “${query.trim()}”.` : props.emptyItemsText}
+                        {searching
+                            ? t("entityUi.catalogChooser.noMatches", {query: query.trim()})
+                            : props.emptyItemsText}
                     </div>
                 ) : (
                     <>
@@ -198,7 +204,7 @@ function CatalogItemList<I, T, C>({
                                     disabled={disabledRow}
                                     title={
                                         disabledRow
-                                            ? "Deprecated — use the recommended event instead"
+                                            ? t("entityUi.catalogChooser.deprecatedHint")
                                             : undefined
                                     }
                                     onClick={() =>
@@ -225,12 +231,12 @@ function CatalogItemList<I, T, C>({
                                             </span>
                                             {deprecated ? (
                                                 <span className="shrink-0 rounded bg-[var(--ag-colorFillSecondary)] px-1 py-px text-[9px] uppercase tracking-wide text-[var(--ag-colorWarningText)]">
-                                                    deprecated
+                                                    {t("entityUi.catalogChooser.deprecated")}
                                                 </span>
                                             ) : null}
                                             {readOnly ? (
                                                 <span className="shrink-0 rounded bg-[var(--ag-colorFillSecondary)] px-1 py-px text-[9px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                                                    read-only
+                                                    {t("entityUi.catalogChooser.readOnly")}
                                                 </span>
                                             ) : null}
                                         </span>
@@ -286,6 +292,7 @@ function ConnectionDetail<I, T, C>({
     integration?: I
     props: CatalogChooserProps<I, T, C>
 }) {
+    const t = useT(catalogChooserCatalog, catalogAppCardCatalog)
     const ready = props.isConnectionReady(connection)
     const account = props.connection.name(connection) || props.connection.slug(connection) || ""
     const connectedAt = props.connection.connectedAt?.(connection) || ""
@@ -303,7 +310,9 @@ function ConnectionDetail<I, T, C>({
                 </div>
                 <div className="truncate text-xs text-[var(--ag-colorTextTertiary)]">
                     {account || props.connection.integrationKey(connection)}
-                    {connectedAt ? ` · connected ${connectedAt}` : ""}
+                    {connectedAt
+                        ? ` · ${t("entityUi.catalogChooser.connectedAt", {when: connectedAt})}`
+                        : ""}
                 </div>
             </div>
             <span
@@ -316,7 +325,9 @@ function ConnectionDetail<I, T, C>({
                         ready ? "bg-[var(--ag-colorSuccess)]" : "bg-[var(--ag-colorWarning)]"
                     }`}
                 />
-                {ready ? "Connected" : "Pending"}
+                {ready
+                    ? t("entityUi.catalogAppCard.connected")
+                    : t("entityUi.catalogChooser.pending")}
             </span>
         </div>
     )
@@ -340,6 +351,7 @@ function ConnectionSwitcher<I, T, C>({
     props: CatalogChooserProps<I, T, C>
     onSelect: (id: string) => void
 }) {
+    const t = useT(catalogChooserCatalog, catalogAppCardCatalog)
     const integrationName = integration
         ? props.integration.name(integration)
         : props.connection.integrationKey(selectedConn)
@@ -356,7 +368,7 @@ function ConnectionSwitcher<I, T, C>({
                     {integrationName}
                 </span>
                 <span className="shrink-0 text-xs text-[var(--ag-colorTextTertiary)]">
-                    {connections.length} accounts
+                    {t("entityUi.catalogChooser.accountCount", {count: connections.length})}
                 </span>
             </div>
             <div className="grid gap-1.5 [grid-template-columns:repeat(auto-fill,minmax(min(150px,100%),1fr))]">
@@ -367,14 +379,16 @@ function ConnectionSwitcher<I, T, C>({
                     // Prefer a user-given name; fall back to the slug, which is the per-account
                     // identifier (names default to the integration name and collide).
                     const primary =
-                        name && name !== integrationName ? name : slug || name || id || "account"
+                        name && name !== integrationName
+                            ? name
+                            : slug || name || id || t("entityUi.catalogChooser.account")
                     const secondary = primary === slug ? undefined : slug
                     const connectedAt = props.connection.connectedAt?.(c)
                     const ready = props.isConnectionReady(c)
                     const isCurrent = id != null && id === selectedId
                     return (
                         <button
-                            key={id ?? primary}
+                            key={id ?? slug ?? name ?? "account"}
                             type="button"
                             onClick={() => id && onSelect(id)}
                             aria-pressed={isCurrent}
@@ -405,7 +419,11 @@ function ConnectionSwitcher<I, T, C>({
                                     <span className="block truncate text-[12px] text-[var(--ag-colorTextTertiary)]">
                                         {secondary}
                                         {secondary && connectedAt ? " · " : ""}
-                                        {connectedAt ? `connected ${connectedAt}` : ""}
+                                        {connectedAt
+                                            ? t("entityUi.catalogChooser.connectedAt", {
+                                                  when: connectedAt,
+                                              })
+                                            : ""}
                                     </span>
                                 )}
                             </span>
@@ -439,6 +457,7 @@ function AppRailItem({
     state?: "active" | "pending"
     onClick: () => void
 }) {
+    const t = useT(catalogChooserCatalog, catalogAppCardCatalog)
     return (
         <button
             type="button"
@@ -478,7 +497,11 @@ function AppRailItem({
                                 }`}
                             />
                         </TooltipTrigger>
-                        <TooltipContent>{state === "active" ? "Active" : "Pending"}</TooltipContent>
+                        <TooltipContent>
+                            {state === "active"
+                                ? t("entityUi.catalogChooser.active")
+                                : t("entityUi.catalogChooser.pending")}
+                        </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
             )}
@@ -495,6 +518,7 @@ function ConnectInvite<I, T, C>({
     props: CatalogChooserProps<I, T, C>
     onConnect: () => void
 }) {
+    const t = useT(catalogChooserCatalog, catalogAppCardCatalog)
     const name = integration ? props.integration.name(integration) : undefined
     const description = integration ? props.integration.description(integration) : undefined
     return (
@@ -503,14 +527,18 @@ function ConnectInvite<I, T, C>({
                 logo={integration ? props.integration.logo(integration) : undefined}
                 size={32}
             />
-            <div className="text-xs font-medium">{name ?? "This app"}</div>
+            <div className="text-xs font-medium">
+                {name ?? t("entityUi.catalogChooser.thisApp")}
+            </div>
             {description && (
                 <div className="max-w-[280px] text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
                     {description}
                 </div>
             )}
             <Button variant="default" onClick={onConnect}>
-                Connect {name ?? "app"}
+                {name
+                    ? t("entityUi.catalogChooser.connectName", {name})
+                    : t("entityUi.catalogChooser.connectApp")}
             </Button>
         </div>
     )
@@ -579,6 +607,7 @@ function CatalogGridSkeleton() {
 }
 
 export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
+    const t = useT(catalogChooserCatalog, catalogAppCardCatalog)
     const {connections, defaultIntegrationKey, searchMinChars = 3} = props
     const {
         integrations,
@@ -620,8 +649,8 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
 
     const [searchInput, setSearchInput] = useState("")
     useEffect(() => {
-        const t = setTimeout(() => setSearch(searchInput), 250)
-        return () => clearTimeout(t)
+        const timer = setTimeout(() => setSearch(searchInput), 250)
+        return () => clearTimeout(timer)
     }, [searchInput, setSearch])
     // The integrations search is a shared atom — clear it on unmount so a stale query doesn't
     // filter the next open (mirrors the item-search cleanup above). Same for the category filter.
@@ -729,7 +758,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                         <div className="flex shrink-0 flex-col gap-0.5">
                             <div className="flex items-center justify-between px-2 pb-1.5 pt-0.5">
                                 <span className="text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                                    Your connections
+                                    {t("entityUi.catalogChooser.yourConnections")}
                                 </span>
                                 <span className="shrink-0 text-[12px] text-[var(--ag-colorTextTertiary)]">
                                     {connections.length}
@@ -764,7 +793,11 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                     onClick={() => setShowAllConns((v) => !v)}
                                     className="ml-2 mt-0.5 cursor-pointer self-start border-0 bg-transparent p-0 text-xs text-[var(--ag-colorPrimary)] hover:underline"
                                 >
-                                    {showAllConns ? "Show less" : `Show all ${connections.length}`}
+                                    {showAllConns
+                                        ? t("entityUi.catalogChooser.showLess")
+                                        : t("entityUi.catalogChooser.showAll", {
+                                              total: connections.length,
+                                          })}
                                 </button>
                             )}
                         </div>
@@ -776,11 +809,11 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                 <div className="mx-2 my-2 shrink-0 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)]" />
                             )}
                             <div className="shrink-0 px-2 pb-1.5 text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                                Browse by category
+                                {t("entityUi.catalogChooser.browseByCategory")}
                             </div>
                             <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pr-1">
                                 <CategoryRailRow
-                                    label="All apps"
+                                    label={t("entityUi.catalogChooser.allApps")}
                                     active={allAppsActive}
                                     onClick={pickAll}
                                 />
@@ -819,7 +852,10 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                         onClick={() => setMobileView("rail")}
                         className="mb-3 flex shrink-0 cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)] sm:hidden"
                     >
-                        <ArrowLeft size={13} /> {hasConnections ? "Connections" : "Categories"}
+                        <ArrowLeft size={13} />{" "}
+                        {hasConnections
+                            ? t("entityUi.catalogChooser.connections")
+                            : t("entityUi.catalogChooser.categories")}
                     </button>
                 ) : null}
                 {selected ? (
@@ -829,7 +865,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                             onClick={() => setSelected(null)}
                             className="mb-3 flex shrink-0 cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
                         >
-                            <ArrowLeft size={13} /> Back
+                            <ArrowLeft size={13} /> {t("entityUi.catalogChooser.back")}
                         </button>
                         {selectedConn ? (
                             <div className="flex min-h-0 flex-1 flex-col">
@@ -864,8 +900,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                                     className="mt-2 flex w-full items-center justify-between gap-2 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-left disabled:cursor-wait"
                                                 >
                                                     <span className="text-xs text-[var(--ag-colorWarningText)]">
-                                                        Authentication is still pending for this
-                                                        connection.
+                                                        {t("entityUi.catalogChooser.authPending")}
                                                     </span>
                                                     <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-[var(--ag-colorPrimary)]">
                                                         {busy ? (
@@ -873,7 +908,13 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                                         ) : (
                                                             <ArrowClockwise size={13} />
                                                         )}
-                                                        {busy ? "Reconnecting…" : "Reconnect"}
+                                                        {busy
+                                                            ? t(
+                                                                  "entityUi.catalogChooser.reconnecting",
+                                                              )
+                                                            : t(
+                                                                  "entityUi.catalogChooser.reconnect",
+                                                              )}
                                                     </span>
                                                 </button>
                                             )
@@ -890,7 +931,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                                 }
                                                 className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorPrimary)] hover:underline"
                                             >
-                                                + Connect another account
+                                                {t("entityUi.catalogChooser.connectAnother")}
                                             </button>
                                         )}
                                     </div>
@@ -917,7 +958,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                         <InputAffix
                             allowClear
                             autoFocus
-                            placeholder="Search apps…"
+                            placeholder={t("entityUi.catalogChooser.searchApps")}
                             prefix={
                                 <MagnifyingGlass
                                     size={13}
@@ -936,12 +977,19 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                         />
                         <div className="mb-1 mt-2 flex items-center justify-between gap-2 px-0.5">
                             <span className="text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                                {searching ? "Results" : category ? category.name : "All apps"}
+                                {searching
+                                    ? t("entityUi.catalogChooser.results")
+                                    : category
+                                      ? category.name
+                                      : t("entityUi.catalogChooser.allApps")}
                             </span>
                             {integrations.length > 0 && (
                                 <span className="shrink-0 text-[12px] text-[var(--ag-colorTextTertiary)]">
                                     {typeof total === "number" && total > integrations.length
-                                        ? `${integrations.length} of ${total}`
+                                        ? t("entityUi.catalogChooser.countOfTotal", {
+                                              shown: integrations.length,
+                                              total,
+                                          })
                                         : integrations.length}
                                 </span>
                             )}
@@ -955,14 +1003,14 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                             ) : integrationsError && integrations.length === 0 ? (
                                 <div className="col-span-full flex flex-col items-center gap-2 py-8 text-center">
                                     <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                                        Couldn&apos;t load apps.
+                                        {t("entityUi.catalogChooser.loadError")}
                                     </span>
                                     {refetchIntegrations && (
                                         <Button
                                             variant="outline"
                                             onClick={() => refetchIntegrations()}
                                         >
-                                            Retry
+                                            {t("entityUi.catalogChooser.retry")}
                                         </Button>
                                     )}
                                 </div>
@@ -970,19 +1018,27 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                 <div className="col-span-full flex flex-col items-center gap-2 py-8 text-center text-xs text-[var(--ag-colorTextTertiary)]">
                                     {searching ? (
                                         <>
-                                            <span>No apps match “{searchInput.trim()}”.</span>
+                                            <span>
+                                                {t("entityUi.catalogChooser.noAppsMatch", {
+                                                    query: searchInput.trim(),
+                                                })}
+                                            </span>
                                             <button
                                                 type="button"
                                                 onClick={clearSearch}
                                                 className="cursor-pointer border-0 bg-transparent p-0 text-[var(--ag-colorPrimary)] hover:underline"
                                             >
-                                                Clear search
+                                                {t("entityUi.catalogChooser.clearSearch")}
                                             </button>
                                         </>
                                     ) : category ? (
-                                        <span>No apps in {category.name} yet.</span>
+                                        <span>
+                                            {t("entityUi.catalogChooser.noAppsInCategory", {
+                                                category: category.name,
+                                            })}
+                                        </span>
                                     ) : (
-                                        <span>No apps found.</span>
+                                        <span>{t("entityUi.catalogChooser.noApps")}</span>
                                     )}
                                 </div>
                             ) : (

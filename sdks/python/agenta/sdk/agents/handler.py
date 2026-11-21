@@ -14,7 +14,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from opentelemetry import trace as otel_trace
 
@@ -487,7 +487,31 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         if session_id is not None and not _AGENT_SESSION_ID_RE.fullmatch(session_id):
             raise InvalidSessionIdV0Error(session_id)
 
+        request_meta = request.meta or {}
+
+        def _meta_string(name: str) -> Optional[str]:
+            value = request_meta.get(name)
+            return value.strip() if isinstance(value, str) and value.strip() else None
+
+        # The execution id the runner runs this turn under. The API names it for a delivered or
+        # resumed run; a fresh session turn (an idle admission answers without one) gets it here,
+        # because the runner would otherwise mint it after the workflow span below is written.
+        # A continuation (control_command_id) must carry the API's run_id: the runner refuses one
+        # that has none, so the SDK does not mint it there.
+        run_id = _meta_string("run_id")
+        if run_id is None and session_id and not _meta_string("control_command_id"):
+            run_id = str(uuid4())
+
         workflow_span = current_product_span()
+        # The workflow span is the root of the turn's trace, so it carries the same session and
+        # turn ids as the runner's spans. The normalizer's store_session runs before this span
+        # opens, so it does not reach it. An approval resume is a new execution (run_id) of the
+        # turn that paused (session_turn_id).
+        span_turn_id = _meta_string("session_turn_id") or run_id
+        if session_id:
+            workflow_span.set_attribute("ag.session.id", session_id)
+        if span_turn_id:
+            workflow_span.set_attribute("ag.turn.id", span_turn_id)
         record_usage = _bind_workflow_span(comp.record_usage, workflow_span)
         record_sandbox = _bind_workflow_span(ambient_record_sandbox, workflow_span)
 
@@ -665,12 +689,6 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         # values out of harness configuration: they identify this delivery/execution only. In
         # particular, a durable approval retry repeats control_command_id while run_id names the
         # one fresh continuation execution the runner must admit at most once.
-        request_meta = request.meta or {}
-
-        def _meta_string(name: str) -> Optional[str]:
-            value = request_meta.get(name)
-            return value.strip() if isinstance(value, str) and value.strip() else None
-
         session_config = SessionConfig(
             agent=agent_template,
             resolved_connection=resolved_connection,
@@ -680,7 +698,8 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             session_context=session_context,
             session_id=session_id,
             detached=bool(flags.detached),
-            turn_id=_meta_string("run_id"),
+            turn_id=run_id,
+            session_turn_id=_meta_string("session_turn_id"),
             project_id=_meta_string("project_id"),
             control_command_id=_meta_string("control_command_id"),
             # POST-hydration: the normalizer hands the handler `request.data.parameters` AFTER

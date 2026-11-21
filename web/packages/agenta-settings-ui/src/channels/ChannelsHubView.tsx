@@ -1,5 +1,8 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import channelsHubCatalog from "@agenta/i18n/catalogs/channels.hub"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, CaretUp, ChatCircleText, Code, Plus} from "@phosphor-icons/react"
 
@@ -54,6 +57,7 @@ export const ChannelsHubView = ({
     showEmbed = false,
     onOpenEmbed,
 }: ChannelsHubViewProps) => {
+    const t = useT(channelsHubCatalog, commonCatalog)
     const [expanded, setExpanded] = useState<Partial<Record<ChannelPlatform, boolean>>>({})
     const [retrying, setRetrying] = useState(false)
     const unavailable = loading || !!loadError
@@ -70,7 +74,14 @@ export const ChannelsHubView = ({
             ? [{key: "api", name: "API", icon: <Code size={12} weight="bold" />, live: apiLive}]
             : []),
         ...(showEmbed
-            ? [{key: "embed", name: "Embed", icon: <ChatCircleText size={12} />, live: false}]
+            ? [
+                  {
+                      key: "embed",
+                      name: t("channels.hub.embed"),
+                      icon: <ChatCircleText size={12} />,
+                      live: false,
+                  },
+              ]
             : []),
     ]
 
@@ -99,7 +110,7 @@ export const ChannelsHubView = ({
                             }
                         }}
                     >
-                        {retrying ? "Retrying…" : "Try again"}
+                        {retrying ? t("common.retrying") : t("common.tryAgain")}
                     </Button>
                 </div>
             ) : null}
@@ -122,12 +133,12 @@ export const ChannelsHubView = ({
                     }
                     const summary = summarizeConnection(platform, connections[platform], agentId)
                     const mine = agentConnectionsOf(connections, platform)
-                    const noun =
+                    const connectedKey =
                         platform === "slack"
-                            ? "workspace"
+                            ? "channels.hub.workspacesConnected"
                             : platform === "whatsapp"
-                              ? "number"
-                              : "bot"
+                              ? "channels.hub.numbersConnected"
+                              : "channels.hub.botsConnected"
                     const canExpand = mine.length > 0 && !unavailable
                     // Answering as another agent is a choice to make here, so it reads as a warning.
                     const dotClass =
@@ -138,12 +149,12 @@ export const ChannelsHubView = ({
                         else onOpenPlatform(platform)
                     }
                     const sub = loadError
-                        ? "Unavailable"
+                        ? t("common.unavailable")
                         : mine.length && summary.action === "manage" && !summary.needsAttention
-                          ? `${mine.length} ${noun}${mine.length > 1 ? "s" : ""} connected`
+                          ? t(connectedKey, {count: mine.length})
                           : summary.connected || summary.dotClass
                             ? summary.sub
-                            : "Not connected"
+                            : t("common.notConnected")
                     return (
                         <div
                             key={platform}
@@ -198,14 +209,20 @@ export const ChannelsHubView = ({
                                         data-testid={`channels-hub-add-${platform}`}
                                     >
                                         <Plus weight="bold" data-icon="inline-start" />
-                                        {mine.length ? "Add" : "Connect"}
+                                        {mine.length ? t("common.add") : t("common.connect")}
                                     </Button>
                                 )}
                                 <Button
                                     variant="ghost"
                                     size="icon-sm"
                                     disabled={unavailable}
-                                    aria-label={canExpand ? (open ? "Collapse" : "Expand") : "Open"}
+                                    aria-label={
+                                        canExpand
+                                            ? open
+                                                ? t("common.collapse")
+                                                : t("common.expand")
+                                            : t("common.open")
+                                    }
                                     onClick={toggle}
                                     className={`rounded-full text-muted-foreground ${open ? "bg-muted" : ""}`}
                                 >
@@ -288,8 +305,8 @@ export const ChannelsHubView = ({
                             <span className="text-sm font-medium text-foreground">API</span>
                             <span className="truncate text-[12.5px] text-muted-foreground">
                                 {apiLive
-                                    ? "Always on for saved versions"
-                                    : "Save the agent to call it"}
+                                    ? t("channels.hub.apiAlwaysOn")
+                                    : t("channels.hub.apiSaveFirst")}
                             </span>
                         </span>
                         <span className="flex size-7 flex-none items-center justify-center text-muted-foreground">
@@ -309,9 +326,11 @@ export const ChannelsHubView = ({
                             <ChatCircleText size={16} />
                         </span>
                         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <span className="text-sm font-medium text-foreground">Embed</span>
+                            <span className="text-sm font-medium text-foreground">
+                                {t("channels.hub.embed")}
+                            </span>
                             <span className="truncate text-[12.5px] text-muted-foreground">
-                                A chat on your website
+                                {t("channels.hub.embedDescription")}
                             </span>
                         </span>
                         <span className="flex size-7 flex-none items-center justify-center text-muted-foreground">

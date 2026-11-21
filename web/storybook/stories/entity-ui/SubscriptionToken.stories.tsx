@@ -87,7 +87,7 @@ const Stage = ({surface, connected, answer}: StageProps) => {
             onRemove={() => undefined}
         />
     ) : (
-        <div data-vrt-subject className="w-[432px]">
+        <div className="w-[432px]">
             <SubscriptionTokenCard connection={connection} />
         </div>
     )

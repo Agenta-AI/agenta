@@ -10,8 +10,4 @@ export {
     type CredentialBindingFieldsProps,
 } from "./CredentialBindingFields"
 export {HintedField} from "./HintedField"
-export {
-    OAuthAdvancedFields,
-    OWN_OAUTH_APP_NOTICE,
-    type OAuthAdvancedFieldsProps,
-} from "./OAuthAdvancedFields"
+export {OAuthAdvancedFields, type OAuthAdvancedFieldsProps} from "./OAuthAdvancedFields"

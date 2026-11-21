@@ -1,6 +1,8 @@
 /** The subagent drawer header's resolved parts. Each takes the bridge as a required prop and
  *  mounts only when the host supplies one, so none of them calls a hook conditionally. */
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import type {WorkflowReferenceBridge} from "@agenta/ui/drill-in"
 import {Button} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
@@ -27,6 +29,7 @@ export function SubagentOpenAgentButton({
     bridge: WorkflowReferenceBridge
     slug: string
 }) {
+    const t = useT(configItemsCatalog)
     const {detail} = bridge.useSubagentDetail(slug)
     const href = detail?.workflowId ? (bridge.agentHref?.(detail.workflowId) ?? null) : null
     if (!href) return null
@@ -34,7 +37,7 @@ export function SubagentOpenAgentButton({
         <Button variant="outline" size="sm" asChild>
             {/* no-underline: a bare anchor picks up the app's link styling inside a button. */}
             <a href={href} target="_blank" rel="noreferrer" className="no-underline">
-                Open agent
+                {t("entityUi.configItems.openAgent")}
             </a>
         </Button>
     )

@@ -1,0 +1,19 @@
+{
+    "agent": "Agent",
+    "all": "Toutes",
+    "allAgents": "Tous les agents",
+    "allSessions": "Toutes les sessions",
+    "archived": "Archivées",
+    "archivedTooltip": "Les sessions archivées sont masquées mais récupérables",
+    "automationRuns": "Exécutions d’automatisation",
+    "automationRunsTooltip": "Exécutions lancées par une automatisation, au lieu des sessions que vous avez lancées",
+    "filterByStatus": "Filtrer les sessions par statut",
+    "filters": "Filtres",
+    "include": "Inclure",
+    "live": "En direct",
+    "searchSessions": "Rechercher des sessions",
+    "show": "Afficher",
+    "waiting": "En attente",
+    "waitingCount": "En attente {{count}}",
+    "waitingOnYou": "En attente de vous"
+}

@@ -8,7 +8,11 @@
 import {simpleQueueMolecule as simpleQueue, type SimpleQueue} from "@agenta/entities/simpleQueue"
 import {atom} from "jotai"
 
-import {createAndRegisterEntityAdapter, type EntityModalAdapter} from "../modals"
+import {
+    createAndRegisterEntityAdapter,
+    getEntityTypeLabel,
+    type EntityModalAdapter,
+} from "../modals"
 
 const deleteSimpleQueuesReducer = atom(null, async (_get, set, ids: string[]): Promise<void> => {
     await set(simpleQueue.actions.deleteQueues, ids)
@@ -23,7 +27,7 @@ export const simpleQueueModalAdapter: EntityModalAdapter<SimpleQueue> =
     createAndRegisterEntityAdapter({
         type: "simpleQueue",
         getDisplayName: (entity) => entity?.name?.trim() || "Untitled queue",
-        getDisplayLabel: (count) => (count === 1 ? "Annotation queue" : "Annotation queues"),
+        getDisplayLabel: (count) => getEntityTypeLabel("simpleQueue", count),
         deleteAtom: deleteSimpleQueuesReducer,
         dataAtom: simpleQueueDataAtom,
         canDelete: () => true,

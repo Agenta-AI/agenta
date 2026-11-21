@@ -1,0 +1,9 @@
+{
+    "showFiles": "ファイルを表示",
+    "hideFiles": "ファイルを隠す",
+    "showFilesPane": "ファイルペインを表示",
+    "hideFilesPane": "ファイルペインを隠す",
+    "openConversationToBrowse": "ファイルを参照するには会話を開いてください。",
+    "driveId": "ドライブ ID",
+    "sessionId": "セッション ID"
+}

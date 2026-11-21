@@ -13,6 +13,8 @@
 import {useMemo, useState} from "react"
 
 import type {ChangeSection} from "@agenta/entities/workflow/commitDiff"
+import {useT} from "@agenta/i18n"
+import changesSummaryCatalog from "@agenta/i18n/catalogs/entityUi.changesSummary"
 import {DiffView} from "@agenta/ui/editor"
 import {cn, textColors} from "@agenta/ui/styles"
 import {ArrowLeft, Code, PencilSimple} from "@phosphor-icons/react"
@@ -64,6 +66,7 @@ export default function AgentChangesSummary({
     size = "default",
     defaultOpen = false,
 }: AgentChangesSummaryProps) {
+    const t = useT(changesSummaryCatalog)
     const [view, setView] = useState<View>({kind: "summary"})
     // Only what the user explicitly toggled; `defaultOpen` decides the rest (see isSectionOpen).
     const [openOverrides, setOpenOverrides] = useState<Record<string, boolean>>({})
@@ -116,13 +119,13 @@ export default function AgentChangesSummary({
                         onClick={() => setView({kind: "summary"})}
                     >
                         <ArrowLeft />
-                        Changes
+                        {t("entityUi.changesSummary.changes")}
                     </button>
                 ) : (
                     <span className="text-xs font-semibold text-colorText">
-                        What&apos;s changing
+                        {t("entityUi.changesSummary.whatsChanging")}
                         <span className={cn("ml-1.5 font-normal", textColors.tertiary)}>
-                            {totalChanges} {totalChanges === 1 ? "change" : "changes"}
+                            {t("entityUi.changesSummary.changeCount", {count: totalChanges})}
                         </span>
                     </span>
                 )}
@@ -133,7 +136,7 @@ export default function AgentChangesSummary({
                         onClick={() => setView({kind: "json"})}
                     >
                         <Code style={{fontSize: 13}} />
-                        View as JSON
+                        {t("entityUi.changesSummary.viewAsJson")}
                     </button>
                 ) : null}
             </div>
@@ -171,7 +174,7 @@ export default function AgentChangesSummary({
                                     {SECTION_ICON.instructions}
                                 </span>
                                 <span className={cn("flex-1", small ? "text-xs" : "text-[13px]")}>
-                                    Instructions
+                                    {t("entityUi.changesSummary.instructions")}
                                 </span>
                                 <StatusTags tags={activeSection.tags} small={small} />
                             </>
@@ -208,7 +211,7 @@ export default function AgentChangesSummary({
                                             textColors.tertiary,
                                         )}
                                     >
-                                        Description
+                                        {t("entityUi.changesSummary.description")}
                                     </div>
                                     <div className="font-mono text-xs leading-[1.8]">
                                         <div style={{color: "var(--ag-colorError)"}}>
@@ -228,7 +231,7 @@ export default function AgentChangesSummary({
                                             textColors.tertiary,
                                         )}
                                     >
-                                        Parameters
+                                        {t("entityUi.changesSummary.parameters")}
                                     </div>
                                     {activeTool.fieldChanges
                                         .filter((f) => f.field !== "description")

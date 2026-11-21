@@ -1,0 +1,16 @@
+{
+    "rateLimitReached": "Limite de débit atteinte",
+    "quotaReached": "Vous avez atteint votre quota mensuel. Réessayez plus tard ou passez à une offre supérieure.",
+    "noTracesFound": "Aucune trace trouvée",
+    "adjustTraces": "Essayez d’ajuster vos filtres ou la période pour afficher les traces.",
+    "demoAlt": "Démo d’observabilité montrant la visualisation des traces",
+    "noTracesYet": "Aucune trace pour le moment",
+    "onboardingDescription": "Ajoutez quelques lignes de code pour commencer à capturer les traces de votre application LLM. Surveillez la latence et l’utilisation des jetons, et déboguez les problèmes grâce à des informations détaillées.",
+    "setUpTracing": "Configurer le tracing",
+    "learnMore": "En savoir plus",
+    "noSessionsFound": "Aucune session trouvée",
+    "adjustSessions": "Essayez d’ajuster vos filtres ou la période pour afficher les sessions.",
+    "noSessionsObserved": "Aucune session observée",
+    "sessionsDescription": "Les sessions vous permettent de suivre les conversations à plusieurs tours avec votre application LLM, y compris les étapes intermédiaires.",
+    "gettingStartedSessions": "Premiers pas avec les sessions"
+}

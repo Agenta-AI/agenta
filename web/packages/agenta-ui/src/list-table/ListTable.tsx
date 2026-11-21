@@ -1,6 +1,9 @@
 import {Fragment} from "react"
 import type {KeyboardEvent} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+
 import {Checkbox} from "../components/ui/checkbox"
 import {CollapseCaret} from "../components/ui/collapse-caret"
 import {SkeletonBlock} from "../components/ui/skeleton"
@@ -92,6 +95,7 @@ export const ListTable = <Row,>({
     selection,
     className,
 }: ListTableProps<Row>) => {
+    const t = useT(uiControlsCatalog)
     const isGrid = view === "grid"
     const selecting = Boolean(selection) && !isGrid
     const allColumns = selecting ? [SELECT_COLUMN, ...columns] : columns
@@ -198,7 +202,7 @@ export const ListTable = <Row,>({
                                     checked={allState}
                                     disabled={selectableKeys.length === 0}
                                     onCheckedChange={toggleAll}
-                                    aria-label="Select all"
+                                    aria-label={t("ui.controls.selectAll")}
                                 />
                             </span>
                         ) : null}

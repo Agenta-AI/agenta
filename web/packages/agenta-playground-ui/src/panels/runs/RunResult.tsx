@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {deriveToolViewModelFromResult} from "@agenta/shared/utils"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 
@@ -32,6 +34,7 @@ export const RunResult = ({
     repeats,
     renderTraceFooter,
 }: RunResultProps) => {
+    const t = useT(panelsCatalog)
     if (!result) {
         return isRunning ? <RunningIndicator /> : <NoOutputPlaceholder />
     }
@@ -39,7 +42,7 @@ export const RunResult = ({
     const footer = traceId && renderTraceFooter ? renderTraceFooter(traceId) : null
     return (
         <div className="flex min-w-0 flex-col gap-2">
-            {isRunning ? <RunningIndicator label="Re-running..." /> : null}
+            {isRunning ? <RunningIndicator label={t("playground.panels.rerunning")} /> : null}
             {result.error ? (
                 <RunError result={result} />
             ) : (

@@ -11,6 +11,8 @@
  */
 import {mcpReconnectTarget} from "@agenta/entities/mcpEndpoint"
 import {providerConnectionsAtom} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n"
+import clientToolsCatalog from "@agenta/i18n/catalogs/entityUi.clientTools"
 import {
     isInteractionEndedOutput,
     type ClientToolWidgetProps as ClientToolHandlerProps,
@@ -54,8 +56,7 @@ const GatewayConnectToolWidget = ({
         decline,
     } = useGatewayConnectFlow(target, meta, settle)
     const connections = useAtomValue(providerConnectionsAtom)
-
-    const planeLabel = target.plane === "llm" ? "model provider" : "MCP server"
+    const t = useT(clientToolsCatalog)
 
     if (phase === "connecting") {
         return (
@@ -68,7 +69,7 @@ const GatewayConnectToolWidget = ({
                     }
                 >
                     <span className="truncate text-xs text-colorTextSecondary">
-                        Connecting {label}…
+                        {t("entityUi.clientTools.connectingLabel", {label})}
                     </span>
                 </ChipRow>
                 {target.plane === "llm" ? (
@@ -101,7 +102,7 @@ const GatewayConnectToolWidget = ({
                     icon={bare ? null : <Plugs size={13} className="text-colorTextTertiary" />}
                 >
                     <span className="truncate text-xs text-colorTextTertiary">
-                        Connection request ended
+                        {t("entityUi.clientTools.connectionRequestEnded")}
                     </span>
                 </ChipRow>
             )
@@ -116,7 +117,9 @@ const GatewayConnectToolWidget = ({
                         )
                     }
                 >
-                    <span className="truncate text-xs text-colorText">{label} connected</span>
+                    <span className="truncate text-xs text-colorText">
+                        {t("entityUi.clientTools.labelConnected", {label})}
+                    </span>
                 </ChipRow>
             )
         }
@@ -127,7 +130,7 @@ const GatewayConnectToolWidget = ({
                 }
             >
                 <span className="truncate text-xs text-colorTextSecondary">
-                    Connection not completed
+                    {t("entityUi.clientTools.connectionNotCompleted")}
                 </span>
             </ChipRow>
         )
@@ -136,14 +139,16 @@ const GatewayConnectToolWidget = ({
     return (
         <ChipRow icon={bare ? null : <Plugs size={13} className="text-colorPrimary" />}>
             <span className="truncate text-xs text-colorText">
-                Connect {label} ({planeLabel})
+                {target.plane === "llm"
+                    ? t("entityUi.clientTools.connectLabelModelProvider", {label})
+                    : t("entityUi.clientTools.connectLabelMcpServer", {label})}
             </span>
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
                 <Button variant="ghost" size="sm" onClick={decline} className="px-2">
-                    Not now
+                    {t("entityUi.clientTools.notNow")}
                 </Button>
                 <Button size="sm" onClick={runConnect}>
-                    Connect
+                    {t("entityUi.clientTools.connect")}
                 </Button>
             </div>
         </ChipRow>

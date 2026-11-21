@@ -1,0 +1,9 @@
+{
+    "automations": "Automatizaciones",
+    "recentFiles": "Archivos recientes",
+    "addAutomation": "Añadir automatización",
+    "automationStarter": "Quiero una automatización que",
+    "createManually": "Crear manualmente",
+    "runOnScheduleOrEvent": "Ejecutar con una programación o un evento",
+    "workingFilesHint": "Los archivos de trabajo del agente: todo lo que lee y escribe durante una ejecución. Abre una conversación para explorarlos aquí; la carpeta permanente del agente aparecerá como subcarpeta cuando llegue el almacenamiento a nivel de agente."
+}

@@ -7,6 +7,7 @@ import {
 import {
   currentUserTurn,
   resolvePromptText,
+  spanTurnId,
   type AgentRunRequest,
   type AgentRunResult,
   type AgentUsage,
@@ -72,7 +73,13 @@ import {
   type AcpPromptBlock,
 } from "./attachments.ts";
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
-import { linkAgentFiles } from "./agent-mount.ts";
+import { driveAppendix } from "./platform-guidance.ts";
+import {
+  agentMountAppendix,
+  agentMountUnavailableAppendix,
+} from "./agent-mount-guidance.ts";
+import type { SandboxExec } from "./mount.ts";
+import { linkRunDrive, linkRunDriveRemote } from "./run-drives.ts";
 import { refreshDriveViewsAtTurnStart } from "./turn-start-refresh.ts";
 import {
   recoverSubscriptionAuthFailure,
@@ -668,6 +675,8 @@ export async function runTurn(
       skillsDropped: plan.workspace.skillsDropped,
       traceparent: request.context?.propagation?.traceparent,
       baggage: request.context?.propagation?.baggage,
+      // On an approval resume the spans carry the session turn, not the new execution.
+      sessionTurnId: spanTurnId(request),
       endpoint: otlpTarget.endpoint,
       // The session keepalive owns this getter and refreshes its value while a long turn runs.
       // Resolve it only when the trace batch leaves the runner, not when the turn starts.
@@ -1446,23 +1455,41 @@ export async function runTurn(
         : undefined,
     });
 
-    // Repair `<cwd>/agent-files` if this session lost it. Once per turn, on EVERY turn: a warm
-    // reuse never re-acquires, so `mountLocalAgentCwd` — the only other place that links it — does
-    // not run, and a session that lost the link stayed broken for the life of its environment.
+    // Repair every drive link (`drives/<slug>`, and `agent-files` for the home drive) once per
+    // turn, on EVERY turn: a warm reuse never re-acquires, so a session that lost a link would
+    // stay broken for the life of its environment. `inprocess` repairs its links in the command
+    // sandbox at the first tool call of the turn (`conversation-workspace.ts`).
     //
     // Here rather than at the top of the function because of the INVARIANT above: no unconditional
     // I/O may delay `attachPermissionResponder`. This is the first point past it.
     //
-    // Per turn rather than per tool call, and that loses nothing. Writes made after a mid-turn
-    // deletion land on the session drive, which is durable, and the repair moves them onto the
-    // agent mount. They arrive one turn late instead of never, for one `lstat` per turn rather
-    // than one per tool call on a FUSE mount.
-    if (env.agentMountedPath && plan.driveOnRunner) {
-      const agentFilesReady = await linkAgentFiles(plan.workspace.cwd, env.agentMountedPath, {
-        log: logger,
-      });
-      if (!agentFilesReady) {
-        throw new Error("agent-files could not be linked to the durable agent mount");
+    // Per turn rather than per tool call: one `lstat` per link per turn on `local`, and one
+    // remote command per link per turn on `daytona`, rather than one per tool call. The prompt
+    // was written at acquire, so a link lost or regained since then is told this turn.
+    // A Claude slash command must lead the prompt (see the superseded-turn note above), so its
+    // notices wait: `drive.linked` keeps its old value, and the next turn sends them.
+    const deferDriveNotices = plan.acpAgent === "claude" && promptText.trimStart().startsWith("/");
+    if (plan.driveOnRunner || plan.isDaytona) {
+      for (const drive of env.drives) {
+        if (!drive.mountedPath) continue;
+        const linked = plan.driveOnRunner
+          ? await linkRunDrive(plan.workspace.cwd, drive, drive.mountedPath, { log: logger })
+          : await linkRunDriveRemote(env.sandbox as SandboxExec, plan.workspace.cwd, drive, drive.mountedPath, { log: logger });
+        if (deferDriveNotices) continue;
+        const wasLinked = drive.linked;
+        drive.linked = linked;
+        if (linked && wasLinked !== false) continue;
+        const notices = [
+          ...(drive.isHome
+            ? [linked ? agentMountAppendix(drive.mountedPath) : agentMountUnavailableAppendix()]
+            : []),
+          ...(drive.slug
+            ? [driveAppendix({ slug: drive.slug, access: drive.access, mountedPath: linked ? drive.mountedPath : undefined })]
+            : []),
+        ];
+        for (const notice of notices.reverse()) {
+          promptBlocks.unshift({ type: "text", text: `${notice.text}\n\n` });
+        }
       }
     }
 

@@ -1,0 +1,19 @@
+{
+    "removeAsSubagent": "Quitar {{name}} como subagente",
+    "addAsSubagent": "Añadir {{name}} como subagente",
+    "noDescription": "Sin descripción",
+    "appsConnectedTo": "Aplicaciones conectadas a {{name}}",
+    "add": "Añadir",
+    "addSubagents": "Añadir subagentes",
+    "pickAgents": "· Elige los agentes a los que puede llamar este agente.",
+    "done": "Listo",
+    "searchAgents": "Buscar agentes por nombre…",
+    "agentsNotLoaded_one": "No se pudo cargar {{count}} agente, así que no aparece en la lista.",
+    "agentsNotLoaded_many": "No se pudieron cargar {{count}} agentes, así que no aparecen en la lista.",
+    "agentsNotLoaded_other": "No se pudieron cargar {{count}} agentes, así que no aparecen en la lista.",
+    "retry": "Reintentar",
+    "noAgentsMatch": "Ningún agente coincide con tu búsqueda",
+    "noAgentsYet": "Aún no hay agentes",
+    "tryDifferentName": "Prueba con otro nombre.",
+    "createAgentFirst": "Crea un agente y vuelve para añadirlo aquí."
+}

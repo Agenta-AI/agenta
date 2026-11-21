@@ -1,9 +1,13 @@
 import {useCallback, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {message} from "@agenta/ui/app-message"
 import {Switch} from "@agenta/ui/ui"
 
 import {cn} from "./lib/utils"
+
+const tNow = createT(automationsEditorCatalog)
 
 /**
  * The automation's on/off switch, with the pending guard and the messages it owns.
@@ -24,6 +28,7 @@ export const AutomationActiveSwitch = ({
     label?: boolean
     className?: string
 }) => {
+    const t = useT(automationsEditorCatalog)
     const [saving, setSaving] = useState(false)
 
     const toggle = useCallback(
@@ -32,9 +37,13 @@ export const AutomationActiveSwitch = ({
             setSaving(true)
             try {
                 await onToggle(next)
-                message.success(next ? "Automation switched on" : "Automation switched off")
+                message.success(
+                    next
+                        ? tNow("automations.editor.switchedOn")
+                        : tNow("automations.editor.switchedOff"),
+                )
             } catch {
-                message.error("Couldn't change this automation")
+                message.error(tNow("automations.editor.changeFailed"))
             } finally {
                 setSaving(false)
             }
@@ -51,10 +60,16 @@ export const AutomationActiveSwitch = ({
                 checked={active}
                 disabled={saving}
                 onCheckedChange={(next) => void toggle(next)}
-                aria-label={active ? "Switch this automation off" : "Switch this automation on"}
+                aria-label={
+                    active
+                        ? t("automations.editor.switchOffAria")
+                        : t("automations.editor.switchOnAria")
+                }
             />
             {label ? (
-                <span className="text-[14px] text-foreground">{active ? "On" : "Off"}</span>
+                <span className="text-[14px] text-foreground">
+                    {active ? t("automations.editor.on") : t("automations.editor.off")}
+                </span>
             ) : null}
         </span>
     )

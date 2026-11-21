@@ -16,6 +16,8 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {richText, useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import type {SimpleChatMessage} from "@agenta/shared/types"
 import {ChatMessageList} from "@agenta/ui/chat-message"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -199,6 +201,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     hideModelSelector: _hideModelSelector = false,
     renderProviderIcon,
 }: PromptSchemaControlProps) {
+    const t = useT(schemaControlsCatalog)
     // Get injected EditorProvider from context
     const {EditorProvider, gatewayTools} = useDrillInUI()
 
@@ -514,7 +517,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                 showRemoveButton={true}
                 showCopyButton={true}
                 allowFileUpload={false}
-                placeholder="Enter message content..."
+                placeholder={t("entityUi.schemaControls.enterMessageContent")}
                 className="[&_.chat-message-editor]:border [&_.chat-message-editor]:border-zinc-2 [&_.chat-message-editor]:rounded-lg"
                 enableTokens={true}
                 templateFormat={localTemplateFormat}
@@ -565,7 +568,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                     {/* Add Message */}
                     <Button variant="outline" size="sm" onClick={handleAddMessage}>
                         <Plus size={14} />
-                        Message
+                        {t("entityUi.schemaControls.message")}
                     </Button>
 
                     {/* Add Tool — only when schema declares tools support */}
@@ -615,7 +618,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                     >
                         <SelectTrigger
                             size="sm"
-                            aria-label="Prompt syntax"
+                            aria-label={t("entityUi.schemaControls.promptSyntax")}
                             className="h-control-sm w-auto min-w-[130px]"
                         >
                             <SelectValue />
@@ -670,12 +673,18 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                         className="!py-1 !px-2 !rounded-md"
                         message={
                             <span className="text-[12px]">
-                                Switching from{" "}
-                                <code className="font-mono text-xs bg-chip px-1 rounded">
-                                    {originalTemplateFormatRef.current}
-                                </code>{" "}
-                                is permanent — once you commit, you won&apos;t be able to switch
-                                back. Discard the draft to revert.
+                                {richText(
+                                    t("entityUi.schemaControls.switchingIsPermanent", {
+                                        format: originalTemplateFormatRef.current,
+                                    }),
+                                    {
+                                        code: (text) => (
+                                            <code className="font-mono text-xs bg-chip px-1 rounded">
+                                                {text}
+                                            </code>
+                                        ),
+                                    },
+                                )}
                             </span>
                         }
                     />

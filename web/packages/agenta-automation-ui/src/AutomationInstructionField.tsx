@@ -23,6 +23,8 @@ import {
     EventMessageComposer,
     MessageComposer,
 } from "@agenta/entity-ui/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {Checkbox} from "@agenta/ui/ui"
 import {Eye} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -73,6 +75,7 @@ export const AutomationInstructionField = ({
     /** Why the automation cannot be created yet; the create screen's only use. */
     error?: string
 }) => {
+    const t = useT(automationsEditorCatalog)
     const isEvent = kind === "event"
     const inputsText = useMemo(() => JSON.stringify(inputsFields ?? {}, null, 2), [inputsFields])
 
@@ -169,7 +172,7 @@ export const AutomationInstructionField = ({
     }
 
     return (
-        <AutomationField label="Instruction" error={error}>
+        <AutomationField label={t("automations.editor.instruction")} error={error}>
             <MessageComposer
                 inputsText={inputsText}
                 onChange={onChange}
@@ -206,6 +209,7 @@ function EventInstruction({
     automation: Automation | null
     error?: string
 }) {
+    const t = useT(automationsEditorCatalog)
     // The catalog is keyed by integration, which the automation knows only through its connection.
     const {connections} = useTriggerConnectionsQuery()
     const integrationKey =
@@ -232,7 +236,7 @@ function EventInstruction({
     }, [])
 
     return (
-        <AutomationField label="Instruction" error={error}>
+        <AutomationField label={t("automations.editor.instruction")} error={error}>
             <div className="flex flex-col gap-4">
                 <EventMessageComposer
                     inputsText={inputsText}
@@ -247,16 +251,16 @@ function EventInstruction({
                         checked={includeEvent}
                         onCheckedChange={(checked) => onChangeIncludeEvent(checked === true)}
                     />
-                    Also attach the full event, so the agent can use any detail
+                    {t("automations.editor.attachEvent")}
                 </label>
                 {preview === null ? null : (
                     <div className="flex flex-col gap-2 border-0 border-t border-solid border-border pt-4">
                         <span className="flex items-center gap-1.5 text-[13px] font-medium text-foreground">
                             <Eye aria-hidden className="size-4" />
-                            What the agent gets
+                            {t("automations.editor.whatAgentGets")}
                             {lastEvent ? (
                                 <span className="font-normal text-muted-foreground">
-                                    from the last event
+                                    {t("automations.editor.fromLastEvent")}
                                 </span>
                             ) : null}
                         </span>

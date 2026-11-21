@@ -69,7 +69,10 @@ from oss.src.core.sessions.commands.types import (
     SessionCommandNotClaimable,
     SessionCommandNotFound,
 )
-from oss.src.core.sessions.executions.dtos import SessionExecutionState
+from oss.src.core.sessions.executions.dtos import (
+    SessionExecutionSettlement,
+    SessionExecutionState,
+)
 from oss.src.core.sessions.records.dtos import RunnerEnding
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.sessions.interactions.dtos import (
@@ -867,6 +870,12 @@ class SessionCommandsService:
                         )
 
                     execution_id = str(uuid4())
+                    session_turn_id = await self._session_turn_id(
+                        project_id=project_id,
+                        session_id=anchor.session_id,
+                        execution=source,
+                        transaction=transaction,
+                    )
                     await self._executions.create_continuation(
                         project_id=project_id,
                         session_id=anchor.session_id,
@@ -888,6 +897,11 @@ class SessionCommandsService:
                                 "interaction_id": str(anchor_id),
                                 "interaction_ids": interaction_ids,
                                 "continuation_execution_id": execution_id,
+                                **(
+                                    {"session_turn_id": session_turn_id}
+                                    if session_turn_id is not None
+                                    else {}
+                                ),
                             },
                             idempotency_key=idempotency_key,
                             run_envelope=resumed_envelope(
@@ -1080,6 +1094,41 @@ class SessionCommandsService:
                 command.id,
                 failure,
             )
+
+    async def _session_turn_id(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution: SessionExecutionSettlement,
+        transaction: Any,
+    ) -> Optional[str]:
+        """The session turn a paused execution belongs to, or None when the chain is broken.
+
+        Each approval resume is a new execution whose parent is the paused one. Walk the
+        parents back to the execution that started the turn: the first one that was not
+        created by an approval. A queued input's continuation also has a parent (the turn
+        before it), but it starts its own turn, so the walk stops there. The chain is broken
+        when a parent row is missing or an execution id comes back (a cycle).
+        """
+        visited = {execution.execution_id}
+        while (
+            execution.source_interaction_id is not None
+            and execution.parent_execution_id is not None
+        ):
+            if execution.parent_execution_id in visited:
+                return None
+            visited.add(execution.parent_execution_id)
+            parent = await self._executions.fetch_execution(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=execution.parent_execution_id,
+                transaction=transaction,
+            )
+            if parent is None:
+                return None
+            execution = parent
+        return execution.execution_id
 
     async def _mark_continuation_recoverable(
         self,

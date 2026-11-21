@@ -12,6 +12,8 @@ import {
     simpleQueuesListQueryAtom,
     type SimpleQueue,
 } from "@agenta/entities/simpleQueue"
+import {useT} from "@agenta/i18n"
+import queuesCatalog from "@agenta/i18n/catalogs/annotation.queues"
 import {dayjs} from "@agenta/shared/utils"
 import "dayjs/plugin/relativeTime"
 import {message} from "@agenta/ui/app-message"
@@ -72,6 +74,7 @@ const QueueListContent = ({
     onItemsAdded?: () => void
     onQueueSelected?: (queue: SimpleQueue) => void
 }) => {
+    const t = useT(queuesCatalog)
     const navigation = useAnnotationNavigationSafe()
     const navigateToQueue = navigation?.navigateToQueue
     const listQueues = useAtomValue(simpleQueuesListDataAtom)
@@ -124,18 +127,22 @@ const QueueListContent = ({
 
                 if (result) {
                     const count = itemIds.length
-                    const entityLabel = `${itemType === "traces" ? "trace" : "test case"}${count > 1 ? "s" : ""}`
-                    const queueName = queue.name || "Untitled"
+                    const queueName = queue.name || t("annotation.queues.untitled")
                     const projectURL =
                         window.location.pathname.match(/^(\/w\/[^/]+\/p\/[^/]+)/)?.[1]
                     message.success({
-                        content: `Added ${count} ${entityLabel} to "${queueName}".`,
+                        content: t(
+                            itemType === "traces"
+                                ? "annotation.queues.addedTraces"
+                                : "annotation.queues.addedTestCases",
+                            {count, queue: queueName},
+                        ),
                         onNavigate: navigateToQueue ? () => navigateToQueue(queue.id) : undefined,
                         url:
                             !navigateToQueue && projectURL
                                 ? `${projectURL}/annotations/${queue.id}`
                                 : undefined,
-                        linkText: "View queue",
+                        linkText: t("annotation.queues.viewQueue"),
                         duration: 5,
                     })
                     onItemsAdded?.()
@@ -182,7 +189,7 @@ const QueueListContent = ({
             <div className="flex flex-col gap-2 px-3">
                 <div className="flex items-center justify-between">
                     <Typography.Text className="font-medium">
-                        Select annotation queue
+                        {t("annotation.queues.selectQueue")}
                     </Typography.Text>
                     <Button
                         type="primary"
@@ -190,12 +197,12 @@ const QueueListContent = ({
                         icon={<Plus size={14} />}
                         onClick={handleNewQueue}
                     >
-                        New
+                        {t("annotation.queues.new")}
                     </Button>
                 </div>
 
                 <Input
-                    placeholder="Search queues..."
+                    placeholder={t("annotation.queues.searchQueues")}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     allowClear
@@ -216,8 +223,10 @@ const QueueListContent = ({
                     <div className="py-8 text-center">
                         <Typography.Text type="secondary" className="text-xs">
                             {search.trim()
-                                ? "No matching queues"
-                                : `No ${itemType === "traces" ? "trace" : "test case"} queues`}
+                                ? t("annotation.queues.noMatchingQueues")
+                                : itemType === "traces"
+                                  ? t("annotation.queues.noTraceQueues")
+                                  : t("annotation.queues.noTestCaseQueues")}
                         </Typography.Text>
                     </div>
                 ) : (
@@ -237,11 +246,14 @@ const QueueListContent = ({
                                     className="truncate"
                                     strong={submittingId === queue.id}
                                 >
-                                    {queue.name || "Untitled"}
+                                    {queue.name || t("annotation.queues.untitled")}
                                 </Typography.Text>
                                 <Typography.Text type="secondary" className="text-[12px]">
-                                    Updated{" "}
-                                    {queue.updated_at ? dayjs(queue.updated_at)?.fromNow() : "—"}
+                                    {t("annotation.queues.updated", {
+                                        when: queue.updated_at
+                                            ? dayjs(queue.updated_at)?.fromNow()
+                                            : "—",
+                                    })}
                                 </Typography.Text>
                             </div>
                         </button>

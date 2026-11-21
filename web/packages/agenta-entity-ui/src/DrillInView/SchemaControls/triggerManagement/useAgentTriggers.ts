@@ -7,8 +7,12 @@ import {
     type TriggerReference,
 } from "@agenta/entities/gatewayTrigger"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {createT} from "@agenta/i18n"
+import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {useAtomValue} from "jotai"
 import {selectAtom} from "jotai/utils"
+
+const t = createT(triggersCatalog)
 
 /** Whether any id in a trigger's `data.references` matches one of the agent's ids. */
 function referencesMatch(
@@ -54,7 +58,7 @@ export function useAgentTriggers(entityId: string | null) {
     // agent's name instead of a raw id. The display name lives on the workflow ARTIFACT, not
     // on the revision. Falls back when it is unresolved.
     const artifactName = useAtomValue(workflowMolecule.selectors.artifactName(entityId ?? ""))
-    const defaultBoundLabel = artifactName ?? "Current agent"
+    const defaultBoundLabel = artifactName ?? t("entityUi.triggers.currentAgent")
 
     const agentIds = useMemo(() => {
         const ids = new Set<string>()

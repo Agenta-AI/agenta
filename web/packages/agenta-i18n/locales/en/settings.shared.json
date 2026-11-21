@@ -1,0 +1,11 @@
+{
+    "notUsedByAnyAgent": "Not used by any agent",
+    "reload": "Reload",
+    "renameFailed": "Couldn't rename this",
+    "rowActions": "Row actions",
+    "usedBy": "Used by {{names}}",
+    "yours": "Yours",
+    "yoursEmptyBody": "Accounts you add here are used in all your projects, when an agent uses each person's own account.",
+    "yoursEmptyBodyCount": "Accounts you add here are used in all {{projectCount}} of your projects, when an agent uses each person's own account.",
+    "yoursEmptyTitle": "No accounts of your own yet"
+}

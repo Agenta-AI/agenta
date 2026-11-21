@@ -1,0 +1,7 @@
+{
+    "copyValue": "Copiar valor",
+    "hint": "Adicione este registro DNS no provedor do seu domínio e depois pressione Verificar.",
+    "name": "Nome: {{name}}",
+    "type": "Tipo: TXT",
+    "value": "Valor: {{value}}"
+}

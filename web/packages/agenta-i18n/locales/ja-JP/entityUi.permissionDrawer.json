@@ -1,0 +1,23 @@
+{
+    "notInCatalog": "カタログにありません",
+    "permissionFor": "{{tool}} の権限",
+    "noMatchesInGroup": "このグループに一致する項目はありません。",
+    "showMore": "さらに {{count}} 件表示",
+    "readOnlyGroup": "読み取り専用",
+    "writeGroup": "書き込みと削除",
+    "presetWithOverrides_other": "{{label}} · {{count}} 件の上書き",
+    "agentPolicyNote": "このエージェントの権限ポリシーは {{policy}} に設定されているため、これらのツールはそれに従います。",
+    "defaultPermission": "デフォルトの権限",
+    "searchToolCount_other": "{{count}} 件のツールを検索",
+    "searchTools": "ツールを検索",
+    "noToolMatches": "一致するツールはありません。",
+    "customSwitchNote": "ツールの権限を設定すると、デフォルトがカスタムに切り替わります。",
+    "presetResetsNote": "プリセットを選ぶとリセットされます。",
+    "toolsNotLoaded": "{{integration}} のツールを読み込めなかったため、ツールごとの権限は表示されません。上のデフォルトの権限は引き続き適用されます。",
+    "noToolsListed": "{{integration}} のツールは表示されていません。",
+    "oldFormat": "このインテグレーションは旧形式を使用しています",
+    "oldFormatDetail": "ツールが複数の接続にまたがって 1 つずつ保存されているため、単一の {{integration}} ポリシーに自動で変換できません。",
+    "oldFormatKeepRunning": "ツールはそのまま動作し続けます。ここで権限を設定するには、インテグレーションを削除してから 1 つの接続で追加し直してください。",
+    "done": "完了",
+    "permissionPolicy": "権限ポリシー"
+}

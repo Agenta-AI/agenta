@@ -14,7 +14,10 @@
  * which renders the same page. Still props, and still omitted rather than faked where a host has
  * nowhere to send the reader, because a button that opens nothing is worse than no button.
  */
-import {AGENT_NEEDS_SETUP_CODE, AGENT_NEEDS_SETUP_TITLE} from "@agenta/entities/workflow"
+import {AGENT_NEEDS_SETUP_CODE} from "@agenta/entities/workflow"
+import {agentNeedsSetupTitle} from "@agenta/entity-ui/needs-setup"
+import {createT, useT} from "@agenta/i18n"
+import chatRunFailureCalloutCatalog from "@agenta/i18n/catalogs/chat.runFailureCallout"
 import {Button} from "@agenta/ui/ui"
 import {XCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -68,10 +71,19 @@ export const RETRYABLE_CODES = new Set([
  * platform's own sentence. The sentence already names the limit, the plan's number, what happened
  * to the work and what to do next, so it is shown whole; the host adds a way to the plans.
  */
+const tNow = createT(chatRunFailureCalloutCatalog)
+
+// Getters, so each title is read in the language active when it is shown.
 export const PLAN_LIMIT_TITLES: Record<string, string> = {
-    wallet_balance_exhausted: "You're out of credits",
-    concurrent_turns_limit: "Too many tasks running at the same time",
-    turn_time_limit_reached: "This task took too long",
+    get wallet_balance_exhausted() {
+        return tNow("chat.runFailureCallout.outOfCredits")
+    },
+    get concurrent_turns_limit() {
+        return tNow("chat.runFailureCallout.tooManyTasks")
+    },
+    get turn_time_limit_reached() {
+        return tNow("chat.runFailureCallout.taskTookTooLong")
+    },
 }
 
 /**
@@ -88,8 +100,12 @@ export const planLimitTitle = (code?: string | null): string | null =>
  * with the title shown over it.
  */
 export const REFUSAL_TITLES: Record<string, string> = {
-    builtin_models_not_enabled: "This model isn't available for your organization",
-    [AGENT_NEEDS_SETUP_CODE]: AGENT_NEEDS_SETUP_TITLE,
+    get builtin_models_not_enabled() {
+        return tNow("chat.runFailureCallout.modelUnavailable")
+    },
+    get [AGENT_NEEDS_SETUP_CODE]() {
+        return agentNeedsSetupTitle()
+    },
 }
 
 /** The title over a failure the platform worded itself, or `null` for an ordinary failure. */
@@ -133,6 +149,7 @@ export const RunFailureCallout = ({
     onOpenBilling,
     onBuyCredits,
 }: RunFailureCalloutProps) => {
+    const t = useT(chatRunFailureCalloutCatalog)
     const stored = useAtomValue(expandedValueAtomFamily(stateKey))
     const setExpanded = useSetAtom(setExpandedAtom)
     const expanded = stored ?? false
@@ -151,7 +168,10 @@ export const RunFailureCallout = ({
             <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
             <div className="flex min-w-0 flex-col items-start gap-0.5">
                 <span className="text-xs font-medium text-colorError">
-                    {title ?? (notSent ? "Message not sent" : "The agent run failed")}
+                    {title ??
+                        (notSent
+                            ? t("chat.runFailureCallout.messageNotSent")
+                            : t("chat.runFailureCallout.runFailed"))}
                 </span>
                 {big && expanded ? (
                     <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-xs !text-colorErrorText">
@@ -175,32 +195,34 @@ export const RunFailureCallout = ({
                         aria-expanded={expanded}
                         className="-ml-1 px-1 font-medium text-colorError"
                     >
-                        {expanded ? "Show less" : "Show more"}
+                        {expanded
+                            ? t("chat.runFailureCallout.showLess")
+                            : t("chat.runFailureCallout.showMore")}
                     </Button>
                 )}
                 {offerOwnKey && (
                     <Button size="sm" variant="outline" className="mt-1" onClick={onAddKey}>
-                        Add your key
+                        {t("chat.runFailureCallout.addYourKey")}
                     </Button>
                 )}
                 {offerSignIn && (
                     <Button size="sm" variant="outline" className="mt-1" onClick={onSignIn}>
-                        Open AI providers
+                        {t("chat.runFailureCallout.openAiProviders")}
                     </Button>
                 )}
                 {offerBuyCredits && (
                     <Button size="sm" variant="outline" className="mt-1" onClick={onBuyCredits}>
-                        Buy credits
+                        {t("chat.runFailureCallout.buyCredits")}
                     </Button>
                 )}
                 {limitTitle && onOpenBilling && (
                     <Button size="sm" variant="outline" className="mt-1" onClick={onOpenBilling}>
-                        Plans and billing
+                        {t("chat.runFailureCallout.plansAndBilling")}
                     </Button>
                 )}
                 {offerRetry && (
                     <Button size="sm" variant="outline" className="mt-1" onClick={onRetry}>
-                        Try again
+                        {t("chat.runFailureCallout.tryAgain")}
                     </Button>
                 )}
             </div>

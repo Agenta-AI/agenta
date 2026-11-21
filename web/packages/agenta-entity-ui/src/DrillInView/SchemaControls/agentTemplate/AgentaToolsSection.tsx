@@ -8,45 +8,73 @@ import {
     writeAgentaTools,
     type AgentaToolsMap,
 } from "@agenta/entities/workflow"
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
+import buildKitCatalog from "@agenta/i18n/catalogs/entityUi.buildKit"
 import {useAtomValue} from "jotai"
 
 import {describeBuildKitPlatformTool} from "./buildKitDescriptors"
 import {buildKitToolOptions} from "./BuildKitSection"
 import {PermissionDrawerBody, type PermissionPresetOption} from "./IntegrationPermissionDrawer"
 
+const tNow = createT(buildKitCatalog)
+
 type Preset = "allow_all" | "always_ask" | "ask_writes" | "deny_all" | "custom"
 
+type BuildKitKey = CatalogKey<typeof buildKitCatalog>
+
+/** A preset whose texts read the active language each time they are read. */
+const preset = (
+    value: PermissionPresetOption["value"],
+    label: BuildKitKey,
+    help: BuildKitKey,
+    extra: Partial<PermissionPresetOption> = {},
+): PermissionPresetOption => ({
+    value,
+    get label() {
+        return tNow(label)
+    },
+    get help() {
+        return tNow(help)
+    },
+    ...extra,
+})
+
 const presets: PermissionPresetOption[] = [
-    {value: "allow_all", label: "Allow all", help: "Tools run without asking."},
-    {value: "always_ask", label: "Ask all", help: "Ask before each tool runs."},
-    {value: "ask_writes", label: "Allow reads", help: "Read-only tools run; write tools ask."},
-    {value: "deny_all", label: "Deactivate", help: "Turn every Agenta tool off."},
-    {
-        value: "custom",
-        label: "Custom",
-        help: "Per-tool choices below.",
+    preset("allow_all", "entityUi.buildKit.presetAllowAll", "entityUi.buildKit.presetAllowAllHelp"),
+    preset("always_ask", "entityUi.buildKit.presetAskAll", "entityUi.buildKit.presetAskAllHelp"),
+    preset(
+        "ask_writes",
+        "entityUi.buildKit.presetAllowReads",
+        "entityUi.buildKit.presetAllowReadsHelp",
+    ),
+    preset(
+        "deny_all",
+        "entityUi.buildKit.presetDeactivate",
+        "entityUi.buildKit.presetDeactivateAgentaHelp",
+    ),
+    preset("custom", "entityUi.buildKit.presetCustom", "entityUi.buildKit.presetCustomHelp", {
         disabled: true,
         separatorBefore: true,
-    },
+    }),
 ]
 
 /** Copy for the Agenta tools the build kit table does not name. */
-const AGENTA_TOOL_COPY: Record<string, {name: string; description: string}> = {
+const AGENTA_TOOL_COPY: Record<string, {name: BuildKitKey; description: BuildKitKey}> = {
     get_current_session: {
-        name: "Get the link to this chat",
-        description: "Gets this chat's name and a link to open it in Agenta.",
+        name: "entityUi.buildKit.getCurrentSessionName",
+        description: "entityUi.buildKit.getCurrentSessionDescription",
     },
     list_subscriptions: {
-        name: "List triggers",
-        description: "Lists the triggers set up for this project.",
+        name: "entityUi.buildKit.listSubscriptionsName",
+        description: "entityUi.buildKit.listSubscriptionsDescription",
     },
     check_skill_updates: {
-        name: "Check skill updates",
-        description: "Checks whether this agent's skills have newer versions.",
+        name: "entityUi.buildKit.checkSkillUpdatesName",
+        description: "entityUi.buildKit.checkSkillUpdatesDescription",
     },
     apply_skill_update: {
-        name: "Apply a skill update",
-        description: "Updates one of this agent's skills to its newer version.",
+        name: "entityUi.buildKit.applySkillUpdateName",
+        description: "entityUi.buildKit.applySkillUpdateDescription",
     },
 }
 
@@ -75,13 +103,17 @@ export function AgentaToolsSection({
     buildKitOps,
     disabled,
 }: AgentaToolsSectionProps) {
+    const t = useT(buildKitCatalog)
     const rows = Object.entries(access).map(([op, kind]) => {
-        const {name, description} = AGENTA_TOOL_COPY[op] ?? describeBuildKitPlatformTool(op)
+        const copy = AGENTA_TOOL_COPY[op]
+        const {name, description} = copy
+            ? {name: t(copy.name), description: t(copy.description)}
+            : describeBuildKitPlatformTool(op)
         return {
             key: op,
             name,
             description: buildKitOps.has(op)
-                ? `${description} In the playground, the Build kit setting applies.`
+                ? t("entityUi.buildKit.buildKitSettingApplies", {description: description ?? ""})
                 : description,
             readOnly: kind === "read",
         }
@@ -93,17 +125,16 @@ export function AgentaToolsSection({
     return (
         <div className="flex min-h-0 flex-col">
             <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium">Agenta tools</span>
+                <span className="text-sm font-medium">{t("entityUi.buildKit.agentaTools")}</span>
                 <span className="text-xs text-colorTextDescription">
-                    Tools your agent can use wherever it runs: the playground, the API, Slack,
-                    Telegram, WhatsApp and automations. Saved with the agent.
+                    {t("entityUi.buildKit.agentaToolsHint")}
                 </span>
             </div>
             <PermissionDrawerBody
                 flush
                 catalogKey="agenta-tools"
                 catalog={{status: "ready", complete: true, tools: rows}}
-                emptyLabel="No Agenta tools available."
+                emptyLabel={t("entityUi.buildKit.noAgentaTools")}
                 permissions={{
                     default: "deny",
                     tools: Object.fromEntries(
@@ -134,8 +165,8 @@ export function AgentaToolsSection({
                 }}
                 disabled={disabled}
                 toolOptions={buildKitToolOptions}
-                writeLabel="Write"
-                readOnlyLabel="Read-only"
+                writeLabel={t("entityUi.buildKit.writeGroup")}
+                readOnlyLabel={t("entityUi.buildKit.readOnlyGroup")}
             />
         </div>
     )
@@ -153,6 +184,7 @@ export function useAgentaTools({
     revisionId: string | null
     disabled?: boolean
 }) {
+    const t = useT(buildKitCatalog)
     const accessQuery = useAtomValue(agentaToolsAccessAtom)
     const overlay = useAtomValue(
         useMemo(() => workflowAgentTemplateOverlayAtomFamily(revisionId ?? ""), [revisionId]),
@@ -175,7 +207,7 @@ export function useAgentaTools({
     if (accessQuery.isError) {
         return (
             <span className="text-xs text-colorError">
-                Could not load the Agenta tools. Reload the page to try again.
+                {t("entityUi.buildKit.couldNotLoadAgentaTools")}
             </span>
         )
     }

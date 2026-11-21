@@ -11,6 +11,8 @@
  */
 import React, {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import gatewayCatalogCatalog from "@agenta/i18n/catalogs/entityUi.gatewayCatalog"
 import {DropdownButton, ScrollSentinel, ScrollToTopButton, Tag} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button, Divider, EmptyState, InputAffix, Spinner} from "@agenta/ui/ui"
@@ -99,6 +101,7 @@ export interface CatalogConfig<I, T, C> {
 // Composed replacement for antd `Typography.Paragraph ellipsis={{expandable: "collapsible"}}`:
 // a 3-line clamp with a "see more"/"see less" toggle shown only when the text overflows.
 function ExpandableText({text}: {text: string}) {
+    const t = useT(gatewayCatalogCatalog)
     const [expanded, setExpanded] = useState(false)
     const [overflows, setOverflows] = useState(false)
     const clampRef = useRef<HTMLSpanElement | null>(null)
@@ -118,7 +121,9 @@ function ExpandableText({text}: {text: string}) {
                     onClick={() => setExpanded((v) => !v)}
                     className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorPrimary)] hover:underline"
                 >
-                    {expanded ? "see less" : "see more"}
+                    {expanded
+                        ? t("entityUi.gatewayCatalog.seeLess")
+                        : t("entityUi.gatewayCatalog.seeMore")}
                 </button>
             )}
         </p>
@@ -144,6 +149,7 @@ function ConnectionItemsList<I, T, C>({
     config: CatalogConfig<I, T, C>
     onViewAll: () => void
 }) {
+    const t = useT(gatewayCatalogCatalog)
     const {items, isLoading, hasNextPage} = adapter.useItems(
         adapter.connection.integrationKey(connection),
     )
@@ -192,7 +198,7 @@ function ConnectionItemsList<I, T, C>({
                     onClick={onViewAll}
                     className="flex w-full cursor-pointer border-0 bg-transparent px-2 py-1.5 text-left text-[12px] text-[var(--ag-colorTextSecondary)] hover:bg-[var(--ag-colorFillSecondary)]"
                 >
-                    View all…
+                    {t("entityUi.gatewayCatalog.viewAll")}
                 </button>
             )}
         </div>
@@ -208,6 +214,7 @@ function IntegrationsView<I, T, C>({
     config: CatalogConfig<I, T, C>
     onSelect: (integration: I) => void
 }) {
+    const t = useT(gatewayCatalogCatalog)
     const scrollRef = useRef<HTMLDivElement>(null)
     const [searchValue, setSearchValue] = useState("")
     const {connections} = adapter.useConnections()
@@ -260,7 +267,7 @@ function IntegrationsView<I, T, C>({
                 <div className="flex w-[168px] shrink-0 flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)] sm:w-[280px]">
                     <div className="shrink-0 px-4 pb-2 pt-4">
                         <span className="text-xs text-[var(--ag-colorTextDescription)]">
-                            Your connections
+                            {t("entityUi.gatewayCatalog.yourConnections")}
                         </span>
                     </div>
                     <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain px-3 pb-2">
@@ -342,7 +349,9 @@ function IntegrationsView<I, T, C>({
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
                 <div className="flex shrink-0 flex-col gap-2 px-6 pb-3 pt-4">
                     <span className="text-xs text-[var(--ag-colorTextDescription)]">
-                        {hasConnections ? "Or connect a new app" : "Connect an app"}
+                        {hasConnections
+                            ? t("entityUi.gatewayCatalog.orConnectNew")
+                            : t("entityUi.gatewayCatalog.connectApp")}
                     </span>
                     <InputAffix
                         placeholder={config.appsSearchPlaceholder}
@@ -353,7 +362,7 @@ function IntegrationsView<I, T, C>({
                         onClear={() => onSearch("")}
                     />
                     <span className="text-xs text-[var(--ag-colorTextDescription)]">
-                        {total} integration{total !== 1 ? "s" : ""}
+                        {t("entityUi.gatewayCatalog.integrationCount", {count: total})}
                     </span>
                 </div>
 
@@ -368,7 +377,7 @@ function IntegrationsView<I, T, C>({
                             <Spinner />
                         </div>
                     ) : integrations.length === 0 ? (
-                        <EmptyState description="No integrations found" />
+                        <EmptyState description={t("entityUi.gatewayCatalog.noIntegrations")} />
                     ) : (
                         <div className="grid auto-rows-min gap-2 [grid-template-columns:repeat(auto-fill,minmax(min(220px,100%),1fr))]">
                             {integrations.map((integration, i) => (
@@ -431,6 +440,7 @@ function ItemsView<I, T, C>({
     onBack: () => void
     onConnect: () => void
 }) {
+    const t = useT(gatewayCatalogCatalog)
     const scrollRef = useRef<HTMLDivElement>(null)
     const [searchValue, setSearchValue] = useState("")
     const {connections} = adapter.useIntegrationConnections(adapter.integration.key(integration))
@@ -512,7 +522,7 @@ function ItemsView<I, T, C>({
                     <Button
                         variant="ghost"
                         size="icon"
-                        aria-label="Go back"
+                        aria-label={t("entityUi.gatewayCatalog.goBack")}
                         onClick={onBack}
                         className="shrink-0"
                     >
@@ -535,7 +545,7 @@ function ItemsView<I, T, C>({
                         {connectionMenu && connections.length > 0 ? (
                             <DropdownButton
                                 variant="default"
-                                label="Connect"
+                                label={t("entityUi.gatewayCatalog.connect")}
                                 icon={<Plus size={14} />}
                                 dropdownIcon={<CaretDown size={12} />}
                                 options={connectionMenu.map(({key, label}) => ({key, label}))}
@@ -545,7 +555,7 @@ function ItemsView<I, T, C>({
                         ) : (
                             <Button variant="default" onClick={onConnect}>
                                 <Plus size={14} />
-                                Connect
+                                {t("entityUi.gatewayCatalog.connect")}
                             </Button>
                         )}
                     </div>
@@ -562,7 +572,7 @@ function ItemsView<I, T, C>({
                 />
 
                 <span className="text-xs text-[var(--ag-colorTextDescription)]">
-                    {total} item{total !== 1 ? "s" : ""}
+                    {t("entityUi.gatewayCatalog.itemCount", {count: total})}
                 </span>
             </div>
 

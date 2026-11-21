@@ -1,5 +1,7 @@
 import {memo, useEffect, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import runsCatalog from "@agenta/i18n/catalogs/playground.runs"
 import {executionItemController} from "@agenta/playground"
 import {HeightCollapse} from "@agenta/ui/components"
 import {RunButton} from "@agenta/ui/components/presentational"
@@ -43,6 +45,7 @@ export const CompletionRow = memo(
         templateFormat,
         renderTraceFooter,
     }: CompletionRowProps) => {
+        const t = useT(runsCatalog)
         const row = useExecutionRow({entityId, rowId})
         const deleteRow = useSetAtom(executionItemController.actions.deleteRow)
         const duplicateRow = useSetAtom(executionItemController.actions.duplicateRow)
@@ -68,7 +71,12 @@ export const CompletionRow = memo(
                     <button
                         type="button"
                         aria-expanded={!collapsed}
-                        aria-label={`${collapsed ? "Expand" : "Collapse"} test case ${index + 1}`}
+                        aria-label={t(
+                            collapsed
+                                ? "playground.runs.expandCase"
+                                : "playground.runs.collapseCase",
+                            {number: index + 1},
+                        )}
                         onClick={() => {
                             setClicked(true)
                             setOwn(!collapsed)

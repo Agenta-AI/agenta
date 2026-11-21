@@ -1,0 +1,21 @@
+{
+    "agent": "エージェント",
+    "agentCount": "{{count}} 件のエージェント",
+    "allAgents": "すべてのエージェント",
+    "automation": "自動化",
+    "awaitingInput": "入力待ち",
+    "chat": "チャット",
+    "date": "日付",
+    "filterSessions": "セッションを絞り込み",
+    "groupBy": "グループ化",
+    "idle": "アイドル",
+    "last30Days": "過去 30 日間",
+    "last7Days": "過去 7 日間",
+    "lastActivity": "最終アクティビティ",
+    "loadingAgents": "エージェントを読み込み中…",
+    "noAgentsYet": "まだエージェントがありません",
+    "running": "実行中",
+    "searchSessions": "セッションを検索",
+    "today": "今日",
+    "type": "種類"
+}

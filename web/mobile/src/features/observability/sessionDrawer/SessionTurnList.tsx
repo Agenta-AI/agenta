@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import sessionCatalog from "@agenta/i18n/catalogs/observability.sessionDrawer"
 import type {TraceSpanNode} from "@agenta/observability"
 import {useAtomValue} from "jotai"
 
@@ -22,13 +24,14 @@ export const SessionTurnList = ({
     truncated,
     annotationsBeside,
 }: SessionTurnListProps) => {
+    const t = useT(sessionCatalog)
     const annotationsVisible = useAtomValue(observabilitySessionAnnotationsVisibleAtom)
     return (
         <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
             {stats ? <SessionSummary stats={stats} /> : null}
             {truncated ? (
                 <p className="m-0 text-sm text-muted-foreground">
-                    Showing {traces.length} traces. This session has more.
+                    {t("observability.sessionDrawer.showingTraces", {count: traces.length})}
                 </p>
             ) : null}
             {traces.map((trace, index) => (

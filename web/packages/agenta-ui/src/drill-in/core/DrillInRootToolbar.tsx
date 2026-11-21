@@ -1,5 +1,8 @@
 import {memo, useCallback, useRef, useState, type ComponentType, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiDrillInCatalog from "@agenta/i18n/catalogs/ui.drillIn"
 import {ArrowsInLineVertical, Check, Copy, Funnel} from "@phosphor-icons/react"
 
 import {Button as AntdButton} from "../../components/ui/button"
@@ -95,7 +98,14 @@ export const DrillInRootToolbar = memo(function DrillInRootToolbar({
     Tooltip: TooltipComp = DefaultTooltip,
     Button: ButtonComp = DefaultButton,
 }: DrillInRootToolbarProps) {
-    const options = enableFormView ? [FORM_OPTION, ...BASE_OPTIONS] : BASE_OPTIONS
+    const t = useT(uiDrillInCatalog, commonCatalog)
+    const textLabel = t("ui.drillIn.text")
+    const baseOptions = BASE_OPTIONS.map((option) =>
+        option.value === "text" ? {...option, label: textLabel} : option,
+    )
+    const options = enableFormView
+        ? [{...FORM_OPTION, label: t("ui.drillIn.form")}, ...baseOptions]
+        : baseOptions
     const [copied, setCopied] = useState(false)
     const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -124,35 +134,35 @@ export const DrillInRootToolbar = memo(function DrillInRootToolbar({
 
             <div className="flex shrink-0 items-center gap-1">
                 {onFilter && (
-                    <TooltipComp title="Filter fields">
+                    <TooltipComp title={t("ui.drillIn.filterFields")}>
                         <ButtonComp
                             variant="ghost"
                             size="sm"
                             icon={<Funnel size={14} />}
                             onClick={onFilter}
-                            aria-label="Filter fields"
+                            aria-label={t("ui.drillIn.filterFields")}
                         />
                     </TooltipComp>
                 )}
                 {onCollapseAll && (
-                    <TooltipComp title="Collapse all">
+                    <TooltipComp title={t("ui.drillIn.collapseAll")}>
                         <ButtonComp
                             variant="ghost"
                             size="sm"
                             icon={<ArrowsInLineVertical size={14} />}
                             onClick={onCollapseAll}
-                            aria-label="Collapse all fields"
+                            aria-label={t("ui.drillIn.collapseAllFields")}
                         />
                     </TooltipComp>
                 )}
                 {onCopy && (
-                    <TooltipComp title={copied ? "Copied" : "Copy"}>
+                    <TooltipComp title={copied ? t("common.copied") : t("common.copy")}>
                         <ButtonComp
                             variant="ghost"
                             size="sm"
                             icon={copied ? <Check size={14} /> : <Copy size={14} />}
                             onClick={handleCopy}
-                            aria-label="Copy testcase"
+                            aria-label={t("ui.drillIn.copyTestcase")}
                         />
                     </TooltipComp>
                 )}

@@ -1,0 +1,8 @@
+{
+    "failed": "L’approbation a échoué.",
+    "failedStatus": "L’approbation a échoué (HTTP {{status}}).",
+    "noLongerPending": "Cette approbation n’est plus en attente : actualisez et réessayez.",
+    "noneFound": "Aucune approbation en attente : le tour a peut-être avancé.",
+    "oneExecutionOnly": "« Tout approuver » ne peut répondre qu’aux approbations d’une même exécution.",
+    "resumeFailed": "La reprise a échoué."
+}

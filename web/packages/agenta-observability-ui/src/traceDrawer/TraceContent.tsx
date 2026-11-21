@@ -1,5 +1,7 @@
 import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import {traceSidePanelOpenAtom} from "@agenta/observability/traceDrawer"
 import {getRawTraceSpanData} from "@agenta/observability/traceDrawer"
 import {TraceContentProps} from "@agenta/observability/traceDrawer"
@@ -38,6 +40,7 @@ const TraceContent = ({
     activeId,
     layout = "split",
 }: TraceContentProps & {layout?: TraceDrawerLayout}) => {
+    const t = useT(drawerCatalog)
     const stacked = layout === "stacked"
     const {TraceSpanDrillInView: TraceSpanDrillInViewSlot} = getTraceDrawerReferences()
     const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useAtom(traceSidePanelOpenAtom)
@@ -68,7 +71,7 @@ const TraceContent = ({
             return [
                 {
                     key: "loading",
-                    label: "Overview",
+                    label: t("observabilityUi.traceDrawer.tabOverview"),
                     children: loadingContent,
                 },
             ]
@@ -83,10 +86,14 @@ const TraceContent = ({
             return [
                 {
                     key: "raw_data",
-                    label: "Raw Data",
+                    label: t("observabilityUi.traceDrawer.tabRawData"),
                     children: (
                         <AccordionTreePanel
-                            label={errorPayload ? "Error" : "Raw Data"}
+                            label={
+                                errorPayload
+                                    ? t("observabilityUi.traceDrawer.rawDataError")
+                                    : t("observabilityUi.traceDrawer.tabRawData")
+                            }
                             value={rawPayload as never}
                             enableFormatSwitcher
                             fullEditorHeight
@@ -102,7 +109,7 @@ const TraceContent = ({
         return [
             {
                 key: "overview",
-                label: "Overview",
+                label: t("observabilityUi.traceDrawer.tabOverview"),
                 children: (
                     <OverviewTabItem
                         activeTrace={activeTrace}
@@ -112,14 +119,14 @@ const TraceContent = ({
             },
             {
                 key: "raw_data",
-                label: "Raw Data",
+                label: t("observabilityUi.traceDrawer.tabRawData"),
                 children: (
                     <>
                         {spanEntityId ? (
                             <TraceSpanDrillInViewSlot
                                 spanId={spanEntityId}
                                 spanDataOverride={rawActiveTrace}
-                                title="Raw Data"
+                                title={t("observabilityUi.traceDrawer.tabRawData")}
                                 editable={false}
                                 rootScope="span"
                                 allowSpanCollapse={false}
@@ -127,7 +134,7 @@ const TraceContent = ({
                             />
                         ) : (
                             <AccordionTreePanel
-                                label={"Raw Data"}
+                                label={t("observabilityUi.traceDrawer.tabRawData")}
                                 value={rawActiveTrace}
                                 enableFormatSwitcher
                                 fullEditorHeight
@@ -139,16 +146,16 @@ const TraceContent = ({
             },
             {
                 key: "linked-span",
-                label: "Linked Spans",
+                label: t("observabilityUi.traceDrawer.tabLinkedSpans"),
                 children: <LinkedSpansTabItem isActive={tab === "linked-span"} />,
             },
             {
                 key: "annotations",
-                label: "Annotations",
+                label: t("observabilityUi.traceDrawer.tabAnnotations"),
                 children: <AnnotationTabItem annotations={activeTrace?.annotations || []} />,
             },
         ]
-    }, [activeTrace, isLoading, traceResponse, error, tab, spanEntityId, tabNavHeight])
+    }, [activeTrace, isLoading, traceResponse, error, tab, spanEntityId, tabNavHeight, t])
 
     // Ensure active tab exists in items; if not, switch to first tab
     const itemKeys = useMemo(

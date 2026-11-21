@@ -1,0 +1,14 @@
+{
+    "outputFormat": "Formato de saída",
+    "toneAndStyle": "Tom e estilo",
+    "guardrails": "Proteções",
+    "writingGoodAgentsMd": "Como escrever um bom AGENTS.md",
+    "tipRole": "Comece com o papel e o objetivo do agente em uma ou duas linhas.",
+    "tipSections": "Mantenha seções curtas e com títulos (Papel, Ferramentas, Proteções).",
+    "tipOutput": "Seja concreto sobre o formato de saída e os limites rígidos.",
+    "tipImperative": "Prefira instruções no imperativo a textos longos.",
+    "suggested": "Sugestões",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "placeholder": "# Papel\n\nDescreva o que o agente faz e como ele deve se comportar…"
+}

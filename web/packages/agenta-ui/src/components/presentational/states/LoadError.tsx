@@ -1,5 +1,8 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import loadErrorCatalog from "@agenta/i18n/catalogs/ui.loadError"
 import {RefreshCw, TriangleAlert} from "lucide-react"
 
 import {cn} from "../../../utils/styles"
@@ -28,32 +31,37 @@ export interface LoadErrorProps {
 /** A fetch that never answered — never an empty state, since "nothing here" is a claim. */
 export const LoadError = ({
     title,
-    description = "The request did not come back. Check your connection and try again.",
+    description: descriptionProp,
     onRetry,
-    retryLabel = "Try again",
+    retryLabel: retryLabelProp,
     framed = false,
     className,
-}: LoadErrorProps) => (
-    <Empty
-        role="alert"
-        className={cn("py-14", framed && "border border-solid border-border", className)}
-    >
-        <EmptyHeader>
-            <EmptyMedia variant="icon" className="bg-destructive/10 text-destructive">
-                <TriangleAlert />
-            </EmptyMedia>
-            <EmptyTitle>{title}</EmptyTitle>
-            {description ? <EmptyDescription>{description}</EmptyDescription> : null}
-        </EmptyHeader>
-        {onRetry ? (
-            <EmptyContent>
-                <Button variant="outline" size="sm" onClick={onRetry}>
-                    <RefreshCw />
-                    {retryLabel}
-                </Button>
-            </EmptyContent>
-        ) : null}
-    </Empty>
-)
+}: LoadErrorProps) => {
+    const t = useT(loadErrorCatalog, commonCatalog)
+    const description = descriptionProp ?? t("ui.loadError.loadError")
+    const retryLabel = retryLabelProp ?? t("common.tryAgain")
+    return (
+        <Empty
+            role="alert"
+            className={cn("py-14", framed && "border border-solid border-border", className)}
+        >
+            <EmptyHeader>
+                <EmptyMedia variant="icon" className="bg-destructive/10 text-destructive">
+                    <TriangleAlert />
+                </EmptyMedia>
+                <EmptyTitle>{title}</EmptyTitle>
+                {description ? <EmptyDescription>{description}</EmptyDescription> : null}
+            </EmptyHeader>
+            {onRetry ? (
+                <EmptyContent>
+                    <Button variant="outline" size="sm" onClick={onRetry}>
+                        <RefreshCw />
+                        {retryLabel}
+                    </Button>
+                </EmptyContent>
+            ) : null}
+        </Empty>
+    )
+}
 
 export default LoadError

@@ -1,0 +1,10 @@
+{
+    "allowAll": "Allow all",
+    "allowAllHelp": "Every tool runs without asking",
+    "allowReads": "Allow reads",
+    "allowReadsHelp": "Reads run, writes ask",
+    "ask": "Ask",
+    "askHelp": "A human approves every tool call",
+    "denyAll": "Deny all",
+    "denyAllHelp": "Every tool call is refused"
+}

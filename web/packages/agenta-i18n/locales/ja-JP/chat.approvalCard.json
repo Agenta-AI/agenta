@@ -1,0 +1,20 @@
+{
+    "alwaysAutoApprove": "常に自動承認する",
+    "answerSavedRetry": "回答は保存されました。再試行が必要です",
+    "answerSavedRetryHint": "回答は保存されました。次のメッセージを送信すると、続行を再試行します。",
+    "answerSavedWaiting": "回答は保存されました。エージェントの次の更新を待っています…",
+    "answeredWaiting": "回答済み。エージェントを待っています",
+    "approve": "承認",
+    "approveAll": "すべて承認",
+    "cancel": "キャンセル",
+    "deny": "拒否",
+    "denyAll": "すべて拒否",
+    "denyAndSend": "拒否して送信",
+    "hideDetails": "詳細を隠す",
+    "needsApproval": "承認が必要です",
+    "redirect": "方向を変える",
+    "seeWhatChanges": "変更される内容を見る（{{count}}）",
+    "seeWhatRuns": "実行される内容を見る（{{count}}）",
+    "steerHint": "このステップを拒否し、代わりに何をすべきかをエージェントに伝えます。メモは次のメッセージとして実行されます。",
+    "steerPlaceholder": "例：本番ではなくステージングに書き込む、またはまったく別のことを頼む"
+}

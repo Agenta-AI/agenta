@@ -23,6 +23,7 @@ from agenta.sdk.redaction.context import redaction_context
 from agenta.sdk.redaction.redactor import Redactor
 
 from agenta.sdk.agents import (
+    AgentDrive,
     AgentRunFailed,
     AgentTemplate,
     ClaudeAgentTemplate,
@@ -104,7 +105,11 @@ KNOWN_REQUEST_KEYS = {
     "skills",
     "sandboxPermission",
     "harnessFiles",
+    "drives",
+    "homeDrive",
+    "hasSessionDrive",
     "turnId",
+    "sessionTurnId",
     "detached",
     "projectId",
     "controlCommandId",
@@ -190,6 +195,12 @@ def _pi_payload():
         tool_callback=_CALLBACK,
         skills=[dict(_SKILL)],
         sandbox_permission=SandboxPermission(network={"mode": "off"}),
+        drives=[
+            AgentDrive(slug="quote-agent-files"),
+            AgentDrive(slug="price-lists", access="read"),
+            AgentDrive(slug="team-notes"),
+        ],
+        home_drive="quote-agent-files",
         system="You are Pi.",
         append_system="Be terse.",
     )
@@ -298,6 +309,9 @@ def _codex_payload():
                 value="github-secret",
             )
         ],
+        # An agent with no drive and no session drive.
+        drives=[],
+        has_session_drive=False,
     )
     return request_to_wire(
         harness=HarnessKind.CODEX,
@@ -685,6 +699,33 @@ def test_request_to_wire_omits_turn_id_when_none():
         messages=[Message(role="user", content="hi")],
     )
     assert "turnId" not in payload
+
+
+def test_request_to_wire_carries_session_turn_id_when_set():
+    # An approval resume runs as a new execution (turnId) of the turn that paused
+    # (sessionTurnId).
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        turn_id="resume-1",
+        session_turn_id="turn-start",
+    )
+    assert payload["turnId"] == "resume-1"
+    assert payload["sessionTurnId"] == "turn-start"
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+
+
+def test_request_to_wire_omits_session_turn_id_when_none():
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        turn_id="turn-abc123",
+    )
+    assert "sessionTurnId" not in payload
 
 
 def test_request_to_wire_carries_detached_only_for_a_session():

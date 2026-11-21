@@ -1,0 +1,13 @@
+{
+    "cannotListen": "This model can’t listen to audio",
+    "hintAudio": "Record a voice message",
+    "hintTranscribe": "Dictate into the message",
+    "holdToDictate": "Hold {{key}} to dictate",
+    "limitReached": "Attachment limit reached — remove a file to record a voice message",
+    "modeAudio": "Voice message",
+    "modeTranscribe": "Voice to text",
+    "stopDictation": "Stop dictation",
+    "stopVoiceInput": "Stop voice input",
+    "voiceInputMode": "Voice input mode",
+    "waitingPrompt": "Waiting for your browser's microphone prompt…"
+}

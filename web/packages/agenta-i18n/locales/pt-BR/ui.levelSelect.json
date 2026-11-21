@@ -1,0 +1,10 @@
+{
+    "loadError": "Erro ao carregar os itens",
+    "loading": "Carregando...",
+    "noItems": "Nenhum item encontrado",
+    "otherGroup": "Outros",
+    "selectItem": "Selecione um item...",
+    "selectLabel": "Selecione {{label}}...",
+    "selectLabelFirst": "Selecione {{label}} primeiro",
+    "selectPreviousFirst": "Selecione o nível anterior primeiro"
+}

@@ -1,6 +1,8 @@
 import {useCallback, useMemo, useState, type ReactNode} from "react"
 
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 
 import {type Automation} from "./automationModel"
@@ -48,6 +50,7 @@ export const AutomationRunHistoryView = ({
      */
     frame?: "page" | "drawer"
 }) => {
+    const t = useT(automationsEditorCatalog)
     const {runs: allRuns, caption, isLoading, error, refetch} = useAutomationRuns(automation)
 
     // Same split as the automations list: how the runs are cut is remembered, what they are
@@ -115,7 +118,7 @@ export const AutomationRunHistoryView = ({
                     >
                         <div className="flex shrink-0 items-center gap-2 pl-2.5">
                             <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold text-foreground">
-                                Run history
+                                {t("automations.editor.runHistory")}
                             </h1>
                             <AutomationRunFilterMenu view={view} onChange={setView} />
                         </div>

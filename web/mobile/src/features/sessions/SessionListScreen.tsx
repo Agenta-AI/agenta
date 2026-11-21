@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useMemo} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import sessionsMobileListCatalog from "@agenta/i18n/catalogs/sessions.mobileList"
 import {
     applySessionScopeAtom,
     resetSessionFiltersAtom,
@@ -52,6 +54,7 @@ export const SessionListScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const t = useT(sessionsMobileListCatalog)
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
     // `?mode=automation` — what the agent overview's "Automation runs" card links to, so a cold
@@ -163,7 +166,7 @@ export const SessionListScreen = ({
 
     return (
         <>
-            <PageTitle title="Sessions" />
+            <PageTitle title={t("sessions.mobileList.sessions")} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
@@ -176,7 +179,7 @@ export const SessionListScreen = ({
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
-                                    Sessions
+                                    {t("sessions.mobileList.sessions")}
                                 </h1>
                                 {projectEmpty ? null : (
                                     <HowThisWorksButton
@@ -189,7 +192,7 @@ export const SessionListScreen = ({
                                     <Button asChild>
                                         <Link href={`${base}/apps`}>
                                             <Plus />
-                                            New session
+                                            {t("sessions.mobileList.newSession")}
                                         </Link>
                                     </Button>
                                 ) : null}
@@ -210,7 +213,7 @@ export const SessionListScreen = ({
                                 <ListTableToolbar
                                     search={search.value}
                                     onSearchChange={search.onChange}
-                                    searchPlaceholder="Search sessions"
+                                    searchPlaceholder={t("sessions.mobileList.searchSessions")}
                                     actions={
                                         <SessionFilterMenu
                                             view={view}

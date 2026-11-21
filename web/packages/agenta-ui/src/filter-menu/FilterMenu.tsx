@@ -1,5 +1,7 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {ListFilter} from "lucide-react"
 
 import {Popover, PopoverContent} from "../components/ui/popover"
@@ -64,6 +66,7 @@ export const FilterMenu = ({
     triggerAriaLabel,
     active,
 }: FilterMenuProps) => {
+    const t = useT(uiControlsCatalog)
     const [uncontrolled, setUncontrolled] = useState(false)
     const open = openProp ?? uncontrolled
     const setOpen = (next: boolean) => {
@@ -81,13 +84,13 @@ export const FilterMenu = ({
                 triggerClassName={triggerClassName}
                 triggerAriaLabel={triggerAriaLabel}
                 active={active}
-                defaultLabel="Filter"
+                defaultLabel={t("ui.controls.filter")}
             />
             <PopoverContent
                 side={side}
                 align={align}
                 sideOffset={sideOffset}
-                aria-label="Filter, sort and group"
+                aria-label={t("ui.controls.filterSortGroup")}
                 className="p-0"
                 onOpenAutoFocus={(event) => event.preventDefault()}
             >

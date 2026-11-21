@@ -1,5 +1,7 @@
 import {useRef, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import triggerSharedCatalog from "@agenta/i18n/catalogs/entityUi.triggerShared"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -71,6 +73,7 @@ export function EventSourcePicker({
     /** Portal target for the popover; defaults to document.body. */
     container?: HTMLElement | null
 }) {
+    const t = useT(triggerSharedCatalog)
     const [open, setOpen] = useState(defaultOpen ?? false)
     const [waiting, setWaiting] = useState(false)
     const settledRef = useRef(false)
@@ -130,7 +133,7 @@ export function EventSourcePicker({
             <DropdownMenuContent
                 side={side}
                 align={align}
-                aria-label="Select event source"
+                aria-label={t("entityUi.triggerShared.selectEventSource")}
                 className="w-[280px]"
                 container={container}
             >
@@ -159,7 +162,9 @@ export function EventSourcePicker({
                         )}
                         <span className="min-w-0 flex-1">
                             <span className="block text-xs">
-                                {waiting ? "Waiting for an event…" : "Wait for a new event"}
+                                {waiting
+                                    ? t("entityUi.triggerShared.waitingForEvent")
+                                    : t("entityUi.triggerShared.waitForNewEvent")}
                             </span>
                             {waitHint && !waiting && (
                                 <span className="block text-xs text-[var(--ag-colorTextTertiary)]">
@@ -180,19 +185,19 @@ export function EventSourcePicker({
                         }}
                     >
                         <X size={12} className="text-[var(--ag-colorTextTertiary)]" />
-                        <span className="text-xs">Stop waiting</span>
+                        <span className="text-xs">{t("entityUi.triggerShared.stopWaiting")}</span>
                     </DropdownMenuItem>
                 )}
 
                 <DropdownMenuLabel className="mt-1 text-xs font-medium text-[var(--ag-colorTextDescription)]">
-                    Recent events
+                    {t("entityUi.triggerShared.recentEvents")}
                 </DropdownMenuLabel>
 
                 {recentEvents.length === 0 ? (
                     // The same dashed one-liner EventFieldList uses for "nothing sampled yet",
                     // rather than a second empty-state language a few pixels away.
                     <div className="mx-1 mb-1 rounded-md border border-dashed border-[var(--ag-colorBorder)] px-2 py-3 text-center text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
-                        Events you capture appear here.
+                        {t("entityUi.triggerShared.eventsCaptureHint")}
                     </div>
                 ) : (
                     recentEvents.map((event) => (

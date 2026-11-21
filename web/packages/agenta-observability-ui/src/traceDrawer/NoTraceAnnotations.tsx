@@ -1,8 +1,16 @@
+import {useT} from "@agenta/i18n"
+import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
+
 /** antd `Typography.Text type="secondary"` → a plain span on the secondary text token. */
-const NoTraceAnnotations = () => (
-    <div className="flex items-center justify-center">
-        <span className="text-colorTextSecondary">There are no annotations for this trace</span>
-    </div>
-)
+const NoTraceAnnotations = () => {
+    const t = useT(drawerCatalog)
+    return (
+        <div className="flex items-center justify-center">
+            <span className="text-colorTextSecondary">
+                {t("observabilityUi.traceDrawer.noAnnotationsForTrace")}
+            </span>
+        </div>
+    )
+}
 
 export default NoTraceAnnotations

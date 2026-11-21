@@ -10,6 +10,8 @@ import {
     type Workflow,
 } from "@agenta/entities/workflow"
 import {HomeFocus, type HomeListAgent} from "@agenta/home-ui"
+import {useT} from "@agenta/i18n"
+import screenCatalog from "@agenta/i18n/catalogs/home.screen"
 import {getUnseenReleases, isWhatsNewOptedOut} from "@agenta/navigation"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -49,6 +51,7 @@ import {useHomeHandoff} from "./useHomeHandoff"
  * of its own. `homeSurface` only decides whether we know enough to draw it yet.
  */
 export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; projectId: string}) => {
+    const t = useT(screenCatalog)
     useBindProjectContext(projectId)
     const project = useCurrentProject(workspaceId, projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
@@ -95,6 +98,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
     // Newest first. The list arrives in whatever order the query returns, which put agents made
     // months ago above one created a minute earlier — and the head of this list is also what the
     // composer binds by default.
+    const untitledAgent = t("home.screen.untitledAgent")
     const listAgents = useMemo<HomeListAgent[]>(
         () =>
             [...agents]
@@ -103,10 +107,10 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
                 )
                 .map((agent) => ({
                     id: agent.id,
-                    name: agent.name || agent.slug || "Untitled agent",
+                    name: agent.name || agent.slug || untitledAgent,
                     description: agent.description,
                 })),
-        [agents],
+        [agents, untitledAgent],
     )
 
     // The skeleton takes the SAME frame, or the hold sits somewhere the page does not.
@@ -121,7 +125,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
             templatesLoading={templatesStatus === "pending"}
             templatesErrorSlot={
                 templatesStatus === "error" ? (
-                    <LoadError title="Could not load templates" onRetry={refetchTemplates} />
+                    <LoadError title={t("home.screen.templatesError")} onRetry={refetchTemplates} />
                 ) : undefined
             }
             attachments={handoff.attachments}
@@ -140,12 +144,12 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
             }
             loading={agentsQuery.isPending}
             loadingSlot={<HomeListSkeleton />}
-            emptySlot={<HomeSectionEmpty text="Agents you create will show up here." />}
+            emptySlot={<HomeSectionEmpty text={t("home.screen.agentsEmpty")} />}
             errorSlot={
                 agentsQuery.isError ? (
                     // The list atom exposes no refetch; invalidating its cache is what re-runs it.
                     <LoadError
-                        title="Could not load your agents"
+                        title={t("home.screen.agentsError")}
                         onRetry={() => void invalidateWorkflowsListCache()}
                     />
                 ) : undefined
@@ -155,14 +159,14 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
 
     return (
         <>
-            <PageTitle title="Home" />
+            <PageTitle title={t("home.screen.title")} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
                         <div className="border-border flex shrink-0 items-center gap-2 border-b px-4 pb-3 pt-2 lg:hidden">
                             <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                             <h1 className="m-0 text-sm font-semibold">
-                                {project?.project_name ?? "Home"}
+                                {project?.project_name ?? t("home.screen.title")}
                             </h1>
                         </div>
                     }

@@ -6,19 +6,6 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 // SkillFormView — the folder-shaped inline-skill editor: a Files rail (SKILL.md pinned, the
 // bundled files, the SkillUploadZone) beside the skill-level fields, the selected file's
 // editor and the two behaviour toggles.
-//
-// antd swaps in THIS file: `App.useApp().message` → the antd-free `message` service from
-// `@agenta/ui/app-message` (the same singleton the migrated modals use);
-// `Input`/`Input.TextArea autoSize` → `@agenta/ui` `Input`/`AutosizeTextarea`;
-// `Switch onChange` → `Switch onCheckedChange` (+ an `aria-label`, since the tooltip is no
-// longer the accessible name); `Tooltip title` → Radix Tooltip; `Typography.Text` → span +
-// semantic token classes.
-//
-// NO `AntdVsAgenta` pair here, deliberately: the right pane hosts `MarkdownEditor` /
-// `CodeEditor` (lexical, not exported and not part of this chunk), so an antd replay could
-// not hold them constant across the two halves. The migrated leaves have their own parity
-// grids — `DrillIn/SkillUploadZone` here, plus the wave-1 `@agenta/ui` Input/Switch/Field
-// grids. These stories are the inventory + state coverage.
 const meta = {
     title: "@agenta/entity-ui/DrillIn/SkillFormView",
     component: SkillFormView,

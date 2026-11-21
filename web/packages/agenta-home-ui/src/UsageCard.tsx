@@ -1,5 +1,7 @@
-import {useMemo, useState, type ReactNode} from "react"
+import {useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import usageCatalog from "@agenta/i18n/catalogs/home.usage"
 import {useObservabilityDashboard} from "@agenta/observability"
 import {formatNumber} from "@agenta/shared/utils"
 import {
@@ -56,40 +58,35 @@ export interface UsageCardProps {
  * you came for once you go looking.
  */
 export const UsageCard = ({appId = null, expandedContent}: UsageCardProps) => {
+    const t = useT(usageCatalog)
     const [expanded, setExpanded] = useState(false)
     const {data, loading, errorMessage} = useObservabilityDashboard(appId)
 
-    const summary = useMemo(
-        () => [
-            {
-                label: "Requests",
-                value: data?.total_count == null ? EMPTY : formatNumber(data.total_count),
-            },
-            {label: "Latency", value: formatLatency(data?.avg_latency)},
-        ],
-        [data],
-    )
+    const summary = [
+        {
+            label: t("home.usage.requests"),
+            value: data?.total_count == null ? EMPTY : formatNumber(data.total_count),
+        },
+        {label: t("home.usage.latency"), value: formatLatency(data?.avg_latency)},
+    ]
 
-    const details = useMemo(
-        () => [
-            {label: "Total cost", value: formatCost(data?.total_cost)},
-            {label: "Avg cost", value: formatCost(data?.avg_cost)},
-            {
-                label: "Total tokens",
-                value: data?.total_tokens == null ? EMPTY : formatNumber(data.total_tokens),
-            },
-            {
-                label: "Avg tokens",
-                value: data?.avg_tokens == null ? EMPTY : formatNumber(Math.round(data.avg_tokens)),
-            },
-            {label: "Failure rate", value: formatPercent(data?.failure_rate)},
-        ],
-        [data],
-    )
+    const details = [
+        {label: t("home.usage.totalCost"), value: formatCost(data?.total_cost)},
+        {label: t("home.usage.avgCost"), value: formatCost(data?.avg_cost)},
+        {
+            label: t("home.usage.totalTokens"),
+            value: data?.total_tokens == null ? EMPTY : formatNumber(data.total_tokens),
+        },
+        {
+            label: t("home.usage.avgTokens"),
+            value: data?.avg_tokens == null ? EMPTY : formatNumber(Math.round(data.avg_tokens)),
+        },
+        {label: t("home.usage.failureRate"), value: formatPercent(data?.failure_rate)},
+    ]
 
     return (
         <PanelSection
-            title="Usage"
+            title={t("home.usage.title")}
             bodyClassName="flex flex-col gap-3 px-4 pb-4"
             titleExtra={<AnalyticsRangePicker />}
             extra={
@@ -98,7 +95,7 @@ export const UsageCard = ({appId = null, expandedContent}: UsageCardProps) => {
                     onClick={() => setExpanded((prev) => !prev)}
                     className={PANEL_ACTION_CLASS}
                 >
-                    {expanded ? "Collapse" : "Expand"}
+                    {expanded ? t("home.usage.collapse") : t("home.usage.expand")}
                     {expanded ? <CaretUp size={14} /> : <CaretDown size={14} />}
                 </button>
             }

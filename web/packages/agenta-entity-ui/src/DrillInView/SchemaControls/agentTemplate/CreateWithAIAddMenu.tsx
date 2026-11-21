@@ -8,6 +8,8 @@
  */
 import {useCallback, useRef, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {
     DropdownMenu,
@@ -69,6 +71,7 @@ export function CreateWithAIAddMenu({
     manualHint,
     manualIcon,
 }: CreateWithAIAddMenuProps) {
+    const t = useT(configItemsCatalog)
     const requestPrefill = useSetAtom(composerPrefillRequestAtom)
     // The menu hands focus back to its trigger as it closes. After "Create with AI" the composer
     // has to keep it, or the caret the prompt just placed is gone before the user types.
@@ -94,8 +97,8 @@ export function CreateWithAIAddMenu({
             >
                 <MenuRow
                     icon={<Sparkle size={16} />}
-                    title="Create with AI"
-                    hint="Describe it; the agent sets it up"
+                    title={t("entityUi.configItems.createWithAi")}
+                    hint={t("entityUi.configItems.createWithAiHint")}
                     onSelect={createWithAI}
                 />
                 <MenuRow

@@ -7,6 +7,8 @@ import {
     registerWorkflowCommitCallbacks,
     workflowMolecule,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {playgroundController} from "@agenta/playground"
 import {cn} from "@agenta/ui/styles"
 import {Button, Sheet, SheetContent, SheetHeader} from "@agenta/ui/ui"
@@ -56,6 +58,7 @@ export const EditableRevisionDrawer = ({
     defaultTesting = false,
     playground = true,
 }: EditableRevisionDrawerProps) => {
+    const t = useT(panelsCatalog)
     const store = useStore()
     // Shown from inside the commit: switching after it clears the draft leaves the form on old text.
     const [committedId, setCommittedId] = useState<string | null>(null)
@@ -128,7 +131,8 @@ export const EditableRevisionDrawer = ({
         [act, playground, shownId, store],
     )
 
-    const testLabel = kind === "evaluator" ? "Test evaluator" : "Test app"
+    const testLabel =
+        kind === "evaluator" ? t("playground.panels.testEvaluator") : t("playground.panels.testApp")
 
     return (
         <>
@@ -158,7 +162,7 @@ export const EditableRevisionDrawer = ({
                                             <Button
                                                 variant="ghost"
                                                 size="icon-sm"
-                                                aria-label="Previous revision"
+                                                aria-label={t("playground.panels.previousRevision")}
                                                 disabled={!previousId}
                                                 onClick={() =>
                                                     previousId &&
@@ -173,7 +177,7 @@ export const EditableRevisionDrawer = ({
                                             <Button
                                                 variant="ghost"
                                                 size="icon-sm"
-                                                aria-label="Next revision"
+                                                aria-label={t("playground.panels.nextRevision")}
                                                 disabled={!nextId}
                                                 onClick={() =>
                                                     nextId &&

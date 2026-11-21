@@ -8,6 +8,8 @@ import {
     useTriggerConnectionsQuery,
     type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {useSetAtom} from "jotai"
 
 import {SubscriptionChildRow} from "./SubscriptionChildRow"
@@ -48,6 +50,7 @@ export function AppTriggerProviderGroups({
     /** Builds a row's composed "⋯" menu body (`DropdownMenuItem` JSX). */
     subscriptionMenu: (record: TriggerSubscription) => ReactNode
 }) {
+    const t = useT(triggersCatalog)
     const {connections} = useTriggerConnectionsQuery()
     const {integrations} = useTriggerCatalogIntegrations()
     const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
@@ -130,7 +133,7 @@ export function AppTriggerProviderGroups({
                         const eventLabel = eventLabelOf(record)
                         const primary = named
                             ? (record.name as string)
-                            : eventLabel || "Untitled subscription"
+                            : eventLabel || t("entityUi.triggers.untitledSubscription")
                         const secondary = named
                             ? eventLabel || undefined
                             : connectionLabel(record.connection_id) ||

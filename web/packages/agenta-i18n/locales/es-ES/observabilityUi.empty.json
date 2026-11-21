@@ -1,0 +1,16 @@
+{
+    "rateLimitReached": "Límite de frecuencia alcanzado",
+    "quotaReached": "Has alcanzado el límite de tu cuota mensual. Inténtalo de nuevo más tarde o mejora tu plan.",
+    "noTracesFound": "No se encontraron trazas",
+    "adjustTraces": "Prueba a ajustar los filtros o el intervalo de tiempo para ver las trazas.",
+    "demoAlt": "Demostración de observabilidad que muestra la visualización de trazas",
+    "noTracesYet": "Aún no hay trazas",
+    "onboardingDescription": "Añade unas pocas líneas de código para empezar a capturar trazas de tu aplicación LLM. Supervisa la latencia y el uso de tokens, y depura problemas con información detallada.",
+    "setUpTracing": "Configurar el trazado",
+    "learnMore": "Más información",
+    "noSessionsFound": "No se encontraron sesiones",
+    "adjustSessions": "Prueba a ajustar los filtros o el intervalo de tiempo para ver las sesiones.",
+    "noSessionsObserved": "No se han observado sesiones",
+    "sessionsDescription": "Las sesiones te permiten seguir conversaciones de varios turnos con tu aplicación LLM, incluidos los pasos intermedios.",
+    "gettingStartedSessions": "Primeros pasos con las sesiones"
+}

@@ -184,7 +184,7 @@ memory: agent run spans can be hundreds of KB each.
 
 The online redaction filter scrubs known credential/secret **values** out of error responses,
 persisted records, spans, and logs on the invoke path (detective control, not preventive; see
-[docs/designs/online-redaction](https://github.com/agenta-ai/agenta/blob/main/docs/designs/online-redaction/specs.md)).
+[docs/design/online-redaction](https://github.com/agenta-ai/agenta/blob/main/docs/design/online-redaction/specs.md)).
 The filter redacts a value only when it is a live secret the platform resolved for the request,
 never by guessing at shape or entropy.
 

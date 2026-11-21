@@ -10,6 +10,8 @@
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {createT} from "@agenta/i18n"
+import chatMessagesCatalog from "@agenta/i18n/catalogs/chat.messages"
 import {
     buildCancelResult,
     buildDegradationErrorText,
@@ -27,6 +29,8 @@ import type {ClientToolMeta} from "../skin"
 
 import {discardElicitationDraft} from "./useElicitationStepper"
 import {useSettlingIds} from "./useSettlingIds"
+
+const tNow = createT(chatMessagesCatalog)
 
 export interface UseElicitationDockArgs {
     messages: UIMessage[]
@@ -168,7 +172,7 @@ export const useElicitationDock = ({
         const dismissed = await dismissAll(
             pendingRef.current,
             () => buildCancelResult("Dismissed the request.") as unknown as Record<string, unknown>,
-            "The question couldn't be dismissed.",
+            tNow("chat.messages.questionDismissFailed"),
         )
         // Only once they landed: a failed write re-opens the dock, and the cards must find the
         // answers the user had already typed.

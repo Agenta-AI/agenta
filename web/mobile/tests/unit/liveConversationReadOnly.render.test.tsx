@@ -163,10 +163,12 @@ vi.mock("@agenta/entities/workflow", async () => {
     return {
         invalidateAgentCommittedRevisionCache: vi.fn(),
         workflowBuildKitOverlayReadyAtomFamily: () => ready,
-        MODEL_SETUP_PLACEHOLDER: "Set up the model to send messages",
     }
 })
 vi.mock("@agenta/entity-ui/agent", () => ({AgentIntroCard: () => null}))
+vi.mock("@agenta/entity-ui/needs-setup", () => ({
+    modelSetupPlaceholder: () => "Set up the model to send messages",
+}))
 vi.mock("@agenta/entity-ui/clientTools", () => ({
     SecretRequestDock: () => <div data-testid="secret-dock" />,
 }))

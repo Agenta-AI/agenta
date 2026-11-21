@@ -1,5 +1,8 @@
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiTableCatalog from "@agenta/i18n/catalogs/ui.table"
 import {Rows} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
@@ -103,6 +106,7 @@ export function useRowHeight(
     sizeAtom: ReturnType<typeof createRowHeightAtom>,
     config: RowHeightConfig,
 ): UseRowHeightResult {
+    const t = useT(uiTableCatalog, commonCatalog)
     const [size, setSize] = useAtom(sizeAtom)
 
     const heightPx = useMemo(() => config.sizes[size].height, [config.sizes, size])
@@ -113,21 +117,25 @@ export function useRowHeight(
         return [
             {
                 key: "row-height",
-                label: "Row height",
+                label: t("ui.table.rowHeight"),
                 icon: <Rows size={16} />,
                 children: sizes.map((s) => ({
                     key: `row-height-${s}`,
                     // The selected size reads as bold, the way antd's inline style did.
                     label: (
                         <span className={size === s ? "font-semibold" : undefined}>
-                            {config.sizes[s].label}
+                            {s === "small"
+                                ? t("ui.table.small")
+                                : s === "medium"
+                                  ? t("ui.table.medium")
+                                  : t("ui.table.large")}
                         </span>
                     ),
                     onClick: () => setSize(s),
                 })),
             },
         ]
-    }, [config.sizes, size, setSize])
+    }, [config.sizes, size, setSize, t])
 
     return {
         size,

@@ -3,6 +3,8 @@ import {
     agentTemplatesAtom,
     refetchAgentTemplatesAtom,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {LoadingButton} from "@agenta/ui/ui"
@@ -34,6 +36,7 @@ export const TemplatePageScreen = ({
     templateKey: string
 }) => {
     useBindProjectContext(projectId)
+    const t = useT(marketplaceCatalog)
     const base = `/w/${workspaceId}/p/${projectId}`
     const marketplaceHref = `${base}/templates`
     const newAgent = useNewAgentAction(base)
@@ -48,7 +51,7 @@ export const TemplatePageScreen = ({
 
     return (
         <>
-            <PageTitle title="Agent Marketplace" context={template?.name} />
+            <PageTitle title={t("marketplace.page.title")} context={template?.name} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     scrollRef={fade.ref}
@@ -67,7 +70,7 @@ export const TemplatePageScreen = ({
                                     onClick={use}
                                     className="w-full"
                                 >
-                                    Use this template
+                                    {t("marketplace.page.useTemplate")}
                                 </LoadingButton>
                             </div>
                         ) : undefined
@@ -85,7 +88,7 @@ export const TemplatePageScreen = ({
                         ) : lookup.status === "error" ? (
                             <LoadError
                                 framed
-                                title="Could not load this template"
+                                title={t("marketplace.page.templateLoadError")}
                                 onRetry={refetchTemplates}
                             />
                         ) : lookup.status === "missing" ? (

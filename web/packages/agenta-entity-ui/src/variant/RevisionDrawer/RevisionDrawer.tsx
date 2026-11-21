@@ -1,6 +1,8 @@
 import {lazy, Suspense, useRef} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import revisionDrawerCatalog from "@agenta/i18n/catalogs/entityUi.revisionDrawer"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {Sheet, SheetContent, Skeleton} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
@@ -17,13 +19,14 @@ const RevisionConfigView = lazy(() =>
 )
 
 const RevisionDrawerBody = ({revisionId, kind}: {revisionId: string; kind: RevisionDrawerKind}) => {
+    const t = useT(revisionDrawerCatalog)
     const query = useAtomValue(workflowMolecule.atoms.query(revisionId))
 
     if (query.isError) {
         return (
             <LoadError
                 className="m-4"
-                title="Could not load this revision"
+                title={t("entityUi.revisionDrawer.loadError")}
                 onRetry={() => void query.refetch()}
             />
         )
@@ -32,7 +35,7 @@ const RevisionDrawerBody = ({revisionId, kind}: {revisionId: string; kind: Revis
     if (!query.data) {
         return (
             <p className="text-muted-foreground m-0 p-6 text-center text-sm">
-                This revision is no longer available.
+                {t("entityUi.revisionDrawer.notAvailable")}
             </p>
         )
     }

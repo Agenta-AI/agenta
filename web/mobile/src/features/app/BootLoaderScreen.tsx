@@ -2,6 +2,8 @@ import {useEffect, useState} from "react"
 
 import {AgentaMark} from "@agenta/auth-ui"
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import bootLoaderCatalog from "@agenta/i18n/catalogs/shell.bootLoader"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
@@ -29,6 +31,7 @@ interface BootLoaderScreenProps {
 
 /** The editorial post-sign-in loader; its stages follow the projects, then the agents query. */
 export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
+    const t = useT(bootLoaderCatalog)
     const presets = useMotionPresets()
     // Same key and options as AuthGate and the root resolver, so this costs no request.
     const projectsQuery = useQuery({
@@ -80,7 +83,8 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
         if (done) onDone()
     }, [done, onDone])
 
-    const status = BOOT_STATUSES[boot.account][stage]
+    const statusKey = BOOT_STATUSES[boot.account][stage]
+    const status = t(statusKey)
     const progress = bootProgress(stage, now - stageSince.at)
 
     return (
@@ -92,7 +96,7 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
                     </motion.span>
                     <AnimatePresence mode="wait" initial={false}>
                         <motion.span
-                            key={status}
+                            key={statusKey}
                             variants={presets.fadeUp}
                             initial="initial"
                             animate="animate"
@@ -113,7 +117,7 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
                             exit="exit"
                             className="m-0 font-semibold tracking-[-0.025em] text-balance"
                         >
-                            {BOOT_TIPS[tip]}
+                            {t(BOOT_TIPS[tip])}
                         </motion.p>
                     </AnimatePresence>
                 </div>
@@ -133,7 +137,7 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
                     </div>
                     <div className="text-muted-foreground flex justify-between text-xs tabular-nums">
                         <span className="font-medium tracking-[0.03em] uppercase">
-                            Did you know
+                            {t("shell.bootLoader.didYouKnow")}
                         </span>
                         <span>{progress}%</span>
                     </div>

@@ -1,4 +1,6 @@
 import {executeToolCall} from "@agenta/entities/gatewayTool"
+import {useT} from "@agenta/i18n"
+import chatCatalog from "@agenta/i18n/catalogs/playground.chat"
 import {message} from "@agenta/ui/app-message"
 import {
     Button,
@@ -35,6 +37,7 @@ export const GatewayToolActions = ({
     currentResult,
     onRun,
 }: GatewayToolActionsProps) => {
+    const t = useT(chatCatalog)
     const {payloads, execute, executingId} = useGatewayToolActions({
         rowId,
         entityId,
@@ -46,7 +49,7 @@ export const GatewayToolActions = ({
 
     const call = async (payload: GatewayToolPayload, sendToChat: boolean) => {
         const outcome = await execute(payload, sendToChat)
-        if (!outcome.ok) message.error("Tool execution failed")
+        if (!outcome.ok) message.error(t("playground.chat.toolFailed"))
     }
 
     return (
@@ -63,7 +66,7 @@ export const GatewayToolActions = ({
                             onClick={() => call(payload, true)}
                         >
                             {busy ? <Spinner size="small" /> : <Lightning size={12} />}
-                            Call tool and send to chat
+                            {t("playground.chat.callToolAndSend")}
                         </Button>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild disabled={busy}>
@@ -71,14 +74,14 @@ export const GatewayToolActions = ({
                                     variant="outline"
                                     size="icon-sm"
                                     className="-ml-px rounded-l-none"
-                                    aria-label="Tool options"
+                                    aria-label={t("playground.chat.toolOptions")}
                                 >
                                     <CaretDown size={12} />
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                                 <DropdownMenuItem onSelect={() => call(payload, false)}>
-                                    Call tool
+                                    {t("playground.chat.callTool")}
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>

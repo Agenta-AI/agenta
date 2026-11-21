@@ -23,12 +23,13 @@ import {
     templateCategories,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import galleryCatalog from "@agenta/i18n/catalogs/home.templateGallery"
 import {FilterRailLayout, LoadError} from "@agenta/ui/components/presentational"
 import {SearchInput, SkeletonBlock} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {TemplateCard} from "./TemplateCard"
-import {TEMPLATE_GALLERY_COPY} from "./templateGalleryCopy"
 
 export interface TemplateGalleryProps {
     /** Controlled so a host can keep it in the URL (the desktop does). */
@@ -72,6 +73,7 @@ const TemplateSection = ({
     templates: AgentStarterTemplate[]
     onSelectTemplate: (template: AgentStarterTemplate) => void
 }) => {
+    const t = useT(galleryCatalog)
     if (templates.length === 0) return null
 
     return (
@@ -85,7 +87,7 @@ const TemplateSection = ({
                     {category}
                 </span>
                 <span className="shrink-0 text-xs text-colorTextTertiary">
-                    {templates.length} {templates.length === 1 ? "template" : "templates"}
+                    {t("home.templateGallery.sectionCount", {count: templates.length})}
                 </span>
             </div>
 
@@ -109,12 +111,16 @@ export const TemplateGallery = ({
     onCategoryChange,
     onSelectTemplate,
     leading,
-    title = TEMPLATE_GALLERY_COPY.title,
-    subtitle = TEMPLATE_GALLERY_COPY.subtitle,
-    searchPlaceholder = TEMPLATE_GALLERY_COPY.searchPlaceholder,
+    title,
+    subtitle,
+    searchPlaceholder,
     className,
     layout = "toolbar",
 }: TemplateGalleryProps) => {
+    const t = useT(galleryCatalog)
+    const shownTitle = title ?? t("home.templateGallery.title")
+    const shownSubtitle = subtitle ?? t("home.templateGallery.subtitle")
+    const shownPlaceholder = searchPlaceholder ?? t("home.templateGallery.searchPlaceholder")
     // The catalogue comes from the API: until it answers, an empty list means "not yet", never
     // "no templates" — so the results area says which one it is.
     const templates = useAtomValue(agentTemplatesAtom)
@@ -126,11 +132,12 @@ export const TemplateGallery = ({
 
     // Rail items: All + each present category with a count.
     // No chips before the catalogue has loaded: "All 0" would claim an empty catalogue.
+    const allLabel = t("home.templateGallery.all")
     const railItems = useMemo(
         () =>
             status === "success"
                 ? [
-                      {value: ALL_TEMPLATES_CATEGORY, label: "All", count: templates.length},
+                      {value: ALL_TEMPLATES_CATEGORY, label: allLabel, count: templates.length},
                       ...categories.map((item) => ({
                           value: item,
                           label: item,
@@ -138,7 +145,7 @@ export const TemplateGallery = ({
                       })),
                   ]
                 : [],
-        [categories, status, templates],
+        [categories, status, templates, allLabel],
     )
 
     // All → every present category; otherwise just the active one.
@@ -171,7 +178,7 @@ export const TemplateGallery = ({
             </div>
         ) : status === "error" ? (
             <LoadError
-                title="Could not load templates"
+                title={t("home.templateGallery.loadError")}
                 onRetry={() => refetchTemplates()}
                 className={emptyInset ? "mt-6" : undefined}
             />
@@ -183,8 +190,8 @@ export const TemplateGallery = ({
             >
                 <span className="text-xs text-colorTextSecondary">
                     {hasQuery
-                        ? `No templates match "${query.trim()}".`
-                        : `No templates in ${category}.`}
+                        ? t("home.templateGallery.noMatch", {query: query.trim()})
+                        : t("home.templateGallery.noneInCategory", {category})}
                 </span>
                 <button
                     type="button"
@@ -194,7 +201,9 @@ export const TemplateGallery = ({
                     }}
                     className="cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-colorPrimary"
                 >
-                    {hasQuery ? "Clear search" : "Show all templates"}
+                    {hasQuery
+                        ? t("home.templateGallery.clearSearch")
+                        : t("home.templateGallery.showAll")}
                 </button>
             </div>
         ) : (
@@ -246,7 +255,7 @@ export const TemplateGallery = ({
                     <SearchInput
                         value={query}
                         onValueChange={setQuery}
-                        placeholder={searchPlaceholder}
+                        placeholder={shownPlaceholder}
                         className="w-full sm:w-[320px]"
                     />
                     {resultCount === 0 || status !== "success" ? (
@@ -272,10 +281,10 @@ export const TemplateGallery = ({
                         <div className="flex min-w-0 items-center gap-2">
                             {leading}
                             <h1 className="m-0 min-w-0 flex-1 truncate text-[24px] font-semibold leading-tight text-colorText">
-                                {title}
+                                {shownTitle}
                             </h1>
                         </div>
-                        <p className="m-0 text-[13px] text-colorTextSecondary">{subtitle}</p>
+                        <p className="m-0 text-[13px] text-colorTextSecondary">{shownSubtitle}</p>
                     </div>
 
                     {/* SearchInput IS the kit's prefixed+clearable input — `onValueChange` also
@@ -283,7 +292,7 @@ export const TemplateGallery = ({
                     <SearchInput
                         value={query}
                         onValueChange={setQuery}
-                        placeholder={searchPlaceholder}
+                        placeholder={shownPlaceholder}
                     />
 
                     {/* Horizontal chips until lg, where the rail becomes a sidebar column. */}

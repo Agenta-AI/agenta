@@ -1,0 +1,11 @@
+{
+    "columns_one": "{{count}} Spalte",
+    "columns_other": "{{count}} Spalten",
+    "copied": "Kopiert",
+    "copyAsMarkdown": "Als Markdown kopieren",
+    "downloadCsv": "CSV herunterladen",
+    "expand": "Erweitern",
+    "rows_one": "{{count}} Zeile",
+    "rows_other": "{{count}} Zeilen",
+    "summary": "{{rows}} · {{columns}}"
+}

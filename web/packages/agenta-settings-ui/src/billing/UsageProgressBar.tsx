@@ -1,19 +1,21 @@
 import {memo} from "react"
 
+import {useT, type CatalogKey} from "@agenta/i18n"
+import billingPageCatalog from "@agenta/i18n/catalogs/billing.page"
 import {WarningIcon} from "@phosphor-icons/react"
 
 import type {BillingUsagePeriod, BillingUsageScope} from "./types"
 
-const PERIOD_SUFFIX: Record<string, string> = {
-    daily: "today",
-    monthly: "this month",
-    yearly: "this year",
+const PERIOD_SUFFIX: Record<string, CatalogKey<typeof billingPageCatalog>> = {
+    daily: "billing.page.periodToday",
+    monthly: "billing.page.periodThisMonth",
+    yearly: "billing.page.periodThisYear",
 }
 
-const SCOPE_SUFFIX: Record<string, string> = {
-    user: "per user",
-    project: "per project",
-    workspace: "per workspace",
+const SCOPE_SUFFIX: Record<string, CatalogKey<typeof billingPageCatalog>> = {
+    user: "billing.page.scopePerUser",
+    project: "billing.page.scopePerProject",
+    workspace: "billing.page.scopePerWorkspace",
     // organization scope is implicit — no suffix.
 }
 
@@ -40,14 +42,19 @@ const UsageProgressBar = ({
     period,
     scope,
 }: UsageProgressBarProps) => {
+    const t = useT(billingPageCatalog)
     const suffixParts: string[] = []
     if (scope && SCOPE_SUFFIX[scope]) {
-        suffixParts.push(SCOPE_SUFFIX[scope])
+        suffixParts.push(t(SCOPE_SUFFIX[scope]))
     }
     if (period && PERIOD_SUFFIX[period]) {
-        suffixParts.push(PERIOD_SUFFIX[period])
+        suffixParts.push(t(PERIOD_SUFFIX[period]))
     }
-    const suffix = suffixParts.length ? ` (${suffixParts.join(", ")})` : ""
+    const suffix = suffixParts.length
+        ? t("billing.page.usageSuffix", {
+              details: suffixParts.join(t("billing.page.listSeparator")),
+          })
+        : ""
 
     return (
         <div className="flex w-full flex-col gap-1">
@@ -64,7 +71,9 @@ const UsageProgressBar = ({
             <span className="flex items-center gap-2">
                 <span className="text-xs font-medium text-colorText">{`${value} / ${limit ? limit : "-"}`}</span>
                 <span className="font-medium text-colorTextSecondary">
-                    {free ? `(${value > free ? free : value} / ${free} free)` : ""}
+                    {free
+                        ? t("billing.page.freeUsage", {used: value > free ? free : value, free})
+                        : ""}
                 </span>
             </span>
         </div>

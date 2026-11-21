@@ -1,0 +1,15 @@
+{
+    "start": "開始",
+    "startsRightAway": "すぐに開始",
+    "end": "終了",
+    "neverEnds": "終了しない",
+    "windowHint": "時刻は UTC です。どちらかを空欄にすると制限なしになります。開始を未来にすると初回の実行が遅れ、終了を過去にするとスケジュールが停止します。",
+    "messagePlaceholder": "昨日のサポートチケットを要約し、ダイジェストを #ops に投稿してください。",
+    "richerInputsSchedule": "このスケジュールは 1 件のメッセージより多くの入力を送信します。ここに入力すると、それらは置き換えられます。",
+    "sentEveryRun": "実行のたびにエージェントに送信されます。",
+    "inputsNotValidJson": "入力が有効な JSON ではありません",
+    "inputsNotValidJsonSentence": "入力が有効な JSON ではありません。",
+    "runInPlayground": "プレイグラウンドで実行",
+    "createScheduleFirst": "実行するには先にスケジュールを作成してください",
+    "agentWillReceive": "エージェントが受け取る内容"
+}

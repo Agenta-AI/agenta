@@ -7,6 +7,8 @@ import {
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
+import {useT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {playgroundController} from "@agenta/playground"
 import {useAtomValue} from "jotai"
 
@@ -23,6 +25,7 @@ export interface RevisionTreeProps {
  * It fetches the lists when it mounts, so the popovers mount it only while open.
  */
 export const RevisionTree = ({appId, selectedValue, onSelect}: RevisionTreeProps) => {
+    const t = useT(panelsCatalog)
     const shown = useAtomValue(playgroundController.selectors.entityIds())
     const latestId = useAtomValue(workflowLatestRevisionIdAtomFamily(appId))
 
@@ -34,17 +37,17 @@ export const RevisionTree = ({appId, selectedValue, onSelect}: RevisionTreeProps
                 variantOverrides: {
                     getLabel: (entity: unknown) => {
                         const variant = entity as {name?: string; id?: string}
-                        return variant.name ?? variant.id ?? "Unnamed"
+                        return variant.name ?? variant.id ?? t("playground.panels.unnamed")
                     },
                 },
                 revisionOverrides: {
                     getLabel: (entity: unknown) =>
                         `v${(entity as {version?: number}).version ?? 0}`,
                 },
-                emptyMessage: "No variants found",
-                loadingMessage: "Loading variants...",
+                emptyMessage: t("playground.panels.noVariants"),
+                loadingMessage: t("playground.panels.loadingVariants"),
             }),
-        [appId],
+        [appId, t],
     )
     const disabledIds = useMemo(() => new Set(shown), [shown])
 

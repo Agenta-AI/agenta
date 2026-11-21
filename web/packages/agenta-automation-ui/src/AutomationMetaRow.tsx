@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {timeAgo} from "@agenta/shared/utils"
 
 import {AutomationActiveSwitch} from "./AutomationActiveSwitch"
@@ -25,7 +27,16 @@ export const AutomationMetaRow = ({
     onToggle: (next: boolean) => Promise<void>
     trailing?: ReactNode
 }) => {
+    const t = useT(automationsEditorCatalog)
     const edited = updatedAt ? timeAgo(Date.parse(updatedAt)) : ""
+    const facts = [
+        agentName
+            ? t("automations.editor.runsAgent", {agent: agentName})
+            : t("automations.editor.noAgentYet"),
+        edited ? t("automations.editor.edited", {time: edited}) : null,
+    ]
+        .filter((fact): fact is string => fact !== null)
+        .join(" · ")
 
     return (
         <div className="mb-1 mt-4 flex min-w-0 flex-wrap items-center gap-3.5">
@@ -36,10 +47,7 @@ export const AutomationMetaRow = ({
                     of one line or leading the next. It only separates when both parts share a
                     line. */}
                 <span aria-hidden className="hidden h-4 w-px shrink-0 bg-border sm:block" />
-                <span className="min-w-0 truncate text-[13px] text-muted-foreground">
-                    {agentName ? `Runs ${agentName}` : "No agent yet"}
-                    {edited ? ` · edited ${edited}` : ""}
-                </span>
+                <span className="min-w-0 truncate text-[13px] text-muted-foreground">{facts}</span>
             </span>
         </div>
     )

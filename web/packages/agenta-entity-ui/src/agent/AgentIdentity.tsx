@@ -1,5 +1,7 @@
 import {type ElementType, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import agentActionsCatalog from "@agenta/i18n/catalogs/entityUi.agentActions"
 import {RobotIcon} from "@phosphor-icons/react"
 
 import {agentAvatar} from "./AgentCard"
@@ -70,6 +72,7 @@ export const AgentIdentity = ({
     isDuplicateName,
     className,
 }: AgentIdentityProps) => {
+    const t = useT(agentActionsCatalog)
     const spec = IDENTITY_SIZE[size]
     const Label = spec.label
     const avatar = agentAvatar(name, workflowId ?? "")
@@ -111,7 +114,9 @@ export const AgentIdentity = ({
                         isDuplicateName={isDuplicateName}
                     />
                 ) : (
-                    <Label className={agentNameLabelClass(size)}>{name || "Agent"}</Label>
+                    <Label className={agentNameLabelClass(size)}>
+                        {name || t("entityUi.agentActions.agent")}
+                    </Label>
                 ))}
         </div>
     )

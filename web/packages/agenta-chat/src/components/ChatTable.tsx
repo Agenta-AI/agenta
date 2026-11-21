@@ -9,6 +9,8 @@ import {
     type ReactNode,
 } from "react"
 
+import {useT} from "@agenta/i18n"
+import chatChatTableCatalog from "@agenta/i18n/catalogs/chat.chatTable"
 import {downloadCsv} from "@agenta/shared/utils"
 import {
     Button,
@@ -28,7 +30,6 @@ import {
     toMarkdown,
     type CellLayout,
     type HastNode,
-    type TableModel,
 } from "./chatTableModel"
 
 const LayoutContext = createContext<Map<string, CellLayout> | null>(null)
@@ -36,11 +37,6 @@ const LayoutContext = createContext<Map<string, CellLayout> | null>(null)
 const PinnedContext = createContext(false)
 
 const COPIED_MS = 1500
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`
-
-const summaryOf = (model: TableModel) =>
-    `${plural(model.rows.length, "row")} · ${plural(model.header.length, "column")}`
 
 /** A horizontally scrolling box; its first column pins while the table is wider than it. */
 const TableScroller = ({children}: {children: ReactNode}) => {
@@ -101,6 +97,7 @@ export const ChatTable = ({node, children}: {node?: HastNode; children?: ReactNo
         [node],
     )
     const layouts = useMemo(() => (node ? cellLayouts(node, model) : null), [node, model])
+    const t = useT(chatChatTableCatalog)
     const [expanded, setExpanded] = useState(false)
     const [copied, setCopied] = useState(false)
     const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -121,7 +118,10 @@ export const ChatTable = ({node, children}: {node?: HastNode; children?: ReactNo
             setCopied(false)
         }
     }
-    const summary = summaryOf(model)
+    const summary = t("chat.chatTable.summary", {
+        rows: t("chat.chatTable.rows", {count: model.rows.length}),
+        columns: t("chat.chatTable.columns", {count: model.header.length}),
+    })
     const table = <table className={TABLE_CLASS}>{children}</table>
 
     return (
@@ -135,18 +135,25 @@ export const ChatTable = ({node, children}: {node?: HastNode; children?: ReactNo
                     </span>
                     <div className="flex shrink-0 items-center gap-0.5">
                         <ToolbarButton
-                            label={copied ? "Copied" : "Copy as Markdown"}
+                            label={
+                                copied
+                                    ? t("chat.chatTable.copied")
+                                    : t("chat.chatTable.copyAsMarkdown")
+                            }
                             onClick={copy}
                         >
                             {copied ? <Check size={14} /> : <Copy size={14} />}
                         </ToolbarButton>
                         <ToolbarButton
-                            label="Download CSV"
+                            label={t("chat.chatTable.downloadCsv")}
                             onClick={() => downloadCsv(toCsv(model), "table.csv")}
                         >
                             <DownloadSimple size={14} />
                         </ToolbarButton>
-                        <ToolbarButton label="Expand" onClick={() => setExpanded(true)}>
+                        <ToolbarButton
+                            label={t("chat.chatTable.expand")}
+                            onClick={() => setExpanded(true)}
+                        >
                             <ArrowsOutSimple size={14} />
                         </ToolbarButton>
                     </div>

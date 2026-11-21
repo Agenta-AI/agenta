@@ -1,0 +1,17 @@
+{
+    "chooseAnEvent": "イベントを選択",
+    "addAppTrigger": "アプリのトリガーを追加",
+    "searchIntegrations": "インテグレーションを検索…",
+    "searchEvents": "イベントを検索…",
+    "connectionsHint": "イベントを選ぶとトリガーが作成されます。設定は不要です。",
+    "noTriggers": "このアプリにはトリガーがありません",
+    "popupBlocked": "ポップアップがブロックされました。このタブでリダイレクトします。",
+    "connectTo": "{{name}} に接続",
+    "name": "名前",
+    "nameTip": "この接続の表示名",
+    "required": "必須",
+    "namePlaceholder": "例：自分の {{name}} アカウント",
+    "authMethod": "認証方式",
+    "apiKey": "API キー",
+    "connect": "接続"
+}

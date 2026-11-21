@@ -1,0 +1,9 @@
+{
+    "copyFailed": "Impossible de copier. Sélectionnez le secret ci-dessus et copiez-le",
+    "copySecret": "Copier le secret",
+    "deleteBody": "Agenta cesse de livrer des événements à {{url}}.",
+    "deleteFailed": "Impossible de supprimer l’abonnement",
+    "deleteTitle": "Supprimer l’abonnement",
+    "secretDescription": "Affiché une seule fois. Vous en avez besoin pour vérifier que les requêtes entrantes proviennent d’Agenta.",
+    "secretTitle": "Enregistrez le secret de votre webhook"
+}

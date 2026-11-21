@@ -7,6 +7,8 @@ import {
     vaultSecretsQueryAtom,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
 import {ManageProvidersRow, type ProviderGroup} from "@agenta/ui/select-llm-provider"
 import {Plus} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
@@ -38,6 +40,21 @@ const vaultLoadedAtom = atom((get) => Array.isArray(get(vaultSecretsQueryAtom).d
  * Host-neutral on purpose: every host that renders the shared config panel needs the same picker
  * groups and the same drawers, so this lives beside them rather than in one app.
  */
+/** The empty-state button; its own component so its text follows the language. */
+const SetUpProvidersButton = ({onClick}: {onClick: () => void}) => {
+    const t = useT(providerDrawerCatalog)
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border border-dashed border-border bg-transparent px-3 py-1.5 text-left text-field-md text-colorTextSecondary hover:border-colorPrimary hover:text-colorText"
+        >
+            <Plus size={14} className="shrink-0" />
+            {t("entityUi.providerDrawer.setUpProviders")}
+        </button>
+    )
+}
+
 export function useLLMProviderConfig() {
     const connections = useAtomValue(providerConnectionsAtom)
     // Listed in the drawer as agents only; the picker never offers them (same vault request).
@@ -91,14 +108,7 @@ export function useLLMProviderConfig() {
     const emptyStateContent = useMemo(
         () =>
             vaultLoaded ? (
-                <button
-                    type="button"
-                    onClick={() => setIsProviderDrawerOpen(true)}
-                    className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border border-dashed border-border bg-transparent px-3 py-1.5 text-left text-field-md text-colorTextSecondary hover:border-colorPrimary hover:text-colorText"
-                >
-                    <Plus size={14} className="shrink-0" />
-                    Set up model providers
-                </button>
+                <SetUpProvidersButton onClick={() => setIsProviderDrawerOpen(true)} />
             ) : null,
         [vaultLoaded],
     )

@@ -1,0 +1,11 @@
+{
+    "skillReference": "Referencia de skill",
+    "skill": "Skill",
+    "remove": "Quitar",
+    "staticSkill": "Skill estático",
+    "staticSkillHint": "Proporcionado por Agenta. Este skill no se puede editar ni quitar.",
+    "skillTemplate": "Plantilla de skill",
+    "couldNotRead": "No se pudo leer: suelta una carpeta de skill, un .zip o un archivo .skill.",
+    "dragHint": "Arrastra aquí una carpeta de skill, un <mono>.zip</mono> o un <mono>.skill</mono>",
+    "browseFiles": "Explorar archivos"
+}

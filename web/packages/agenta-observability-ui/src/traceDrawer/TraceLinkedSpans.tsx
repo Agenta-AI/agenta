@@ -1,5 +1,7 @@
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import {
     linksAndReferencesAtom,
     setTraceDrawerTraceAtom,
@@ -10,6 +12,7 @@ import {TreeStructureIcon} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 const TraceLinkedSpans = () => {
+    const t = useT(drawerCatalog)
     const setTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)
     const linksAndReferences = useAtomValue(linksAndReferencesAtom)
 
@@ -37,7 +40,11 @@ const TraceLinkedSpans = () => {
     }, [linksAndReferences?.links])
 
     if (!validLinks.length) {
-        return <span className="text-colorTextSecondary">No linked spans found.</span>
+        return (
+            <span className="text-colorTextSecondary">
+                {t("observabilityUi.traceDrawer.noLinkedSpans")}
+            </span>
+        )
     }
 
     return (

@@ -50,7 +50,7 @@ Plus `Gauge.BYTES` (`bytes`) — the storage-size gauge, distinct from
 `SANDBOX_SSD_SECONDS` (sandbox disk *compute-time*, not stored bytes). Applied
 consistently to: `Counter` enum, `Meters` mirror, `DEFAULT_ENTITLEMENTS` quotas,
 `CONSTRAINTS`, the `ee0000000004` migration's enum labels, and the sandboxes service's
-meter-delta mapping. A stray `docs/designs/sandbox-metering/NAMING.md` on disk
+meter-delta mapping. A stray `docs/design/sandbox-metering/NAMING.md` on disk
 (untracked, authored elsewhere) documents an earlier, superseded 4-letter-token variant
 of this scheme — not updated as part of this task since it wasn't in Track B's file
 list; the code is the source of truth.

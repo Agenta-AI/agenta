@@ -1,0 +1,10 @@
+{
+    "noProject": "Cannot delete: no project is selected.",
+    "failedMany": "Failed to delete traces.",
+    "failedOne": "Failed to delete the trace.",
+    "confirmOne": "Are you sure you want to delete?",
+    "confirmMany": "Are you sure you want to delete {{count}} traces?",
+    "notReversible": "This action is not reversible.",
+    "cancel": "Cancel",
+    "delete": "Delete"
+}

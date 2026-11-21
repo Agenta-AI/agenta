@@ -278,6 +278,8 @@ class InboxDispatcher:
                 connection_id=connection_id,
                 thread=resolution.thread,
                 interaction_id=interaction_id,
+                approved=approved,
+                answered_by=event.data.processed.sender,
             )
         except Exception:  # UI cleanup must not replay an admitted decision.
             log.warning(
@@ -1490,7 +1492,7 @@ class InboxDispatcher:
         # Raises `AdmissionDenied` for an agent the installation may not run (the
         # caller settles the turn). Resolves the target once and leaves it on the
         # request, so the invoke runs what was checked.
-        await self.run_admission.admit_request(
+        agent_artifact_id = await self.run_admission.admit_request(
             envelope=envelope,
             session_id=None,
             project_id=project_id,
@@ -1509,6 +1511,7 @@ class InboxDispatcher:
                 # an accepted run: otherwise the trigger settles and the chat
                 # hears nothing, because no turn event ever follows.
                 strict_start=True,
+                admitted_agent_id=agent_artifact_id,
             )
         except Exception as e:
             if type(e).__name__ == "SessionTurnInUse" or (

@@ -1,7 +1,7 @@
 /**
  * @agenta/entities/evaluationRun/etl
  *
- * Eval-specific ETL adapters. See docs/designs/eval-etl-engine.md for
+ * Eval-specific ETL adapters. See docs/design/eval-etl-engine.md for
  * the design.
  *
  * Currently exposed:

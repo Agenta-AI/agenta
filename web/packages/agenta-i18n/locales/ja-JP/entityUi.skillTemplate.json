@@ -1,0 +1,11 @@
+{
+    "skillReference": "スキル参照",
+    "skill": "スキル",
+    "remove": "削除",
+    "staticSkill": "静的スキル",
+    "staticSkillHint": "Agenta が提供しています。このスキルは編集も削除もできません。",
+    "skillTemplate": "スキルテンプレート",
+    "couldNotRead": "読み取れませんでした。スキルのフォルダー、.zip、または .skill ファイルをドロップしてください。",
+    "dragHint": "スキルのフォルダー、<mono>.zip</mono>、または <mono>.skill</mono> をここにドラッグ",
+    "browseFiles": "ファイルを参照"
+}

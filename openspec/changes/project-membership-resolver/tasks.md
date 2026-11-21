@@ -37,7 +37,7 @@ Tasks name the scenarios they make pass. Run `ruff format` and `ruff check --fix
 ## 6. Docs and config
 
 - [ ] 6.1 `api/AGENTS.md`: a "Project membership and access" entry (resolver only, writers only through `MembershipsService`, `bootstrap_access()` in every process).
-- [ ] 6.2 `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md` for both directions; release notes for the OSS access change, the project route permissions and the removed `AGENTA_DEMOS`; EE upgrade note for `--apply`.
+- [ ] 6.2 `docs/design/oss-ee-convergence/migration-chains-and-edition-switch.md` for both directions; release notes for the OSS access change, the project route permissions and the removed `AGENTA_DEMOS`; EE upgrade note for `--apply`.
 - [ ] 6.3 Config: delete `ExtrasConfig.demos` in `api/oss/src/utils/env.py`; the `AGENTA_EXTRAS_DEMOS` lines in `hosting/docker-compose/{oss,ee}/env.*.example`; the `demos` block in `hosting/kubernetes/{oss,ee}/values.*.example.yaml`, Helm `_helpers.tpl` and `values.schema.json`; `AGENTA_DEMOS` in the cloud deploy config.
 - [ ] 6.4 Regenerate the Fern client from an EE spec; delete the web `is_demo` reads; `pnpm lint-fix` in `web/`.
 - [ ] 6.5 Update `docs/design/sharing-program/interfaces/m1/` if the code differs.

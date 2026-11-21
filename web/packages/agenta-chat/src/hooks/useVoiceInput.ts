@@ -1,5 +1,10 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
+import {createT} from "@agenta/i18n"
+import chatMessagesCatalog from "@agenta/i18n/catalogs/chat.messages"
+
+const tNow = createT(chatMessagesCatalog)
+
 /**
  * Voice-to-text for the composer via the browser Web Speech API. Transcribes to plain text, so it
  * is independent of any model/audio capability — the composer receives words, not audio. Returns
@@ -117,7 +122,7 @@ export function useVoiceInput(): VoiceInput {
             wantRef.current = false
             setRecording(false)
             setActive(false)
-            setError("Voice input stopped unexpectedly")
+            setError(tNow("chat.messages.voiceStopped"))
             return
         }
         attemptsRef.current += 1
@@ -127,11 +132,7 @@ export function useVoiceInput(): VoiceInput {
     const finishSession = useCallback(() => {
         setActive(false)
         if (heardSpeechRef.current && !hasWordsRef.current) {
-            setError(
-                (previous) =>
-                    previous ??
-                    "No speech was recognized. Try again or use your keyboard's microphone.",
-            )
+            setError((previous) => previous ?? tNow("chat.messages.noSpeech"))
         }
     }, [])
 
@@ -176,7 +177,11 @@ export function useVoiceInput(): VoiceInput {
             wantRef.current = false
             clearRelaunch()
             setRecording(false)
-            setError(e.error === "not-allowed" ? "Microphone access denied" : "Voice input error")
+            setError(
+                e.error === "not-allowed"
+                    ? tNow("chat.messages.micDenied")
+                    : tNow("chat.messages.voiceError"),
+            )
         }
 
         rec.onend = () => {

@@ -1,0 +1,18 @@
+{
+    "removeAsSubagent": "Remove {{name}} as a subagent",
+    "addAsSubagent": "Add {{name}} as a subagent",
+    "noDescription": "No description",
+    "appsConnectedTo": "Apps connected to {{name}}",
+    "add": "Add",
+    "addSubagents": "Add subagents",
+    "pickAgents": "· Pick the agents this agent can call.",
+    "done": "Done",
+    "searchAgents": "Search agents by name…",
+    "agentsNotLoaded_one": "{{count}} agent could not be loaded, so it is not listed.",
+    "agentsNotLoaded_other": "{{count}} agents could not be loaded, so they are not listed.",
+    "retry": "Retry",
+    "noAgentsMatch": "No agents match your search",
+    "noAgentsYet": "No agents yet",
+    "tryDifferentName": "Try a different name.",
+    "createAgentFirst": "Create an agent, then come back to add it here."
+}

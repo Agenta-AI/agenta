@@ -1,0 +1,17 @@
+{
+    "evaluatorName": "Nombre del evaluador",
+    "appName": "Nombre de la aplicación",
+    "variantName": "Nombre de la variante",
+    "asNewVersion": "Como una versión nueva",
+    "updateName": "Actualizar {{name}}",
+    "saveAsNewVariant": "Guardar como una variante nueva",
+    "create": "Crear",
+    "commit": "Commit",
+    "createdSuccessfully": "Creado correctamente",
+    "published": "Se publicó {{label}} en {{environments}}",
+    "publishFailed": "No se pudo publicar {{label}} en {{environments}}",
+    "failedToCreateWorkflow": "No se pudo crear el workflow",
+    "variantNameRequired": "El nombre de la variante es obligatorio",
+    "failedToCreateVariant": "No se pudo crear una variante nueva",
+    "failedToCommit": "No se pudo confirmar la revisión"
+}

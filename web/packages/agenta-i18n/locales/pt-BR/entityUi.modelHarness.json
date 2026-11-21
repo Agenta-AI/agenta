@@ -1,0 +1,21 @@
+{
+    "policySummary": "Política · {{policy}}",
+    "unsavedGroupChanges": "Há alterações não salvas neste grupo.",
+    "selectModel": "Selecione um modelo…",
+    "sandboxSummary": "Sandbox: {{kind}}",
+    "sandbox": "Sandbox",
+    "policy": "Política",
+    "attachedCount_one": "{{count}} anexado",
+    "attachedCount_many": "{{count}} anexados",
+    "attachedCount_other": "{{count}} anexados",
+    "noneAttached": "Nenhum anexado",
+    "executionEnvironment": "Ambiente de execução",
+    "executionCaptionShort": "Onde as ferramentas e o código do agente são executados.",
+    "customSecrets": "Segredos personalizados",
+    "execution": "Execução",
+    "executionCaption": "Onde as ferramentas e o código do agente são executados e o que esse sandbox pode acessar.",
+    "secretsCaption": "Credenciais que este agente pode usar enquanto trabalha. {{summary}}.",
+    "agentaTools": "Ferramentas do Agenta",
+    "buildKit": "Kit de criação",
+    "advanced": "Avançado"
+}

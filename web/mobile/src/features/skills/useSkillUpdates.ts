@@ -1,5 +1,7 @@
 import {useCallback} from "react"
 
+import {createT} from "@agenta/i18n"
+import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {projectIdAtom} from "@agenta/shared/state"
 import {applySkillUpdates, checkSkillUpdates} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
@@ -21,13 +23,22 @@ export type SkillUpdateStatus = "checking" | "available" | "up_to_date" | "updat
  */
 const skillUpdatesAtom = atom<Map<string, SkillUpdateStatus>>(new Map())
 
-const CHECK_TOAST: Record<string, string> = {
-    up_to_date: "Up to date",
-    detached: "Modified locally — updates are kept off it",
-    missing_in_source: "No longer in the source repository",
-    invalid_in_source: "The upstream copy is not a valid skill",
-    check_failed: "Couldn't check for updates",
-}
+const tNow = createT(skillsListCatalog)
+
+const CHECK_TOAST = {
+    up_to_date: "skills.list.checkUpToDate",
+    detached: "skills.list.checkDetached",
+    missing_in_source: "skills.list.checkMissing",
+    invalid_in_source: "skills.list.checkInvalid",
+    check_failed: "skills.list.checkFailed",
+} as const
+
+const checkToast = (status: string): string =>
+    tNow(
+        status in CHECK_TOAST
+            ? CHECK_TOAST[status as keyof typeof CHECK_TOAST]
+            : CHECK_TOAST.check_failed,
+    )
 
 export const useSkillUpdateStatus = (workflowId: string): SkillUpdateStatus | undefined =>
     useAtomValue(skillUpdatesAtom).get(workflowId)
@@ -79,14 +90,14 @@ export const useSkillUpdates = () => {
             )
             if (results.length === 1) {
                 const {status} = results[0]
-                if (status === "update_available") message.info("An update is available")
-                else message.info(CHECK_TOAST[status] ?? CHECK_TOAST.check_failed)
+                if (status === "update_available") message.info(tNow("skills.list.updateAvailable"))
+                else message.info(checkToast(status))
             } else {
                 const available = results.filter(({status}) => status === "update_available")
                 message.info(
                     available.length
-                        ? `${available.length} ${available.length === 1 ? "update" : "updates"} available`
-                        : "All up to date",
+                        ? tNow("skills.list.updatesAvailable", {count: available.length})
+                        : tNow("skills.list.allUpToDate"),
                 )
             }
             // Detachment is derived server-side; a check can change what the list shows.
@@ -107,17 +118,11 @@ export const useSkillUpdates = () => {
                 ...failed.map((id): [string, SkillUpdateStatus] => [id, "available"]),
             ])
             if (applied.length) {
-                message.success(
-                    applied.length === 1 ? "Skill updated" : `${applied.length} skills updated`,
-                )
+                message.success(tNow("skills.list.skillsUpdated", {count: applied.length}))
                 invalidateSkillsListCache()
             }
             if (failed.length)
-                message.error(
-                    failed.length === 1
-                        ? "Couldn't update 1 skill"
-                        : `Couldn't update ${failed.length} skills`,
-                )
+                message.error(tNow("skills.list.updateFailed", {count: failed.length}))
         },
         [mark, projectId],
     )

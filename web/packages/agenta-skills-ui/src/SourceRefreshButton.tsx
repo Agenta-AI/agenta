@@ -7,6 +7,8 @@
  */
 import {useCallback, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {projectIdAtom} from "@agenta/shared/state"
 import {applySkillUpdates, checkSkillUpdates} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
@@ -14,7 +16,10 @@ import {Button, Spinner} from "@agenta/ui/ui"
 import {ArrowsClockwise} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
+const tNow = createT(skillsGalleryCatalog)
+
 export function SourceRefreshButton({skillIds}: {skillIds: string[]}) {
+    const t = useT(skillsGalleryCatalog)
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const [busy, setBusy] = useState(false)
     const [summary, setSummary] = useState<string | null>(null)
@@ -30,14 +35,17 @@ export function SourceRefreshButton({skillIds}: {skillIds: string[]}) {
             .filter((s) => s.status === "update_available")
             .map((s) => s.workflowId)
         const parts = [
-            available.length &&
-                `${available.length} update${available.length === 1 ? "" : "s"} available`,
-            count("detached") && `${count("detached")} modified locally`,
-            count("missing_in_source") && `${count("missing_in_source")} gone upstream`,
-            count("invalid_in_source") && `${count("invalid_in_source")} invalid upstream`,
-            count("check_failed") && `${count("check_failed")} failed`,
+            available.length && tNow("skills.gallery.updatesAvailable", {count: available.length}),
+            count("detached") &&
+                tNow("skills.gallery.countModifiedLocally", {count: count("detached")}),
+            count("missing_in_source") &&
+                tNow("skills.gallery.countGoneUpstream", {count: count("missing_in_source")}),
+            count("invalid_in_source") &&
+                tNow("skills.gallery.countInvalidUpstream", {count: count("invalid_in_source")}),
+            count("check_failed") &&
+                tNow("skills.gallery.countCheckFailed", {count: count("check_failed")}),
         ].filter(Boolean) as string[]
-        setSummary(parts.length ? parts.join(" · ") : "up to date")
+        setSummary(parts.length ? parts.join(" · ") : tNow("skills.gallery.upToDate"))
         setPending(available)
         // Detachment is derived server-side; a check can still change what the
         // gallery shows (e.g. a fresh detach), so refresh the list either way.
@@ -50,11 +58,11 @@ export function SourceRefreshButton({skillIds}: {skillIds: string[]}) {
         const {applied, failed} = await applySkillUpdates({projectId, workflowIds: pending})
         setSummary(
             [
-                applied.length && `${applied.length} updated`,
-                failed.length && `${failed.length} failed`,
+                applied.length && tNow("skills.gallery.countUpdated", {count: applied.length}),
+                failed.length && tNow("skills.gallery.countApplyFailed", {count: failed.length}),
             ]
                 .filter(Boolean)
-                .join(" · ") || "nothing applied",
+                .join(" · ") || tNow("skills.gallery.nothingApplied"),
         )
         // Only what did NOT apply stays queued for a retry.
         setPending(failed)
@@ -72,10 +80,10 @@ export function SourceRefreshButton({skillIds}: {skillIds: string[]}) {
                     variant="ghost"
                     size="sm"
                     onClick={() => void apply()}
-                    aria-label="Apply available updates"
+                    aria-label={t("skills.gallery.applyAria")}
                     className="h-6 px-1.5 text-[11px] font-medium text-[var(--ag-colorPrimary)]"
                 >
-                    Apply
+                    {t("skills.gallery.apply")}
                 </Button>
             ) : null}
             <Button
@@ -83,11 +91,11 @@ export function SourceRefreshButton({skillIds}: {skillIds: string[]}) {
                 size="sm"
                 onClick={() => void check()}
                 disabled={busy}
-                aria-label="Check for upstream updates"
+                aria-label={t("skills.gallery.checkAria")}
                 className="h-6 gap-1 px-1.5 text-[11px] text-[var(--ag-colorTextSecondary)]"
             >
                 {busy ? <Spinner size="small" /> : <ArrowsClockwise size={12} />}
-                Check updates
+                {t("skills.gallery.checkUpdates")}
             </Button>
         </span>
     )

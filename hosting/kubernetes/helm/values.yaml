@@ -557,7 +557,7 @@ redisDurable:
 # ================================================================== #
 
 # ================================================================== #
-# workers — topology A (workers-sprawl); see docs/designs/workers-sprawl/specs.md
+# workers — topology A (workers-sprawl); see docs/design/workers-sprawl/specs.md
 # `streams`/`queues` = selector lists; empty ⇒ all loops in that kind.
 # ================================================================== #
 workerStreams:

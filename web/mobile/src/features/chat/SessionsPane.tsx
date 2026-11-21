@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import chatMobileSessionsCatalog from "@agenta/i18n/catalogs/chat.mobileSessions"
 import type {SessionRowVm} from "@agenta/sessions/row"
 import {SessionCardList, SessionListSkeleton} from "@agenta/sessions-ui"
 import {Button} from "@agenta/ui/ui"
@@ -29,6 +31,7 @@ export const SessionsPane = ({
     base: string
     activeSessionId: string
 }) => {
+    const t = useT(chatMobileSessionsCatalog)
     const router = useRouter()
     const menu = useSessionRowMenu(base)
     const startBlank = useStartBlankSession(base)
@@ -41,14 +44,16 @@ export const SessionsPane = ({
     return (
         <div className="ag-panel-raised flex h-full min-h-0 w-full flex-col overflow-hidden">
             <div className="border-colorBorderSecondary flex h-[48px] shrink-0 items-center justify-between gap-2 border-b px-4 py-2">
-                <span className="text-colorText text-[13px] font-semibold">Sessions</span>
+                <span className="text-colorText text-[13px] font-semibold">
+                    {t("chat.mobileSessions.sessions")}
+                </span>
                 {/* Starting a session needs an agent to start it with. */}
                 {agentId ? (
                     <Button
                         type="button"
                         variant="ghost"
                         size="icon-sm"
-                        aria-label="New session"
+                        aria-label={t("chat.mobileSessions.newSession")}
                         onClick={() => startBlank(agentId)}
                         // Negative margin keeps the 48px header's rhythm as the bare glyph did.
                         className="text-colorTextSecondary hover:text-colorText -m-1.5"
@@ -68,7 +73,7 @@ export const SessionsPane = ({
                         // Beside the transcript, not the screen's point: its reads queue behind it.
                         lowPriority
                         alwaysShowPin
-                        emptyText="No sessions with this agent yet."
+                        emptyText={t("chat.mobileSessions.noSessions")}
                         onOpenRow={open}
                         menuFor={menu.menuFor}
                         onMenuSelect={menu.onMenuSelect}

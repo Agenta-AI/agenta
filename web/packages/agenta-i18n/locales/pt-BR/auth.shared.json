@@ -1,0 +1,14 @@
+{
+    "change": "Alterar",
+    "completeSecurityCheck": "Conclua a verificação de segurança.",
+    "continueWith": "Continuar com {{provider}}",
+    "failureRateLimited": "Muitas tentativas. Aguarde um minuto e tente novamente.",
+    "failureServer": "O login está com problemas do nosso lado. Tente novamente em instantes.",
+    "failureUnavailable": "O login com senha não está disponível aqui. Use outro método de login.",
+    "failureUnknown": "Algo deu errado. Tente novamente.",
+    "failureUnreachable": "Não conseguimos acessar o Agenta agora. Verifique sua conexão e tente novamente.",
+    "lastUsed": "Usado por último",
+    "noMethodsConfigured": "Nenhum método de autenticação está configurado",
+    "redirectingTo": "Redirecionando para {{provider}}…",
+    "securityCheckFailed": "A verificação de segurança falhou. Tente novamente."
+}

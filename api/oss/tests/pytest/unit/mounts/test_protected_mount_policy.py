@@ -237,7 +237,9 @@ class _ObjectStore:
             del self.objects[key]
         return len(keys)
 
-    async def sign_temp_credentials(self, *, bucket, prefix, duration_seconds):
+    async def sign_temp_credentials(
+        self, *, bucket, prefix, duration_seconds, read_only=False
+    ):
         assert bucket == _BUCKET
         assert prefix
         assert duration_seconds > 0

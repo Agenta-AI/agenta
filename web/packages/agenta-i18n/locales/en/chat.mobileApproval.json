@@ -1,0 +1,8 @@
+{
+    "failed": "Approval failed.",
+    "failedStatus": "Approval failed (HTTP {{status}}).",
+    "noLongerPending": "This approval is no longer pending — refresh and retry.",
+    "noneFound": "No pending approval found — the turn may have moved on.",
+    "oneExecutionOnly": "Approve all can only answer approvals from one execution.",
+    "resumeFailed": "Resume failed."
+}

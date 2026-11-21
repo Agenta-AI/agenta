@@ -11,6 +11,8 @@
 import {memo, useCallback, useEffect, useId, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {cn, flexLayouts, gapClasses, textColors} from "@agenta/ui/styles"
 import {
     Button,
@@ -103,6 +105,7 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     max: overrideMax,
     step: overrideStep,
 }: NumberSliderControlProps) {
+    const t = useT(schemaControlsCatalog)
     // Extract constraints from schema, with overrides
     const constraints = getNumericConstraints(schema)
     const min = overrideMin ?? constraints.min
@@ -157,7 +160,7 @@ export const NumberSliderControl = memo(function NumberSliderControl({
                             size="icon-sm"
                             onClick={() => handleValueChange(null)}
                             disabled={disabled}
-                            aria-label={`Reset ${label}`}
+                            aria-label={t("entityUi.schemaControls.resetField", {field: label})}
                         >
                             <X size={14} />
                         </Button>

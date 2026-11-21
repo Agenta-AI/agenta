@@ -1,10 +1,12 @@
+import {useT} from "@agenta/i18n"
+import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {SkillMark} from "@agenta/ui/agent-icon"
 
 import {SkillActionsMenu} from "./SkillActionsMenu"
 import {SkillArchivedTag} from "./SkillArchivedTag"
 import {
     lastUpdatedLabel,
-    NO_DESCRIPTION,
+    noDescriptionLabel,
     provenanceLabel,
     type SkillGrouping,
     type SkillListRow,
@@ -25,35 +27,38 @@ export const SkillCardBody = ({
     row: SkillListRow
     group: SkillGrouping
     onOpen: (row: SkillListRow) => void
-}) => (
-    <>
-        <span className={`flex min-w-0 items-center gap-2 ${row.archived ? "opacity-60" : ""}`}>
-            <SkillMark />
-            <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
-                {row.title}
+}) => {
+    useT(skillsListCatalog)
+    return (
+        <>
+            <span className={`flex min-w-0 items-center gap-2 ${row.archived ? "opacity-60" : ""}`}>
+                <SkillMark />
+                <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
+                    {row.title}
+                </span>
+                <span
+                    className="flex shrink-0 items-center gap-1.5"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                >
+                    <SkillUpdateCell workflowId={row.id} />
+                    <SkillActionsMenu row={row} onOpen={onOpen} />
+                </span>
             </span>
             <span
-                className="flex shrink-0 items-center gap-1.5"
-                onClick={(event) => event.stopPropagation()}
-                onKeyDown={(event) => event.stopPropagation()}
+                className={`line-clamp-3 min-h-[3.75rem] text-[12.5px] leading-5 ${
+                    row.description ? "text-muted-foreground" : "text-placeholder"
+                }`}
             >
-                <SkillUpdateCell workflowId={row.id} />
-                <SkillActionsMenu row={row} onOpen={onOpen} />
+                {row.description || noDescriptionLabel()}
             </span>
-        </span>
-        <span
-            className={`line-clamp-3 min-h-[3.75rem] text-[12.5px] leading-5 ${
-                row.description ? "text-muted-foreground" : "text-placeholder"
-            }`}
-        >
-            {row.description || NO_DESCRIPTION}
-        </span>
-        {/* Source on the left, date on the right — the card's two corners, the way the row's
+            {/* Source on the left, date on the right — the card's two corners, the way the row's
             columns read. */}
-        <span className="mt-auto flex min-w-0 items-center gap-2 pt-1 text-[11.5px] text-placeholder">
-            <span className="min-w-0 truncate">{provenanceLabel(row, group)}</span>
-            {row.archived ? <SkillArchivedTag /> : null}
-            <span className="ml-auto shrink-0">{lastUpdatedLabel(row.age)}</span>
-        </span>
-    </>
-)
+            <span className="mt-auto flex min-w-0 items-center gap-2 pt-1 text-[11.5px] text-placeholder">
+                <span className="min-w-0 truncate">{provenanceLabel(row, group)}</span>
+                {row.archived ? <SkillArchivedTag /> : null}
+                <span className="ml-auto shrink-0">{lastUpdatedLabel(row.age)}</span>
+            </span>
+        </>
+    )
+}

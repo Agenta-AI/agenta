@@ -1,0 +1,12 @@
+{
+    "messages": "消息",
+    "model": "模型",
+    "modelSettings": "模型设置",
+    "responseFormat": "响应格式",
+    "templateFormat": "模板格式",
+    "instructions": "指令",
+    "tools": "工具",
+    "skills": "Skill",
+    "handler": "处理函数",
+    "config": "配置"
+}

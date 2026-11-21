@@ -7,6 +7,8 @@ import {
     workflowLatestRevisionQueryAtomFamily,
 } from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
+import {createT} from "@agenta/i18n"
+import annotateCatalog from "@agenta/i18n/catalogs/observability.annotate"
 import {axios, getAgentaApiUrl, getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
@@ -23,11 +25,7 @@ import {
 } from "./traceAnnotationForm"
 import {useHumanEvaluators} from "./useHumanEvaluators"
 
-/** The one failure text a reader sees; the cause goes to the console. */
-export const SAVE_FAILURE_TEXT = "Failed to update annotations"
-const SAVE_SUCCESS_TEXT = "Annotations updated successfully"
-const SAVE_PENDING_TEXT = "Annotations saved. They can take a moment to show."
-const REQUIRED_TEXT = "Required"
+const tNow = createT(annotateCatalog)
 
 // The drawer annotations, the drawer trace and the traces table annotations.
 const REFRESHED_KEYS = [["trace-drawer-annotations"], ["trace-drawer"], ["annotations"]]
@@ -336,7 +334,9 @@ export const useTraceAnnotationForm = ({
         const result: Record<string, Record<string, string>> = {}
         if (!showErrors) return result
         for (const [slug, keys] of Object.entries(writes.missingRequired)) {
-            result[slug] = Object.fromEntries(keys.map((key) => [key, REQUIRED_TEXT]))
+            result[slug] = Object.fromEntries(
+                keys.map((key) => [key, tNow("observability.annotate.required")]),
+            )
         }
         return result
     }, [showErrors, writes])
@@ -441,12 +441,12 @@ export const useTraceAnnotationForm = ({
         )
         if (failures.length > 0) {
             console.error("Saving the trace annotations failed", failures)
-            message.error(SAVE_FAILURE_TEXT)
+            message.error(tNow("observability.annotate.saveFailed"))
             return
         }
         // The API took the writes, but no read showed them yet: say so rather than success.
-        if (stored) message.success(SAVE_SUCCESS_TEXT)
-        else message.info(SAVE_PENDING_TEXT)
+        if (stored) message.success(tNow("observability.annotate.saveSuccess"))
+        else message.info(tNow("observability.annotate.savePending"))
         onSaved()
     }, [
         writes,

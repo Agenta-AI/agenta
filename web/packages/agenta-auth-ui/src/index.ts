@@ -43,5 +43,6 @@ export {PasswordlessRequestForm, type PasswordlessRequestFormProps} from "./Pass
 export {EmailPasswordForm, type EmailPasswordFormProps} from "./EmailPasswordForm"
 export {TurnstileWidget, type TurnstileWidgetHandle} from "./TurnstileWidget"
 export {useTurnstileSecurity} from "./useTurnstileSecurity"
+export {useAuthFailureText} from "./useAuthFailureText"
 export {RegionSelector, RegionInfoText, type RegionSelectorProps} from "./RegionSelector"
 export {useRegionSelector} from "./useRegionSelector"

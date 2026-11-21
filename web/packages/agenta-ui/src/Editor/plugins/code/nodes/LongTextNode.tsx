@@ -6,6 +6,11 @@
  */
 import React, {type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import drillInButtonCatalog from "@agenta/i18n/catalogs/ui.drillInButton"
+import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
+import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {TextAlignLeft, ArrowSquareOut} from "@phosphor-icons/react"
 import {
@@ -21,6 +26,8 @@ import {Button} from "../../../../components/ui/button"
 import {Popover, PopoverAnchor, PopoverContent} from "../../../../components/ui/popover"
 import {message} from "../../../../utils/appMessageContext"
 import {useDrillInContext} from "../context/DrillInContext"
+
+const tNow = createT(commonCatalog)
 
 /** Minimum length for a string to be considered "long" and truncated */
 const MIN_LENGTH_FOR_TRUNCATION = 200
@@ -160,6 +167,7 @@ function useHoverOpen(enterDelayMs: number, leaveDelayMs: number) {
  * React component for rendering the long text content
  */
 function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: string}) {
+    const t = useT(uiEditorCatalog, drillInButtonCatalog, uiStatusCatalog, commonCatalog)
     useLexicalComposerContext() // Ensure we're in a Lexical context
     const {enabled: drillInEnabled, decodeEscapedJsonStrings} = useDrillInContext()
     const [copied, setCopied] = useState(false)
@@ -179,10 +187,10 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
         try {
             await navigator.clipboard.writeText(parsed.fullValue)
             setCopied(true)
-            message.success("Copied to clipboard")
+            message.success(tNow("common.copiedToClipboard"))
             setTimeout(() => setCopied(false), 2000)
         } catch {
-            message.error("Failed to copy")
+            message.error(tNow("common.failedToCopy"))
         }
     }, [parsed.fullValue])
 
@@ -240,7 +248,7 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
         [handleCollapse],
     )
 
-    const actionLabel = !drillInEnabled && expanded ? "Collapse" : "Expand"
+    const actionLabel = !drillInEnabled && expanded ? t("common.collapse") : t("common.expand")
 
     const handleAction = useCallback(() => {
         if (drillInEnabled) {
@@ -262,19 +270,19 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
             <div className="flex items-center justify-between gap-4 mb-3">
                 <div className="flex items-center gap-2">
                     <TextAlignLeft size={16} className="text-gray-500" />
-                    <span className="font-semibold">Long Text</span>
+                    <span className="font-semibold">{t("ui.editor.longText")}</span>
                     <span className="text-xs text-colorTextDescription">
                         ({formatCharCount(parsed.charCount)})
                     </span>
                 </div>
                 <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" onClick={handleCopy}>
-                        {copied ? "Copied!" : "Copy"}
+                        {copied ? t("ui.status.copiedBang") : t("common.copy")}
                     </Button>
                     {drillInEnabled ? (
                         <Button size="sm" variant="default" onClick={handleAction}>
                             {<ArrowSquareOut size={14} />}
-                            Drill In
+                            {t("ui.drillInButton.drillIn")}
                         </Button>
                     ) : (
                         <Button size="sm" variant="default" onClick={handleAction}>
@@ -307,7 +315,7 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
                         tabIndex={0}
                         aria-expanded
                         onKeyDown={handleExpandedKeyDown}
-                        title="Click to collapse"
+                        title={t("ui.editor.clickToCollapse")}
                         {...hoverProps}
                     >
                         <span className="text-[12px] text-blue-500 mt-[2px] select-none">[-]</span>

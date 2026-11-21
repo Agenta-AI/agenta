@@ -1,7 +1,12 @@
 /** Assembles the self-contained document an HTML app's iframe runs (pure; io via `AssembleIo`). */
 import {BRIDGE_STUB, RUN_CSP} from "@agenta/entities/drive"
+import {createT} from "@agenta/i18n"
+import driveAppCatalog from "@agenta/i18n/catalogs/entityUi.driveApp"
 
 import {tokensToCss} from "./kit"
+
+// The messages land in the Run view's error strip; they read the language when pushed.
+const tNow = createT(driveAppCatalog)
 
 /** A URL the iframe would resolve against ITS OWN origin (external / absolute / anchor / data) —
  * we leave those alone. Only same-mount relative paths get inlined. */
@@ -73,10 +78,14 @@ async function inlineAssets(
     const {confine, errors} = opts
 
     /** Mount-relative target, or null when it leaves `confine`. */
-    const target = (ref: string, kind: string): string | null => {
+    const target = (ref: string, kind: "stylesheet" | "image"): string | null => {
         const path = resolveRel(dir, ref)
         if (!withinDir(confine, path)) {
-            errors?.push(`${kind} outside the app folder was not loaded: ${ref}`)
+            errors?.push(
+                kind === "stylesheet"
+                    ? tNow("entityUi.driveApp.stylesheetOutside", {ref})
+                    : tNow("entityUi.driveApp.imageOutside", {ref}),
+            )
             return null
         }
         return path
@@ -87,7 +96,7 @@ async function inlineAssets(
             async (link) => {
                 const href = link.getAttribute("href") ?? ""
                 if (!href || isExternalUrl(href)) return
-                const path = target(href, "Stylesheet")
+                const path = target(href, "stylesheet")
                 if (path === null) {
                     link.remove()
                     return
@@ -105,7 +114,7 @@ async function inlineAssets(
         Array.from(doc.querySelectorAll<HTMLImageElement>("img[src]")).map(async (img) => {
             const src = img.getAttribute("src") ?? ""
             if (!src || isExternalUrl(src) || src.startsWith("data:")) return
-            const path = target(src, "Image")
+            const path = target(src, "image")
             if (path === null) {
                 img.removeAttribute("src")
                 return
@@ -169,7 +178,9 @@ export async function assembleRunDocument(html: string, ctx: RunContext): Promis
                     if (/^https:\/\//i.test(src) || src.startsWith("//")) return
                     if (!src || isExternalUrl(src)) {
                         errors.push(
-                            `Script not loaded, only https:// scripts can run: ${src || "(empty src)"}`,
+                            src
+                                ? tNow("entityUi.driveApp.scriptNotHttps", {src})
+                                : tNow("entityUi.driveApp.scriptNotHttpsEmpty"),
                         )
                         script.remove()
                         return
@@ -178,13 +189,13 @@ export async function assembleRunDocument(html: string, ctx: RunContext): Promis
                     // The grant is for this folder: a script that climbs out of it is refused
                     // before it is fetched, never mind executed.
                     if (!withinDir(dir, path)) {
-                        errors.push(`Script outside the app folder was not loaded: ${src}`)
+                        errors.push(tNow("entityUi.driveApp.scriptOutside", {src}))
                         script.remove()
                         return
                     }
                     const text = io ? await io.fetchText(path) : null
                     if (text == null) {
-                        errors.push(`Script not found in the app folder: ${src}`)
+                        errors.push(tNow("entityUi.driveApp.scriptNotFound", {src}))
                         script.remove()
                         return
                     }
@@ -230,7 +241,9 @@ export async function assembleRunDocument(html: string, ctx: RunContext): Promis
         return {html: `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`, errors}
     } catch (error) {
         errors.push(
-            `Could not assemble the app document: ${error instanceof Error ? error.message : String(error)}`,
+            tNow("entityUi.driveApp.couldNotAssemble", {
+                message: error instanceof Error ? error.message : String(error),
+            }),
         )
         return {html, errors}
     }

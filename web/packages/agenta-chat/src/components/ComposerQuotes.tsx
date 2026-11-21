@@ -1,4 +1,6 @@
 // Staged quotes as square tiles in the composer header, beside `ComposerAttachments`.
+import {useT} from "@agenta/i18n"
+import chatComposerQuotesCatalog from "@agenta/i18n/catalogs/chat.composerQuotes"
 import {
     formatLineRange,
     formatPreviewChipLocation,
@@ -52,6 +54,7 @@ const QuoteTile = ({
     onRemove: () => void
     onOpen?: () => void
 }) => {
+    const t = useT(chatComposerQuotesCatalog)
     const origin = quoteOrigin(quote)
     const preview = quote.source.kind === "preview"
     const Icon = preview ? ChatCircleText : origin ? FileText : Quotes
@@ -69,7 +72,7 @@ const QuoteTile = ({
                 ) : null}
                 {quote.stale ? (
                     <span className="truncate rounded bg-colorWarning/20 px-1 text-[9px] font-medium leading-3 text-colorWarning">
-                        changed
+                        {t("chat.composerQuotes.changed")}
                     </span>
                 ) : null}
             </span>
@@ -106,7 +109,7 @@ const QuoteTile = ({
             {preview && onOpen ? (
                 <button
                     type="button"
-                    aria-label="Show comment on the file"
+                    aria-label={t("chat.composerQuotes.showComment")}
                     title={title}
                     onClick={onOpen}
                     className={`${faceClass} cursor-pointer`}
@@ -120,7 +123,7 @@ const QuoteTile = ({
             )}
             <button
                 type="button"
-                aria-label="Remove quote"
+                aria-label={t("chat.composerQuotes.removeQuote")}
                 onClick={onRemove}
                 className={CORNER_BUTTON}
             >

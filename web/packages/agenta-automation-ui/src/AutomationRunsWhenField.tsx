@@ -1,6 +1,9 @@
 import {useMemo, useState} from "react"
 
 import {ScheduleBuilderPanel, useScheduleBuilder} from "@agenta/entity-ui/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 import {Button, selectTriggerVariants} from "@agenta/ui/ui"
 import {CalendarBlank, Lightning} from "@phosphor-icons/react"
 import {ChevronDown, ChevronRight} from "lucide-react"
@@ -12,16 +15,26 @@ import {EventPickerPanel, type EventSelection} from "./pickers/EventPickerPanel"
 import {PickerOverlay, usePickerIsWide} from "./pickers/PickerOverlay"
 
 /** The two things an automation can run on, in the order the design shows them. */
-const KINDS: {
+const KINDS = [
+    {
+        value: "schedule",
+        label: "automations.editor.kindSchedule",
+        /** A phone's half-width chip has room for two words, not four. */
+        shortLabel: "automations.editor.kindScheduleShort",
+        icon: CalendarBlank,
+    },
+    {
+        value: "event",
+        label: "automations.editor.kindEvent",
+        shortLabel: "automations.editor.kindEventShort",
+        icon: Lightning,
+    },
+] as const satisfies readonly {
     value: AutomationKind
     label: string
-    /** A phone's half-width chip has room for two words, not four. */
     shortLabel: string
     icon: typeof CalendarBlank
-}[] = [
-    {value: "schedule", label: "On a schedule", shortLabel: "Schedule", icon: CalendarBlank},
-    {value: "event", label: "When something happens", shortLabel: "Event", icon: Lightning},
-]
+}[]
 
 /**
  * When the automation runs — ONE control, not two.
@@ -48,6 +61,7 @@ export const AutomationRunsWhenField = ({
     /** Set after a blocked create: this field is what is missing, and says so in red. */
     error?: string
 }) => {
+    const t = useT(automationsEditorCatalog, automationsModelCatalog)
     const [open, setOpen] = useState(false)
     const isWide = usePickerIsWide()
     const schedule = useScheduleBuilder(automation.cron ?? "", onChangeCron)
@@ -60,9 +74,9 @@ export const AutomationRunsWhenField = ({
     // outranks both: the drawer's own `Field` says so and this line is the only place left to.
     const helper = useMemo(() => {
         if (isSchedule && !schedule.validation.valid) return schedule.validation.error
-        if (!automation.isActive) return "Paused — it won't run until you switch it on."
-        return isSchedule ? "" : "Runs each time this event arrives."
-    }, [automation.isActive, isSchedule, schedule.validation])
+        if (!automation.isActive) return t("automations.editor.helperPaused")
+        return isSchedule ? "" : t("automations.editor.helperEvent")
+    }, [automation.isActive, isSchedule, schedule.validation, t])
 
     const Icon = isSchedule ? CalendarBlank : Lightning
     // While the popover is open the summary tracks the builder, not the saved row: a cron typed
@@ -70,11 +84,11 @@ export const AutomationRunsWhenField = ({
     const label = isSchedule ? schedule.summary : runsWhenLabel(automation)
 
     return (
-        <AutomationField label="Runs when" helper={helper} error={error}>
+        <AutomationField label={t("automations.editor.runsWhen")} helper={helper} error={error}>
             <PickerOverlay
                 open={open}
                 onOpenChange={setOpen}
-                title="Runs when"
+                title={t("automations.editor.runsWhen")}
                 trigger={
                     // The same geometry `AutomationAgentField`'s SelectTrigger has, so the two
                     // controls read as one stack rather than two sizes of field.
@@ -117,9 +131,7 @@ export const AutomationRunsWhenField = ({
                                     // endpoints, not a field — so only a draft can still switch.
                                     disabled={!onChangeKind && !active}
                                     title={
-                                        onChangeKind
-                                            ? undefined
-                                            : "An automation's trigger type is fixed once it's created."
+                                        onChangeKind ? undefined : t("automations.editor.kindFixed")
                                     }
                                     onClick={() => onChangeKind?.(value)}
                                     // The two modes are the picker's first choice, not a
@@ -129,7 +141,7 @@ export const AutomationRunsWhenField = ({
                                 >
                                     <KindIcon aria-hidden size={14} />
                                     <span className="min-w-0 truncate">
-                                        {isWide ? kindLabel : shortLabel}
+                                        {isWide ? t(kindLabel) : t(shortLabel)}
                                     </span>
                                 </Button>
                             )

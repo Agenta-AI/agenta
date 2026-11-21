@@ -2,6 +2,8 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {PendingInputWriteOutcome} from "@agenta/entities/session"
+import {createT} from "@agenta/i18n"
+import chatMessagesCatalog from "@agenta/i18n/catalogs/chat.messages"
 import {
     approvalContinuationSettled,
     hasRunningApprovalContinuation,
@@ -82,13 +84,7 @@ export interface ServerQueueAdapter {
     refresh?: (options?: {fresh?: boolean}) => Promise<number | null>
 }
 
-const REMOVE_FAILED = "Couldn't remove this message. Try again."
-const REMOVE_ABOUT_TO_RUN = "This message is about to run and can't be removed."
-const NOT_QUEUED = "This message is no longer queued."
-const SEND_NOW_FAILED = "Couldn't send this message now. Try again."
-const SEND_NOW_BUSY = "Another message is being sent first. Try again once it starts."
-const EDIT_FAILED = "Your edit wasn't saved. Edit to try again."
-const EDIT_ABOUT_TO_RUN = "This message is about to run and can't be edited."
+const tNow = createT(chatMessagesCatalog)
 
 interface UseAgentChatQueueArgs {
     /** Keys the echo rows, so a remount of this session's view finds the sends it has not seen saved. */
@@ -427,9 +423,14 @@ export const useAgentChatQueue = ({
                         settleOp(id, token, settledSeq)
                     }
                     // 409: promoted, or bound to a pending stop.
-                    else fail(outcome === "conflict" ? REMOVE_ABOUT_TO_RUN : REMOVE_FAILED)
+                    else
+                        fail(
+                            outcome === "conflict"
+                                ? tNow("chat.messages.removeAboutToRun")
+                                : tNow("chat.messages.removeFailed"),
+                        )
                 })
-                .catch(() => fail(REMOVE_FAILED))
+                .catch(() => fail(tNow("chat.messages.removeFailed")))
         },
         [dropOp, server, setOp, setRowError, settleOp],
     )
@@ -615,17 +616,17 @@ export const useAgentChatQueue = ({
                     if (outcome !== "applied") {
                         fail(
                             outcome === "busy"
-                                ? SEND_NOW_BUSY
+                                ? tNow("chat.messages.sendNowBusy")
                                 : outcome === "failed"
-                                  ? SEND_NOW_FAILED
-                                  : NOT_QUEUED,
+                                  ? tNow("chat.messages.sendNowFailed")
+                                  : tNow("chat.messages.notQueued"),
                         )
                         return
                     }
                     settleOp(id, token, settledSeq)
                     if (executionId) echoes.markAccepted(echoId, executionId)
                 })
-                .catch(() => fail(SEND_NOW_FAILED))
+                .catch(() => fail(tNow("chat.messages.sendNowFailed")))
         },
         [dropOp, echoes, server, setOp, setRowError, settleOp],
     )
@@ -729,7 +730,10 @@ export const useAgentChatQueue = ({
                 if (!dropOp(id, token)) return
                 if (serverQueuedRef.current.some((message) => message.id === id)) {
                     setRowError(id, {
-                        message: outcome === "conflict" ? EDIT_ABOUT_TO_RUN : EDIT_FAILED,
+                        message:
+                            outcome === "conflict"
+                                ? tNow("chat.messages.editAboutToRun")
+                                : tNow("chat.messages.editFailed"),
                         unsavedEdit: {text: item.text, fileParts: item.fileParts},
                     })
                     return
@@ -772,7 +776,7 @@ export const useAgentChatQueue = ({
                 editSession?.server || server.queued.some((message) => message.id === id)
             if (id && serverOwnsInput) {
                 const save = server.edit
-                if (!save) return Promise.reject(new Error("This queued message cannot be edited."))
+                if (!save) return Promise.reject(new Error(tNow("chat.messages.cannotEditQueued")))
                 saveEdit(id, item, save)
                 editSessionRef.current = null
                 setEditingId(null)

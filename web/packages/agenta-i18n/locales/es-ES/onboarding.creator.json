@@ -1,0 +1,7 @@
+{
+    "title": "Describe tu agente",
+    "subtitle": "Di qué debe hacer y cuándo. Empezará a trabajar en ello como su primera tarea.",
+    "starters": "Ideas de mensajes",
+    "modelMissing": "Tu agente necesita un modelo para ejecutarse.",
+    "modelMissingAction": "Elige uno"
+}

@@ -431,6 +431,8 @@ class TelegramAdapter(ChannelAdapterInterface):
         connection: ChannelConnection,
         external_locator: Dict[str, Any],
         content: Optional[List[Dict[str, Any]]] = None,
+        approved: Optional[bool] = None,
+        answered_by: Optional[Dict[str, Any]] = None,
     ) -> None:
         try:
             await self._call(

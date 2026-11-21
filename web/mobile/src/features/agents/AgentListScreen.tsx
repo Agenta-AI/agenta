@@ -5,6 +5,8 @@ import {
     agentWorkflowsListQueryStateAtom,
     matchesAgentQuery,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {useWaitingByAgent} from "@agenta/sessions/state"
 import {userAtom} from "@agenta/shared/state"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
@@ -64,6 +66,7 @@ export const AgentListScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const t = useT(agentsList)
     useBindProjectContext(projectId)
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
@@ -110,9 +113,9 @@ export const AgentListScreen = ({
                     waiting: waitingByAgent.get(workflow.id) ?? 0,
                 }),
             )
-    }, [archived.agents, me?.id, ownerNames, query.data, search, showArchived, waitingByAgent])
+    }, [archived.agents, me?.id, ownerNames, query.data, search, showArchived, t, waitingByAgent])
 
-    const groups = useMemo(() => deriveAgentList(rows, view), [rows, view])
+    const groups = useMemo(() => deriveAgentList(rows, view), [rows, view, t])
     const term = search.trim()
     // The archived fetch must not blank rows already on screen: a skeleton over a list that was
     // showing nine agents reads as "they went away". It only owns the skeleton when there is
@@ -162,7 +165,7 @@ export const AgentListScreen = ({
     const body = failed ? (
         // A failed fetch must not read as an empty project, so the error replaces the results
         // rather than sitting under a header row that is no longer describing anything.
-        <LoadError framed title="Could not load agents" onRetry={retry} />
+        <LoadError framed title={t("agents.list.loadError")} onRetry={retry} />
     ) : (
         <AgentListTable
             groups={groups}
@@ -176,7 +179,7 @@ export const AgentListScreen = ({
 
     return (
         <>
-            <PageTitle title="Agents" />
+            <PageTitle title={t("agents.list.pageTitle")} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
@@ -188,7 +191,7 @@ export const AgentListScreen = ({
                                 {/* From `sm`, 24px is the desktop page-title rung; on a phone it
                                     eats the row, so the title drops to the 16px body ramp. */}
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
-                                    Agents
+                                    {t("agents.list.pageTitle")}
                                 </h1>
                                 {projectEmpty ? null : (
                                     <HowThisWorksButton guide="agents" className="max-sm:hidden" />
@@ -214,7 +217,7 @@ export const AgentListScreen = ({
                                             variant="outline"
                                             onClick={() => setView({...view, type: "archived"})}
                                         >
-                                            View archived agents
+                                            {t("agents.list.viewArchived")}
                                         </Button>
                                     </div>
                                 ) : null}
@@ -230,7 +233,7 @@ export const AgentListScreen = ({
                                 <ListTableToolbar
                                     search={search}
                                     onSearchChange={setSearch}
-                                    searchPlaceholder="Search agents by name…"
+                                    searchPlaceholder={t("agents.list.searchPlaceholder")}
                                     actions={
                                         <>
                                             <AgentFilterMenu

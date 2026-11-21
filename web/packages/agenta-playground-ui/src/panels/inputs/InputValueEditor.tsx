@@ -12,6 +12,8 @@ import {
     type LogicalType,
     type ViewType,
 } from "@agenta/entity-ui/view-types"
+import {useT} from "@agenta/i18n"
+import inputsCatalog from "@agenta/i18n/catalogs/playground.inputs"
 import {ChatMessageList, type SimpleChatMessage} from "@agenta/ui/chat-message"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {Input, Switch, Textarea} from "@agenta/ui/ui"
@@ -47,6 +49,7 @@ export const InputValueEditor = ({
     templateFormat = "curly",
     onChange,
 }: InputValueEditorProps) => {
+    const t = useT(inputsCatalog)
     const storedType = useMemo<LogicalType>(() => inferLogicalType(value), [value])
     // A number field stays a number field while it is empty, so clearing it to type a new number
     // does not turn it into a text field that stores the new number as a string.
@@ -101,7 +104,7 @@ export const InputValueEditor = ({
                 checked={Boolean(value)}
                 disabled={!editable}
                 onCheckedChange={onChange}
-                aria-label="Value"
+                aria-label={t("playground.inputs.value")}
             />
         )
     }
@@ -137,6 +140,7 @@ const TextEditor = ({
     editable: boolean
     onChange: (next: unknown) => void
 }) => {
+    const t = useT(inputsCatalog)
     const [buffer, setBuffer] = useBuffer(useMemo(() => valueToDisplay(value, mode), [value, mode]))
     return (
         // One row that grows with the text (`field-sizing: content`), as the old playground's
@@ -146,8 +150,8 @@ const TextEditor = ({
             value={buffer}
             rows={1}
             disabled={!editable}
-            placeholder="Enter a value"
-            aria-label="Value"
+            placeholder={t("playground.inputs.enterValue")}
+            aria-label={t("playground.inputs.value")}
             className="field-sizing-content min-h-0 resize-none px-0"
             onChange={(event) => {
                 setBuffer(event.target.value)
@@ -166,6 +170,7 @@ const NumberEditor = ({
     editable: boolean
     onChange: (next: unknown) => void
 }) => {
+    const t = useT(inputsCatalog)
     const shown = value === null || value === undefined ? "" : String(value)
     const [buffer, setBuffer] = useState(shown)
     // Keep what the user typed ("1.", "-") unless the stored number differs from it.
@@ -176,8 +181,8 @@ const NumberEditor = ({
             variant="ghost"
             value={buffer}
             disabled={!editable}
-            placeholder="Enter number"
-            aria-label="Value"
+            placeholder={t("playground.inputs.enterNumber")}
+            aria-label={t("playground.inputs.value")}
             className="max-w-xs px-0"
             onChange={(event) => {
                 setBuffer(event.target.value)
@@ -199,6 +204,7 @@ const CodeEditor = ({
     editable: boolean
     onChange: (next: unknown) => void
 }) => {
+    const t = useT(inputsCatalog)
     const [buffer, setBuffer] = useBuffer(useMemo(() => valueToDisplay(value, mode), [value, mode]))
     const handleChange = useCallback(
         (next: string) => {
@@ -218,7 +224,7 @@ const CodeEditor = ({
             disableDebounce
             disabled={!editable}
             state={editable ? "filled" : "readOnly"}
-            placeholder={mode === "json" ? "{}" : "Enter YAML"}
+            placeholder={mode === "json" ? "{}" : t("playground.inputs.enterYaml")}
             editorProps={{
                 codeOnly: true,
                 language: mode,

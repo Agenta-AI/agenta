@@ -1,0 +1,6 @@
+{
+    "audienceNote": "Pour un agent partagé, toute personne de {{project}} peut lire ses conversations {{platform}} dans Agenta, y compris les messages directs. Pour un agent privé, les nouvelles conversations restent privées pour son propriétaire.",
+    "off": "Désactivé",
+    "offIn": "Désactivé · dans {{places}}",
+    "turnOn": "Activer"
+}

@@ -1,0 +1,13 @@
+{
+    "added": "Ajouté",
+    "emptyDescription": "Invitez des personnes à collaborer dans cette organisation. Les invitations apparaissent ici jusqu’à ce qu’elles soient acceptées ou expirent.",
+    "emptyTitle": "Aucun membre pour le moment",
+    "expired": "Expirée",
+    "inviteMembers": "Inviter des membres",
+    "member": "Membre",
+    "memberActions": "Actions du membre",
+    "resendInvitation": "Renvoyer l’invitation",
+    "resetPassword": "Réinitialiser le mot de passe",
+    "username": "Nom d’utilisateur",
+    "you": "Vous"
+}

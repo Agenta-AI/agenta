@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import sessionsRowsCatalog from "@agenta/i18n/catalogs/sessions.rows"
 import {PushPinIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 
@@ -22,10 +24,11 @@ export const SessionPinButton = ({
     tooltip?: boolean
     className?: string
 }) => {
+    const t = useT(sessionsRowsCatalog)
     const button = (
         <button
             type="button"
-            aria-label={pinned ? "Unpin session" : "Pin session"}
+            aria-label={pinned ? t("sessions.rows.unpinSession") : t("sessions.rows.pinSession")}
             onClick={(event) => {
                 event.stopPropagation()
                 onToggle()
@@ -43,5 +46,9 @@ export const SessionPinButton = ({
             <PushPinIcon size={14} weight={pinned ? "fill" : "regular"} />
         </button>
     )
-    return tooltip ? <Tip title={pinned ? "Unpin" : "Pin"}>{button}</Tip> : button
+    return tooltip ? (
+        <Tip title={pinned ? t("sessions.rows.unpin") : t("sessions.rows.pin")}>{button}</Tip>
+    ) : (
+        button
+    )
 }

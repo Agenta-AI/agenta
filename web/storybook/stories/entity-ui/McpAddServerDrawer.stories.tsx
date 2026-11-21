@@ -46,9 +46,7 @@ const OPTIONS: McpConnectionOption[] = [
 ]
 
 const Frame = (children: React.ReactNode) => (
-    <div data-vrt-subject className="h-screen w-full bg-[var(--ag-colorBgLayout)]">
-        {children}
-    </div>
+    <div className="h-screen w-full bg-[var(--ag-colorBgLayout)]">{children}</div>
 )
 
 const args = {
@@ -116,7 +114,7 @@ export const Loading: Story = {
 export const OpenState: Story = {
     args: {...args, options: OPTIONS},
     render: (a) => (
-        <div data-open-compare className="h-screen w-full bg-[var(--ag-colorBgLayout)]">
+        <div className="h-screen w-full bg-[var(--ag-colorBgLayout)]">
             <McpAddServerDrawer {...a} />
         </div>
     ),

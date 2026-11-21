@@ -1,4 +1,6 @@
 import {configPanelCollapsedAtom} from "@agenta/chat/state"
+import {useT} from "@agenta/i18n"
+import chatMobileConfigCatalog from "@agenta/i18n/catalogs/chat.mobileConfig"
 import {useSetAtom} from "jotai"
 import {ChevronsRight} from "lucide-react"
 
@@ -16,12 +18,13 @@ import {ChevronsRight} from "lucide-react"
  * content-box and the border would widen the rail past its track.
  */
 export const CollapsedConfigRail = () => {
+    const t = useT(chatMobileConfigCatalog)
     const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
 
     return (
         <button
             type="button"
-            aria-label="Show configuration"
+            aria-label={t("chat.mobileConfig.showConfiguration")}
             aria-expanded={false}
             onClick={() => setConfigCollapsed(false)}
             className="border-border hover:bg-accent group box-border flex h-full w-11 shrink-0 cursor-pointer flex-col items-center gap-3 border-y-0 border-l-0 border-r border-solid bg-transparent px-0 pt-3 transition-colors"
@@ -31,7 +34,7 @@ export const CollapsedConfigRail = () => {
                 className="text-muted-foreground group-hover:text-foreground shrink-0"
             />
             <span className="text-muted-foreground group-hover:text-foreground text-xs tracking-wide [writing-mode:vertical-rl]">
-                Configuration
+                {t("chat.mobileConfig.configuration")}
             </span>
         </button>
     )

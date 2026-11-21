@@ -1,5 +1,7 @@
 import {createElement, type ComponentType, useSyncExternalStore} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {ExtensionComponent} from "@lexical/react/ExtensionComponent"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {ReactExtension} from "@lexical/react/ReactExtension"
@@ -12,6 +14,7 @@ import {CollapseCaret} from "../../../../components/ui/collapse-caret"
 import {CodeFoldingCoreExtension} from "./codeFoldingCore"
 
 function CodeFoldingOverlay() {
+    const t = useT(commonCatalog)
     const {output: core} = useExtensionDependency(CodeFoldingCoreExtension)
     const [editor] = useLexicalComposerContext()
     const lines = useSyncExternalStore(core.subscribe, core.getLines, core.getLines)
@@ -36,7 +39,7 @@ function CodeFoldingOverlay() {
                     <button
                         key={line.key}
                         className="fold-toggle"
-                        aria-label={line.collapsed ? "Expand" : "Collapse"}
+                        aria-label={line.collapsed ? t("common.expand") : t("common.collapse")}
                         aria-expanded={!line.collapsed}
                         style={{
                             top: line.top,

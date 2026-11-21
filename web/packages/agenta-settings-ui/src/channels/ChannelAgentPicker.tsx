@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import channelsAgentPickerCatalog from "@agenta/i18n/catalogs/channels.agentPicker"
 import {Alert, Button} from "@agenta/ui/ui"
 import {CaretRight, Users} from "@phosphor-icons/react"
 
@@ -24,6 +26,7 @@ export const ChannelAgentPicker = ({
     platform,
     projectName,
 }: ChannelAgentPickerProps) => {
+    const t = useT(channelsAgentPickerCatalog)
     const label = platform ? platformLabel(platform) : null
 
     return (
@@ -38,7 +41,9 @@ export const ChannelAgentPicker = ({
                     data-testid="channels-picker-audience"
                 />
             ) : null}
-            <span className="px-0.5 text-[13px] font-semibold text-foreground">Agents</span>
+            <span className="px-0.5 text-[13px] font-semibold text-foreground">
+                {t("channels.agentPicker.agents")}
+            </span>
             {agents.length ? (
                 <div className="flex flex-col">
                     {agents.map((agent) => {
@@ -58,8 +63,10 @@ export const ChannelAgentPicker = ({
                                     </span>
                                     <span className="truncate text-[12.5px] text-muted-foreground">
                                         {live
-                                            ? `${live} channel${live > 1 ? "s" : ""} live`
-                                            : "No channels yet"}
+                                            ? t("channels.agentPicker.channelsLive", {
+                                                  count: live,
+                                              })
+                                            : t("channels.agentPicker.noChannels")}
                                     </span>
                                 </span>
                                 <CaretRight size={12} className="flex-none text-muted-foreground" />
@@ -69,7 +76,7 @@ export const ChannelAgentPicker = ({
                 </div>
             ) : (
                 <p className="m-0 px-0.5 text-sm text-muted-foreground">
-                    This project has no agents yet. Create one, then connect it here.
+                    {t("channels.agentPicker.noAgents")}
                 </p>
             )}
         </div>

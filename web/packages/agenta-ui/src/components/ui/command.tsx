@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {Command as CommandPrimitive} from "cmdk"
 import {CheckIcon, SearchIcon} from "lucide-react"
 
@@ -30,8 +32,8 @@ function Command({className, ...props}: React.ComponentProps<typeof CommandPrimi
 }
 
 function CommandDialog({
-    title = "Command Palette",
-    description = "Search for a command to run...",
+    title: titleProp,
+    description: descriptionProp,
     children,
     className,
     showCloseButton = false,
@@ -47,6 +49,9 @@ function CommandDialog({
     /** cmdk's own fuzzy filter; off when the host already matched (server search). */
     shouldFilter?: boolean
 }) {
+    const t = useT(uiControlsCatalog)
+    const title = titleProp ?? t("ui.controls.commandPalette")
+    const description = descriptionProp ?? t("ui.controls.commandDescription")
     return (
         <Dialog {...props}>
             <DialogHeader className="sr-only">

@@ -1,6 +1,8 @@
 import {useEffect, useRef, useState, type FormEvent} from "react"
 
 import {clearEmailCodeAttempt, resendEmailCode, submitEmailCodeDetailed} from "@agenta/auth"
+import {useT} from "@agenta/i18n"
+import otpVerifyCatalog from "@agenta/i18n/catalogs/auth.otpVerify"
 import {Button} from "@agenta/ui/ui"
 import {
     ArrowClockwise,
@@ -16,6 +18,7 @@ import {STATUS_TEXT_CLASS} from "./classes"
 import {OtpInput, type OtpInputHandle} from "./OtpInput"
 import {ShowErrorMessage} from "./ShowErrorMessage"
 import type {AuthMessage, AuthSuccessPayload} from "./types"
+import {useAuthFailureText} from "./useAuthFailureText"
 import {useShake} from "./useShake"
 
 const CODE_LENGTH = 6
@@ -67,6 +70,8 @@ export const OtpVerifyForm = ({
     onSubmitStart,
     onFail,
 }: OtpVerifyFormProps) => {
+    const t = useT(otpVerifyCatalog)
+    const failureText = useAuthFailureText()
     const [code, setCode] = useState("")
     const [status, setStatus] = useState<"idle" | "verifying" | "verified">("idle")
     const [resendIn, setResendIn] = useState(RESEND_COOLDOWN_S)
@@ -108,23 +113,30 @@ export const OtpVerifyForm = ({
                 return
             }
             setStatus("idle")
+            if (outcome.kind === "failed") {
+                // The code was never checked, so keep it for a retry and do not shake.
+                setMessage({message: failureText(outcome.failure), type: "error"})
+                onFail?.()
+                inputRef.current?.focus()
+                return
+            }
             setCode("")
             shake()
             inputRef.current?.focus()
             if (outcome.kind === "incorrect") {
                 const left = outcome.attemptsLeft
                 setMessage({
-                    message: `That code isn’t right. ${left} ${left === 1 ? "attempt" : "attempts"} left.`,
+                    message: t("auth.otpVerify.incorrectCode", {count: left}),
                     type: "error",
                 })
             } else if (outcome.kind === "expired") {
                 setMessage({
-                    message: "This code has expired. Request a new one below.",
+                    message: t("auth.otpVerify.codeExpired"),
                     type: "error",
                 })
                 setResendIn(0)
             } else {
-                setMessage({message: "Authentication failed. Please try again.", type: "error"})
+                setMessage({message: t("auth.otpVerify.authenticationFailed"), type: "error"})
                 onFail?.()
                 await restart()
             }
@@ -145,7 +157,7 @@ export const OtpVerifyForm = ({
     const submit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault()
         if (code.length < CODE_LENGTH) {
-            setMessage({message: "Enter all 6 characters of the code.", type: "error"})
+            setMessage({message: t("auth.otpVerify.enterAllCharacters"), type: "error"})
             shake()
             return
         }
@@ -155,14 +167,14 @@ export const OtpVerifyForm = ({
     const resend = async () => {
         const outcome = await resendEmailCode()
         if (outcome.kind === "ok") {
-            setMessage({message: "New code sent.", type: "info"})
+            setMessage({message: t("auth.otpVerify.newCodeSent"), type: "info"})
             setCode("")
             setResendIn(RESEND_COOLDOWN_S)
             inputRef.current?.focus()
         } else if (outcome.kind === "failed") {
             setMessage({message: outcome.message, type: "error"})
         } else {
-            setMessage({message: "Could not send a new code. Please try again.", type: "error"})
+            setMessage({message: t("auth.otpVerify.couldNotSendNewCode"), type: "error"})
             await restart()
         }
     }
@@ -185,12 +197,12 @@ export const OtpVerifyForm = ({
                 {status === "verifying" ? (
                     <p className={STATUS_TEXT_CLASS}>
                         <CircleNotch size={14} className="motion-safe:animate-spin" />
-                        Verifying…
+                        {t("auth.otpVerify.verifying")}
                     </p>
                 ) : status === "verified" ? (
                     <p className={`${STATUS_TEXT_CLASS} text-success`}>
                         <CheckCircle size={15} />
-                        Code verified
+                        {t("auth.otpVerify.codeVerified")}
                     </p>
                 ) : message.type === "error" ? (
                     <ShowErrorMessage info={message} />
@@ -211,7 +223,7 @@ export const OtpVerifyForm = ({
                     onClick={restart}
                 >
                     <ArrowLeft size={14} />
-                    Use a different email
+                    {t("auth.otpVerify.useDifferentEmail")}
                 </Button>
                 <Button
                     type="button"
@@ -223,8 +235,10 @@ export const OtpVerifyForm = ({
                 >
                     <ArrowClockwise size={12} />
                     {resendIn > 0
-                        ? `Resend code · ${Math.floor(resendIn / 60)}:${String(resendIn % 60).padStart(2, "0")}`
-                        : "Resend code"}
+                        ? t("auth.otpVerify.resendCodeIn", {
+                              time: `${Math.floor(resendIn / 60)}:${String(resendIn % 60).padStart(2, "0")}`,
+                          })
+                        : t("auth.otpVerify.resendCode")}
                 </Button>
             </div>
 
@@ -238,10 +252,10 @@ export const OtpVerifyForm = ({
                     <Tray size={18} className="mt-px flex-none text-muted-foreground" />
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="text-sm font-medium">
-                            Open {inbox[0]} to find your code
+                            {t("auth.otpVerify.openInbox", {inbox: inbox[0]})}
                         </span>
                         <span className="truncate text-[13px] text-muted-foreground">
-                            Sent to {email}
+                            {t("auth.otpVerify.sentTo", {email})}
                         </span>
                     </span>
                     <ArrowUpRight size={15} className="mt-0.5 flex-none text-muted-foreground" />

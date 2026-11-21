@@ -5,6 +5,8 @@ import {
     TreeSelectPopupContent,
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
+import {useT} from "@agenta/i18n"
+import evalCatalog from "@agenta/i18n/catalogs/playground.evaluator"
 import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {CaretDown} from "@phosphor-icons/react"
 
@@ -20,6 +22,7 @@ export interface AppPickerProps {
  * revisions load when the reader opens it, so opening the list fetches only the apps.
  */
 export const AppPicker = ({selectedLabel, onSelect, size = "sm"}: AppPickerProps) => {
+    const t = useT(evalCatalog)
     const [open, setOpen] = useState(false)
     const adapter = useMemo(
         () =>
@@ -27,16 +30,18 @@ export const AppPicker = ({selectedLabel, onSelect, size = "sm"}: AppPickerProps
                 skipVariantLevel: true,
                 excludeRevisionZero: true,
                 flags: {is_evaluator: false, is_feedback: false},
-                parentLabel: "Application",
+                parentLabel: t("playground.evaluator.application"),
             }),
-        [],
+        [t],
     )
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <Button variant="outline" size={size} className="max-w-56 gap-1">
-                    <span className="truncate">{selectedLabel ?? "Select app"}</span>
+                    <span className="truncate">
+                        {selectedLabel ?? t("playground.evaluator.selectApp")}
+                    </span>
                     <CaretDown aria-hidden size={12} className="shrink-0" />
                 </Button>
             </PopoverTrigger>

@@ -1,3 +1,6 @@
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {sidebarCollapsedAtom} from "@agenta/navigation"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {Sidebar, X} from "@phosphor-icons/react"
@@ -20,6 +23,7 @@ export const SidebarToggleButton = ({
     onDismiss,
     className,
 }: SidebarToggleButtonProps) => {
+    const t = useT(navigationCatalog, commonCatalog)
     const [collapsed, setCollapsed] = useAtom(collapsedAtom)
 
     return (
@@ -36,7 +40,7 @@ export const SidebarToggleButton = ({
                 !collapsed && "-mr-1",
                 className,
             )}
-            aria-label={onDismiss ? "Close navigation" : undefined}
+            aria-label={onDismiss ? t("navigation.chrome.closeNavigation") : undefined}
             icon={
                 onDismiss ? (
                     <X size={16} />
@@ -55,7 +59,7 @@ export const SidebarToggleButton = ({
                 onDismiss
                     ? undefined
                     : {
-                          title: collapsed ? "Expand" : "Collapse",
+                          title: collapsed ? t("common.expand") : t("common.collapse"),
                           mouseEnterDelay: 1,
                           placement: "right",
                       }

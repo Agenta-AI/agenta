@@ -20,6 +20,11 @@
  */
 import { join } from "node:path";
 import { apiBase, envApiUrl, runWithRequestApiBase } from "./apiBase.ts";
+import {
+  signAgentMountCredentials,
+  signMountCredentialsBySlug,
+  signRunDrive,
+} from "./engines/sandbox_agent/run-drives.ts";
 import { runWithStallRetry } from "./lifecycle/stall-retry.ts";
 import { loadDurableDecisions } from "./sessions/interactions.ts";
 import type { PlatformCredentialSource } from "./sessions/auth.ts";
@@ -291,17 +296,16 @@ export type RunAgent = (
 
 /**
  * Whether this request is session-owned (a run the runner coordinates + persists).
- * A `sessionId` is sufficient — it names the conversation. The `turnId` is the runner's
- * to mint per execution (the client never composes one), so it is NOT part of the gate.
+ * A `sessionId` is sufficient — it names the conversation. The SDK sends a `turnId` on every
+ * session run, but the runner mints one when it is absent, so it is NOT part of the gate.
  */
 function isSessionOwned(request: AgentRunRequest): boolean {
   return !!request.sessionId?.trim();
 }
 
 /**
- * The turn correlator: identifies the currently-running stream. The runner owns running,
- * so it mints the turn when it starts a session-owned run (the coordination plane mints its
- * own in `_start_turn` for send/steer). A turn_id is a lock value, not a pk — uuid4 is fine.
+ * The turn correlator: identifies the currently-running stream. The client's `turnId` wins;
+ * the runner mints one only when the request has none. A turn_id is a lock value, not a pk.
  */
 function resolveTurnId(request: AgentRunRequest): string {
   return request.turnId?.trim() || randomUUID();
@@ -384,6 +388,17 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
     if (!cwd) return true;
     return isMounted(cwd, klog);
   },
+  signDrive: (drive, authorization, signal) =>
+    signRunDrive(
+      drive,
+      {
+        apiBase: apiBase(),
+        authorization,
+        log: (message) => klog(`warm re-sign: ${message}`),
+        signal,
+      },
+      { signBySlug: signMountCredentialsBySlug, signAgent: signAgentMountCredentials },
+    ),
   readLatestTurnIndex: async (sessionId, authorization) => {
     const read = await readLatestSessionTurn(sessionId, undefined, {
       authorization,

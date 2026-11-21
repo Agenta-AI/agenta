@@ -1,0 +1,20 @@
+{
+    "tabRoot": "根节点",
+    "tabLlm": "LLM",
+    "tabAll": "全部",
+    "traceProjection": "追踪视图",
+    "allActivity": "全部活动",
+    "latestActivity": "最新活动",
+    "sessionOrdering": "会话活动排序",
+    "autoRefreshAria": "自动刷新",
+    "autoRefreshLabel": "自动刷新",
+    "refreshData": "刷新数据",
+    "cancelExport": "取消导出",
+    "exportTraces": "导出追踪",
+    "export": "导出",
+    "selectToDelete": "请选择要删除的追踪",
+    "deleteSelected": "删除所选追踪",
+    "delete": "删除",
+    "searchData": "搜索可观测性数据",
+    "search": "搜索"
+}

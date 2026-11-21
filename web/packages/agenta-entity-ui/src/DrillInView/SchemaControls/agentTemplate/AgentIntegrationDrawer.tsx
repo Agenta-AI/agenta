@@ -29,6 +29,8 @@ import {
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
+import {createT, useT} from "@agenta/i18n"
+import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import {connectionDisplayName} from "@agenta/shared/utils"
 import {HeightCollapse, ScrollSentinel} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
@@ -62,6 +64,8 @@ import {ConnectionActionConfirm, type ConnectionAction} from "./ConnectionAction
 import {ConnectionRowMenu} from "./ConnectionRowMenu"
 import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
 import {catalogSections, type CategorySelection} from "./integrationCatalogFilters"
+
+const tNow = createT(integrationDrawerCatalog)
 
 type CatalogIntegration = ToolCatalogIntegration | ToolCatalogIntegrationDetails
 
@@ -116,18 +120,21 @@ function groupConnections(connections: ToolConnection[]): ConnectedGroup[] {
 const connectionLabel = (connection: ToolConnection | undefined, appName?: string): string =>
     connectionDisplayName(connection, appName)
 
-const AUTH_SCHEME_LABELS: Record<string, string> = {oauth: "OAuth", api_key: "API Key"}
-
 const authLabel = (connection: ToolConnection | undefined): string | undefined => {
     const scheme = connection?.data?.auth_scheme
-    return typeof scheme === "string" ? (AUTH_SCHEME_LABELS[scheme] ?? scheme) : undefined
+    if (typeof scheme !== "string") return undefined
+    if (scheme === "oauth") return "OAuth"
+    if (scheme === "api_key") return tNow("entityUi.integrationDrawer.apiKeyScheme")
+    return scheme
 }
 
+type Attention = "inactive" | "pending"
+
 /** Settings' reading of a connection that needs attention; null when it works. */
-const attentionLabel = (connection: ToolConnection | undefined): string | null => {
+const attentionOf = (connection: ToolConnection | undefined): Attention | null => {
     if (!connection) return null
-    if (!isConnectionActive(connection)) return "Inactive"
-    if (!isConnectionValid(connection)) return "Pending"
+    if (!isConnectionActive(connection)) return "inactive"
+    if (!isConnectionValid(connection)) return "pending"
     return null
 }
 
@@ -160,6 +167,7 @@ function ConnectedRow({
     onAdd: (slug: string) => void
     handlers: ConnectionRowHandlers
 }) {
+    const t = useT(integrationDrawerCatalog)
     const {integration} = useToolIntegrationDetail(group.integrationKey)
     const name = integration?.name || group.integrationKey
     const multiple = group.connections.length > 1
@@ -181,15 +189,15 @@ function ConnectedRow({
 
     const logo = integration?.logo ?? null
     // One connection reads as Settings reads it: the connection's own name, then "App · Auth".
-    const attention = multiple ? null : attentionLabel(single)
+    const attention = multiple ? null : attentionOf(single)
     const title = multiple ? name : connectionLabel(single, integration?.name)
 
     const subtitle = choosing
-        ? "Choose connection"
+        ? t("entityUi.integrationDrawer.chooseConnection")
         : added && !swappable
-          ? "Already added, in the old format"
+          ? t("entityUi.integrationDrawer.alreadyAddedOldFormat")
           : multiple
-            ? `${group.connections.length} connections`
+            ? t("entityUi.integrationDrawer.connectionCount", {count: group.connections.length})
             : // What the app does says more than repeating its name; the old line is the fallback.
               integration?.description?.trim() ||
               [name, authLabel(single)].filter(Boolean).join(" · ")
@@ -202,19 +210,21 @@ function ConnectedRow({
     const rowAction =
         chooserButton && (choosing || added) ? (
             <Button variant="ghost" size="sm" onClick={() => setChoosing((v) => !v)}>
-                {choosing ? "Cancel" : "Change"}
+                {choosing
+                    ? t("entityUi.integrationDrawer.cancel")
+                    : t("entityUi.integrationDrawer.change")}
             </Button>
         ) : null
 
     return (
         <CatalogListRow
             highlighted={choosing}
-            actionLabel={`Add ${name}`}
+            actionLabel={t("entityUi.integrationDrawer.addName", {name})}
             onClick={
                 choosing
                     ? undefined
                     : // As in Settings: a sign-in that never finished opens to finishing it.
-                      attention === "Pending"
+                      attention === "pending"
                       ? () => handlers.onFinish(single, name, logo)
                       : chooserButton
                         ? () => setChoosing(true)
@@ -228,13 +238,15 @@ function ConnectedRow({
                 added && !choosing ? (
                     <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-colorSuccess">
                         <Check size={11} weight="bold" />
-                        Added
+                        {t("entityUi.integrationDrawer.added")}
                     </span>
                 ) : attention ? (
                     // Beside the name and never truncated, so the problem always shows.
                     <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-colorWarning">
                         <span aria-hidden className="size-1.5 rounded-full bg-current" />
-                        {attention}
+                        {attention === "inactive"
+                            ? t("entityUi.integrationDrawer.inactive")
+                            : t("entityUi.integrationDrawer.pending")}
                     </span>
                 ) : null
             }
@@ -270,7 +282,7 @@ function ConnectedRow({
                                     </span>
                                     {isConnectionValid(connection) ? null : (
                                         <span className="shrink-0 text-[var(--ag-colorWarningText)]">
-                                            needs reconnect
+                                            {t("entityUi.integrationDrawer.needsReconnect")}
                                         </span>
                                     )}
                                 </label>
@@ -286,7 +298,11 @@ function ConnectedRow({
                                     setChoosing(false)
                                 }}
                             >
-                                {added ? `Use ${selectedName}` : `Add with ${selectedName}`}
+                                {added
+                                    ? t("entityUi.integrationDrawer.useName", {name: selectedName})
+                                    : t("entityUi.integrationDrawer.addWithName", {
+                                          name: selectedName,
+                                      })}
                             </Button>
                         </div>
                     </div>
@@ -308,18 +324,21 @@ function CatalogRow({
     integration: CatalogIntegration
     onConnect: () => void
 }) {
+    const t = useT(integrationDrawerCatalog)
     return (
         <CatalogListRow
             onClick={onConnect}
             leading={<LogoTile logo={integration.logo ?? null} />}
             title={integration.name}
-            actionLabel={`Connect ${integration.name}`}
+            actionLabel={t("entityUi.integrationDrawer.connectName", {name: integration.name})}
             action={
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={`Connect ${integration.name}`}
-                    title="Connect"
+                    aria-label={t("entityUi.integrationDrawer.connectName", {
+                        name: integration.name,
+                    })}
+                    title={t("entityUi.integrationDrawer.connect")}
                     onClick={onConnect}
                 >
                     <Plus size={16} />
@@ -385,6 +404,7 @@ function IntegrationCatalogContent({
     /** The drawer panel, so its dialogs open inside it. */
     container: HTMLElement | null
 }) {
+    const t = useT(integrationDrawerCatalog)
     const [query, setQuery] = useState("")
     const [category, setCategoryState] = useState<CategorySelection | null>(null)
     // Phone: one pane at a time, as the skill drawer does. Apps are the point of the drawer, so
@@ -556,7 +576,7 @@ function IntegrationCatalogContent({
                 <div className="flex shrink-0 items-center gap-2 px-4 pb-3 pt-1">
                     <SearchInput
                         className="min-w-0 flex-1"
-                        placeholder="Search apps..."
+                        placeholder={t("entityUi.integrationDrawer.searchApps")}
                         value={query}
                         onValueChange={setQuery}
                     />
@@ -578,7 +598,7 @@ function IntegrationCatalogContent({
                         // No gap: the spacing rides inside the collapse, so a folded list leaves none.
                         <div className="flex flex-col">
                             <SubSectionHeader
-                                label="Connected"
+                                label={t("entityUi.integrationDrawer.connected")}
                                 count={connectedGroups.length}
                                 collapsed={!searching && connectedCollapsed}
                                 onToggle={
@@ -618,13 +638,15 @@ function IntegrationCatalogContent({
                                 </EmptyMedia>
                                 <EmptyTitle>
                                     {query.trim()
-                                        ? `No apps match “${query.trim()}”`
-                                        : "No apps here"}
+                                        ? t("entityUi.integrationDrawer.noAppsMatch", {
+                                              query: query.trim(),
+                                          })
+                                        : t("entityUi.integrationDrawer.noAppsHere")}
                                 </EmptyTitle>
                                 <EmptyDescription>
                                     {category
-                                        ? "Try another name, or look in all categories."
-                                        : "Try another name."}
+                                        ? t("entityUi.integrationDrawer.tryAnotherNameOrCategory")
+                                        : t("entityUi.integrationDrawer.tryAnotherName")}
                                 </EmptyDescription>
                             </EmptyHeader>
                         </Empty>
@@ -634,7 +656,7 @@ function IntegrationCatalogContent({
                     {catalogLoading || catalogRows.length > 0 ? (
                         <div className="flex flex-col gap-2">
                             <SubSectionHeader
-                                label="All apps"
+                                label={t("entityUi.integrationDrawer.allApps")}
                                 count={catalogLoading ? undefined : (total ?? catalogRows.length)}
                             />
                             {catalogLoading ? (
@@ -715,6 +737,7 @@ export function AgentIntegrationDrawer({
     onAddIntegration,
     onAddPersonalIntegration,
 }: AgentIntegrationDrawerProps) {
+    const t = useT(integrationDrawerCatalog)
     const [panel, setPanel] = useState<HTMLDivElement | null>(null)
     return (
         <EnhancedDrawer
@@ -728,7 +751,9 @@ export function AgentIntegrationDrawer({
             title={
                 <div className="flex items-center gap-2">
                     <Plugs size={16} />
-                    <span className="text-sm font-medium">Add integration</span>
+                    <span className="text-sm font-medium">
+                        {t("entityUi.integrationDrawer.addIntegration")}
+                    </span>
                 </div>
             }
             styles={{
@@ -737,7 +762,7 @@ export function AgentIntegrationDrawer({
             footer={
                 <div className="flex items-center justify-end">
                     <Button variant="default" onClick={onClose}>
-                        Done
+                        {t("entityUi.integrationDrawer.done")}
                     </Button>
                 </div>
             }

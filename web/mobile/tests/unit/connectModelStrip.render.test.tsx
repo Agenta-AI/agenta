@@ -14,7 +14,15 @@ vi.mock("@agenta/entities/secret", () => ({
     useVaultSecret: () => ({mutate: vi.fn()}),
 }))
 
-vi.mock("jotai", () => ({useAtomValue: () => []}))
+vi.mock("jotai", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("jotai")>()
+    // The provider atom above is a symbol stand-in; the language atoms are real.
+    return {
+        ...actual,
+        useAtomValue: ((atom: unknown) =>
+            typeof atom === "symbol" ? [] : actual.useAtomValue(atom as never)) as never,
+    }
+})
 
 vi.mock("@agenta/entity-ui/secretProvider", () => ({
     ProviderDrawer: ({

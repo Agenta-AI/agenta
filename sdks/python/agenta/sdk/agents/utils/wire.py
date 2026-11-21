@@ -96,6 +96,7 @@ def request_to_wire(
     session_id: Optional[str] = None,
     detached: bool = False,
     turn_id: Optional[str] = None,
+    session_turn_id: Optional[str] = None,
     project_id: Optional[str] = None,
     control_command_id: Optional[str] = None,
     effective_parameters: Optional[Dict[str, Any]] = None,
@@ -115,6 +116,9 @@ def request_to_wire(
     packages, likewise omitted when there are none (skills ride their own seam, not the tool
     wire). ``config.wire_sandbox_permission()`` adds the declared sandbox security boundary,
     omitted when unset (plumbing only; the runner does not enforce it yet).
+    ``config.wire_drives()`` adds ``drives`` (the configured drive entries, ``access`` filled in)
+    and ``homeDrive``, both omitted for a legacy configuration, and ``hasSessionDrive``, always
+    present.
     ``config.wire_connection_ref()`` adds the author's connection CHOICE (``self_managed``, or an
     Agenta connection named by slug), omitted for the project default because it carries nothing
     beyond the model. ``config.wire_model_connection()`` adds what that choice RESOLVED to: the
@@ -166,6 +170,7 @@ def request_to_wire(
         **config.wire_mcp(),
         **config.wire_skills(),
         **config.wire_sandbox_permission(),
+        **config.wire_drives(),
         **config.wire_sandbox_credentials(),
         **config.wire_connection_ref(),
         **config.wire_model_connection(),
@@ -182,6 +187,8 @@ def request_to_wire(
         payload["turnContext"] = turn_context
     if turn_id is not None:
         payload["turnId"] = turn_id
+    if session_turn_id is not None:
+        payload["sessionTurnId"] = session_turn_id
     if detached and session_id:
         payload["detached"] = True
     if project_id is not None:

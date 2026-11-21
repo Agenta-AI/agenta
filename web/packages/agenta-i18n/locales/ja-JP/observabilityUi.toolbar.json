@@ -1,0 +1,20 @@
+{
+    "tabRoot": "ルート",
+    "tabLlm": "LLM",
+    "tabAll": "すべて",
+    "traceProjection": "トレースの表示範囲",
+    "allActivity": "すべてのアクティビティ",
+    "latestActivity": "最新のアクティビティ",
+    "sessionOrdering": "セッションアクティビティの並び順",
+    "autoRefreshAria": "自動更新",
+    "autoRefreshLabel": "自動更新",
+    "refreshData": "データを更新",
+    "cancelExport": "エクスポートをキャンセル",
+    "exportTraces": "トレースをエクスポート",
+    "export": "エクスポート",
+    "selectToDelete": "削除するトレースを選択してください",
+    "deleteSelected": "選択したトレースを削除",
+    "delete": "削除",
+    "searchData": "オブザーバビリティデータを検索",
+    "search": "検索"
+}

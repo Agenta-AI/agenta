@@ -1,5 +1,7 @@
 import {memo, type CSSProperties} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
 import {inferLogicalType, type LogicalType} from "@agenta/shared/utils"
 
 export type TypePrimitive = LogicalType
@@ -144,6 +146,7 @@ const AMBIGUOUS_HIDE = new Set<ChipVariant>(["string", "number", "boolean"])
 const inferVariant = inferLogicalType
 
 function TypeChipImpl({variant, value, label, ambiguousOnly, onClick}: TypeChipProps) {
+    const t = useT(uiStatusCatalog)
     const resolved: ChipVariant = variant ?? (value !== undefined ? inferVariant(value) : "string")
     if (ambiguousOnly && AMBIGUOUS_HIDE.has(resolved)) return null
 
@@ -172,7 +175,7 @@ function TypeChipImpl({variant, value, label, ambiguousOnly, onClick}: TypeChipP
             <button
                 type="button"
                 onClick={onClick}
-                aria-label={`Type: ${text}`}
+                aria-label={t("ui.status.typeLabel", {type: text})}
                 style={{
                     ...baseStyle,
                     cursor: "pointer",

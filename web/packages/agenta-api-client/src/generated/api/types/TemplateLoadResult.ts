@@ -9,4 +9,5 @@ export interface TemplateLoadResult {
     execution_id: string;
     input_id: string;
     replayed: boolean;
+    skipped_files?: string[] | undefined;
 }

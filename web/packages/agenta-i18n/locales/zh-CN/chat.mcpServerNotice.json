@@ -1,0 +1,8 @@
+{
+    "didNotConnect": "{{name}} 未能连接，因此它的工具不可用",
+    "needsSignIn": "{{name}} 需要重新登录。",
+    "needsSignInDetail": "在项目中有人重新连接之前，它的工具都会失败。",
+    "notSetUp": "{{name}} 尚未设置，因此已跳过它的工具。",
+    "reconnect": "重新连接",
+    "reconnectNamed": "重新连接 {{name}}"
+}

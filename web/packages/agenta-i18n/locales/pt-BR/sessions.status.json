@@ -1,0 +1,23 @@
+{
+    "approval": "Aprovação",
+    "archived": "Arquivada",
+    "automationRuns": "Execuções de automação",
+    "ended": "Encerrada",
+    "eventSubscription": "Assinatura de eventos",
+    "idle": "Inativa",
+    "input": "Entrada",
+    "missingEventSubscription": "Assinatura de eventos ausente",
+    "missingSchedule": "Agendamento ausente",
+    "multiple": "Vários",
+    "pinned": "Fixadas",
+    "pinnedCount": "Fixadas {{count}}",
+    "readyToResume": "Pronta para retomar",
+    "recent": "Recentes",
+    "running": "Em execução",
+    "schedule": "Agendamento",
+    "toolCall": "Chamada de ferramenta",
+    "untitledSession": "Sessão sem título",
+    "waiting": "Em espera",
+    "waitingForInput": "Aguardando sua resposta",
+    "waitingOnYou": "Aguardando você"
+}

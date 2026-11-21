@@ -2,6 +2,11 @@
 import {useCallback, useEffect, useRef, type ReactNode} from "react"
 
 import {splitTemplate} from "@agenta/entities/gatewayTrigger"
+import {createT} from "@agenta/i18n"
+import triggerSharedCatalog from "@agenta/i18n/catalogs/entityUi.triggerShared"
+
+// The pill DOM is built in a callback, outside render.
+const tNow = createT(triggerSharedCatalog)
 
 // Copy puts the template here next to the readable text, so a paste in a pill editor gets
 // its pills back. Other apps read only the readable text.
@@ -54,7 +59,7 @@ export function PillEditor({
             const remove = document.createElement("button")
             remove.type = "button"
             remove.dataset.remove = ""
-            remove.ariaLabel = `Remove ${label}`
+            remove.ariaLabel = tNow("entityUi.triggerShared.removeLabel", {label})
             remove.className =
                 "cursor-pointer border-0 bg-transparent p-0 text-xs leading-none text-inherit opacity-70 hover:opacity-100"
             remove.textContent = "×"

@@ -34,7 +34,7 @@ const noop = () => undefined
 /** Every row state, stacked the way the drawer lists them. */
 export const AllStates: Story = {
     render: () => (
-        <div data-vrt-subject className="flex max-w-[420px] flex-col px-2">
+        <div className="flex max-w-[420px] flex-col px-2">
             <ConnectionListRow
                 name="Linear"
                 host="mcp.linear.app"

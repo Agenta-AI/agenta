@@ -1,3 +1,5 @@
+import {createT, formatNumber, useT} from "@agenta/i18n"
+import chatCatalog from "@agenta/i18n/catalogs/playground.chat"
 import {message} from "@agenta/ui/app-message"
 import {createSnippetPdfAttachment} from "@agenta/ui/chat-message"
 import {
@@ -27,13 +29,19 @@ export interface PasteLimitDialogProps {
     onClose: () => void
 }
 
+const tNow = createT(chatCatalog)
+
 const limitSummary = ({maxPasteChars, overBy}: PasteOverLimit) =>
     overBy > 0
-        ? `This paste is ${overBy.toLocaleString()} characters over the ${maxPasteChars.toLocaleString()}-character limit.`
-        : `This paste exceeds the ${maxPasteChars.toLocaleString()}-character limit.`
+        ? tNow("playground.chat.pasteOverBy", {
+              over: formatNumber(overBy),
+              max: formatNumber(maxPasteChars),
+          })
+        : tNow("playground.chat.pasteExceeds", {max: formatNumber(maxPasteChars)})
 
 /** Offers to attach a paste that is too long as a snippet file instead of typing it in. */
 export const PasteLimitDialog = ({paste, onAttach, onClose}: PasteLimitDialogProps) => {
+    const t = useT(chatCatalog)
     const createSnippet = async () => {
         if (!paste) return
         try {
@@ -41,10 +49,10 @@ export const PasteLimitDialog = ({paste, onAttach, onClose}: PasteLimitDialogPro
                 paste.pastedText,
             )
             onAttach(fileData, filename, mimeType)
-            message.success(`Attached ${filename} as a snippet.`)
+            message.success(t("playground.chat.attachedSnippet", {filename}))
         } catch (error) {
             console.error("Failed to create snippet attachment", error)
-            message.error("Failed to create snippet attachment.")
+            message.error(t("playground.chat.snippetFailed"))
         }
     }
 
@@ -57,19 +65,21 @@ export const PasteLimitDialog = ({paste, onAttach, onClose}: PasteLimitDialogPro
         >
             <AlertDialogContent>
                 <AlertDialogHeader>
-                    <AlertDialogTitle>That&apos;s too long to paste</AlertDialogTitle>
+                    <AlertDialogTitle>{t("playground.chat.tooLong")}</AlertDialogTitle>
                     <AlertDialogDescription>
                         {paste
-                            ? `${limitSummary(paste)} To keep the editor responsive, you can attach the pasted content as a snippet instead.`
+                            ? t("playground.chat.pasteAdvice", {summary: limitSummary(paste)})
                             : ""}
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel asChild>
-                        <Button variant="outline">Dismiss</Button>
+                        <Button variant="outline">{t("playground.chat.dismiss")}</Button>
                     </AlertDialogCancel>
                     <AlertDialogAction asChild>
-                        <Button onClick={() => void createSnippet()}>Create Snippet</Button>
+                        <Button onClick={() => void createSnippet()}>
+                            {t("playground.chat.createSnippet")}
+                        </Button>
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>

@@ -1,5 +1,9 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+
 import {Button} from "../components/ui/button"
 
 /**
@@ -18,14 +22,19 @@ export const ListTableSelectionBar = ({
     count: number
     onClear: () => void
     actions?: ReactNode
-}) => (
-    <span role="status" className="col-[2/-1] flex min-w-0 items-center">
-        <span className="sticky left-0 flex shrink-0 items-center gap-2 text-[13px] font-medium text-foreground">
-            <span className="shrink-0">{count} selected</span>
-            <Button type="button" size="xs" variant="ghost" onClick={onClear}>
-                Clear
-            </Button>
-            {actions ? <span className="flex shrink-0 items-center gap-2">{actions}</span> : null}
+}) => {
+    const t = useT(uiControlsCatalog, commonCatalog)
+    return (
+        <span role="status" className="col-[2/-1] flex min-w-0 items-center">
+            <span className="sticky left-0 flex shrink-0 items-center gap-2 text-[13px] font-medium text-foreground">
+                <span className="shrink-0">{t("ui.controls.selectedCount", {count})}</span>
+                <Button type="button" size="xs" variant="ghost" onClick={onClear}>
+                    {t("common.clear")}
+                </Button>
+                {actions ? (
+                    <span className="flex shrink-0 items-center gap-2">{actions}</span>
+                ) : null}
+            </span>
         </span>
-    </span>
-)
+    )
+}

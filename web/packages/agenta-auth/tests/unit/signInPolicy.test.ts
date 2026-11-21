@@ -1,8 +1,8 @@
 import {describe, expect, it} from "vitest"
 
+import {AUTH_FAILURE_COPY, classifyAuthFailure, mapAuthError} from "../../src/authError"
 import {readAuthConfig, type AuthConfig, type EnvReader} from "../../src/config"
 import {parseDiscoveredMethods, type DiscoveredMethods} from "../../src/discovery"
-import {mapAuthError} from "../../src/authError"
 import {readInviteParams} from "../../src/invite"
 import {
     deriveEntry,
@@ -201,7 +201,7 @@ describe("mapAuthError", () => {
     })
 
     it("falls back to the generic apology", () => {
-        expect(mapAuthError(new Error("boom")).message).toContain("something went wrong")
+        expect(mapAuthError(new Error("boom")).message).toBe(AUTH_FAILURE_COPY.unknown)
     })
 
     it("ignores a general-error marker that carries no usable message", () => {
@@ -210,8 +210,53 @@ describe("mapAuthError", () => {
             {isSuperTokensGeneralError: true, message: 42},
             {isSuperTokensGeneralError: true, message: ""},
         ]) {
-            expect(mapAuthError(error).message).toContain("something went wrong")
+            expect(mapAuthError(error).message).toBe(AUTH_FAILURE_COPY.unknown)
         }
+    })
+
+    it("names the failure it can read off the error when the host has no backend check", () => {
+        expect(mapAuthError(new TypeError("Failed to fetch")).message).toBe(
+            AUTH_FAILURE_COPY.unreachable,
+        )
+        expect(mapAuthError(new Response(null, {status: 503})).message).toBe(
+            AUTH_FAILURE_COPY.server,
+        )
+    })
+})
+
+describe("classifyAuthFailure", () => {
+    it("reads the failure off a network error or the reply status", () => {
+        expect(classifyAuthFailure(new TypeError("Failed to fetch"))).toBe("unreachable")
+        expect(classifyAuthFailure(new Response(null, {status: 404}))).toBe("unavailable")
+        expect(classifyAuthFailure(new Response(null, {status: 429}))).toBe("rate-limited")
+        expect(classifyAuthFailure(new Response(null, {status: 500}))).toBe("server")
+        expect(classifyAuthFailure(new Response(null, {status: 503}))).toBe("server")
+    })
+
+    it("knows the offline wording of each browser", () => {
+        for (const message of [
+            "Failed to fetch",
+            "NetworkError when attempting to fetch resource.",
+            "Load failed",
+            "The Internet connection appears to be offline.",
+        ]) {
+            expect(classifyAuthFailure(new TypeError(message))).toBe("unreachable")
+        }
+    })
+
+    it("does not call a code error unreachable", () => {
+        // What supertokens-web-js throws when a sign-up reply for an existing email has no user.
+        const error = new TypeError(
+            "Cannot use 'in' operator to search for 'loginMethods' in undefined",
+        )
+        expect(classifyAuthFailure(error)).toBe("unknown")
+    })
+
+    it("does not guess at anything else", () => {
+        expect(classifyAuthFailure(new Response(null, {status: 400}))).toBe("unknown")
+        expect(classifyAuthFailure(new Response(null, {status: 401}))).toBe("unknown")
+        expect(classifyAuthFailure(new Error("boom"))).toBe("unknown")
+        expect(classifyAuthFailure(null)).toBe("unknown")
     })
 })
 

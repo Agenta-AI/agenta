@@ -1,0 +1,17 @@
+{
+    "evaluatorName": "評価器名",
+    "appName": "アプリ名",
+    "variantName": "バリアント名",
+    "asNewVersion": "新しいバージョンとして",
+    "updateName": "{{name}} を更新",
+    "saveAsNewVariant": "新しいバリアントとして保存",
+    "create": "作成",
+    "commit": "コミット",
+    "createdSuccessfully": "作成しました",
+    "published": "{{label}} を {{environments}} に公開しました",
+    "publishFailed": "{{label}} を {{environments}} に公開できませんでした",
+    "failedToCreateWorkflow": "ワークフローを作成できませんでした",
+    "variantNameRequired": "バリアント名は必須です",
+    "failedToCreateVariant": "新しいバリアントを作成できませんでした",
+    "failedToCommit": "リビジョンをコミットできませんでした"
+}

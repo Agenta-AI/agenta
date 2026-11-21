@@ -1,6 +1,8 @@
 import type {ReactNode} from "react"
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import columnsCatalog from "@agenta/i18n/catalogs/observabilityUi.columns"
 import {useObservability} from "@agenta/observability"
 import {
     InfiniteVirtualTableFeatureShell,
@@ -77,7 +79,8 @@ export const ObservabilityTracesTable = ({
     // Derived here so neither host has to; an explicit prop still wins.
     const derivedSlugs = useEvaluatorSlugs()
     const slugs = useMemo(() => evaluatorSlugs ?? derivedSlugs, [evaluatorSlugs, derivedSlugs])
-    const columns = useMemo(() => getObservabilityColumns({evaluatorSlugs: slugs}), [slugs])
+    const t = useT(columnsCatalog)
+    const columns = useMemo(() => getObservabilityColumns({evaluatorSlugs: slugs, t}), [slugs, t])
 
     const scope = useMemo<TableScopeConfig>(
         () => ({

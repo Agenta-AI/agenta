@@ -512,6 +512,7 @@ class InteractionsDispatcher:
         envelope: RunEnvelope,
         control_command_id: Optional[UUID] = None,
         continuation_execution_id: Optional[str] = None,
+        session_turn_id: Optional[str] = None,
     ) -> None:
         resolved = [
             (
@@ -574,11 +575,17 @@ class InteractionsDispatcher:
                 **(invoke_request.meta or {}),
                 "control_command_id": str(control_command_id),
             }
+        if session_turn_id is not None:
+            # The turn this resume continues; run_id is the new execution's id.
+            invoke_request.meta = {
+                **(invoke_request.meta or {}),
+                "session_turn_id": session_turn_id,
+            }
 
         # Raises `AdmissionDenied` (an `AccessDenied`): a command's delivery settles it
         # terminally, `respond` cancels the turn's interactions. Resolves the target
         # once and leaves it on the request, so the invoke runs what was checked.
-        await self.run_admission.admit_request(
+        agent_artifact_id = await self.run_admission.admit_request(
             envelope=envelope,
             session_id=interaction.session_id,
             project_id=project_id,
@@ -604,4 +611,5 @@ class InteractionsDispatcher:
             user_id=user_id,
             request=invoke_request,
             envelope=envelope,
+            admitted_agent_id=agent_artifact_id,
         )

@@ -1,6 +1,8 @@
 import type {ReactNode} from "react"
 
 import {AGENT_CHIP_BOX, AGENT_CHIP_FALLBACK} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import headerCatalog from "@agenta/i18n/catalogs/playground.agentHeader"
 import {SimpleTooltip} from "@agenta/ui/ui"
 import {Robot} from "@phosphor-icons/react"
 
@@ -56,6 +58,7 @@ export const AgentPageHeader = ({
     className,
     icon,
 }: AgentPageHeaderProps) => {
+    const t = useT(headerCatalog)
     return (
         <div
             // 48px is a phone touch target, not a desktop height: fixing it there made this bar
@@ -75,7 +78,7 @@ export const AgentPageHeader = ({
                         {identity ?? (
                             <>
                                 {icon ?? (
-                                    <SimpleTooltip title="Agent">
+                                    <SimpleTooltip title={t("playground.agentHeader.agent")}>
                                         <span
                                             className={`${AGENT_CHIP_BOX} ${AGENT_CHIP_FALLBACK}`}
                                         >

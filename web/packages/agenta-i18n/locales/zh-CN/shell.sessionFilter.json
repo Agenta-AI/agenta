@@ -1,0 +1,21 @@
+{
+    "agent": "Agent",
+    "agentCount": "{{count}} 个 Agent",
+    "allAgents": "全部 Agent",
+    "automation": "自动化",
+    "awaitingInput": "等待输入",
+    "chat": "对话",
+    "date": "日期",
+    "filterSessions": "筛选会话",
+    "groupBy": "分组方式",
+    "idle": "空闲",
+    "last30Days": "最近 30 天",
+    "last7Days": "最近 7 天",
+    "lastActivity": "最近活动",
+    "loadingAgents": "正在加载 Agent…",
+    "noAgentsYet": "还没有 Agent",
+    "running": "运行中",
+    "searchSessions": "搜索会话",
+    "today": "今天",
+    "type": "类型"
+}

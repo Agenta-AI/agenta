@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import walletCreditsCatalog from "@agenta/i18n/catalogs/wallet.credits"
 import {sum} from "@agenta/observability/analytics"
 import {ANALYTICS_COLOR_CSS} from "@agenta/observability-ui/analytics"
 import {isBillingEnabled} from "@agenta/shared/api"
@@ -19,6 +21,7 @@ const PACE_DAYS = 30
 
 /** What an enforced wallet has left, where it went, and how to add more. */
 export const CreditsTab = ({projectId}: {projectId: string}) => {
+    const t = useT(walletCreditsCatalog)
     const router = useRouter()
     const summary = useWalletSummary(projectId)
     const enforced = summary.data?.mode === "enforce"
@@ -44,9 +47,7 @@ export const CreditsTab = ({projectId}: {projectId: string}) => {
     if (summary.isError) return <WalletUsageError onRetry={() => void summary.refetch()} />
     if (!enforced)
         return (
-            <p className="text-muted-foreground m-0 text-[13px]">
-                Credits are not in use for this organization.
-            </p>
+            <p className="text-muted-foreground m-0 text-[13px]">{t("wallet.credits.notInUse")}</p>
         )
 
     const dailyMusd = pace.data

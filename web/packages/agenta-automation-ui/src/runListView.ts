@@ -1,4 +1,6 @@
 import type {TriggerDelivery} from "@agenta/entities/gatewayTrigger"
+import {createT} from "@agenta/i18n"
+import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 
 import {deliveryOutcome} from "./automationModel"
 import {runDayGroups, runOutcomeLabel, sortRuns, type RunDayGroup} from "./runModel"
@@ -50,10 +52,17 @@ export function runType(delivery: TriggerDelivery): Exclude<RunTypeFilter, "all"
     return delivery.schedule_id ? "scheduled" : "event"
 }
 
-export const RUN_TYPE_LABEL: Record<Exclude<RunTypeFilter, "all">, string> = {
-    scheduled: "Scheduled",
-    event: "Event",
-    test: "Test run",
+const tNow = createT(automationsModelCatalog)
+
+export const runTypeLabel = (type: Exclude<RunTypeFilter, "all">): string => {
+    switch (type) {
+        case "scheduled":
+            return tNow("automations.model.runTypeScheduled")
+        case "event":
+            return tNow("automations.model.runTypeEvent")
+        default:
+            return tNow("automations.model.runTest")
+    }
 }
 
 /** The rows the view asks for, still newest-first. */
@@ -83,7 +92,7 @@ export function runGroups(runs: TriggerDelivery[], grouping: RunGrouping): RunDa
         const key =
             grouping === "status" ? deliveryOutcome(delivery) : (runType(delivery) as string)
         const label =
-            grouping === "status" ? runOutcomeLabel(delivery) : RUN_TYPE_LABEL[runType(delivery)]
+            grouping === "status" ? runOutcomeLabel(delivery) : runTypeLabel(runType(delivery))
         const bucket = buckets.get(key)
         if (bucket) bucket.runs.push(delivery)
         else buckets.set(key, {key, label, runs: [delivery]})

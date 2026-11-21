@@ -1,0 +1,21 @@
+{
+    "chatMessage": "Chat-Nachricht",
+    "commands": "Befehle",
+    "dismiss": "schließen",
+    "enterInsert": "einfügen",
+    "enterOpen": "öffnen",
+    "enterRun": "ausführen",
+    "enterSend": "senden",
+    "navigate": "navigieren",
+    "newline": "Zeilenumbruch",
+    "noCommand": "Kein Befehl und kein Skill passt zu „{{query}}“",
+    "noMatchFor": "Keine Treffer für „{{query}}“",
+    "openItem": "{{item}} öffnen",
+    "pasteBlocked": "Einfügen blockiert. Das würde das Limit von {{max}} Zeichen um {{over}} Zeichen überschreiten ({{total}} insgesamt). Verkleinern Sie den eingefügten Inhalt und versuchen Sie es erneut.",
+    "pastingLarge": "Großer Inhalt wird eingefügt…",
+    "send": "Senden",
+    "sending": "Wird gesendet",
+    "stop": "Stoppen",
+    "stopping": "Wird gestoppt",
+    "typeMessage": "Nachricht eingeben…"
+}

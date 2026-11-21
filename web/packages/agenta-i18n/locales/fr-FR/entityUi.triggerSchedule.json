@@ -1,0 +1,15 @@
+{
+    "start": "Début",
+    "startsRightAway": "Commence immédiatement",
+    "end": "Fin",
+    "neverEnds": "Ne se termine jamais",
+    "windowHint": "Les heures sont en UTC. Laissez l’un ou l’autre vide pour ne fixer aucune limite : un début dans le futur retarde la première exécution, et une fin dans le passé arrête la planification.",
+    "messagePlaceholder": "Résumez les tickets de support d’hier et publiez le résumé dans #ops.",
+    "richerInputsSchedule": "Cette planification envoie un ensemble d’entrées plus riche qu’un seul message ; saisir du texte ici les remplace.",
+    "sentEveryRun": "Envoyé à l’agent à chaque exécution.",
+    "inputsNotValidJson": "Les entrées ne sont pas un JSON valide",
+    "inputsNotValidJsonSentence": "Les entrées ne sont pas un JSON valide.",
+    "runInPlayground": "Exécuter dans le Playground",
+    "createScheduleFirst": "Créez d’abord la planification pour l’exécuter",
+    "agentWillReceive": "L’agent recevra"
+}

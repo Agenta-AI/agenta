@@ -164,13 +164,14 @@ class RequestCredentialKind(str, Enum):
 class ResourceKind(str, Enum):
     AGENT = "agent"
     SESSION = "session"
+    MOUNT = "mount"
 
 
 class ResourceRef(BaseModel):
     model_config = _FROZEN
 
     kind: ResourceKind
-    id: str  # agent: artifact id; session: session id
+    id: str  # agent: artifact id; session: session id; mount: mount id
 
 
 class PrincipalRecord(BaseModel):
@@ -199,6 +200,8 @@ class RequestAccess(BaseModel):
     # run_credential only: the ready accounts of the run's "user" items (the
     # `run_accounts` claim). Read through `account_choices.claims.run_account`.
     run_accounts: Tuple[RunAccount, ...] = ()
+    # run_credential only: the agent the run executes (the `run_agent_id` claim).
+    run_agent_id: Optional[UUID] = None
 
 
 class UserPrincipals(BaseModel):

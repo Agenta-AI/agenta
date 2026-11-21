@@ -21,9 +21,12 @@ import {
     DriveBreadcrumb,
     driveFileIcon,
     useDriveArtifactId,
+    useDriveRevisionId,
     useDriveSessionId,
     useLazyDriveTree,
 } from "@agenta/entity-ui/drive"
+import {richText, useT} from "@agenta/i18n"
+import chatFilePaletteCatalog from "@agenta/i18n/catalogs/chat.filePalette"
 import {
     HintKey,
     type PaletteItem,
@@ -51,8 +54,10 @@ export interface FilePalette {
 }
 
 export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): FilePalette {
+    const t = useT(chatFilePaletteCatalog)
     const sessionId = useDriveSessionId() ?? ""
     const artifactId = useDriveArtifactId() ?? undefined
+    const revisionId = useDriveRevisionId() ?? undefined
     const active = enabled && Boolean(sessionId)
 
     const [query, setQuery] = useState<string | null>(null)
@@ -61,7 +66,11 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
     // The summary drive: record-log recents plus a count, no whole-tree listing to open a menu.
     // Read once `@` opens: every session mounts this composer, and most never type it.
     const opened = active && query !== null
-    const drive = useSessionDriveSummary(opened ? sessionId : "", opened ? artifactId : undefined)
+    const drive = useSessionDriveSummary(
+        opened ? sessionId : "",
+        opened ? artifactId : undefined,
+        opened ? revisionId : undefined,
+    )
 
     const deferredQuery = useDeferredValue(query ?? "")
     const searchActive = useDelayedTrue(deferredQuery.trim() !== "", SEARCH_DELAY_MS)
@@ -100,8 +109,8 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
                     : undefined,
             tail: row.isFolder
                 ? row.itemCount
-                    ? `${row.itemCount} items`
-                    : "open"
+                    ? t("chat.filePalette.items", {count: row.itemCount})
+                    : t("chat.filePalette.open")
                 : [humanSize(row.size), row.touchedAt ? relativeTime(row.touchedAt) : ""]
                       .filter(Boolean)
                       .join(" · "),
@@ -121,9 +130,9 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
      */
     const byOrigin = useCallback(
         (rows: PaletteFileRow[], keyPrefix: string): PaletteSection[] => {
-            const session = rows.filter((r) => fileOrigin(r.path) === "session")
-            const agent = rows.filter((r) => fileOrigin(r.path) === "agent")
-            if (!session.length || !agent.length) {
+            const session = rows.filter((r) => fileOrigin(r.path, drive.otherDrives) === "session")
+            const durable = rows.filter((r) => fileOrigin(r.path, drive.otherDrives) !== "session")
+            if (!session.length || !durable.length) {
                 return rows.length
                     ? [{key: keyPrefix, title: "", items: rows.map((r) => toItem(r, keyPrefix))}]
                     : []
@@ -131,17 +140,17 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
             return [
                 {
                     key: `${keyPrefix}-session`,
-                    title: "Session",
+                    title: t("chat.filePalette.session"),
                     items: session.map((r) => toItem(r, keyPrefix)),
                 },
                 {
                     key: `${keyPrefix}-agent`,
-                    title: "Agent",
-                    items: agent.map((r) => toItem(r, keyPrefix)),
+                    title: t("chat.filePalette.agent"),
+                    items: durable.map((r) => toItem(r, keyPrefix)),
                 },
             ]
         },
-        [toItem],
+        [toItem, drive.otherDrives, t],
     )
 
     const sections = useMemo<PaletteSection[]>(() => {
@@ -161,7 +170,7 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
                 ? [
                       {
                           key: "recent",
-                          title: "Recently touched",
+                          title: t("chat.filePalette.recentlyTouched"),
                           items: recents.map((r) => toItem(r, "recent")),
                       },
                   ]
@@ -172,7 +181,7 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
                 "root",
             ),
         ].filter((section) => section.items.length > 0)
-    }, [active, searching, byOrigin, lazy.files, cwd, deferredQuery, drive.recents, toItem])
+    }, [active, searching, byOrigin, lazy.files, cwd, deferredQuery, drive.recents, toItem, t])
 
     // While the search is still held back, say so rather than reporting the loaded dirs as the
     // whole answer — an empty state here would claim the drive holds no match.
@@ -182,7 +191,7 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
         const status = loading ? (
             <span className="ml-auto flex items-center gap-1.5 text-[11.5px] text-[var(--ag-colorTextTertiary)]">
                 <CircleNotch size={11} className="animate-spin" />
-                listing…
+                {t("chat.filePalette.listing")}
             </span>
         ) : null
         if (cwd) {
@@ -205,42 +214,49 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
                 ) : (
                     <FolderOpen size={14} className="text-[var(--ag-colorTextTertiary)]" />
                 )}
-                <span className="font-medium">Files</span>
+                <span className="font-medium">{t("chat.filePalette.files")}</span>
                 {searching ? (
                     <span className="text-[11.5px] text-[var(--ag-colorTextTertiary)]">
-                        across the drive
+                        {t("chat.filePalette.acrossDrive")}
                     </span>
                 ) : null}
                 {status}
             </>
         )
-    }, [cwd, drive.mount, loading, searching])
+    }, [cwd, drive.mount, loading, searching, t])
 
     const footer = useCallback(
         (activeItem: PaletteItem | undefined): ReactNode => (
             <>
-                <HintKey keys="↑↓" label="navigate" />
+                <HintKey keys="↑↓" label={t("chat.filePalette.navigate")} />
                 <HintKey
                     keys="↵"
                     label={
                         !activeItem
-                            ? "send"
+                            ? t("chat.filePalette.send")
                             : activeItem.onDrillIn
-                              ? "reference folder"
-                              : "reference"
+                              ? t("chat.filePalette.referenceFolder")
+                              : t("chat.filePalette.reference")
                     }
                 />
-                {activeItem?.onDrillIn ? <HintKey keys="tab" label="open folder" /> : null}
-                <HintKey keys="esc" label={cwd ? "back" : "dismiss"} />
+                {activeItem?.onDrillIn ? (
+                    <HintKey keys="tab" label={t("chat.filePalette.openFolder")} />
+                ) : null}
+                <HintKey
+                    keys="esc"
+                    label={cwd ? t("chat.filePalette.back") : t("chat.filePalette.dismiss")}
+                />
                 {cwd ? (
                     // Truncates rather than wraps: a deep path must not push the keys onto a second line.
                     <span className="ml-auto min-w-0 truncate pl-2">
-                        searching inside <span className="font-mono">{cwd}/</span>
+                        {richText(t("chat.filePalette.searchingInside", {cwd}), {
+                            path: (text) => <span className="font-mono">{text}</span>,
+                        })}
                     </span>
                 ) : null}
             </>
         ),
-        [cwd],
+        [cwd, t],
     )
 
     const spec = useMemo<PaletteSpec | undefined>(() => {
@@ -250,7 +266,7 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
             trigger: "@",
             // Paths hold slashes, so the query must too — `@docs/gui` stays one run.
             allowSlashInQuery: true,
-            label: "Files",
+            label: t("chat.filePalette.files"),
             sections,
             // Rows arrive already filtered and capped; re-ranking them here would fight the order.
             filterMode: "none",
@@ -262,16 +278,16 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
             emptyText: (q) =>
                 q ? (
                     <>
-                        No file or folder matches “{q}”
+                        {t("chat.filePalette.noMatch", {query: q})}
                         <div className="mt-[5px] text-[11px] text-[var(--ag-colorTextTertiary)]">
-                            Enter sends the message as written.
+                            {t("chat.filePalette.enterSends")}
                         </div>
                     </>
                 ) : (
-                    "No files in this drive yet"
+                    t("chat.filePalette.noFiles")
                 ),
         }
-    }, [active, sections, onQueryChange, onEscape, header, footer, loading])
+    }, [active, sections, onQueryChange, onEscape, header, footer, loading, t])
 
     return {spec, subscribers: lazy.subscribers}
 }

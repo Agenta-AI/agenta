@@ -1,6 +1,8 @@
 import {useEffect, useRef} from "react"
 
 import {AgentPickerPanel} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {Spinner} from "@agenta/ui/ui"
 import {useRouter} from "next/router"
 
@@ -27,6 +29,7 @@ export const AgentsQuickPanel = ({
     /** A create is in flight: the host must not dismiss, or its outcome and latch are lost. */
     onBusyChange?: (busy: boolean) => void
 }) => {
+    const t = useT(navigationCatalog)
     const newAgent = useNewAgentAction(base)
     const creating = newAgent.creating
     useEffect(() => {
@@ -54,7 +57,7 @@ export const AgentsQuickPanel = ({
             {newAgent.creating ? (
                 <p className="text-muted-foreground m-0 flex items-center gap-2 px-3 pb-2 text-[12px]">
                     <Spinner size="small" />
-                    Creating agent…
+                    {t("navigation.items.creatingAgent")}
                 </p>
             ) : newAgent.error ? (
                 <p className="text-destructive m-0 px-3 pb-2 text-[12px]">{newAgent.error}</p>

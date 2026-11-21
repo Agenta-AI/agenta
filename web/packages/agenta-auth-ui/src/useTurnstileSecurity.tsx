@@ -5,9 +5,13 @@ import {
     isTurnstileEnabled,
     setPendingTurnstileToken,
 } from "@agenta/auth"
+import {createT} from "@agenta/i18n"
+import sharedCatalog from "@agenta/i18n/catalogs/auth.shared"
 
 import {TurnstileWidget, type TurnstileWidgetHandle} from "./TurnstileWidget"
 import type {AuthMessage, AuthSecurityAdapter} from "./types"
+
+const tNow = createT(sharedCatalog)
 
 /**
  * The EE security seam: adapts Cloudflare Turnstile (widget + the pending-token side channel
@@ -32,7 +36,7 @@ export const useTurnstileSecurity = (
             hasToken: token !== null,
             ensureToken: () => {
                 if (tokenRef.current) return tokenRef.current
-                setMessage({message: "Please complete the security check.", type: "error"})
+                setMessage({message: tNow("auth.shared.completeSecurityCheck"), type: "error"})
                 return null
             },
             stampToken: (value) => setPendingTurnstileToken(value),
@@ -53,7 +57,7 @@ export const useTurnstileSecurity = (
                     onTokenChange={handleTokenChange}
                     onError={() =>
                         setMessage({
-                            message: "Security check failed. Please try again.",
+                            message: tNow("auth.shared.securityCheckFailed"),
                             type: "error",
                         })
                     }

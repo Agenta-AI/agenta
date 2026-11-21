@@ -16,6 +16,8 @@
  */
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import chatQueuedMessagesDockCatalog from "@agenta/i18n/catalogs/chat.queuedMessagesDock"
 import {splitQuotedMessage, truncateQuoteText, type QuotedExcerpt} from "@agenta/shared/quotes"
 import {getCollapseLabel} from "@agenta/ui/components/presentational"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
@@ -76,8 +78,9 @@ const Attachment = ({part}: {part: FileUIPart}) => {
  * matter how many files a message carries.
  */
 const Attachments = ({files}: {files: FileUIPart[]}) => {
+    const t = useT(chatQueuedMessagesDockCatalog)
     if (files.length === 1) return <Attachment part={files[0]} />
-    const label = `${files.length} attachments`
+    const label = t("chat.queuedMessagesDock.attachmentsLabel", {count: files.length})
     return (
         <span
             role="img"
@@ -92,7 +95,8 @@ const Attachments = ({files}: {files: FileUIPart[]}) => {
 
 /** A quoted reply's excerpts as one tile, so the row reads as the reply, not as raw markdown. */
 const QuoteTile = ({quotes}: {quotes: QuotedExcerpt[]}) => {
-    const label = quotes.length === 1 ? "1 quote" : `${quotes.length} quotes`
+    const t = useT(chatQueuedMessagesDockCatalog)
+    const label = t("chat.queuedMessagesDock.quotesLabel", {count: quotes.length})
     return (
         <span
             role="img"
@@ -126,6 +130,7 @@ const Row = ({
     onSendNow?: (id: string) => void
     sendNowBlocked: boolean
 }) => {
+    const t = useT(chatQueuedMessagesDockCatalog)
     const {quotes, text} = useMemo(() => splitQuotedMessage(message.text.trim()), [message.text])
     // A bare quote with no reply shows its excerpt instead.
     const excerpt = !text && quotes.length ? truncateQuoteText(quotes[0].text) : ""
@@ -154,7 +159,9 @@ const Row = ({
                 </span>
             ) : (
                 <span className="min-w-0 flex-1 truncate text-xs italic text-colorTextTertiary">
-                    {attachmentCount ? "(attachments only)" : "(empty message)"}
+                    {attachmentCount
+                        ? t("chat.queuedMessagesDock.attachmentsOnly")
+                        : t("chat.queuedMessagesDock.emptyMessage")}
                 </span>
             )}
             {/* Keep Send Now visible without hover. */}
@@ -173,12 +180,14 @@ const Row = ({
                         disabled={editing || sendingThis || sendNowBlocked || !!message.saving}
                         title={
                             !sendingThis && sendNowBlocked
-                                ? "Another message is being sent first"
+                                ? t("chat.queuedMessagesDock.sendBlocked")
                                 : undefined
                         }
                         onClick={() => onSendNow(message.id)}
                     >
-                        {sendingThis ? "Sending" : "Send Now"}
+                        {sendingThis
+                            ? t("chat.queuedMessagesDock.sending")
+                            : t("chat.queuedMessagesDock.sendNow")}
                     </Button>
                 ) : null}
                 {editing ? (
@@ -188,13 +197,13 @@ const Row = ({
                         className={`h-6 !text-xs text-colorTextSecondary ${touchCls}`}
                         onClick={onCancelEdit}
                     >
-                        Cancel
+                        {t("chat.queuedMessagesDock.cancel")}
                     </Button>
                 ) : onEdit && message.editable !== false ? (
                     <Button
                         size="icon-sm"
                         variant="ghost"
-                        aria-label="Edit queued message"
+                        aria-label={t("chat.queuedMessagesDock.editQueued")}
                         className={`size-6 text-colorTextTertiary hover:text-colorText ${touchCls}`}
                         // A failed edit comes back, not the text it would have replaced.
                         onClick={() =>
@@ -218,7 +227,7 @@ const Row = ({
                     <Button
                         size="icon-sm"
                         variant="ghost"
-                        aria-label="Remove queued message"
+                        aria-label={t("chat.queuedMessagesDock.removeQueued")}
                         disabled={!!message.saving}
                         className={`size-6 text-colorTextTertiary hover:text-colorText ${touchCls}`}
                         onClick={() => onRemove(message.id)}
@@ -268,6 +277,7 @@ const QueuedMessagesDock = ({
     touch = false,
     className = "",
 }: QueuedMessagesDockProps) => {
+    const t = useT(chatQueuedMessagesDockCatalog)
     const [collapsed, setCollapsed] = useState(false)
     const bodyRef = useRef<HTMLDivElement>(null)
     const countRef = useRef(queued.length)
@@ -296,8 +306,8 @@ const QueuedMessagesDock = ({
             <div className="flex items-center gap-2 px-3 py-1.5">
                 <Stack size={14} className="shrink-0 text-colorTextTertiary" aria-hidden />
                 <span className="min-w-0 truncate text-[13px] text-colorTextSecondary">
-                    {queued.length} queued message{queued.length === 1 ? "" : "s"}
-                    {held ? " · waits for your answer" : ""}
+                    {t("chat.queuedMessagesDock.queuedCount", {count: queued.length})}
+                    {held ? t("chat.queuedMessagesDock.waitsForAnswer") : ""}
                 </span>
                 <span className="flex-1" />
                 {/* Not `CollapseToggleButton`: it carries a tooltip, and a caret in a two-item
@@ -319,9 +329,9 @@ const QueuedMessagesDock = ({
             </div>
             {editingMissingRow ? (
                 <div className="flex items-center gap-2 px-3 pb-2 text-xs text-colorTextSecondary">
-                    <span className="flex-1">This message is no longer queued.</span>
+                    <span className="flex-1">{t("chat.queuedMessagesDock.noLongerQueued")}</span>
                     <Button size="sm" variant="ghost" onClick={onCancelEdit}>
-                        Cancel editing
+                        {t("chat.queuedMessagesDock.cancelEditing")}
                     </Button>
                 </div>
             ) : null}

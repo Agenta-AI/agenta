@@ -1,5 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import rangeCatalog from "@agenta/i18n/catalogs/observabilityUi.range"
 import {ANALYTICS_RANGE_PRESETS, type SortResult, type SortTypes} from "@agenta/observability"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
@@ -71,6 +73,7 @@ export const RangePicker = ({
     container,
     className,
 }: RangePickerProps) => {
+    const t = useT(rangeCatalog)
     const [open, setOpen] = useState(false)
     const [customOpen, setCustomOpen] = useState(false)
     const [draft, setDraft] = useState<DateRangeValue>(EMPTY_DRAFT)
@@ -161,7 +164,11 @@ export const RangePicker = ({
 
             <PopoverContent align="start" container={container} className="w-auto p-1">
                 <section className="flex items-stretch gap-1">
-                    <div role="menu" aria-label="Time range" className="flex w-[224px] flex-col">
+                    <div
+                        role="menu"
+                        aria-label={t("observabilityUi.range.timeRange")}
+                        className="flex w-[224px] flex-col"
+                    >
                         {presets.map((preset) => (
                             <button
                                 key={preset.label}
@@ -187,7 +194,8 @@ export const RangePicker = ({
                                     className={rowClassName(selected === "custom")}
                                 >
                                     <span className="flex items-center gap-2">
-                                        <ClockIcon size={12} /> Define start and end time
+                                        <ClockIcon size={12} />{" "}
+                                        {t("observabilityUi.range.defineStartEnd")}
                                     </span>
                                     <CaretRightIcon size={12} />
                                 </button>
@@ -200,7 +208,7 @@ export const RangePicker = ({
                             <div className="w-px shrink-0 self-stretch bg-border" />
                             <div className="flex flex-col">
                                 <span className="px-2 pt-1 text-field-md font-medium text-foreground">
-                                    Start and end time
+                                    {t("observabilityUi.range.startEnd")}
                                 </span>
                                 <DateRangeCalendar
                                     value={draft}
@@ -217,14 +225,14 @@ export const RangePicker = ({
                                             setOpen(false)
                                         }}
                                     >
-                                        Cancel
+                                        {t("observabilityUi.range.cancel")}
                                     </Button>
                                     <Button
                                         size="sm"
                                         disabled={!draft.startTime && !draft.endTime}
                                         onClick={applyCustom}
                                     >
-                                        Apply
+                                        {t("observabilityUi.range.apply")}
                                     </Button>
                                 </div>
                             </div>

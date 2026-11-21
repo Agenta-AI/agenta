@@ -1,3 +1,9 @@
+import {createT, type CatalogKey} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
+import type settingsTabsCatalog from "@agenta/i18n/catalogs/settingsTabs"
+
+const t = createT(navigationCatalog)
+
 export const DEFAULT_SETTINGS_TAB = "workspace"
 
 export type SettingsTabKey =
@@ -49,6 +55,13 @@ export interface SettingsTabDocs {
     href: string
 }
 
+type SettingsTabTextKey = CatalogKey<typeof settingsTabsCatalog>
+
+interface SettingsTabDocsDefinition {
+    labelKey: SettingsTabTextKey
+    href: string
+}
+
 export interface SettingsTabDefinition {
     key: SettingsTabKey
     scope: SettingsScopeKey
@@ -58,10 +71,10 @@ export interface SettingsTabDefinition {
      * One sentence explaining what the page is for. Required so a new tab cannot ship
      * without one — every settings page renders this under its title.
      */
-    description: string
-    /** Overrides `description` when the copy depends on entitlements. */
-    getDescription?: (access: SettingsAccess) => string
-    docs?: SettingsTabDocs
+    descriptionKey: SettingsTabTextKey
+    /** Overrides `descriptionKey` when the copy depends on entitlements. */
+    getDescriptionKey?: (access: SettingsAccess) => SettingsTabTextKey
+    docs?: SettingsTabDocsDefinition
 }
 
 const DOCS_BASE = "https://docs.agenta.ai"
@@ -71,155 +84,160 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
     {
         key: "llms",
         scope: "connections",
-        description: "Connect the AI providers your agents, prompts, and evaluations run on.",
+        descriptionKey: "settingsTabs.llmsDescription",
         docs: {
-            label: "Learn more about AI providers",
+            labelKey: "settingsTabs.llmsDocs",
             href: `${DOCS_BASE}/faq/integrations/llm-providers`,
         },
     },
     {
         key: "tools",
         scope: "connections",
-        description: "Configure integrations your agents can use.",
+        descriptionKey: "settingsTabs.toolsDescription",
         docs: {
-            label: "Learn more about tools",
+            labelKey: "settingsTabs.toolsDocs",
             href: `${DOCS_BASE}/concepts/tools-and-integrations`,
         },
     },
     {
         key: "secrets",
         scope: "connections",
-        description: "Store credentials your agents use at runtime.",
+        descriptionKey: "settingsTabs.secretsDescription",
     },
     {
         key: "mcpEndpoints",
         scope: "connections",
-        description:
-            "MCP servers connected to this project. Each agent chooses which of these to use and what it may run.",
+        descriptionKey: "settingsTabs.mcpEndpointsDescription",
     },
     {
         key: "channels",
         scope: "connections",
-        description:
-            "Chat platforms connected to this project. Each connection answers as one agent.",
+        descriptionKey: "settingsTabs.channelsDescription",
     },
     {
         key: "apiKeys",
         scope: "project",
-        description: "Manage API keys used to authenticate requests.",
+        descriptionKey: "settingsTabs.apiKeysDescription",
         docs: {
-            label: "Learn more about the API",
+            labelKey: "settingsTabs.apiKeysDocs",
             href: `${DOCS_BASE}/reference/api-guide/overview`,
         },
     },
     {
         key: "webhooks",
         scope: "project",
-        description:
-            "Send workflow events to your own HTTP endpoints, with signed payloads and delivery retries.",
+        descriptionKey: "settingsTabs.webhooksDescription",
     },
     {
         key: "analytics",
         scope: "project",
-        description: "See what your agents cost, how often they run, and how reliably they finish.",
+        descriptionKey: "settingsTabs.analyticsDescription",
     },
     {
         key: "credits",
         scope: "organization",
-        description: "What your organization has left, where it went, and how to add more.",
+        descriptionKey: "settingsTabs.creditsDescription",
     },
     {
         key: "billing",
         scope: "organization",
-        getLabel: ({billingEnabled}) => (billingEnabled ? "Plan & billing" : "Usage"),
-        description: "Track how much of your plan you have used.",
-        getDescription: ({billingEnabled}) =>
+        getLabel: ({billingEnabled}) =>
+            t(
+                billingEnabled
+                    ? "navigation.settings.billingPlan"
+                    : "navigation.settings.billingUsage",
+            ),
+        descriptionKey: "settingsTabs.billingDescription",
+        getDescriptionKey: ({billingEnabled}) =>
             billingEnabled
-                ? "Your plan, its limits, and payment details."
-                : "Track how much of your plan you have used.",
+                ? "settingsTabs.billingPlanDescription"
+                : "settingsTabs.billingDescription",
     },
     {
         key: "workspace",
         scope: "organization",
-        description: "Manage members, invitations, and access.",
+        descriptionKey: "settingsTabs.workspaceDescription",
         docs: {
-            label: "Learn more about roles",
+            labelKey: "settingsTabs.workspaceDocs",
             href: `${DOCS_BASE}/administration/access-control/rbac`,
         },
     },
     {
         key: "organizationGeneral",
         scope: "organization",
-        description: "Every organization you belong to.",
+        descriptionKey: "settingsTabs.organizationGeneralDescription",
         docs: {
-            label: "Learn more about organizations",
+            labelKey: "settingsTabs.organizationGeneralDocs",
             href: `${DOCS_BASE}/administration/access-control/organizations`,
         },
     },
     {
         key: "projects",
         scope: "organization",
-        description: "Organize agents, datasets, and deployments.",
+        descriptionKey: "settingsTabs.projectsDescription",
         docs: {
-            label: "Learn more about projects",
+            labelKey: "settingsTabs.projectsDocs",
             href: `${DOCS_BASE}/administration/access-control/organizations`,
         },
     },
     {
         key: "organization",
         scope: "organization",
-        description:
-            "Control how members sign in and which email domains are allowed to join this organization.",
+        descriptionKey: "settingsTabs.organizationDescription",
         docs: {
-            label: "Learn more about SSO",
+            labelKey: "settingsTabs.organizationDocs",
             href: `${DOCS_BASE}/administration/access-control/sso`,
         },
     },
     {
         key: "auditLog",
         scope: "organization",
-        description: "Review changes made across your organization.",
+        descriptionKey: "settingsTabs.auditLogDescription",
     },
     {
         key: "account",
         scope: "personal",
-        description:
-            "Your personal profile. These details are visible to other members of your organizations.",
+        descriptionKey: "settingsTabs.accountDescription",
     },
     {
         key: "preferences",
         scope: "personal",
-        description:
-            "Personal settings stored in this browser. They are not shared with your organizations.",
+        descriptionKey: "settingsTabs.preferencesDescription",
     },
 ]
 
-export const SETTINGS_SCOPES: {key: SettingsScopeKey; title: string}[] = [
+export const SETTINGS_SCOPES: {
+    key: SettingsScopeKey
+    titleKey: CatalogKey<typeof navigationCatalog>
+}[] = [
     // What agents connect to, whoever owns it; the `?tab=` links are the same as before.
-    {key: "connections", title: "Connections"},
-    {key: "project", title: "Project"},
-    {key: "organization", title: "Organization"},
-    {key: "personal", title: "Personal"},
+    {key: "connections", titleKey: "navigation.settings.scopeConnections"},
+    {key: "project", titleKey: "navigation.settings.scopeProject"},
+    {key: "organization", titleKey: "navigation.settings.scopeOrganization"},
+    {key: "personal", titleKey: "navigation.settings.scopePersonal"},
 ]
 
-const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
-    apiKeys: "API Keys",
-    secrets: "Secrets",
+const SETTINGS_LABELS: Record<
+    Exclude<SettingsTabKey, "billing">,
+    CatalogKey<typeof navigationCatalog>
+> = {
+    apiKeys: "navigation.settings.apiKeys",
+    secrets: "navigation.settings.secrets",
     // The tab key stays `llms` so existing `?tab=llms` links keep working.
-    llms: "AI providers",
-    analytics: "Analytics",
-    tools: "Tools",
-    channels: "Channels",
-    webhooks: "Webhooks",
-    mcpEndpoints: "MCPs",
-    workspace: "Members",
-    projects: "Projects",
-    organizationGeneral: "Organizations",
-    organization: "Access & Security",
-    auditLog: "Audit Log",
-    credits: "Credits",
-    account: "Account",
-    preferences: "Preferences",
+    llms: "navigation.settings.llms",
+    analytics: "navigation.settings.analytics",
+    tools: "navigation.settings.tools",
+    channels: "navigation.settings.channels",
+    webhooks: "navigation.settings.webhooks",
+    mcpEndpoints: "navigation.settings.mcpEndpoints",
+    workspace: "navigation.settings.workspace",
+    projects: "navigation.settings.projects",
+    organizationGeneral: "navigation.settings.organizationGeneral",
+    organization: "navigation.settings.organization",
+    auditLog: "navigation.settings.auditLog",
+    credits: "navigation.settings.credits",
+    account: "navigation.settings.account",
+    preferences: "navigation.settings.preferences",
 }
 
 export const isSettingsTabKey = (value: string | null | undefined): value is SettingsTabKey =>
@@ -228,17 +246,8 @@ export const isSettingsTabKey = (value: string | null | undefined): value is Set
 export const getSettingsTabLabel = (key: SettingsTabKey, access: SettingsAccess) => {
     const tab = SETTINGS_TABS.find((item) => item.key === key)
     if (tab?.getLabel) return tab.getLabel(access)
-    return SETTINGS_LABELS[key as Exclude<SettingsTabKey, "billing">]
+    return t(SETTINGS_LABELS[key as Exclude<SettingsTabKey, "billing">])
 }
-
-export const getSettingsTabDescription = (key: SettingsTabKey, access: SettingsAccess): string => {
-    const tab = SETTINGS_TABS.find((item) => item.key === key)
-    if (!tab) return ""
-    return tab.getDescription ? tab.getDescription(access) : tab.description
-}
-
-export const getSettingsTabDocs = (key: SettingsTabKey): SettingsTabDocs | undefined =>
-    SETTINGS_TABS.find((item) => item.key === key)?.docs
 
 // `organizationGeneral` is intentionally absent: it lists every organization you belong
 // to, so membership is enough. Its destructive row actions gate on ownership per row.

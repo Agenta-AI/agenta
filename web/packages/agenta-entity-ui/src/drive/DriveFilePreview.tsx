@@ -3,6 +3,8 @@ import {useRef, useState} from "react"
 import {META_REVEAL} from "@agenta/entities/drive"
 import {fileOrigin} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
 import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
@@ -25,6 +27,7 @@ export const DriveFilePreview = ({
     displayPath,
     rootLabel,
     showOrigin,
+    otherDrives,
     touchedAt,
     size,
     hideHeader,
@@ -41,6 +44,8 @@ export const DriveFilePreview = ({
     rootLabel: string
     /** Tag the file's origin next to its name — only when the drive holds both kinds. */
     showOrigin?: boolean
+    /** The session's drives other than the home: they tell a drive file from a session file. */
+    otherDrives?: readonly {slug: string}[]
     touchedAt?: number
     size?: number
     /** Chrome mode: the drawer's single header owns the breadcrumb/name/actions, so drop this pane's
@@ -52,6 +57,7 @@ export const DriveFilePreview = ({
     /** Is this presented path in the tree already loaded? Picks between a link's readings. */
     linkExists?: (path: string) => boolean
 }) => {
+    const t = useT(drivePreviewCatalog)
     const shown = displayPath ?? path
     const name = shown.split("/").pop() ?? shown
     // Null outside a conversation, which leaves the quote layer inert.
@@ -99,25 +105,27 @@ export const DriveFilePreview = ({
                             <span className="truncate font-mono text-[13px] font-semibold">
                                 {name}
                             </span>
-                            {showOrigin ? <OriginTag origin={fileOrigin(shown)} /> : null}
+                            {showOrigin ? (
+                                <OriginTag origin={fileOrigin(shown, otherDrives)} />
+                            ) : null}
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
-                            <Tooltip title="Copy path">
+                            <Tooltip title={t("entityUi.drivePreview.copyPath")}>
                                 <CopyButton
                                     text={shown}
                                     buttonText={null}
                                     icon
                                     size="icon-sm"
-                                    aria-label="Copy file path"
+                                    aria-label={t("entityUi.drivePreview.copyFilePath")}
                                     successMessage=""
                                     className="!h-7 !w-7 !p-0 !text-colorTextTertiary hover:!text-colorText"
                                 />
                             </Tooltip>
-                            <Tooltip title="File details">
+                            <Tooltip title={t("entityUi.drivePreview.fileDetails")}>
                                 <Button
                                     type="text"
                                     size="small"
-                                    aria-label="File details"
+                                    aria-label={t("entityUi.drivePreview.fileDetails")}
                                     aria-pressed={metaExpanded}
                                     onClick={() => setMetaExpanded((v) => !v)}
                                     icon={

@@ -1,5 +1,7 @@
 import {useCallback, useRef, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {executionController} from "@agenta/playground"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {cn, Segmented} from "@agenta/ui/ui"
@@ -13,11 +15,6 @@ import {CompareRuns} from "./CompareRuns"
 import {VariantColumn} from "./VariantColumn"
 
 type Area = "config" | "runs"
-
-const AREAS: {value: Area; label: string}[] = [
-    {value: "config", label: "Configuration"},
-    {value: "runs", label: "Generations"},
-]
 
 export interface CompareLayoutProps {
     /** The revisions on screen, in column order. */
@@ -43,6 +40,11 @@ export const CompareLayout = ({
     onClose,
     renderTraceFooter,
 }: CompareLayoutProps) => {
+    const t = useT(panelsCatalog)
+    const areas: {value: Area; label: string}[] = [
+        {value: "config", label: t("playground.panels.configuration")},
+        {value: "runs", label: t("playground.panels.generations")},
+    ]
     const twoAreas = useMediaQuery("(min-width: 768px)")
     const [area, setArea] = useState<Area>("config")
     const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
@@ -74,7 +76,7 @@ export const CompareLayout = ({
                     <Segmented
                         block
                         size="sm"
-                        options={AREAS}
+                        options={areas}
                         value={area}
                         onChange={(value) => setArea(value as Area)}
                     />
@@ -105,7 +107,11 @@ export const CompareLayout = ({
                 </div>
             </div>
             <div className={cn("flex min-h-0 flex-1 flex-col", !showRuns && "hidden")}>
-                <RunsPanelHeader label={isChat ? "Chat" : "Generations"} />
+                <RunsPanelHeader
+                    label={
+                        isChat ? t("playground.panels.chat") : t("playground.panels.generations")
+                    }
+                />
                 <div ref={setGenerationPanelRef} className="min-h-0 flex-1 overflow-auto">
                     <CompareRuns revisionIds={revisionIds} renderTraceFooter={renderTraceFooter} />
                 </div>

@@ -8,8 +8,9 @@ Mount resolution: dispatch hands the handler the router's ``MountsService``; no 
 travels in the call. It receives ``session_id`` (bound from
 ``$ctx.session.id``, stripped from the model-visible schema) and resolves the session's cwd
 mount through ``MountsService.get_or_create_session_mount``; ``list_starters`` also takes
-``artifact_id`` (``$ctx.workflow.artifact.id``) to reach the agent mount. Both fail closed the
-way ``read_config`` does for its bound variant id.
+``artifact_id`` and ``variant_id`` (``$ctx.workflow.*``) to reach the home drive of the agent's
+configuration, which it never creates. Both fail closed the way ``read_config`` does for its
+bound variant id.
 """
 
 from __future__ import annotations
@@ -18,8 +19,12 @@ import json
 from typing import Any, Dict, Optional
 from uuid import UUID
 
+from oss.src.core.access.context import get_request_access
 from oss.src.core.apps.service import AGENT_STARTERS_DIR, AppsError, AppsService
+from oss.src.core.mounts.dtos import Mount
 from oss.src.core.mounts.types import MountError
+from oss.src.core.shared.dtos import Reference
+from oss.src.core.sharing.service import get_sharing_service
 from oss.src.core.tools.dtos import AgentError, PlatformHandlerResult
 from oss.src.core.tools.exceptions import (
     PlatformToolHandlerRefused,
@@ -89,11 +94,16 @@ LIST_STARTERS_TOOL_DEFINITION: Dict[str, Any] = {
                 "type": "string",
                 "description": "Bound from the run; the model never sets it.",
             },
+            "variant_id": {
+                "type": "string",
+                "description": "Bound from the run; the model never sets it.",
+            },
         },
     },
     "context_bindings": {
         "session_id": "$ctx.session.id",
         "artifact_id": "$ctx.workflow.artifact.id",
+        "variant_id": "$ctx.workflow.variant.id",
     },
     "read_only": True,
     "timeout_ms": LIST_STARTERS_DEFAULT_TIMEOUT_MS,
@@ -220,18 +230,92 @@ async def handle_list_starters(
     mounts = _require_mounts(mounts_service, op="list_starters")
     apps = AppsService(mounts_service=mounts)
 
-    agent_mount_id: Optional[UUID] = None
-    artifact_id = parsed.get("artifact_id")
-    if isinstance(artifact_id, str) and artifact_id.strip():
-        try:
-            agent_mount = await mounts.get_or_create_agent_mount(
-                project_id=project_id, user_id=user_id, artifact_id=artifact_id
-            )
-            agent_mount_id = agent_mount.id
-        except MountError:
-            agent_mount_id = None  # a draft agent has no mount yet; bundle only
-
+    home = await _home_drive(
+        project_id=project_id,
+        artifact_id=_uuid_argument(parsed.get("artifact_id")),
+        variant_id=_uuid_argument(parsed.get("variant_id")),
+        workflows_service=workflows_service,
+        mounts_service=mounts,
+    )
     starters = await apps.list_starters(
-        project_id=project_id, agent_mount_id=agent_mount_id
+        project_id=project_id, agent_mount_id=home.id if home else None
     )
     return PlatformHandlerResult(content=[s.to_dict() for s in starters])
+
+
+def _uuid_argument(value: Any) -> Optional[UUID]:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        return UUID(value.strip())
+    except ValueError:
+        return None
+
+
+async def _home_drive(
+    *,
+    project_id: UUID,
+    artifact_id: Optional[UUID],
+    variant_id: Optional[UUID],
+    workflows_service: Any,
+    mounts_service: Any,
+) -> Optional[Mount]:
+    """The home drive the run's agent configuration names (the variant's latest
+    revision), or for a configuration without `drives` the drive created with the agent.
+    Never created here. A drive the run's principal may not use reads as no drive, and
+    a variant that names no revision of this agent reads as no drive."""
+    if artifact_id is None:
+        return None
+    mount: Optional[Mount] = None
+    try:
+        revision = (
+            await workflows_service.fetch_workflow_revision(
+                project_id=project_id,
+                workflow_variant_ref=Reference(id=variant_id),
+            )
+            if workflows_service is not None and variant_id is not None
+            else None
+        )
+        if variant_id is not None and (
+            revision is None or getattr(revision, "workflow_id", None) != artifact_id
+        ):
+            return None
+        agent = _revision_agent(revision, artifact_id=artifact_id)
+        if agent is not None and agent.get("drives") is not None:
+            home_slug = agent.get("home_drive")
+            if isinstance(home_slug, str) and home_slug:
+                mount = await mounts_service.fetch_mount_by_slug(
+                    project_id=project_id, slug=home_slug
+                )
+        else:
+            mount = await mounts_service.fetch_agent_drive(
+                project_id=project_id, artifact_id=str(artifact_id)
+            )
+    except MountError:
+        return None
+    if mount is None:
+        return None
+    sharing = get_sharing_service()
+    access = get_request_access()
+    if not await sharing.may_use_mount(
+        project_id=project_id,
+        mount_id=mount.id,
+        context=(
+            access.envelope.context
+            if access is not None and access.envelope is not None
+            else None
+        ),
+    ) or await sharing.home_drive_refusal(
+        project_id=project_id, artifact_id=artifact_id, mount_id=mount.id
+    ):
+        return None
+    return mount
+
+
+def _revision_agent(revision: Any, *, artifact_id: UUID) -> Optional[Dict[str, Any]]:
+    if revision is None or getattr(revision, "workflow_id", None) != artifact_id:
+        return None
+    data = getattr(revision, "data", None)
+    parameters = getattr(data, "parameters", None) if data is not None else None
+    agent = parameters.get("agent") if isinstance(parameters, dict) else None
+    return agent if isinstance(agent, dict) else None

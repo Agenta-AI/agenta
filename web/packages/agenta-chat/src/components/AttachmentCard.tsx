@@ -1,6 +1,8 @@
 import {useEffect, useState, type ReactNode} from "react"
 
 import {DriveFileGlyph} from "@agenta/entity-ui/drive"
+import {useT} from "@agenta/i18n"
+import chatAttachmentCardCatalog from "@agenta/i18n/catalogs/chat.attachmentCard"
 import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
 import {
     ArrowClockwise,
@@ -54,11 +56,12 @@ const CornerAction = ({
     onRemove,
     onDownload,
 }: Pick<AttachmentCardProps, "action" | "name" | "onRemove" | "onDownload">) => {
+    const t = useT(chatAttachmentCardCatalog)
     if (action === "remove" && onRemove)
         return (
             <button
                 type="button"
-                aria-label={`Remove ${name}`}
+                aria-label={t("chat.attachmentCard.remove", {name})}
                 onClick={onRemove}
                 className={CORNER_BUTTON}
             >
@@ -70,7 +73,7 @@ const CornerAction = ({
         return (
             <button
                 type="button"
-                aria-label={`Download ${name}`}
+                aria-label={t("chat.attachmentCard.download", {name})}
                 onClick={onDownload}
                 className={CORNER_BUTTON}
             >
@@ -81,13 +84,16 @@ const CornerAction = ({
 }
 
 const AudioFace = ({src, name}: {src?: string; name: string}) => {
+    const t = useT(chatAttachmentCardCatalog)
     const {ref, playing, toggle} = useAudioPlayback(src)
     return (
         <div className={FACE}>
             <button
                 type="button"
                 disabled={!src}
-                aria-label={`${playing ? "Pause" : "Play"} ${name}`}
+                aria-label={t(playing ? "chat.attachmentCard.pause" : "chat.attachmentCard.play", {
+                    name,
+                })}
                 onClick={toggle}
                 className="flex size-8 cursor-pointer items-center justify-center rounded-full border-0 bg-background p-0 text-foreground shadow-sm transition-colors hover:bg-accent disabled:cursor-default disabled:opacity-50"
             >
@@ -118,6 +124,7 @@ export const AttachmentCard = ({
     onView,
     className,
 }: AttachmentCardProps) => {
+    const t = useT(chatAttachmentCardCatalog)
     const [thumbFailed, setThumbFailed] = useState(false)
     // A fresh source deserves a fresh attempt at decoding.
     useEffect(() => setThumbFailed(false), [src])
@@ -164,12 +171,12 @@ export const AttachmentCard = ({
                 {onRetry ? (
                     <button
                         type="button"
-                        aria-label={`Retry ${name}`}
+                        aria-label={t("chat.attachmentCard.retryNamed", {name})}
                         onClick={onRetry}
                         className="flex cursor-pointer items-center gap-0.5 rounded border-0 bg-transparent px-1 py-0 text-[10px] leading-3 text-colorError hover:bg-colorErrorBg"
                     >
                         <ArrowClockwise size={10} weight="bold" />
-                        Retry
+                        {t("chat.attachmentCard.retry")}
                     </button>
                 ) : null}
             </div>
@@ -179,7 +186,7 @@ export const AttachmentCard = ({
     ) : onView ? (
         <button
             type="button"
-            aria-label={`View ${name}`}
+            aria-label={t("chat.attachmentCard.view", {name})}
             title={name}
             onClick={onView}
             className={`${FACE} cursor-pointer`}

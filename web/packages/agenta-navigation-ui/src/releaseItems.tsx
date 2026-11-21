@@ -53,8 +53,11 @@ const ReleaseGlyph = ({first, last}: {first?: boolean; last?: boolean}): ReactNo
  * Shared by both rails so one changelog reads the same in the desktop app and in `/m`. `version`
  * rides the last row — the running build belongs beside the list of what shipped.
  */
-export const buildReleaseNavItems = (version?: string): SidebarConfig[] => [
-    {key: "releases-heading", title: "What's new?", isGroupLabel: true},
+export const buildReleaseNavItems = (
+    version: string | undefined,
+    labels: {whatsNew: string; viewAll: string},
+): SidebarConfig[] => [
+    {key: "releases-heading", title: labels.whatsNew, isGroupLabel: true},
     ...RELEASES.slice(0, RECENT_RELEASE_COUNT).map((release, index) => ({
         key: release.id,
         title: release.features[0]?.title ?? release.id,
@@ -64,7 +67,7 @@ export const buildReleaseNavItems = (version?: string): SidebarConfig[] => [
     })),
     {
         key: "all-releases",
-        title: "View all releases",
+        title: labels.viewAll,
         link: ALL_RELEASES_LINK,
         icon: <ReleaseGlyph last />,
         rowClassName: RELEASE_ROW,

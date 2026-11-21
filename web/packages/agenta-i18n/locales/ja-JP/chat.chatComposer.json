@@ -1,0 +1,12 @@
+{
+    "attachComingSoon": "ファイルの添付は近日対応予定です",
+    "attachFiles": "ファイルを添付",
+    "attachUpTo": "最大 {{count}} 個のファイル",
+    "listening": "聞き取り中…",
+    "placeholderFirst": "何に取り組みますか？",
+    "placeholderKeyboard": "エージェントに聞く…（Enterで送信、⌘/Ctrl+Enterで改行）",
+    "placeholderQuoted": "引用した部分をどう変えますか？",
+    "placeholderTouch": "エージェントに聞く…",
+    "placeholderWaiting": "上で回答するか、代わりにメッセージを入力してください",
+    "quotesAttached_other": "{{count}} 件の引用を添付済み"
+}

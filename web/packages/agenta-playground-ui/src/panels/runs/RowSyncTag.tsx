@@ -2,6 +2,8 @@ import {useMemo} from "react"
 
 import {loadableController} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
+import {useT} from "@agenta/i18n"
+import runsCatalog from "@agenta/i18n/catalogs/playground.runs"
 import {playgroundController} from "@agenta/playground"
 import {Tag} from "@agenta/ui/components/presentational"
 import {X} from "@phosphor-icons/react"
@@ -13,6 +15,7 @@ import {useAtomValue, useSetAtom} from "jotai"
  * unchanged row and nothing while the playground is not connected to a test set.
  */
 export const RowSyncTag = ({rowId}: {rowId: string}) => {
+    const t = useT(runsCatalog)
     const loadableId = useAtomValue(
         useMemo(() => playgroundController.selectors.loadableId(), []),
     ) as string | null
@@ -34,11 +37,11 @@ export const RowSyncTag = ({rowId}: {rowId: string}) => {
             sync="modified"
             label={
                 <>
-                    Edited
+                    {t("playground.runs.edited")}
                     <button
                         type="button"
-                        title="Discard changes"
-                        aria-label="Discard changes"
+                        title={t("playground.runs.discardChanges")}
+                        aria-label={t("playground.runs.discardChanges")}
                         className="-mr-0.5 ml-1 inline-flex cursor-pointer border-0 bg-transparent p-0 text-colorIcon"
                         onClick={() => discard(rowId)}
                     >

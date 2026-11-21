@@ -1,0 +1,11 @@
+{
+    "agentReply": "Réponse de l’agent",
+    "attachment": "Pièce jointe",
+    "messageNotSent": "Message non envoyé",
+    "noResponse": "Aucune réponse : l’agent a terminé son tour sans répondre.",
+    "retryMessage": "Renvoyer le message",
+    "savedAttachments": "Pièces jointes enregistrées",
+    "somethingWentWrong": "Une erreur s’est produite.",
+    "stopped": "Arrêté",
+    "textSaved": "Votre texte et vos pièces jointes sont enregistrés."
+}

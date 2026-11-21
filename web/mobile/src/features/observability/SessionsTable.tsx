@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import screenCatalog from "@agenta/i18n/catalogs/observability.screen"
 import {ObservabilitySessionsTable} from "@agenta/observability-ui"
 import {RoleColorClassesProvider, THEME_ROLE_COLOR_CLASSES} from "@agenta/ui/cell-renderers"
 
@@ -10,30 +12,33 @@ import {ObservabilityEmpty, ObservabilityListSkeleton} from "./states/Observabil
  * Phones keep the stacked card list; anything wider gets the real table. A row opens its session
  * on click, and on Enter or Space once the keyboard has reached it.
  */
-export const SessionsTable = ({onOpenSession}: {onOpenSession: (sessionId: string) => void}) => (
-    // The role labels in the message cells take the theme colors; /m has no antd color scale.
-    <RoleColorClassesProvider value={THEME_ROLE_COLOR_CLASSES}>
-        <ObservabilitySessionsTable
-            className="min-h-0 flex-1"
-            onRowClick={(record) => onOpenSession(record.session_id)}
-            tableProps={{
-                // The rows open a drawer, so the keyboard reaches them and shows where it is.
-                onRow: (record) => ({
-                    tabIndex: 0,
-                    className:
-                        "cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring",
-                    onKeyDown: openOnKey(() => onOpenSession(record.session_id)),
-                }),
-            }}
-            loadingState={<ObservabilityListSkeleton />}
-            emptyState={
-                <ObservabilityEmpty
-                    title="No sessions yet"
-                    hint="Sessions appear here once your app groups traces by session id."
-                />
-            }
-        />
-    </RoleColorClassesProvider>
-)
+export const SessionsTable = ({onOpenSession}: {onOpenSession: (sessionId: string) => void}) => {
+    const t = useT(screenCatalog)
+    return (
+        // The role labels in the message cells take the theme colors; /m has no antd color scale.
+        <RoleColorClassesProvider value={THEME_ROLE_COLOR_CLASSES}>
+            <ObservabilitySessionsTable
+                className="min-h-0 flex-1"
+                onRowClick={(record) => onOpenSession(record.session_id)}
+                tableProps={{
+                    // The rows open a drawer, so the keyboard reaches them and shows where it is.
+                    onRow: (record) => ({
+                        tabIndex: 0,
+                        className:
+                            "cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring",
+                        onKeyDown: openOnKey(() => onOpenSession(record.session_id)),
+                    }),
+                }}
+                loadingState={<ObservabilityListSkeleton />}
+                emptyState={
+                    <ObservabilityEmpty
+                        title={t("observability.screen.noSessionsTitle")}
+                        hint={t("observability.screen.noSessionsHint")}
+                    />
+                }
+            />
+        </RoleColorClassesProvider>
+    )
+}
 
 export default SessionsTable

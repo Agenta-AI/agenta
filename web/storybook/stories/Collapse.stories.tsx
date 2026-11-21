@@ -1,16 +1,11 @@
 import {Accordion, AccordionItem, AccordionTrigger, AccordionContent} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {Collapse as AntCollapse} from "antd"
 
-// Phase-0 parity story: the REAL antd Collapse (default LINE/bordered) behind the app theme,
-// side by side with the @agenta/ui Radix re-skin. antd `items={[{key,label,children}]}` +
-// `defaultActiveKey`/`bordered`/`ghost` maps to <Accordion type collapsible defaultValue> +
-// <AccordionItem value><AccordionTrigger/><AccordionContent/>.
 const meta = {
     title: "@agenta/ui/Primitives/Display/Collapse",
-    component: AntCollapse,
+    component: Accordion,
+    args: {type: "single", collapsible: true},
     subcomponents: {
-        "Accordion (@agenta/ui)": Accordion,
         AccordionItem,
         AccordionTrigger,
         AccordionContent,
@@ -19,11 +14,11 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "antd `Collapse` (interactive reference) shown beside the `@agenta/ui` Accordion (Radix) that replaces it. See the subcomponent tables below for the agenta props.\n\n**Used in:** nowhere — the `@agenta/ui` Accordion has zero call-sites. Collapsible sections in the app use `ConfigAccordionSection` and `HeightCollapse` instead.",
+                    "The `@agenta/ui` Accordion (Radix) for collapsible panels, in `bordered` or `ghost` variants. Compose `Accordion` > `AccordionItem` > `AccordionTrigger` + `AccordionContent`. Prop tables for each part are below.\n\n**Used in:** nowhere — the `@agenta/ui` Accordion has zero call-sites. Collapsible sections in the app use `ConfigAccordionSection` and `HeightCollapse` instead.",
             },
         },
     },
-} satisfies Meta<typeof AntCollapse>
+} satisfies Meta<typeof Accordion>
 
 export default meta
 type Story = StoryObj<typeof meta>
@@ -36,13 +31,6 @@ interface Panel {
     label: string
     body: string
 }
-
-const antItems = (panels: Panel[]) =>
-    panels.map((p) => ({
-        key: p.key,
-        label: p.label,
-        children: <div className="text-field-md">{p.body}</div>,
-    }))
 
 const Agenta = ({
     variant,
@@ -79,87 +67,46 @@ const workspacePanels: Panel[] = [
     {key: "3", label: "Integrations", body: "Integrations content"},
 ]
 
-// `.grid` Row: [label | antd cell | agenta cell]. The VRT pairs the collapse group in each
-// cell so the group border/radius, header bg, dividers, and open content are compared.
-const Row = ({label, a, s}: {label: string; a: React.ReactNode; s: React.ReactNode}) => (
-    <div className="grid grid-cols-[12rem_1fr_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3">
+const Row = ({label, children}: {label: string; children: React.ReactNode}) => (
+    <div className="grid grid-cols-[12rem_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3">
         <div className="text-xs text-colorTextSecondary">{label}</div>
-        <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-colorTextSecondary">antd</span>
-            {/* data-vrt-subject: a collapse group has many headers — crop the whole group */}
-            <div data-vrt-subject>{a}</div>
-        </div>
-        <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-colorTextSecondary">agenta</span>
-            <div data-vrt-subject>{s}</div>
-        </div>
+        <div>{children}</div>
     </div>
 )
 
-export const AntdVsAgenta: Story = {
+export const Variants: Story = {
     render: () => (
-        <div className="flex max-w-[960px] flex-col">
-            <Row
-                label="bordered · panel 1 open"
-                a={<AntCollapse defaultActiveKey={["1"]} items={antItems(generalPanels)} />}
-                s={<Agenta defaultValue="1" panels={generalPanels} />}
-            />
-            <Row
-                label="bordered · all closed"
-                a={<AntCollapse items={antItems(accountPanels)} />}
-                s={<Agenta panels={accountPanels} />}
-            />
-            <Row
-                label="ghost · panel 1 open"
-                a={<AntCollapse ghost defaultActiveKey={["1"]} items={antItems(workspacePanels)} />}
-                s={<Agenta variant="ghost" defaultValue="1" panels={workspacePanels} />}
-            />
+        <div className="flex max-w-[640px] flex-col">
+            <Row label="bordered · panel 1 open">
+                <Agenta defaultValue="1" panels={generalPanels} />
+            </Row>
+            <Row label="bordered · all closed">
+                <Agenta panels={accountPanels} />
+            </Row>
+            <Row label="ghost · panel 1 open">
+                <Agenta variant="ghost" defaultValue="1" panels={workspacePanels} />
+            </Row>
         </div>
     ),
 }
 
 // Interaction states rendered STATICALLY via storybook-addon-pseudo-states: each cell is
-// wrapped in `pseudo-<state>-all`, forcing the pseudo-class on the header trigger inside —
-// hover/focus-visible measurable with getComputedStyle, forced identically on antd + agenta.
-const StateRow = ({
-    label,
-    pseudo,
-    antd,
-    shad,
-}: {
-    label: string
-    pseudo: string
-    antd: React.ReactNode
-    shad: React.ReactNode
-}) => (
-    <div className="grid grid-cols-[14rem_1fr_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3">
-        <div className="text-xs text-colorTextSecondary">{label}</div>
-        <div className={pseudo} data-side="antd">
-            <span className="text-[10px] text-colorTextSecondary">antd</span>
-            <div data-vrt-subject>{antd}</div>
-        </div>
-        <div className={pseudo} data-side="agenta">
-            <span className="text-[10px] text-colorTextSecondary">agenta</span>
-            <div data-vrt-subject>{shad}</div>
-        </div>
-    </div>
-)
-
+// wrapped in `pseudo-<state>-all`, forcing the pseudo-class on the header trigger inside.
 export const InteractionStates: Story = {
     render: () => (
-        <div className="flex max-w-[960px] flex-col">
-            <StateRow
-                label="header · hover"
-                pseudo="pseudo-hover-all"
-                antd={<AntCollapse items={antItems(accountPanels)} />}
-                shad={<Agenta panels={accountPanels} />}
-            />
-            <StateRow
-                label="header · focus-visible"
-                pseudo="pseudo-focus-visible-all"
-                antd={<AntCollapse items={antItems(workspacePanels)} />}
-                shad={<Agenta panels={workspacePanels} />}
-            />
+        <div className="flex max-w-[640px] flex-col">
+            <div className="grid grid-cols-[14rem_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3">
+                <div className="text-xs text-colorTextSecondary">header · hover</div>
+                <div className="pseudo-hover-all">
+                    <Agenta panels={accountPanels} />
+                </div>
+            </div>
+            <div className="grid grid-cols-[14rem_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3">
+                <div className="text-xs text-colorTextSecondary">header · focus-visible</div>
+                <div className="pseudo-focus-visible-all">
+                    <Agenta panels={workspacePanels} />
+                </div>
+            </div>
         </div>
     ),
 }

@@ -1,0 +1,13 @@
+{
+    "title": "Vorlagen",
+    "subtitle": "Starten Sie mit einem bewährten Agent: Prüfen Sie, was er tut, verbinden Sie, was er braucht, und öffnen Sie den Playground.",
+    "searchPlaceholder": "Vorlagen suchen …",
+    "all": "Alle",
+    "loadError": "Vorlagen konnten nicht geladen werden",
+    "sectionCount_one": "{{count}} Vorlage",
+    "sectionCount_other": "{{count}} Vorlagen",
+    "noMatch": "Keine Vorlagen passen zu „{{query}}“.",
+    "noneInCategory": "Keine Vorlagen in {{category}}.",
+    "clearSearch": "Suche zurücksetzen",
+    "showAll": "Alle Vorlagen anzeigen"
+}

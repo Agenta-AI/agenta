@@ -1,0 +1,13 @@
+{
+    "attachComingSoon": "Attach files coming soon",
+    "attachFiles": "Attach files",
+    "attachUpTo": "Up to {{count}} files",
+    "listening": "Listening…",
+    "placeholderFirst": "What should we work on?",
+    "placeholderKeyboard": "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)",
+    "placeholderQuoted": "What should change about the quoted part?",
+    "placeholderTouch": "Ask the agent…",
+    "placeholderWaiting": "Answer above, or type a message instead",
+    "quotesAttached_one": "{{count}} quote attached",
+    "quotesAttached_other": "{{count}} quotes attached"
+}

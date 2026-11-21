@@ -1,0 +1,20 @@
+{
+    "alwaysAutoApprove": "Immer automatisch genehmigen",
+    "answerSavedRetry": "Antwort gespeichert, erneuter Versuch nötig",
+    "answerSavedRetryHint": "Die Antwort ist gespeichert. Senden Sie Ihre nächste Nachricht, um die Fortsetzung erneut zu versuchen.",
+    "answerSavedWaiting": "Die Antwort ist gespeichert. Warte auf die nächste Aktualisierung des Agent …",
+    "answeredWaiting": "Beantwortet, warte auf den Agent",
+    "approve": "Genehmigen",
+    "approveAll": "Alle genehmigen",
+    "cancel": "Abbrechen",
+    "deny": "Ablehnen",
+    "denyAll": "Alle ablehnen",
+    "denyAndSend": "Ablehnen und senden",
+    "hideDetails": "Details ausblenden",
+    "needsApproval": "Benötigt Ihre Genehmigung",
+    "redirect": "Umleiten",
+    "seeWhatChanges": "Ansehen, was sich ändert ({{count}})",
+    "seeWhatRuns": "Ansehen, was ausgeführt wird ({{count}})",
+    "steerHint": "Lehnen Sie diesen Schritt ab und sagen Sie dem Agent, was er stattdessen tun soll. Ihre Notiz wird als nächste Nachricht ausgeführt.",
+    "steerPlaceholder": "z. B. in Staging schreiben, nicht in Produktion, oder etwas ganz anderes verlangen"
+}

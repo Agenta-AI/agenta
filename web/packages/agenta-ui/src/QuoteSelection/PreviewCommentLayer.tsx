@@ -9,6 +9,9 @@ import {
     type RefObject,
 } from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiQuoteSelectionCatalog from "@agenta/i18n/catalogs/ui.quoteSelection"
 import type {PinQuery} from "@agenta/shared/previewPicker"
 import {
     isPreviewQuote,
@@ -161,26 +164,29 @@ const PinCard = ({
     quote: Quote
     onEdit: () => void
     onDelete: () => void
-}) => (
-    <div className="flex flex-col gap-2" data-quote-ignore="true">
-        {quote.note ? (
-            <p className="m-0 whitespace-pre-wrap text-[13px] leading-5 text-popover-foreground">
-                {quote.note}
+}) => {
+    const t = useT(uiQuoteSelectionCatalog, commonCatalog)
+    return (
+        <div className="flex flex-col gap-2" data-quote-ignore="true">
+            {quote.note ? (
+                <p className="m-0 whitespace-pre-wrap text-[13px] leading-5 text-popover-foreground">
+                    {quote.note}
+                </p>
+            ) : null}
+            <p className="m-0 line-clamp-3 border-0 border-l-2 border-solid border-border pl-2 text-xs leading-4 text-muted-foreground">
+                {truncateQuoteText(readableQuoteText(quote))}
             </p>
-        ) : null}
-        <p className="m-0 line-clamp-3 border-0 border-l-2 border-solid border-border pl-2 text-xs leading-4 text-muted-foreground">
-            {truncateQuoteText(readableQuoteText(quote))}
-        </p>
-        <div className="flex justify-end gap-1">
-            <Button size="xs" variant="ghost" onClick={onEdit}>
-                Edit
-            </Button>
-            <Button size="xs" variant="destructive" onClick={onDelete}>
-                Delete
-            </Button>
+            <div className="flex justify-end gap-1">
+                <Button size="xs" variant="ghost" onClick={onEdit}>
+                    {t("common.edit")}
+                </Button>
+                <Button size="xs" variant="destructive" onClick={onDelete}>
+                    {t("common.delete")}
+                </Button>
+            </div>
         </div>
-    </div>
-)
+    )
+}
 
 export const PreviewCommentLayer = ({
     rootRef,
@@ -196,6 +202,7 @@ export const PreviewCommentLayer = ({
     pinRects,
     touch,
 }: PreviewCommentLayerProps) => {
+    const t = useT(uiQuoteSelectionCatalog, commonCatalog)
     const [editor, setEditor] = useState<Editor | null>(null)
     const [openPin, setOpenPin] = useState<string | null>(null)
     const comments = usePreviewComments(sessionId, target)
@@ -394,7 +401,7 @@ export const PreviewCommentLayer = ({
                     <button
                         type="button"
                         data-quote-ignore="true"
-                        aria-label={`Comment ${number}`}
+                        aria-label={t("ui.quoteSelection.commentN", {n: number})}
                         onClick={isTouch ? () => setOpenPin(quote.id) : undefined}
                         // The square bottom-left corner is the tail; it sits on the commented point.
                         className={`absolute z-20 flex origin-bottom-left -translate-y-full cursor-pointer items-center justify-center rounded-full rounded-bl-none border-0 bg-primary px-1.5 font-semibold leading-none tabular-nums text-btn-primary-fg shadow-md ring-2 ring-background transition-transform hover:scale-110 ${

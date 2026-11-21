@@ -1,14 +1,12 @@
+import {useT} from "@agenta/i18n"
+import flowCatalog from "@agenta/i18n/catalogs/onboarding.flow"
 import {motion} from "motion/react"
 
 import {useMotionPresets} from "@/lib/motion/presets"
 import {cn} from "@/lib/utils"
 
-import {ONBOARDING_COPY} from "./onboardingCopy"
-import {onboardingQuestion} from "./onboardingQuestions"
 import type {OnboardingStep} from "./onboardingRoute"
-
-const dotLabel = (step: OnboardingStep) =>
-    onboardingQuestion(step)?.dot ?? ONBOARDING_COPY.dots[step as keyof typeof ONBOARDING_COPY.dots]
+import {useQuestionText} from "./useQuestionText"
 
 /** One dot per shown step; a reached dot jumps back to its step. */
 export const OnboardingProgressDots = ({
@@ -25,9 +23,17 @@ export const OnboardingProgressDots = ({
     onGo: (step: OnboardingStep) => void
 }) => {
     const {stepTransition} = useMotionPresets()
+    const t = useT(flowCatalog)
+    const questionText = useQuestionText()
+    const dotLabel = (step: OnboardingStep) =>
+        questionText.dot(step) ??
+        (step === "credits" ? t("onboarding.flow.dotCredits") : t("onboarding.flow.dotTemplates"))
     return (
         <nav
-            aria-label={ONBOARDING_COPY.stepCounter(current + 1, steps.length)}
+            aria-label={t("onboarding.flow.stepCounter", {
+                current: current + 1,
+                total: steps.length,
+            })}
             // In the page's flow at every size, on the page background, so it never covers content.
             className="bg-background flex shrink-0 items-center justify-center gap-0.5 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:pb-8 md:pt-6"
         >

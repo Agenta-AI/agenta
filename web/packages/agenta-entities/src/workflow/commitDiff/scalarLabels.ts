@@ -11,94 +11,22 @@
  * read imperfectly, never disappear.
  *
  * Wording follows the config panel's own controls wherever it has one, so the same setting is not
- * called two things in two places.
+ * called two things in two places. The words come from `CommitDiffText` (see `./text`).
  */
-import {permissionPolicyLabel} from "@agenta/shared/utils"
-
-const PATH_LABELS: Record<string, string> = {
-    // Generation parameters (PARAM_KEYS).
-    temperature: "Temperature",
-    max_tokens: "Max tokens",
-    top_p: "Top P",
-    frequency_penalty: "Frequency penalty",
-    presence_penalty: "Presence penalty",
-    tool_choice: "Tool choice",
-    response_format: "Response format",
-    stream: "Streaming",
-    template_format: "Template format",
-    fallback_policy: "Fallback policy",
-    retry_policy: "Retry policy",
-
-    // Model & harness. These reach the same renderer, so they had the same problem.
-    "llm.model": "Model",
-    "llm.provider": "Provider",
-    "llm.connection.mode": "Connection mode",
-    "harness.kind": "Harness",
-    "harness.max_iterations": "Max iterations",
-    "harness.permissions.web_search": "Web search",
-
-    // Execution sections. The panel labels the runner policy "Policy" inside its Permissions
-    // group; standalone in a diff row that says too little, so it names the subject too.
-    "runner.permissions.default": "Tool permissions",
-    "harness.permissions.default_mode": "Permission mode",
-    // The Claude permissions control's own field labels.
-    "harness.permissions.allow": "Allow rules",
-    "harness.permissions.ask": "Ask rules",
-    "harness.permissions.deny": "Deny rules",
-    "sandbox.kind": "Sandbox",
-    "sandbox.permissions": "Sandbox permissions",
-    // The sandbox control's own field labels.
-    "sandbox.permissions.network.mode": "Network egress",
-    "sandbox.permissions.filesystem": "Filesystem",
-    "sandbox.permissions.enforcement": "Enforcement",
-}
-
-/** Enum vocabularies lifted from the controls that author them. */
-const ENUM_LABELS: Record<string, Record<string, string>> = {
-    "harness.permissions.default_mode": {
-        default: "Default",
-        acceptEdits: "Accept edits",
-        plan: "Plan",
-        bypassPermissions: "Bypass",
-    },
-    "sandbox.permissions.network.mode": {
-        on: "Allow all egress",
-        off: "Block all egress",
-        allowlist: "Allowlist",
-    },
-    "sandbox.permissions.filesystem": {on: "Read / write", readonly: "Read-only", off: "No access"},
-}
-
-/** An integration's permission vocabulary, as the tool form spells it. */
-const GATEWAY_PERMISSION_LABELS: Record<string, string> = {
-    allow: "Allow",
-    ask: "Ask",
-    deny: "Deny",
-    inherit: "Inherit",
-}
-
-/** What to call a gateway permission. Unset means the entry inherits the integration default. */
-export const gatewayPermissionLabel = (value: string | undefined): string =>
-    (value && GATEWAY_PERMISSION_LABELS[value]) ?? "Inherit"
+import type {CommitDiffText} from "./text"
 
 /** Segments a humanized path should not lowercase. */
 const ACRONYMS: Record<string, string> = {llm: "LLM", api: "API", url: "URL", id: "ID"}
 
 const humanizeSegment = (segment: string): string =>
-    ACRONYMS[segment.toLowerCase()] ?? segment.replace(/[_-]+/g, " ").trim().toLowerCase()
-
-/** Per-path value vocabulary — the stored enum is not what the control calls it. */
-const VALUE_LABELS: Record<string, (value: string) => string | undefined> = {
-    "runner.permissions.default": permissionPolicyLabel,
-    ...Object.fromEntries(
-        Object.entries(ENUM_LABELS).map(([path, map]) => [path, (v: string) => map[v]]),
-    ),
-}
+    Object.hasOwn(ACRONYMS, segment.toLowerCase())
+        ? ACRONYMS[segment.toLowerCase()]
+        : segment.replace(/[_-]+/g, " ").trim().toLowerCase()
 
 /** `{max_attempts: 3, backoff: "exponential"}` reads as prose; its JSON does not. */
-const objectLabel = (raw: Record<string, unknown>): string | undefined => {
+const objectLabel = (raw: Record<string, unknown>, text: CommitDiffText): string | undefined => {
     const entries = Object.entries(raw)
-    if (!entries.length) return "None"
+    if (!entries.length) return text.word("none")
     return entries
         .map(([key, value]) => {
             const shown =
@@ -126,12 +54,12 @@ const ITEM_LABELS: Record<string, (item: unknown) => string | undefined> = {
 }
 
 /** One list entry: an object never prints as `[object Object]`. */
-const itemLabel = (path: string, item: unknown): string => {
-    const named = ITEM_LABELS[path]?.(item)
+const itemLabel = (path: string, item: unknown, text: CommitDiffText): string => {
+    const named = Object.hasOwn(ITEM_LABELS, path) ? ITEM_LABELS[path](item) : undefined
     if (named) return named
     if (Array.isArray(item)) return JSON.stringify(item)
     if (item !== null && typeof item === "object") {
-        return objectLabel(item as Record<string, unknown>) ?? ""
+        return objectLabel(item as Record<string, unknown>, text) ?? ""
     }
     return String(item)
 }
@@ -152,7 +80,8 @@ const humanizePath = (path: string): string => {
 }
 
 /** What to call this config key in a diff row. */
-export const scalarKeyLabel = (path: string): string => PATH_LABELS[path] ?? humanizePath(path)
+export const scalarKeyLabel = (path: string, text: CommitDiffText): string =>
+    text.pathLabel(path) ?? humanizePath(path)
 
 /**
  * What to call this value. Known enums resolve to the control's own wording; booleans read as
@@ -162,17 +91,22 @@ export const scalarKeyLabel = (path: string): string => PATH_LABELS[path] ?? hum
 export const scalarValueLabel = (
     path: string,
     value: string | undefined,
-    raw?: unknown,
+    raw: unknown,
+    text: CommitDiffText,
 ): string | undefined => {
     if (value === undefined) return undefined
-    const mapped = VALUE_LABELS[path]?.(value)
+    const mapped = text.valueLabel(path, value)
     if (mapped) return mapped
     // Only a real boolean reads as On/Off; the string "false" is a value, not a flag.
-    if (typeof raw === "boolean") return raw ? "On" : "Off"
+    if (typeof raw === "boolean") return text.word(raw ? "on" : "off")
     // A rule list is prose, not JSON: `["Bash"]` is punctuation a reader has to decode.
     if (Array.isArray(raw)) {
-        return raw.length ? raw.map((item) => itemLabel(path, item)).join(", ") : "None"
+        return raw.length
+            ? raw.map((item) => itemLabel(path, item, text)).join(", ")
+            : text.word("none")
     }
-    if (raw !== null && typeof raw === "object") return objectLabel(raw as Record<string, unknown>)
+    if (raw !== null && typeof raw === "object") {
+        return objectLabel(raw as Record<string, unknown>, text)
+    }
     return value
 }

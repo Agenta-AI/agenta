@@ -1,5 +1,7 @@
 import {memo, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
 import type {MessageContent} from "@agenta/shared/types"
 import {getAttachments} from "@agenta/shared/utils"
 
@@ -105,11 +107,22 @@ interface SingleMessageProps {
 // Actual truncation is controlled by maxLines, this just sets max chars
 const CHARS_PER_LINE = 80
 
+/** Display names of the standard chat roles; any other role shows as stored. */
+// English keeps the stored lowercase role; the `capitalize` class capitalizes it on screen.
+const ROLE_LABELS = {
+    user: "ui.chat.roleUser",
+    assistant: "ui.chat.roleAssistant",
+    system: "ui.chat.roleSystem",
+    tool: "ui.chat.roleTool",
+    developer: "ui.chat.roleDeveloper",
+} as const
+
 /**
  * Renders a single chat message
  */
 const SingleMessage = memo(
     ({message, keyPrefix, index, truncate, maxLines, showDivider}: SingleMessageProps) => {
+        const t = useT(uiChatCatalog)
         const contentString = useMemo(() => getContentString(message.content), [message.content])
         const imageUrls = useMemo(() => getImageUrls(message.content), [message.content])
         // Calculate max chars based on maxLines to prevent overflow
@@ -124,7 +137,9 @@ const SingleMessage = memo(
         return (
             <section key={`${keyPrefix}-${index}`} className="w-full flex flex-col gap-1 text-xs">
                 <span className={`capitalize text-xs font-medium ${roleColorClass}`}>
-                    {message.role}
+                    {Object.hasOwn(ROLE_LABELS, message.role)
+                        ? t(ROLE_LABELS[message.role as keyof typeof ROLE_LABELS])
+                        : message.role}
                 </span>
                 {displayContent && (
                     <span className="whitespace-pre-wrap break-words block">{displayContent}</span>
@@ -135,7 +150,7 @@ const SingleMessage = memo(
                             <ImagePreview
                                 key={`${keyPrefix}-${index}-image-${imageIndex}`}
                                 src={imageUrl}
-                                alt={`Message attachment ${imageIndex + 1}`}
+                                alt={t("ui.chat.messageAttachmentN", {n: imageIndex + 1})}
                                 size={truncate ? 36 : 56}
                             />
                         ))}
@@ -143,7 +158,7 @@ const SingleMessage = memo(
                 )}
                 {message.tool_calls && message.tool_calls.length > 0 && (
                     <div className="flex flex-col gap-1">
-                        <span className="text-xs font-medium">Tool Calls:</span>
+                        <span className="text-xs font-medium">{t("ui.chat.toolCalls")}</span>
                         <span className="whitespace-pre-wrap break-words text-xs bg-zinc-1 rounded px-2 py-1 block">
                             {formatToolCalls(message.tool_calls)}
                         </span>
@@ -179,6 +194,7 @@ const ChatMessagesCellContent = memo(
         chatPreference,
         previewStrategy,
     }: ChatMessagesCellContentProps) => {
+        const t = useT(uiChatCatalog)
         // Memoize message extraction and smart selection together
         const {displayMessages, totalCount} = useMemo(() => {
             // Parse JSON string if needed, otherwise use value directly
@@ -220,8 +236,9 @@ const ChatMessagesCellContent = memo(
                 ))}
                 {hasMore && (
                     <span className="text-xs italic">
-                        +{totalCount - displayMessages.length} more message
-                        {totalCount - displayMessages.length > 1 ? "s" : ""}
+                        {t("ui.chat.moreMessages", {
+                            count: totalCount - displayMessages.length,
+                        })}
                     </span>
                 )}
             </div>

@@ -12,10 +12,14 @@ import {
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {invalidateAgentRequirements} from "@agenta/entities/workflow"
+import {createT} from "@agenta/i18n"
+import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {useSetAtom} from "jotai"
 
 import {organizationRefusal} from "./useOrganizationProjectsDraft"
+
+const tNow = createT(subscriptionSignInCatalog)
 
 /** Every `claude setup-token` value starts with this. */
 const SETUP_TOKEN_PREFIX = "sk-ant-oat"
@@ -83,7 +87,7 @@ export const useSubscriptionToken = ({
                 (organization && organizationRefusal(caught, organizationName)) ||
                     subscriptionTokenErrorText(caught) ||
                     extractApiErrorMessage(caught) ||
-                    "Agenta could not store this token. Try again.",
+                    tNow("entityUi.subscriptionSignIn.couldNotStoreToken"),
             )
         } finally {
             setChecking(false)

@@ -1,0 +1,13 @@
+{
+    "title": "Templates",
+    "subtitle": "Start from a proven agent — review what it does, connect what it needs, and open the playground.",
+    "searchPlaceholder": "Search templates…",
+    "all": "All",
+    "loadError": "Could not load templates",
+    "sectionCount_one": "{{count}} template",
+    "sectionCount_other": "{{count}} templates",
+    "noMatch": "No templates match \"{{query}}\".",
+    "noneInCategory": "No templates in {{category}}.",
+    "clearSearch": "Clear search",
+    "showAll": "Show all templates"
+}

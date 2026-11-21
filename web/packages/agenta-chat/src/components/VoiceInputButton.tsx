@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useRef, useState, type RefObject} from "react"
 
+import {useT} from "@agenta/i18n"
+import chatVoiceInputButtonCatalog from "@agenta/i18n/catalogs/chat.voiceInputButton"
 import {pushToTalkLabel} from "@agenta/shared/utils"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {
@@ -39,17 +41,6 @@ const VOICE_MESSAGE_MODE_ENABLED = false
 /** `null` = the person has not picked a mode, so capability decides which one leads. An explicit
  * choice always wins and is never overridden. */
 const voiceModeAtom = atomWithStorage<VoiceMode | null>("agenta:agent-chat:voice-mode.v2", null)
-
-const MODE_LABEL: Record<VoiceMode, string> = {
-    audio: "Voice message",
-    transcribe: "Voice to text",
-}
-
-/** Verbs, so the tooltip says what pressing it will do — not just which mode is selected. */
-const MODE_HINT: Record<VoiceMode, string> = {
-    audio: "Record a voice message",
-    transcribe: "Dictate into the message",
-}
 
 /** Each mode carries its own icon, so the button shows which is active and switching visibly
  * changes the control. Both stay voice-y — the difference is what comes OUT: a waveform for an
@@ -94,6 +85,16 @@ const VoiceInputButton = ({
     audioPerceivable: boolean | null
     disabled?: boolean
 }) => {
+    const t = useT(chatVoiceInputButtonCatalog)
+    const modeLabel = (mode: VoiceMode) =>
+        mode === "audio"
+            ? t("chat.voiceInputButton.modeAudio")
+            : t("chat.voiceInputButton.modeTranscribe")
+    /** Verbs, so the tooltip says what pressing it will do — not just which mode is selected. */
+    const modeHint = (mode: VoiceMode) =>
+        mode === "audio"
+            ? t("chat.voiceInputButton.hintAudio")
+            : t("chat.voiceInputButton.hintTranscribe")
     const [chosenMode, setMode] = useAtom(voiceModeAtom)
     // Dictation produces text, so it works against any model; a voice message needs one that can
     // hear. With no explicit choice, lead with whichever the model can actually use.
@@ -193,13 +194,13 @@ const VoiceInputButton = ({
         label:
             m.key === "audio" && audioNotHeard ? (
                 <span className="flex flex-col">
-                    <span>{MODE_LABEL[m.key]}</span>
+                    <span>{modeLabel(m.key)}</span>
                     <span className="text-xs text-colorTextTertiary">
-                        This model can’t listen to audio
+                        {t("chat.voiceInputButton.cannotListen")}
                     </span>
                 </span>
             ) : (
-                MODE_LABEL[m.key]
+                modeLabel(m.key)
             ),
     }))
 
@@ -207,15 +208,15 @@ const VoiceInputButton = ({
     const audioBlocked = effective === "audio" && attachmentsFull
 
     const title = audioPending
-        ? "Waiting for your browser's microphone prompt…"
+        ? t("chat.voiceInputButton.waitingPrompt")
         : audioBlocked
-          ? "Attachment limit reached — remove a file to record a voice message"
+          ? t("chat.voiceInputButton.limitReached")
           : dictating
-            ? "Stop dictation"
+            ? t("chat.voiceInputButton.stopDictation")
             : effective === "transcribe"
               ? hasKeyboard
-                  ? `Hold ${holdLabel} to dictate`
-                  : "Dictate into the message"
+                  ? t("chat.voiceInputButton.holdToDictate", {key: holdLabel})
+                  : t("chat.voiceInputButton.hintTranscribe")
               : null
 
     const highlighted = dictating || audioPending
@@ -230,7 +231,11 @@ const VoiceInputButton = ({
                     onClick={toggle}
                     // A second press while the prompt is open would only queue another request.
                     disabled={disabled || (!dictating && (audioPending || audioBlocked))}
-                    aria-label={dictating ? "Stop voice input" : (title ?? MODE_HINT[effective])}
+                    aria-label={
+                        dictating
+                            ? t("chat.voiceInputButton.stopVoiceInput")
+                            : (title ?? modeHint(effective))
+                    }
                 >
                     {dictating ? (
                         <Stop size={14} weight="fill" />
@@ -245,7 +250,7 @@ const VoiceInputButton = ({
                         <Button
                             variant="ghost"
                             size="icon-sm"
-                            aria-label="Voice input mode"
+                            aria-label={t("chat.voiceInputButton.voiceInputMode")}
                             className="px-1"
                         >
                             <CaretDown size={12} />

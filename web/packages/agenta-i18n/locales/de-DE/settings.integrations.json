@@ -1,0 +1,7 @@
+{
+    "emptyBody": "Verbinden Sie eine Integration, damit Ihre Agents sie aufrufen können.",
+    "emptyTitle": "Noch keine Integrationen verbunden",
+    "noMatch": "Keine Integration passt zu „{{term}}“",
+    "run": "Aktion ausführen",
+    "searchPlaceholder": "Integrationen suchen"
+}

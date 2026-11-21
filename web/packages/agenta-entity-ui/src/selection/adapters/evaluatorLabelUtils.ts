@@ -14,6 +14,8 @@ import React from "react"
 import {getWorkflowTypeColor} from "@agenta/entities/workflow"
 import {EntityListItemLabel} from "@agenta/ui/components/presentational"
 
+import {tSelection} from "../text"
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -60,10 +62,10 @@ export function renderEvaluatorTypeTag(
     let colorSource: string | null = null
 
     if (isHumanEvaluator) {
-        tagLabel = "Human"
+        tagLabel = tSelection("entityUi.selection.tagHuman")
         colorSource = "human"
     } else if (w.flags?.is_custom) {
-        tagLabel = "Custom Code"
+        tagLabel = tSelection("entityUi.selection.tagCustomCode")
         colorSource = "custom"
     } else {
         if (evaluatorKey) {
@@ -101,7 +103,9 @@ export function renderEvaluatorTypeTag(
  */
 export function renderEvaluatorPickerNameNode(entity: unknown): React.ReactNode {
     const w = entity as EvaluatorWorkflowLike
-    return React.createElement(EntityListItemLabel, {label: w.name ?? "Unnamed"})
+    return React.createElement(EntityListItemLabel, {
+        label: w.name ?? tSelection("entityUi.selection.unnamed"),
+    })
 }
 
 /**
@@ -120,7 +124,7 @@ export function renderEvaluatorPickerLabelNode(
     evaluatorDefsByKey: Map<string, string>,
 ): React.ReactNode {
     const w = entity as EvaluatorWorkflowLike
-    const name = w.name ?? "Unnamed"
+    const name = w.name ?? tSelection("entityUi.selection.unnamed")
     const tag = renderEvaluatorTypeTag(entity, evaluatorKeyMap, evaluatorDefsByKey)
 
     if (!tag) {

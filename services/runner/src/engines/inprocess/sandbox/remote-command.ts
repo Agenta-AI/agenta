@@ -175,7 +175,7 @@ export function launchScript(
   const flush = driveRoots.map((r) => `timeout 60 sync -f ${shellQuote(r.root)} 2>/dev/null || unflushed=1`).join("; ");
   const supervisor = [
     `d=${d}`,
-    // The group is `timeout`'s (it makes its own), not this shell's own pid.
+    // The group is `timeout`'s (the session leader), not this shell's own pid.
     `read -r _ _ _ _ pg _ < /proc/$$/stat && echo $pg > "$d/pgid.tmp" && mv -f "$d/pgid.tmp" "$d/pgid" || exit 1`,
     `mkdir "$d/claim" 2>/dev/null || { rm -f "$d/pgid"; exit 0; }`,
     `cd ${shellQuote(cwd)} 2>/dev/null || cd /`,
@@ -188,17 +188,15 @@ export function launchScript(
   ].join("\n");
   const mounted = driveRoots.map((r) => `{ ${r.check}; } || { echo unmounted ${shellQuote(r.root)}; exit 0; }`);
   // setsid gives the supervisor and the command their own session and process group, so the call
-  // returns at once and a kill reaches every process the command started. `timeout` puts itself and
-  // the command in their own process group (the one in `pgid`). At the lifetime GNU `timeout` kills
-  // that whole group (and itself, exit 137), but uutils `timeout` (Ubuntu 26.04) kills only the
-  // supervisor and exits 124. So the shell around it kills the recorded group either way.
+  // returns at once and a kill reaches every process the command started. `timeout` leads that
+  // group and kills the supervisor at the lifetime. GNU `timeout` also kills the rest of the group,
+  // but uutils `timeout` (Ubuntu 26.04 and later) does not, so the outer shell kills the group
+  // itself when the supervisor did not finish (it removes `pgid` only when it finishes). It does so
+  // only when `timeout` reports the lifetime (124, or 137 when the KILL also hit `timeout`), so a
+  // Stop's TERM (143) keeps its grace before the Stop script sends KILL.
   const lifetime = Math.max(1, Math.ceil(lifetimeSeconds));
-  const leader = [
-    `timeout -s KILL ${lifetime} bash -c ${shellQuote(supervisor)}`,
-    `case $? in 124|137) pg=$(cat ${d}/pgid 2>/dev/null) && kill -KILL -- "-$pg" 2>/dev/null;; esac`,
-    "true",
-  ].join("\n");
-  const supervised = `setsid bash -c ${shellQuote(leader)}`;
+  const guarded = `timeout -s KILL ${lifetime} bash -c ${shellQuote(supervisor)}; rc=$?; { [ $rc = 124 ] || [ $rc = 137 ]; } && pg=$(cat ${d}/pgid 2>/dev/null) && kill -KILL -- "-$pg"`;
+  const supervised = `setsid ${bash(guarded)}`;
   return bash([...mounted, `mkdir -p ${d} && : > ${out} && { ${supervised} < /dev/null > /dev/null 2>&1 & } && echo launched`].join("; "));
 }
 

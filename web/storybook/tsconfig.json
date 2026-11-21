@@ -14,9 +14,7 @@
         "isolatedModules": true,
         "baseUrl": ".",
         "paths": {
-            "@/oss/*": ["../oss/src/*"],
-            "@/*": ["../mobile/src/*"],
-            "@agenta/oss/*": ["../oss/*"]
+            "@/*": ["../mobile/src/*"]
         }
     },
     "include": [

@@ -1,7 +1,7 @@
 import {useCallback, useMemo} from "react"
 
 import {buildAutomationEdit} from "./automationEdit"
-import {agentBindingLookup, agentLabel} from "./automationModel"
+import {agentBindingLookup, agentLabel, useAutomationText} from "./automationModel"
 import {useAutomation} from "./useAutomation"
 import {useAutomationDraft} from "./useAutomationDraft"
 import {useAutomationRuns} from "./useAutomationRuns"
@@ -55,6 +55,8 @@ export const useAutomationEditor = (automationId: string | undefined) => {
     // one failed. Same hook and same cache the run history reads.
     const {caption: runHistoryCaption, failureReason} = useAutomationRuns(automation)
 
+    // The label is text, so it is built again when the language changes.
+    const text = useAutomationText()
     // The DRAFT's agent, not the saved one: the field has to name what a Save would bind.
     const agentName = useMemo(
         () =>
@@ -63,7 +65,7 @@ export const useAutomationEditor = (automationId: string | undefined) => {
                 agentNames.get(draft.preview?.agentId ?? "")?.trim() || null,
                 agentsReady,
             ),
-        [agentNames, agentsReady, draft.preview?.agentId],
+        [agentNames, agentsReady, draft.preview?.agentId, text],
     )
 
     const onRename = useCallback(

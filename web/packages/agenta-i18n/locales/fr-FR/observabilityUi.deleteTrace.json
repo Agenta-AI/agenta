@@ -1,0 +1,10 @@
+{
+    "noProject": "Suppression impossible : aucun projet n’est sélectionné.",
+    "failedMany": "Échec de la suppression des traces.",
+    "failedOne": "Échec de la suppression de la trace.",
+    "confirmOne": "Voulez-vous vraiment supprimer ?",
+    "confirmMany": "Voulez-vous vraiment supprimer {{count}} traces ?",
+    "notReversible": "Cette action est irréversible.",
+    "cancel": "Annuler",
+    "delete": "Supprimer"
+}

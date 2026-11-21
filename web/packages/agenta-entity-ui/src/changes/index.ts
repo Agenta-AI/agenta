@@ -18,3 +18,4 @@ export {
     kindStyle,
 } from "./ChangeSections"
 export type {ChangeSectionsProps} from "./ChangeSections"
+export {commitDiffTextNow} from "./commitDiffText"

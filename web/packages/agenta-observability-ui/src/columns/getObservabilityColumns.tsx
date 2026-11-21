@@ -1,5 +1,7 @@
 import type {Key} from "react"
 
+import type {CatalogKey} from "@agenta/i18n"
+import columnsCatalog from "@agenta/i18n/catalogs/observabilityUi.columns"
 import {
     getCost,
     getLatency,
@@ -22,8 +24,16 @@ import {StatusRenderer} from "../cells/StatusRenderer"
 import {TimestampCell} from "../cells/TimestampCell"
 import {UsageCell} from "../cells/UsageCell"
 
+type ColumnsKey = CatalogKey<typeof columnsCatalog>
+type ColumnLabel = ColumnsKey extends `observabilityUi.columns.${infer Name}` ? Name : never
+
 interface ObservabilityColumnsProps {
     evaluatorSlugs: string[]
+    /**
+     * Translates the column titles. Without it the titles are English: the CSV export matches
+     * its headers to these titles, so it must not pass one.
+     */
+    t?: (key: ColumnsKey) => string
 }
 
 // Row alias: TraceSpanNode lacks the required key + index signature of InfiniteTableRowBase.
@@ -52,10 +62,12 @@ const collectDefaultHiddenColumnKeys = <T,>(columns: ColumnDefs<T>): string[] =>
     return Array.from(hiddenKeys)
 }
 
-export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsProps) => {
+export const getObservabilityColumns = ({evaluatorSlugs, t}: ObservabilityColumnsProps) => {
+    const label = (name: ColumnLabel): string =>
+        t ? t(`observabilityUi.columns.${name}`) : columnsCatalog.en[name]
     const columns: ObservabilityColumn[] = [
         {
-            title: "ID",
+            title: label("id"),
             dataIndex: ["span_id"],
             key: "key",
             width: 200,
@@ -68,14 +80,14 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
                 const spanId = record.span_id || ""
                 const shortId = spanId ? spanId.split("-")[0] : "-"
                 return (
-                    <TooltipWithCopyAction copyText={spanId || ""} title="Copy span id">
+                    <TooltipWithCopyAction copyText={spanId || ""} title={label("copySpanId")}>
                         <SpanIdChip id={shortId} />
                     </TooltipWithCopyAction>
                 )
             },
         },
         {
-            title: "Name",
+            title: label("name"),
             dataIndex: ["span_name"],
             key: "name",
             ellipsis: true,
@@ -90,7 +102,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             render: (_, record) => <NodeNameCell name={record.span_name} type={record.span_type} />,
         },
         {
-            title: "Span type",
+            title: label("spanType"),
             key: "span_type",
             dataIndex: ["span_type"],
             defaultHidden: true,
@@ -103,7 +115,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             },
         },
         {
-            title: "Inputs",
+            title: label("inputs"),
             key: "inputs",
             width: 400,
             maxWidth: 400,
@@ -120,7 +132,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             },
         },
         {
-            title: "Outputs",
+            title: label("outputs"),
             key: "outputs",
             width: 400,
             maxWidth: 400,
@@ -133,7 +145,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
                     const exceptionMessage =
                         (exception.attributes?.["exception.message"] as string) ||
                         (exception.attributes?.["exception.type"] as string) ||
-                        "Exception"
+                        label("exception")
                     return (
                         <SmartCellContent
                             value={exceptionMessage}
@@ -159,7 +171,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
         ...(evaluatorSlugs.length > 0
             ? [
                   {
-                      title: "Evaluators",
+                      title: label("evaluators"),
                       key: "evaluators",
                       align: "start" as const,
                       children: evaluatorSlugs.map((evaluatorSlug) => ({
@@ -177,7 +189,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
               ]
             : []),
         {
-            title: "Duration",
+            title: label("duration"),
             key: "duration",
             dataIndex: ["time", "span"],
             width: 150,
@@ -190,7 +202,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             },
         },
         {
-            title: "Cost",
+            title: label("cost"),
             key: "cost",
             dataIndex: ["attributes", "ag", "metrics", "costs", "cumulative", "total"],
             width: 150,
@@ -203,7 +215,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             },
         },
         {
-            title: "Usage",
+            title: label("usage"),
             key: "usage",
             dataIndex: ["attributes", "ag", "metrics", "tokens", "cumulative", "total"],
             width: 150,
@@ -216,7 +228,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             },
         },
         {
-            title: "Timestamp",
+            title: label("timestamp"),
             key: "timestamp",
             dataIndex: ["created_at"],
             width: 200,
@@ -226,22 +238,23 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             render: (_, record) => <TimestampCell timestamp={record?.created_at} />,
         },
         {
-            title: "Status",
+            title: label("status"),
             key: "status",
             dataIndex: ["status_code"],
             width: 160,
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
-            render: (_, record) =>
-                StatusRenderer({
-                    status: record.status_code,
-                    message: record.status_message,
-                    showMore: true,
-                }),
+            render: (_, record) => (
+                <StatusRenderer
+                    status={record.status_code}
+                    message={record.status_message}
+                    showMore
+                />
+            ),
         },
         {
-            title: <ColumnVisibilityMenuTrigger variant="icon" label="Edit columns" />,
+            title: <ColumnVisibilityMenuTrigger variant="icon" label={label("editColumns")} />,
             key: "actions",
             width: 61,
             fixed: "right",

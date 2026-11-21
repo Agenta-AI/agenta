@@ -971,8 +971,8 @@ export interface RunConfig {
   traceparent?: string;
   /** W3C baggage from the caller (carried for future use). */
   baggage?: string;
-  /** Durable turn id stamped as runner metadata when supplied. */
-  turnId?: string;
+  /** The session turn id, written as `ag.turn.id` on every span of the run. */
+  sessionTurnId?: string;
   /** Drop prompt/completion/tool I/O from spans when false. */
   captureContent: boolean;
   /** Pi session id, set after createAgentSession so spans carry session.id. */
@@ -1295,6 +1295,19 @@ function applyAssistant(
   return undefined;
 }
 
+/**
+ * Write the run's session id and session turn id on a span. Every span the runner makes carries
+ * both, so ingest can fill the span's identity columns without walking to the root.
+ */
+function setRunIdentity(
+  span: Span,
+  sessionId: string | undefined,
+  sessionTurnId: string | undefined,
+): void {
+  if (sessionId) span.setAttribute("ag.session.id", sessionId);
+  if (sessionTurnId) span.setAttribute("ag.turn.id", sessionTurnId);
+}
+
 // ---------------------------------------------------------------------------
 // Extension factory (one per run; state is closure-scoped)
 // ---------------------------------------------------------------------------
@@ -1331,7 +1344,7 @@ export function createAgentaOtel(
     baggage: init.baggage,
     captureContent: init.captureContent !== false,
     sessionId: init.sessionId,
-    turnId: init.turnId,
+    sessionTurnId: init.sessionTurnId,
     provider: init.provider,
     requestModel: init.requestModel,
     skills: init.skills,
@@ -1342,6 +1355,12 @@ export function createAgentaOtel(
 
   const tracer = trace.getTracer(PI_TRACER, "0.1.0");
   const runId = mintRunId();
+
+  function startRunSpan(name: string, parent: Context): Span {
+    const span = tracer.startSpan(name, undefined, parent);
+    setRunIdentity(span, config.sessionId, config.sessionTurnId);
+    return span;
+  }
 
   // Per-run span state — closure-scoped so concurrent runs never collide.
   let agentSpan: Span | undefined;
@@ -1409,7 +1428,7 @@ export function createAgentaOtel(
     config.baggage = next.baggage;
     config.captureContent = next.captureContent !== false;
     config.sessionId = next.sessionId;
-    config.turnId = next.turnId;
+    config.sessionTurnId = next.sessionTurnId;
     config.provider = next.provider;
     config.requestModel = next.requestModel;
     config.skills = next.skills;
@@ -1441,7 +1460,7 @@ export function createAgentaOtel(
         parentContext(config.traceparent) ?? context.active(),
         runId,
       );
-      agentSpan = tracer.startSpan("invoke_agent", undefined, parent);
+      agentSpan = startRunSpan("invoke_agent", parent);
       agentSpan.setAttribute("openinference.span.kind", "AGENT");
       agentSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
       agentSpan.setAttribute("gen_ai.agent.name", "pi");
@@ -1461,8 +1480,6 @@ export function createAgentaOtel(
         agentSpan.setAttribute("session.id", config.sessionId);
         agentSpan.setAttribute("gen_ai.conversation.id", config.sessionId);
       }
-      if (config.turnId)
-        agentSpan.setAttribute("ag.meta.turn.id", config.turnId);
       setInputs(
         agentSpan,
         { prompt: pendingPrompt ?? "" },
@@ -1500,7 +1517,7 @@ export function createAgentaOtel(
       const parent = agentCtx ?? context.active();
       const name =
         event?.turnIndex != null ? `turn ${event.turnIndex}` : "turn";
-      const span = tracer.startSpan(name, undefined, parent);
+      const span = startRunSpan(name, parent);
       span.setAttribute("openinference.span.kind", "CHAIN");
       if (event?.turnIndex != null)
         span.setAttribute("pi.turn.index", event.turnIndex);
@@ -1517,11 +1534,7 @@ export function createAgentaOtel(
       const modelId = config.requestModel ?? ctx?.model?.id;
       const providerName = config.provider ?? ctx?.model?.provider;
       modelUnpriced = hasZeroPriceTable(ctx?.model);
-      llmSpan = tracer.startSpan(
-        modelId ? `chat ${modelId}` : "chat",
-        undefined,
-        parent,
-      );
+      llmSpan = startRunSpan(modelId ? `chat ${modelId}` : "chat", parent);
       llmSpan.setAttribute("openinference.span.kind", "LLM");
       llmSpan.setAttribute("gen_ai.operation.name", "chat");
       if (providerName) llmSpan.setAttribute("gen_ai.system", providerName);
@@ -1548,7 +1561,7 @@ export function createAgentaOtel(
       const name = event?.toolName
         ? `execute_tool ${event.toolName}`
         : "execute_tool";
-      const span = tracer.startSpan(name, undefined, parent);
+      const span = startRunSpan(name, parent);
       span.setAttribute("openinference.span.kind", "TOOL");
       span.setAttribute("gen_ai.operation.name", "execute_tool");
       if (event?.toolName)
@@ -2007,6 +2020,14 @@ export function createSandboxAgentOtel(
   const tracer = trace.getTracer(SANDBOX_AGENT_TRACER, "0.1.0");
   const runId = mintRunId();
   const streamTrace = createStreamTrace({ harness: init.harness });
+  // The session every span carries; `start` may name the session the run resolved.
+  let sessionId = init.sessionId;
+
+  function startRunSpan(name: string, parent: Context): Span {
+    const span = tracer.startSpan(name, undefined, parent);
+    setRunIdentity(span, sessionId, init.sessionTurnId);
+    return span;
+  }
 
   let agentSpan: Span | undefined;
   let agentCtx: Context | undefined;
@@ -2249,6 +2270,7 @@ export function createSandboxAgentOtel(
     messages?: any[];
     sessionId?: string;
   }): void {
+    sessionId = input.sessionId ?? init.sessionId;
     // Span-less mode (harness self-instruments): only track the trace id so the run can
     // report it; the harness emits the spans under the propagated parent.
     if (!emitSpans) {
@@ -2262,7 +2284,7 @@ export function createSandboxAgentOtel(
       parentContext(init.traceparent) ?? context.active(),
       runId,
     );
-    agentSpan = tracer.startSpan("invoke_agent", undefined, parent);
+    agentSpan = startRunSpan("invoke_agent", parent);
     agentSpan.setAttribute("openinference.span.kind", "AGENT");
     agentSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
     agentSpan.setAttribute("gen_ai.agent.name", init.harness ?? "agent");
@@ -2278,7 +2300,6 @@ export function createSandboxAgentOtel(
     if (init.skillsDropped && init.skillsDropped.length > 0) {
       agentSpan.setAttribute("ag.meta.skills.dropped", init.skillsDropped);
     }
-    const sessionId = input.sessionId ?? init.sessionId;
     if (sessionId) {
       agentSpan.setAttribute("session.id", sessionId);
       agentSpan.setAttribute("gen_ai.conversation.id", sessionId);
@@ -2294,16 +2315,12 @@ export function createSandboxAgentOtel(
     if (init.redactor) registerRunRedactor(runTraceId, init.redactor);
     agentCtx = trace.setSpan(parent, agentSpan);
 
-    turnSpan = tracer.startSpan("turn 0", undefined, agentCtx);
+    turnSpan = startRunSpan("turn 0", agentCtx);
     turnSpan.setAttribute("openinference.span.kind", "CHAIN");
     turnSpan.setAttribute("pi.turn.index", 0);
     turnCtx = trace.setSpan(agentCtx, turnSpan);
 
-    llmSpan = tracer.startSpan(
-      modelId ? `chat ${modelId}` : "chat",
-      undefined,
-      turnCtx,
-    );
+    llmSpan = startRunSpan(modelId ? `chat ${modelId}` : "chat", turnCtx);
     llmSpan.setAttribute("openinference.span.kind", "LLM");
     llmSpan.setAttribute("gen_ai.operation.name", "chat");
     if (provider) llmSpan.setAttribute("gen_ai.system", provider);
@@ -2382,7 +2399,7 @@ export function createSandboxAgentOtel(
         acpToolName(update) || update.title || update.kind || "tool";
       let span: Span | undefined;
       if (emitSpans && turnCtx) {
-        span = tracer.startSpan(`execute_tool ${name}`, undefined, turnCtx);
+        span = startRunSpan(`execute_tool ${name}`, turnCtx);
         span.setAttribute("openinference.span.kind", "TOOL");
         span.setAttribute("gen_ai.operation.name", "execute_tool");
         span.setAttribute("gen_ai.tool.name", String(name));
@@ -2562,7 +2579,7 @@ export function createSandboxAgentOtel(
         parentContext(init.traceparent) ?? context.active(),
         runId,
       );
-      const errSpan = tracer.startSpan("agent_error", undefined, parent);
+      const errSpan = startRunSpan("agent_error", parent);
       errSpan.setAttribute("openinference.span.kind", "AGENT");
       errSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
       errSpan.setAttribute("gen_ai.agent.name", init.harness ?? "agent");

@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import headerCatalog from "@agenta/i18n/catalogs/playground.agentHeader"
 import {CONFIG_REGION_BAR} from "@agenta/ui/components/presentational"
 
 import {CommitVariantChangesButton} from "./CommitVariantChanges"
@@ -49,31 +51,36 @@ export const AgentConfigHeader = ({
     trailing,
     embedded = false,
     className,
-}: AgentConfigHeaderProps) => (
-    <section
-        className={`${CONFIG_REGION_BAR} ${
-            embedded ? "grow" : "sticky top-0 z-[10]"
-        } bg-colorBgContainer bg-[image:linear-gradient(var(--ag-colorFillTertiary),var(--ag-colorFillTertiary))] ${
-            className ?? ""
-        }`}
-    >
-        <div className="flex items-center gap-2 grow min-w-0 overflow-hidden">
-            <span className="text-[13px] font-semibold text-colorText">Configuration</span>
-        </div>
-        <div className="flex items-center justify-end gap-2 shrink-0 grow min-w-0">
-            {autoSave ? null : (
-                <CommitVariantChangesButton
-                    variantId={revisionId}
-                    label="Commit"
-                    type="primary"
-                    size="small"
-                    appId={appId}
-                    onAfterCommit={onAfterCommit}
-                    onCommitted={onCommitted}
-                    data-tour="commit-button"
-                />
-            )}
-            {trailing}
-        </div>
-    </section>
-)
+}: AgentConfigHeaderProps) => {
+    const t = useT(headerCatalog)
+    return (
+        <section
+            className={`${CONFIG_REGION_BAR} ${
+                embedded ? "grow" : "sticky top-0 z-[10]"
+            } bg-colorBgContainer bg-[image:linear-gradient(var(--ag-colorFillTertiary),var(--ag-colorFillTertiary))] ${
+                className ?? ""
+            }`}
+        >
+            <div className="flex items-center gap-2 grow min-w-0 overflow-hidden">
+                <span className="text-[13px] font-semibold text-colorText">
+                    {t("playground.agentHeader.configuration")}
+                </span>
+            </div>
+            <div className="flex items-center justify-end gap-2 shrink-0 grow min-w-0">
+                {autoSave ? null : (
+                    <CommitVariantChangesButton
+                        variantId={revisionId}
+                        label={t("playground.agentHeader.commit")}
+                        type="primary"
+                        size="small"
+                        appId={appId}
+                        onAfterCommit={onAfterCommit}
+                        onCommitted={onCommitted}
+                        data-tour="commit-button"
+                    />
+                )}
+                {trailing}
+            </div>
+        </section>
+    )
+}

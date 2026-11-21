@@ -1,0 +1,20 @@
+{
+    "alwaysAutoApprove": "Toujours approuver automatiquement",
+    "answerSavedRetry": "Réponse enregistrée, nouvel essai nécessaire",
+    "answerSavedRetryHint": "La réponse est enregistrée. Envoyez votre prochain message pour réessayer la suite.",
+    "answerSavedWaiting": "La réponse est enregistrée. En attente de la prochaine mise à jour de l’agent…",
+    "answeredWaiting": "Réponse envoyée, en attente de l’agent",
+    "approve": "Approuver",
+    "approveAll": "Tout approuver",
+    "cancel": "Annuler",
+    "deny": "Refuser",
+    "denyAll": "Tout refuser",
+    "denyAndSend": "Refuser et envoyer",
+    "hideDetails": "Masquer les détails",
+    "needsApproval": "Votre approbation est requise",
+    "redirect": "Rediriger",
+    "seeWhatChanges": "Voir ce qui change ({{count}})",
+    "seeWhatRuns": "Voir ce qui s’exécute ({{count}})",
+    "steerHint": "Refusez cette étape et dites à l’agent quoi faire à la place. Votre note est exécutée comme message suivant.",
+    "steerPlaceholder": "p. ex. écris sur staging, pas sur la production, ou demande tout autre chose"
+}

@@ -8,6 +8,8 @@ import {
     refetchAgentTemplatesAtom,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTable} from "@agenta/ui/list-table"
@@ -28,6 +30,7 @@ import {FeaturedTemplate} from "./FeaturedTemplate"
 import {
     DEFAULT_MARKETPLACE_FILTER,
     categoryFromParam,
+    categoryText,
     deriveMarketplace,
     featuredTemplates,
     type MarketplaceFilter,
@@ -43,7 +46,6 @@ import {TemplatePreviewSheet} from "./TemplatePreviewSheet"
 import {TemplateSortMenu} from "./TemplateSortMenu"
 
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-const COLUMNS = [{key: "name", label: "Template", width: "1fr"}]
 const templateKey = (template: AgentStarterTemplate) => template.key
 
 /** The Agent Marketplace: a featured template, then the catalog with its filters. */
@@ -55,6 +57,11 @@ export const MarketplaceScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
+    const t = useT(marketplaceCatalog)
+    const columns = useMemo(
+        () => [{key: "name", label: t("marketplace.page.columnTemplate"), width: "1fr"}],
+        [t],
+    )
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
     const newAgent = useNewAgentAction(base)
@@ -139,18 +146,20 @@ export const MarketplaceScreen = ({
     const loaded = status === "success"
     const term = filter.query.trim()
     const categoryLabel =
-        filter.category === ALL_TEMPLATES_CATEGORY ? "All templates" : filter.category
+        filter.category === ALL_TEMPLATES_CATEGORY
+            ? t("marketplace.page.allTemplates")
+            : categoryText(filter.category)
     const searchProps = {
         value: filter.query,
         onValueChange: (query: string) => changeFilter({...filter, query}),
-        placeholder: "Search templates…",
-        "aria-label": "Search templates",
+        placeholder: t("marketplace.page.searchPlaceholder"),
+        "aria-label": t("marketplace.page.searchLabel"),
         className: "w-full",
     }
 
     return (
         <>
-            <PageTitle title="Agent Marketplace" />
+            <PageTitle title={t("marketplace.page.title")} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     scrollRef={fade.ref}
@@ -163,12 +172,11 @@ export const MarketplaceScreen = ({
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
-                                    Agent Marketplace
+                                    {t("marketplace.page.title")}
                                 </h1>
                             </div>
                             <p className="text-muted-foreground m-0 mt-1 text-[13px]">
-                                Start from a working agent. Connect your apps, adjust the skills,
-                                and let it run.
+                                {t("marketplace.page.subtitle")}
                             </p>
                         </div>
                     }
@@ -229,13 +237,13 @@ export const MarketplaceScreen = ({
                                 {status === "error" ? (
                                     <LoadError
                                         framed
-                                        title="Could not load templates"
+                                        title={t("marketplace.page.loadError")}
                                         onRetry={refetchTemplates}
                                     />
                                 ) : (
                                     <ListTable
                                         view="grid"
-                                        columns={COLUMNS}
+                                        columns={columns}
                                         groups={[{key: "all", label: null, rows: view.templates}]}
                                         rowKey={templateKey}
                                         renderRow={(template) => (

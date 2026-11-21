@@ -1,0 +1,12 @@
+{
+    "kicker": "What's new",
+    "title": "Latest releases",
+    "latest": "Latest",
+    "viewAll": "View all releases",
+    "improvements": "Improvements",
+    "fixes": "Fixes",
+    "dontShowAgain": "Don't show this again",
+    "readChangelog": "Read changelog",
+    "play": "Play",
+    "playFeature": "Play {{title}}"
+}

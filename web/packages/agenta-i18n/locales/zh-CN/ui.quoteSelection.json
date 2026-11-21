@@ -1,0 +1,11 @@
+{
+    "addToMessage": "添加到消息",
+    "askAboutThis": "就此提问…",
+    "comment": "评论",
+    "commentN": "评论 {{n}}",
+    "quoteActions": "引用操作",
+    "quoteAdded": "已添加引用。已附加 {{count}} 条。",
+    "reply": "回复",
+    "replyToSelection": "回复所选部分",
+    "sendNow": "立即发送"
+}

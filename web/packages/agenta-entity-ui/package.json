@@ -42,11 +42,13 @@
         "./workflow": "./src/workflow/index.ts",
         "./drive": "./src/drive/index.ts",
         "./tool-permission": "./src/DrillInView/SchemaControls/toolPermission.ts",
+        "./needs-setup": "./src/DrillInView/SchemaControls/agentTemplate/needsSetupText.ts",
         "./clientTools": "./src/clientTools/index.ts",
         "./drive/htmlApp/kit": "./src/drive/htmlApp/kit/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
+        "@agenta/i18n": "workspace:../agenta-i18n",
         "@agenta/sessions-ui": "workspace:../agenta-sessions-ui",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",

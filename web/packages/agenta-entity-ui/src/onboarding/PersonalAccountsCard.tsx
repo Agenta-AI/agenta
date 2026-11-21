@@ -21,6 +21,8 @@ import {
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
 import {personalNamedSecretsAtom} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n"
+import onboardingCatalog from "@agenta/i18n/catalogs/entityUi.onboarding"
 import {Button} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
@@ -60,6 +62,8 @@ export const PersonalAccountsCard = ({
     bare = false,
     className,
 }: PersonalAccountsCardProps) => {
+    // The rows read `copy`, which translates when read: this re-renders them when the text loads.
+    useT(onboardingCatalog)
     // One section open at a time, the first pending one to start with; only taps move it after.
     const [openKey, setOpenKey] = useState<string | null>(
         () => items.find((item) => pendingKeys.has(item.key))?.key ?? null,

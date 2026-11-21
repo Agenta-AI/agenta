@@ -54,16 +54,17 @@ class MountEdit(Identifier, Header):
 
 
 class MountScope(BaseModel):
-    """What a mount belongs to: a session, an agent (artifact id), or neither (a
-    project mount). Set at creation and never changed."""
+    """Which mount a check names: by `id`, or (for a mount not created yet) by the
+    session it will belong to."""
 
+    id: Optional[UUID] = None
     session_id: Optional[str] = None
-    agent_id: Optional[str] = None
 
 
 class MountQuery(BaseModel):
     session_id: Optional[str] = None
     agent_id: Optional[str] = None
+    slugs: Optional[List[str]] = None
     include_archived: bool = False
 
 

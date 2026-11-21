@@ -1,0 +1,14 @@
+{
+    "apiKey": "API 密钥",
+    "deleteKey": "删除密钥",
+    "emptyDescription": "生成密钥，用于在你的代码、CI 任务和 SDK 中验证对 Agenta API 的请求。",
+    "emptyTitle": "还没有 API 密钥",
+    "expired": "已过期",
+    "expires": "过期时间",
+    "generateKey": "生成密钥",
+    "keyActions": "密钥操作",
+    "lastUsed": "最近使用",
+    "never": "永不",
+    "neverUsed": "从未使用",
+    "noAccess": "你无权访问此项目中的 API 密钥。"
+}

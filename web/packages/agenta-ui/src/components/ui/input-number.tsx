@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {CaretDown, CaretUp} from "@phosphor-icons/react"
 import {cva, type VariantProps} from "class-variance-authority"
 
@@ -128,6 +130,7 @@ export function InputNumber({
     onBlur,
     ...rest
 }: InputNumberProps) {
+    const t = useT(uiControlsCatalog)
     const [text, setText] = React.useState<string>(() => toText(value))
 
     // Re-sync from a controlled `value` only when it no longer matches the typed text, so an
@@ -240,7 +243,7 @@ export function InputNumber({
                 <button
                     type="button"
                     tabIndex={-1}
-                    aria-label="Increase value"
+                    aria-label={t("ui.controls.increaseValue")}
                     disabled={disabled}
                     onClick={() => applyStep(1)}
                     className={cn(
@@ -255,7 +258,7 @@ export function InputNumber({
                 <button
                     type="button"
                     tabIndex={-1}
-                    aria-label="Decrease value"
+                    aria-label={t("ui.controls.decreaseValue")}
                     disabled={disabled}
                     onClick={() => applyStep(-1)}
                     className={cn(

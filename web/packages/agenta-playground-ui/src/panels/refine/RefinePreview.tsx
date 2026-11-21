@@ -1,5 +1,7 @@
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import refineCatalog from "@agenta/i18n/catalogs/playground.refine"
 import {ChatMessageEditor} from "@agenta/ui/chat-message"
 import dynamic from "next/dynamic"
 
@@ -32,6 +34,7 @@ export const RefinePreview = ({
     busy,
     onEditMessage,
 }: RefinePreviewProps) => {
+    const t = useT(refineCatalog)
     // Only the messages change, so only they are compared.
     const originalJson = useMemo(
         () => JSON.stringify(original?.messages ?? [], null, 2),
@@ -43,7 +46,7 @@ export const RefinePreview = ({
         return (
             <div className="flex flex-1 items-center justify-center px-4">
                 <p className="m-0 text-center text-xs text-muted-foreground">
-                    Submit instructions to see the refined prompt
+                    {t("playground.refine.submitToSee")}
                 </p>
             </div>
         )
@@ -70,7 +73,7 @@ export const RefinePreview = ({
                             disabled={busy}
                             onChangeRole={(value) => onEditMessage(index, "role", value)}
                             onChangeText={(value) => onEditMessage(index, "content", value)}
-                            placeholder="Enter message content…"
+                            placeholder={t("playground.refine.messagePlaceholder")}
                         />
                     ))}
                 </div>

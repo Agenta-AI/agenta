@@ -41,6 +41,8 @@ import type {
     EntityDataController,
     EntityRowBase,
 } from "@agenta/entities/shared"
+import {createT, useT} from "@agenta/i18n"
+import entityTableCatalog from "@agenta/i18n/catalogs/entityUi.entityTable"
 import {SmartCellContent} from "@agenta/ui/cell-renderers"
 import {
     CollapsibleGroupHeader,
@@ -65,6 +67,8 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {collapsedGroupValue} from "./collapsedGroupValue"
+
+const tNow = createT(entityTableCatalog)
 
 // ============================================================================
 // TYPES
@@ -329,10 +333,11 @@ export function EntityTable<
     typeChips,
     store,
     pageSize,
-    emptyMessage = "No data found",
+    emptyMessage,
     loadingRows = 8,
     autoHeight = true,
 }: EntityTableProps<TRow, TConfig, TColumn>) {
+    const t = useT(entityTableCatalog)
     // Determine if selection is externally controlled
     const isExternallyControlled = externalSelectedIds !== undefined
     // Collapsed groups state (only used when grouping is enabled)
@@ -528,7 +533,7 @@ export function EntityTable<
                         onCheckedChange={(next) => handleRowSelect(record.id, next === true)}
                         disabled={selectionDisabled}
                         onClick={(e) => e.stopPropagation()}
-                        aria-label="Select row"
+                        aria-label={tNow("entityUi.entityTable.selectRow")}
                     />
                 )
             }
@@ -550,7 +555,10 @@ export function EntityTable<
                     disabled={selectionDisabled}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <RadioGroupItem value={record.id} aria-label="Select row" />
+                    <RadioGroupItem
+                        value={record.id}
+                        aria-label={tNow("entityUi.entityTable.selectRow")}
+                    />
                 </RadioGroup>
             )
         }
@@ -562,12 +570,12 @@ export function EntityTable<
                     checked={isSomeSelected ? "indeterminate" : isAllSelected}
                     onCheckedChange={(checked) => handleSelectAll(checked === true)}
                     disabled={selectionDisabled}
-                    aria-label="Select all rows"
+                    aria-label={tNow("entityUi.entityTable.selectAllRows")}
                 />
             ) : (
                 // Single-select has no select-all, but a header cell must not be empty
                 // (axe empty-table-header). sr-only is absolute, so it takes no space.
-                <span className="sr-only">Select</span>
+                <span className="sr-only">{tNow("entityUi.entityTable.select")}</span>
             ),
             width: SELECTION_COLUMN_WIDTH,
             fixed: "left",
@@ -659,7 +667,7 @@ export function EntityTable<
 
     // Empty state
     if (!isLoading && rows.length === 0) {
-        return <TableEmptyState message={emptyMessage} />
+        return <TableEmptyState message={emptyMessage ?? t("entityUi.entityTable.noData")} />
     }
 
     return (

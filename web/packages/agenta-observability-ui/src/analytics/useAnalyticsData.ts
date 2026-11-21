@@ -24,7 +24,7 @@ import {
 import {useAtomValue} from "jotai"
 
 import {SERIES_COLORS, analyticsColor} from "./colors"
-import {UNKNOWN_AGENT} from "./labels"
+import {unknownAgentLabel} from "./labels"
 
 export interface QueryStatus {
     pending: boolean
@@ -168,7 +168,7 @@ export const useAnalyticsSplit = (
 /** A name lookup for agent ids; unknown ids read as "Unknown agent" until they resolve. */
 export const useAgentNames = (ids: string[]) => {
     const names = useAtomValue(analyticsAgentNamesAtomFamily(ids))
-    return useCallback((id: string) => names[id] ?? UNKNOWN_AGENT, [names])
+    return useCallback((id: string) => names[id] ?? unknownAgentLabel(), [names])
 }
 
 /** Splits cost one request per key, so they stop here. */

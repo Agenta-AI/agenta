@@ -1,0 +1,19 @@
+{
+    "daysAgo": "il y a {{count}} j",
+    "elapsed": "{{seconds}} s",
+    "hoursAgo": "il y a {{count}} h",
+    "minutesAgo": "il y a {{count}} min",
+    "navAgents": "Agents",
+    "navAutomations": "Automatisations",
+    "navHome": "Accueil",
+    "navSessions": "Sessions",
+    "navSettings": "Paramètres",
+    "navSkills": "Skills",
+    "navTemplates": "Modèles",
+    "newAutomation": "Nouvelle automatisation",
+    "now": "maintenant",
+    "starting": "Démarrage",
+    "subtitle": "Des agents qui s’exécutent selon un calendrier ou lorsqu’il se passe quelque chose dans vos applications.",
+    "title": "Automatisations",
+    "workedFor": "A travaillé pendant {{seconds}} s"
+}

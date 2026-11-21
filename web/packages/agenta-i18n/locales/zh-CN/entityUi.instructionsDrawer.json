@@ -1,0 +1,14 @@
+{
+    "outputFormat": "输出格式",
+    "toneAndStyle": "语气与风格",
+    "guardrails": "防护规则",
+    "writingGoodAgentsMd": "如何写好 AGENTS.md",
+    "tipRole": "开头用一两行说明 Agent 的角色和目标。",
+    "tipSections": "使用简短、带标题的小节（角色、工具、防护规则）。",
+    "tipOutput": "明确说明输出格式和硬性限制。",
+    "tipImperative": "多用祈使句指令，少用冗长的叙述。",
+    "suggested": "建议",
+    "cancel": "取消",
+    "save": "保存",
+    "placeholder": "# 角色\n\n描述 Agent 的工作内容及其行为方式…"
+}

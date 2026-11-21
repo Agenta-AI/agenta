@@ -15,6 +15,8 @@
 import {useCallback, type ReactNode} from "react"
 
 import {triggerScheduleDrawerAtom} from "@agenta/entities/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import agentOperationsCatalog from "@agenta/i18n/catalogs/entityUi.agentOperations"
 import {CONFIG_REGION_BAR, ConfigRowTrailing} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {Lightning} from "@phosphor-icons/react"
@@ -64,10 +66,14 @@ const sectionsBodyClass = "bg-[var(--ag-surface-section-content)] px-4"
  * three-section structure is present from first paint and nothing shifts when data lands.
  */
 export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
+    const t = useT(agentOperationsCatalog)
     return (
         <>
             <section className="flex flex-col" aria-busy>
-                <AgentRegionHeaderBar title="Automations" sticky={sticky}>
+                <AgentRegionHeaderBar
+                    title={t("entityUi.agentOperations.automations")}
+                    sticky={sticky}
+                >
                     <ConfigRowTrailing>
                         <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
                     </ConfigRowTrailing>
@@ -78,7 +84,10 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
                 </div>
             </section>
             <section className="flex grow flex-col" aria-busy>
-                <AgentRegionHeaderBar title="Recent files" sticky={sticky}>
+                <AgentRegionHeaderBar
+                    title={t("entityUi.agentOperations.recentFiles")}
+                    sticky={sticky}
+                >
                     <ConfigRowTrailing>
                         <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
                     </ConfigRowTrailing>
@@ -118,6 +127,7 @@ export function AgentOperationsSections({
     /** A row's "Run history" destination; see {@link TriggerManagementSection}. */
     onOpenRunHistory?: (owner: TriggerOwnerRef) => void
 }) {
+    const t = useT(agentOperationsCatalog)
     const {count: triggerCount, defaultReferences, defaultBoundLabel} = useAgentTriggers(revisionId)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
 
@@ -135,7 +145,10 @@ export function AgentOperationsSections({
     return (
         <>
             <section className="flex flex-col">
-                <AgentRegionHeaderBar title="Automations" sticky={sticky}>
+                <AgentRegionHeaderBar
+                    title={t("entityUi.agentOperations.automations")}
+                    sticky={sticky}
+                >
                     {/* No reserved affordance column: this region has no caret, and the empty
                         14px slot only held the "+" off the bar's right edge. */}
                     <ConfigRowTrailing reserve={false}>
@@ -144,11 +157,11 @@ export function AgentOperationsSections({
                         </span>
                         {disabled ? null : (
                             <CreateWithAIAddMenu
-                                label="Add automation"
-                                starterPrompt="I want an automation that"
+                                label={t("entityUi.agentOperations.addAutomation")}
+                                starterPrompt={t("entityUi.agentOperations.automationStarter")}
                                 onManual={onAdd}
-                                manualTitle="Create manually"
-                                manualHint="Run on a schedule or an event"
+                                manualTitle={t("entityUi.agentOperations.createManually")}
+                                manualHint={t("entityUi.agentOperations.runOnScheduleOrEvent")}
                                 manualIcon={<Lightning size={16} />}
                             />
                         )}
@@ -167,7 +180,10 @@ export function AgentOperationsSections({
             {/* Last region: it grows so its white sheet runs to the panel's bottom edge instead of
                 stopping at the last file row. */}
             <section className="flex grow flex-col">
-                <AgentRegionHeaderBar title="Recent files" sticky={sticky}>
+                <AgentRegionHeaderBar
+                    title={t("entityUi.agentOperations.recentFiles")}
+                    sticky={sticky}
+                >
                     {storageHeader}
                 </AgentRegionHeaderBar>
                 {/* Files never recolours on expand (unlike Triggers' sections) — it stays a white sheet. */}
@@ -175,9 +191,7 @@ export function AgentOperationsSections({
                     {storage ?? (
                         // Static fallback for surfaces that don't slot the live Files body.
                         <span className="text-xs text-colorTextDescription">
-                            The agent&rsquo;s working files — everything it reads and writes during
-                            a run. Open a conversation to browse them here; the agent&rsquo;s
-                            durable folder appears as a subfolder once agent-level storage lands.
+                            {t("entityUi.agentOperations.workingFilesHint")}
                         </span>
                     )}
                 </div>

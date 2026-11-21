@@ -1,0 +1,21 @@
+{
+    "searchProviderTools": "{{provider}} のツールを検索",
+    "noToolsFound": "ツールが見つかりません",
+    "failedToLoadSchema": "ツールのアクションのスキーマを読み込めませんでした",
+    "searchActions": "アクションを検索",
+    "actionCount_other": "{{count}} 件のアクション",
+    "noActionsFound": "アクションが見つかりません",
+    "searchIntegrations": "インテグレーションを検索",
+    "builtInTools": "組み込みツール",
+    "noBuiltInMatches": "一致する組み込みツールはありません",
+    "thirdPartyTools": "サードパーティのツール",
+    "browseThirdParty": "サードパーティのツールを参照",
+    "noConnectedTools": "接続済みのツールはありません",
+    "customTools": "カスタムツール",
+    "createInlineTool": "インライン関数ツールを作成",
+    "referenceWorkflow": "ワークフローを参照",
+    "runWorkflowAsTool": "ワークフローをツールとして実行",
+    "hoverToBrowse": "プロバイダーまたは接続済みのインテグレーションにカーソルを合わせると、ツールを参照できます。",
+    "tool": "ツール",
+    "addTool": "ツールを追加"
+}

@@ -1,0 +1,10 @@
+{
+    "noProject": "No se puede eliminar: no hay ningún proyecto seleccionado.",
+    "failedMany": "No se pudieron eliminar las trazas.",
+    "failedOne": "No se pudo eliminar la traza.",
+    "confirmOne": "¿Seguro que quieres eliminar?",
+    "confirmMany": "¿Seguro que quieres eliminar {{count}} trazas?",
+    "notReversible": "Esta acción no se puede deshacer.",
+    "cancel": "Cancelar",
+    "delete": "Eliminar"
+}

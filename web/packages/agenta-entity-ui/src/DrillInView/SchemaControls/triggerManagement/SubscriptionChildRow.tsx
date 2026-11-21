@@ -1,6 +1,8 @@
 /** One subscription row under its provider group: provider icon + status, "⋯" actions (run included). */
 import {useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {
     DropdownMenuItem,
     DropdownMenuSeparator,
@@ -55,6 +57,7 @@ export function SubscriptionChildRow({
     /** Portal target for the "⋯" menu; defaults to document.body. */
     menuContainer?: HTMLElement | null
 }) {
+    const t = useT(triggersCatalog)
     const open = disabled ? undefined : onOpen
     const [runOpen, setRunOpen] = useState(false)
     const {recent, refresh, waitForEvent, run} = useSubscriptionRun({
@@ -75,7 +78,7 @@ export function SubscriptionChildRow({
                 }}
             >
                 <Play size={16} />
-                Run now
+                {t("entityUi.triggers.runNow")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {menu}
@@ -120,7 +123,9 @@ export function SubscriptionChildRow({
                                 />
                             </span>
                         </TooltipTrigger>
-                        <TooltipContent>{active ? "Active" : "Paused"}</TooltipContent>
+                        <TooltipContent>
+                            {active ? t("entityUi.triggers.active") : t("entityUi.triggers.paused")}
+                        </TooltipContent>
                     </Tooltip>
                     <div className="min-w-0 flex-1">
                         <div
@@ -145,8 +150,12 @@ export function SubscriptionChildRow({
                             // Focusable and named, not an aria-hidden span: Radix restores focus
                             // by calling .focus() on the trigger, which a hidden span can't take.
                             trigger={
-                                <button type="button" className="sr-only" aria-label="Event source">
-                                    Event source
+                                <button
+                                    type="button"
+                                    className="sr-only"
+                                    aria-label={t("entityUi.triggers.eventSource")}
+                                >
+                                    {t("entityUi.triggers.eventSource")}
                                 </button>
                             }
                             recentEvents={recent}
@@ -158,7 +167,7 @@ export function SubscriptionChildRow({
                             onOpenChange={(next) => {
                                 if (!next) setRunOpen(false)
                             }}
-                            waitHint="trigger it from the app now"
+                            waitHint={t("entityUi.triggers.triggerFromApp")}
                         />
                     ) : null}
                     <TriggerActionsMenu

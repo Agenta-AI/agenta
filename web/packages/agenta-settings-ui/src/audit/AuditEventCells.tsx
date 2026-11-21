@@ -14,14 +14,20 @@
 import type {Event} from "@agenta/entities/event"
 import {eventByIdAtomFamily} from "@agenta/entities/event"
 import {UserAuthorLabel, useIsCurrentUser, useUserDisplayName} from "@agenta/entities/shared/user"
+import {useT, createT} from "@agenta/i18n"
+import settingsAuditCatalog from "@agenta/i18n/catalogs/settings.audit"
+import settingsAuditEventTypesCatalog from "@agenta/i18n/catalogs/settings.auditEventTypes"
 import {dayjs} from "@agenta/shared/utils"
 import {Copy, Eye} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {copyWithMessage} from "../shared/copyWithMessage"
+import {localDate} from "../shared/localDate"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
 import {eventTypeLabel} from "./eventTypeLabels"
+
+const t = createT(settingsAuditCatalog)
 
 export const Dash = () => <span className="text-xs text-muted-foreground">—</span>
 
@@ -39,8 +45,8 @@ const readCount = (event: Event): number | null => {
 
 const shortId = (id: string) => (id.length > 13 ? `${id.slice(0, 8)}…${id.slice(-4)}` : id)
 
-const copyId = (text: string, what: string) =>
-    void copyWithMessage(text, `${what} copied`, "Couldn't copy the ID")
+const copyId = (text: string, copied: string) =>
+    void copyWithMessage(text, copied, t("settings.audit.copyIdFailed"))
 
 /** "Oct 5, 22:35:03" this year, "Oct 5 2025, 22:35" before; the full value is the title. */
 export const EventTimestampCell = ({eventId}: {eventId: string}) => {
@@ -48,9 +54,28 @@ export const EventTimestampCell = ({eventId}: {eventId: string}) => {
     if (!event) return <Dash />
 
     const time = dayjs(event.timestamp)
-    const short = time.isSame(dayjs(), "year")
-        ? time.format("MMM D, HH:mm:ss")
-        : time.format("MMM D YYYY, HH:mm")
+    const thisYear = time.isSame(dayjs(), "year")
+    const short = localDate(
+        time.toDate(),
+        thisYear
+            ? {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                  hour12: false,
+              }
+            : {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+              },
+        () => (thisYear ? time.format("MMM D, HH:mm:ss") : time.format("MMM D YYYY, HH:mm")),
+    )
     return (
         <span
             className="truncate tabular-nums text-muted-foreground"
@@ -63,12 +88,15 @@ export const EventTimestampCell = ({eventId}: {eventId: string}) => {
 
 /** The event as a sentence, with its dotted type under it. */
 export const EventTypeCell = ({eventId}: {eventId: string}) => {
+    const typeText = useT(settingsAuditEventTypesCatalog)
     const event = useAtomValue(eventByIdAtomFamily(eventId))
     if (!event) return <Dash />
 
     return (
         <div className="flex min-w-0 flex-col">
-            <span className="truncate text-foreground">{eventTypeLabel(event.event_type)}</span>
+            <span className="truncate text-foreground">
+                {eventTypeLabel(event.event_type, typeText)}
+            </span>
             <span
                 className="truncate font-mono text-[11.5px] text-muted-foreground"
                 title={event.event_type}
@@ -88,6 +116,7 @@ export interface ActorCellProps {
 
 /** Actor — the user who triggered the event, resolved to a name; a short id when unknown. */
 export const ActorCell = ({eventId, names, currentUserId}: ActorCellProps) => {
+    const t = useT(settingsAuditCatalog)
     const event = useAtomValue(eventByIdAtomFamily(eventId))
     const actor = event ? readActor(event) : null
     const registeredName = useUserDisplayName(actor)
@@ -115,13 +144,16 @@ export const ActorCell = ({eventId, names, currentUserId}: ActorCellProps) => {
                     className="min-w-0 [&_*]:truncate"
                 />
             </div>
-            {isYou ? <span className="shrink-0 text-muted-foreground">(you)</span> : null}
+            {isYou ? (
+                <span className="shrink-0 text-muted-foreground">{t("settings.audit.you")}</span>
+            ) : null}
         </div>
     )
 }
 
 /** Count — number of items the event touched (`attributes.count`). */
 export const CountCell = ({eventId}: {eventId: string}) => {
+    const t = useT(settingsAuditCatalog)
     const event = useAtomValue(eventByIdAtomFamily(eventId))
     if (!event) return <Dash />
 
@@ -131,7 +163,7 @@ export const CountCell = ({eventId}: {eventId: string}) => {
     return (
         <span
             className="text-right font-mono text-xs tabular-nums text-muted-foreground"
-            title={`${count} ${count === 1 ? "item" : "items"}`}
+            title={t("settings.audit.itemCount", {count})}
         >
             {count}
         </span>
@@ -140,27 +172,35 @@ export const CountCell = ({eventId}: {eventId: string}) => {
 
 /** The row kebab: details, plus copying the ids the table no longer shows. */
 export const EventRowMenu = ({eventId, onView}: {eventId: string; onView: () => void}) => {
+    const t = useT(settingsAuditCatalog)
     const event = useAtomValue(eventByIdAtomFamily(eventId))
     const requestId = event?.request_id ?? null
 
     return (
         <SettingsRowMenu
-            label="Event actions"
+            label={t("settings.audit.eventActions")}
             items={[
-                {key: "view", label: "View details", icon: <Eye size={14} />, onClick: onView},
+                {
+                    key: "view",
+                    label: t("settings.audit.viewDetails"),
+                    icon: <Eye size={14} />,
+                    onClick: onView,
+                },
                 {type: "divider"},
                 {
                     key: "copy-event-id",
-                    label: "Copy event ID",
+                    label: t("settings.audit.copyEventId"),
                     icon: <Copy size={14} />,
-                    onClick: () => copyId(event?.event_id || eventId, "Event ID"),
+                    onClick: () =>
+                        copyId(event?.event_id || eventId, t("settings.audit.eventIdCopied")),
                 },
                 {
                     key: "copy-request-id",
-                    label: "Copy request ID",
+                    label: t("settings.audit.copyRequestId"),
                     icon: <Copy size={14} />,
                     hidden: !requestId,
-                    onClick: () => requestId && copyId(requestId, "Request ID"),
+                    onClick: () =>
+                        requestId && copyId(requestId, t("settings.audit.requestIdCopied")),
                 },
             ]}
         />

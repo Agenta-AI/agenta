@@ -1,0 +1,16 @@
+{
+    "columnAdded": "添加时间",
+    "columnAmount": "数量",
+    "columnCredit": "额度",
+    "columnExpires": "到期时间",
+    "columnPaid": "已付款",
+    "empty": "暂无额度。",
+    "free": "免费",
+    "included": "已包含",
+    "never": "永不",
+    "opening": "正在打开…",
+    "statusExpired": "已过期",
+    "statusUsedUp": "已用完",
+    "title": "额度记录",
+    "viewInvoices": "查看发票"
+}

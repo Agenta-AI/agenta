@@ -1,5 +1,7 @@
 import {useCallback, useEffect, type SetStateAction} from "react"
 
+import {useT} from "@agenta/i18n"
+import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import {useObservability} from "@agenta/observability"
 import {useTraceDrawer} from "@agenta/observability/traceDrawer"
 import {traceDrawerSetQueryParam} from "@agenta/observability/traceDrawer"
@@ -45,6 +47,7 @@ const TraceDrawerContent = ({
         setSelectedTraceId: setGlobalSelectedTraceId,
         setSelectedNode: setGlobalSelectedNode,
     } = useObservability()
+    const t = useT(drawerCatalog)
     const rawActiveSpanId = useAtomValue(traceDrawerActiveSpanIdAtom)
     const setActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
     const setTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)
@@ -115,7 +118,7 @@ const TraceDrawerContent = ({
                     onClick={onClose}
                     type="text"
                     icon={<X size={14} />}
-                    aria-label="Close"
+                    aria-label={t("observabilityUi.traceDrawer.close")}
                     data-tour="trace-drawer-close"
                 />
             </div>

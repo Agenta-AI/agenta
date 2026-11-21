@@ -6,15 +6,19 @@ import {
     type OrganizationSecretProjects,
     type ProviderConnection,
 } from "@agenta/entities/secret"
+import {createT} from "@agenta/i18n"
+import organizationProjectsCatalog from "@agenta/i18n/catalogs/entityUi.organizationProjects"
 import {message} from "@agenta/ui/app-message"
 import {useSetAtom} from "jotai"
+
+const t = createT(organizationProjectsCatalog)
 
 /** The toast an organization save shows: who may use the connection now. */
 export const organizationSavedToast = (name: string, projects: OrganizationSecretProjects) => {
     const count = projects.projectIds.length
     return projects.availability === "all_projects"
-        ? `${name} saved. Every project can use it.`
-        : `${name} saved. ${count} ${count === 1 ? "project" : "projects"} can use it.`
+        ? t("entityUi.organizationProjects.savedEveryProject", {name})
+        : t("entityUi.organizationProjects.savedProjectsCount", {name, count})
 }
 
 /** The `code` of a refusal whose detail carries one. */
@@ -31,13 +35,13 @@ const refusalCode = (error: unknown): string | null => {
 export const organizationRefusal = (error: unknown, org: string): string | null => {
     const status = httpStatusOf(error)
     if (status === 403 && refusalCode(error) === "project_limit_not_allowed") {
-        return "Choosing projects is available on Business and Enterprise plans."
+        return t("entityUi.organizationProjects.choosingProjectsPlan")
     }
     if (status === 403) {
-        return `You are no longer an owner or admin of ${org}, so you can't change organization connections.`
+        return t("entityUi.organizationProjects.noLongerOwner", {organization: org})
     }
     if (status === 422 && refusalCode(error) === "project_not_in_organization") {
-        return `One of the selected projects is no longer in ${org}. Reload the page and pick again.`
+        return t("entityUi.organizationProjects.projectNotInOrg", {organization: org})
     }
     return null
 }
@@ -48,7 +52,7 @@ export const organizationRefusal = (error: unknown, org: string): string | null 
  */
 export const organizationSaveError = (error: unknown, org: string, name: string): string | null =>
     httpStatusOf(error) === 409
-        ? `${org} already has a connection named ${name}. Pick another name.`
+        ? t("entityUi.organizationProjects.nameTaken", {organization: org, name})
         : organizationRefusal(error, org)
 
 export const sameProjects = (
@@ -119,7 +123,7 @@ export const useOrganizationProjectsDraft = ({
             } catch (failure) {
                 setError(
                     organizationRefusal(failure, organizationName) ||
-                        `Agenta could not save this ${connection.name} connection. Try again.`,
+                        t("entityUi.organizationProjects.couldNotSave", {name: connection.name}),
                 )
             } finally {
                 setSaving(false)

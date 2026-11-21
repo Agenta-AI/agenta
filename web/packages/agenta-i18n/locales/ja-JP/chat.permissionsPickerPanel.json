@@ -1,0 +1,8 @@
+{
+    "backToCommands": "コマンドに戻る",
+    "changesDraft": "このエージェントの下書き設定を変更します。",
+    "editRules": "設定でルールを編集 →",
+    "policyLabel": "権限ポリシー",
+    "subtitle": "エージェントが確認なしでできること",
+    "title": "権限"
+}

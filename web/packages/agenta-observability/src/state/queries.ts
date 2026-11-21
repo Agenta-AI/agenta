@@ -410,6 +410,8 @@ export const sessionSpansQueryAtomFamily = atomFamily((sessionId: string) =>
         return {
             queryKey: ["session_spans", projectId, appId, params, sessionId],
             queryFn: async () => {
+                // Annotations of a session's spans carry the session id too. Read only the
+                // runs, so annotations do not count as traces or change the last output.
                 const sessionParams = {
                     ...params,
                     filter: mergeConditions(params.filter as string | undefined, [
@@ -419,6 +421,7 @@ export const sessionSpansQueryAtomFamily = atomFamily((sessionId: string) =>
                             operator: "is",
                             value: sessionId,
                         },
+                        {field: "trace_type", operator: "is", value: "invocation"},
                     ]),
                 }
                 // The API returns one page per call: follow its cursor to read the whole session.

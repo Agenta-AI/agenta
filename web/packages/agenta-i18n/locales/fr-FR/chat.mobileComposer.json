@@ -1,0 +1,11 @@
+{
+    "addProviderKey": "Ajoutez la clé de votre fournisseur de modèles pour exécuter cet agent.",
+    "attachment": "Pièce jointe",
+    "backToCommands": "← retour aux commandes",
+    "changesDraft": "Modifie la configuration brouillon de cet agent.",
+    "connectModelPlaceholder": "Connectez un modèle pour commencer à discuter…",
+    "messageSubject": "Message",
+    "removeOneToAdd": "Retirez-en un pour en ajouter un autre ({{count}} maximum)",
+    "searchModels": "Rechercher des modèles",
+    "setUpProviders": "Configurer les fournisseurs de modèles"
+}

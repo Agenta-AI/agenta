@@ -8,6 +8,8 @@ import {
     type ReactNode,
 } from "react"
 
+import {useT} from "@agenta/i18n"
+import chatCatalog from "@agenta/i18n/catalogs/playground.chat"
 import type {SimpleChatMessage} from "@agenta/playground"
 import {ChatMessageEditor} from "@agenta/ui/chat-message"
 import {
@@ -100,6 +102,7 @@ export const ChatMessage = memo(
         const isCodeMode = chatViewMode === "json" || chatViewMode === "yaml"
         const language: "json" | "yaml" = chatViewMode === "yaml" ? "yaml" : "json"
 
+        const t = useT(chatCatalog)
         const [paste, setPaste] = useState<PasteOverLimit | null>(null)
         const onPasteLimitExceeded = useCallback((over: PasteOverLimit) => {
             setPaste(over)
@@ -143,8 +146,8 @@ export const ChatMessage = memo(
         }
 
         const placeholder = isUser
-            ? "Type your message…"
-            : "Enter tool call result here and hit run"
+            ? t("playground.chat.typeYourMessage")
+            : t("playground.chat.toolResultPlaceholder")
         const showPlaceholder =
             !editorText && !isError && toolPayloads.length === 0 && chatViewMode === "text"
 
@@ -217,7 +220,7 @@ export const ChatMessage = memo(
                             isTool
                                 ? TOOL_ROLE_OPTIONS
                                 : isError
-                                  ? [{label: "Error", value: "Error"}]
+                                  ? [{label: t("playground.chat.roleError"), value: "Error"}]
                                   : undefined
                         }
                         placeholder={placeholder}

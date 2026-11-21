@@ -1,0 +1,11 @@
+{
+    "notUsedByAnyAgent": "Não usado por nenhum agente",
+    "reload": "Recarregar",
+    "renameFailed": "Não foi possível renomear",
+    "rowActions": "Ações da linha",
+    "usedBy": "Usado por {{names}}",
+    "yours": "Suas",
+    "yoursEmptyBody": "As contas que você adicionar aqui são usadas em todos os seus projetos, quando um agente usa a conta de cada pessoa.",
+    "yoursEmptyBodyCount": "As contas que você adicionar aqui são usadas em todos os seus {{projectCount}} projetos, quando um agente usa a conta de cada pessoa.",
+    "yoursEmptyTitle": "Você ainda não tem contas próprias"
+}

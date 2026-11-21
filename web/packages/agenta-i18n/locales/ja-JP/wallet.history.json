@@ -1,0 +1,16 @@
+{
+    "columnAdded": "追加日",
+    "columnAmount": "数量",
+    "columnCredit": "クレジット",
+    "columnExpires": "有効期限",
+    "columnPaid": "支払額",
+    "empty": "クレジットはまだありません。",
+    "free": "無料",
+    "included": "含まれる",
+    "never": "なし",
+    "opening": "開いています…",
+    "statusExpired": "期限切れ",
+    "statusUsedUp": "使用済み",
+    "title": "クレジット履歴",
+    "viewInvoices": "請求書を表示"
+}

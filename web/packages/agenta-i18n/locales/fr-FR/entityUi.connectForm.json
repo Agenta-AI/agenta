@@ -1,0 +1,17 @@
+{
+    "popupBlocked": "Fenêtre contextuelle bloquée. Redirection dans cet onglet.",
+    "onlyMe": "Moi uniquement",
+    "onlyMeNote": "Utilisé lorsque vous exécutez un agent qui utilise le compte {{name}} de chaque personne. Votre premier compte {{name}} devient votre compte par défaut.",
+    "everyoneInProject": "Tout le monde dans {{project}}",
+    "everyoneInThisProject": "Tout le monde dans ce projet",
+    "everyoneNote": "Un agent de ce projet peut l’utiliser comme compte de l’agent, pour chaque personne qui l’exécute.",
+    "connectName": "Connecter {{name}}",
+    "name": "Nom",
+    "required": "Requis",
+    "namePlaceholder": "par ex. Mon compte {{name}}",
+    "whoCanUseIt": "Qui peut l’utiliser",
+    "authMethod": "Méthode d’authentification",
+    "apiKey": "Clé API",
+    "submitFailed": "Impossible de démarrer la connexion : le serveur l’a refusée. Réessayez ; si l’échec persiste, le fournisseur de connexions de ce déploiement n’est pas configuré.",
+    "connect": "Connecter"
+}

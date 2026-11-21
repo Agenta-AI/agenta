@@ -5,6 +5,8 @@ import {
     SAVE_AS_TEMPLATE_MESSAGE,
     SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import chatShareMenuCatalog from "@agenta/i18n/catalogs/chat.shareMenu"
 import {
     Button,
     DropdownMenu,
@@ -40,6 +42,7 @@ export const ShareMenu = ({
     workspaceId: string
     projectId: string
 }) => {
+    const t = useT(chatShareMenuCatalog)
     const store = useStore()
     const pending = useAtomValue(pendingTasksAtom)[sessionId] !== undefined
 
@@ -52,12 +55,12 @@ export const ShareMenu = ({
     const resolveAgentName = useCallback(
         (id: string) => {
             const match = (agentsQuery.data ?? []).find((candidate) => candidate.id === id)
-            return match ? match.name || match.slug || "Agent" : null
+            return match ? match.name || match.slug || t("chat.shareMenu.agent") : null
         },
         [agentsQuery.data],
     )
 
-    const agentName = agent?.name || agent?.slug || "Agent"
+    const agentName = agent?.name || agent?.slug || t("chat.shareMenu.agent")
     // Channels show only inside Publish and the privacy panel, and this menu mounts per session.
     const [channelsEngaged, setChannelsEngaged] = useState(false)
     const publish = useAgentPublishPanel({
@@ -84,12 +87,12 @@ export const ShareMenu = ({
         <>
             {canRequestTemplate ? (
                 <DropdownMenu>
-                    <SimpleTooltip title="Templates">
+                    <SimpleTooltip title={t("chat.shareMenu.templates")}>
                         <DropdownMenuTrigger asChild>
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label="Templates"
+                                aria-label={t("chat.shareMenu.templates")}
                                 className="h-7 w-7 shrink-0 p-0"
                                 data-testid="template-menu-button"
                             >
@@ -106,8 +109,8 @@ export const ShareMenu = ({
                         >
                             <ShareMenuItem
                                 icon={<FileZip />}
-                                title="Save as template"
-                                description="Download a .zip to reuse it"
+                                title={t("chat.shareMenu.saveAsTemplate")}
+                                description={t("chat.shareMenu.downloadZip")}
                             />
                         </DropdownMenuItem>
                         <DropdownMenuItem
@@ -120,8 +123,8 @@ export const ShareMenu = ({
                         >
                             <ShareMenuItem
                                 icon={<Storefront />}
-                                title="Share in the marketplace"
-                                description="Let other teams start from it"
+                                title={t("chat.shareMenu.shareInMarketplace")}
+                                description={t("chat.shareMenu.letOtherTeams")}
                             />
                         </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -152,7 +155,7 @@ export const ShareMenu = ({
                 data-testid="share-menu-publish"
             >
                 <Broadcast data-icon="inline-start" />
-                Publish
+                {t("chat.shareMenu.publish")}
             </Button>
             {publish.panel}
         </>

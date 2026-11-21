@@ -1,0 +1,8 @@
+{
+    "failed": "Falló la aprobación.",
+    "failedStatus": "Falló la aprobación (HTTP {{status}}).",
+    "noLongerPending": "Esta aprobación ya no está pendiente: actualiza y vuelve a intentarlo.",
+    "noneFound": "No se encontró ninguna aprobación pendiente: puede que el turno haya avanzado.",
+    "oneExecutionOnly": "«Aprobar todo» solo puede responder aprobaciones de una misma ejecución.",
+    "resumeFailed": "Falló la reanudación."
+}

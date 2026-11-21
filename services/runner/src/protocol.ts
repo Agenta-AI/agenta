@@ -350,6 +350,15 @@ export interface McpServerConfig {
   };
 }
 
+/** What a run may do with an attached drive. */
+export type DriveAccess = "read" | "read-write";
+
+/** One entry of the agent's `drives` list: a drive of the project, named by its slug. */
+export interface AgentDrive {
+  slug: string;
+  access: DriveAccess;
+}
+
 /**
  * The sandbox security boundary an agent runs inside (Layer 2). `network` is the outbound
  * egress policy (`on` = allow all, `off` = block all, `allowlist` = only `network.allowlist`
@@ -923,6 +932,16 @@ export interface AgentRunRequest {
    */
   sandboxPermission?: SandboxPermission;
   /**
+   * The agent's configured drives, each at `drives/<slug>/`. Absent for a legacy configuration
+   * or from an older agent service: the runner then mounts the agent drive found by
+   * `runContext.workflow.artifact.id`, linked at `agent-files`.
+   */
+  drives?: AgentDrive[];
+  /** The slug of the drive in `drives` linked at `agent-files`; null or absent for none. */
+  homeDrive?: string | null;
+  /** Whether the session folder is a durable drive. Absent means true. */
+  hasSessionDrive?: boolean;
+  /**
    * Generic harness-rendered files to drop in the session cwd before the session starts. Each
    * entry is `{ path (relative to cwd), content (UTF-8 file text) }`. Produced by the Python
    * harness adapters: a harness translates its own `harness_options` slice into a config file in
@@ -956,6 +975,12 @@ export interface AgentRunRequest {
    * non-session runs. A session sees a sequence of turnIds (send/steer each start a new one).
    */
   turnId?: string;
+  /**
+   * The id of the session turn (the `session_turns` row) that this execution belongs to. Set on
+   * an approval resume, where `turnId` is the new execution's id. Absent on a fresh turn, where
+   * the session turn is `turnId`. Written as `ag.turn.id` on every span of the run.
+   */
+  sessionTurnId?: string;
   /** True only when the shared event route, rather than this HTTP response, owns delivery. */
   detached?: boolean;
   /**
@@ -1181,6 +1206,15 @@ export function resolvePromptText(request: AgentRunRequest): string {
     }
   }
   return "";
+}
+
+/**
+ * The session turn this run belongs to, written as `ag.turn.id` on every span. A run with no
+ * session has no turn: the server still mints a `turnId` for it, but its spans carry no turn id.
+ */
+export function spanTurnId(request: AgentRunRequest): string | undefined {
+  if (!request.sessionId?.trim()) return undefined;
+  return (request.sessionTurnId ?? request.turnId)?.trim() || undefined;
 }
 
 /** Prefer the platform conversation id, falling back to the harness's ephemeral id. */

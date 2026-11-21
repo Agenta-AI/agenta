@@ -1,0 +1,11 @@
+{
+    "addProviderKey": "添加你的模型供应商密钥以运行此 Agent。",
+    "attachment": "附件",
+    "backToCommands": "← 返回命令",
+    "changesDraft": "会更改此 Agent 的草稿配置。",
+    "connectModelPlaceholder": "连接模型后即可开始对话…",
+    "messageSubject": "消息",
+    "removeOneToAdd": "请移除一个再添加（最多 {{count}} 个）",
+    "searchModels": "搜索模型",
+    "setUpProviders": "设置模型供应商"
+}

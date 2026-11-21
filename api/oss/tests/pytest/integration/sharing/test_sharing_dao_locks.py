@@ -1244,11 +1244,11 @@ async def test_sharing_write_statement_count(monkeypatch):
                 ),
             )
 
-        # expected read + lock + compare read + upsert (a make-private no longer turns
-        # channel bindings off)
-        assert len(make_private) == 4, make_private
-        # expected read + lock + compare read + upsert
-        assert len(make_project) == 4, make_project
+        # expected read + agent drive read + lock + compare read + agent drive read
+        # under the lock + upsert (a make-private no longer turns channel bindings off)
+        assert len(make_private) == 6, make_private
+        # the same six
+        assert len(make_project) == 6, make_project
         # session state read + grants read + lock read + locked grants read + upsert
         assert len(invite) == 5, invite
 

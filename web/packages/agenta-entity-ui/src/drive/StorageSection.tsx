@@ -11,10 +11,12 @@
 import {useConfigDrive} from "@agenta/entities/drive"
 import {listArrowKeyDown} from "@agenta/entities/drive"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "@agenta/entities/drive"
-import {itemCountLabel, relativeTime} from "@agenta/entities/drive"
+import {relativeTime} from "@agenta/entities/drive"
 import {isRecentlyChanged, useRecentChangeClock} from "@agenta/entities/drive"
 import {useStageDrop} from "@agenta/entities/drive"
 import {driveHasMixedOrigins, type DriveRecentFile} from "@agenta/entities/drive"
+import {useT} from "@agenta/i18n"
+import driveRailCatalog from "@agenta/i18n/catalogs/entityUi.driveRail"
 import {CircleNotch} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
@@ -41,6 +43,7 @@ const RecentFileRow = ({
     file,
     recent,
     showOrigin,
+    otherDrives,
     onOpen,
     onCopyPath,
     onDownload,
@@ -48,39 +51,44 @@ const RecentFileRow = ({
     file: DriveRecentFile
     recent?: boolean
     showOrigin?: boolean
+    otherDrives?: readonly {slug: string}[]
     onOpen: () => void
     onCopyPath: (path: string) => void
     onDownload: (path: string, isFolder: boolean) => void
-}) => (
-    <DriveItemContextMenu
-        path={file.path}
-        isFolder={!!file.is_folder}
-        onOpen={onOpen}
-        onCopyPath={onCopyPath}
-        onDownload={onDownload}
-        className="w-full"
-    >
-        <DriveFileRow
+}) => {
+    const t = useT(driveRailCatalog)
+    return (
+        <DriveItemContextMenu
             path={file.path}
-            recent={recent}
-            showOrigin={showOrigin}
             isFolder={!!file.is_folder}
-            mark="typed"
-            // " · " only between the parts that exist; a folder count only when known.
-            trailing={
-                [
-                    file.is_folder && file.item_count != null
-                        ? itemCountLabel(file.item_count)
-                        : null,
-                    file.touchedAt ? relativeTime(file.touchedAt) : null,
-                ]
-                    .filter(Boolean)
-                    .join(" · ") || null
-            }
             onOpen={onOpen}
-        />
-    </DriveItemContextMenu>
-)
+            onCopyPath={onCopyPath}
+            onDownload={onDownload}
+            className="w-full"
+        >
+            <DriveFileRow
+                path={file.path}
+                recent={recent}
+                showOrigin={showOrigin}
+                otherDrives={otherDrives}
+                isFolder={!!file.is_folder}
+                mark="typed"
+                // " · " only between the parts that exist; a folder count only when known.
+                trailing={
+                    [
+                        file.is_folder && file.item_count != null
+                            ? t("entityUi.driveRail.itemsCount", {count: file.item_count})
+                            : null,
+                        file.touchedAt ? relativeTime(file.touchedAt) : null,
+                    ]
+                        .filter(Boolean)
+                        .join(" · ") || null
+                }
+                onOpen={onOpen}
+            />
+        </DriveItemContextMenu>
+    )
+}
 
 export default function StorageSection({
     revisionId,
@@ -94,6 +102,7 @@ export default function StorageSection({
      * host resolves it (a package cannot read the app's chat slice). */
     scope: string
 }) {
+    const t = useT(driveRailCatalog)
     const {drive} = useConfigDrive(revisionId, sessionId)
     // A row opens the chat's DOCKED pane on that file; the header's icon opens it at the root
     // (see StorageFilesHeader).
@@ -120,7 +129,7 @@ export default function StorageSection({
     // (dot-prefixed) entries are dimmed by the row, not dropped, and clone dumps are already rolled
     // up into a single folder row by the backend.
     const visibleRecents = drive.recents
-    const showOrigin = driveHasMixedOrigins(visibleRecents)
+    const showOrigin = driveHasMixedOrigins(visibleRecents, drive.otherDrives)
 
     // The loading skeleton is NOT a separate block — it's the same list rendering placeholder rows,
     // so the resolve is a per-row content swap (skeleton → real) inside one AnimatePresence, with zero
@@ -201,6 +210,7 @@ export default function StorageSection({
                                                           now,
                                                       )}
                                                       showOrigin={showOrigin}
+                                                      otherDrives={drive.otherDrives}
                                                       onOpen={() => openPane(file.path)}
                                                       onCopyPath={copyPath}
                                                       onDownload={download}
@@ -214,33 +224,32 @@ export default function StorageSection({
                             {!showSkeleton && (drive.reconciling || drive.isFetching) ? (
                                 <div className="flex items-center gap-1.5 px-1.5 pt-1 text-xs text-colorTextTertiary">
                                     <CircleNotch size={11} className="animate-spin" />
-                                    <span>Loading more…</span>
+                                    <span>{t("entityUi.driveRail.loadingMore")}</span>
                                 </div>
                             ) : null}
                         </div>
                     ) : phase === "error" ? (
                         <Text type="secondary" className="!text-xs">
-                            Couldn&rsquo;t reach the file store.{" "}
+                            {t("entityUi.driveRail.couldNotReachStore")}{" "}
                             {drive.retry ? (
                                 <DriveRetryButton onRetry={drive.retry} busy={drive.isFetching} />
                             ) : null}
                         </Text>
                     ) : phase === "no-session" ? (
                         <Text type="secondary" className="!text-xs">
-                            No conversation open yet — the agent&rsquo;s working files appear here
-                            once a chat starts.
+                            {t("entityUi.driveRail.noConversationYet")}
                         </Text>
                     ) : phase === "no-changes" ? (
                         // Files exist in the drive, but none were written/edited in THIS conversation
                         // (the recents come from its record log) — surface the count, not "no files".
                         <Text type="secondary" className="!text-xs">
-                            No changes in this conversation yet — open Files to browse all{" "}
-                            {drive.fileCount}
-                            {drive.fileCountCapped ? "+" : ""}.
+                            {t("entityUi.driveRail.noChangesBrowseAll", {
+                                total: `${drive.fileCount}${drive.fileCountCapped ? "+" : ""}`,
+                            })}
                         </Text>
                     ) : (
                         <Text type="secondary" className="!text-xs">
-                            No files yet — the agent gets its working folder on the first run.
+                            {t("entityUi.driveRail.noFilesYetFirstRun")}
                         </Text>
                     )}
                 </motion.div>

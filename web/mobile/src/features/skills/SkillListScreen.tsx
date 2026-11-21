@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {useDebounceInput} from "@agenta/shared/hooks"
 import {
     invalidateSkillsListCache,
@@ -69,6 +71,7 @@ export const SkillListScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
+    const t = useT(skillsListCatalog)
     const base = `/w/${workspaceId}/p/${projectId}`
     const query = useAtomValue(skillsListQueryAtom)
     const projectSkills = useAtomValue(skillsListDataAtom)
@@ -107,7 +110,9 @@ export const SkillListScreen = ({
             .map((item) => toSkillListRow(item, ownerNames.get(creators.get(item.id) ?? "")))
     }, [ownerNames, projectSkills])
     const repositories = useMemo(() => listRepositories(rows), [rows])
-    const groups = useMemo(() => deriveSkillList(rows, view), [rows, view])
+    // The group headings are text, so the groups are cut again when the language changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const groups = useMemo(() => deriveSkillList(rows, view), [rows, t, view])
 
     const term = search.trim()
     const isLoading = query.isPending
@@ -155,7 +160,7 @@ export const SkillListScreen = ({
     const body = query.isError ? (
         // A failed fetch must not read as an empty project, so the error replaces the results
         // rather than sitting under a header row that is no longer describing anything.
-        <LoadError framed title="Could not load skills" onRetry={retry} />
+        <LoadError framed title={t("skills.list.loadFailed")} onRetry={retry} />
     ) : (
         <SkillListTable
             groups={groups}
@@ -169,7 +174,7 @@ export const SkillListScreen = ({
 
     return (
         <>
-            <PageTitle title="Skills" />
+            <PageTitle title={t("skills.list.pageTitle")} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
@@ -181,7 +186,7 @@ export const SkillListScreen = ({
                                 {/* From `sm`, 24px is the desktop page-title rung; on a phone it
                                     eats the row, so the title drops to the 16px body ramp. */}
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
-                                    Skills
+                                    {t("skills.list.pageTitle")}
                                 </h1>
                                 {projectEmpty ? null : (
                                     <HowThisWorksButton guide="skills" className="max-sm:hidden" />
@@ -214,7 +219,7 @@ export const SkillListScreen = ({
                                 <ListTableToolbar
                                     search={typed}
                                     onSearchChange={setTyped}
-                                    searchPlaceholder="Search skills by name…"
+                                    searchPlaceholder={t("skills.list.searchPlaceholder")}
                                     actions={
                                         <>
                                             <SkillFilterMenu

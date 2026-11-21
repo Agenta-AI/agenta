@@ -492,16 +492,27 @@ class AgentTemplateLoader:
             access=access,
             first_agent_owner_user_id=first_agent_owner_user_id,
         )
-        await self._mounts_service.materialize_entries_if_absent(
-            project_id=project_id,
-            user_id=user_id,
-            workflow_id=prepared.workflow_id,
-            directories=prepared.workspace.directories,
-            files=[
-                MountFileSeed(path=item.path, content=item.content)
-                for item in prepared.workspace.files
-            ],
+        # The workflow is new in this load, so a drive created with it was created by
+        # this load's first commit. A template that names an existing home or null
+        # gets none, and its files are skipped: it never writes into a used drive.
+        drive = await self._mounts_service.fetch_agent_drive(
+            project_id=project_id, artifact_id=str(prepared.workflow_id)
         )
+        skipped_files: list[str] = []
+        if drive is not None:
+            await self._mounts_service.materialize_entries_if_absent(
+                project_id=project_id,
+                user_id=user_id,
+                workflow_id=prepared.workflow_id,
+                mount=drive,
+                directories=prepared.workspace.directories,
+                files=[
+                    MountFileSeed(path=item.path, content=item.content)
+                    for item in prepared.workspace.files
+                ],
+            )
+        else:
+            skipped_files = [item.path for item in prepared.workspace.files]
         start_key = self._start_key(
             request_key=request_key,
             digest=prepared.resolved_source.digest,
@@ -563,4 +574,5 @@ class AgentTemplateLoader:
             execution_id=start.execution_id,
             input_id=start.input_id,
             replayed=prepared.replayed or start.replayed,
+            skipped_files=skipped_files,
         )

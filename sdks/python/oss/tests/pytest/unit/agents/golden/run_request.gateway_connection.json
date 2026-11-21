@@ -101,5 +101,6 @@
         }
       }
     }
-  }
+  },
+  "hasSessionDrive": true
 }

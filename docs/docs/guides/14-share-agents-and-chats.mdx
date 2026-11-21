@@ -36,8 +36,9 @@ When you make an agent private:
 
 - Other members no longer see or run it. They can still read the chats they already had with it, but they cannot send to them.
 - If the agent is connected to Slack or another channel through a connection you made, it keeps answering there. A connection another member made stops answering. New chats from the channel are private to you. See [Connect an agent to Slack](/guides/connect-slack).
+- Its drives stay shared. If its home drive is shared, the change is refused until you set a private home drive or none. See [home_drive](/reference/agents/agent-configuration#home_drive).
 
-When you share an agent with the project, everyone in the project can run it and make it use its connected accounts.
+When you share an agent with the project, everyone in the project can run it and make it use its connected accounts. Your private drives that the agent lists become shared in the same step, and the answer lists them. If the agent lists a private drive of another member, the change is refused.
 
 People who are not the owner always see **Shared** in the top bar.
 
@@ -114,6 +115,7 @@ Before you share an agent with the project, Agenta shows a similar notice: every
 - **API keys and channels.** Agents and chats created with an API key are always shared with the project and have no owner. Chats from Slack or Telegram with a shared agent are too. Everyone in the project can send to these chats in Agenta.
 - **Channel event logs.** Project members who can view channels can read the message logs of a channel connection through the channel API, also for a private agent.
 - **Private agents and subagents in channels.** In a Slack or Telegram chat, a private agent cannot call another private agent as a subagent.
+- **Private agents and drives in channels.** In a Slack or Telegram chat, a private agent can read the drives it lists, also its owner's private drives. Anyone in the chat can ask it about the files in those drives.
 - **API keys and owned chats.** An API key cannot continue a private chat that a person owns; an SDK client starts a new chat.
 
 :::warning[Self-hosted deployments]

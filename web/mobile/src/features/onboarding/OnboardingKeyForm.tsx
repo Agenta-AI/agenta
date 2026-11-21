@@ -6,6 +6,8 @@ import {
     providerIconFor,
     useSaveProviderKey,
 } from "@agenta/entity-ui/secretProvider"
+import {useT} from "@agenta/i18n"
+import keyFormCatalog from "@agenta/i18n/catalogs/onboarding.keyForm"
 import {
     Button,
     Command,
@@ -21,10 +23,6 @@ import {
     PopoverTrigger,
 } from "@agenta/ui/ui"
 import {CaretUpDown} from "@phosphor-icons/react"
-
-import {ONBOARDING_COPY} from "./onboardingCopy"
-
-const copy = ONBOARDING_COPY.model
 
 /** Shorter than any provider's real key; the provider still judges the rest. */
 const MIN_KEY_LENGTH = 8
@@ -51,6 +49,7 @@ const providerMark = (kind: string) => (
 
 /** The API-key row's open state: pick a provider, paste its key, save it to the vault. */
 export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void}) => {
+    const t = useT(keyFormCatalog)
     const save = useSaveProviderKey()
     const [kind, setKind] = useState(KEY_PROVIDERS[0]?.kind ?? "")
     const [key, setKey] = useState("")
@@ -89,7 +88,11 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
 
     if (!provider) return null
     const error =
-        phase === "invalid" ? copy.keyInvalid : phase === "failed" ? copy.keySaveFailed : null
+        phase === "invalid"
+            ? t("onboarding.keyForm.invalid")
+            : phase === "failed"
+              ? t("onboarding.keyForm.saveFailed")
+              : null
 
     return (
         <form onSubmit={submit} className="flex flex-col gap-2 pb-3 sm:pl-10">
@@ -99,13 +102,13 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
                         type="button"
                         variant="outline"
                         role="combobox"
-                        aria-label={copy.keyProvider}
+                        aria-label={t("onboarding.keyForm.provider")}
                         className="h-8 w-full justify-start gap-2 pl-1.5 pr-2 font-medium"
                     >
                         {providerMark(provider.kind)}
                         <span className="min-w-0 flex-1 truncate text-left">{provider.title}</span>
                         <span className="text-muted-foreground text-xs font-normal">
-                            {copy.keyProviders(KEY_PROVIDERS.length)}
+                            {t("onboarding.keyForm.providerCount", {total: KEY_PROVIDERS.length})}
                         </span>
                         <CaretUpDown size={12} className="text-muted-foreground" />
                     </Button>
@@ -120,9 +123,9 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
                     }}
                 >
                     <Command filter={matchProvider}>
-                        <CommandInput placeholder={copy.keySearch} />
+                        <CommandInput placeholder={t("onboarding.keyForm.search")} />
                         <CommandList className="max-h-[212px]">
-                            <CommandEmpty>{copy.keyNoMatch}</CommandEmpty>
+                            <CommandEmpty>{t("onboarding.keyForm.noMatch")}</CommandEmpty>
                             <CommandGroup>
                                 {KEY_PROVIDERS.map((entry) => (
                                     <CommandItem
@@ -145,7 +148,7 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
                 <Input
                     ref={keyRef}
                     type="password"
-                    aria-label={copy.keyLabel}
+                    aria-label={t("onboarding.keyForm.keyLabel")}
                     aria-invalid={phase === "invalid" || undefined}
                     placeholder={keyPlaceholderFor(provider.kind, provider.title)}
                     autoComplete="off"
@@ -164,7 +167,7 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
                     loading={phase === "saving"}
                     className="max-sm:h-11 max-sm:w-full"
                 >
-                    {copy.save}
+                    {t("onboarding.keyForm.save")}
                 </LoadingButton>
             </div>
             {error ? (

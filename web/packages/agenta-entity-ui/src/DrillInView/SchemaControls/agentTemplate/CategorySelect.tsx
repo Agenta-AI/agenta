@@ -2,9 +2,13 @@
 import {useMemo} from "react"
 
 import {useToolCatalogCategories} from "@agenta/entities/gatewayTool"
+import {createT, useT} from "@agenta/i18n"
+import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import {Combobox, type ComboboxOption} from "@agenta/ui/ui"
 
 import {categoryLabel, type CategorySelection} from "./integrationCatalogFilters"
+
+const tNow = createT(integrationDrawerCatalog)
 
 const ALL = "__all__"
 
@@ -18,12 +22,17 @@ export function CategorySelect({
     /** The drawer panel, so the list portals inside it and scrolls under the drawer's lock. */
     container: HTMLElement | null
 }) {
+    const t = useT(integrationDrawerCatalog)
     const {categories, isLoading, error} = useToolCatalogCategories()
 
     // Typing filters on the label the reader sees ("AI web scraping"), not the provider's id.
     const options = useMemo<ComboboxOption[]>(
         () => [
-            {value: ALL, label: "All categories", searchValue: "All categories"},
+            {
+                value: ALL,
+                label: tNow("entityUi.integrationDrawer.allCategories"),
+                searchValue: tNow("entityUi.integrationDrawer.allCategories"),
+            },
             ...categories.map((category) => {
                 const label = categoryLabel(category.name)
                 return {value: category.id, label, searchValue: label}
@@ -37,15 +46,15 @@ export function CategorySelect({
 
     return (
         <Combobox
-            aria-label="Category"
+            aria-label={t("entityUi.integrationDrawer.category")}
             // Narrower on a phone so the search keeps room for its placeholder.
             className="w-36 shrink-0 sm:w-48"
             // The list may be wider than its field, so names stay on one line on a phone.
             contentClassName="w-56"
             options={options}
             value={value?.id ?? ALL}
-            placeholder="All categories"
-            emptyText="No matching category"
+            placeholder={t("entityUi.integrationDrawer.allCategories")}
+            emptyText={t("entityUi.integrationDrawer.noMatchingCategory")}
             loading={isLoading && !categories.length}
             container={container}
             onChange={(id) => {

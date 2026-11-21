@@ -7,6 +7,8 @@
  */
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import permissionDrawerCatalog from "@agenta/i18n/catalogs/entityUi.permissionDrawer"
 import {
     Select,
     SelectContent,
@@ -62,7 +64,7 @@ export function PermissionPolicySelect({
     onChange,
     options,
     disabled,
-    "aria-label": ariaLabel = "Permission policy",
+    "aria-label": ariaLabel,
     open,
     onOpenChange,
     container,
@@ -72,6 +74,7 @@ export function PermissionPolicySelect({
     size,
     align,
 }: PermissionPolicySelectProps) {
+    const t = useT(permissionDrawerCatalog)
     const selected = options.find((option) => option.value === value)
     return (
         <Select
@@ -81,7 +84,11 @@ export function PermissionPolicySelect({
             open={open}
             onOpenChange={onOpenChange}
         >
-            <SelectTrigger className={triggerClassName} size={size} aria-label={ariaLabel}>
+            <SelectTrigger
+                className={triggerClassName}
+                size={size}
+                aria-label={ariaLabel ?? t("entityUi.permissionDrawer.permissionPolicy")}
+            >
                 <SelectValue>
                     <span className="flex min-w-0 items-center gap-2">
                         {selected?.icon}

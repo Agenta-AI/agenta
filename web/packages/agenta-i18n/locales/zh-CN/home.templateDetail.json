@@ -1,0 +1,16 @@
+{
+    "loadError": "无法加载此模板",
+    "notFound": "未找到模板",
+    "allTemplates": "全部模板",
+    "use": "使用此模板",
+    "slotOr": "{{first}} 或 {{second}}",
+    "connectionsUsed": "它使用的连接",
+    "optionalConnections": "可选连接",
+    "alsoIncluded": "同时包含",
+    "trigger": "触发器",
+    "exampleSession": "示例会话",
+    "exampleSteps": "{{name}} · {{total}} 个步骤",
+    "exampleNote": "这是此模板运行方式的示例，并非真实录制的会话。",
+    "instructions": "指令 · AGENTS.md",
+    "tools": "它可调用的工具"
+}

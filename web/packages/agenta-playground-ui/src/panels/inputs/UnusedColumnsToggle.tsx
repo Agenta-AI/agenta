@@ -1,5 +1,7 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import inputsCatalog from "@agenta/i18n/catalogs/playground.inputs"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 
 import {InputVariableCard} from "./InputVariableCard"
@@ -15,13 +17,13 @@ export interface UnusedColumnsToggleProps {
  * opens are read only, so an unused value does not invite an edit.
  */
 export const UnusedColumnsToggle = ({rowId, columns}: UnusedColumnsToggleProps) => {
+    const t = useT(inputsCatalog)
     const [open, setOpen] = useState(false)
     if (columns.length === 0) return null
 
-    const noun = `unused test case column${columns.length === 1 ? "" : "s"}`
     const summary = open
-        ? `${columns.length} ${noun} (not referenced by the prompt)`
-        : `${columns.length} ${noun} hidden because the prompt does not reference them.`
+        ? t("playground.inputs.unusedColumnsOpen", {count: columns.length})
+        : t("playground.inputs.unusedColumnsClosed", {count: columns.length})
 
     return (
         <div className="flex min-w-0 flex-col gap-2">

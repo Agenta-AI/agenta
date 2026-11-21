@@ -175,7 +175,6 @@ async def two_bridges(bridge_scope):
                 ChannelsIngressRouter(
                     channels_service=service,
                     adapter_registry=registry,
-                    dispatch_task=None,
                 ).router,
                 prefix="/channels",
             )

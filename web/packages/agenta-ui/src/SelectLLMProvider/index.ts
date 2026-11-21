@@ -26,7 +26,7 @@
 export {default as SelectLLMProviderBase} from "./SelectLLMProviderBase"
 export {default as ManageProvidersRow} from "./ManageProvidersRow"
 export type {ManageProvidersRowProps} from "./ManageProvidersRow"
-export {default as HarnessTooltip, HARNESS_TOOLTIP_COPY} from "./HarnessTooltip"
+export {default as HarnessTooltip} from "./HarnessTooltip"
 export type {
     SelectLLMProviderBaseProps,
     ProviderOption,

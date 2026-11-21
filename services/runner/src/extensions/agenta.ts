@@ -587,7 +587,7 @@ function registerAgentaExtension(
       baggage: control.propagation?.baggage,
       captureContent: control.capture.content,
       sessionId: control.sessionId,
-      turnId: control.turnId,
+      sessionTurnId: control.sessionTurnId,
       skills: control.skills,
       skillsDropped: control.skillsDropped,
       customConnection: control.customConnection,

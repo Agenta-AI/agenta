@@ -1,0 +1,18 @@
+{
+    "copyId": "Organisations-ID kopieren",
+    "copyIdFailed": "Die ID konnte nicht kopiert werden",
+    "current": "Aktuell",
+    "delete": "Organisation löschen",
+    "emptyDescription": "Eine Organisation fasst Ihre Arbeitsbereiche, Projekte und die Personen zusammen, die darin arbeiten.",
+    "emptyTitle": "Noch keine Organisationen",
+    "idCopied": "Organisations-ID kopiert",
+    "leave": "Organisation verlassen",
+    "member": "Mitglied",
+    "newOrganization": "Neue Organisation",
+    "organization": "Organisation",
+    "organizationActions": "Organisationsaktionen",
+    "organizationName": "Name der Organisation",
+    "owner": "Eigentümer",
+    "switchTo": "Zu dieser Organisation wechseln",
+    "transferOwnership": "Eigentum übertragen"
+}

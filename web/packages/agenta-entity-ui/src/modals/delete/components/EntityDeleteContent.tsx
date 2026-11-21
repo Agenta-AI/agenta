@@ -7,6 +7,8 @@
 
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import deleteModalCatalog from "@agenta/i18n/catalogs/entityUi.deleteModal"
 import {Alert} from "@agenta/ui/ui"
 import {atom, useAtomValue} from "jotai"
 import {Trash2} from "lucide-react"
@@ -30,6 +32,7 @@ import {
  * - Error message if delete failed
  */
 export function EntityDeleteContent() {
+    const t = useT(deleteModalCatalog)
     const groups = useAtomValue(deleteModalGroupsAtom)
     const warnings = useAtomValue(deleteModalWarningsAtom)
     const blocked = useAtomValue(deleteModalBlockedAtom)
@@ -38,9 +41,7 @@ export function EntityDeleteContent() {
     return (
         <div className="flex flex-col gap-4">
             {/* Confirmation message */}
-            <span className="text-colorText">
-                Are you sure you want to delete the following? This action cannot be undone.
-            </span>
+            <span className="text-colorText">{t("entityUi.deleteModal.confirm")}</span>
 
             {/* Entity groups */}
             {groups.map((group) => (
@@ -52,7 +53,7 @@ export function EntityDeleteContent() {
                 <Alert
                     type="warning"
                     showIcon
-                    message="Warning"
+                    message={t("entityUi.deleteModal.warning")}
                     description={
                         <ul className="list-disc list-inside m-0 pl-0">
                             {warnings.map((warning, i) => (
@@ -68,11 +69,11 @@ export function EntityDeleteContent() {
                 <Alert
                     type="error"
                     showIcon
-                    message="Cannot Delete"
+                    message={t("entityUi.deleteModal.cannotDelete")}
                     description={
                         <div>
                             <span className="text-colorText">
-                                The following items cannot be deleted:
+                                {t("entityUi.deleteModal.blockedItems")}
                             </span>
                             <ul className="list-disc list-inside m-0 pl-0 mt-2">
                                 {blocked.map((entity) => (
@@ -88,7 +89,12 @@ export function EntityDeleteContent() {
 
             {/* Error message */}
             {error && (
-                <Alert type="error" showIcon message="Delete Failed" description={error.message} />
+                <Alert
+                    type="error"
+                    showIcon
+                    message={t("entityUi.deleteModal.deleteFailed")}
+                    description={error.message}
+                />
             )}
         </div>
     )

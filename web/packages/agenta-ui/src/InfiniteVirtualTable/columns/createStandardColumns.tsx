@@ -1,5 +1,8 @@
 import type {ComponentType, ReactNode} from "react"
 
+import {createT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiTableCatalog from "@agenta/i18n/catalogs/ui.table"
 import {Copy, DotsThreeVertical, DownloadSimple} from "@phosphor-icons/react"
 
 import {InitialsAvatar} from "../../components/presentational/avatar"
@@ -19,6 +22,8 @@ import ColumnVisibilityMenuTrigger from "../components/columnVisibility/ColumnVi
 import SkeletonLine from "../components/common/SkeletonLine"
 import {renderTableMenuItems, type TableMenuItem} from "../tableMenu"
 import type {InfiniteTableRowBase} from "../types"
+
+const tNow = createT(uiTableCatalog, commonCatalog)
 
 // Default fallback for UserReference - just shows the userId
 const DefaultUserReference = ({userId}: {userId: string | null | undefined}) => {
@@ -516,7 +521,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
             if (onExportRow) {
                 menuItems.push({
                     key: "export-row",
-                    label: "Export row",
+                    label: tNow("ui.table.exportRow"),
                     icon: <DownloadSimple size={16} />,
                     disabled: isExporting,
                     onClick: () => {
@@ -542,7 +547,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                     }
                     menuItems.push({
                         key: "copy-id",
-                        label: "Copy ID",
+                        label: tNow("ui.table.copyId"),
                         icon: <Copy size={16} />,
                         onClick: () => copyToClipboard(recordId),
                     })
@@ -555,7 +560,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                 if (slug) {
                     menuItems.push({
                         key: "copy-slug",
-                        label: "Copy Slug",
+                        label: tNow("ui.table.copySlug"),
                         icon: <Copy size={16} />,
                         onClick: () => copyToClipboard(slug),
                     })
@@ -586,14 +591,14 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                     <DropdownMenu>
                         {/* Span keeps the tooltip trigger off the menu trigger's own element
                             (see SimpleTooltip) — hygiene, not the /evaluations loop fix. */}
-                        <SimpleTooltip title="Actions">
+                        <SimpleTooltip title={tNow("common.actions")}>
                             <span className="inline-flex">
                                 <DropdownMenuTrigger asChild>
                                     <Button
                                         onClick={(e) => e.stopPropagation()}
                                         variant="ghost"
                                         size="sm"
-                                        aria-label="Actions"
+                                        aria-label={tNow("common.actions")}
                                     >
                                         <DotsThreeVertical weight="bold" />
                                     </Button>

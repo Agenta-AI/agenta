@@ -1,5 +1,7 @@
 import {useState, type ReactNode} from "react"
 
+import {richText, useT} from "@agenta/i18n"
+import toolConnectionsCatalog from "@agenta/i18n/catalogs/entityUi.toolConnections"
 import {
     Button,
     Dialog,
@@ -33,6 +35,7 @@ export const FinishConnectionDialog = ({
     /** A drawer panel to open inside, masking only that drawer. Absent = the page. */
     container?: HTMLElement | null
 }) => {
+    const t = useT(toolConnectionsCatalog)
     const [authorizing, setAuthorizing] = useState(false)
 
     return (
@@ -53,10 +56,13 @@ export const FinishConnectionDialog = ({
                     </span>
                     <div className="flex flex-col gap-1">
                         <DialogTitle className="text-base font-medium leading-snug">
-                            Finish connecting {name}
+                            {/* The name is a node, so it fills the tag rather than a placeholder. */}
+                            {richText(t("entityUi.toolConnections.finishConnecting"), {
+                                name: () => name,
+                            })}
                         </DialogTitle>
                         <DialogDescription className="text-sm text-colorTextDescription">
-                            Its sign-in was never completed, so agents can&apos;t use its tools yet.
+                            {t("entityUi.toolConnections.signInNeverCompleted")}
                         </DialogDescription>
                     </div>
                 </DialogHeader>
@@ -72,11 +78,11 @@ export const FinishConnectionDialog = ({
                                 onDelete()
                             }}
                         >
-                            Delete
+                            {t("entityUi.toolConnections.delete")}
                         </Button>
                     ) : null}
                     <Button variant="outline" onClick={onClose}>
-                        Cancel
+                        {t("entityUi.toolConnections.cancel")}
                     </Button>
                     <LoadingButton
                         loading={authorizing}
@@ -90,7 +96,7 @@ export const FinishConnectionDialog = ({
                             }
                         }}
                     >
-                        Authorize
+                        {t("entityUi.toolConnections.authorize")}
                         <ArrowSquareOut size={14} />
                     </LoadingButton>
                 </DialogFooter>

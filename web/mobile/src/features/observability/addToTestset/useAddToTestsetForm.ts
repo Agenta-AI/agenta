@@ -18,6 +18,8 @@ import {
     newColumnsOf,
     suggestTraceMappings,
 } from "@agenta/entities/trace"
+import {createT} from "@agenta/i18n"
+import addToTestsetCatalog from "@agenta/i18n/catalogs/observability.addToTestset"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message as toast} from "@agenta/ui/app-message"
 import {useQuery} from "@tanstack/react-query"
@@ -53,8 +55,7 @@ export const PREVIEW_ROW_LIMIT = 5
 /** The option value of "Create New" in the test set and column pickers. */
 export const CREATE_NEW = "__create_new__"
 
-const SAVE_FAILED = "Couldn't add the spans to the test set"
-const NAME_TAKEN = "A test set with this name already exists"
+const tNow = createT(addToTestsetCatalog)
 
 type Action =
     | {type: "target"; target: AddToTestsetTarget}
@@ -257,8 +258,8 @@ export const useAddToTestsetForm = ({
                 invalidateTestsetsListCache()
                 toast.success(
                     note
-                        ? `Test set created with message: "${note}"`
-                        : "Test set created successfully",
+                        ? tNow("observability.addToTestset.createdWithMessage", {note})
+                        : tNow("observability.addToTestset.created"),
                 )
             } else {
                 const baseRevisionId =
@@ -279,14 +280,20 @@ export const useAddToTestsetForm = ({
                 invalidateTestsetCache(target.testsetId)
                 invalidateRevisionsListCache(target.testsetId)
                 toast.success(
-                    note ? `Saved with message: "${note}"` : "Test set updated successfully",
+                    note
+                        ? tNow("observability.addToTestset.savedWithMessage", {note})
+                        : tNow("observability.addToTestset.updated"),
                 )
             }
             onSaved()
             return true
         } catch (cause) {
             console.error("Adding the spans to the test set failed", cause)
-            toast.error(target.kind === "new" && isConflict(cause) ? NAME_TAKEN : SAVE_FAILED)
+            toast.error(
+                target.kind === "new" && isConflict(cause)
+                    ? tNow("observability.addToTestset.nameTaken")
+                    : tNow("observability.addToTestset.saveFailed"),
+            )
             return false
         } finally {
             savingRef.current = false

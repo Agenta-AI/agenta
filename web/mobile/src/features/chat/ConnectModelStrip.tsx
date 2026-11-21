@@ -4,6 +4,8 @@ import {RevealCollapse} from "@agenta/chat/components"
 import type {AgentModelKeyStatus} from "@agenta/chat/hooks"
 import {providerConnectionsAtom, useVaultSecret} from "@agenta/entities/secret"
 import {ProviderDrawer} from "@agenta/entity-ui/secretProvider"
+import {useT} from "@agenta/i18n"
+import chatMobileComposerCatalog from "@agenta/i18n/catalogs/chat.mobileComposer"
 import {Button} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import {Lock} from "lucide-react"
@@ -28,6 +30,7 @@ import {Lock} from "lucide-react"
  * is exactly what happens when the key lands.
  */
 export const ConnectModelStrip = ({gateActive}: Pick<AgentModelKeyStatus, "gateActive">) => {
+    const t = useT(chatMobileComposerCatalog)
     const [open, setOpen] = useState(false)
     const connections = useAtomValue(providerConnectionsAtom)
     const {mutate} = useVaultSecret()
@@ -38,12 +41,10 @@ export const ConnectModelStrip = ({gateActive}: Pick<AgentModelKeyStatus, "gateA
                 <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-solid border-colorWarning/30 bg-colorWarningBg px-3 py-2">
                     <span className="flex min-w-0 items-center gap-2 text-xs text-colorWarningText">
                         <Lock className="size-3.5 shrink-0" />
-                        <span className="truncate">
-                            Add your model provider key to run this agent.
-                        </span>
+                        <span className="truncate">{t("chat.mobileComposer.addProviderKey")}</span>
                     </span>
                     <Button size="sm" className="shrink-0" onClick={() => setOpen(true)}>
-                        Set up model providers
+                        {t("chat.mobileComposer.setUpProviders")}
                     </Button>
                 </div>
             </RevealCollapse>

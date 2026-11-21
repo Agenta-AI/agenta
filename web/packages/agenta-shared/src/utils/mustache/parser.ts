@@ -21,7 +21,7 @@
  *     keeps the parser simple while surfacing the structural tag.
  *
  * Authority for design decisions:
- *   - `docs/designs/mustache-section-support.md` (Phase 2 — section parser)
+ *   - `docs/design/mustache-section-support.md` (Phase 2 — section parser)
  *   - Mahmoud's link to the manual (2026-06-02, thread C0B4K2KFUJF)
  */
 

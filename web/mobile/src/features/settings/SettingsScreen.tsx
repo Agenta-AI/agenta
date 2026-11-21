@@ -1,5 +1,8 @@
 import {useCallback, useEffect, useRef} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {getSettingsTabVariant, type SettingsTabKey} from "@agenta/settings"
 import {SettingsPageShell} from "@agenta/settings-ui"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
@@ -9,11 +12,11 @@ import {useRouter} from "next/router"
 import {ContentRail} from "@/components/ContentRail"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {getMobileSettingsTabLabel} from "@/lib/integrationsCopy"
 import {
     getMobileSettingsTabDescription,
     getMobileSettingsTabDocs,
-    getMobileSettingsTabLabel,
-} from "@/lib/integrationsCopy"
+} from "@/lib/integrationsTabDetails"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {openFeatureGuideAtom} from "../education/featureGuideAtom"
@@ -65,6 +68,7 @@ export const SettingsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const t = useT(commonCatalog, navigationCatalog)
     useBindProjectContext(projectId)
     const router = useRouter()
     usePreloadSettingsTabs()
@@ -100,7 +104,10 @@ export const SettingsScreen = ({
                 docs={getMobileSettingsTabDocs(active)}
                 video={
                     walkthrough
-                        ? {label: "Watch walkthrough", onOpen: () => openWalkthrough(walkthrough)}
+                        ? {
+                              label: t("navigation.settings.watchWalkthrough"),
+                              onOpen: () => openWalkthrough(walkthrough),
+                          }
                         : undefined
                 }
             >
@@ -111,7 +118,7 @@ export const SettingsScreen = ({
 
     return (
         <>
-            <PageTitle title="Settings" />
+            <PageTitle title={t("common.settings")} />
             <AppShell
                 workspaceId={workspaceId}
                 projectId={projectId}
@@ -124,7 +131,9 @@ export const SettingsScreen = ({
                             <div className="border-border shrink-0 border-0 border-b border-solid px-2 pb-3 pt-2 lg:px-8">
                                 <ContentRail className="flex items-center gap-2 lg:max-w-none">
                                     <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                    <h1 className="m-0 text-sm font-semibold">Settings</h1>
+                                    <h1 className="m-0 text-sm font-semibold">
+                                        {t("common.settings")}
+                                    </h1>
                                 </ContentRail>
                             </div>
                         ) : (
@@ -139,7 +148,9 @@ export const SettingsScreen = ({
                                         projectId={projectId}
                                         scope={settingsScope}
                                     />
-                                    <h1 className="m-0 text-sm font-semibold">Settings</h1>
+                                    <h1 className="m-0 text-sm font-semibold">
+                                        {t("common.settings")}
+                                    </h1>
                                 </div>
                             </div>
                         )

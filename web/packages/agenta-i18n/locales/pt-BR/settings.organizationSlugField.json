@@ -1,0 +1,12 @@
+{
+    "hint": "Defina uma única vez. É usado nas URLs de callback do SSO e não pode ser alterado depois.",
+    "invalid": "Use de 1 a 64 letras minúsculas (a-z) e hifens (-)",
+    "label": "Slug da organização",
+    "lockedHint": "Este slug é usado nas URLs de callback do SSO e não pode ser alterado.",
+    "noSlug": "Nenhum slug definido.",
+    "save": "Salvar slug",
+    "saveFailed": "Não foi possível salvar o slug da organização",
+    "saving": "Salvando…",
+    "setBeforeSso": "Defina o slug antes de adicionar um provedor de SSO. A URL de callback precisa dele.",
+    "taken": "Esse slug já está em uso. Escolha outro."
+}

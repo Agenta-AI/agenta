@@ -1,5 +1,7 @@
 import {useMemo, useState} from "react"
 
+import {formatLocale, useT} from "@agenta/i18n"
+import walletUsageCatalog from "@agenta/i18n/catalogs/wallet.usage"
 import {sharePercent, sum} from "@agenta/observability/analytics"
 import {
     AnalyticsCard,
@@ -21,7 +23,7 @@ import {useQuery} from "@tanstack/react-query"
 import {AnimatedNumber} from "@/components/AnimatedNumber"
 
 import {
-    CREDITS_USAGE_GROUPS,
+    creditsUsageGroups,
     CREDITS_USAGE_RANGES,
     creditsUsageChart,
     groupLabel,
@@ -32,14 +34,19 @@ import {
 } from "./creditsUsage"
 import {fetchWalletUsage, isForbidden} from "./walletApi"
 import {formatUsd, MUSD_PER_CREDIT} from "./walletFormat"
+import {withSlots} from "./withSlots"
 
 const CHART_HEIGHT = 220
 
+// English keeps its fixed "en-US" format; other languages follow the chosen one.
 const credits = (value: number) =>
-    value.toLocaleString("en-US", {minimumFractionDigits: 1, maximumFractionDigits: 1})
+    value.toLocaleString(formatLocale() ?? "en-US", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+    })
 
 const dayLabel = (day: string, withYear = false) =>
-    new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", {
+    new Date(`${day}T00:00:00Z`).toLocaleDateString(formatLocale() ?? "en-US", {
         month: "short",
         day: "numeric",
         year: withYear ? "numeric" : undefined,
@@ -58,6 +65,7 @@ export const CreditsUsageSection = ({
     /** The permission check is still in flight: the section loads rather than locks. */
     checkingAccess: boolean
 }) => {
+    const t = useT(walletUsageCatalog)
     const [range, setRange] = useState<CreditsUsageRange>(30)
     const [group, setGroup] = useState<CreditsUsageGroup>("category")
     const [hovered, setHovered] = useState<number | null>(null)
@@ -75,10 +83,10 @@ export const CreditsUsageSection = ({
     })
 
     const chart = useMemo(
-        () => (usage.data ? creditsUsageChart(usage.data, group, rangeDays(range)) : null),
-        [usage.data, group, range],
+        () => (usage.data ? creditsUsageChart(usage.data, group, rangeDays(range), t) : null),
+        [usage.data, group, range, t],
     )
-    const rangeLabel = `Last ${range} days`
+    const rangeLabel = t("wallet.usage.lastDays", {days: range})
     const total = chart ? sum(chart.total) : 0
     const series = (chart?.series ?? []).map((s) => ({...s, hidden: hidden[s.key]}))
     const labels = chart?.days.map((day) => dayLabel(day)) ?? []
@@ -113,21 +121,25 @@ export const CreditsUsageSection = ({
                             }}
                             className="justify-between"
                         >
-                            Last {days} days
+                            {t("wallet.usage.lastDays", {days})}
                             {days === range ? <Check /> : null}
                         </DropdownMenuItem>
                     ))}
                 </DropdownMenuContent>
             </DropdownMenu>
             <GroupMenu
-                options={CREDITS_USAGE_GROUPS}
+                options={creditsUsageGroups(t)}
                 value={group}
                 onChange={(next) => {
                     setGroup(next)
                     setHidden({})
                     setHovered(null)
                 }}
-                label={group === "none" ? "Group" : `Group: ${groupLabel(group)}`}
+                label={
+                    group === "none"
+                        ? t("wallet.usage.group")
+                        : t("wallet.usage.groupBy", {group: groupLabel(group, t)})
+                }
                 icon={<Rows size={14} />}
                 align="end"
             />
@@ -137,44 +149,42 @@ export const CreditsUsageSection = ({
     return (
         <section className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="m-0 text-lg font-semibold tracking-[-0.01em]">Usage</h2>
+                <h2 className="m-0 text-lg font-semibold tracking-[-0.01em]">
+                    {t("wallet.usage.title")}
+                </h2>
                 {locked ? null : controls}
             </div>
             {locked ? (
                 <div className="border-border flex flex-col items-center gap-2 rounded-xl border border-dashed px-6 py-12 text-center">
                     <LockSimple size={22} className="text-muted-foreground" />
-                    <span className="font-medium">Usage details are for owners and admins.</span>
+                    <span className="font-medium">{t("wallet.usage.locked")}</span>
                     <span className="text-muted-foreground text-sm">
-                        Ask an owner or admin to see where credits were used.
+                        {t("wallet.usage.lockedHint")}
                     </span>
                 </div>
             ) : (
                 <AnalyticsCard
-                    title="Credits used"
-                    value={
-                        <>
-                            <AnimatedNumber value={credits(total)} /> credits ·{" "}
-                            <AnimatedNumber value={formatUsd(total * MUSD_PER_CREDIT)} />
-                        </>
-                    }
+                    title={t("wallet.usage.creditsUsed")}
+                    value={withSlots((values) => t("wallet.usage.total", values), {
+                        credits: <AnimatedNumber value={credits(total)} />,
+                        usd: <AnimatedNumber value={formatUsd(total * MUSD_PER_CREDIT)} />,
+                    })}
                     caption={rangeLabel}
                     loading={checkingAccess || usage.isPending}
                     error={usage.isError ? usage.error : null}
                     onRetry={() => void usage.refetch()}
-                    empty={
-                        total ? null : {text: `No credits used in the ${rangeLabel.toLowerCase()}`}
-                    }
+                    empty={total ? null : {text: t("wallet.usage.noCreditsInRange", {days: range})}}
                     chartHeight={CHART_HEIGHT}
-                    note={
-                        chart?.partial
-                            ? "Only the newest 5,000 charges in this range are split by this group."
-                            : null
-                    }
+                    note={chart?.partial ? t("wallet.usage.partialNote") : null}
                     legend={
                         <ChartLegendRow
                             items={series.map((s) => ({
                                 key: s.key,
-                                label: `${s.label} ${credits(seriesTotal(s))} · ${sharePercent(seriesTotal(s), total)}`,
+                                label: t("wallet.usage.legendItem", {
+                                    label: s.label,
+                                    credits: credits(seriesTotal(s)),
+                                    share: sharePercent(seriesTotal(s), total),
+                                }),
                                 color: s.color,
                                 hidden: s.hidden,
                             }))}
@@ -193,7 +203,9 @@ export const CreditsUsageSection = ({
                         tooltip={(i) => (
                             <ChartTooltipPanel
                                 title={chart ? dayLabel(chart.days[i], true) : ""}
-                                value={`${credits(bucketTotal(i))} credits`}
+                                value={t("wallet.usage.creditsAmount", {
+                                    credits: credits(bucketTotal(i)),
+                                })}
                                 rows={series
                                     .filter((s) => !s.hidden && (s.values[i] ?? 0) > 0)
                                     .sort((a, b) => (b.values[i] ?? 0) - (a.values[i] ?? 0))
@@ -205,7 +217,7 @@ export const CreditsUsageSection = ({
                                     }))}
                                 facts={[
                                     {
-                                        label: "Cost",
+                                        label: t("wallet.usage.cost"),
                                         value: formatUsd(bucketTotal(i) * MUSD_PER_CREDIT),
                                     },
                                 ]}

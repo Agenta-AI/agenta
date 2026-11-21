@@ -1,0 +1,8 @@
+{
+    "backToCommands": "volver a los comandos",
+    "changesDraft": "Cambia la configuración en borrador de este agente.",
+    "editRules": "Editar reglas en la configuración →",
+    "policyLabel": "Política de permisos",
+    "subtitle": "lo que el agente puede hacer antes de tener que preguntar",
+    "title": "Permisos"
+}

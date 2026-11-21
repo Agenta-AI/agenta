@@ -1,5 +1,8 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
 import type {SimpleChatMessage} from "@agenta/shared/types"
 import {
     extractTextFromContent,
@@ -27,6 +30,8 @@ import AttachmentButton from "./AttachmentButton"
 import ChatMessageEditor from "./ChatMessageEditor"
 import MessageAttachments from "./MessageAttachments"
 import ToolMessageHeader from "./ToolMessageHeader"
+
+const tNow = createT(uiChatCatalog)
 
 type ChatViewMode = Extract<ViewMode, "text" | "markdown" | "json" | "yaml">
 
@@ -84,6 +89,7 @@ const ChatMessageItem: React.FC<{
     onRemoveAttachment,
     onToggleMinimize,
 }) => {
+    const t = useT(uiChatCatalog, commonCatalog)
     const containerRef = useRef<HTMLDivElement>(null)
     // Shared + persisted across all message editors (see messageViewModeAtom).
     // The atom is typed `ViewMode` (can hold "form"), so coerce to a mode this
@@ -122,28 +128,29 @@ const ChatMessageItem: React.FC<{
                 return false
             }
 
-            const limitSummary =
+            const content =
                 overBy > 0
-                    ? `This paste is ${overBy.toLocaleString()} characters over the ${maxPasteChars.toLocaleString()}-character limit.`
-                    : `This paste exceeds the ${maxPasteChars.toLocaleString()}-character limit.`
+                    ? tNow("ui.chat.pasteOverLimit", {
+                          over: overBy.toLocaleString(),
+                          max: maxPasteChars.toLocaleString(),
+                      })
+                    : tNow("ui.chat.pasteExceedsLimit", {max: maxPasteChars.toLocaleString()})
 
             modal.confirm({
-                title: "That's too long to paste",
-                content: `${limitSummary} To keep the editor responsive, you can attach the pasted content as a snippet instead.`,
-                okText: "Create Snippet",
-                cancelText: "Dismiss",
+                title: tNow("ui.chat.pasteTooLongTitle"),
+                content,
+                okText: tNow("ui.chat.createSnippet"),
+                cancelText: tNow("ui.chat.dismiss"),
                 centered: true,
                 onOk: async () => {
                     try {
                         const {fileData, filename, mimeType} =
                             await createSnippetPdfAttachment(pastedText)
                         onAddFile(index, fileData, filename, mimeType)
-                        message?.success(`Attached ${filename} as a snippet.`)
+                        message?.success(tNow("ui.chat.attachedSnippet", {filename}))
                     } catch (error) {
                         message?.error(
-                            error instanceof Error
-                                ? error.message
-                                : "Failed to create snippet attachment.",
+                            error instanceof Error ? error.message : tNow("ui.chat.snippetFailed"),
                         )
                         throw error
                     }
@@ -223,7 +230,7 @@ const ChatMessageItem: React.FC<{
                                             {<Copy size={14} />}
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Copy</TooltipContent>
+                                    <TooltipContent>{t("common.copy")}</TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
                         )}
@@ -239,7 +246,7 @@ const ChatMessageItem: React.FC<{
                                             {<MinusCircle size={14} />}
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Remove</TooltipContent>
+                                    <TooltipContent>{t("common.remove")}</TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
                         )}
@@ -321,7 +328,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     disabled,
     className,
     messageClassName,
-    placeholder = "Enter message...",
+    placeholder: placeholderProp,
     showControls = true,
     showRemoveButton,
     showCopyButton = false,
@@ -334,6 +341,8 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     maxPasteChars,
     viewModes,
 }) => {
+    const t = useT(uiChatCatalog, commonCatalog)
+    const placeholder = placeholderProp ?? t("ui.chat.enterMessage")
     const listInstanceIdRef = useRef(generateKey())
     // Maintain stable React keys for each message position.
     // This prevents React from reusing the wrong component instance
@@ -501,7 +510,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                     className="self-start"
                 >
                     {<Plus size={14} />}
-                    Message
+                    {t("ui.chat.message")}
                 </Button>
             )}
         </div>

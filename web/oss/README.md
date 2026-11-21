@@ -420,4 +420,4 @@ To change any color, edit `palette.ts`, then regenerate (from the web directory)
 pnpm generate:tailwind-tokens
 ```
 
-Full architecture and how to add/change/debug a color: [`docs/designs/dark-mode.md`](../../docs/designs/dark-mode.md).
+Full architecture and how to add/change/debug a color: [`docs/design/dark-mode.md`](../../docs/design/dark-mode.md).

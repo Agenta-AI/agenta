@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import screenCatalog from "@agenta/i18n/catalogs/observability.screen"
 import {useSessions} from "@agenta/observability"
 import {
     EndTimeCell,
@@ -65,6 +67,7 @@ const SessionRow = ({
 )
 
 export const SessionsList = ({onOpenSession}: {onOpenSession: (sessionId: string) => void}) => {
+    const t = useT(screenCatalog)
     const {
         sessionIds,
         isLoading,
@@ -91,8 +94,8 @@ export const SessionsList = ({onOpenSession}: {onOpenSession: (sessionId: string
                     <ObservabilityFiltered onClear={() => setFilters([])} />
                 ) : (
                     <ObservabilityEmpty
-                        title="No sessions yet"
-                        hint="Sessions appear here once your app groups traces by session id."
+                        title={t("observability.screen.noSessionsTitle")}
+                        hint={t("observability.screen.noSessionsHint")}
                     />
                 )
             }

@@ -1,8 +1,10 @@
+import {createT} from "@agenta/i18n"
+import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 import type {ListTableView} from "@agenta/ui/list-table"
 
 import {
-    AUTOMATION_STATUS_LABEL,
     automationStatus,
+    automationStatusLabel,
     type Automation,
     type AutomationStatus,
 } from "./automationModel"
@@ -50,10 +52,12 @@ export interface AutomationGroup {
     automations: Automation[]
 }
 
-export const AUTOMATION_TYPE_LABEL: Record<"schedule" | "event", string> = {
-    schedule: "Schedule",
-    event: "Event",
-}
+const tNow = createT(automationsModelCatalog)
+
+export const automationTypeLabel = (kind: "schedule" | "event"): string =>
+    kind === "schedule"
+        ? tNow("automations.model.typeSchedule")
+        : tNow("automations.model.typeEvent")
 
 /**
  * How many of the view's five controls are off their default.
@@ -92,15 +96,22 @@ const groupOf = (
 ): {key: string; label: string} => {
     switch (grouping) {
         case "type":
-            return {key: automation.kind, label: AUTOMATION_TYPE_LABEL[automation.kind]}
+            return {key: automation.kind, label: automationTypeLabel(automation.kind)}
         case "status": {
             const status = rowStatus(automation)
-            return {key: status, label: AUTOMATION_STATUS_LABEL[status]}
+            return {key: status, label: automationStatusLabel(status)}
         }
         case "agent": {
             const id = automation.agentId ?? ""
             const name = agentNames.get(id)?.trim()
-            return {key: id || "__unbound__", label: name || (id ? "Unknown agent" : "No agent")}
+            return {
+                key: id || "__unbound__",
+                label:
+                    name ||
+                    (id
+                        ? tNow("automations.model.unknownAgent")
+                        : tNow("automations.model.noAgent")),
+            }
         }
         default:
             return {key: "__all__", label: ""}

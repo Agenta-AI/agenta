@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import testsetsCatalog from "@agenta/i18n/catalogs/playground.testsets"
 import {
     AlertDialog,
     AlertDialogCancel,
@@ -28,7 +30,8 @@ export const KeepDraftRowsDialog = ({
     onDiscard,
     onCancel,
 }: KeepDraftRowsDialogProps) => {
-    const name = testsetName?.trim() || "the test set"
+    const t = useT(testsetsCatalog)
+    const name = testsetName?.trim() || t("playground.testsets.theTestSet")
     const many = draftCount > 1
     return (
         <AlertDialog
@@ -40,31 +43,32 @@ export const KeepDraftRowsDialog = ({
             <AlertDialogContent className="max-w-lg">
                 <AlertDialogHeader>
                     <AlertDialogTitle>
-                        {chat ? "Replace the current conversation?" : "Keep your draft test cases?"}
+                        {chat
+                            ? t("playground.testsets.replaceConversationTitle")
+                            : t("playground.testsets.keepDraftsTitle")}
                     </AlertDialogTitle>
                     <AlertDialogDescription asChild>
                         <div className="flex flex-col gap-2">
                             {chat ? (
                                 <>
                                     <p className="m-0">
-                                        Loading {name} replaces the conversation in the playground.
+                                        {t("playground.testsets.loadingReplaces", {name})}
                                     </p>
-                                    <p className="m-0">
-                                        The chat playground loads one test case at a time, so the
-                                        conversation cannot be kept.
-                                    </p>
+                                    <p className="m-0">{t("playground.testsets.chatOneAtATime")}</p>
                                 </>
                             ) : (
                                 <>
                                     <p className="m-0">
                                         {many
-                                            ? `You have ${draftCount} draft test cases in the playground.`
-                                            : "You have 1 draft test case in the playground."}
+                                            ? t("playground.testsets.draftsMany", {
+                                                  count: draftCount,
+                                              })
+                                            : t("playground.testsets.draftsOne")}
                                     </p>
                                     <p className="m-0">
-                                        You can keep {many ? "them" : "it"} and load {name}{" "}
-                                        alongside. Kept test cases stay unsaved until you sync
-                                        changes back to the test set.
+                                        {many
+                                            ? t("playground.testsets.keepThemAndLoad", {name})
+                                            : t("playground.testsets.keepItAndLoad", {name})}
                                     </p>
                                 </>
                             )}
@@ -74,13 +78,17 @@ export const KeepDraftRowsDialog = ({
                 <AlertDialogFooter>
                     <AlertDialogCancel asChild>
                         <Button variant="outline" onClick={onCancel}>
-                            Cancel
+                            {t("playground.testsets.cancel")}
                         </Button>
                     </AlertDialogCancel>
                     <Button variant="destructive" onClick={onDiscard}>
-                        {chat ? "Load and replace" : "Discard drafts"}
+                        {chat
+                            ? t("playground.testsets.loadAndReplace")
+                            : t("playground.testsets.discardDrafts")}
                     </Button>
-                    {chat ? null : <Button onClick={onKeep}>Keep and load</Button>}
+                    {chat ? null : (
+                        <Button onClick={onKeep}>{t("playground.testsets.keepAndLoad")}</Button>
+                    )}
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>

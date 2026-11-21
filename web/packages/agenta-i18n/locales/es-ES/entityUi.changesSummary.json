@@ -1,0 +1,11 @@
+{
+    "changes": "Cambios",
+    "whatsChanging": "Qué cambia",
+    "changeCount_one": "{{count}} cambio",
+    "changeCount_many": "{{count}} cambios",
+    "changeCount_other": "{{count}} cambios",
+    "viewAsJson": "Ver como JSON",
+    "instructions": "Instrucciones",
+    "description": "Descripción",
+    "parameters": "Parámetros"
+}

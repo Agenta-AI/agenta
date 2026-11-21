@@ -1,0 +1,17 @@
+{
+    "chooseAnEvent": "Ereignis auswählen",
+    "addAppTrigger": "App-Auslöser hinzufügen",
+    "searchIntegrations": "Integrationen durchsuchen…",
+    "searchEvents": "Ereignisse durchsuchen…",
+    "connectionsHint": "Wählen Sie ein Ereignis, um einen Auslöser zu erstellen. Keine Einrichtung nötig.",
+    "noTriggers": "Diese App hat keine Auslöser",
+    "popupBlocked": "Pop-up blockiert. Weiterleitung in diesem Tab.",
+    "connectTo": "Mit {{name}} verbinden",
+    "name": "Name",
+    "nameTip": "Anzeigename für diese Verbindung",
+    "required": "Erforderlich",
+    "namePlaceholder": "z. B. Mein {{name}}-Konto",
+    "authMethod": "Authentifizierungsmethode",
+    "apiKey": "API-Schlüssel",
+    "connect": "Verbinden"
+}

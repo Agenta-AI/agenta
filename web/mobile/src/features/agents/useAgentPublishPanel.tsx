@@ -43,10 +43,13 @@ export const useAgentPublishPanel = ({
     channelsEnabled?: boolean
 }) => {
     const {basePath} = useRouter()
-    const {connections, loading, loadError, actions} = useAgentChannels(agentId, {
-        resolveAgentName,
-        enabled: channelsEnabled,
-    })
+    const {connections, loading, loadError, actions, readAgainIfFailed} = useAgentChannels(
+        agentId,
+        {
+            resolveAgentName,
+            enabled: channelsEnabled,
+        },
+    )
     const panel = useChannelPanel({
         agentId,
         agentName,
@@ -78,8 +81,19 @@ export const useAgentPublishPanel = ({
             />
         ),
     })
-    const {openRoute, openConnection} = panel
-    const openHub = useCallback(() => openRoute({view: "hub"}), [openRoute])
+    const {openRoute, openConnection: openConnectionView} = panel
+    // Opening the panel reads again when the last read failed.
+    const openHub = useCallback(() => {
+        readAgainIfFailed()
+        openRoute({view: "hub"})
+    }, [openRoute, readAgainIfFailed])
+    const openConnection = useCallback(
+        (connection: Parameters<typeof openConnectionView>[0]) => {
+            readAgainIfFailed()
+            openConnectionView(connection)
+        },
+        [openConnectionView, readAgainIfFailed],
+    )
     return {
         connections,
         loading,

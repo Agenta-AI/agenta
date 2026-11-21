@@ -23,7 +23,8 @@
  */
 export type CreatedSandboxState = "live" | "deleted";
 
-const createdSandboxes = new Map<string, CreatedSandboxState>();
+/** Per created sandbox: whether it is live, and the drives it was last set up with (`driveIdentity`). */
+const createdSandboxes = new Map<string, { state: CreatedSandboxState; drives?: string }>();
 
 /**
  * Cap the map so a long-lived replica cannot grow it without bound. Losing the oldest id costs
@@ -49,7 +50,7 @@ export function markSandboxCreated(sandboxId: string | undefined): void {
     const oldest = createdSandboxes.keys().next().value;
     if (oldest !== undefined) createdSandboxes.delete(oldest);
   }
-  createdSandboxes.set(id, "live");
+  createdSandboxes.set(id, { state: "live" });
 }
 
 /**
@@ -60,14 +61,15 @@ export function markSandboxCreated(sandboxId: string | undefined): void {
 export function markSandboxDeleted(sandboxId: string | undefined): void {
   if (!sandboxId) return;
   const id = rawSandboxId(sandboxId);
-  if (createdSandboxes.has(id)) createdSandboxes.set(id, "deleted");
+  const entry = createdSandboxes.get(id);
+  if (entry) entry.state = "deleted";
 }
 
 /** What this process knows of `sandboxId`; undefined when it did not create it. */
 export function createdSandboxState(
   sandboxId: string,
 ): CreatedSandboxState | undefined {
-  return createdSandboxes.get(rawSandboxId(sandboxId));
+  return createdSandboxes.get(rawSandboxId(sandboxId))?.state;
 }
 
 /** Whether this process created `sandboxId`, live or deleted, in either id form. */
@@ -102,6 +104,22 @@ export function recordSandboxSnapshot(
 /** The snapshot `sandboxId` was built from, or undefined when this process does not know it. */
 export function sandboxSnapshotOf(sandboxId: string | undefined): string | undefined {
   return sandboxId ? sandboxSnapshots.get(rawSandboxId(sandboxId)) : undefined;
+}
+
+/**
+ * Record the drives `sandboxId` was set up with. Kept on its created entry, so the two are always
+ * evicted together; a sandbox this process did not create is ignored. A parked sandbox may still
+ * hold a drive's mount and credentials, so it is reconnected only for the same drives.
+ */
+export function recordSandboxDrives(sandboxId: string | undefined, drives: string): void {
+  if (!sandboxId) return;
+  const entry = createdSandboxes.get(rawSandboxId(sandboxId));
+  if (entry) entry.drives = drives;
+}
+
+/** The drives `sandboxId` was set up with, or undefined when this process does not know them. */
+export function sandboxDrivesOf(sandboxId: string): string | undefined {
+  return createdSandboxes.get(rawSandboxId(sandboxId))?.drives;
 }
 
 /** Test seam: forget every recorded id, as a process restart does. */

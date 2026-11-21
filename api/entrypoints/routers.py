@@ -161,6 +161,7 @@ from oss.src.apis.fastapi.sharing.router import SharingRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.core.annotations.service import AnnotationsService
+from oss.src.core.annotations.general_fields import AnnotationGeneralFieldsService
 from oss.src.core.invocations.service import InvocationsService
 
 from oss.src.core.ai_services.service import AIServicesService
@@ -935,10 +936,16 @@ simple_evaluators_service = SimpleEvaluatorsService(
     evaluators_service=evaluators_service,
 )
 
+annotation_general_fields_service = AnnotationGeneralFieldsService(
+    tracing_service=tracing_service,
+    session_turns_service=session_turns_service,
+)
+
 simple_traces_service = SimpleTracesService(
     tracing_service=tracing_service,
     evaluators_service=evaluators_service,
     simple_evaluators_service=simple_evaluators_service,
+    annotation_general_fields_service=annotation_general_fields_service,
 )
 
 simple_workflows_service = SimpleWorkflowsService(
@@ -1164,6 +1171,8 @@ mounts_service = MountsService(
 session_mounts_service = SessionMountsService(
     mounts_service=mounts_service,
 )
+
+workflows_service.set_mount_lookup(mounts_service)
 
 session_attachments_service = SessionAttachmentsService(
     attachments_dao=session_attachments_dao,
@@ -1425,10 +1434,11 @@ _channels_inbox_worker = ChannelsInboxWorker(
     dispatcher=_channels_inbox_dispatcher,
 )
 
+channels_service.inbox_dispatch_task = _channels_inbox_worker.dispatch_inbox_event
+
 channels_ingress = ChannelsIngressRouter(
     channels_service=channels_service,
     adapter_registry=channels_adapter_registry,
-    dispatch_task=_channels_inbox_worker.dispatch_inbox_event,
     telegram_binding_service=_telegram_binding_service,
     records_service=records_service,
     attachments_service=session_attachments_service,
@@ -1625,6 +1635,7 @@ annotations_service = AnnotationsService(
     evaluators_service=evaluators_service,
     simple_evaluators_service=simple_evaluators_service,
     tracing_service=tracing_service,
+    annotation_general_fields_service=annotation_general_fields_service,
 )
 annotations = AnnotationsRouter(
     annotations_service=annotations_service,
@@ -2351,7 +2362,7 @@ async def store_jwks():
     return webidentity.jwks()
 
 
-access_router = AccessRouter()
+access_router = AccessRouter(workflows_service=workflows_service)
 app.include_router(
     access_router.router,
     prefix="/access",

@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {invalidateEvaluatorsListCache} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import screenCatalog from "@agenta/i18n/catalogs/observability.screen"
 import {useObservability} from "@agenta/observability"
 import {
     ObservabilityRangePicker,
@@ -60,25 +62,23 @@ const ObservabilitySessionDrawer = dynamic(
  * expresses a capability the host does not offer — not a fork.
  */
 /** The same two tabs, with the same icons, the desktop header shows. */
+const TabLabel = ({tab}: {tab: ObservabilityTab}) => {
+    const t = useT(screenCatalog)
+    return (
+        <span className="flex items-center gap-2">
+            {tab === "traces" ? <Network size={16} /> : <MessagesSquare size={16} />}
+            <span>
+                {tab === "traces"
+                    ? t("observability.screen.tracesTab")
+                    : t("observability.screen.sessionsTab")}
+            </span>
+        </span>
+    )
+}
+
 const TAB_ITEMS = [
-    {
-        key: "traces",
-        label: (
-            <span className="flex items-center gap-2">
-                <Network size={16} />
-                <span>Traces</span>
-            </span>
-        ),
-    },
-    {
-        key: "sessions",
-        label: (
-            <span className="flex items-center gap-2">
-                <MessagesSquare size={16} />
-                <span>Sessions</span>
-            </span>
-        ),
-    },
+    {key: "traces", label: <TabLabel tab="traces" />},
+    {key: "sessions", label: <TabLabel tab="sessions" />},
 ]
 
 const ObservabilityContent = ({
@@ -95,6 +95,7 @@ const ObservabilityContent = ({
     /** False inside the app menu: the app comes from the path. */
     showAppFilter: boolean
 }) => {
+    const t = useT(screenCatalog)
     useBindProjectContext(projectId)
     const [tab, setTab] = useObservabilityTab()
     // This whole screen is trace content. A role without `view_spans` reads none of it, so the
@@ -181,7 +182,7 @@ const ObservabilityContent = ({
 
     return (
         <>
-            <PageTitle title="Observability" />
+            <PageTitle title={t("observability.screen.title")} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     fill
@@ -194,7 +195,7 @@ const ObservabilityContent = ({
                     {/* The desktop app shows a table, so at lg+ so does this. Below lg the same
                         rows stack, which is the only presentation that fits a phone. */}
                     <PageLayout
-                        title="Observability"
+                        title={t("observability.screen.title")}
                         className="h-full overflow-hidden"
                         headerTabsProps={{
                             items: TAB_ITEMS,
@@ -233,8 +234,12 @@ const ObservabilityContent = ({
                                             itemIds: traceIds,
                                             label:
                                                 traceIds.length > 0
-                                                    ? `Add ${traceIds.length} selected to queue`
-                                                    : "Add selected to queue",
+                                                    ? t("observability.screen.addSelectedToQueue", {
+                                                          count: traceIds.length,
+                                                      })
+                                                    : t(
+                                                          "observability.screen.addSelectedToQueueNone",
+                                                      ),
                                             disabled: traceIds.length === 0,
                                             onItemsAdded: clearSelection,
                                         }}

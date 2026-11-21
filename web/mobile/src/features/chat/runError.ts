@@ -1,4 +1,9 @@
 import {PROVIDER_LABELS} from "@agenta/entities/secret"
+import {createT} from "@agenta/i18n"
+import chatMobileRunErrorCatalog from "@agenta/i18n/catalogs/chat.mobileRunError"
+import chatMobileTurnCatalog from "@agenta/i18n/catalogs/chat.mobileTurn"
+
+const tNow = createT(chatMobileRunErrorCatalog, chatMobileTurnCatalog)
 
 // A run error as the reader should meet it: one plain sentence, the provider's raw blob a tap away.
 export interface RunErrorView {
@@ -107,7 +112,9 @@ const recognise = (
 ): {kind: RunErrorKind; headline: string; remedy: string} | null => {
     const lower = text.toLowerCase()
     const provider = providerOf(text)
-    const key = provider ? `the ${provider.name} key` : "the model key"
+    const key = provider
+        ? tNow("chat.mobileRunError.providerKey", {provider: provider.name})
+        : tNow("chat.mobileRunError.modelKey")
     if (
         status === 402 ||
         /(not enough|insufficient|out of) (credits?|balance|quota)|insufficient_quota|exceeded your current quota|credit balance is too low/.test(
@@ -116,22 +123,22 @@ const recognise = (
     ) {
         return {
             kind: "credits",
-            headline: `The model provider refused the request: not enough credits on ${key}.`,
-            remedy: "Add credits or pick another model, then try again.",
+            headline: tNow("chat.mobileRunError.creditsHeadline", {key}),
+            remedy: tNow("chat.mobileRunError.creditsRemedy"),
         }
     }
     if (status === 401 || status === 403 || /api key|unauthori[sz]ed|invalid.*key/.test(lower)) {
         return {
             kind: "key",
-            headline: `The model provider rejected ${key}.`,
-            remedy: "Check the key in the agent's settings, then try again.",
+            headline: tNow("chat.mobileRunError.keyHeadline", {key}),
+            remedy: tNow("chat.mobileRunError.keyRemedy"),
         }
     }
     if (status === 429 || /rate.?limit|too many requests/.test(lower)) {
         return {
             kind: "rate",
-            headline: "The model provider is rate-limiting requests right now.",
-            remedy: "Wait a moment, then try again.",
+            headline: tNow("chat.mobileRunError.rateHeadline"),
+            remedy: tNow("chat.mobileRunError.rateRemedy"),
         }
     }
     if (
@@ -141,8 +148,8 @@ const recognise = (
     ) {
         return {
             kind: "outage",
-            headline: "The model provider isn't responding.",
-            remedy: "Try again in a moment.",
+            headline: tNow("chat.mobileRunError.outageHeadline"),
+            remedy: tNow("chat.mobileRunError.outageRemedy"),
         }
     }
     return null
@@ -208,7 +215,7 @@ export const describeRunError = (text: string): RunErrorView => {
         .join(" ")
     const headline = firstSentence(said)
     const known = recognise(status, trimmed)
-    const short = known?.headline ?? (headline || "Something went wrong.")
+    const short = known?.headline ?? (headline || tNow("chat.mobileTurn.somethingWentWrong"))
     const raw = trimmed && trimmed !== short ? trimmed : null
     return {
         headline: short,
@@ -284,7 +291,7 @@ export const formatRunError = (
     const sentences = splitSentences(told)
     if (!sentences.length) {
         return {
-            paragraphs: ["Something went wrong."],
+            paragraphs: [tNow("chat.mobileTurn.somethingWentWrong")],
             quote: null,
             provider: null,
             raw: reason || null,

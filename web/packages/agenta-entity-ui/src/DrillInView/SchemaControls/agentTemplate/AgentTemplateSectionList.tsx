@@ -13,6 +13,8 @@
  */
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {
     ConfigAccordionSection,
     type SectionIndicatorTone,
@@ -60,14 +62,19 @@ export const AgentTemplateSectionList = ({
     controlledKeys,
     openByKey,
     onOpenChange,
-    emptyText = "No agent configuration fields are available for this schema.",
+    emptyText,
     headerBand = "-mx-4 px-4",
 }: AgentTemplateSectionListProps) => {
+    const t = useT(configItemsCatalog)
     if (sections.length === 0) {
         // antd `Typography.Text type="secondary"` = colorTextDescription + `word-break: break-word`.
         // Its line-height token does NOT apply here: the call site already carried `text-xs`, and
         // the Tailwind sheet is injected after antd's cssinjs, so 16px is what antd rendered.
-        return <span className="break-words text-xs text-colorTextDescription">{emptyText}</span>
+        return (
+            <span className="break-words text-xs text-colorTextDescription">
+                {emptyText ?? t("entityUi.configItems.noConfigFields")}
+            </span>
+        )
     }
 
     return (

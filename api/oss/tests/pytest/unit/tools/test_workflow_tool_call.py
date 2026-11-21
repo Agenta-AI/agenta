@@ -39,7 +39,14 @@ class FakeWorkflowsService:
         self.calls: list[dict] = []
 
     async def invoke_workflow(
-        self, *, project_id, user_id, request, envelope, timeout=None
+        self,
+        *,
+        project_id,
+        user_id,
+        request,
+        envelope,
+        timeout=None,
+        admitted_agent_id=None,
     ):
         self.calls.append(
             {

@@ -1,0 +1,9 @@
+{
+    "attachTooltip": "An Nachricht anhängen",
+    "delete": "Aufnahme löschen",
+    "deleteTooltip": "Aufnahme löschen (Esc)",
+    "sendTooltip": "Sprachnachricht senden",
+    "stopAndAttach": "Aufnahme beenden und an die Nachricht anhängen",
+    "stopAndSend": "Aufnahme beenden und Sprachnachricht senden",
+    "timeLeft": "{{time}} übrig"
+}

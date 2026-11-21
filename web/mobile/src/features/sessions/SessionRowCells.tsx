@@ -2,6 +2,8 @@ import {useCallback, useMemo, type MouseEvent as ReactMouseEvent} from "react"
 import type {ReactNode} from "react"
 
 import {AgentChip} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import sessionsMobileListCatalog from "@agenta/i18n/catalogs/sessions.mobileList"
 import type {SessionRowStatusMeta, SessionRowVm} from "@agenta/sessions/row"
 import {
     InlineRenameInput,
@@ -66,11 +68,17 @@ const StatusDot = ({status}: {status: SessionRowStatusMeta}) => {
  * ring at this size), takes the Status column's hue, and pulses while live.
  */
 const KindIcon = ({vm}: {vm: SessionRowVm}) => {
+    const t = useT(sessionsMobileListCatalog)
     const Glyph = vm.isAutomation ? Lightning : ChatCircle
     return (
         <span
             role="img"
-            aria-label={`${vm.isAutomation ? "Automation run" : "Chat session"}, ${vm.status.label}`}
+            aria-label={t(
+                vm.isAutomation
+                    ? "sessions.mobileList.kindAutomation"
+                    : "sessions.mobileList.kindChat",
+                {status: vm.status.label},
+            )}
             title={vm.status.label}
             className="relative flex shrink-0 text-muted-foreground"
         >
@@ -109,6 +117,7 @@ export const SessionRowCells = ({
     onRenameRow: (vm: SessionRowVm, name: string) => Promise<boolean>
     onTogglePin: (sessionId: string) => void
 }) => {
+    const t = useT(sessionsMobileListCatalog)
     const onCommit = useCallback((name: string) => onRenameRow(vm, name), [onRenameRow, vm])
     const rename = useInlineRename({current: vm.title, onCommit})
 
@@ -165,7 +174,11 @@ export const SessionRowCells = ({
                             >
                                 {/* The reveal is the wrapper's, not each button's. */}
                                 <RowActionButton
-                                    label={vm.isPinned ? "Unpin session" : "Pin session"}
+                                    label={
+                                        vm.isPinned
+                                            ? t("sessions.mobileList.unpinSession")
+                                            : t("sessions.mobileList.pinSession")
+                                    }
                                     onClick={() => onTogglePin(vm.id)}
                                 >
                                     {/* One control: a pinned row keeps the same pin, filled. */}
@@ -173,7 +186,10 @@ export const SessionRowCells = ({
                                 </RowActionButton>
                                 {/* Renaming an owned chat is its owner's verb. */}
                                 {notOwner ? null : (
-                                    <RowActionButton label="Rename session" onClick={rename.start}>
+                                    <RowActionButton
+                                        label={t("sessions.mobileList.renameSession")}
+                                        onClick={rename.start}
+                                    >
                                         <PencilSimple size={14} />
                                     </RowActionButton>
                                 )}
@@ -218,7 +234,7 @@ export const SessionRowCells = ({
                 <SessionRowMenu
                     entries={entries}
                     onSelect={onSelect}
-                    label={vm.title || "Untitled session"}
+                    label={vm.title || t("sessions.mobileList.untitledSession")}
                 />
             </span>
         </>

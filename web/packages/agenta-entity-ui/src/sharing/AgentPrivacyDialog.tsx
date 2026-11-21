@@ -7,6 +7,8 @@ import type {
     ShareDisclosure,
     Visibility,
 } from "@agenta/entities/sharing"
+import {useT} from "@agenta/i18n"
+import sharingCatalog from "@agenta/i18n/catalogs/entityUi.sharing"
 import {
     PersonAvatar,
     ShareDisclosureNotice,
@@ -142,6 +144,8 @@ export const AgentPrivacyDialog = ({
     writes: sharedWrites,
     ...props
 }: AgentPrivacyDialogProps) => {
+    // The texts come from `copy`; this draws the dialog again when the language's text loads.
+    useT(sharingCatalog)
     const {
         agentName,
         projectName,
@@ -233,7 +237,7 @@ export const AgentPrivacyDialog = ({
                     message={
                         sharing.can_take_ownership
                             ? copy.ownerLeft(ownerName)
-                            : `${copy.ownerLeft(ownerName)} ${copy.ownerLeftNonAdmin}`
+                            : copy.ownerLeftAskAdmin(ownerName)
                     }
                 />
                 {takeOwnershipRow}

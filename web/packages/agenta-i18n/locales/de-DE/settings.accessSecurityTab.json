@@ -1,0 +1,23 @@
+{
+    "addProvider": "Anbieter hinzufügen",
+    "addProviderSetSlug": "Anbieter hinzufügen (zuerst Slug festlegen)",
+    "deleteDomain": "Domain löschen",
+    "deleteDomainBody": "Dadurch wird {{name}} aus dieser Organisation entfernt.",
+    "deleteDomainError": "Die Domain konnte nicht gelöscht werden",
+    "deleteProvider": "Anbieter löschen",
+    "deleteProviderBody": "Dadurch werden {{name}} und das gespeicherte Secret entfernt.",
+    "deleteProviderError": "Der Anbieter konnte nicht gelöscht werden",
+    "deleteProviderTitle": "SSO-Anbieter löschen",
+    "enableProviderError": "Der Anbieter konnte nicht aktiviert werden",
+    "loadError": "Die Einstellungen dieser Organisation konnten nicht geladen werden",
+    "providerAddedNotice": "Anbieter hinzugefügt. Aktivieren Sie ihn, um ihn zu verifizieren und freizuschalten.",
+    "providerConnectError": "Wir konnten keine Verbindung zum Anbieter herstellen. Prüfen Sie die Issuer-URL und die Client-Angaben und versuchen Sie es erneut.",
+    "providerSavedNotice": "Anbieter gespeichert. Durch das Bearbeiten wird die Validierung zurückgesetzt, aktivieren Sie ihn daher erneut.",
+    "refreshTokenError": "Das Token konnte nicht aktualisiert werden",
+    "saveFlagError": "Diese Einstellung konnte nicht gespeichert werden. Versuchen Sie es erneut",
+    "setSlugFirst": "Legen Sie zuerst einen Organisations-Slug fest",
+    "setSlugHint": "Legen Sie einen Organisations-Slug fest, bevor Sie einen Anbieter hinzufügen. Ohne ihn kann die Callback-URL nicht gebildet werden.",
+    "thisDomain": "diese Domain",
+    "thisProvider": "dieser Anbieter",
+    "verifyDomainError": "Die Domain konnte nicht verifiziert werden"
+}

@@ -1,0 +1,23 @@
+{
+    "addProvider": "Ajouter un fournisseur",
+    "addProviderSetSlug": "Ajouter un fournisseur (définissez d’abord le slug)",
+    "deleteDomain": "Supprimer le domaine",
+    "deleteDomainBody": "Retire {{name}} de cette organisation.",
+    "deleteDomainError": "Impossible de supprimer le domaine",
+    "deleteProvider": "Supprimer le fournisseur",
+    "deleteProviderBody": "Supprime {{name}} et son secret stocké.",
+    "deleteProviderError": "Impossible de supprimer le fournisseur",
+    "deleteProviderTitle": "Supprimer le fournisseur SSO",
+    "enableProviderError": "Impossible d’activer le fournisseur",
+    "loadError": "Impossible de charger les paramètres de cette organisation",
+    "providerAddedNotice": "Fournisseur ajouté. Activez-le pour le vérifier et le mettre en service.",
+    "providerConnectError": "Impossible de nous connecter au fournisseur. Vérifiez l’URL de l’émetteur et les informations du client, puis réessayez.",
+    "providerSavedNotice": "Fournisseur enregistré. La modification des paramètres efface la validation, activez-le donc à nouveau.",
+    "refreshTokenError": "Impossible d’actualiser le jeton",
+    "saveFlagError": "Impossible d’enregistrer ce paramètre. Réessayez",
+    "setSlugFirst": "Définissez d’abord un slug d’organisation",
+    "setSlugHint": "Définissez un slug d’organisation avant d’ajouter un fournisseur. L’URL de rappel ne peut pas être formée sans lui.",
+    "thisDomain": "ce domaine",
+    "thisProvider": "ce fournisseur",
+    "verifyDomainError": "Impossible de vérifier le domaine"
+}

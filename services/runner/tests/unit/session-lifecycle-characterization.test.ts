@@ -20,6 +20,7 @@
  * Run: pnpm exec vitest run tests/unit/session-lifecycle-characterization.test.ts
  */
 import { turnLogUnmoved } from "../utils/turn-log.ts";
+import { driveSigns } from "../utils/drive-sign.ts";
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
@@ -198,6 +199,7 @@ function makeEngine(scripts: TurnScript[] = []) {
       );
     },
     readLatestTurnIndex: turnLogUnmoved,
+    signDrive: driveSigns,
     async runCold() {
       return { ok: true, output: "cold", stopReason: "complete" };
     },

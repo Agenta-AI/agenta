@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -19,25 +21,28 @@ export const DiscardChangesDialog = ({
     open: boolean
     onDiscard: () => void
     onCancel: () => void
-}) => (
-    <AlertDialog open={open} onOpenChange={(next) => (next ? undefined : onCancel())}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
-                <AlertDialogDescription>
-                    This revision has changes that are not committed. They will be lost.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel asChild>
-                    <Button variant="outline">Keep editing</Button>
-                </AlertDialogCancel>
-                <AlertDialogAction asChild>
-                    <Button variant="destructive" onClick={onDiscard}>
-                        Discard
-                    </Button>
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
-)
+}) => {
+    const t = useT(panelsCatalog)
+    return (
+        <AlertDialog open={open} onOpenChange={(next) => (next ? undefined : onCancel())}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>{t("playground.panels.discardTitle")}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {t("playground.panels.discardBody")}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel asChild>
+                        <Button variant="outline">{t("playground.panels.keepEditing")}</Button>
+                    </AlertDialogCancel>
+                    <AlertDialogAction asChild>
+                        <Button variant="destructive" onClick={onDiscard}>
+                            {t("playground.panels.discard")}
+                        </Button>
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    )
+}

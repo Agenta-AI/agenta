@@ -11,6 +11,8 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {SchemaForm, type SchemaFormHandle} from "@agenta/entity-ui/gatewayTool"
 import {useSchemaFormInstance} from "@agenta/entity-ui/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
@@ -63,6 +65,7 @@ export const EventPickerPanel = ({
     /** Where the picked event goes — the host's draft, never a save from here. */
     onSelectEvent: (selection: EventSelection) => void
 }) => {
+    const t = useT(automationsEditorCatalog)
     const {connections, isLoading: connectionsLoading} = useTriggerConnectionsQuery()
 
     const [connectionId, setConnectionId] = useState(automation.connectionId ?? undefined)
@@ -213,7 +216,7 @@ export const EventPickerPanel = ({
 
     const boundAppLabel = connection
         ? appLabel(connection, catalogNames.get(connection.integration_key))
-        : (activeApp?.label ?? "connected")
+        : (activeApp?.label ?? null)
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
@@ -251,7 +254,11 @@ export const EventPickerPanel = ({
                                 >
                                     <ArrowLeft aria-hidden size={13} className="shrink-0" />
                                     <span className="min-w-0 truncate">
-                                        All {boundAppLabel} events
+                                        {boundAppLabel
+                                            ? t("automations.editor.allAppEvents", {
+                                                  app: boundAppLabel,
+                                              })
+                                            : t("automations.editor.allConnectedEvents")}
                                     </span>
                                 </button>
                                 <span className="min-w-0 truncate text-[13px] font-medium text-foreground">
@@ -274,12 +281,14 @@ export const EventPickerPanel = ({
                                     ref={formRef}
                                     form={configForm}
                                     schema={schema}
-                                    optionalLabel={(count) => `Add optional filters (${count})`}
+                                    optionalLabel={(count) =>
+                                        t("automations.editor.optionalFilters", {count})
+                                    }
                                     onValuesChange={setValues}
                                 />
                             ) : (
                                 <p className="m-0 py-2 text-xs text-muted-foreground">
-                                    This event needs no filters — it runs every time it arrives.
+                                    {t("automations.editor.noFilters")}
                                 </p>
                             )}
                         </div>
@@ -295,7 +304,9 @@ export const EventPickerPanel = ({
                                     className="flex w-fit cursor-pointer items-center gap-[5px] border-0 bg-transparent p-0 text-left text-[12px] text-muted-foreground hover:text-foreground"
                                 >
                                     <ArrowLeft aria-hidden size={13} className="shrink-0" />
-                                    <span className="min-w-0 truncate">All apps</span>
+                                    <span className="min-w-0 truncate">
+                                        {t("automations.editor.allApps")}
+                                    </span>
                                 </button>
                             )}
                             <EventList
@@ -324,7 +335,7 @@ export const EventPickerPanel = ({
             {showFilters ? (
                 <div className="flex shrink-0 items-center justify-end border-0 border-t border-solid border-border px-4 py-3">
                     <Button type="button" disabled={!ready || saving} onClick={() => void onDone()}>
-                        Done
+                        {t("automations.editor.done")}
                     </Button>
                 </div>
             ) : null}

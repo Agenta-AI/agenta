@@ -1,0 +1,14 @@
+{
+    "apiKey": "API key",
+    "deleteKey": "Delete key",
+    "emptyDescription": "Generate a key to authenticate requests to the Agenta API from your code, CI jobs, and SDKs.",
+    "emptyTitle": "No API keys yet",
+    "expired": "Expired",
+    "expires": "Expires",
+    "generateKey": "Generate key",
+    "keyActions": "Key actions",
+    "lastUsed": "Last used",
+    "never": "Never",
+    "neverUsed": "Never used",
+    "noAccess": "You do not have access to API Keys in this project."
+}

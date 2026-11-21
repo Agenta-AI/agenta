@@ -1,5 +1,7 @@
 import {type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiChatInputCatalog from "@agenta/i18n/catalogs/ui.chatInput"
 import {ArrowUp, CircleNotch} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
@@ -34,11 +36,12 @@ export function ComposerSendButton({
     icon,
     sending,
 }: ComposerSendButtonProps) {
+    const t = useT(uiChatInputCatalog)
     return (
         <Button
             size="icon"
             variant="default"
-            aria-label={sending ? "Sending" : (ariaLabel ?? "Send")}
+            aria-label={sending ? t("ui.chatInput.sending") : (ariaLabel ?? t("ui.chatInput.send"))}
             aria-busy={sending || undefined}
             disabled={disabled || sending}
             onClick={onClick}

@@ -3,7 +3,6 @@ import {Button, IconTile} from "@agenta/ui/ui"
 import {HardDrives, Plugs, Plus} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// No antd counterpart: the tile is new, so this is a one-column showcase rather than a parity grid.
 const meta = {
     title: "@agenta/ui/Primitives/Display/IconTile",
     component: IconTile,
@@ -25,9 +24,7 @@ type Story = StoryObj<typeof meta>
 const Row = ({label, children}: {label: string; children: React.ReactNode}) => (
     <div className="grid grid-cols-[12rem_1fr] items-center gap-4 border-b border-colorBorderSecondary py-3">
         <div className="text-xs text-colorTextSecondary">{label}</div>
-        <div className="flex items-center gap-4" data-vrt-subject>
-            {children}
-        </div>
+        <div className="flex items-center gap-4">{children}</div>
     </div>
 )
 
@@ -108,7 +105,6 @@ export const InContext: Story = {
             <button
                 type="button"
                 className="flex w-full cursor-pointer items-center gap-3 rounded-control border border-solid border-colorBorderSecondary bg-colorBgElevated px-3.5 py-3 text-left hover:bg-colorFillTertiary"
-                data-vrt-subject
             >
                 <McpServerMark />
                 <span className="flex min-w-0 flex-col">
@@ -116,10 +112,7 @@ export const InContext: Story = {
                     <span className="truncate text-xs text-colorTextTertiary">mcp.linear.app</span>
                 </span>
             </button>
-            <div
-                className="flex flex-col items-center gap-3 rounded-control border border-dashed border-colorBorder px-6 py-12 text-center"
-                data-vrt-subject
-            >
+            <div className="flex flex-col items-center gap-3 rounded-control border border-dashed border-colorBorder px-6 py-12 text-center">
                 <McpServerMark size={44} />
                 <span className="text-[15px] font-medium text-colorText">No MCP servers yet</span>
                 <span className="max-w-[320px] text-[13px] leading-relaxed text-colorTextSecondary">

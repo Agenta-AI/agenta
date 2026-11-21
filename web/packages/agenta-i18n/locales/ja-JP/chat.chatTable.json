@@ -1,0 +1,9 @@
+{
+    "columns_other": "{{count}} 列",
+    "copied": "コピーしました",
+    "copyAsMarkdown": "Markdown としてコピー",
+    "downloadCsv": "CSV をダウンロード",
+    "expand": "展開",
+    "rows_other": "{{count}} 行",
+    "summary": "{{rows}} · {{columns}}"
+}

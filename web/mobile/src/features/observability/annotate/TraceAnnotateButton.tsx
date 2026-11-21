@@ -1,6 +1,8 @@
 import {useState} from "react"
 
 import type {AnnotationDto} from "@agenta/entities/annotation/dto"
+import {useT} from "@agenta/i18n"
+import annotateCatalog from "@agenta/i18n/catalogs/observability.annotate"
 import {projectIdAtom} from "@agenta/shared/state"
 import {Button} from "@agenta/ui/ui"
 import {PencilSimpleIcon} from "@phosphor-icons/react"
@@ -19,6 +21,7 @@ const textOf = (value: unknown) => (typeof value === "string" && value ? value :
  * actions view is off or the user may not edit spans, and is disabled without a span.
  */
 export const TraceAnnotateButton = (props: Record<string, unknown>) => {
+    const t = useT(annotateCatalog)
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const allowed = useTraceActionAccess(projectId, "edit_spans")
     const [open, setOpen] = useState(false)
@@ -37,7 +40,7 @@ export const TraceAnnotateButton = (props: Record<string, unknown>) => {
                 onClick={() => setOpen(true)}
             >
                 <PencilSimpleIcon size={14} />
-                {textOf(props.label) ?? "Annotate"}
+                {textOf(props.label) ?? t("observability.annotate.annotate")}
             </Button>
             {open && traceId && spanId ? (
                 <TraceAnnotateSheet

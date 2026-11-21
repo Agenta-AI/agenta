@@ -1,122 +1,231 @@
 /**
  * Every user-facing string of the chat sharing UI, the member picker and the share disclosure.
- * Source: the approved M3 UI design copy deck. Placeholders are functions.
+ * Source: the approved M3 UI design copy deck. Getters and functions read the text at render,
+ * in the current language.
  */
 import type {SessionRole} from "@agenta/entities/sharing"
+import {createT, formatLocale} from "@agenta/i18n"
+import sessionsMemberPickerCatalog from "@agenta/i18n/catalogs/sessions.memberPicker"
+import sessionsShareDisclosureCatalog from "@agenta/i18n/catalogs/sessions.shareDisclosure"
+import sessionsSharingCatalog from "@agenta/i18n/catalogs/sessions.sharing"
 
-/** "A", "A and B", "A, B and C". */
+const t = createT(
+    sessionsSharingCatalog,
+    sessionsMemberPickerCatalog,
+    sessionsShareDisclosureCatalog,
+)
+
+/** "A", "A and B", "A, B and C" (English); the list joiner follows the active language. */
 export const joinNames = (names: readonly string[]): string => {
     if (names.length <= 1) return names[0] ?? ""
-    return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+    return new Intl.ListFormat(formatLocale() ?? "en-GB", {
+        style: "long",
+        type: "conjunction",
+    }).format(names)
 }
 
 export const sessionRoleCopy: Record<SessionRole, {label: string; description: string}> = {
     viewer: {
-        label: "Can view",
-        description: "Can read the chat. Cannot send or answer approvals.",
+        get label() {
+            return t("sessions.sharing.roleViewerLabel")
+        },
+        get description() {
+            return t("sessions.sharing.roleViewerDescription")
+        },
     },
     participant: {
-        label: "Can send",
-        description: "Can read, send messages and answer approvals.",
+        get label() {
+            return t("sessions.sharing.roleParticipantLabel")
+        },
+        get description() {
+            return t("sessions.sharing.roleParticipantDescription")
+        },
     },
 }
 
 export const sessionSharingCopy = {
     /** Draft (accounts package, contract section 13 item 16): the agent has "user" items. */
-    personalAccountsNote:
-        "This agent uses each person's own accounts for some items. People you share this chat with can see what it did with yours.",
-    shareButton: "Share",
-    tooltipPrivate: "Private",
-    tooltipPeople: (count: number) => `Shared with ${count} ${count === 1 ? "person" : "people"}`,
-    tooltipProject: "Everyone in the project can view and send",
-    tooltipNotShareable: "You can share this chat after its first message.",
-    chipViewOnly: "View only",
-    chipCanSend: "Can send",
+    get personalAccountsNote() {
+        return t("sessions.sharing.personalAccountsNote")
+    },
+    get shareButton() {
+        return t("sessions.sharing.shareButton")
+    },
+    get tooltipPrivate() {
+        return t("sessions.sharing.tooltipPrivate")
+    },
+    tooltipPeople: (count: number) => t("sessions.sharing.tooltipPeople", {count}),
+    get tooltipProject() {
+        return t("sessions.sharing.tooltipProject")
+    },
+    get tooltipNotShareable() {
+        return t("sessions.sharing.tooltipNotShareable")
+    },
+    get chipViewOnly() {
+        return t("sessions.sharing.chipViewOnly")
+    },
+    get chipCanSend() {
+        return t("sessions.sharing.chipCanSend")
+    },
     // A "Can send" grant works only for a role that may send (added in the M3 gate, QA D3).
-    roleCannotSend: "Their role in this project cannot send.",
-    grantViewOnlyByRole: "Can only view: their role in this project cannot send.",
-    inviteViewOnly: (names: string) =>
-        `${names} can only view: their role in this project cannot send.`,
+    get roleCannotSend() {
+        return t("sessions.sharing.roleCannotSend")
+    },
+    get grantViewOnlyByRole() {
+        return t("sessions.sharing.grantViewOnlyByRole")
+    },
+    inviteViewOnly: (names: string) => t("sessions.sharing.inviteViewOnly", {names}),
 
-    panelTitle: "Who can see this chat",
-    panelOwner: "Owner",
-    panelViewer: (owner: string) =>
-        `You can view this chat. Only ${owner} can change who has access.`,
-    panelCanSend: "You can read and send in this chat.",
-    panelPrivate: (owner: string) => `Private: only people ${owner} added can open it.`,
-    panelChannel:
-        "This chat comes from a channel. Everyone in the project can read it and send to it.",
-    panelNoOwnerCanSend:
-        "This chat was started by an API key or an automation, so it has no owner. Everyone in the project can read it and send to it.",
-    panelOwnerLeftCanSend: (owner: string) =>
-        `${owner} left this project. Everyone in the project can still read this chat and send to it.`,
+    get panelTitle() {
+        return t("sessions.sharing.panelTitle")
+    },
+    get panelOwner() {
+        return t("sessions.sharing.panelOwner")
+    },
+    panelViewer: (owner: string) => t("sessions.sharing.panelViewer", {owner}),
+    get panelCanSend() {
+        return t("sessions.sharing.panelCanSend")
+    },
+    panelPrivate: (owner: string) => t("sessions.sharing.panelPrivate", {owner}),
+    get panelChannel() {
+        return t("sessions.sharing.panelChannel")
+    },
+    get panelNoOwnerCanSend() {
+        return t("sessions.sharing.panelNoOwnerCanSend")
+    },
+    panelOwnerLeftCanSend: (owner: string) => t("sessions.sharing.panelOwnerLeftCanSend", {owner}),
     /** The reader's own project role cannot send (the approved refused-send sentence). */
-    panelYouViewOnly: "You can view this chat, but you cannot send to it.",
+    get panelYouViewOnly() {
+        return t("sessions.sharing.panelYouViewOnly")
+    },
 
-    dialogTitle: "Share this chat",
-    inviteButton: "Invite",
-    peopleSection: "People with access",
-    ownerSuffix: "(you)",
-    ownerRole: "Owner",
-    emptyGrants: "No one else has access yet.",
-    removeAccess: "Remove access",
-    generalSection: "General access",
-    generalPrivate: "Private",
-    generalPrivateDescription: "Only you and the people you add can open this chat.",
-    generalProject: "Shared with project",
+    get dialogTitle() {
+        return t("sessions.sharing.dialogTitle")
+    },
+    get inviteButton() {
+        return t("sessions.sharing.inviteButton")
+    },
+    get peopleSection() {
+        return t("sessions.sharing.peopleSection")
+    },
+    get ownerSuffix() {
+        return t("sessions.sharing.ownerSuffix")
+    },
+    get ownerRole() {
+        return t("sessions.sharing.ownerRole")
+    },
+    get emptyGrants() {
+        return t("sessions.sharing.emptyGrants")
+    },
+    get removeAccess() {
+        return t("sessions.sharing.removeAccess")
+    },
+    get generalSection() {
+        return t("sessions.sharing.generalSection")
+    },
+    get generalPrivate() {
+        return t("sessions.sharing.generalPrivate")
+    },
+    get generalPrivateDescription() {
+        return t("sessions.sharing.generalPrivateDescription")
+    },
+    get generalProject() {
+        return t("sessions.sharing.generalProject")
+    },
     generalProjectDescription: (project: string) =>
-        `Everyone in ${project} can view this chat and send to it.`,
-    stopSharing: "Stop sharing",
-    copyLink: "Copy share link",
-    linkCopied: "Link copied. Only people with access can open it.",
+        t("sessions.sharing.generalProjectDescription", {project}),
+    get stopSharing() {
+        return t("sessions.sharing.stopSharing")
+    },
+    get copyLink() {
+        return t("sessions.sharing.copyLink")
+    },
+    get linkCopied() {
+        return t("sessions.sharing.linkCopied")
+    },
     /** Draft: the chat is private with nobody added, so the copied link opens for nobody else. */
-    linkNobodyYet:
-        "Nobody else can open this link yet. Invite people above, or choose Shared with project.",
+    get linkNobodyYet() {
+        return t("sessions.sharing.linkNobodyYet")
+    },
     /** Draft: the toast after a copy while nobody else has access. */
-    linkCopiedNobodyYet: "Link copied. Nobody else can open it yet.",
-    done: "Done",
+    get linkCopiedNobodyYet() {
+        return t("sessions.sharing.linkCopiedNobodyYet")
+    },
+    get done() {
+        return t("sessions.sharing.done")
+    },
 
-    stopTitle: "Stop sharing?",
-    stopBodyPeople: (names: readonly string[]) => `${joinNames(names)} will lose access.`,
-    stopBodyProject: (project: string) => `Everyone in ${project} will lose access.`,
-    cancel: "Cancel",
+    get stopTitle() {
+        return t("sessions.sharing.stopTitle")
+    },
+    stopBodyPeople: (names: readonly string[]) =>
+        t("sessions.sharing.stopBodyPeople", {names: joinNames(names)}),
+    stopBodyProject: (project: string) => t("sessions.sharing.stopBodyProject", {project}),
+    get cancel() {
+        return t("sessions.sharing.cancel")
+    },
 
-    loadError: "Couldn't load who has access to this chat.",
-    retry: "Try again",
-    conflict:
-        "The sharing of this chat changed while you had it open. We loaded the latest settings. Check them and make your change again.",
-    invalidGrantee: (name: string) =>
-        `${name} is no longer a member of this project. Remove this person to share with the others.`,
-    saveFailed: "Couldn't save the change. Try again.",
-} as const
+    get loadError() {
+        return t("sessions.sharing.loadError")
+    },
+    get retry() {
+        return t("sessions.sharing.retry")
+    },
+    get conflict() {
+        return t("sessions.sharing.conflict")
+    },
+    invalidGrantee: (name: string) => t("sessions.sharing.invalidGrantee", {name}),
+    get saveFailed() {
+        return t("sessions.sharing.saveFailed")
+    },
+}
 
 export const memberPickerCopy = {
-    placeholder: "Add people by name or email",
-    heading: (project: string) => `Members of ${project}`,
-    hasAccess: "Has access",
-    footer: "You can only add members of this project.",
-    noMatch: (text: string) => `No members of this project match "${text}".`,
-    error: "Couldn't load project members.",
-    remove: (name: string) => `Remove ${name}`,
-} as const
+    get placeholder() {
+        return t("sessions.memberPicker.placeholder")
+    },
+    heading: (project: string) => t("sessions.memberPicker.heading", {project}),
+    get hasAccess() {
+        return t("sessions.memberPicker.hasAccess")
+    },
+    get footer() {
+        return t("sessions.memberPicker.footer")
+    },
+    noMatch: (text: string) => t("sessions.memberPicker.noMatch", {text}),
+    get error() {
+        return t("sessions.memberPicker.error")
+    },
+    remove: (name: string) => t("sessions.memberPicker.remove", {name}),
+}
 
 /** One component builds the chat and the agent disclosure, so both live here. */
 export const shareDisclosureCopy = {
-    titlePeople: (names: readonly string[]) => `Share with ${joinNames(names)}?`,
-    titleProject: (project: string) => `Share with everyone in ${project}?`,
+    titlePeople: (names: readonly string[]) =>
+        t("sessions.shareDisclosure.titlePeople", {names: joinNames(names)}),
+    titleProject: (project: string) => t("sessions.shareDisclosure.titleProject", {project}),
     bodySession: (accounts: readonly string[]) =>
-        `They will see everything in this chat, and anyone who can send can make the agent use its connected accounts: ${joinNames(accounts)}.`,
-    bodySessionNoAccounts: "They will see everything in this chat.",
+        t("sessions.shareDisclosure.bodySession", {accounts: joinNames(accounts)}),
+    get bodySessionNoAccounts() {
+        return t("sessions.shareDisclosure.bodySessionNoAccounts")
+    },
     /** Draft (accounts package): an item that uses each person's own account, not the owner's. */
-    personalAccount: (account: string) => `Each person's own ${account}`,
-    back: "Back",
-    share: "Share",
+    personalAccount: (account: string) => t("sessions.shareDisclosure.personalAccount", {account}),
+    get back() {
+        return t("sessions.shareDisclosure.back")
+    },
+    get share() {
+        return t("sessions.shareDisclosure.share")
+    },
 
-    titleAgent: (agent: string) => `Share ${agent} with the project?`,
+    titleAgent: (agent: string) => t("sessions.shareDisclosure.titleAgent", {agent}),
     bodyAgent: (project: string, accounts: readonly string[]) =>
-        `Everyone in ${project} will be able to run this agent and make it use its connected accounts: ${joinNames(accounts)}.`,
+        t("sessions.shareDisclosure.bodyAgent", {project, accounts: joinNames(accounts)}),
     bodyAgentNoAccounts: (project: string) =>
-        `Everyone in ${project} will be able to see and run this agent.`,
-    cancel: "Cancel",
-    shareWithProject: "Share with project",
-} as const
+        t("sessions.shareDisclosure.bodyAgentNoAccounts", {project}),
+    get cancel() {
+        return t("sessions.shareDisclosure.cancel")
+    },
+    get shareWithProject() {
+        return t("sessions.shareDisclosure.shareWithProject")
+    },
+}

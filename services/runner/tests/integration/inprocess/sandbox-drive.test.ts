@@ -30,6 +30,8 @@ import { DriveObjects } from "../../../src/engines/inprocess/workspace/drive-obj
 import { TranscriptStore } from "../../../src/engines/inprocess/workspace/transcript-store.ts";
 import { BOUNDED_READ_RETRY_ATTEMPTS, mountStorage, unmountStorage, type MountCredentials } from "../../../src/engines/sandbox_agent/mount.ts";
 import { REFRESH_ROOTS_SCRIPT } from "../../../src/engines/sandbox_agent/turn-start-refresh.ts";
+import type { SandboxUse } from "../../../src/engines/inprocess/sandbox/command-sandbox.ts";
+import { DriveUnreachableError, geesefsMounter, SandboxDrive } from "../../../src/engines/inprocess/sandbox/sandbox-drive.ts";
 
 const endpoint = process.env.AGENTA_TEST_S3_ENDPOINT;
 const hasGeesefs = (() => {
@@ -150,6 +152,37 @@ describe.skipIf(!endpoint || !hasGeesefs)("the command sandbox's view of the dri
     expect(listed.sort()).toEqual(["mod.txt", "new/n.txt", "renamed.txt"].sort());
     expect(await stored("cmd/mod.txt")).toBe("a\nmore\n");
   }, 60_000);
+
+  it("mounts three roots (session, home drive, read-only drive) with their links, and fails on a root that cannot mount", async () => {
+    const cwd = join(base, "three", "w");
+    const roots = [
+      { root: cwd, credentials: () => creds("project/three-session") },
+      { root: `${cwd}-drive-home`, credentials: () => creds("project/three-home"), link: { slug: "home", home: true } },
+      { root: `${cwd}-drive-prices`, credentials: () => creds("project/three-prices"), link: { slug: "prices" }, readOnly: true },
+    ];
+    await s3.send(new PutObjectCommand({ Bucket: bucket, Key: "project/three-prices/list.csv", Body: "a,1\n" }));
+    const drive = new SandboxDrive(roots, geesefsMounter(log, async (storeEndpoint) => storeEndpoint), { cwd, log });
+    const use = { sandbox: here, boot: 1 } as unknown as SandboxUse;
+    try {
+      await drive.ensure(use);
+      expect(readFileSync(join(cwd, "drives", "prices", "list.csv"), "utf-8")).toBe("a,1\n");
+      const write = await sh(`echo x > ${cwd}/drives/prices/new.csv`);
+      expect(write.exitCode).not.toBe(0);
+      expect(write.output).toMatch(/read-only/i);
+      expect((await sh(`echo y > ${cwd}/agent-files/note.md && sync -f ${cwd}-drive-home`)).exitCode).toBe(0);
+      expect(readFileSync(join(cwd, "drives", "home", "note.md"), "utf-8")).toBe("y\n");
+      expect(readFileSync(join(cwd, "agent-files", "README.md"), "utf-8")).toMatch(/^This folder belongs to your agent\./);
+
+      const broken = new SandboxDrive(
+        [...roots.slice(0, 2), { ...roots[2]!, root: `${cwd}-drive-gone`, credentials: () => ({ ...creds("project/gone"), bucket: "no-such-bucket" }) }],
+        geesefsMounter(log, async (storeEndpoint) => storeEndpoint),
+        { cwd, log },
+      );
+      await expect(broken.ensure({ sandbox: here, boot: 2 } as unknown as SandboxUse)).rejects.toBeInstanceOf(DriveUnreachableError);
+    } finally {
+      for (const r of [...roots.map((x) => x.root), `${cwd}-drive-gone`]) await unmountStorage(r, { log }).catch(() => {});
+    }
+  }, 120_000);
 
   it("keeps Pi's conversation file in its own prefix, and brings it back on another runner", async () => {
     const transcripts = creds("project/pi-sessions");

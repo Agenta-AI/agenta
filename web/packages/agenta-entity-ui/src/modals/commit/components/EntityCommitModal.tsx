@@ -7,6 +7,8 @@
 
 import {useEffect, useCallback, useRef, useState, type ReactNode} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
 import {extractApiErrorMessage, generateSlugWithSuffix, isValidSlug} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedModal} from "@agenta/ui/components/modal"
@@ -114,7 +116,7 @@ export interface EntityCommitModalProps {
     entityNameLabel?: string
 }
 
-const SLUG_CONFLICT_MESSAGE = "A resource with this slug already exists in this project."
+const tNow = createT(commitModalCatalog)
 
 function getErrorStatus(error: unknown): number | undefined {
     return (error as {response?: {status?: number}})?.response?.status
@@ -156,7 +158,7 @@ export function EntityCommitModal({
     onSuccess,
     onSubmit,
     onAfterSuccess,
-    successMessage = "Changes committed successfully",
+    successMessage,
     submitLabel,
     commitDeployOptions,
     commitModes,
@@ -170,8 +172,9 @@ export function EntityCommitModal({
     createEntityFields,
     entityNameEditable = false,
     entityNameEditableModes,
-    entityNameLabel = "Name",
+    entityNameLabel,
 }: EntityCommitModalProps) {
+    const t = useT(commitModalCatalog)
     const internalOpen = useAtomValue(commitModalOpenAtom)
     const context = useAtomValue(commitModalContextAtom)
     const currentEntity = useAtomValue(commitModalEntityAtom)
@@ -230,7 +233,7 @@ export function EntityCommitModal({
     const resolvedEntityNameLabel =
         typeof configuredNameLabel === "function"
             ? configuredNameLabel({entity: createFieldsEntity, mode: selectedMode})
-            : (configuredNameLabel ?? entityNameLabel)
+            : (configuredNameLabel ?? entityNameLabel ?? t("entityUi.commitModal.name"))
 
     // Check if diff data is available for dynamic width
     const hasDiffData = context?.diffData?.original && context?.diffData?.modified
@@ -405,11 +408,15 @@ export function EntityCommitModal({
                     if (!result.success) {
                         const isSlugConflict = result.slugConflict || result.errorStatus === 409
                         if (isSlugConflict) {
-                            setSlugFieldError(SLUG_CONFLICT_MESSAGE)
+                            setSlugFieldError(tNow("entityUi.commitModal.slugConflict"))
                             setSlugEditing(true)
                         }
                         setCommitError(
-                            new Error(extractApiErrorMessage(result.error || "Commit failed")),
+                            new Error(
+                                extractApiErrorMessage(
+                                    result.error || tNow("entityUi.commitModal.commitFailed"),
+                                ),
+                            ),
                         )
                         setCommitLoading(false)
                         return
@@ -421,8 +428,12 @@ export function EntityCommitModal({
                         closeModal()
                     }
 
-                    if (successMessage) {
-                        message.success(successMessage)
+                    const success =
+                        successMessage === undefined
+                            ? tNow("entityUi.commitModal.committed")
+                            : successMessage
+                    if (success) {
+                        message.success(success)
                     }
 
                     handleSuccess({newRevisionId: result.newRevisionId})
@@ -431,7 +442,7 @@ export function EntityCommitModal({
                 } catch (error) {
                     const msg = extractApiErrorMessage(error)
                     if (getErrorStatus(error) === 409) {
-                        setSlugFieldError(SLUG_CONFLICT_MESSAGE)
+                        setSlugFieldError(tNow("entityUi.commitModal.slugConflict"))
                         setSlugEditing(true)
                     }
                     setCommitError(
@@ -449,8 +460,12 @@ export function EntityCommitModal({
                 if (isExternallyControlled) {
                     onClose?.()
                 }
-                if (successMessage) {
-                    message.success(successMessage)
+                const success =
+                    successMessage === undefined
+                        ? tNow("entityUi.commitModal.committed")
+                        : successMessage
+                if (success) {
+                    message.success(success)
                 }
                 handleSuccess({})
             }
@@ -477,13 +492,16 @@ export function EntityCommitModal({
         ],
     )
 
+    // "Commit" is the default action word; a host's own word is shown as it is.
+    const actionText = actionLabel === "Commit" ? t("entityUi.commitModal.commit") : actionLabel
+
     const footerNode = (
         <EntityCommitFooter
             onClose={handleClose}
             onConfirm={handleConfirm}
             isLoading={isLoading}
             canProceed={canProceedWithExtension}
-            confirmLabel={submitLabel ?? actionLabel}
+            confirmLabel={submitLabel ?? actionText}
             deployOptions={commitDeployOptions}
         />
     )
@@ -495,7 +513,11 @@ export function EntityCommitModal({
             afterClose={handleAfterClose}
             // Agent commits render title + footer inside the body (two full-bleed panels).
             title={isAgentTwoPane ? null : <EntityCommitTitle />}
-            aria-label={`${actionLabel} changes`}
+            aria-label={
+                actionLabel === "Commit"
+                    ? t("entityUi.commitModal.commitChanges")
+                    : t("entityUi.commitModal.actionChanges", {action: actionLabel})
+            }
             footer={isAgentTwoPane ? null : footerNode}
             width={hasDiffData ? 900 : 520}
             styles={

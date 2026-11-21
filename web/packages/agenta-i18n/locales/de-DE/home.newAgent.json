@@ -1,0 +1,10 @@
+{
+    "label": "Neuer Agent",
+    "scratchTitle": "Von Grund auf neu beginnen",
+    "scratchHint": "Starten Sie mit einem leeren Agent und gestalten Sie ihn im Chat",
+    "uploadTitle": "Hochladen",
+    "uploadHint": "Eine .zip-Datei mit einer Agent-Vorlage",
+    "importTitle": "Aus einem Repository importieren",
+    "importHint": "Durchsuchen Sie ein öffentliches GitHub-Repository nach Agent-Vorlagen",
+    "browseAll": "Alle Vorlagen ansehen"
+}

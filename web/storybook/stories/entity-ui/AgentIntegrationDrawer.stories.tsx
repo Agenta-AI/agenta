@@ -62,7 +62,7 @@ const legacyEntry = (integration: string, action: string, connection: string) =>
 function DrawerHost({tools = [] as unknown[]}) {
     const [open, setOpen] = useState(true)
     return (
-        <div data-vrt-subject className="min-h-[560px]">
+        <div className="min-h-[560px]">
             <Button variant="outline" onClick={() => setOpen(true)}>
                 Add integration
             </Button>

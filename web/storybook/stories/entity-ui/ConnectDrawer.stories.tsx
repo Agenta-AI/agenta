@@ -36,7 +36,7 @@ type Story = StoryObj
 const noop = () => undefined
 
 const host = (props: Partial<Parameters<typeof ConnectDrawer>[0]> = {}) => (
-    <div data-vrt-subject className="min-h-[520px]">
+    <div className="min-h-[520px]">
         <ConnectDrawer
             open
             integrationKey="github"

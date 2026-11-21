@@ -1,13 +1,16 @@
+import {useT} from "@agenta/i18n"
+import drawerSharedCatalog from "@agenta/i18n/catalogs/entityUi.drawerShared"
 import {X} from "@phosphor-icons/react"
 
 // Hover-revealed remove affordance: a real <button> (keyboard-operable, appears on
 // focus/hover) rendered as a SIBLING of the row's click button — never nested inside it
 // (nested <button>s are invalid + unreachable). Reset to avoid the preflight-off native chrome.
 export function RowRemoveButton({onRemove}: {onRemove: () => void}) {
+    const t = useT(drawerSharedCatalog)
     return (
         <button
             type="button"
-            aria-label="Remove"
+            aria-label={t("entityUi.drawerShared.remove")}
             onClick={(e) => {
                 e.stopPropagation()
                 onRemove()

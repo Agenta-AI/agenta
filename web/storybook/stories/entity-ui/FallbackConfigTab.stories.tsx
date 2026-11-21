@@ -1,7 +1,6 @@
 import {FallbackConfigTab} from "@agenta/entity-ui/drill-in"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-import {AntdFallbackConfigTab} from "./playgroundConfigSectionAntd"
 import {
     FALLBACK_CONFIGS,
     FALLBACK_CONFIG_KEYS,
@@ -12,7 +11,7 @@ import {
 } from "./playgroundConfigSectionFixtures"
 
 // FallbackConfigTab — the "Fallback" pane: a policy select whose options carry a right-aligned
-// description (antd `optionRender`), plus the fallback model rail (edit / remove / add) that is
+// description, plus the fallback model rail (edit / remove / add) that is
 // gated on a policy being picked, with the gate reason on a tooltip.
 const meta = {
     title: "@agenta/entity-ui/DrillIn/FallbackConfigTab",
@@ -22,7 +21,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Fallback pane. antd Select(allowClear + optionRender) → composed ConfigSelect; antd Tooltip(title?) → HintTooltip (no hint, no tooltip); antd Buttons → @agenta/ui Button (icon-only remove = size=icon-sm, block = w-full).",
+                    "Fallback pane: a policy select with option descriptions, and the fallback model rail (edit / remove / add) gated on a policy being picked.",
             },
         },
     },
@@ -72,76 +71,31 @@ export const Disabled: Story = {
 
 // ---------------------------------------------------------------------------
 
-const Row = ({
-    label,
-    a,
-    s,
-    expected,
-}: {
-    label: string
-    a: React.ReactNode
-    s: React.ReactNode
-    expected?: string
-}) => (
-    <div
-        className="grid grid-cols-[10rem_1fr_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3"
-        data-vrt-expected={expected}
-    >
+const Row = ({label, children}: {label: string; children: React.ReactNode}) => (
+    <div className="grid grid-cols-[10rem_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3">
         <div className="text-xs text-colorTextSecondary">{label}</div>
-        <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-colorTextSecondary">antd</span>
-            <div className="w-[296px]" data-vrt-subject>
-                {a}
-            </div>
-        </div>
-        <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-colorTextSecondary">agenta</span>
-            <div className="w-[296px]" data-vrt-subject>
-                {s}
-            </div>
-        </div>
+        <div className="w-[296px]">{children}</div>
     </div>
 )
 
-const SELECT_NOTE =
-    "policy Select: antd small (7px pad) vs @agenta/ui Select trigger at size=sm; option descriptions live in the dropdown on both (forced-open panels are not compared here)"
-
-export const AntdVsAgenta: Story = {
+export const Variants: Story = {
     args: {...BASE, fallbackPolicy: "availability"},
     render: () => (
         <div className="flex max-w-[900px] flex-col">
-            <Row
-                label="no policy"
-                expected={SELECT_NOTE}
-                a={
-                    <AntdFallbackConfigTab
-                        {...BASE}
-                        fallbackPolicy={null}
-                        fallbackConfigs={[]}
-                        fallbackConfigKeys={[]}
-                    />
-                }
-                s={
-                    <FallbackConfigTab
-                        {...BASE}
-                        fallbackPolicy={null}
-                        fallbackConfigs={[]}
-                        fallbackConfigKeys={[]}
-                    />
-                }
-            />
-            <Row
-                label="policy · 2 models"
-                expected={SELECT_NOTE}
-                a={<AntdFallbackConfigTab {...BASE} fallbackPolicy="availability" />}
-                s={<FallbackConfigTab {...BASE} fallbackPolicy="availability" />}
-            />
-            <Row
-                label="disabled"
-                expected={SELECT_NOTE}
-                a={<AntdFallbackConfigTab {...BASE} fallbackPolicy="availability" disabled />}
-                s={<FallbackConfigTab {...BASE} fallbackPolicy="availability" disabled />}
-            />
+            <Row label="no policy">
+                <FallbackConfigTab
+                    {...BASE}
+                    fallbackPolicy={null}
+                    fallbackConfigs={[]}
+                    fallbackConfigKeys={[]}
+                />
+            </Row>
+            <Row label="policy · 2 models">
+                <FallbackConfigTab {...BASE} fallbackPolicy="availability" />
+            </Row>
+            <Row label="disabled">
+                <FallbackConfigTab {...BASE} fallbackPolicy="availability" disabled />
+            </Row>
         </div>
     ),
 }

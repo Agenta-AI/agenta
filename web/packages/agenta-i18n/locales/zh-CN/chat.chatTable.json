@@ -1,0 +1,9 @@
+{
+    "columns_other": "{{count}} 列",
+    "copied": "已复制",
+    "copyAsMarkdown": "复制为 Markdown",
+    "downloadCsv": "下载 CSV",
+    "expand": "展开",
+    "rows_other": "{{count}} 行",
+    "summary": "{{rows}} · {{columns}}"
+}

@@ -1,0 +1,16 @@
+{
+    "attachmentsLabel": "{{count}} 个附件",
+    "attachmentsOnly": "（仅附件）",
+    "cancel": "取消",
+    "cancelEditing": "取消编辑",
+    "editQueued": "编辑排队中的消息",
+    "emptyMessage": "（空消息）",
+    "noLongerQueued": "这条消息已不在队列中。",
+    "queuedCount_other": "{{count}} 条排队中的消息",
+    "quotesLabel_other": "{{count}} 条引用",
+    "removeQueued": "移除排队中的消息",
+    "sendBlocked": "另一条消息正在优先发送",
+    "sendNow": "立即发送",
+    "sending": "正在发送",
+    "waitsForAnswer": " · 等待你的回答"
+}

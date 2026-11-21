@@ -1,11 +1,11 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useState} from "react"
 
 import {SESSIONS_PAGE_SIZE} from "@agenta/observability"
 import {useSessions} from "@agenta/observability"
 import {AUTO_REFRESH_INTERVAL, SessionStoreProvider} from "@agenta/observability-ui"
 import {
     EmptySessions,
-    getSessionColumns,
+    useSessionColumns,
     ObservabilitySessionsTable,
 } from "@agenta/observability-ui"
 import type {TableScopeConfig} from "@agenta/ui/table"
@@ -46,7 +46,7 @@ const SessionsTable: React.FC = () => {
     const store = useStore()
 
     // Still needed here: the header's column-visibility menu is built from them.
-    const columns = useMemo(() => getSessionColumns(), [])
+    const columns = useSessionColumns()
 
     const isNewUser = useAtomValue(isNewUserAtom)
     const onboardingStorageUserId = useAtomValue(onboardingStorageUserIdAtom)

@@ -1,6 +1,8 @@
 import {useMemo} from "react"
 
 import {invalidateTestsetsListCache, testsetsListAtom} from "@agenta/entities/testset"
+import {formatLocale, useT} from "@agenta/i18n"
+import addToTestsetCatalog from "@agenta/i18n/catalogs/observability.addToTestset"
 import {Alert, Button, Combobox, Input} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
@@ -10,9 +12,11 @@ import {
     type TestsetRevisionOption,
 } from "./useAddToTestsetForm"
 
-const revisionLabel = (revision: TestsetRevisionOption, latest: boolean) => {
-    const date = revision.createdAt ? new Date(revision.createdAt).toLocaleDateString() : null
-    return [`v${revision.version}`, date, latest ? "latest" : null].filter(Boolean).join(" · ")
+const revisionLabel = (revision: TestsetRevisionOption, latestLabel: string | null) => {
+    const date = revision.createdAt
+        ? new Date(revision.createdAt).toLocaleDateString(formatLocale())
+        : null
+    return [`v${revision.version}`, date, latestLabel].filter(Boolean).join(" · ")
 }
 
 /**
@@ -36,18 +40,22 @@ export const TestsetTargetField = ({
     newName: string
     onNewNameChange: (name: string) => void
 }) => {
+    const t = useT(addToTestsetCatalog)
     const list = useAtomValue(testsetsListAtom)
-    const options = useMemo(
-        () => [
-            {value: CREATE_NEW, label: "Create New", searchValue: "Create New"},
-            ...list.data.map((testset) => ({
+    const testsetOptions = useMemo(
+        () =>
+            list.data.map((testset) => ({
                 value: testset.id,
                 label: testset.name,
                 searchValue: testset.name,
             })),
-        ],
         [list.data],
     )
+    const createNewLabel = t("observability.addToTestset.createNew")
+    const options = [
+        {value: CREATE_NEW, label: createNewLabel, searchValue: createNewLabel},
+        ...testsetOptions,
+    ]
     const value = !target ? undefined : target.kind === "new" ? CREATE_NEW : target.testsetId
 
     const select = (next: string | undefined) => {
@@ -66,7 +74,10 @@ export const TestsetTargetField = ({
 
     const latestId = revisions.options[0]?.id
     const revisionOptions = revisions.options.map((revision) => {
-        const label = revisionLabel(revision, revision.id === latestId)
+        const label = revisionLabel(
+            revision,
+            revision.id === latestId ? t("observability.addToTestset.latest") : null,
+        )
         return {value: revision.id, label, searchValue: label}
     })
     const selectRevision = (next: string | undefined) => {
@@ -78,37 +89,43 @@ export const TestsetTargetField = ({
     return (
         <section className="flex flex-col gap-2">
             <div>
-                <h3 className="m-0 text-sm font-medium">1. Select test set</h3>
+                <h3 className="m-0 text-sm font-medium">
+                    {t("observability.addToTestset.step1Title")}
+                </h3>
                 <p className="text-muted-foreground m-0 text-xs">
-                    Choose an existing test set to append data, or create a new one
+                    {t("observability.addToTestset.step1Hint")}
                 </p>
             </div>
             <Combobox
-                aria-label="Test set"
+                aria-label={t("observability.addToTestset.testSet")}
                 options={options}
                 value={value}
                 onChange={select}
-                placeholder={list.isPending ? "Loading test sets..." : "Select test set"}
+                placeholder={
+                    list.isPending
+                        ? t("observability.addToTestset.loadingTestSets")
+                        : t("observability.addToTestset.selectTestSet")
+                }
                 loading={list.isPending}
-                emptyText="No test sets found"
+                emptyText={t("observability.addToTestset.noTestSets")}
             />
             {/* A failed refresh of a list already shown is not worth an alert. */}
             {list.isError && list.data.length === 0 ? (
                 <Alert
                     type="error"
                     showIcon
-                    message="Couldn't load test sets"
+                    message={t("observability.addToTestset.couldNotLoadTestSets")}
                     action={
                         <Button variant="outline" size="sm" onClick={invalidateTestsetsListCache}>
-                            Try again
+                            {t("observability.addToTestset.tryAgain")}
                         </Button>
                     }
                 />
             ) : null}
             {target?.kind === "new" ? (
                 <Input
-                    aria-label="Test set name"
-                    placeholder="Test set name"
+                    aria-label={t("observability.addToTestset.testSetName")}
+                    placeholder={t("observability.addToTestset.testSetName")}
                     value={newName}
                     onChange={(event) => onNewNameChange(event.target.value)}
                     autoFocus
@@ -119,26 +136,26 @@ export const TestsetTargetField = ({
                     <Alert
                         type="error"
                         showIcon
-                        message="Couldn't load the revisions"
+                        message={t("observability.addToTestset.couldNotLoadRevisions")}
                         action={
                             <Button variant="outline" size="sm" onClick={revisions.retry}>
-                                Try again
+                                {t("observability.addToTestset.tryAgain")}
                             </Button>
                         }
                     />
                 ) : (
                     <Combobox
-                        aria-label="Revision"
+                        aria-label={t("observability.addToTestset.revision")}
                         options={revisionOptions}
                         value={target.revisionId ?? latestId}
                         onChange={selectRevision}
                         placeholder={
                             revisions.status === "loading"
-                                ? "Loading revisions..."
-                                : "Select revision"
+                                ? t("observability.addToTestset.loadingRevisions")
+                                : t("observability.addToTestset.selectRevision")
                         }
                         loading={revisions.status === "loading"}
-                        emptyText="No revisions found"
+                        emptyText={t("observability.addToTestset.noRevisions")}
                     />
                 )
             ) : null}

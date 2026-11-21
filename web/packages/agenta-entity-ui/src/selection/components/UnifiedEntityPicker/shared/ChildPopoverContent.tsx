@@ -11,9 +11,12 @@
 
 import React, {useCallback, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import selectionCatalog from "@agenta/i18n/catalogs/entityUi.selection"
 import {SearchablePopoverList} from "@agenta/ui/components/selection"
 
 import {useChildrenData} from "../../../hooks"
+import {typeInSentence} from "../../../text"
 import type {HierarchyLevel} from "../../../types"
 
 // ============================================================================
@@ -76,9 +79,10 @@ export function ChildPopoverContent({
     childLevelConfig,
     selectedChildId,
     disabledChildIds,
-    disabledChildTooltip = "Already connected",
+    disabledChildTooltip,
     onSelect,
 }: ChildPopoverContentProps) {
+    const t = useT(selectionCatalog)
     // Fetch children using the hook
     const {items: children, query} = useChildrenData(childLevelConfig, parentId, true)
 
@@ -102,7 +106,9 @@ export function ChildPopoverContent({
     )
 
     // Build search placeholder
-    const searchPlaceholder = `Search ${childLevelConfig.type}s...`
+    const searchPlaceholder = t("entityUi.selection.searchTypes", {
+        type: typeInSentence(childLevelConfig.type),
+    })
 
     return (
         <SearchablePopoverList
@@ -113,7 +119,7 @@ export function ChildPopoverContent({
             getItemLabel={getItemLabel}
             getItemLabelNode={getItemLabelNode}
             disabledIds={disabledChildIds}
-            disabledTooltip={disabledChildTooltip}
+            disabledTooltip={disabledChildTooltip ?? t("entityUi.selection.alreadyConnected")}
             isLoading={query.isPending}
             searchPlaceholder={searchPlaceholder}
             minWidth={220}

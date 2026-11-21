@@ -282,6 +282,15 @@ export function changedConfigFields(
   );
 }
 
+/** The drive settings a sandbox is set up with; a parked sandbox is reused only for the same ones. */
+export function driveIdentity(request: AgentRunRequest): string {
+  return JSON.stringify([
+    request.drives ?? null,
+    request.homeDrive ?? null,
+    request.hasSessionDrive ?? null,
+  ]);
+}
+
 function configShape(request: AgentRunRequest) {
   const shape = {
     harness: request.harness ?? null,
@@ -293,6 +302,13 @@ function configShape(request: AgentRunRequest) {
     // wrong (or no) agent mount attached. The REST of `runContext` stays out: revision ids,
     // variant identity, and trace identity are per-turn metadata (the step-1 rule).
     agentArtifactId: request.runContext?.workflow?.artifact?.id?.trim() || null,
+    // The drives are mounted at acquire, so a changed list or session setting needs a new
+    // environment. Only when present, so a request without them keeps the identity it had.
+    ...(request.drives !== undefined ? { drives: request.drives } : {}),
+    ...(request.homeDrive !== undefined ? { homeDrive: request.homeDrive } : {}),
+    ...(request.hasSessionDrive !== undefined
+      ? { hasSessionDrive: request.hasSessionDrive }
+      : {}),
     model: request.model ?? null,
     // Harness mode is applied once, at session acquire (codex-mode.ts). The SHARED normalizer
     // (audit findings 3 and 6) resolves Codex defaults and ignores the field elsewhere, and the
@@ -777,16 +793,21 @@ export function sandboxCredentialsRotated(
  */
 export interface InstalledMountExpiries {
   cwd?: number;
-  agent?: number;
+  /** Per attached drive, by its mount path. */
+  drives?: Record<string, number | undefined>;
+  /** The harness transcript folders, when no session drive bounds them (their earliest expiry). */
+  transcripts?: number;
 }
 
 /** The environment's credential lease: the earliest expiry among its installed mounts. */
 export function installedMountLease(
   expiries: InstalledMountExpiries,
 ): number | undefined {
-  const values = Object.values(expiries).filter(
-    (v): v is number => typeof v === "number",
-  );
+  const values = [
+    expiries.cwd,
+    expiries.transcripts,
+    ...Object.values(expiries.drives ?? {}),
+  ].filter((v): v is number => typeof v === "number");
   return values.length ? Math.min(...values) : undefined;
 }
 

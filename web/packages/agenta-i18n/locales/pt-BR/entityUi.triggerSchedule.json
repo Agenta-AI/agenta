@@ -1,0 +1,15 @@
+{
+    "start": "Início",
+    "startsRightAway": "Começa imediatamente",
+    "end": "Fim",
+    "neverEnds": "Nunca termina",
+    "windowHint": "Os horários estão em UTC. Deixe qualquer um vazio para não ter limite: um início no futuro atrasa a primeira execução, e um fim no passado interrompe o agendamento.",
+    "messagePlaceholder": "Resuma os chamados de suporte de ontem e publique o resumo em #ops.",
+    "richerInputsSchedule": "Este agendamento envia um conjunto de entradas mais completo do que uma única mensagem; digitar aqui vai substituí-las.",
+    "sentEveryRun": "Enviado ao agente em cada execução.",
+    "inputsNotValidJson": "As entradas não são um JSON válido",
+    "inputsNotValidJsonSentence": "As entradas não são um JSON válido.",
+    "runInPlayground": "Executar no Playground",
+    "createScheduleFirst": "Crie o agendamento primeiro para executá-lo",
+    "agentWillReceive": "O agente receberá"
+}

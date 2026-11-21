@@ -1,6 +1,9 @@
 // Touch counterparts of the anchored note box and pin card: bottom sheets that sit on the keyboard.
 import {useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiQuoteSelectionCatalog from "@agenta/i18n/catalogs/ui.quoteSelection"
 import {readableQuoteText, truncateQuoteText, type Quote} from "@agenta/shared/quotes"
 import {Quotes} from "@phosphor-icons/react"
 
@@ -57,32 +60,33 @@ export const QuoteNoteSheet = ({
     onSend?: (note: string) => void
     onCancel: () => void
 }) => {
+    const t = useT(uiQuoteSelectionCatalog, commonCatalog)
     const [note, setNote] = useState(initialNote ?? "")
     return (
-        <TouchSheet title="Comment" onClose={onCancel}>
+        <TouchSheet title={t("ui.quoteSelection.comment")} onClose={onCancel}>
             <Excerpt quote={quote} />
             <textarea
                 autoFocus
-                aria-label="Comment"
+                aria-label={t("ui.quoteSelection.comment")}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 onFocus={(e) => e.currentTarget.setSelectionRange(note.length, note.length)}
                 rows={2}
-                placeholder="Ask about this…"
+                placeholder={t("ui.quoteSelection.askAboutThis")}
                 className="min-h-11 w-full resize-none rounded-lg border border-solid border-border bg-transparent px-3 py-2.5 font-[inherit] text-[15px] leading-6 text-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground focus:border-ring"
             />
             {onSend ? (
                 <div className="grid grid-cols-2 gap-2">
                     <Button variant="outline" className="h-11" onClick={() => onStage(note)}>
-                        Add to message
+                        {t("ui.quoteSelection.addToMessage")}
                     </Button>
                     <Button className="h-11" onClick={() => onSend(note)}>
-                        Send now
+                        {t("ui.quoteSelection.sendNow")}
                     </Button>
                 </div>
             ) : (
                 <Button className="h-11" onClick={() => onStage(note)}>
-                    Save
+                    {t("common.save")}
                 </Button>
             )}
         </TouchSheet>
@@ -100,21 +104,24 @@ export const CommentSheet = ({
     onEdit: () => void
     onDelete: () => void
     onClose: () => void
-}) => (
-    <TouchSheet title="Comment" onClose={onClose}>
-        {quote.note ? (
-            <p className="m-0 whitespace-pre-wrap text-[15px] leading-6 text-foreground">
-                {quote.note}
-            </p>
-        ) : null}
-        <Excerpt quote={quote} />
-        <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" className="h-11" onClick={onEdit}>
-                Edit
-            </Button>
-            <Button variant="destructive" className="h-11" onClick={onDelete}>
-                Delete
-            </Button>
-        </div>
-    </TouchSheet>
-)
+}) => {
+    const t = useT(uiQuoteSelectionCatalog, commonCatalog)
+    return (
+        <TouchSheet title={t("ui.quoteSelection.comment")} onClose={onClose}>
+            {quote.note ? (
+                <p className="m-0 whitespace-pre-wrap text-[15px] leading-6 text-foreground">
+                    {quote.note}
+                </p>
+            ) : null}
+            <Excerpt quote={quote} />
+            <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" className="h-11" onClick={onEdit}>
+                    {t("common.edit")}
+                </Button>
+                <Button variant="destructive" className="h-11" onClick={onDelete}>
+                    {t("common.delete")}
+                </Button>
+            </div>
+        </TouchSheet>
+    )
+}

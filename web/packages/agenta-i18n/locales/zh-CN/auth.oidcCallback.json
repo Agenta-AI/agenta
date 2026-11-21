@@ -1,0 +1,6 @@
+{
+    "backToSignIn": "返回登录",
+    "codeUsed": "此登录链接已被使用。请重新登录。",
+    "securityCheckFailed": "安全检查失败。请重试。",
+    "signedInButAppFailed": "已登录，但应用无法打开。请重试。"
+}

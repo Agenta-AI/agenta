@@ -1,0 +1,10 @@
+{
+    "allowAll": "Alle zulassen",
+    "allowAllHelp": "Jedes Werkzeug läuft ohne Nachfrage",
+    "allowReads": "Lesen zulassen",
+    "allowReadsHelp": "Lesen läuft, Schreiben fragt nach",
+    "ask": "Nachfragen",
+    "askHelp": "Ein Mensch genehmigt jeden Werkzeugaufruf",
+    "denyAll": "Alle ablehnen",
+    "denyAllHelp": "Jeder Werkzeugaufruf wird abgelehnt"
+}

@@ -15,6 +15,7 @@ from oss.src.core.channels.adapters.whatsapp.capabilities import (
     fetch_whatsapp_capabilities,
 )
 from oss.src.core.channels.dtos import ChannelConnection, ChannelKeyGrain
+from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.utils import compose_external_key
 
 from . import payloads as p
@@ -31,6 +32,11 @@ def _key(phone_number_id: str) -> UUID:
 
 
 class FakeChannelsService:
+    # The shared store-and-enqueue step runs for real over this fake's
+    # record_inbox_event.
+    inbox_dispatch_task = None
+    record_and_enqueue_inbox_event = ChannelsService.record_and_enqueue_inbox_event
+
     def __init__(self) -> None:
         self.project_id = uuid4()
         self.connections: dict[UUID, ChannelConnection] = {}
@@ -97,9 +103,8 @@ def dispatch():
 @pytest.fixture
 def client(service, dispatch):
     registry = ChannelAdapterRegistry(adapters={"whatsapp": WhatsAppAdapter()})
-    router = ChannelsIngressRouter(
-        channels_service=service, adapter_registry=registry, dispatch_task=dispatch
-    )
+    service.inbox_dispatch_task = dispatch
+    router = ChannelsIngressRouter(channels_service=service, adapter_registry=registry)
     app = FastAPI()
     app.include_router(router.router, prefix="/channels")
     return TestClient(app)

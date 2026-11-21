@@ -148,7 +148,7 @@ services:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
             - AGENTA_SERVICES_INTERNAL_KEY=
-            # empty ⇒ all stream loops; see docs/designs/workers-sprawl/specs.md
+            # empty ⇒ all stream loops; see docs/design/workers-sprawl/specs.md
             - AGENTA_WORKER_STREAMS=
         # === NETWORK ============================================== #
         networks:
@@ -191,7 +191,7 @@ services:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
             - AGENTA_SERVICES_INTERNAL_KEY=
-            # empty ⇒ all queue loops; see docs/designs/workers-sprawl/specs.md
+            # empty ⇒ all queue loops; see docs/design/workers-sprawl/specs.md
             - AGENTA_WORKER_QUEUES=
         # === NETWORK ============================================== #
         networks:

@@ -5,6 +5,8 @@ import {
     isSessionCreatedHere,
     isSessionFresh,
 } from "@agenta/entities/session"
+import {textVersionAtom} from "@agenta/i18n"
+import {useAtomValue} from "jotai"
 
 import {sharingCopy} from "@/lib/sharingCopy"
 
@@ -77,17 +79,14 @@ export const useChatAccess = ({
     // waits like a load.
     const reason = sharingReason ?? (!fresh && failed && !blocked ? "access_unknown" : null)
     const owner = ownerName || sharingCopy.ownerFallback
+    // Subscribed so the notice is read again when the language or a catalog load changes it.
+    useAtomValue(textVersionAtom)
+    const notice = reason ? sessionReadOnlyText(reason, owner) : null
+    const approvalNote =
+        reason && reason !== "access_unknown" ? sharingCopy.approvalWaiting(owner) : null
     const readOnly = useMemo<SessionReadOnly | null>(
-        () =>
-            reason
-                ? {
-                      reason,
-                      notice: sessionReadOnlyText(reason, owner),
-                      approvalNote:
-                          reason === "access_unknown" ? null : sharingCopy.approvalWaiting(owner),
-                  }
-                : null,
-        [owner, reason],
+        () => (reason && notice ? {reason, notice, approvalNote} : null),
+        [reason, notice, approvalNote],
     )
     const canSend = !blocked && !readOnly && known
     // The row read has not answered yet. "No row" is an answer: a chat with no turns has none.

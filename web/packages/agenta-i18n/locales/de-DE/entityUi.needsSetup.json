@@ -1,0 +1,12 @@
+{
+    "agentTitle": "Dieser Agent muss eingerichtet werden",
+    "label": "Einrichtung nötig",
+    "modelMessage": "Das Modell muss eingerichtet werden, bevor dieser Agent laufen kann.",
+    "modelPlaceholder": "Richten Sie das Modell ein, um Nachrichten zu senden",
+    "reasonNotAvailable": "Nicht mehr verfügbar",
+    "reasonNotChosen": "Kein Konto ausgewählt",
+    "reasonNotFound": "In diesem Projekt nicht gefunden",
+    "reasonNotShared": "Nicht mit diesem Projekt geteilt",
+    "reasonSignInExpired": "Anmeldung abgelaufen",
+    "reasonTurnedOff": "Ausgeschaltet"
+}

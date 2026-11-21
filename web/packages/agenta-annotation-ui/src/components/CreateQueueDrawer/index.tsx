@@ -15,6 +15,8 @@ import {
     type WorkflowRevisionSelectionResult,
     useEnsureEvaluatorEnrichment,
 } from "@agenta/entity-ui/selection"
+import {createT, useT} from "@agenta/i18n"
+import queuesCatalog from "@agenta/i18n/catalogs/annotation.queues"
 import {projectIdAtom} from "@agenta/shared/state"
 import {ModalContent, ModalFooter, message} from "@agenta/ui"
 import {Divider, Drawer, Form, Input, Select, Typography} from "antd"
@@ -65,6 +67,8 @@ const INITIAL_FORM_VALUES: Pick<FormValues, "kind"> = {
 
 const COMPACT_FORM_ITEM_CLASS = "!mb-0"
 
+const tNow = createT(queuesCatalog)
+
 function SectionTitle({children}: {children: React.ReactNode}) {
     return (
         <Typography.Title level={5} className="!m-0 !font-semibold">
@@ -104,6 +108,7 @@ function CreateQueueDrawerContent({
     feedbackOnCreate,
     feedbackCreateLabel,
 }: CreateQueueDrawerContentProps) {
+    const t = useT(queuesCatalog)
     const projectId = useAtomValue(projectIdAtom)
     const contextNavigation = useAnnotationNavigationSafe()
     const navigateToQueue = contextNavigation?.navigateToQueue
@@ -177,7 +182,8 @@ function CreateQueueDrawerContent({
                 {
                     evaluatorId: metadata.workflowId || "",
                     revisionId: id,
-                    evaluatorName: metadata.workflowName || "Evaluator",
+                    evaluatorName:
+                        metadata.workflowName || tNow("annotation.queues.evaluatorFallback"),
                     version: metadata.revision ?? 0,
                     isHuman: Boolean(metadata.isHuman),
                 },
@@ -198,7 +204,7 @@ function CreateQueueDrawerContent({
     const handleFinish = useCallback(
         async (values: FormValues) => {
             if (!projectId) {
-                message.error("Project is not available")
+                message.error(tNow("annotation.queues.projectUnavailable"))
                 return
             }
 
@@ -207,7 +213,11 @@ function CreateQueueDrawerContent({
             try {
                 if (selection && values.kind !== selection.itemType) {
                     message.error(
-                        `Selected ${selection.itemType === "traces" ? "traces" : "test cases"} can only be added to a ${selection.itemType} queue`,
+                        tNow(
+                            selection.itemType === "traces"
+                                ? "annotation.queues.selectedOnlyTraces"
+                                : "annotation.queues.selectedOnlyTestCases",
+                        ),
                     )
                     onSetSubmitting(false)
                     return
@@ -239,7 +249,7 @@ function CreateQueueDrawerContent({
                 const result = await createQueue(payload)
 
                 if (!result) {
-                    message.error("Failed to create annotation queue")
+                    message.error(tNow("annotation.queues.createFailed"))
                     onSetSubmitting(false)
                     return
                 }
@@ -255,7 +265,11 @@ function CreateQueueDrawerContent({
                         onSetSubmitting(false)
                         onClose()
                         message.error(
-                            `Queue was created, but failed to add the selected ${selection.itemType === "traces" ? "traces" : "test cases"}`,
+                            tNow(
+                                selection.itemType === "traces"
+                                    ? "annotation.queues.createdAddFailedTraces"
+                                    : "annotation.queues.createdAddFailedTestCases",
+                            ),
                         )
                         return
                     }
@@ -266,13 +280,15 @@ function CreateQueueDrawerContent({
                 onClearSelection()
                 const projectURL = window.location.pathname.match(/^(\/w\/[^/]+\/p\/[^/]+)/)?.[1]
                 message.success({
-                    content: "Annotation queue created.",
+                    content: tNow("annotation.queues.created"),
                     onNavigate: navigateToQueue ? () => navigateToQueue(result.id) : undefined,
                     url:
                         !navigateToQueue && projectURL
                             ? `${projectURL}/annotations/${result.id}`
                             : undefined,
-                    linkText: `View "${result.name ?? "queue"}"`,
+                    linkText: tNow("annotation.queues.viewNamed", {
+                        name: result.name ?? tNow("annotation.queues.queueFallback"),
+                    }),
                     duration: 5,
                 })
                 onSetSubmitting(false)
@@ -311,33 +327,33 @@ function CreateQueueDrawerContent({
             <ModalContent className="flex flex-col">
                 {/* ── Basic details ── */}
                 <div className="flex flex-col gap-4 px-6 py-3">
-                    <SectionTitle>Basic details</SectionTitle>
+                    <SectionTitle>{t("annotation.queues.basicDetails")}</SectionTitle>
 
                     <Form.Item
                         className={COMPACT_FORM_ITEM_CLASS}
                         name="name"
-                        label={<FieldLabel>Annotation name</FieldLabel>}
+                        label={<FieldLabel>{t("annotation.queues.annotationName")}</FieldLabel>}
                         rules={[
                             {
                                 required: true,
                                 whitespace: true,
-                                message: "Name is required",
+                                message: t("annotation.queues.nameRequired"),
                             },
                         ]}
                     >
-                        <Input placeholder="Enter name" />
+                        <Input placeholder={t("annotation.queues.enterName")} />
                     </Form.Item>
 
                     <Form.Item
                         className={COMPACT_FORM_ITEM_CLASS}
                         name="kind"
-                        label={<FieldLabel>Queue type</FieldLabel>}
-                        rules={[{required: true, message: "Type is required"}]}
+                        label={<FieldLabel>{t("annotation.queues.queueType")}</FieldLabel>}
+                        rules={[{required: true, message: t("annotation.queues.typeRequired")}]}
                     >
                         <Select
                             options={[
-                                {label: "Traces", value: "traces"},
-                                {label: "Test cases", value: "testcases"},
+                                {label: t("annotation.queues.traces"), value: "traces"},
+                                {label: t("annotation.queues.testCases"), value: "testcases"},
                             ]}
                             disabled={Boolean(selection)}
                         />
@@ -346,11 +362,11 @@ function CreateQueueDrawerContent({
                     <Form.Item
                         className={COMPACT_FORM_ITEM_CLASS}
                         name="description"
-                        label={<FieldLabel>Description</FieldLabel>}
+                        label={<FieldLabel>{t("annotation.queues.description")}</FieldLabel>}
                     >
                         <Input.TextArea
                             rows={2}
-                            placeholder="Enter description or reviewer guidance"
+                            placeholder={t("annotation.queues.enterDescription")}
                         />
                     </Form.Item>
                 </div>
@@ -359,7 +375,7 @@ function CreateQueueDrawerContent({
 
                 {/* ── Annotation details ── */}
                 <div className="flex flex-col gap-4 px-6 py-3">
-                    <SectionTitle>Annotation details</SectionTitle>
+                    <SectionTitle>{t("annotation.queues.annotationDetails")}</SectionTitle>
 
                     <Form.Item<FormValues>
                         name="evaluatorRevisionIds"
@@ -368,7 +384,7 @@ function CreateQueueDrawerContent({
                             {
                                 validator: async (_, value: string[] | undefined) => {
                                     if (Array.isArray(value) && value.length > 0) return
-                                    throw new Error("At least one evaluator is required")
+                                    throw new Error(tNow("annotation.queues.evaluatorRequired"))
                                 },
                             },
                         ]}
@@ -383,7 +399,9 @@ function CreateQueueDrawerContent({
                             return (
                                 <Form.Item
                                     className={COMPACT_FORM_ITEM_CLASS}
-                                    label={<FieldLabel>Feedback</FieldLabel>}
+                                    label={
+                                        <FieldLabel>{t("annotation.queues.feedback")}</FieldLabel>
+                                    }
                                     required
                                     validateStatus={
                                         evaluatorErrors.length > 0 ? "error" : undefined
@@ -436,6 +454,7 @@ const CreateQueueDrawer = ({
     feedbackOnCreate,
     feedbackCreateLabel,
 }: CreateQueueDrawerProps) => {
+    const t = useT(queuesCatalog)
     const [open, setOpen] = useAtom(createQueueDrawerOpenAtom)
     const defaultKind = useAtomValue(createQueueDrawerDefaultKindAtom)
     const [selection, setSelection] = useAtom(createQueueDrawerSelectionAtom)
@@ -477,7 +496,7 @@ const CreateQueueDrawer = ({
 
     return (
         <Drawer
-            title="Create annotation queue"
+            title={t("annotation.queues.createDrawerTitle")}
             open={open}
             onClose={handleClose}
             afterOpenChange={handleAfterOpenChange}
@@ -495,7 +514,7 @@ const CreateQueueDrawer = ({
                     <ModalFooter
                         onCancel={handleClose}
                         onConfirm={handleSubmit}
-                        confirmLabel="Create"
+                        confirmLabel={t("annotation.queues.create")}
                         isLoading={isSubmitting}
                     />
                 ) : null

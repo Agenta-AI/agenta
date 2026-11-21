@@ -17,6 +17,9 @@ import {
     workflowRevisionsByWorkflowQueryAtomFamily,
 } from "@agenta/entities/workflow"
 import {classifyAgentChanges, stableStringify} from "@agenta/entities/workflow/commitDiff"
+import {commitDiffTextNow} from "@agenta/entity-ui/changes"
+import {textVersionAtom, useT} from "@agenta/i18n"
+import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import {buildVersionRows, revertAgentRevisionAtom} from "@agenta/playground/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {cn, textColors} from "@agenta/ui/styles"
@@ -52,6 +55,7 @@ export const AgentVersionHistoryDrawer = ({
     currentVersion,
     onUpdate,
 }: AgentVersionHistoryDrawerProps) => {
+    const t = useT(versionCatalog)
     const open = useAtomValue(versionHistoryOpenAtomFamily(workflowId))
     const selectedId = useAtomValue(versionHistorySelectedAtomFamily(workflowId))
     const selectVersion = useSetAtom(selectAgentVersionAtom)
@@ -150,12 +154,13 @@ export const AgentVersionHistoryDrawer = ({
 
     // `local` is the selected version and `remote` its predecessor, so "added" reads as what this
     // version added — the same tense as the commit message on its row.
+    const textVersion = useAtomValue(textVersionAtom)
     const sections = useMemo(
         () =>
             selectedParams && previousParams
-                ? classifyAgentChanges(selectedParams, previousParams)
+                ? classifyAgentChanges(selectedParams, previousParams, commitDiffTextNow())
                 : [],
-        [selectedParams, previousParams],
+        [selectedParams, previousParams, textVersion],
     )
 
     // Restoring a version whose configuration already matches the head does nothing, so the
@@ -169,8 +174,8 @@ export const AgentVersionHistoryDrawer = ({
         [selectedParams, latestParams, selectedSchemas, latestSchemas],
     )
     const emptyText = !previousRow
-        ? "The first version — there is nothing before it to compare."
-        : "No configuration changes recorded in this version."
+        ? t("playground.versionHistory.firstVersion")
+        : t("playground.versionHistory.noChanges")
 
     const listLoading = query.isPending && revisions.length === 0
     const isError = query.isError && revisions.length === 0
@@ -179,16 +184,18 @@ export const AgentVersionHistoryDrawer = ({
     const diffLoading =
         listLoading || (!!selectedId && !selectedParams) || (!!previousRow && !previousParams)
     const placeholder = isError
-        ? "The version history could not be loaded. Retry from the list."
+        ? t("playground.versionHistory.loadFailed")
         : !selectedId
-          ? "Pick a version to see what changed in it."
+          ? t("playground.versionHistory.pickVersion")
           : undefined
 
     return (
         <EnhancedDrawer
             open={open}
             onClose={handleClose}
-            title={<span className="text-sm font-normal">Version history</span>}
+            title={
+                <span className="text-sm font-normal">{t("playground.versionHistory.title")}</span>
+            }
             width={780}
             panelRef={setPanel}
             // px-3 so the buttons' outer edge lands on the same line as the section bands.
@@ -258,7 +265,7 @@ export const AgentVersionHistoryDrawer = ({
                         )}
                     >
                         <ArrowLeft />
-                        Versions
+                        {t("playground.versionHistory.versions")}
                     </button>
                     <ChangesPane
                         sections={sections}

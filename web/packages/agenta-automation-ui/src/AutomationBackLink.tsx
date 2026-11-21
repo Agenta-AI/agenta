@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {ArrowLeft} from "@phosphor-icons/react"
 import Link from "next/link"
 
@@ -20,25 +22,28 @@ const CLASS = `text-muted-foreground -ml-1.5 inline-flex min-w-0 items-center ga
 export const AutomationBackLink = ({
     href,
     onBack,
-    label = "Automations",
+    label,
 }: {
     href?: string
     /** In-page return. Takes precedence over `href`. */
     onBack?: () => void
     label?: string
-}) =>
-    onBack ? (
+}) => {
+    const t = useT(automationsEditorCatalog)
+    const text = label ?? t("automations.editor.backToAutomations")
+    return onBack ? (
         <button
             type="button"
             onClick={onBack}
             className={`${CLASS} cursor-pointer border-0 bg-transparent ${ICON_LINK}`}
         >
             <ArrowLeft aria-hidden size={13} className="shrink-0" />
-            <span className="truncate">{label}</span>
+            <span className="truncate">{text}</span>
         </button>
     ) : (
         <Link href={href ?? ""} className={`${CLASS} ${ICON_LINK}`}>
             <ArrowLeft aria-hidden size={13} className="shrink-0" />
-            <span className="truncate">{label}</span>
+            <span className="truncate">{text}</span>
         </Link>
     )
+}

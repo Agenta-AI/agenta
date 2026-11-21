@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {ChatCircleDots, ClockCounterClockwise} from "@phosphor-icons/react"
 import {RefreshCw, TriangleAlert} from "lucide-react"
@@ -42,46 +44,59 @@ export const AutomationRunListSkeleton = ({
  * Not an error and not a defect: a paused automation, or one whose schedule has not come round
  * yet, is in a perfectly good state — so this says what will happen rather than what is missing.
  */
-export const AutomationRunHistoryEmpty = ({filtered = false}: {filtered?: boolean}) => (
-    // Centred in the column it fills, not stacked under the heading: the list's own height is
-    // the space this speaks for, and a message pinned to the top of an empty page reads as a
-    // row that failed to render.
-    <div className="flex h-full flex-col items-center justify-center gap-2.5 px-8 py-14 text-center">
-        <span className="inline-flex size-10 items-center justify-center rounded-[10px] bg-muted">
-            <ClockCounterClockwise aria-hidden size={19} className="text-muted-foreground" />
-        </span>
-        {/* An automation that has never run and one whose runs are hidden behind a filter are
+export const AutomationRunHistoryEmpty = ({filtered = false}: {filtered?: boolean}) => {
+    const t = useT(automationsEditorCatalog)
+    return (
+        // Centred in the column it fills, not stacked under the heading: the list's own height is
+        // the space this speaks for, and a message pinned to the top of an empty page reads as a
+        // row that failed to render.
+        <div className="flex h-full flex-col items-center justify-center gap-2.5 px-8 py-14 text-center">
+            <span className="inline-flex size-10 items-center justify-center rounded-[10px] bg-muted">
+                <ClockCounterClockwise aria-hidden size={19} className="text-muted-foreground" />
+            </span>
+            {/* An automation that has never run and one whose runs are hidden behind a filter are
             different facts, and telling a reader "no runs yet" while a filter is on sends them
             looking for a fault in the automation. */}
-        <p className="m-0 text-[14px] font-medium text-foreground">
-            {filtered ? "No runs match these filters" : "No runs yet"}
-        </p>
-        <p className="m-0 max-w-[38ch] text-[13px] leading-snug text-muted-foreground">
-            {filtered
-                ? "Reset the filters to see everything this automation has done."
-                : "The first time this automation runs, it shows up here with the conversation it had."}
-        </p>
-    </div>
-)
+            <p className="m-0 text-[14px] font-medium text-foreground">
+                {filtered ? t("automations.editor.noRunsFiltered") : t("automations.editor.noRuns")}
+            </p>
+            <p className="m-0 max-w-[38ch] text-[13px] leading-snug text-muted-foreground">
+                {filtered
+                    ? t("automations.editor.noRunsFilteredBody")
+                    : t("automations.editor.noRunsBody")}
+            </p>
+        </div>
+    )
+}
 
 export const AutomationRunHistoryError = ({
-    message = "Could not load this automation's runs.",
+    message,
     onRetry,
 }: {
     message?: string
     onRetry?: () => void
-}) => (
-    <div className="flex h-full flex-col items-center justify-center gap-3 px-8 py-14 text-center">
-        <TriangleAlert className="size-6 text-destructive" />
-        <p className="m-0 text-[14px] font-medium text-foreground">{message}</p>
-        {onRetry ? (
-            <Button variant="outline" size="sm" className="text-xs font-normal" onClick={onRetry}>
-                <RefreshCw className="size-3" />
-                Try again
-            </Button>
-        ) : null}
-    </div>
-)
+}) => {
+    const t = useT(automationsEditorCatalog)
+    return (
+        <div className="flex h-full flex-col items-center justify-center gap-3 px-8 py-14 text-center">
+            <TriangleAlert className="size-6 text-destructive" />
+            <p className="m-0 text-[14px] font-medium text-foreground">
+                {message ?? t("automations.editor.loadRunsFailed")}
+            </p>
+            {onRetry ? (
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs font-normal"
+                    onClick={onRetry}
+                >
+                    <RefreshCw className="size-3" />
+                    {t("automations.editor.tryAgain")}
+                </Button>
+            ) : null}
+        </div>
+    )
+}
 
 /**
  * A run with no conversation to read.
@@ -91,22 +106,27 @@ export const AutomationRunHistoryError = ({
  * stamped a session. All three are finished runs, not loading ones — so this is a statement,
  * never a spinner.
  */
-export const AutomationRunNoConversation = ({reason}: {reason?: string | null}) => (
-    <div className="flex h-full flex-col items-center justify-center gap-2.5 px-8 py-12 text-center">
-        <span className="inline-flex size-10 items-center justify-center rounded-[10px] bg-muted">
-            <ChatCircleDots aria-hidden size={19} className="text-muted-foreground" />
-        </span>
-        <p className="m-0 text-[14px] font-medium text-foreground">No conversation for this run</p>
-        <p className="m-0 max-w-[40ch] text-[13px] leading-snug text-muted-foreground">
-            This run didn&apos;t get far enough to start one, so there is no transcript to read.
-        </p>
-        {reason ? (
-            <p className="m-0 max-w-[52ch] break-words rounded-[9px] border border-solid border-destructive/40 bg-destructive/10 px-3 py-2 text-left text-[12.5px] leading-snug text-muted-foreground">
-                {reason}
+export const AutomationRunNoConversation = ({reason}: {reason?: string | null}) => {
+    const t = useT(automationsEditorCatalog)
+    return (
+        <div className="flex h-full flex-col items-center justify-center gap-2.5 px-8 py-12 text-center">
+            <span className="inline-flex size-10 items-center justify-center rounded-[10px] bg-muted">
+                <ChatCircleDots aria-hidden size={19} className="text-muted-foreground" />
+            </span>
+            <p className="m-0 text-[14px] font-medium text-foreground">
+                {t("automations.editor.noConversation")}
             </p>
-        ) : null}
-    </div>
-)
+            <p className="m-0 max-w-[40ch] text-[13px] leading-snug text-muted-foreground">
+                {t("automations.editor.noConversationBody")}
+            </p>
+            {reason ? (
+                <p className="m-0 max-w-[52ch] break-words rounded-[9px] border border-solid border-destructive/40 bg-destructive/10 px-3 py-2 text-left text-[12.5px] leading-snug text-muted-foreground">
+                    {reason}
+                </p>
+            ) : null}
+        </div>
+    )
+}
 
 /**
  * The run has a session, but the agent behind it cannot be resolved.
@@ -114,14 +134,17 @@ export const AutomationRunNoConversation = ({reason}: {reason?: string | null}) 
  * An automation whose agent was archived or unbound still has runs, and those runs still
  * happened — so this reports the missing agent rather than claiming the run produced nothing.
  */
-export const AutomationRunConversationUnavailable = () => (
-    <div className="flex h-full flex-col items-center justify-center gap-2.5 px-8 py-12 text-center">
-        <TriangleAlert className="size-5 text-muted-foreground" />
-        <p className="m-0 text-[14px] font-medium text-foreground">
-            This conversation can&apos;t be opened
-        </p>
-        <p className="m-0 max-w-[42ch] text-[13px] leading-snug text-muted-foreground">
-            The agent that ran it is no longer available, so its transcript can&apos;t be loaded.
-        </p>
-    </div>
-)
+export const AutomationRunConversationUnavailable = () => {
+    const t = useT(automationsEditorCatalog)
+    return (
+        <div className="flex h-full flex-col items-center justify-center gap-2.5 px-8 py-12 text-center">
+            <TriangleAlert className="size-5 text-muted-foreground" />
+            <p className="m-0 text-[14px] font-medium text-foreground">
+                {t("automations.editor.conversationUnavailable")}
+            </p>
+            <p className="m-0 max-w-[42ch] text-[13px] leading-snug text-muted-foreground">
+                {t("automations.editor.conversationUnavailableBody")}
+            </p>
+        </div>
+    )
+}

@@ -11,6 +11,8 @@ import {
     useEnrichedHumanEvaluatorAdapter,
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
+import {createT, useT} from "@agenta/i18n"
+import queuesCatalog from "@agenta/i18n/catalogs/annotation.queues"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {textColors} from "@agenta/ui/styles"
 import {Plus} from "@phosphor-icons/react"
@@ -43,12 +45,14 @@ function formatMetricSummary(metrics: HumanMetric[]): string {
     return `${visibleMetricNames} +${labels.length - 3}`
 }
 
+const tNow = createT(queuesCatalog)
+
 export function EntityEvaluatorSelector({
     onSelect,
     instanceId,
-    buttonLabel = "Add evaluator",
+    buttonLabel,
     onCreate,
-    createLabel = "Create evaluator",
+    createLabel,
     panelMinWidth = 280,
     panelWidth,
     childPanelWidth,
@@ -61,6 +65,7 @@ export function EntityEvaluatorSelector({
     openVersionOnHover = true,
     defaultOpenVersionPanel = false,
 }: EntityEvaluatorSelectorProps) {
+    const t = useT(queuesCatalog)
     const renderRevisionLabel = useCallback((entity: unknown) => {
         const revision = entity as WorkflowRevisionLike
         const isHuman = Boolean(revision.flags?.is_feedback)
@@ -71,7 +76,7 @@ export function EntityEvaluatorSelector({
             <div className="flex flex-col gap-0.5 min-w-0">
                 <div className="flex items-center gap-2 min-w-0">
                     <span className="truncate max-w-[180px]" title={revision.name ?? undefined}>
-                        {revision.name ?? "Unnamed"}
+                        {revision.name ?? tNow("annotation.queues.unnamed")}
                     </span>
                     <VersionBadge version={revision.version ?? 0} variant="chip" size="small" />
                 </div>
@@ -99,7 +104,7 @@ export function EntityEvaluatorSelector({
                 onSelect={onSelect}
                 instanceId={instanceId}
                 className="!w-full !justify-start"
-                placeholder={buttonLabel}
+                placeholder={buttonLabel ?? t("annotation.queues.addEvaluator")}
                 icon={<Plus size={14} />}
                 showDropdownIcon={false}
                 panelMinWidth={panelMinWidth}
@@ -120,7 +125,7 @@ export function EntityEvaluatorSelector({
                 onClearAll={onClearAll}
                 size="middle"
                 onCreateNew={onCreate}
-                createNewLabel={createLabel}
+                createNewLabel={createLabel ?? t("annotation.queues.createEvaluator")}
             />
         </div>
     )

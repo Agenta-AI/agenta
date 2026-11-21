@@ -30,6 +30,8 @@ import {
     PROVIDER_LABELS,
 } from "@agenta/entities/secret"
 import type {SubscriptionStatusDisplay, SubscriptionStatusTone} from "@agenta/entities/workflow"
+import {createT, useT} from "@agenta/i18n"
+import providerCredentialsCatalog from "@agenta/i18n/catalogs/entityUi.providerCredentials"
 import type {LlmProvider} from "@agenta/shared/types"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
@@ -50,6 +52,8 @@ import {
 import type {ConnectionMode} from "../connectionUtils"
 
 import ProviderKeyField from "./ProviderKeyField"
+
+const tNow = createT(providerCredentialsCatalog)
 
 const DEFAULT_SELF_HOSTING_GUIDE_URL = "https://docs.agenta.ai/self-host/quick-start"
 
@@ -120,7 +124,12 @@ const CUSTOM_PROVIDER_ROWS: {kind: string; label: string}[] = [
     {kind: CustomProviderKind.Azure, label: "Azure OpenAI"},
     {kind: CustomProviderKind.Bedrock, label: "AWS Bedrock"},
     {kind: CustomProviderKind.VertexAi, label: "Vertex AI"},
-    {kind: CustomProviderKind.Custom, label: "OpenAI-compatible endpoint"},
+    {
+        kind: CustomProviderKind.Custom,
+        get label() {
+            return tNow("entityUi.providerCredentials.openaiCompatible")
+        },
+    },
 ]
 
 /** Family spellings that must compare equal across catalog names, vault env names, and titles. */
@@ -296,6 +305,7 @@ export function ProviderCredentialsSectionView({
     subscriptionStatus,
     onCheckAgain,
 }: ProviderCredentialsSectionViewProps) {
+    const t = useT(providerCredentialsCatalog)
     // The model's own named vault connection, when it has one. It always gets a rail row and wins
     // the auto-highlight — a vault model id often encodes no catalog family, so without this the
     // rail would fall back to an unrelated standard provider.
@@ -377,9 +387,14 @@ export function ProviderCredentialsSectionView({
     const toggleOptions = useMemo(
         () =>
             [
-                modeOptions.includes("agenta") ? {label: "API key", value: "agenta"} : null,
+                modeOptions.includes("agenta")
+                    ? {label: tNow("entityUi.providerCredentials.apiKey"), value: "agenta"}
+                    : null,
                 modeOptions.includes("self_managed")
-                    ? {label: "Subscription", value: "self_managed"}
+                    ? {
+                          label: tNow("entityUi.providerCredentials.subscription"),
+                          value: "self_managed",
+                      }
                     : null,
             ].filter((option): option is {label: string; value: ConnectionMode} => option !== null),
         [modeOptions],
@@ -408,7 +423,7 @@ export function ProviderCredentialsSectionView({
             onChange={(value) => onModeChange(value as ConnectionMode)}
             options={toggleOptions}
             className={segmentedClassName}
-            aria-label="Credential mode"
+            aria-label={t("entityUi.providerCredentials.credentialMode")}
         />
     ) : null
 
@@ -418,22 +433,23 @@ export function ProviderCredentialsSectionView({
                 <Terminal size={18} className="text-[var(--ag-colorTextSecondary)]" />
             </div>
             <div className="flex flex-col gap-1">
-                <span className="text-base font-semibold">Self-managed</span>
+                <span className="text-base font-semibold">
+                    {t("entityUi.providerCredentials.selfManaged")}
+                </span>
                 <ul className="m-0 flex list-disc flex-col gap-0.5 pl-4">
                     <li>
                         <span className="text-xs leading-relaxed text-colorTextDescription">
-                            Use a Claude Code or Codex subscription, or any credential the harness
-                            reads from its own environment (env vars, prior logins).
+                            {t("entityUi.providerCredentials.selfManagedUse")}
                         </span>
                     </li>
                     <li>
                         <span className="text-xs leading-relaxed text-colorTextDescription">
-                            Agenta stores and injects no key.
+                            {t("entityUi.providerCredentials.noKeyStored")}
                         </span>
                     </li>
                     <li>
                         <span className="text-xs font-semibold leading-relaxed text-colorTextDescription">
-                            Requires a self-hosted Agenta deployment.
+                            {t("entityUi.providerCredentials.requiresSelfHosted")}
                         </span>
                     </li>
                 </ul>
@@ -458,7 +474,7 @@ export function ProviderCredentialsSectionView({
                     rel="noreferrer"
                     className="rounded-md border border-solid border-[var(--ag-colorBorder)] px-2.5 py-1 text-xs font-medium text-[var(--ag-colorText)] no-underline hover:bg-[var(--ag-colorFillTertiary)]"
                 >
-                    Read the self-hosting guide →
+                    {t("entityUi.providerCredentials.readSelfHostingGuide")}
                 </a>
                 {onCheckAgain && subscriptionStatus?.message ? (
                     <button
@@ -468,13 +484,13 @@ export function ProviderCredentialsSectionView({
                         className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-solid border-[var(--ag-colorBorder)] bg-transparent px-2.5 py-1 text-xs font-medium text-[var(--ag-colorText)] hover:bg-[var(--ag-colorFillTertiary)] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         <ArrowClockwise size={13} className="shrink-0" />
-                        Check again
+                        {t("entityUi.providerCredentials.checkAgain")}
                     </button>
                 ) : null}
                 {isCloud ? (
                     // fallback until colorErrorBg token lands
                     <span className="rounded-full border border-solid border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg,rgba(255,77,79,0.12))] px-2 py-0.5 text-xs text-[var(--ag-colorErrorText)]">
-                        Unavailable in the cloud
+                        {t("entityUi.providerCredentials.unavailableInCloud")}
                     </span>
                 ) : null}
             </div>
@@ -488,13 +504,13 @@ export function ProviderCredentialsSectionView({
                 <span className="text-base font-semibold">{secret.name}</span>
                 <span className="text-xs leading-snug text-colorTextDescription">
                     {PROVIDER_LABELS[secret.provider ?? ""] ?? secret.provider}
-                    {" · manage this connection in Settings → Secrets."}
+                    {` ${t("entityUi.providerCredentials.manageInSettings")}`}
                 </span>
             </div>
             {secret.models?.length ? (
                 <div className="flex flex-col gap-0.5">
                     <span className="text-xs uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                        Models
+                        {t("entityUi.providerCredentials.models")}
                     </span>
                     <span className="text-xs leading-relaxed text-[var(--ag-colorTextSecondary)]">
                         {secret.models.join(" · ")}
@@ -521,7 +537,7 @@ export function ProviderCredentialsSectionView({
         renderCustomSummary(selectedCustomProvider)
     ) : (
         <span className="text-xs leading-snug text-colorTextDescription">
-            No provider configured for this model yet — add one from the list.
+            {t("entityUi.providerCredentials.noProviderForModel")}
         </span>
     )
 
@@ -557,7 +573,11 @@ export function ProviderCredentialsSectionView({
                                 label={secret.title ?? secret.name ?? "?"}
                             />
                         }
-                        label={secret.title ?? secret.name ?? "Provider"}
+                        label={
+                            secret.title ??
+                            secret.name ??
+                            t("entityUi.providerCredentials.provider")
+                        }
                         trailing={
                             hasStoredKey(secret) ? (
                                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
@@ -577,7 +597,7 @@ export function ProviderCredentialsSectionView({
                                 label={secret.name ?? "?"}
                             />
                         }
-                        label={secret.name ?? "Custom provider"}
+                        label={secret.name ?? t("entityUi.providerCredentials.customProvider")}
                         trailing={
                             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
                         }
@@ -586,7 +606,7 @@ export function ProviderCredentialsSectionView({
                 {addProviderRows ? (
                     <div className="mt-1.5 flex flex-col gap-0.5 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] pt-1.5">
                         <span className="px-2.5 pb-0.5 pt-1 text-[12px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                            Use custom provider
+                            {t("entityUi.providerCredentials.useCustomProvider")}
                         </span>
                         {addProviderRows}
                     </div>
@@ -616,7 +636,11 @@ export function ProviderCredentialsSectionView({
                                 label={secret.title ?? secret.name ?? "?"}
                             />
                         }
-                        label={secret.title ?? secret.name ?? "Provider"}
+                        label={
+                            secret.title ??
+                            secret.name ??
+                            t("entityUi.providerCredentials.provider")
+                        }
                         trailing={
                             hasStoredKey(secret) ? (
                                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
@@ -636,7 +660,7 @@ export function ProviderCredentialsSectionView({
                                 label={secret.name ?? "?"}
                             />
                         }
-                        label={secret.name ?? "Custom provider"}
+                        label={secret.name ?? t("entityUi.providerCredentials.customProvider")}
                         trailing={
                             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
                         }
@@ -687,17 +711,21 @@ export function ProviderCredentialsSectionView({
         <ConfigAccordionSection
             size="compact"
             icon={<Key size={15} />}
-            title="Provider credentials"
+            title={t("entityUi.providerCredentials.providerCredentials")}
             status={providerNeedsKey ? "warning" : "complete"}
             indicator={indicator}
             titleBadge={
                 providerNeedsKey ? (
                     <span className="rounded-full border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-1.5 py-0.5 text-[12px] font-medium text-[var(--ag-colorWarningText)]">
-                        Connect key
+                        {t("entityUi.providerCredentials.connectKey")}
                     </span>
                 ) : null
             }
-            summary={mode === "self_managed" ? "Subscription" : "API key"}
+            summary={
+                mode === "self_managed"
+                    ? t("entityUi.providerCredentials.subscription")
+                    : t("entityUi.providerCredentials.apiKey")
+            }
             summaryCollapsedOnly
             noDivider
             extra={

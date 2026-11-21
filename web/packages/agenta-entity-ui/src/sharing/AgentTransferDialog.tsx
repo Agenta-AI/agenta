@@ -1,6 +1,8 @@
 import {useState} from "react"
 
 import type {ProjectMemberProfile} from "@agenta/entities/sharing"
+import {useT} from "@agenta/i18n"
+import sharingCatalog from "@agenta/i18n/catalogs/entityUi.sharing"
 import {
     MemberPicker,
     SharingSurface,
@@ -47,6 +49,8 @@ export const AgentTransferDialog = ({
     onTransferred,
     onFailed,
 }: AgentTransferDialogProps) => {
+    // The texts come from `copy`; this draws the dialog again when the language's text loads.
+    useT(sharingCatalog)
     const [target, setTarget] = useState<SharingPerson | null>(null)
     const [invalid, setInvalid] = useState(false)
     const [saving, setSaving] = useState(false)

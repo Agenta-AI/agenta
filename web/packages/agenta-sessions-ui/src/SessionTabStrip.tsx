@@ -14,6 +14,8 @@
  */
 import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionsTabsCatalog from "@agenta/i18n/catalogs/sessions.tabs"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {PlusIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -103,6 +105,7 @@ export const SessionTabStrip = ({
     reorder,
     className,
 }: SessionTabStripProps) => {
+    const t = useT(sessionsTabsCatalog)
     // Edge fade is applied per side only where the strip is actually scrolled past its content, so
     // a strip that fits (single tab, no scroll) shows no fade on either edge.
     const [fade, setFade] = useState({left: false, right: false})
@@ -195,13 +198,13 @@ export const SessionTabStrip = ({
 
     const canAdd = Boolean(showTabs && onAdd)
     const addButton = canAdd ? (
-        <SimpleTooltip title={addTooltip ?? "New session"}>
+        <SimpleTooltip title={addTooltip ?? t("sessions.tabs.newSession")}>
             {/* Non-disabled span trigger: tooltips don't fire on a disabled button. */}
             <span className="inline-flex">
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="New session"
+                    aria-label={t("sessions.tabs.newSession")}
                     onClick={onAdd}
                     disabled={addDisabled}
                     className="h-7 w-7 shrink-0 p-0"

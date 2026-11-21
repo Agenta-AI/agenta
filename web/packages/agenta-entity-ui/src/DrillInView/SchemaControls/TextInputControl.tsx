@@ -8,6 +8,8 @@
 import {memo, useCallback, useEffect, useId, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {cn} from "@agenta/ui/styles"
 import {Field, Input, Textarea} from "@agenta/ui/ui"
 
@@ -74,6 +76,7 @@ export const TextInputControl = memo(function TextInputControl({
     rows = 3,
     className,
 }: TextInputControlProps) {
+    const t = useT(schemaControlsCatalog)
     // Determine if multiline from schema or prop
     const isMultiline = forceMultiline ?? shouldBeMultiline(schema)
 
@@ -141,9 +144,9 @@ export const TextInputControl = memo(function TextInputControl({
             {inputContent}
             {(maxLength || minLength) && (
                 <span className="text-xs text-colorTextDescription">
-                    {minLength && `Min: ${minLength}`}
+                    {minLength && t("entityUi.schemaControls.minLength", {value: minLength})}
                     {minLength && maxLength && " / "}
-                    {maxLength && `Max: ${maxLength}`}
+                    {maxLength && t("entityUi.schemaControls.maxLength", {value: maxLength})}
                 </span>
             )}
         </Field>

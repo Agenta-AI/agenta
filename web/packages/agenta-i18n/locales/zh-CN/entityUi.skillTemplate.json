@@ -1,0 +1,11 @@
+{
+    "skillReference": "Skill 引用",
+    "skill": "Skill",
+    "remove": "移除",
+    "staticSkill": "静态 Skill",
+    "staticSkillHint": "由 Agenta 提供。此 Skill 无法编辑或移除。",
+    "skillTemplate": "Skill 模板",
+    "couldNotRead": "无法读取该内容，请拖放 Skill 文件夹、.zip 或 .skill 文件。",
+    "dragHint": "将 Skill 文件夹、<mono>.zip</mono> 或 <mono>.skill</mono> 拖到此处",
+    "browseFiles": "浏览文件"
+}

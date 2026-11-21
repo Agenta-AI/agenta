@@ -12,6 +12,8 @@ import {
     type SkillScanCandidate,
     type SkillUploadScan,
 } from "@agenta/entity-ui/drill-in"
+import {createT, useT} from "@agenta/i18n"
+import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {createSkillWorkflow, skillContentSchema} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
@@ -38,6 +40,8 @@ export interface SkillCreateDrawerProps {
     width?: number
 }
 
+const tNow = createT(skillsGalleryCatalog)
+
 const EMPTY_SKILL: Record<string, unknown> = {name: "", description: "", body: "", files: []}
 
 const toFormValue = (candidate: SkillScanCandidate): Record<string, unknown> => ({
@@ -62,6 +66,7 @@ export function SkillCreateDrawer({
     onCreated,
     width = 860,
 }: SkillCreateDrawerProps) {
+    const t = useT(skillsGalleryCatalog)
     const [value, setValue] = useState<Record<string, unknown>>(EMPTY_SKILL)
     const [busy, setBusy] = useState(false)
     const [reading, setReading] = useState(false)
@@ -105,7 +110,7 @@ export function SkillCreateDrawer({
                 if (!live) return
                 const [first] = scan.candidates
                 if (!first) {
-                    setError("No SKILL.md found in the upload.")
+                    setError(tNow("skills.gallery.noSkillMdFound"))
                     return
                 }
                 setParsedCount(scan.fileCount)
@@ -117,7 +122,7 @@ export function SkillCreateDrawer({
                 setPicks({scan, selected: new Set(scan.candidates.map((c) => c.dir))})
             })
             .catch(() => {
-                if (live) setError("Couldn't read the upload.")
+                if (live) setError(tNow("skills.gallery.readUploadFailed"))
             })
             .finally(() => {
                 if (live) setReading(false)
@@ -155,8 +160,8 @@ export function SkillCreateDrawer({
         } catch (err) {
             setError(
                 err instanceof Error && err.message
-                    ? `Create failed: ${err.message}`
-                    : "Create failed.",
+                    ? tNow("skills.gallery.createFailedDetail", {error: err.message})
+                    : tNow("skills.gallery.createFailed"),
             )
         } finally {
             setBusy(false)
@@ -192,8 +197,8 @@ export function SkillCreateDrawer({
         } catch (err) {
             setError(
                 err instanceof Error && err.message
-                    ? `Import failed: ${err.message}`
-                    : "Import failed.",
+                    ? tNow("skills.gallery.importFailedDetail", {error: err.message})
+                    : tNow("skills.gallery.importFailed"),
             )
         } finally {
             // A partial batch still created skills — the list must show them.
@@ -212,10 +217,10 @@ export function SkillCreateDrawer({
             destroyOnClose
             title={
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">New skill</span>
+                    <span className="text-sm font-medium">{t("skills.gallery.newSkill")}</span>
                     {parsedCount != null ? (
                         <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] font-normal tabular-nums text-[var(--ag-colorTextTertiary)]">
-                            {parsedCount} {parsedCount === 1 ? "file" : "files"} parsed
+                            {t("skills.gallery.filesParsed", {count: parsedCount})}
                         </span>
                     ) : null}
                 </div>
@@ -235,17 +240,17 @@ export function SkillCreateDrawer({
                     )}
                     <span className="flex shrink-0 items-center gap-2">
                         <Button variant="outline" onClick={close} disabled={busy}>
-                            Cancel
+                            {t("skills.gallery.cancel")}
                         </Button>
                         {picks ? (
                             <Button onClick={importMany} disabled={busy || chosen.length === 0}>
                                 {busy ? <Spinner size="small" /> : null}
-                                Import {chosen.length} {chosen.length === 1 ? "skill" : "skills"}
+                                {t("skills.gallery.importSkills", {count: chosen.length})}
                             </Button>
                         ) : (
                             <Button onClick={create} disabled={busy || reading}>
                                 {busy ? <Spinner size="small" /> : null}
-                                Create skill
+                                {t("skills.gallery.createSkill")}
                             </Button>
                         )}
                     </span>
@@ -262,7 +267,9 @@ export function SkillCreateDrawer({
                     // them as a list to bring in together, each as it was uploaded.
                     <div className="flex flex-col gap-1.5 text-xs">
                         <span className="font-medium">
-                            Skills found · {picks.scan.candidates.length}
+                            {t("skills.gallery.skillsFound", {
+                                count: picks.scan.candidates.length,
+                            })}
                         </span>
                         <div className="flex flex-col gap-1">
                             {picks.scan.candidates.map((candidate) => (
@@ -275,16 +282,20 @@ export function SkillCreateDrawer({
                                         checked={picks.selected.has(candidate.dir)}
                                         disabled={busy}
                                         onCheckedChange={() => togglePick(candidate.dir)}
-                                        aria-label={`Import ${candidate.skill.name || candidate.dir}`}
+                                        aria-label={t("skills.gallery.importAria", {
+                                            name: candidate.skill.name || candidate.dir,
+                                        })}
                                     />
                                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                                         <span className="truncate font-mono">
-                                            {candidate.skill.name || candidate.dir || "unnamed"}
+                                            {candidate.skill.name ||
+                                                candidate.dir ||
+                                                t("skills.gallery.unnamed")}
                                         </span>
                                         <span className="line-clamp-1 text-[var(--ag-colorTextSecondary)]">
                                             {candidate.skill.description ||
                                                 candidate.dir ||
-                                                "No description"}
+                                                t("skills.gallery.noDescription")}
                                         </span>
                                     </span>
                                 </label>

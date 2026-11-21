@@ -1,5 +1,7 @@
 import {useCallback} from "react"
 
+import {useT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {playgroundController} from "@agenta/playground"
 import {useStore} from "jotai"
 
@@ -16,6 +18,7 @@ export interface VariantColumnProps {
  * Moving a card moves its config column and its output column; the test cases stay.
  */
 export const VariantColumn = ({revisionIds, onClose, onShow}: VariantColumnProps) => {
+    const t = useT(panelsCatalog)
     const store = useStore()
     const move = useCallback(
         (revisionId: string, step: -1 | 1) => {
@@ -32,7 +35,7 @@ export const VariantColumn = ({revisionIds, onClose, onShow}: VariantColumnProps
     return (
         <section className="flex flex-col">
             <h2 className="sticky top-0 z-[1] m-0 flex h-12 items-center border-0 border-b border-solid border-border bg-background px-3 text-sm font-semibold">
-                Variants
+                {t("playground.panels.variants")}
             </h2>
             <div className="flex flex-col gap-3 p-3">
                 {revisionIds.map((revisionId, index) => (

@@ -1,0 +1,9 @@
+{
+    "addError": "无法添加该域名",
+    "adding": "正在添加…",
+    "description": "添加域名后，发布其 DNS TXT 记录以证明所有权。",
+    "domainHint": "例如 company.com",
+    "domainLabel": "域名",
+    "enterDomain": "请输入域名",
+    "title": "添加域名"
+}

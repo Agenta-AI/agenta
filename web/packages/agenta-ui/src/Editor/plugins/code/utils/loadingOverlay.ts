@@ -1,4 +1,8 @@
+import {createT} from "@agenta/i18n"
+import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
 import type {LexicalEditor} from "lexical"
+
+const tNow = createT(uiEditorCatalog)
 
 /**
  * Show a loading overlay on the editor during heavy operations (large paste,
@@ -11,7 +15,7 @@ import type {LexicalEditor} from "lexical"
  */
 export function showEditorLoadingOverlay(
     editor: LexicalEditor,
-    message = "Processing large content\u2026",
+    message = tNow("ui.editor.processingLarge"),
 ): (() => void) | null {
     const rootElement = editor.getRootElement()
     if (!rootElement) return null

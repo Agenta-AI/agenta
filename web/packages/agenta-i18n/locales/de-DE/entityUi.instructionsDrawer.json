@@ -1,0 +1,14 @@
+{
+    "outputFormat": "Ausgabeformat",
+    "toneAndStyle": "Ton und Stil",
+    "guardrails": "Leitplanken",
+    "writingGoodAgentsMd": "Ein gutes AGENTS.md schreiben",
+    "tipRole": "Beginnen Sie mit der Rolle und dem Ziel des Agents in ein oder zwei Zeilen.",
+    "tipSections": "Halten Sie die Abschnitte kurz und beschriftet (Rolle, Werkzeuge, Leitplanken).",
+    "tipOutput": "Seien Sie konkret beim Ausgabeformat und bei festen Grenzen.",
+    "tipImperative": "Bevorzugen Sie Anweisungen im Imperativ statt langer Texte.",
+    "suggested": "Vorschläge",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "placeholder": "# Rolle\n\nBeschreiben Sie, was der Agent tut und wie er sich verhalten soll…"
+}

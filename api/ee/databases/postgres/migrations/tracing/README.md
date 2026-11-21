@@ -4,7 +4,7 @@
 > **This `tracing/` chain is PARKED (frozen legacy history).** Do **not** add new
 > revisions here — it ends at `park00000000` and never advances. Author new tracing
 > migrations in `tracing_oss/` (shared, runs in both editions) or `tracing_ee/` (EE-only).
-> See `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`.
+> See `docs/design/oss-ee-convergence/migration-chains-and-edition-switch.md`.
 >
 > The commands below still describe the alembic mechanics, but they name the active
 > `tracing_ee` chain. Swap the `-w` working directory for

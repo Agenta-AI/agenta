@@ -1,0 +1,20 @@
+{
+    "alwaysAutoApprove": "Always auto-approve",
+    "answerSavedRetry": "Answer saved, retry needed",
+    "answerSavedRetryHint": "The answer is saved. Send your next message to retry the continuation.",
+    "answerSavedWaiting": "The answer is saved. Waiting for the agent’s next update…",
+    "answeredWaiting": "Answered, waiting for the agent",
+    "approve": "Approve",
+    "approveAll": "Approve all",
+    "cancel": "Cancel",
+    "deny": "Deny",
+    "denyAll": "Deny all",
+    "denyAndSend": "Deny & send",
+    "hideDetails": "Hide the details",
+    "needsApproval": "Needs your approval",
+    "redirect": "Redirect",
+    "seeWhatChanges": "See what changes ({{count}})",
+    "seeWhatRuns": "See what runs ({{count}})",
+    "steerHint": "Deny this step and tell the agent what to do instead — your note runs as the next message.",
+    "steerPlaceholder": "e.g. write to staging, not prod — or ask for something else entirely"
+}

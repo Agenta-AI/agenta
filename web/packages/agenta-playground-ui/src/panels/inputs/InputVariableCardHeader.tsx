@@ -6,6 +6,8 @@ import {
     type ViewOption,
     type ViewType,
 } from "@agenta/entity-ui/view-types"
+import {useT} from "@agenta/i18n"
+import inputsCatalog from "@agenta/i18n/catalogs/playground.inputs"
 import {message} from "@agenta/ui/app-message"
 import {TypeChip, type ChipVariant} from "@agenta/ui/type-chip"
 import {Badge, Button, SimpleTooltip} from "@agenta/ui/ui"
@@ -66,10 +68,11 @@ export const InputVariableCardHeader = ({
     collapsed,
     onToggleCollapsed,
 }: InputVariableCardHeaderProps) => {
+    const t = useT(inputsCatalog)
     const copy = () =>
         navigator.clipboard.writeText(copyText(value)).then(
-            () => message.success("Copied"),
-            () => message.error("Copy failed"),
+            () => message.success(t("playground.inputs.copied")),
+            () => message.error(t("playground.inputs.copyFailed")),
         )
 
     return (
@@ -83,37 +86,37 @@ export const InputVariableCardHeader = ({
                     <SimpleTooltip title={helpText} side="top">
                         <Info
                             size={12}
-                            aria-label={`About ${name}`}
+                            aria-label={t("playground.inputs.about", {name})}
                             className="shrink-0 cursor-help text-muted-foreground"
                         />
                     </SimpleTooltip>
                 ) : null}
                 {isDraft ? (
-                    <SimpleTooltip
-                        title="New prompt variable · commit the workflow to publish it."
-                        side="top"
-                    >
+                    <SimpleTooltip title={t("playground.inputs.draftHint")} side="top">
                         <Badge variant="outlined" className="font-mono">
-                            draft
+                            {t("playground.inputs.draft")}
                         </Badge>
                     </SimpleTooltip>
                 ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-1">
                 {connectedSourceName ? (
-                    <SimpleTooltip title={`Synced from ${connectedSourceName}`} side="top">
+                    <SimpleTooltip
+                        title={t("playground.inputs.syncedFrom", {name: connectedSourceName})}
+                        side="top"
+                    >
                         <Database
                             size={14}
-                            aria-label="Synced from test set"
+                            aria-label={t("playground.inputs.syncedFromTestSet")}
                             className="shrink-0 text-muted-foreground"
                         />
                     </SimpleTooltip>
                 ) : null}
-                <SimpleTooltip title="Copy value" side="top">
+                <SimpleTooltip title={t("playground.inputs.copyValue")} side="top">
                     <Button
                         variant="ghost"
                         size="icon-sm"
-                        aria-label={`Copy ${name}`}
+                        aria-label={t("playground.inputs.copyName", {name})}
                         onClick={copy}
                     >
                         <CopySimple />
@@ -128,7 +131,12 @@ export const InputVariableCardHeader = ({
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={collapsed ? `Expand ${name}` : `Collapse ${name}`}
+                    aria-label={t(
+                        collapsed
+                            ? "playground.inputs.expandName"
+                            : "playground.inputs.collapseName",
+                        {name},
+                    )}
                     aria-expanded={!collapsed}
                     // The ghost button fills while expanded; this toggle is open by default, so
                     // the fill would sit on every card.

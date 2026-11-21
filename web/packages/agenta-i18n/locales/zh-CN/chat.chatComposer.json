@@ -1,0 +1,12 @@
+{
+    "attachComingSoon": "即将支持添加附件",
+    "attachFiles": "添加附件",
+    "attachUpTo": "最多 {{count}} 个文件",
+    "listening": "正在聆听…",
+    "placeholderFirst": "我们要做什么？",
+    "placeholderKeyboard": "问问 Agent…（回车发送，⌘/Ctrl+回车换行）",
+    "placeholderQuoted": "引用的部分要改什么？",
+    "placeholderTouch": "问问 Agent…",
+    "placeholderWaiting": "请在上方回答，或改为输入消息",
+    "quotesAttached_other": "已附 {{count}} 条引用"
+}

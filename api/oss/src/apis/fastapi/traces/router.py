@@ -21,6 +21,7 @@ from oss.src.apis.fastapi.traces.models import (
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.sharing.utils import session_viewer
 
 
 log = get_module_logger(__name__)
@@ -144,6 +145,7 @@ class SimpleTracesRouter:
             organization_id=UUID(request.state.organization_id),
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
+            can_view_session=session_viewer(request),
             #
             trace_create=trace_create_request.trace,
         )

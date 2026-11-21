@@ -7,20 +7,35 @@ import {
     useTriggerSchedules,
     useTriggerSubscriptions,
 } from "@agenta/entities/gatewayTrigger"
+import {createT, formatDate, formatLocale} from "@agenta/i18n"
+import agentIntroCatalog from "@agenta/i18n/catalogs/entityUi.agentIntro"
 import {nowTickAtom} from "@agenta/shared/state"
 import {dayjs} from "@agenta/shared/utils"
 import {useAtomValue} from "jotai"
 
+import {scheduleTextNow} from "../gatewayTrigger/scheduleText"
+
 const LIST_SIZE = 5
+
+// Rows are derived in a memo, which re-runs every minute on the shared clock.
+const tNow = createT(agentIntroCatalog)
 
 /** `formatDay` renders in UTC; a next-run time is only meaningful in the reader's own day. */
 const formatNextRun = (at: Date) => {
     const run = dayjs(at)
     const days = run.startOf("day").diff(dayjs().startOf("day"), "day")
     if (days === 0) return run.format("HH:mm")
-    if (days === 1) return `tomorrow ${run.format("HH:mm")}`
-    if (days < 7) return run.format("ddd HH:mm")
-    return run.format("D MMM HH:mm")
+    if (days === 1) return tNow("entityUi.agentIntro.tomorrowAt", {time: run.format("HH:mm")})
+    // English keeps its exact format; other languages name the day and month in their own words.
+    const time = {hour: "2-digit", minute: "2-digit", hourCycle: "h23"} as const
+    if (days < 7) {
+        return formatLocale()
+            ? formatDate(at, {weekday: "short", ...time})
+            : run.format("ddd HH:mm")
+    }
+    return formatLocale()
+        ? formatDate(at, {day: "numeric", month: "short", ...time})
+        : run.format("D MMM HH:mm")
 }
 
 /**
@@ -79,7 +94,9 @@ export const useUpcomingTriggers = ({agentId, agentNames}: UseUpcomingTriggersAr
     const rows = useMemo<UpcomingTrigger[]>(() => {
         const describeAgent = (references: unknown) => {
             const boundId = triggerBoundAgentId(references as never)
-            return (boundId && agentNames?.get(boundId)) || "Unassigned agent"
+            return (
+                (boundId && agentNames?.get(boundId)) || tNow("entityUi.agentIntro.unassignedAgent")
+            )
         }
         const isInScope = (references: unknown) =>
             !agentId || triggerBoundAgentId(references as never) === agentId
@@ -94,7 +111,7 @@ export const useUpcomingTriggers = ({agentId, agentNames}: UseUpcomingTriggersAr
             .map((schedule, index): UpcomingTrigger => {
                 const expression = schedule.data?.schedule ?? ""
                 const [next] = nextCronRuns(expression, 1)
-                const cadence = describeCron(expression)
+                const cadence = describeCron(expression, scheduleTextNow())
                 const agent = describeAgent(schedule.data?.references)
                 return {
                     id: schedule.id ?? `schedule-${index}`,
@@ -127,7 +144,10 @@ export const useUpcomingTriggers = ({agentId, agentNames}: UseUpcomingTriggersAr
                 return {
                     id: subscription.id ?? `subscription-${index}`,
                     kind: "event",
-                    name: subscription.name || eventKey || "Event automation",
+                    name:
+                        subscription.name ||
+                        eventKey ||
+                        tNow("entityUi.agentIntro.eventAutomation"),
                     subtitle: agentId
                         ? subscription.name
                             ? eventKey
@@ -135,9 +155,11 @@ export const useUpcomingTriggers = ({agentId, agentNames}: UseUpcomingTriggersAr
                         : eventKey && subscription.name
                           ? `${agent} · ${eventKey}`
                           : agent,
-                    detail: "on event",
+                    detail: tNow("entityUi.agentIntro.onEvent"),
                     at: null,
-                    tooltip: eventKey ? `Fires on ${eventKey}` : "Fires when its event arrives",
+                    tooltip: eventKey
+                        ? tNow("entityUi.agentIntro.firesOn", {eventKey})
+                        : tNow("entityUi.agentIntro.firesWhenEventArrives"),
                 }
             })
 

@@ -1,0 +1,14 @@
+{
+    "attachComingSoon": "L’ajout de fichiers arrive bientôt",
+    "attachFiles": "Joindre des fichiers",
+    "attachUpTo": "Jusqu’à {{count}} fichiers",
+    "listening": "Écoute en cours…",
+    "placeholderFirst": "Sur quoi allons-nous travailler ?",
+    "placeholderKeyboard": "Demandez à l’agent… (Entrée pour envoyer, ⌘/Ctrl+Entrée pour un retour à la ligne)",
+    "placeholderQuoted": "Que faut-il changer dans le passage cité ?",
+    "placeholderTouch": "Demandez à l’agent…",
+    "placeholderWaiting": "Répondez ci-dessus ou saisissez plutôt un message",
+    "quotesAttached_one": "{{count}} citation jointe",
+    "quotesAttached_many": "{{count}} citations jointes",
+    "quotesAttached_other": "{{count}} citations jointes"
+}

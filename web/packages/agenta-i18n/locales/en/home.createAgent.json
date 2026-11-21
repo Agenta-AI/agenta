@@ -1,0 +1,4 @@
+{
+    "startFailed": "Couldn't start agent creation — please retry",
+    "openFailed": "Agent created, but couldn't open it — find it under Agents"
+}

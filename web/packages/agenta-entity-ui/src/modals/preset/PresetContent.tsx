@@ -7,6 +7,8 @@
 
 import {memo, useState, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import presetModalCatalog from "@agenta/i18n/catalogs/entityUi.presetModal"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {cn} from "@agenta/ui/styles"
 import {Divider, SearchInput, Segmented} from "@agenta/ui/ui"
@@ -20,6 +22,7 @@ export const PresetContent = memo(function PresetContent({
     onSelectPreset,
     selectedPreset,
 }: PresetContentProps) {
+    const t = useT(presetModalCatalog)
     const [searchTerm, setSearchTerm] = useState("")
     const [format, setFormat] = useState<"yaml" | "json">("yaml")
 
@@ -43,7 +46,7 @@ export const PresetContent = memo(function PresetContent({
             {/* Left sidebar - preset list */}
             <div className="flex flex-col gap-4 w-[200px]">
                 <SearchInput
-                    placeholder="Search"
+                    placeholder={t("entityUi.presetModal.search")}
                     allowClear
                     onValueChange={(v) => setSearchTerm(v)}
                 />
@@ -51,7 +54,11 @@ export const PresetContent = memo(function PresetContent({
                 <Divider className="m-0" />
 
                 {/* Was antd Menu (no @agenta/ui counterpart): a plain selectable list. */}
-                <div role="listbox" aria-label="Presets" className="h-[500px] overflow-y-auto">
+                <div
+                    role="listbox"
+                    aria-label={t("entityUi.presetModal.presets")}
+                    className="h-[500px] overflow-y-auto"
+                >
                     {filteredPresets.map((preset) => {
                         const selected = preset.key === selectedPresetKey
                         return (
@@ -81,7 +88,7 @@ export const PresetContent = memo(function PresetContent({
             <div className="flex flex-col gap-4 flex-1 h-full overflow-y-auto">
                 <div className="flex items-start justify-between gap-4 sticky top-0 z-10 bg-[var(--ag-c-FFFFFF)]">
                     <span className="text-lg font-medium -mt-1 text-colorText">
-                        Select a Preset
+                        {t("entityUi.presetModal.selectPreset")}
                     </span>
                     {/* Was antd Radio.Button pair — Radio.Button maps to Segmented (Radio.md). */}
                     <Segmented
@@ -105,7 +112,7 @@ export const PresetContent = memo(function PresetContent({
                         editorProps={{
                             codeOnly: true,
                             language: format,
-                            ariaLabel: "Preset preview",
+                            ariaLabel: t("entityUi.presetModal.preview"),
                         }}
                         syncWithInitialValueChanges={true}
                     />

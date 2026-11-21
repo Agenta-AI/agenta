@@ -1,0 +1,23 @@
+{
+    "pickProjects": "Projekte auswählen",
+    "searchProjects": "Projekte suchen",
+    "noProjectsMatch": "Keine Projekte entsprechen „{{search}}“.",
+    "projectsThatCanUse": "Projekte, die es verwenden können",
+    "everyProjectIn": "Alle Projekte in {{organization}}.",
+    "allProjects": "Alle Projekte",
+    "everyProjectInIncludingNew": "Alle Projekte in {{organization}}, einschließlich neuer.",
+    "selectedProjects": "Ausgewählte Projekte",
+    "onlyProjectsYouPick": "Nur die Projekte, die Sie auswählen.",
+    "choosingProjectsPlan": "Die Auswahl von Projekten ist in den Tarifen Business und Enterprise verfügbar.",
+    "seePlans": "Tarife ansehen",
+    "removeProject": "{{project}} entfernen",
+    "noProjectUntilPick": "Kein Projekt kann diese Verbindung verwenden, bis Sie eines auswählen.",
+    "projectLosesAccess": "{{project}} kann diese Verbindung nach dem Speichern nicht mehr verwenden. Agents in {{project}}, die sie verwenden, müssen konfiguriert werden.",
+    "savedEveryProject": "{{name}} gespeichert. Alle Projekte können es verwenden.",
+    "savedProjectsCount_one": "{{name}} gespeichert. {{count}} Projekt kann es verwenden.",
+    "savedProjectsCount_other": "{{name}} gespeichert. {{count}} Projekte können es verwenden.",
+    "noLongerOwner": "Sie sind nicht mehr Eigentümer oder Administrator von {{organization}} und können daher keine Verbindungen der Organisation ändern.",
+    "projectNotInOrg": "Eines der ausgewählten Projekte ist nicht mehr in {{organization}}. Laden Sie die Seite neu und wählen Sie erneut.",
+    "nameTaken": "{{organization}} hat bereits eine Verbindung namens {{name}}. Wählen Sie einen anderen Namen.",
+    "couldNotSave": "Agenta konnte diese {{name}}-Verbindung nicht speichern. Versuchen Sie es erneut."
+}

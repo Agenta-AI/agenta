@@ -9,11 +9,12 @@ import {
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
 import {TemplateCard} from "@agenta/home-ui"
+import {useT} from "@agenta/i18n"
+import agentsFirstRun from "@agenta/i18n/catalogs/agents.firstRun"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {ChevronLeft, ChevronRight, EyeOff} from "lucide-react"
 
-import {FIRST_RUN_COPY} from "./firstRunCopy"
 import {FirstRunTemplatesSkeleton} from "./states/FirstRunTemplatesSkeleton"
 import {TemplatePagerButton} from "./TemplatePagerButton"
 import {templatesHiddenAtom} from "./templatesHidden"
@@ -39,6 +40,7 @@ export const FirstRunTemplates = ({
     onBrowseAll: () => void
     disabled?: boolean
 }) => {
+    const t = useT(agentsFirstRun)
     const [category, setCategory] = useState<string>(ALL_TEMPLATES_CATEGORY)
     const [hidden, setHidden] = useAtom(templatesHiddenAtom)
     const [page, setPage] = useState(0)
@@ -66,13 +68,13 @@ export const FirstRunTemplates = ({
     if (hidden) {
         return (
             <div className="text-muted-foreground text-xs">
-                {FIRST_RUN_COPY.templatesHidden} ·{" "}
+                {t("agents.firstRun.templatesHidden")} ·{" "}
                 <button
                     type="button"
                     onClick={() => setHidden(false)}
                     className="text-foreground cursor-pointer border-0 bg-transparent p-0 text-xs underline underline-offset-[3px]"
                 >
-                    {FIRST_RUN_COPY.showAgain}
+                    {t("agents.firstRun.showAgain")}
                 </button>
             </div>
         )
@@ -89,7 +91,7 @@ export const FirstRunTemplates = ({
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
                 <div className="flex items-baseline justify-between gap-3 lg:contents">
                     <span className="text-sm font-medium lg:order-1 lg:shrink-0">
-                        {FIRST_RUN_COPY.templates}
+                        {t("agents.firstRun.templates")}
                     </span>
                     <div className="flex items-center gap-3 lg:order-3 lg:ml-auto lg:shrink-0">
                         {/*
@@ -99,21 +101,21 @@ export const FirstRunTemplates = ({
                          */}
                         <div className={`hidden items-center gap-1.5 ${loaded ? "lg:flex" : ""}`}>
                             <span className="text-muted-foreground mr-0.5 text-xs">
-                                {FIRST_RUN_COPY.templateCounter(
-                                    pageStart + 1,
-                                    pageEnd,
-                                    shown.length,
-                                )}
+                                {t("agents.firstRun.templateCounter", {
+                                    from: pageStart + 1,
+                                    to: pageEnd,
+                                    total: shown.length,
+                                })}
                             </span>
                             <TemplatePagerButton
-                                label={FIRST_RUN_COPY.prevTemplates}
+                                label={t("agents.firstRun.prevTemplates")}
                                 disabled={atStart}
                                 onClick={() => setPage(safePage - 1)}
                             >
                                 <ChevronLeft size={14} />
                             </TemplatePagerButton>
                             <TemplatePagerButton
-                                label={FIRST_RUN_COPY.nextTemplates}
+                                label={t("agents.firstRun.nextTemplates")}
                                 disabled={atEnd}
                                 onClick={() => setPage(safePage + 1)}
                             >
@@ -126,16 +128,16 @@ export const FirstRunTemplates = ({
                             className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent p-0 text-xs underline-offset-2 hover:underline"
                         >
                             {loaded
-                                ? FIRST_RUN_COPY.browseAll(templates.length)
-                                : FIRST_RUN_COPY.browseAllUncounted}
+                                ? t("agents.firstRun.browseAll", {total: templates.length})
+                                : t("agents.firstRun.browseAllUncounted")}
                         </button>
                         {/* The desktop hides this behind a `⋯` menu holding exactly one item; on touch
                         that is two taps for one action, so it is a labelled button here. */}
                         <button
                             type="button"
                             onClick={() => setHidden(true)}
-                            aria-label={FIRST_RUN_COPY.hideTemplates}
-                            title={FIRST_RUN_COPY.hideTemplates}
+                            aria-label={t("agents.firstRun.hideTemplates")}
+                            title={t("agents.firstRun.hideTemplates")}
                             className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center border-0 bg-transparent p-0"
                         >
                             <EyeOff size={14} />
@@ -185,7 +187,7 @@ export const FirstRunTemplates = ({
                 <FirstRunTemplatesSkeleton />
             ) : status === "error" ? (
                 <LoadError
-                    title={FIRST_RUN_COPY.templatesLoadError}
+                    title={t("agents.firstRun.templatesLoadError")}
                     onRetry={refetchTemplates}
                     className="py-6"
                 />

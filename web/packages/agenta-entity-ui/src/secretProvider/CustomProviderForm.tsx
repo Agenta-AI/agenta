@@ -10,6 +10,8 @@ import {
     useVaultSecret,
     type ProviderFieldConfig,
 } from "@agenta/entities/secret"
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
+import customProviderFormCatalog from "@agenta/i18n/catalogs/entityUi.customProviderForm"
 import type {LlmProvider} from "@agenta/shared/types"
 import {isSlugInputValid} from "@agenta/shared/utils"
 // Subpath, not the root barrel: that one re-exports InfiniteVirtualTable, which imports antd —
@@ -20,6 +22,7 @@ import {Button, Textarea} from "@agenta/ui/ui"
 import {Plus, WarningCircle} from "@phosphor-icons/react"
 
 import ModelNameInput from "./ModelNameInput"
+import {translateProviderField} from "./providerFieldText"
 
 /** Imperative surface the host's footer (Submit button) drives — replaces the antd
  * `FormInstance` the pre-migration API shared with the caller. */
@@ -52,6 +55,22 @@ const INITIAL_VALUES: FormValues = {
 }
 
 /** Error line under a control — replaces antd `Form.Item`'s validation message. */
+const tNow = createT(customProviderFormCatalog)
+type FormKey = CatalogKey<typeof customProviderFormCatalog>
+
+/** The either/or credential message, by provider kind. */
+const AUTH_MESSAGE_TEXT: Record<string, FormKey> = {
+    bedrock: "entityUi.customProviderForm.bedrockAuthRequired",
+}
+
+/** A provider kind's name in the picker; the custom endpoint is the one that is not a brand. */
+const providerLabel = (kind: string): string =>
+    kind === "custom"
+        ? tNow("entityUi.customProviderForm.openaiCompatibleEndpoint")
+        : Object.hasOwn(PROVIDER_LABELS, kind)
+          ? PROVIDER_LABELS[kind]
+          : capitalize(kind)
+
 const FieldError = ({error}: {error?: string}) =>
     error ? <span className="text-xs text-colorError">{error}</span> : null
 
@@ -115,6 +134,7 @@ const CustomProviderForm = ({
     selectedProvider,
     initialProviderKind,
 }: CustomProviderFormProps) => {
+    const t = useT(customProviderFormCatalog)
     const [errorMessage, setErrorMessage] = useState("")
     const [values, setValues] = useState<FormValues>(INITIAL_VALUES)
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -140,17 +160,19 @@ const CustomProviderForm = ({
         [standardProviders],
     )
 
-    // Build provider options for SelectLLMProviderBase
-    const providerOptions = useMemo<ProviderGroup[]>(() => {
-        const allProviders = [...new Set([...standardProviders, ...customProviders])]
-        return allProviders.map((key) => {
-            const label = PROVIDER_LABELS[key] ?? capitalize(key)
-            return {
-                label,
-                options: [{label, value: key, key}],
-            }
-        })
-    }, [standardProviders, customProviders])
+    // Build provider options for SelectLLMProviderBase. Labels are read on every render, so they
+    // follow the language and a catalog that loads after the form opens.
+    const allProviders = useMemo(
+        () => [...new Set([...standardProviders, ...customProviders])],
+        [standardProviders, customProviders],
+    )
+    const providerOptions: ProviderGroup[] = allProviders.map((key) => {
+        const label = providerLabel(key)
+        return {
+            label,
+            options: [{label, value: key, key}],
+        }
+    })
 
     const providerValue = values.provider || ""
     const normalizedProviderKind = useMemo(() => {
@@ -172,7 +194,10 @@ const CustomProviderForm = ({
     const eitherOrAuthKeys = useMemo(
         () =>
             new Set<string>(
-                (PROVIDER_AUTH_REQUIREMENTS[normalizedProviderKind]?.alternatives ?? []).flat(),
+                (Object.hasOwn(PROVIDER_AUTH_REQUIREMENTS, normalizedProviderKind)
+                    ? PROVIDER_AUTH_REQUIREMENTS[normalizedProviderKind].alternatives
+                    : []
+                ).flat(),
             ),
         [normalizedProviderKind],
     )
@@ -201,15 +226,22 @@ const CustomProviderForm = ({
         }
     }, [selectedProvider, initialProviderKind])
 
-    const visibleFields = useMemo(
+    const providerFields = useMemo(
         () =>
             PROVIDER_FIELDS.filter((field) => {
                 if (shouldFilter) {
                     return !field.model || field.model.includes(normalizedProviderKind)
                 }
                 return true
-            }).map((field) => ({...field, note: fieldNoteForKind(field, normalizedProviderKind)})),
+            }),
         [shouldFilter, normalizedProviderKind],
+    )
+    // Translated on every render, like the provider options above.
+    const visibleFields = providerFields.map((field) =>
+        translateProviderField(
+            {...field, note: fieldNoteForKind(field, normalizedProviderKind)},
+            normalizedProviderKind,
+        ),
     )
 
     const isFieldRequired = useCallback(
@@ -228,7 +260,7 @@ const CustomProviderForm = ({
     const validate = useCallback((): Record<string, string> => {
         const errors: Record<string, string> = {}
         if (!providerValue.trim()) {
-            errors.provider = "Please select a provider"
+            errors.provider = tNow("entityUi.customProviderForm.selectProvider")
         }
 
         for (const field of visibleFields) {
@@ -237,19 +269,19 @@ const CustomProviderForm = ({
 
             if (field.key === "name") {
                 if (!raw) {
-                    errors.name = "Please enter name"
+                    errors.name = tNow("entityUi.customProviderForm.enterName")
                 } else if (!isSlugInputValid(raw)) {
-                    errors.name =
-                        "Name must contain only letters, numbers, underscore, or dash without any spaces."
+                    errors.name = tNow("entityUi.customProviderForm.nameInvalid")
                 } else if (defaultProviderNames.has(raw.trim().toLowerCase())) {
-                    errors.name =
-                        "Name cannot match a default provider. Please choose a different name."
+                    errors.name = tNow("entityUi.customProviderForm.nameMatchesDefault")
                 }
                 continue
             }
 
             if (isFieldRequired(field) && !raw.trim()) {
-                errors[field.key] = `Please enter ${field.label}`
+                errors[field.key] = tNow("entityUi.customProviderForm.enterField", {
+                    field: field.label,
+                })
                 continue
             }
 
@@ -257,13 +289,14 @@ const CustomProviderForm = ({
                 try {
                     JSON.parse(raw)
                 } catch {
-                    errors[field.key] = "Must be valid JSON"
+                    errors[field.key] = tNow("entityUi.customProviderForm.invalidJson")
                 }
             }
         }
 
         ;(values.models ?? []).forEach((model, index) => {
-            if (!model?.trim()) errors[`models.${index}`] = "Please add a model name"
+            if (!model?.trim())
+                errors[`models.${index}`] = tNow("entityUi.customProviderForm.addModelName")
         })
 
         return errors
@@ -271,7 +304,7 @@ const CustomProviderForm = ({
 
     const onSubmit = useCallback(async () => {
         if (!hasSelectedProvider) {
-            setFieldErrors({provider: "Please select a provider"})
+            setFieldErrors({provider: tNow("entityUi.customProviderForm.selectProvider")})
             return
         }
         const errors = validate()
@@ -284,17 +317,23 @@ const CustomProviderForm = ({
         try {
             const models = values.models
             if (!models?.length || !models[0]) {
-                setErrorMessage("Please add a model name before submitting")
+                setErrorMessage(tNow("entityUi.customProviderForm.addModelBeforeSubmit"))
                 return
             }
 
-            const authReq = PROVIDER_AUTH_REQUIREMENTS[normalizedProviderKind]
+            const authReq = Object.hasOwn(PROVIDER_AUTH_REQUIREMENTS, normalizedProviderKind)
+                ? PROVIDER_AUTH_REQUIREMENTS[normalizedProviderKind]
+                : undefined
             if (authReq) {
                 const filled = (key: keyof LlmProvider) =>
                     !!(values[key] as string | undefined)?.trim()
                 const satisfied = authReq.alternatives.some((set) => set.every(filled))
                 if (!satisfied) {
-                    setErrorMessage(authReq.message)
+                    setErrorMessage(
+                        Object.hasOwn(AUTH_MESSAGE_TEXT, normalizedProviderKind)
+                            ? tNow(AUTH_MESSAGE_TEXT[normalizedProviderKind])
+                            : authReq.message,
+                    )
                     return
                 }
             }
@@ -315,9 +354,12 @@ const CustomProviderForm = ({
                 response?: {data?: {detail?: {msg?: string}[]}}
             }
             if (apiError.status === 422) {
-                setErrorMessage(apiError.response?.data?.detail?.[0]?.msg ?? "Validation error")
+                setErrorMessage(
+                    apiError.response?.data?.detail?.[0]?.msg ??
+                        tNow("entityUi.customProviderForm.validationError"),
+                )
             } else {
-                setErrorMessage("Something went wrong! Please try again with the right credential.")
+                setErrorMessage(tNow("entityUi.customProviderForm.somethingWrong"))
             }
         }
     }, [
@@ -374,7 +416,8 @@ const CustomProviderForm = ({
 
                 <div className="flex flex-col gap-1">
                     <span className="font-medium text-colorText">
-                        Provider<span aria-hidden> *</span>
+                        {t("entityUi.customProviderForm.provider")}
+                        <span aria-hidden> *</span>
                     </span>
                     <SelectLLMProviderBase
                         options={providerOptions}
@@ -417,16 +460,18 @@ const CustomProviderForm = ({
 
                         <div className="flex flex-col gap-2">
                             <div className="w-full flex items-center justify-between">
-                                <span className="font-medium text-colorText">Models</span>
+                                <span className="font-medium text-colorText">
+                                    {t("entityUi.customProviderForm.models")}
+                                </span>
                                 <Button variant="outline" size="sm" onClick={() => addModel()}>
                                     <Plus size={14} />
-                                    Add
+                                    {t("entityUi.customProviderForm.add")}
                                 </Button>
                             </div>
 
                             {models.length === 0 ? (
                                 <span className="text-[var(--ag-c-586673)]">
-                                    No custom models configured
+                                    {t("entityUi.customProviderForm.noCustomModels")}
                                 </span>
                             ) : (
                                 models.map((model, index) => (

@@ -5,9 +5,6 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // MessageComposer — the schedule drawer's "Message" field. One message, mapped onto the agent's
 // primary input: `messages` for a chat agent, else the schema's first string input.
-//
-// The antd parity harness this file used to carry retired with the v2 redesign, which also
-// removed the raw-JSON branch the old component toggled into.
 const meta = {
     title: "@agenta/entity-ui/GatewayTrigger/MessageComposer",
     component: MessageComposer,

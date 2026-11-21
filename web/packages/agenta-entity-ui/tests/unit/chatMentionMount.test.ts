@@ -59,3 +59,57 @@ describe("resolveMentionMount", () => {
         })
     })
 })
+
+describe("resolveMentionMount with drives", () => {
+    const prices = {id: "prices"}
+    const drives = [{slug: "price-lists", mount: prices}]
+
+    it("opens a drives/<slug>/ link in that drive, written either way", () => {
+        for (const href of ["drives/price-lists/2026.md", "/drives/price-lists/2026.md"]) {
+            expect(resolveMentionMount(href, cwd, agent, drives)).toEqual({
+                mount: prices,
+                path: "2026.md",
+            })
+        }
+    })
+
+    it("opens a sandbox path through the drives/<slug> link in that drive", () => {
+        expect(
+            resolveMentionMount(
+                "/var/lib/agenta/mounts/s/m/drives/price-lists/a/b.csv",
+                cwd,
+                agent,
+                drives,
+            ),
+        ).toEqual({mount: prices, path: "a/b.csv"})
+    })
+
+    it("opens a path under a drive's own mount, a slug ending in -agent included", () => {
+        const support = {id: "support"}
+        const linked = [...drives, {slug: "support-agent", mount: support}]
+        expect(
+            resolveMentionMount(
+                "/var/lib/agenta/mounts/s/m-drive-support-agent/faq.md",
+                cwd,
+                agent,
+                linked,
+            ),
+        ).toEqual({mount: support, path: "faq.md"})
+        expect(
+            resolveMentionMount("/var/lib/agenta/mounts/s/m-drive-gone/x.md", cwd, agent, linked),
+        ).toBeNull()
+    })
+
+    it("opens nothing for a configured drive that has no mount", () => {
+        const entries = [{slug: "price-lists"}, {slug: "notes"}]
+        for (const href of ["drives/notes/x.md", "/var/lib/agenta/mounts/s/m/drives/notes/x.md"])
+            expect(resolveMentionMount(href, cwd, agent, drives, entries)).toBeNull()
+    })
+
+    it("keeps a drives/ path of an unknown slug on the session drive", () => {
+        expect(resolveMentionMount("drives/other/x.md", cwd, agent, drives)).toEqual({
+            mount: cwd,
+            path: "drives/other/x.md",
+        })
+    })
+})

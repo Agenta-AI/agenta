@@ -1,4 +1,8 @@
+import {createT} from "@agenta/i18n"
+import sessionsMobileListCatalog from "@agenta/i18n/catalogs/sessions.mobileList"
 import type {SessionRowVm} from "@agenta/sessions/row"
+
+const tNow = createT(sessionsMobileListCatalog)
 
 /**
  * How the sessions list is CUT — the one half of the view the filter menu owns that is not a
@@ -87,12 +91,12 @@ const dateBucket = (activityAt: string | null, now: number): {key: string; label
     const parsed = activityAt ? Date.parse(activityAt) : Number.NaN
     // A row with no activity timestamp is the oldest thing on the list, not a bucket of its own:
     // one heading over one row says nothing a reader can use.
-    if (Number.isNaN(parsed)) return {key: "older", label: "Older"}
+    if (Number.isNaN(parsed)) return {key: "older", label: tNow("sessions.mobileList.older")}
     const days = Math.floor((startOfDay(now) - startOfDay(parsed)) / DAY_MS)
-    if (days <= 0) return {key: "today", label: "Today"}
-    if (days === 1) return {key: "yesterday", label: "Yesterday"}
-    if (days < 7) return {key: "week", label: "This week"}
-    return {key: "older", label: "Older"}
+    if (days <= 0) return {key: "today", label: tNow("sessions.mobileList.today")}
+    if (days === 1) return {key: "yesterday", label: tNow("sessions.mobileList.yesterday")}
+    if (days < 7) return {key: "week", label: tNow("sessions.mobileList.thisWeek")}
+    return {key: "older", label: tNow("sessions.mobileList.older")}
 }
 
 const groupOf = (
@@ -108,7 +112,14 @@ const groupOf = (
     const name = agentNames.get(id)?.trim()
     // "No agent yet" is a session with no turns; "Unknown agent" is one whose agent the roster
     // this client holds does not name. Different facts, so different headings.
-    return {key: id || "__unbound__", label: name || (id ? "Unknown agent" : "No agent yet")}
+    return {
+        key: id || "__unbound__",
+        label:
+            name ||
+            (id
+                ? tNow("sessions.mobileList.unknownAgent")
+                : tNow("sessions.mobileList.noAgentYet")),
+    }
 }
 
 /**

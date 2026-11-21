@@ -1,5 +1,7 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import refineCatalog from "@agenta/i18n/catalogs/playground.refine"
 import {Button, Dialog, DialogContent, DialogTitle, Segmented, Switch} from "@agenta/ui/ui"
 import {X} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -10,11 +12,6 @@ import {useRefinePrompt} from "./useRefinePrompt"
 
 type Pane = "instructions" | "preview"
 
-const PANES = [
-    {value: "instructions", label: "Instructions"},
-    {value: "preview", label: "Refine prompt"},
-]
-
 export interface RefinePromptDialogProps {
     revisionId: string
     /** The key of the prompt in the revision's config, such as `prompt`. */
@@ -22,17 +19,20 @@ export interface RefinePromptDialogProps {
     onClose: () => void
 }
 
-const CloseButton = ({onClose, className}: {onClose: () => void; className?: string}) => (
-    <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Close modal"
-        onClick={onClose}
-        className={className}
-    >
-        <X size={14} aria-hidden />
-    </Button>
-)
+const CloseButton = ({onClose, className}: {onClose: () => void; className?: string}) => {
+    const t = useT(refineCatalog)
+    return (
+        <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("playground.refine.closeModal")}
+            onClick={onClose}
+            className={className}
+        >
+            <X size={14} aria-hidden />
+        </Button>
+    )
+}
 
 /**
  * Refine prompt: the user writes instructions, the refine tool rewrites the prompt's messages,
@@ -40,6 +40,11 @@ const CloseButton = ({onClose, className}: {onClose: () => void; className?: str
  * while open: closing it drops the conversation. On a phone the two sides become two panes.
  */
 export const RefinePromptDialog = ({revisionId, promptKey, onClose}: RefinePromptDialogProps) => {
+    const t = useT(refineCatalog)
+    const panes = [
+        {value: "instructions", label: t("playground.refine.instructions")},
+        {value: "preview", label: t("playground.refine.refinePrompt")},
+    ]
     const refine = useRefinePrompt(revisionId, promptKey)
     const [input, setInput] = useState("")
     const [showDiff, setShowDiff] = useState(false)
@@ -71,11 +76,11 @@ export const RefinePromptDialog = ({revisionId, promptKey, onClose}: RefinePromp
                     }
                 }}
             >
-                <DialogTitle className="sr-only">Refine prompt</DialogTitle>
+                <DialogTitle className="sr-only">{t("playground.refine.refinePrompt")}</DialogTitle>
                 <div className="flex items-center gap-2 border-0 border-b border-solid border-border px-3 py-2 sm:hidden">
                     <Segmented
                         size="sm"
-                        options={PANES}
+                        options={panes}
                         value={pane}
                         onChange={(value) => setPane(value as Pane)}
                     />
@@ -90,10 +95,10 @@ export const RefinePromptDialog = ({revisionId, promptKey, onClose}: RefinePromp
                     >
                         <div className="hidden border-0 border-b border-solid border-border px-4 py-3 sm:block">
                             <p className="m-0 text-[13px] font-medium text-foreground">
-                                Instructions
+                                {t("playground.refine.instructions")}
                             </p>
                             <p className="m-0 mt-0.5 text-xs text-muted-foreground">
-                                Chat with an LLM agent to improve your prompt
+                                {t("playground.refine.chatWithAgent")}
                             </p>
                         </div>
                         <RefineInstructions
@@ -112,16 +117,16 @@ export const RefinePromptDialog = ({revisionId, promptKey, onClose}: RefinePromp
                     >
                         <div className="flex items-center gap-3 border-0 border-b border-solid border-border px-4 py-2 sm:py-3">
                             <p className="m-0 hidden text-[13px] font-medium text-foreground sm:block">
-                                Refine prompt
+                                {t("playground.refine.refinePrompt")}
                             </p>
                             <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-                                Diff
+                                {t("playground.refine.diff")}
                                 <Switch
                                     size="sm"
                                     checked={showDiff}
                                     onCheckedChange={setShowDiff}
                                     disabled={!hasResult}
-                                    aria-label="Toggle diff view"
+                                    aria-label={t("playground.refine.toggleDiff")}
                                 />
                             </label>
                             <CloseButton onClose={onClose} className="hidden sm:inline-flex" />
@@ -137,10 +142,10 @@ export const RefinePromptDialog = ({revisionId, promptKey, onClose}: RefinePromp
                         />
                         <div className="flex items-center justify-end gap-2 border-0 border-t border-solid border-border px-4 py-3">
                             <Button variant="ghost" size="sm" onClick={onClose}>
-                                Cancel
+                                {t("playground.refine.cancel")}
                             </Button>
                             <Button size="sm" onClick={applyRefined} disabled={!hasResult}>
-                                Use refined prompt
+                                {t("playground.refine.useRefined")}
                             </Button>
                         </div>
                     </div>

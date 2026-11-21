@@ -17,7 +17,8 @@
  * sends every click inside it back to the row.
  */
 import {getMcpConnectionStatusLabel, type McpConnectionStatus} from "@agenta/entities/mcpEndpoint"
-import {formatCount} from "@agenta/shared/utils"
+import {useT} from "@agenta/i18n"
+import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import {McpServerMark} from "@agenta/ui/agent-icon"
 import {cn} from "@agenta/ui/styles"
 import {Button, touchTargetExpansion} from "@agenta/ui/ui"
@@ -52,12 +53,13 @@ export function ConnectionListRow({
     onAdd,
     onReconnect,
 }: ConnectionListRowProps) {
+    const t = useT(mcpConnectCatalog)
     const working = status === "connected"
     const subtitle = !working
         ? getMcpConnectionStatusLabel(status)
         : toolCount == null
           ? host
-          : `${host} · ${formatCount(toolCount, "tool")}`
+          : t("entityUi.mcpConnect.hostToolCount", {host, count: toolCount})
     // The whole row runs its one action; the button stays the keyboard path to it.
     const rowAction = added || busy ? undefined : working ? onAdd : onReconnect
 
@@ -91,7 +93,7 @@ export function ConnectionListRow({
                 {added ? (
                     <span className="flex items-center gap-1.5 text-xs text-colorTextSecondary">
                         <Check size={13} />
-                        Added
+                        {t("entityUi.mcpConnect.added")}
                     </span>
                 ) : working ? (
                     <Button
@@ -102,8 +104,8 @@ export function ConnectionListRow({
                             event.stopPropagation()
                             onAdd?.()
                         }}
-                        aria-label={`Add ${name} to this agent`}
-                        title="Add to this agent"
+                        aria-label={t("entityUi.mcpConnect.addNameToAgent", {name})}
+                        title={t("entityUi.mcpConnect.addToAgent")}
                         // 28px of chrome on both actions, so the row keeps the desktop
                         // rhythm, and an invisible box around it for a finger.
                         className={touchTargetExpansion(28)}
@@ -119,11 +121,11 @@ export function ConnectionListRow({
                             event.stopPropagation()
                             onReconnect?.()
                         }}
-                        aria-label={`Reconnect ${name}`}
+                        aria-label={t("entityUi.mcpConnect.reconnectName", {name})}
                         className={touchTargetExpansion(28)}
                     >
                         <ArrowClockwise size={12} />
-                        Reconnect
+                        {t("entityUi.mcpConnect.reconnect")}
                     </Button>
                 )}
             </div>

@@ -1,0 +1,18 @@
+{
+    "describeRefine": "Beschreiben Sie, wie Sie Ihren Prompt verfeinern möchten",
+    "orPickSuggestion": "Oder wählen Sie unten einen Vorschlag",
+    "refining": "Prompt wird verfeinert …",
+    "describePlaceholder": "Beschreiben Sie, wie der Prompt verfeinert werden soll …",
+    "send": "Senden",
+    "submitToSee": "Senden Sie Anweisungen, um den verfeinerten Prompt zu sehen",
+    "messagePlaceholder": "Nachrichteninhalt eingeben …",
+    "instructions": "Anweisungen",
+    "refinePrompt": "Prompt verfeinern",
+    "closeModal": "Dialog schließen",
+    "chatWithAgent": "Chatten Sie mit einem LLM-Agent, um Ihren Prompt zu verbessern",
+    "diff": "Diff",
+    "toggleDiff": "Diff-Ansicht umschalten",
+    "cancel": "Abbrechen",
+    "useRefined": "Verfeinerten Prompt verwenden",
+    "refineFailed": "Der Prompt konnte nicht verfeinert werden. Versuchen Sie es erneut."
+}

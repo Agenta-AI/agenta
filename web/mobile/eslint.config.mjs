@@ -13,6 +13,8 @@ import eslintPluginPrettier from "eslint-plugin-prettier/recommended"
 import reactHooks from "eslint-plugin-react-hooks"
 import tseslint from "typescript-eslint"
 
+import {i18nGuardConfigs} from "../packages/eslint-i18n-guard.mjs"
+
 const includePrettierRule = process.env.DISABLE_PRETTIER !== "true"
 
 const config = [
@@ -128,6 +130,7 @@ const config = [
         },
     },
     ...(includePrettierRule ? [eslintPluginPrettier] : []),
+    ...i18nGuardConfigs(process.cwd()),
     {
         ignores: [".next/**", "node_modules/**", "next-env.d.ts"],
     },

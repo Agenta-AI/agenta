@@ -1,0 +1,23 @@
+{
+    "notInCatalog": "不在目录中",
+    "permissionFor": "{{tool}} 的权限",
+    "noMatchesInGroup": "此组中没有匹配项。",
+    "showMore": "再显示 {{count}} 项",
+    "readOnlyGroup": "只读",
+    "writeGroup": "写入和删除",
+    "presetWithOverrides_other": "{{label}} · {{count}} 项覆盖",
+    "agentPolicyNote": "此 Agent 的权限策略设置为 {{policy}}，因此这些工具遵循该策略。",
+    "defaultPermission": "默认权限",
+    "searchToolCount_other": "搜索 {{count}} 个工具",
+    "searchTools": "搜索工具",
+    "noToolMatches": "这里没有匹配的工具。",
+    "customSwitchNote": "设置某个工具的权限会将默认值切换为自定义。",
+    "presetResetsNote": "选择预设会将其重置。",
+    "toolsNotLoaded": "无法加载 {{integration}} 的工具，因此不会列出按工具设置的权限。上方的默认权限仍然适用。",
+    "noToolsListed": "{{integration}} 没有列出任何工具。",
+    "oldFormat": "此集成使用旧格式",
+    "oldFormatDetail": "它的工具是在多个连接中逐个保存的，因此无法自动转换为单一的 {{integration}} 策略。",
+    "oldFormatKeepRunning": "它们会按原样继续运行。要在这里设置权限，请移除该集成，然后在单个连接下重新添加。",
+    "done": "完成",
+    "permissionPolicy": "权限策略"
+}

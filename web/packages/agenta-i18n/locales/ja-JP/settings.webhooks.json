@@ -1,0 +1,13 @@
+{
+    "emptyDescription": "エンドポイントを登録すると、ワークフローのイベントを署名付き HTTP リクエストとして受け取れます。",
+    "emptyTitle": "Webhook はまだありません",
+    "events": "イベント",
+    "paused": "Webhook を一時停止しました",
+    "pausedStatus": "一時停止中",
+    "resumed": "Webhook を再開しました",
+    "subscribe": "登録",
+    "target": "送信先",
+    "test": "テスト",
+    "updateFailed": "Webhook を更新できませんでした",
+    "webhookActions": "Webhook の操作"
+}

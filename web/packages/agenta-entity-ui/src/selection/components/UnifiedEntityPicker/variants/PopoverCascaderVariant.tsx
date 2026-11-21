@@ -16,6 +16,8 @@
 
 import React, {useCallback, useEffect, useMemo, useRef, useState, type CSSProperties} from "react"
 
+import {useT} from "@agenta/i18n"
+import selectionCatalog from "@agenta/i18n/catalogs/entityUi.selection"
 import {cn} from "@agenta/ui"
 import {EntityListItem, SearchInput} from "@agenta/ui/components/selection"
 import {
@@ -34,6 +36,7 @@ import {CaretDown, Plus, X} from "@phosphor-icons/react"
 
 import {useEntitySelectionCore} from "../../../hooks/useEntitySelectionCore"
 import {useLevelData} from "../../../hooks/utilities"
+import {labelInSentence, levelLabelText, tSelection} from "../../../text"
 import type {EntitySelectionResult, HierarchyLevel, SelectionPathItem} from "../../../types"
 import {AutoSelectHandler} from "../shared"
 import type {PopoverCascaderVariantProps} from "../types"
@@ -95,6 +98,7 @@ function ChildPanelContent({
     childItemLabelMode?: "full" | "simple"
     showSelectAll?: boolean
 }) {
+    const t = useT(selectionCatalog)
     const {items, query} = useLevelData({
         levelConfig: childLevelConfig,
         parentId,
@@ -172,7 +176,7 @@ function ChildPanelContent({
                                 className="shrink-0 h-auto p-0 text-[12px]"
                                 onClick={handleSelectAll}
                             >
-                                Select all
+                                {t("entityUi.selection.selectAll")}
                             </Button>
                         )}
                 </div>
@@ -181,7 +185,11 @@ function ChildPanelContent({
             {/* Child items */}
             <div className="overflow-y-auto py-1 px-1" style={{maxHeight}}>
                 {filteredItems.length === 0 ? (
-                    <EmptyState description="No items" image="simple" className="my-4" />
+                    <EmptyState
+                        description={t("entityUi.selection.noItems")}
+                        image="simple"
+                        className="my-4"
+                    />
                 ) : multiSelect ? (
                     filteredItems.map((item) => {
                         const itemId = childLevelConfig.getId(item)
@@ -393,7 +401,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     className,
     disabled = false,
     size = "small",
-    placeholder = "Select...",
+    placeholder,
     icon,
     showDropdownIcon = true,
     placement = "bottomLeft",
@@ -408,7 +416,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     selectedParentId,
     selectedChildId,
     disabledChildIds,
-    disabledChildTooltip = "Already connected",
+    disabledChildTooltip,
     openChildOnHover = false,
     // New props
     multiSelect = false,
@@ -429,6 +437,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     showChildSelectAll = false,
     onClearAll,
 }: PopoverCascaderVariantProps<TSelection>) {
+    const t = useT(selectionCatalog)
     const {hierarchyLevels, createSelection} = useEntitySelectionCore({
         adapter: adapterProp,
         instanceId,
@@ -437,7 +446,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
 
     const totalLevels = hierarchyLevels.length
     const rootLevel = hierarchyLevels[0]
-    const rootLabel = rootLevel?.label ?? "Item"
+    const rootLabel = levelLabelText(rootLevel?.label ?? "Item")
 
     // Popover state
     const [open, setOpen] = useState(false)
@@ -503,9 +512,8 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
 
         const selectionCount = selectedChildIds?.size ?? (selectedChildId ? 1 : 0)
 
-        if (selectionCount === 0) return "No selections"
-        if (selectionCount === 1) return "1 selected"
-        return `${selectionCount} selected`
+        if (selectionCount === 0) return tSelection("entityUi.selection.noSelections")
+        return tSelection("entityUi.selection.selectedCount", {count: selectionCount})
     }, [selectionSummary, selectedChildIds, selectedChildId])
 
     const resolvedPanelWidth = panelWidth ?? panelMinWidth
@@ -754,13 +762,15 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                     <SearchInput
                         value={searchTerm}
                         onChange={setSearchTerm}
-                        placeholder={`Search ${rootLabel.toLowerCase()}...`}
+                        placeholder={t("entityUi.selection.searchLevel", {
+                            label: labelInSentence(rootLabel),
+                        })}
                     />
                 </div>
                 {onCreateNew && (
                     <Button type="button" onClick={handleCreateNew}>
                         <Plus size={14} />
-                        {createNewLabel ?? `New ${rootLabel}`}
+                        {createNewLabel ?? t("entityUi.selection.newLevel", {label: rootLabel})}
                     </Button>
                 )}
             </div>
@@ -808,7 +818,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                                     className="h-auto p-0 text-[12px]"
                                     onClick={onClearAll}
                                 >
-                                    Clear all
+                                    {t("entityUi.selection.clearAll")}
                                 </Button>
                             )}
                         </div>
@@ -822,7 +832,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                             </div>
                         ) : tabFilteredRootItems.length === 0 ? (
                             <EmptyState
-                                description="No items found"
+                                description={t("entityUi.selection.noItemsFound")}
                                 image="simple"
                                 className="my-4"
                             />
@@ -901,7 +911,9 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                             maxHeight={maxHeight}
                             panelStyle={childPanelStyle}
                             disabledIds={disabledChildIds}
-                            disabledTooltip={disabledChildTooltip}
+                            disabledTooltip={
+                                disabledChildTooltip ?? t("entityUi.selection.alreadyConnected")
+                            }
                             multiSelect={multiSelect}
                             selectedChildIds={selectedChildIds}
                             childItemLabelMode={childItemLabelMode}
@@ -941,7 +953,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                         }
                     >
                         {icon}
-                        {placeholder}
+                        {placeholder ?? t("entityUi.selection.selectPlaceholder")}
                         {showDropdownIcon ? <CaretDown size={10} /> : null}
                     </Button>
                 </PopoverTrigger>

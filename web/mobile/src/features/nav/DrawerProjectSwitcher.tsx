@@ -1,5 +1,10 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import {loadWithText} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
+import createProjectCatalog from "@agenta/i18n/catalogs/shell.createProject"
 import {
     ProjectOrgSwitcherView,
     SidebarIconMenu,
@@ -8,8 +13,9 @@ import {
 } from "@agenta/navigation-ui"
 import {message} from "@agenta/ui/app-message"
 import {KeyboardShortcutsSheet} from "@agenta/ui/shortcuts"
-import {THEME_OPTIONS, themeIcon, useThemeMode} from "@agenta/ui/theme"
+import {themeIcon, useThemeMode, useThemeOptions} from "@agenta/ui/theme"
 import {useMutation} from "@tanstack/react-query"
+import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {useLogout} from "../auth/useLogout"
@@ -17,9 +23,14 @@ import {switchSettingsContext} from "../settings/switchContext"
 import {LiveChatNavButton} from "../support/LiveChatNavButton"
 import {useLiveChatEnabled} from "../support/useLiveChatEnabled"
 
-import {CreateProjectSheet} from "./CreateProjectSheet"
 import {useMobileHelpItem} from "./useMobileNavItems"
 import {useOrganizationProjects} from "./useOrganizationProjects"
+
+/** Opens from a menu row, so the dialog and its text load on first use. */
+const CreateProjectSheet = dynamic(
+    () => loadWithText(() => import("./CreateProjectSheet")).then((m) => m.CreateProjectSheet),
+    {ssr: false},
+)
 
 /**
  * The drawer's header switcher: the desktop rail's component, bound to mobile's project data.
@@ -35,6 +46,7 @@ export const DrawerProjectSwitcher = ({
     /** The rail's state. False in the drawer, which never collapses. */
     collapsed?: boolean
 }) => {
+    const t = useT(navigationCatalog, commonCatalog, createProjectCatalog)
     const router = useRouter()
     const logout = useLogout()
     // The sheet is a modal, so its state lives with whatever stays mounted after the menu closes.
@@ -56,12 +68,12 @@ export const DrawerProjectSwitcher = ({
         () =>
             (currentGroup?.projects ?? []).map((project) => ({
                 key: project.project_id,
-                name: project.project_name ?? "Project",
+                name: project.project_name ?? t("common.project"),
                 isActive: project.project_id === projectId,
                 onSelect: () => goTo(project.workspace_id, project.project_id),
             })),
 
-        [currentGroup?.projects, projectId],
+        [currentGroup?.projects, projectId, t],
     )
 
     const organizations = useMemo<SwitcherEntry[]>(
@@ -99,7 +111,7 @@ export const DrawerProjectSwitcher = ({
         onError: (error) => {
             const detail = (error as {response?: {data?: {detail?: unknown}}})?.response?.data
                 ?.detail
-            message.error(typeof detail === "string" ? detail : "Unable to create project")
+            message.error(typeof detail === "string" ? detail : t("shell.createProject.failed"))
         },
     })
 
@@ -116,18 +128,19 @@ export const DrawerProjectSwitcher = ({
     // The same fly-out the desktop rail carries, over the same three choices — Preferences offers
     // them too, but the switcher is where you already are when you want to flip the lights.
     const {themeMode, setMode} = useThemeMode()
+    const themeOptions = useThemeOptions()
     const theme = useMemo<SwitcherThemeControl>(
         () => ({
             mode: themeMode,
             onSelect: (mode) => setMode(mode as typeof themeMode),
-            options: THEME_OPTIONS.map(({mode, label, short}) => ({
+            options: themeOptions.map(({mode, label, short}) => ({
                 mode,
                 label,
                 short,
                 icon: themeIcon(mode),
             })),
         }),
-        [themeMode, setMode],
+        [themeMode, setMode, themeOptions],
     )
 
     return (
@@ -135,11 +148,14 @@ export const DrawerProjectSwitcher = ({
             <ProjectOrgSwitcherView
                 panelContainer={panelContainer}
                 collapsed={collapsed}
-                projectLabel={currentProject?.project_name ?? "Select project"}
-                orgLabel={currentGroup?.organizationName ?? "Organization"}
+                projectLabel={
+                    currentProject?.project_name ?? t("navigation.projectMenu.selectProject")
+                }
+                orgLabel={
+                    currentGroup?.organizationName ?? t("navigation.settings.scopeOrganization")
+                }
                 projects={projects}
                 orgs={organizations}
-                orgNoun="organization"
                 theme={theme}
                 onCreateProject={() => setCreateOpen(true)}
                 onLogout={() => void logout()}

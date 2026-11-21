@@ -19,6 +19,8 @@ import {
     type AgentSetupSelection,
     type DetectedAccount,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import onboardingCatalog from "@agenta/i18n/catalogs/entityUi.onboarding"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import Image from "next/image"
@@ -82,6 +84,8 @@ const AgentSetupCard = ({
     creating = false,
     className,
 }: AgentSetupCardProps) => {
+    // `copy` translates when read: this re-renders the card when its text loads.
+    useT(onboardingCatalog)
     // Each row reports its live connection state; the card aggregates. Keyed by slug so a row
     // remounting (or the list reordering) can't strand a stale entry.
     const [connectedMap, setConnectedMap] = useState<Record<string, boolean>>({})

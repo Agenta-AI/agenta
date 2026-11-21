@@ -13,6 +13,8 @@
  */
 import {useEffect, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import parameterEditorCatalog from "@agenta/i18n/catalogs/entityUi.parameterEditor"
 import {
     AutosizeTextarea,
     Button,
@@ -84,6 +86,7 @@ export function ParameterNodeEditor({
     onAddChild,
     disabled,
 }: ParameterNodeEditorProps) {
+    const t = useT(parameterEditorCatalog)
     const def = getNodeAt(schema, path) ?? {type: "string"}
     const key = leafKey(path) ?? ""
     const parent = parentPath(path)
@@ -206,22 +209,22 @@ export function ParameterNodeEditor({
 
     const hint =
         type === "array"
-            ? "Set item type to object to nest properties one level deeper."
+            ? t("entityUi.parameterEditor.hintArray")
             : type === "object"
-              ? "This object groups nested properties."
-              : "The value the model provides for this parameter."
+              ? t("entityUi.parameterEditor.hintObject")
+              : t("entityUi.parameterEditor.hintValue")
 
     return (
         <div className="flex flex-col gap-4">
             <div className="text-xs font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                Editing · {pathLabel(path)}
+                {t("entityUi.parameterEditor.editingPath", {path: pathLabel(path)})}
             </div>
 
             <div className="flex flex-col gap-3">
-                <RailField label="Name" align="center">
+                <RailField label={t("entityUi.parameterEditor.name")} align="center">
                     <Input
                         className="font-mono"
-                        aria-label="Parameter name"
+                        aria-label={t("entityUi.parameterEditor.parameterName")}
                         value={nameLocal}
                         onChange={(e) => setNameLocal(e.target.value)}
                         onBlur={commitName}
@@ -234,12 +237,15 @@ export function ParameterNodeEditor({
                     />
                 </RailField>
 
-                <RailField label="Type" align="center">
+                <RailField label={t("entityUi.parameterEditor.type")} align="center">
                     <div className={type === "array" ? "grid grid-cols-2 gap-2" : ""}>
                         {/* A Radix Select trigger is `role="combobox"`, which is NOT named from
                             its contents — every trigger needs an explicit `aria-label`. */}
                         <Select value={type} onValueChange={changeType} disabled={disabled}>
-                            <SelectTrigger className="w-full" aria-label="Type">
+                            <SelectTrigger
+                                className="w-full"
+                                aria-label={t("entityUi.parameterEditor.type")}
+                            >
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -256,7 +262,10 @@ export function ParameterNodeEditor({
                                 onValueChange={changeItemType}
                                 disabled={disabled}
                             >
-                                <SelectTrigger className="w-full" aria-label="Item type">
+                                <SelectTrigger
+                                    className="w-full"
+                                    aria-label={t("entityUi.parameterEditor.itemType")}
+                                >
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -273,16 +282,16 @@ export function ParameterNodeEditor({
 
                 {isScalar ? (
                     <>
-                        <RailField label="Allowed values">
+                        <RailField label={t("entityUi.parameterEditor.allowedValues")}>
                             <ChipsInput
                                 value={enumValues}
                                 onChange={(v) => changeEnum(v ?? [])}
-                                placeholder="Any value — add to restrict"
+                                placeholder={t("entityUi.parameterEditor.anyValue")}
                                 disabled={disabled}
                             />
                         </RailField>
 
-                        <RailField label="Default" align="center">
+                        <RailField label={t("entityUi.parameterEditor.default")} align="center">
                             {enumValues.length ? (
                                 // Combobox, not Select: this knob is clearable (antd `allowClear`)
                                 // and Radix Select has no clear — same call as the sandbox form.
@@ -290,19 +299,19 @@ export function ParameterNodeEditor({
                                     value={defaultValue != null ? String(defaultValue) : undefined}
                                     onChange={(v) => changeDefault(v)}
                                     options={enumValues.map((v) => ({value: v, label: v}))}
-                                    placeholder="No default"
+                                    placeholder={t("entityUi.parameterEditor.noDefault")}
                                     allowClear
                                     disabled={disabled}
-                                    aria-label="Default value"
+                                    aria-label={t("entityUi.parameterEditor.defaultValue")}
                                     className="w-full"
                                 />
                             ) : (
                                 <Input
-                                    aria-label="Default value"
+                                    aria-label={t("entityUi.parameterEditor.defaultValue")}
                                     value={defaultValue != null ? String(defaultValue) : ""}
                                     onChange={(e) => changeDefault(e.target.value)}
                                     inputMode={type === "string" ? undefined : "decimal"}
-                                    placeholder="No default"
+                                    placeholder={t("entityUi.parameterEditor.noDefault")}
                                     disabled={disabled}
                                 />
                             )}
@@ -310,21 +319,21 @@ export function ParameterNodeEditor({
                     </>
                 ) : null}
 
-                <RailField label="Description">
+                <RailField label={t("entityUi.parameterEditor.description")}>
                     <AutosizeTextarea
-                        aria-label="Parameter description"
+                        aria-label={t("entityUi.parameterEditor.parameterDescription")}
                         value={description}
                         onChange={(e) => changeDescription(e.target.value)}
                         autoSize={{minRows: 2, maxRows: 5}}
-                        placeholder="What this parameter is for"
+                        placeholder={t("entityUi.parameterEditor.whatParameterIsFor")}
                         disabled={disabled}
                     />
                 </RailField>
 
-                <RailField label="Required" align="center">
+                <RailField label={t("entityUi.parameterEditor.required")} align="center">
                     <div className="flex items-center gap-2">
                         <Switch
-                            aria-label="Required"
+                            aria-label={t("entityUi.parameterEditor.required")}
                             checked={required}
                             onCheckedChange={(on) =>
                                 onChange(toggleRequiredAt(schema, parent, key, on))
@@ -332,13 +341,13 @@ export function ParameterNodeEditor({
                             disabled={disabled}
                         />
                         <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                            The model must provide this parameter on every call.
+                            {t("entityUi.parameterEditor.requiredHint")}
                         </span>
                     </div>
                 </RailField>
 
                 {childContainerPath ? (
-                    <RailField label="Properties" align="center">
+                    <RailField label={t("entityUi.parameterEditor.properties")} align="center">
                         <div className="flex items-center gap-2">
                             <Button
                                 variant="outline"
@@ -346,14 +355,14 @@ export function ParameterNodeEditor({
                                 disabled={disabled}
                             >
                                 <Plus size={13} />
-                                Add property
+                                {t("entityUi.parameterEditor.addProperty")}
                             </Button>
                             <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                                 {childCount === 0
-                                    ? "No nested properties yet."
-                                    : `${childCount} nested ${
-                                          childCount === 1 ? "property" : "properties"
-                                      } — edit them in the tree.`}
+                                    ? t("entityUi.parameterEditor.noNestedProperties")
+                                    : t("entityUi.parameterEditor.nestedProperties", {
+                                          count: childCount,
+                                      })}
                             </span>
                         </div>
                     </RailField>
@@ -364,7 +373,7 @@ export function ParameterNodeEditor({
 
             {path.length > 3 ? (
                 <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
-                    Deeply nested — switch to JSON for full control over this structure.
+                    {t("entityUi.parameterEditor.deeplyNested")}
                 </p>
             ) : null}
         </div>

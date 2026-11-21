@@ -1,5 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionCatalog from "@agenta/i18n/catalogs/observability.sessionDrawer"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -43,6 +45,7 @@ export const SessionDrawerBody = ({
     narrow,
     annotationsBeside,
 }: SessionDrawerBodyProps) => {
+    const t = useT(sessionCatalog)
     // The trace drawer writes `?span=` too, as its own span. Read it once, as the link's.
     const [initialSpanId] = useState(linkedSpanId)
     const query = useAtomValue(observabilitySessionTracesQueryAtomFamily(sessionId))
@@ -81,7 +84,10 @@ export const SessionDrawerBody = ({
     if (query.isPending) return <SessionDrawerSkeleton narrow={narrow} />
     if (query.isError)
         return (
-            <LoadError title="Could not load this session" onRetry={() => void query.refetch()} />
+            <LoadError
+                title={t("observability.sessionDrawer.couldNotLoad")}
+                onRetry={() => void query.refetch()}
+            />
         )
     if (traces.length === 0) return <SessionDrawerEmpty />
 

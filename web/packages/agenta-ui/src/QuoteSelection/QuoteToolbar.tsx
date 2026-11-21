@@ -1,6 +1,9 @@
 // The Copy · Reply pill over a selection: above it, flipped below when there is no room.
 import {useLayoutEffect, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiQuoteSelectionCatalog from "@agenta/i18n/catalogs/ui.quoteSelection"
 import {Copy, Quotes} from "@phosphor-icons/react"
 
 const GAP = 8
@@ -22,6 +25,7 @@ export interface QuoteToolbarProps {
 }
 
 export const QuoteToolbar = ({anchor, bounds, onCopy, onReply, touch}: QuoteToolbarProps) => {
+    const t = useT(uiQuoteSelectionCatalog, commonCatalog)
     const ref = useRef<HTMLDivElement>(null)
     const [size, setSize] = useState({width: 0, height: 0})
 
@@ -45,7 +49,7 @@ export const QuoteToolbar = ({anchor, bounds, onCopy, onReply, touch}: QuoteTool
             ref={ref}
             data-quote-ignore="true"
             role="toolbar"
-            aria-label="Quote actions"
+            aria-label={t("ui.quoteSelection.quoteActions")}
             className="absolute z-30 flex items-center rounded-lg border border-solid border-border/60 bg-popover p-0.5 shadow-md"
             style={{top, left, opacity: size.height ? 1 : 0}}
             // A mousedown inside the pill would collapse the very selection it acts on.
@@ -53,12 +57,12 @@ export const QuoteToolbar = ({anchor, bounds, onCopy, onReply, touch}: QuoteTool
         >
             <button type="button" onClick={onCopy} className={actionClass(touch)}>
                 <Copy size={12} />
-                Copy
+                {t("common.copy")}
             </button>
             <span className="mx-1 h-3 w-px bg-border/60" aria-hidden />
             <button type="button" onClick={onReply} className={actionClass(touch)}>
                 <Quotes size={12} weight="fill" />
-                Reply
+                {t("ui.quoteSelection.reply")}
             </button>
         </div>
     )

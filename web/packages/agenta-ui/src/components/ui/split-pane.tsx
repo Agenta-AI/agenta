@@ -1,5 +1,8 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+
 import {cn} from "./utils"
 
 /**
@@ -152,7 +155,7 @@ export function SplitPane({
     revealContent = false,
     barHidden = false,
     paneGrow = false,
-    barLabel = "Resize panes",
+    barLabel: barLabelProp,
     onResizeStart,
     onResize,
     onResizeEnd,
@@ -163,6 +166,8 @@ export function SplitPane({
     fillClassName,
     barClassName,
 }: SplitPaneProps) {
+    const t = useT(uiControlsCatalog)
+    const barLabel = barLabelProp ?? t("ui.controls.resizePanes")
     // The gutter's live width: 0 while hidden, so every total derived from it stays honest.
     const barWidth = barHidden ? 0 : BAR_WIDTH
     const rootRef = React.useRef<HTMLDivElement>(null)

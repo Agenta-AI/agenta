@@ -1,5 +1,7 @@
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {FilterMenu, type FilterMenuItem} from "@agenta/ui/filter-menu"
 import {
     Archive,
@@ -11,8 +13,6 @@ import {
     Users,
     Waveform,
 } from "@phosphor-icons/react"
-
-import {sharingCopy} from "@/lib/sharingCopy"
 
 import {
     ALL_OWNERS,
@@ -59,39 +59,48 @@ export const AgentFilterMenu = ({
     /** The org roster, as `{id, name}` in display order. */
     owners: AgentOwner[]
 }) => {
+    const t = useT(agentsList)
     const sections = useMemo<FilterMenuItem[]>(
         () => [
             {
                 key: "owner",
-                label: sharingCopy.ownerColumn,
+                label: t("agents.list.columnOwner"),
                 icon: <User size={ICON} />,
                 value: view.owner,
                 options: [
-                    {value: ALL_OWNERS, label: "Anyone", icon: <Users size={ICON} />},
+                    {
+                        value: ALL_OWNERS,
+                        label: t("agents.list.filterAnyone"),
+                        icon: <Users size={ICON} />,
+                    },
                     ...owners.map((owner) => ({
                         value: owner.id,
                         label: owner.name,
                         icon: <User size={ICON} />,
                     })),
                 ],
-                emptyText: "No members yet",
+                emptyText: t("agents.list.filterNoMembers"),
                 onChange: (value) => onChange({...view, owner: value}),
             },
             {
                 key: "status",
-                label: "Status",
+                label: t("agents.list.filterStatus"),
                 icon: <Waveform size={ICON} />,
                 value: view.status,
                 options: [
-                    {value: "all", label: "All", icon: <SquaresFour size={ICON} />},
+                    {
+                        value: "all",
+                        label: t("agents.list.filterAll"),
+                        icon: <SquaresFour size={ICON} />,
+                    },
                     {
                         value: "waiting",
-                        label: "Waiting",
+                        label: t("agents.list.filterWaiting"),
                         icon: <StatusDot className="bg-colorWarning" />,
                     },
                     {
                         value: "idle",
-                        label: "Idle",
+                        label: t("agents.list.filterIdle"),
                         icon: <StatusDot className="bg-muted-foreground" />,
                     },
                 ],
@@ -100,7 +109,7 @@ export const AgentFilterMenu = ({
             {
                 kind: "toggle",
                 key: "archived",
-                label: "Only archived",
+                label: t("agents.list.filterOnlyArchived"),
                 icon: <Archive size={ICON} />,
                 checked: view.type === "archived",
                 onChange: (checked) =>
@@ -108,20 +117,36 @@ export const AgentFilterMenu = ({
             },
             {
                 key: "group",
-                label: "Group by",
+                label: t("agents.list.filterGroupBy"),
                 icon: <Rows size={ICON} />,
                 block: "sort",
                 value: view.group,
                 options: [
-                    {value: "none", label: "None", icon: <Minus size={ICON} />},
-                    {value: "owner", label: sharingCopy.ownerColumn, icon: <User size={ICON} />},
-                    {value: "status", label: "Status", icon: <Waveform size={ICON} />},
-                    {value: "activity", label: "Last activity", icon: <Clock size={ICON} />},
+                    {
+                        value: "none",
+                        label: t("agents.list.filterNone"),
+                        icon: <Minus size={ICON} />,
+                    },
+                    {
+                        value: "owner",
+                        label: t("agents.list.columnOwner"),
+                        icon: <User size={ICON} />,
+                    },
+                    {
+                        value: "status",
+                        label: t("agents.list.filterStatus"),
+                        icon: <Waveform size={ICON} />,
+                    },
+                    {
+                        value: "activity",
+                        label: t("agents.list.filterLastActivity"),
+                        icon: <Clock size={ICON} />,
+                    },
                 ],
                 onChange: (value) => onChange({...view, group: value as AgentGrouping}),
             },
         ],
-        [onChange, owners, view],
+        [onChange, owners, t, view],
     )
 
     return (
@@ -131,7 +156,7 @@ export const AgentFilterMenu = ({
             // Icon alone: the roster beside it is already the subject, and the word "Filter"
             // added a second label to a toolbar that has one.
             label={null}
-            triggerAriaLabel="Filter agents"
+            triggerAriaLabel={t("agents.list.filterTriggerLabel")}
             size="default"
             // The view toggle beside it is 32; a 28px funnel between them read as a mistake.
             triggerClassName="size-8"

@@ -1,0 +1,14 @@
+{
+    "untitledAgent": "未命名 Agent",
+    "noDescription": "无描述",
+    "searchAgents": "搜索 Agent",
+    "newAgent": "新建 Agent",
+    "noAgentsYet": "还没有 Agent",
+    "noAgentsYetBody": "Agent 负责完成工作。创建一个后，它会显示在这里。",
+    "noAgentsMatch": "没有与“{{query}}”匹配的 Agent",
+    "searchCovers": "搜索范围包括每个 Agent 的名称及其用途。",
+    "clearSearch": "清除搜索",
+    "pickAnAgent": "选择 Agent",
+    "agent": "Agent",
+    "startBlank": "从空白开始"
+}

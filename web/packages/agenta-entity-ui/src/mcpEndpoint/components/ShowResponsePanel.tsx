@@ -13,6 +13,8 @@
 import {useState} from "react"
 
 import {PROBE_RESPONSE_BODY_LIMIT} from "@agenta/entities/mcpEndpoint"
+import {useT} from "@agenta/i18n"
+import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import {Button, cn, touchTargetExpansion} from "@agenta/ui/ui"
 
 export interface ShowResponsePanelProps {
@@ -22,6 +24,7 @@ export interface ShowResponsePanelProps {
 }
 
 export const ShowResponsePanel = ({statusLine, body}: ShowResponsePanelProps) => {
+    const t = useT(mcpConnectCatalog)
     const [open, setOpen] = useState(false)
 
     return (
@@ -35,7 +38,9 @@ export const ShowResponsePanel = ({statusLine, body}: ShowResponsePanelProps) =>
                 aria-expanded={open}
                 onClick={() => setOpen((current) => !current)}
             >
-                {open ? "Hide response" : "Show response"}
+                {open
+                    ? t("entityUi.mcpConnect.hideResponse")
+                    : t("entityUi.mcpConnect.showResponse")}
             </Button>
             {open ? (
                 <pre

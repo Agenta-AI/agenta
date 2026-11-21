@@ -1,0 +1,11 @@
+{
+    "agentReply": "Agent 的回复",
+    "attachment": "附件",
+    "messageNotSent": "消息未发送",
+    "noResponse": "没有回复：Agent 结束了这一轮，但没有作答。",
+    "retryMessage": "重试发送消息",
+    "savedAttachments": "已保存的附件",
+    "somethingWentWrong": "出了点问题。",
+    "stopped": "已停止",
+    "textSaved": "你的文字和附件已保存。"
+}

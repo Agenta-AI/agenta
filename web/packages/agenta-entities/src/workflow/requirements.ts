@@ -51,24 +51,6 @@ export type AgentRequirementsResult = z.infer<typeof agentRequirementsSchema>
 /** The run failure class and the delivery skip reason the server uses for this problem. */
 export const AGENT_NEEDS_SETUP_CODE = "agent_needs_setup"
 
-export const NEEDS_SETUP_LABEL = "Needs setup"
-export const AGENT_NEEDS_SETUP_TITLE = "This agent needs setup"
-export const MODEL_NEEDS_SETUP_MESSAGE = "The model needs setup before this agent can run."
-export const MODEL_SETUP_PLACEHOLDER = "Set up the model to send messages"
-
-const REASON_LABELS: Record<string, string> = {
-    not_chosen: "No account chosen",
-    not_found: "Not found in this project",
-    not_shared: "Not shared with this project",
-    turned_off: "Turned off",
-    needs_sign_in: "Sign-in expired",
-    not_available: "No longer available",
-}
-
-/** The second line under the tag; null for a reason this client has no words for. */
-export const needsSetupReasonLabel = (reason: string | null | undefined): string | null =>
-    (reason && REASON_LABELS[reason]) || null
-
 /** A config path relative to the agent template (`agent.tools[2].connection` -> `tools[2].connection`). */
 const templatePath = (path: string): string =>
     path.startsWith("agent.") ? path.slice("agent.".length) : path

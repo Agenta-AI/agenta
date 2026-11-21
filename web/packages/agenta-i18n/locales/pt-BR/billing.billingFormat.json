@@ -1,0 +1,5 @@
+{
+    "free": "Grátis",
+    "fromPerMonth": "A partir de ${{amount}} / mês",
+    "perMonth": "${{amount}} / mês"
+}

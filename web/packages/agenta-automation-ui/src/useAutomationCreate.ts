@@ -8,6 +8,8 @@ import {
     type Workflow,
 } from "@agenta/entities/workflow"
 import {buildTriggerReferences} from "@agenta/entity-ui/gatewayTrigger"
+import {createT, useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {message} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
 
@@ -19,6 +21,8 @@ import {
 import {generatedAutomationName, type Automation, type AutomationKind} from "./automationModel"
 import {type EventSelection} from "./pickers/EventPickerPanel"
 import {useAutomation} from "./useAutomation"
+
+const tNow = createT(automationsEditorCatalog)
 
 /** Weekdays at 09:00 UTC — the cadence a blank draft opens on. */
 // The comma form, not "1-5": cronToBuilder parses a plain int list, so a range comes back
@@ -77,6 +81,7 @@ export const useAutomationCreate = ({
      */
     defaultReferences?: AutomationReferences
 } = {}) => {
+    const t = useT(automationsEditorCatalog)
     // Seeded once, so a later change never overwrites what has been typed since.
     const [draft, setDraft] = useState<AutomationDraft>(() => ({
         // Blank, so a create surface opens on an empty, focused name field rather than on a
@@ -125,24 +130,24 @@ export const useAutomationCreate = ({
     // is then told about the second, which is the form equivalent of being sent back twice.
     const missing = useMemo(
         () => ({
-            agent: !draft.agentId ? "Pick the agent this automation runs" : "",
+            agent: !draft.agentId,
             runsWhen:
                 draft.kind === "schedule"
                     ? draft.cron.trim()
-                        ? ""
-                        : "Choose when this automation runs"
+                        ? null
+                        : ("schedule" as const)
                     : draft.connectionId && draft.eventKey
-                      ? ""
-                      : "Choose the event this automation runs on",
+                      ? null
+                      : ("event" as const),
             // The instruction is stored under the key the agent reads, which only its latest
             // revision says. Created before that, it lands under "message" and a chat agent
             // runs with no message.
             instruction:
                 !draft.agentId || latestRevision.data
-                    ? ""
+                    ? null
                     : latestRevision.isPending
-                      ? "Loading the agent. Try again in a moment."
-                      : "Couldn't load this agent. Reload the page and try again.",
+                      ? ("loading" as const)
+                      : ("failed" as const),
         }),
         [
             draft.agentId,
@@ -154,16 +159,30 @@ export const useAutomationCreate = ({
             latestRevision.isPending,
         ],
     )
-    const blockedReason = missing.agent || missing.runsWhen || missing.instruction
+    const blocked = missing.agent || missing.runsWhen !== null || missing.instruction !== null
 
     // The errors show only once the reader has tried to create: a form that opens with two
     // red fields is telling them off for not having filled in what they have not reached yet.
     // Once they have tried, the marks stay live — they clear field by field as each is fixed.
     const [attempted, setAttempted] = useState(false)
-    const errors = useMemo(
-        () => (attempted ? missing : {agent: "", runsWhen: "", instruction: ""}),
-        [attempted, missing],
-    )
+    const errors = useMemo<{agent?: string; runsWhen?: string; instruction?: string}>(() => {
+        if (!attempted) return {}
+        return {
+            agent: missing.agent ? t("automations.editor.errPickAgent") : undefined,
+            runsWhen:
+                missing.runsWhen === "schedule"
+                    ? t("automations.editor.errChooseWhen")
+                    : missing.runsWhen === "event"
+                      ? t("automations.editor.errChooseEvent")
+                      : undefined,
+            instruction:
+                missing.instruction === "loading"
+                    ? t("automations.editor.errAgentLoading")
+                    : missing.instruction === "failed"
+                      ? t("automations.editor.errAgentLoadFailed")
+                      : undefined,
+        }
+    }, [attempted, missing, t])
 
     // The field components read an `Automation`, which is the shape a saved row has. A draft is
     // that shape with nothing behind it — same fields, same labels, no fetch.
@@ -249,7 +268,7 @@ export const useAutomationCreate = ({
      */
     const create = useCallback(async () => {
         if (saving) return null
-        if (blockedReason) {
+        if (blocked) {
             setAttempted(true)
             return null
         }
@@ -264,13 +283,13 @@ export const useAutomationCreate = ({
                 ),
             )
             if (!created?.id) {
-                message.error("Couldn't create this automation")
+                message.error(tNow("automations.editor.createFailed"))
                 return null
             }
             message.success(
                 draft.isActive
-                    ? "Automation created — it's on and will run at its next time"
-                    : "Automation created — it stays off until you switch it on",
+                    ? tNow("automations.editor.createdOn")
+                    : tNow("automations.editor.createdOff"),
             )
             return created
         } catch (error) {
@@ -278,21 +297,21 @@ export const useAutomationCreate = ({
             const status = (error as {response?: {status?: number}})?.response?.status
             message.error(
                 status === 424
-                    ? "Couldn't create this automation. Reconnect the app and try again."
-                    : "Couldn't create this automation",
+                    ? tNow("automations.editor.createFailedReconnect")
+                    : tNow("automations.editor.createFailed"),
             )
             return null
         } finally {
             setSaving(false)
         }
-    }, [blockedReason, createEntity, draft, generatedName, references, saving])
+    }, [blocked, createEntity, draft, generatedName, references, saving])
 
     return {
         draft,
         preview,
         agentName,
         generatedName,
-        blockedReason,
+        blocked,
         errors,
         saving,
         setName,

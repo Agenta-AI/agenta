@@ -2,6 +2,8 @@ import {useEffect, useMemo} from "react"
 
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {createT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {playgroundController} from "@agenta/playground"
 import {atom, useAtomValue} from "jotai"
 
@@ -31,8 +33,7 @@ export const useLocalDraftWarning = (): boolean => {
         if (!hasUnsavedOrLocalDrafts) return
 
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-            const message =
-                "You have local draft revisions or unsaved changes that will be lost if you leave. Are you sure you want to continue?"
+            const message = createT(panelsCatalog)("playground.panels.leaveWarning")
             e.preventDefault()
             e.returnValue = message
             return message

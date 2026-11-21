@@ -7,6 +7,8 @@ import {
     AutomationTriggerDrawers,
     useAutomationEditor,
 } from "@agenta/automation-ui"
+import {useT} from "@agenta/i18n"
+import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -47,6 +49,7 @@ export const AutomationDetailScreen = ({
     automationId: string
 }) => {
     useBindProjectContext(projectId)
+    const t = useT(automationsScreensCatalog)
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
 
@@ -78,8 +81,8 @@ export const AutomationDetailScreen = ({
     const leave = useUnsavedGuard({
         dirty,
         confirm,
-        title: "Leave without saving?",
-        message: "This automation has changes you haven't saved. Leaving discards them.",
+        title: t("automations.screens.leaveTitle"),
+        message: t("automations.screens.leaveMessage"),
     })
 
     // `?view=runs` opens straight on the history — a list row that promises runs should not
@@ -112,7 +115,7 @@ export const AutomationDetailScreen = ({
 
     return (
         <>
-            <PageTitle title="Automations" context={automation?.name} />
+            <PageTitle title={t("automations.screens.pageTitle")} context={automation?.name} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     fill={showRuns}
@@ -123,7 +126,9 @@ export const AutomationDetailScreen = ({
                             <AutomationScreenHeader
                                 workspaceId={workspaceId}
                                 projectId={projectId}
-                                title={automation?.name || "Automation"}
+                                title={
+                                    automation?.name || t("automations.screens.detailFallbackTitle")
+                                }
                                 backHref={`${base}/automations`}
                             />
                         )
@@ -136,9 +141,15 @@ export const AutomationDetailScreen = ({
                                 <AutomationScreenHeader
                                     workspaceId={workspaceId}
                                     projectId={projectId}
-                                    title={automation?.name || "Automation"}
+                                    title={
+                                        automation?.name ||
+                                        t("automations.screens.detailFallbackTitle")
+                                    }
                                     onBack={closeRuns}
-                                    backLabel={automation?.name || "Automation"}
+                                    backLabel={
+                                        automation?.name ||
+                                        t("automations.screens.detailFallbackTitle")
+                                    }
                                     // The view's own 30px grid, so the arrow lines up with
                                     // "Run history" below it.
                                     className="w-full shrink-0 pb-2 pl-[30px] pr-5 pt-3 lg:pt-5"
@@ -185,7 +196,7 @@ export const AutomationDetailScreen = ({
                         <AutomationDetailSkeleton />
                     ) : missing ? (
                         <p className="m-0 px-8 py-16 text-center text-[13px] text-muted-foreground">
-                            This automation no longer exists.
+                            {t("automations.screens.noLongerExists")}
                         </p>
                     ) : null}
                 </ScreenScaffold>
