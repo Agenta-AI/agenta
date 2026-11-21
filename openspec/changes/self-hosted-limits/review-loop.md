@@ -1,22 +1,23 @@
-<!-- review-loop: design=2f9c4df52226 lenses=simplify,naming -->
+<!-- review-loop: design=90ad8ccd4d39 lenses=simplify,naming -->
 
-**Review loop result** for this design at repo commit `9f7fc1cc42` (branch `feat/self-hosted-free-key`), 3 rounds plus one check of the round 3 fixes.
+**Review loop result** for the one-image design at repo commit `9f7fc1cc42` (branch `feat/self-hosted-free-key`), 3 rounds plus one check of the round 3 fixes. An earlier review of the first design (key check moved into MIT code) ended Low on both lenses; that design was replaced when Mahmoud chose one image.
 
 | Lens | Final rating |
 | --- | --- |
-| Simplify | Low (round 3) |
-| Naming | Low (check after round 3) |
+| Simplify | Low (check after round 3) |
+| Naming | Low (round 3, its one Low finding fixed) |
 
 **Fixed:**
-- The `licenses` table had two migrations that both create it. The OSS chain now owns it alone, and `ee0000000010` is deleted. Dev stacks that ran it downgrade once.
-- "RBAC" meant both role checks and the paid role catalog. The spec now says "full role catalog".
-- The per-instance and per-user organization limits had near-identical names. The new names all say "instance".
-- The project and organization checks now have one shape: `check_*` functions that raise `*ReachedError` with `code` and `limit`.
-- The cloud check had several copies. `is_cloud()` now lives once in OSS, and one function picks the cloud or self-hosted limit.
-- The spec now names which paths check the limits. Platform admin routes are exempt on purpose.
-- The plan sets moved to `licenses/types.py` to avoid an import cycle, and EE reuses them instead of a second copy.
-- Sign-up now calls the organization check before it creates the personal organization (it never reached the check before).
-- The /m License tab now shows the add-a-key form on OSS, so the activation link works there.
+- The membership step for an adopted open source database runs before the enterprise tables are created, so an interrupted first start repeats it instead of skipping it.
+- `AGENTA_LICENSE` had several meanings. The API reads it only as the database prefix fallback, `/m` stops reading it, and in the web image it only picks the classic `/w` build.
+- The migration runner picks the legacy core and tracing chains from the database, ignores the ini path variables, and checks the revision before any other step. The `ee` runner owns the sequence and the `oss` module only calls it.
+- A fresh database keeps the existing schema bootstrap.
+- Both limits sit in the entitlements domain: a new `self_hosted_community` row in `PROJECT_LIMITS`, and `ORGANIZATION_LIMITS` next to it.
+- `is_ee()` and `is_oss()` say in their docstrings that they mean "the `ee` code is present".
+- Analytics: new event `self_hosted_deployment_created` and sign-up property `is_cloud`; `OSS_CONFIG` becomes `SELF_HOSTED_CONFIG`.
+- The web image has one cloud value: `isCloud()` reads the existing billing value, and `isBillingEnabled()` calls it.
+- `InstanceOrganizationLimitReachedError` is its own class; install and admin names are consistent.
 
 **Left on purpose:**
-- The word "registration key" stays in code and the spec next to the `registration-1` signing key. /m text says "free key", as the existing screens do.
+- A new install whose first start stops partway through the legacy core chain is refused on the next start. The message tells the operator to delete the empty databases and start again. This is a documented limit, not extra code.
+- The flat error shape `{code, message, limit}` stays, like `vault` and `mounts`.

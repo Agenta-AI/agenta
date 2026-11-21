@@ -54,7 +54,7 @@ Both runner modules SHALL run the same chains, pick the legacy chain from the da
 
 #### Scenario: Unknown legacy revision
 
-- **WHEN** the legacy `alembic_version` holds a revision the runner does not know
+- **WHEN** the `alembic_version` table of the core database holds a revision the runner does not know
 - **THEN** the runner stops before any change and logs which revision it found
 
 ### Requirement: Self-hosted installs are not treated as cloud

@@ -16,7 +16,7 @@ Program tier. Milestones ship to the same release (v0.130.1). M1, M2 and M3 can 
 
 ## M2. The EE path on every install (API, SDK, web)
 
-- [ ] 2.1 `api/oss/src/utils/env.py` and `common.py`: `is_ee()` true when the `ee` package imports, with docstrings that say so; `AGENTA_LICENSE` is read only as the database prefix fallback (default `oss`). Move every other reader of `env.agenta.license` and `_LICENSE` (lock key, alembic ini path) off it. Env examples for new installs set `POSTGRES_DB_PREFIX`.
+- [ ] 2.1 `api/oss/src/utils/env.py` and `common.py`: `is_ee()` true when the `ee` package imports, with docstrings that say so; `AGENTA_LICENSE` is read only as the database prefix fallback (default `oss`). Move every other reader of `env.agenta.license` and `_LICENSE` (lock key, alembic ini paths for core and tracing) off it. Env examples for new installs set `POSTGRES_DB_PREFIX`.
 - [ ] 2.2 Throttling: outside `is_cloud()`, no fallback to the free cloud plan's throttles.
 - [ ] 2.3 SDK vault: read provider keys from the environment unless `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=false`. Note in the PR that cloud must set it before the new services image deploys.
 - [ ] 2.4 Server analytics: replace `oss_deployment_created` with `self_hosted_deployment_created` (`deployment_type="self_hosted"`, sent when `not is_cloud()`), and the sign-up property `is_ee` with `is_cloud`.
@@ -26,8 +26,8 @@ Program tier. Milestones ship to the same release (v0.130.1). M1, M2 and M3 can 
 
 ## M3. One migration runner
 
-- [ ] 3.1 The `ee` runner owns the sequence (legacy chain, `core_oss`, adoption step, `core_ee`, tracing chains); the `oss` runner module only calls it, with a docstring that records why. The runner ignores `ALEMBIC_CFG_PATH_CORE` for the legacy chain.
-- [ ] 3.2 Pick the legacy chain from the database state (on an empty database run the EE legacy chain, which creates the initial schema; skip it at `park00000000`; on any older or unknown revision, stop before any change with a message that asks for an upgrade to v0.129.x first).
+- [ ] 3.1 The `ee` runner owns the sequence (legacy chain, `core_oss`, adoption step, `core_ee`, tracing chains); the `oss` runner module only calls it, with a docstring that records why. The runner ignores `ALEMBIC_CFG_PATH_CORE` and `ALEMBIC_CFG_PATH_TRACING` for the legacy core and tracing chains, and runs the revision check before the database split step.
+- [ ] 3.2 Pick the legacy core chain from the core database's `alembic_version` (on an empty database run the EE legacy chain, which creates the initial schema; skip it at `park00000000`; on any older or unknown revision, stop before any change with a message that asks for an upgrade to v0.129.x first, or, for a new install whose first start was interrupted, to delete its databases and start again).
 - [ ] 3.3 Detect adoption (no `alembic_version_ee`, no `subscriptions`); run the membership materialize step after `core_oss` and before `core_ee`.
 - [ ] 3.4 CI replay: fresh, OSS v0.104.0, OSS v0.129.x, EE v0.129.x, and an OSS start interrupted during the materialize step; check schema heads and member project access before and after.
 
