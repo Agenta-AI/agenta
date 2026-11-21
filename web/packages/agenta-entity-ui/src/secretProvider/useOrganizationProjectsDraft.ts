@@ -142,7 +142,9 @@ export const useOrganizationProjectsDraft = ({
         entry.write = (writeQueues.get(id)?.write ?? Promise.resolve(true)).then(async () => {
             // A newer choice is queued behind this one, so this one is not sent.
             if (writeQueues.get(id) !== entry) return true
-            setError(null)
+            // The view may show another connection by now; its line is not this write's.
+            const shown = () => seededFor.current === id
+            if (shown()) setError(null)
             try {
                 await setProjects({connectionId: id, projects, projectId: scope})
                 message.success(organizationSavedToast(connection.name, projects))
@@ -152,12 +154,12 @@ export const useOrganizationProjectsDraft = ({
                 entry.error =
                     organizationRefusal(failure, organizationName) ||
                     t("entityUi.organizationProjects.couldNotSave", {name: connection.name})
-                setError(entry.error)
+                if (shown()) setError(entry.error)
                 return false
             } finally {
                 if (writeQueues.get(id) === entry) {
                     writeQueues.delete(id)
-                    setSaving(false)
+                    if (shown()) setSaving(false)
                 }
             }
         })

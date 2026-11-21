@@ -174,6 +174,19 @@ describe("useOrganizationProjectsDraft", () => {
         expect(draft.changed).toBe(false)
     })
 
+    it("keeps a write's failure off another connection the same view moved to", async () => {
+        let fail: (error: Error) => void = () => undefined
+        setProjects.mockImplementationOnce(
+            () => new Promise<void>((_resolve, reject) => (fail = reject)),
+        )
+        await choose(only("p2"))
+        await show({...connection, id: "org-2"} as ProviderConnection)
+
+        await act(async () => fail(new Error("offline")))
+        await act(async () => undefined)
+        expect(draft.error).toBeNull()
+    })
+
     it("sends a queued choice to the project it was made in", async () => {
         const finishFirst = holdNextWrite()
         await choose(only("p2"))
