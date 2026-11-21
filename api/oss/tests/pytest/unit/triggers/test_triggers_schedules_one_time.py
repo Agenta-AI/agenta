@@ -65,6 +65,7 @@ def _service(*, recurring=None, due=None):
     dao.fetch_due_one_time_schedules = AsyncMock(
         return_value=[(uuid4(), s) for s in (due or [])]
     )
+    dao.purge_stale_hidden_schedules = AsyncMock(return_value=[])
     service = TriggersService(
         adapter_registry=MagicMock(),
         catalog_service=MagicMock(),
@@ -262,6 +263,38 @@ class TestOneTimePass:
         dao.fetch_due_one_time_schedules = AsyncMock(side_effect=RuntimeError("db"))
 
         assert not await service.refresh_schedules(timestamp=_RUN_AT, interval=1)
+
+    async def test_it_first_removes_hidden_schedules_that_fired_an_hour_ago(self):
+        service, dao = _service()
+        before = datetime.now(timezone.utc) - timedelta(hours=1)
+
+        assert await service.refresh_schedules(timestamp=_RUN_AT, interval=1)
+
+        after = datetime.now(timezone.utc) - timedelta(hours=1)
+        kwargs = dao.purge_stale_hidden_schedules.await_args.kwargs
+        assert before <= kwargs["first_fired_before"] <= after
+        assert kwargs["limit"] == env.triggers.one_time_schedules_max_per_tick
+
+    async def test_each_removed_hidden_schedule_is_logged(self, monkeypatch):
+        stale = _one_time()
+        service, dao = _service()
+        dao.purge_stale_hidden_schedules = AsyncMock(return_value=[(uuid4(), stale)])
+        logged = MagicMock()
+        monkeypatch.setattr("oss.src.core.triggers.utils.log.info", logged)
+
+        assert await service.refresh_schedules(timestamp=_RUN_AT, interval=1)
+
+        logged.assert_called_once()
+        assert logged.call_args.kwargs["schedule_id"] == str(stale.id)
+        assert logged.call_args.kwargs["principal_id"] == str(stale.principal.id)
+
+    async def test_a_purge_failure_reports_failure_and_still_fires(self):
+        sched = _one_time()
+        service, dao = _service(due=[sched])
+        dao.purge_stale_hidden_schedules = AsyncMock(side_effect=RuntimeError("db"))
+
+        assert not await service.refresh_schedules(timestamp=_RUN_AT, interval=1)
+        assert service.schedule_dispatch_task.kiq.await_count == 1
 
     async def test_a_dispatch_failure_reports_failure_and_keeps_going(self):
         first, second = _one_time(), _one_time()
