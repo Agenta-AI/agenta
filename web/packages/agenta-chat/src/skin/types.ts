@@ -248,8 +248,11 @@ export interface ToolDisplayEntry {
     /** The row's sentence; a function gets the app's name (undefined until known) and may decline. */
     activity?: ToolActivity | ((appName?: string) => ToolActivity | undefined)
     /** The row's sentence from the call itself, its arguments or result; wins over `activity`
-     * when it answers. */
-    describe?: (input: unknown, output: unknown) => ToolActivity | undefined
+     * when it answers. `agentName` is the name of the agent that `agentRef` named, once known. */
+    describe?: (input: unknown, output: unknown, agentName?: string) => ToolActivity | undefined
+    /** The slug or id of an agent the call names: the row looks it up and resolves again with
+     * the agent's name. */
+    agentRef?: (input: unknown) => string | undefined
     /** The app this call is about; `action` is a tool it reported, or with `ran`, called. */
     app?: (input: unknown, output: unknown) => {slug?: string; action?: string; ran?: boolean}
     /** Friendly one-liner for a settled row; null/absent falls back to the generic summary. */
@@ -282,6 +285,8 @@ export interface ResolvedToolDisplay {
     frame?: ToolActivity
     /** The step glyph, from the override or the kind's default. */
     icon: ActivityIcon
+    /** The slug or id of an agent the call names; resolve again with its name once known. */
+    agentRef?: string
 }
 
 /**
