@@ -781,12 +781,7 @@ class SessionCommandsService:
                     SessionExecutionState.terminal,
                 ):
                     for interaction_id, answer in interaction_answers:
-                        interaction = by_id[interaction_id]
-                        if (
-                            interaction.status != SessionInteractionStatus.responded
-                            or interaction.data is None
-                            or interaction.data.resolution != answer
-                        ):
+                        if not _holds_answer(by_id[interaction_id], answer):
                             raise InteractionResponseConflict(
                                 code="execution_terminal",
                                 message="The source execution can no longer be continued.",
@@ -803,17 +798,23 @@ class SessionCommandsService:
                 transitioned: List[SessionInteraction] = []
                 for interaction_id, answer in interaction_answers:
                     interaction = by_id[interaction_id]
-                    if interaction.status == SessionInteractionStatus.responded:
-                        if (
-                            interaction.data is None
-                            or interaction.data.resolution != answer
-                        ):
+                    # A row that already holds an answer is a replay: a client resends
+                    # every answer of the paused message. A `resolved` row was consumed
+                    # by a run already and has nothing left to continue.
+                    if interaction.status in (
+                        SessionInteractionStatus.responded,
+                        SessionInteractionStatus.resolved,
+                    ):
+                        if not _holds_answer(interaction, answer):
                             raise InteractionResponseConflict(
                                 code="execution_terminal",
                                 message="The interaction was already answered differently.",
-                                details={"interaction_status": "responded"},
+                                details={
+                                    "interaction_status": interaction.status.value
+                                },
                             )
-                        transitioned.append(interaction)
+                        if interaction.status == SessionInteractionStatus.responded:
+                            transitioned.append(interaction)
                         continue
                     if interaction.status != SessionInteractionStatus.pending:
                         raise InteractionResponseConflict(
@@ -841,6 +842,13 @@ class SessionCommandsService:
                     by_id[interaction_id] = updated
                     transitioned.append(updated)
 
+                answered = [
+                    interaction
+                    for interaction in by_id.values()
+                    if interaction.status == SessionInteractionStatus.responded
+                    and interaction.data is not None
+                    and interaction.data.resolution is not None
+                ]
                 if any(
                     interaction.status == SessionInteractionStatus.pending
                     for interaction in by_id.values()
@@ -853,14 +861,17 @@ class SessionCommandsService:
                         interactions=transitioned,
                         waiting_for_interactions=True,
                     )
+                elif not answered:
+                    # A run consumed every answer of the turn already: nothing is left
+                    # to continue.
+                    admission = InteractionContinuationAdmission(
+                        interaction=by_id[anchor_id],
+                        command=None,
+                        execution_id=source_execution_id,
+                        execution_state=source.state,
+                        interactions=[by_id[item] for item in requested],
+                    )
                 else:
-                    answered = [
-                        interaction
-                        for interaction in by_id.values()
-                        if interaction.status == SessionInteractionStatus.responded
-                        and interaction.data is not None
-                        and interaction.data.resolution is not None
-                    ]
                     result = await self._executions.settle(
                         project_id=project_id,
                         session_id=anchor.session_id,
@@ -2517,6 +2528,17 @@ class SessionCommandsService:
             if receipt is None or receipt.status != "accepted":
                 await self._mark_continuation_recoverable(input_admission, receipt)
         return settled
+
+
+def _holds_answer(interaction: SessionInteraction, answer: dict[str, Any]) -> bool:
+    """True when the row already holds this answer: `responded` (stored, not yet run)
+    or `resolved` (a run consumed it)."""
+    return (
+        interaction.status
+        in (SessionInteractionStatus.responded, SessionInteractionStatus.resolved)
+        and interaction.data is not None
+        and interaction.data.resolution == answer
+    )
 
 
 async def deliverable_envelope(

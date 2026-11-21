@@ -1836,3 +1836,127 @@ async def test_an_in_band_answer_links_a_continuation_that_the_caller_runs():
     assert executions.continuation.parent_execution_id == "source-1"
     assert executions.continuation.source_interaction_id == interaction_id
     assert executions.continuation.state == SessionExecutionState.pending_delivery
+
+
+def _approval_row(project_id, interaction_id, token, status, resolution=None):
+    return SessionInteraction(
+        run_envelope=make_envelope(),
+        id=interaction_id,
+        project_id=project_id,
+        session_id="session-1",
+        turn_id="source-1",
+        token=token,
+        kind=SessionInteractionKind.user_approval,
+        status=status,
+        data=(
+            SessionInteractionData(resolution=resolution)
+            if resolution is not None
+            else None
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_replayed_consumed_answer_does_not_block_a_pending_answer():
+    """A client resends every answer of the paused message. An answer that a run
+    already consumed (`resolved`) is a replay, and the fresh answer in the same batch
+    still commits and continues the turn."""
+    project_id = uuid4()
+    first_id = uuid4()
+    second_id = uuid4()
+    denied = {"approved": False, "tool_call_id": "call-1"}
+    approved = {"approved": True, "tool_call_id": "call-2"}
+    interactions = _Interactions(
+        _approval_row(
+            project_id,
+            first_id,
+            "approval-1",
+            SessionInteractionStatus.resolved,
+            resolution=denied,
+        )
+    )
+    interactions.interactions.append(
+        _approval_row(
+            project_id, second_id, "approval-2", SessionInteractionStatus.pending
+        )
+    )
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    service = SessionCommandsService(
+        commands_dao=_Commands(),
+        streams_service=None,
+        interactions_service=interactions,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+
+    admission = await service.respond_interactions(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_answers=[(first_id, denied), (second_id, approved)],
+        expected_execution_id="source-1",
+        idempotency_key="inband-approval:source-1:digest",
+        approved_by=any_approval(),
+        deliver=False,
+    )
+
+    assert interactions.interactions[1].status == SessionInteractionStatus.responded
+    assert admission.command is not None
+    assert admission.command.data["interaction_ids"] == [str(second_id)]
+    assert executions.source.terminal_outcome == "continued"
+
+    # A different answer for the consumed row is still a conflict.
+    with pytest.raises(Exception) as error:
+        await service.respond_interactions(
+            project_id=project_id,
+            user_id=uuid4(),
+            interaction_answers=[(first_id, approved)],
+            expected_execution_id="source-1",
+            idempotency_key="other",
+            approved_by=any_approval(),
+        )
+    assert getattr(error.value, "code", None) == "execution_terminal"
+
+
+@pytest.mark.asyncio
+async def test_a_batch_of_consumed_answers_continues_nothing():
+    project_id = uuid4()
+    interaction_id = uuid4()
+    answer = {"approved": True, "tool_call_id": "call-1"}
+    interactions = _Interactions(
+        _approval_row(
+            project_id,
+            interaction_id,
+            "approval-1",
+            SessionInteractionStatus.resolved,
+            resolution=answer,
+        )
+    )
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    commands = _Commands()
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=None,
+        interactions_service=interactions,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+
+    admission = await service.respond_interactions(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_answers=[(interaction_id, answer)],
+        expected_execution_id="source-1",
+        idempotency_key="inband-approval:source-1:digest",
+        approved_by=any_approval(),
+        deliver=False,
+    )
+
+    assert admission.command is None
+    assert commands.command is None
+    assert executions.source.terminal_outcome is None
