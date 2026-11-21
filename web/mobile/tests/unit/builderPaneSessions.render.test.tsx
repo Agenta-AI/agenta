@@ -230,6 +230,7 @@ describe("Pane Sessions (B04)", () => {
         rows.shift()
         await refetchList()
         expect(pickerRow("Untitled session")).toBeUndefined()
+        expect(byId("pane-session-switcher")?.textContent).toContain("Weekly check")
     })
 
     it("offers New session when the agent has no sessions yet", async () => {

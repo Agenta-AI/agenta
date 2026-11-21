@@ -60,7 +60,10 @@ export const usePaneSessionPick = (projectId: string, agentId: string) => {
     if (unlisted.length !== blanks.length) setBlanks(unlisted)
     const sessions = [...unlisted, ...rows]
     if (!picked && sessions[0]) setPicked(sessions[0])
-    const session = sessions.find((row) => row.session_id === picked?.session_id) ?? picked
+    // The pick follows its latest listed row, and keeps it after the row leaves the list.
+    const listed = sessions.find((row) => row.session_id === picked?.session_id)
+    if (listed && listed !== picked) setPicked(listed)
+    const session = listed ?? picked
     const pick = (sessionId: string) => {
         const row = sessions.find((entry) => entry.session_id === sessionId)
         if (row) setPicked(row)
