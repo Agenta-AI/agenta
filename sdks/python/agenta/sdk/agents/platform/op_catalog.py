@@ -71,6 +71,10 @@ _HANDLER_CALL_REFS = frozenset(
         f"{PLATFORM_OP_NAMESPACE}list_sessions",
         f"{PLATFORM_OP_NAMESPACE}read_session",
         f"{PLATFORM_OP_NAMESPACE}read_session_spans",
+        f"{PLATFORM_OP_NAMESPACE}start_session",
+        f"{PLATFORM_OP_NAMESPACE}send_session_message",
+        f"{PLATFORM_OP_NAMESPACE}wait_for_sessions",
+        f"{PLATFORM_OP_NAMESPACE}cancel_session",
     }
 )
 
@@ -2312,12 +2316,217 @@ _SESSION_READ_OPS: tuple = (
 )
 
 
+# -- session writes (start_session, send_session_message, wait_for_sessions, cancel_session)
+#
+# Handler mode. The calling agent and the calling session come from the run credential
+# only; the only binding is the tool call id, which keys a retried call, so a retry starts
+# one session and sends one message.
+
+_CHILD_RESULT_NOTE = f"""A result that names a child's turn is one marked block. Its first line, in square
+brackets, says that it is information from another session. Then one line per field:
+`status` (`running`, `completed`, `failed`, `cancelled`, `lost` or `paused`), `turn_id`,
+`revision`, `cancelled_by` (`person` or `calling_session`) for a cancelled turn,
+`error.code` for a failed or lost turn, `waiting_for` for a paused turn (what the child
+waits for: an approval or a question for the person), `result_path` and `is_truncated`.
+The child's last message is inside <last_message> and the reason of a failure inside
+<error.message>, cut at 8000 characters (`is_truncated: true`). When a turn ended, the
+whole turn is in the file at `result_path`, relative to your working folder
+(`child-sessions/<session id>/turn-<turn index>.md`): headings `## Sent`, `## Steps` and
+`## Last message`, with the last message never cut. A file named by a result that
+returns while your turn runs can stay hidden in your folder for up to about one minute;
+`last_message` is enough for most answers, or read the file in a later step or your
+next turn. When `cancelled_by` is `person`, a person stopped that work on purpose: do not
+start it again.
+
+{_SESSION_DATA_NOTE} A child update that arrives as a message in a later turn has the
+same form and the same rule."""
+
+_CHILD_TIMING_NOTE = """`wait_ms` is how long this call waits for the child's turn to end or pause (0 to 60000,
+default 20000). If the turn is still running then, the result says `status: running`;
+call `wait_for_sessions`, do other work, or end your turn. When the child's turn ends or
+pauses later, a child update starts your next turn. `update_after_minutes` (1 to 360,
+default 30) sends you one update that says the child still runs, if it still runs then."""
+
+_START_SESSION_DESCRIPTION = f"""Start a new child session: another session, of your own agent or of one of your
+Subagent agents, with `text` as its first message. It runs on its own, with its own
+sandbox, and the person can open it and reply in it.
+
+`agent` is the slug or id of the agent (your own agent, or an agent your configuration
+names as a Subagent). `name` names the new session. A child session can start sessions
+of its own, down to a limit of levels below the session that a person started. Past that
+limit the call is refused: then do the work yourself.
+
+{_CHILD_TIMING_NOTE}
+
+{_CHILD_RESULT_NOTE}"""
+
+_SEND_SESSION_MESSAGE_DESCRIPTION = f"""Send a message to a child session that this session started, to answer its question or
+give it more work.
+
+`session_id` is the `session_id` that `start_session` returned. When the child runs a
+turn or waits for the person, the message waits in its queue, and the result is the
+JSON `{{"session_id": ..., "status": "running"}}`. A message never answers the child's
+approvals; only the person does.
+
+{_CHILD_TIMING_NOTE}
+
+{_CHILD_RESULT_NOTE}"""
+
+_WAIT_FOR_SESSIONS_DESCRIPTION = f"""Wait until one of the named child sessions ends or pauses its turn, or until `wait_ms`
+passes (1000 to 600000, default 300000).
+
+`session_ids` lists 1 to 10 child sessions that this session started. The result has
+one marked block per named session: the session whose turn ended or paused, and the
+current `status` of each other one (`running` while it still works).
+
+{_CHILD_RESULT_NOTE}"""
+
+_CANCEL_SESSION_DESCRIPTION = """Cancel the running turn of a child session that this session started. The session stays:
+you and the person can send to it again.
+
+The result is JSON with `session_id` and `cancel_requested` (false when no turn was
+running). The child's turn then ends as `cancelled` with `cancelled_by: calling_session`,
+and that update comes to you as a child update."""
+
+_WAIT_MS_SHORT_SCHEMA: Dict[str, Any] = {
+    "type": "integer",
+    "minimum": 0,
+    "maximum": 60000,
+    "description": "How long to wait for the child's turn, in milliseconds. Default 20000.",
+}
+_UPDATE_AFTER_MINUTES_SCHEMA: Dict[str, Any] = {
+    "type": "integer",
+    "minimum": 1,
+    "maximum": 360,
+    "description": "Minutes until the update that says the child still runs. Default 30.",
+}
+_CHILD_TEXT_SCHEMA: Dict[str, Any] = {
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 40000,
+    "description": "The message for the child session.",
+}
+
+_START_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["agent", "text"],
+    "properties": {
+        "agent": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "The agent to start: its `slug` or `id`.",
+        },
+        "text": _CHILD_TEXT_SCHEMA,
+        "name": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "A short name for the new session.",
+        },
+        "wait_ms": _WAIT_MS_SHORT_SCHEMA,
+        "update_after_minutes": _UPDATE_AFTER_MINUTES_SCHEMA,
+        "tool_call_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+}
+
+_SEND_SESSION_MESSAGE_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["session_id", "text"],
+    "properties": {
+        "session_id": {
+            **_SESSION_ID_SCHEMA,
+            "description": "The `session_id` of the child session.",
+        },
+        "text": _CHILD_TEXT_SCHEMA,
+        "wait_ms": _WAIT_MS_SHORT_SCHEMA,
+        "update_after_minutes": _UPDATE_AFTER_MINUTES_SCHEMA,
+        "tool_call_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+}
+
+_WAIT_FOR_SESSIONS_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["session_ids"],
+    "properties": {
+        "session_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "items": _SESSION_ID_SCHEMA,
+            "description": "The child sessions to wait for.",
+        },
+        "wait_ms": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 600000,
+            "description": "How long to wait at most, in milliseconds. Default 300000.",
+        },
+    },
+}
+
+_CANCEL_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["session_id"],
+    "properties": {
+        "session_id": {
+            **_SESSION_ID_SCHEMA,
+            "description": "The `session_id` of the child session.",
+        },
+    },
+}
+
+_TOOL_CALL_BINDING: Dict[str, str] = {"tool_call_id": "$ctx.tool.call_id"}
+
+_SESSION_WRITE_OPS: tuple = (
+    PlatformOp(
+        op="start_session",
+        description=_START_SESSION_DESCRIPTION,
+        handler=f"{PLATFORM_OP_NAMESPACE}start_session",
+        input_schema=_START_SESSION_INPUT_SCHEMA,
+        context_bindings=dict(_TOOL_CALL_BINDING),
+        read_only=False,
+        timeout_ms=75000,
+    ),
+    PlatformOp(
+        op="send_session_message",
+        description=_SEND_SESSION_MESSAGE_DESCRIPTION,
+        handler=f"{PLATFORM_OP_NAMESPACE}send_session_message",
+        input_schema=_SEND_SESSION_MESSAGE_INPUT_SCHEMA,
+        context_bindings=dict(_TOOL_CALL_BINDING),
+        read_only=False,
+        timeout_ms=75000,
+    ),
+    PlatformOp(
+        op="wait_for_sessions",
+        description=_WAIT_FOR_SESSIONS_DESCRIPTION,
+        handler=f"{PLATFORM_OP_NAMESPACE}wait_for_sessions",
+        input_schema=_WAIT_FOR_SESSIONS_INPUT_SCHEMA,
+        # It sets the child updates it returns to removed, so it is not a read.
+        read_only=False,
+        timeout_ms=660000,
+    ),
+    PlatformOp(
+        op="cancel_session",
+        description=_CANCEL_SESSION_DESCRIPTION,
+        handler=f"{PLATFORM_OP_NAMESPACE}cancel_session",
+        input_schema=_CANCEL_SESSION_INPUT_SCHEMA,
+        read_only=False,
+        timeout_ms=15000,
+    ),
+)
+
+
 PLATFORM_OPS: Dict[str, PlatformOp] = {
     op.op: op
     for op in _READ_CONFIG_OPS
     + _CHANNEL_TOOL_OPS
     + _OTHER_AGENT_OPS
     + _SESSION_READ_OPS
+    + _SESSION_WRITE_OPS
     + (
         PlatformOp(
             op="create_app",

@@ -31,8 +31,9 @@ THE LATE-STOP GUARDS. A Stop that arrives after its turn ended must not kill the
     which is exact.
 """
 
+import asyncio
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Union
 from uuid import UUID, uuid4
 
 
@@ -73,8 +74,12 @@ from oss.src.core.sessions.executions.dtos import (
     SessionExecutionSettlement,
     SessionExecutionState,
 )
-from oss.src.core.sessions.records.dtos import RunnerEnding
+from oss.src.core.sessions.records.dtos import SETTLED_BY_WATCHDOG, RunnerEnding
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
+from oss.src.core.sessions.executions.senders import (
+    server_input_waits,
+    turn_first_execution,
+)
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
     SessionInteractionStatus,
@@ -88,6 +93,7 @@ from oss.src.core.sessions.inputs.types import (
     SessionInputNotFound,
     SessionInputRemoved,
 )
+from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.streams.types import SessionIdInvalid
 from oss.src.dbs.redis.shared.engine import LockEngine
@@ -104,6 +110,7 @@ from oss.src.dbs.redis.sessions.locks import (
     forget_turn_admissions,
     reconcile_stopped_turn,
 )
+from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -192,6 +199,23 @@ def steer_cancel_key(input_id: Union[UUID, str]) -> str:
     return f"steer:{input_id}"
 
 
+# Who cancelled a turn, as the record attribute `cancelledBy` names it. A person's Stop
+# writes no value; `steer` is a person's message that replaced the turn.
+CancelledBy = Literal["steer", "calling_session"]
+CANCELLED_BY_CALLING_SESSION: CancelledBy = "calling_session"
+
+
+def _cancel_command_data(
+    *, steer_input_id: Optional[UUID], cancelled_by: Optional[CancelledBy]
+) -> Optional[Dict[str, Any]]:
+    data: Dict[str, Any] = {}
+    if steer_input_id is not None:
+        data["steer_input_id"] = str(steer_input_id)
+    if cancelled_by is not None:
+        data["cancelled_by"] = cancelled_by
+    return data or None
+
+
 class SessionCommandsService:
     def __init__(
         self,
@@ -203,6 +227,8 @@ class SessionCommandsService:
         delivery: ControlDeliveryPort,
         executions_dao: Optional[SessionExecutionsDAOInterface] = None,
         inputs_dao: Optional[SessionInputsDAOInterface] = None,
+        streams_dao: Optional[SessionStreamsDAOInterface] = None,
+        turns_dao: Optional[SessionTurnsDAOInterface] = None,
     ) -> None:
         self._dao = commands_dao
         self._streams = streams_service
@@ -211,6 +237,9 @@ class SessionCommandsService:
         self._delivery = delivery
         self._executions = executions_dao
         self._inputs = inputs_dao
+        # Both set: a turn end applies the server input hold rule before it promotes.
+        self._streams_dao = streams_dao
+        self._turns = turns_dao
 
     # -- admission ---------------------------------------------------------- #
 
@@ -378,7 +407,11 @@ class SessionCommandsService:
         expected_execution_id: Optional[str] = None,
         idempotency_key: Optional[str] = None,
         steer_input_id: Optional[UUID] = None,
+        cancelled_by: Optional[CancelledBy] = None,
     ) -> CancelAdmission:
+        """`cancelled_by` marks who asked for the cancel when it is not a person:
+        `calling_session` for the session tool `cancel_session`. The record route
+        writes it on the turn's `done` record as `cancelledBy`."""
         if not validate_session_id(session_id):
             raise SessionIdInvalid(session_id)
 
@@ -434,10 +467,8 @@ class SessionCommandsService:
                 target_turn_id=None,
                 expected_turn_id=expected_execution_id,
                 idempotency_key=idempotency_key,
-                data=(
-                    {"steer_input_id": str(steer_input_id)}
-                    if steer_input_id is not None
-                    else None
+                data=_cancel_command_data(
+                    steer_input_id=steer_input_id, cancelled_by=cancelled_by
                 ),
                 state=SessionCommandState.obsolete,
                 outcome=SessionCommandOutcome.not_running,
@@ -463,10 +494,8 @@ class SessionCommandsService:
                 target_turn_id=None,
                 expected_turn_id=None,
                 idempotency_key=idempotency_key,
-                data=(
-                    {"steer_input_id": str(steer_input_id)}
-                    if steer_input_id is not None
-                    else None
+                data=_cancel_command_data(
+                    steer_input_id=steer_input_id, cancelled_by=cancelled_by
                 ),
                 state=SessionCommandState.obsolete,
                 outcome=SessionCommandOutcome.superseded_by_newer_turn,
@@ -508,10 +537,8 @@ class SessionCommandsService:
                     target_turn_id=target_turn_id,
                     expected_turn_id=expected_execution_id,
                     idempotency_key=idempotency_key,
-                    data=(
-                        {"steer_input_id": str(steer_input_id)}
-                        if steer_input_id is not None
-                        else None
+                    data=_cancel_command_data(
+                        steer_input_id=steer_input_id, cancelled_by=cancelled_by
                     ),
                     state=SessionCommandState.pending,
                     outcome=None,
@@ -572,10 +599,8 @@ class SessionCommandsService:
                         target_turn_id=target_turn_id,
                         expected_turn_id=expected_execution_id,
                         idempotency_key=idempotency_key,
-                        data=(
-                            {"steer_input_id": str(steer_input_id)}
-                            if steer_input_id is not None
-                            else None
+                        data=_cancel_command_data(
+                            steer_input_id=steer_input_id, cancelled_by=cancelled_by
                         ),
                         state=SessionCommandState.pending,
                         outcome=None,
@@ -622,7 +647,25 @@ class SessionCommandsService:
         session_id: str,
         execution_id: str,
     ) -> bool:
-        """True when a Steer, not a Stop, cancelled this execution.
+        """True when a Steer, not a Stop, cancelled this execution."""
+        return (
+            await self.cancel_cause(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=execution_id,
+            )
+            == "steer"
+        )
+
+    async def cancel_cause(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+    ) -> Optional[CancelledBy]:
+        """Who cancelled this execution, when it was not a person's Stop: `steer` (a
+        person's message replaced the turn) or `calling_session` (`cancel_session`).
 
         A Steer that bound to a Stop already open keeps that Stop's key, so the turn still reads
         as stopped by the user."""
@@ -631,12 +674,17 @@ class SessionCommandsService:
             session_id=session_id,
             target_turn_id=execution_id,
         )
-        steer_input_id = ((command.data or {}) if command else {}).get("steer_input_id")
-        return (
-            command is not None
-            and steer_input_id is not None
-            and command.idempotency_key == steer_cancel_key(steer_input_id)
-        )
+        if command is None:
+            return None
+        data = command.data or {}
+        steer_input_id = data.get("steer_input_id")
+        if steer_input_id is not None and command.idempotency_key == steer_cancel_key(
+            steer_input_id
+        ):
+            return "steer"
+        if data.get("cancelled_by") == CANCELLED_BY_CALLING_SESSION:
+            return CANCELLED_BY_CALLING_SESSION
+        return None
 
     async def respond_interaction(
         self,
@@ -1103,32 +1151,16 @@ class SessionCommandsService:
         execution: SessionExecutionSettlement,
         transaction: Any,
     ) -> Optional[str]:
-        """The session turn a paused execution belongs to, or None when the chain is broken.
-
-        Each approval resume is a new execution whose parent is the paused one. Walk the
-        parents back to the execution that started the turn: the first one that was not
-        created by an approval. A queued input's continuation also has a parent (the turn
-        before it), but it starts its own turn, so the walk stops there. The chain is broken
-        when a parent row is missing or an execution id comes back (a cycle).
-        """
-        visited = {execution.execution_id}
-        while (
-            execution.source_interaction_id is not None
-            and execution.parent_execution_id is not None
-        ):
-            if execution.parent_execution_id in visited:
-                return None
-            visited.add(execution.parent_execution_id)
-            parent = await self._executions.fetch_execution(
-                project_id=project_id,
-                session_id=session_id,
-                execution_id=execution.parent_execution_id,
-                transaction=transaction,
-            )
-            if parent is None:
-                return None
-            execution = parent
-        return execution.execution_id
+        """The session turn a paused execution belongs to, or None when the chain is
+        broken (`turn_first_execution`)."""
+        first = await turn_first_execution(
+            executions_dao=self._executions,
+            project_id=project_id,
+            session_id=session_id,
+            execution=execution,
+            transaction=transaction,
+        )
+        return first.execution_id if first is not None else None
 
     async def _mark_continuation_recoverable(
         self,
@@ -1442,6 +1474,7 @@ class SessionCommandsService:
                     kind=SessionCommandKind.cancel,
                     target_turn_id=target_turn_id,
                     expected_turn_id=expected_turn_id,
+                    data=data,
                     state=state,
                     outcome=outcome,
                     settled_at=received_at if outcome is not None else None,
@@ -1858,6 +1891,35 @@ class SessionCommandsService:
 
     # -- settlement --------------------------------------------------------- #
 
+    async def _server_inputs_held(
+        self, *, project_id: UUID, session_id: str, transaction: Any
+    ) -> bool:
+        """True when a server input waits in the queue and `server_input_waits` holds."""
+        if self._streams_dao is None or self._turns is None:
+            return False
+        if not await self._inputs.has_pending_server_input(
+            project_id=project_id,
+            session_id=session_id,
+            transaction=transaction,
+        ):
+            return False
+        # In its own task: `engine.session()` hands every caller in one task the same
+        # session and commits and closes it on exit, so the rule's reads in this task
+        # would commit the turn end's transaction early and drop the input lock. A new
+        # task reads through its own session and sees committed rows only.
+        return await asyncio.create_task(
+            server_input_waits(
+                streams_dao=self._streams_dao,
+                executions_dao=self._executions,
+                inputs_dao=self._inputs,
+                turns_dao=self._turns,
+                cancelled_by_steer=self.cancelled_by_steer,
+                project_id=project_id,
+                session_id=session_id,
+                turns_without_person_limit=env.agenta.sessions.turns_without_person_limit,
+            )
+        )
+
     async def _promote_next_input(
         self,
         *,
@@ -1873,6 +1935,19 @@ class SessionCommandsService:
             return None
 
         execution_id = str(uuid4())
+        # A turn end promotes the next row on its own, so a server input there obeys the
+        # same hold rule as in `enqueue_session_input`. A held row stays `pending`, and
+        # a person's queued message behind it still runs. Send now (`input_id`) is a
+        # person's choice and is not held.
+        messages_only = (
+            input_id is None
+            and only_policy is None
+            and await self._server_inputs_held(
+                project_id=project_id,
+                session_id=session_id,
+                transaction=transaction,
+            )
+        )
         pending_input = await self._inputs.promote_next(
             project_id=project_id,
             session_id=session_id,
@@ -1880,6 +1955,7 @@ class SessionCommandsService:
             input_id=input_id,
             only_policy=only_policy,
             transaction=transaction,
+            messages_only=messages_only,
         )
         if pending_input is None:
             return None
@@ -2011,6 +2087,39 @@ class SessionCommandsService:
             ),
             admission=admission,
         )
+
+    async def settle_execution_killed(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+    ) -> bool:
+        """Settle the execution that ran when a person ended (killed) its session.
+
+        The kill writes no record and hides the turn from the orphan sweep's stream
+        queries, so nothing else would settle it when the runner is gone. This settles it
+        `stopped` by the watchdog, only when it has no terminal outcome. The sweep's
+        third query then writes the missing `done` when no runner `done` exists, and a
+        runner `done` that arrives later reads as late output. It does not mark a
+        continuation recoverable and does not promote a queued input: the session ended.
+
+        Returns whether this call settled it."""
+        if self._executions is None:
+            return False
+        # `settle` takes the row lock (`lock_for_control`) and writes nothing when the
+        # execution already has a terminal outcome.
+        async with self._dao.transaction() as transaction:
+            result = await self._executions.settle(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=execution_id,
+                terminal_outcome=SessionCommandOutcome.stopped.value,
+                settled_by=SETTLED_BY_WATCHDOG,
+                settled_at=datetime.now(timezone.utc),
+                transaction=transaction,
+            )
+        return result.won
 
     async def deliver_input_admission(
         self, admission: InputContinuationAdmission

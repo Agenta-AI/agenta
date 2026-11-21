@@ -186,6 +186,21 @@ def test_the_calling_session_record_round_trips():
     ).model_dump(mode="json")
 
 
+def test_a_record_from_a_draft_run_names_no_revision():
+    """A calling turn that ran an unsaved configuration has no revision to name: the
+    row stores no revision key and reads back `revision_id: null`."""
+    calling_session = _calling_session().model_copy(update={"revision_id": None})
+    dbe = _created(
+        run_envelope=make_envelope(origin="calling_session"),
+        calling_session=calling_session,
+    )
+
+    assert "ag.calling_session.revision_id" not in dbe.tags
+    stream = map_stream_dbe_to_dto(stream_dbe=dbe)
+    assert stream.calling_session == calling_session
+    assert stream.model_dump(mode="json")["calling_session"]["revision_id"] is None
+
+
 @pytest.mark.parametrize(
     "run_origin, attribution",
     [
@@ -454,3 +469,125 @@ async def test_a_rename_does_not_change_the_origin(lock_engine):
     stream = await dao.get_by_session_id(project_id=_PROJECT, session_id="sent")
     assert stream.name == "Renamed"
     assert stream.origin == SessionOrigin.api
+
+
+# A run with the run origin `calling_session` creates no row by heartbeat, command or
+# header call: only the start from the calling session does, with its record.
+@pytest_asyncio.fixture
+async def redis():
+    from oss.src.dbs.redis.shared.engine import LockEngine
+
+    engine = LockEngine()
+    fake = _FakeRedis()
+    with patch.object(engine, "_client", return_value=fake):
+        yield engine, fake
+
+
+async def test_a_send_from_a_calling_session_run_creates_no_row_and_holds_no_lock(
+    redis,
+):
+    from oss.src.core.sessions.streams.types import (
+        SessionCreationRequiresCallingSessionRecord,
+    )
+    from oss.src.dbs.redis.sessions.contract import alive_key, running_key
+
+    engine, fake = redis
+    dao = _MappingDAO()
+    service = _request_service(dao, engine)
+
+    with pytest.raises(SessionCreationRequiresCallingSessionRecord):
+        await _send(service, envelope=make_envelope(origin="calling_session"))
+
+    assert dao.dbe is None
+    assert await fake.get(alive_key(str(_PROJECT), "sent")) is None
+    assert await fake.get(running_key(str(_PROJECT), "sent")) is None
+
+
+async def test_a_header_call_from_a_calling_session_run_creates_no_row(lock_engine):
+    from oss.src.core.sessions.streams.types import (
+        SessionCreationRequiresCallingSessionRecord,
+    )
+
+    dao = _MappingDAO()
+    service = _request_service(dao, lock_engine)
+
+    with pytest.raises(SessionCreationRequiresCallingSessionRecord):
+        await service.set_header(
+            project_id=_PROJECT,
+            user_id=uuid4(),
+            session_id="named",
+            header=SessionStreamHeaderEdit(),
+            access=OWNERLESS_PROJECT_POLICY,
+            envelope=make_envelope(origin="calling_session"),
+        )
+
+    assert dao.dbe is None
+
+
+async def test_a_heartbeat_from_a_calling_session_run_creates_no_row(lock_engine):
+    from oss.src.core.sessions.streams.types import (
+        SessionCreationRequiresCallingSessionRecord,
+    )
+
+    dao = _MappingDAO()
+    service = SessionStreamsService(streams_dao=dao, lock_engine=lock_engine)
+    envelope = make_envelope(origin="calling_session")
+
+    with pytest.raises(SessionCreationRequiresCallingSessionRecord):
+        await service.heartbeat(
+            project_id=_PROJECT,
+            request=SessionHeartbeatRequest(
+                session_id="beaten",
+                replica_id="replica-a",
+                turn_id="turn-1",
+                is_running=True,
+            ),
+            envelope=envelope,
+            access=OWNERLESS_PROJECT_POLICY,
+            run_admission=NoopRunAdmission(),
+            admission_envelope=envelope,
+        )
+
+    assert dao.dbe is None
+
+
+async def test_a_calling_session_run_continues_its_existing_session(lock_engine):
+    # A child session's own turns beat and send into a row that exists: no refusal.
+    dao = _MappingDAO()
+    service = _request_service(dao, lock_engine)
+    dao.dbe = map_stream_dto_to_dbe_create(
+        project_id=_PROJECT,
+        user_id=None,
+        stream=SessionStreamCreate(
+            session_id="sent",
+            access=OWNERLESS_PROJECT_POLICY,
+            run_envelope=make_envelope(origin="calling_session"),
+            calling_session=_calling_session(),
+        ),
+    )
+    dao.dbe.id = uuid4()
+
+    await _send(service, envelope=make_envelope(origin="calling_session"))
+
+    stream = await dao.get_by_session_id(project_id=_PROJECT, session_id="sent")
+    assert stream.origin == SessionOrigin.calling_session
+    assert stream.calling_session is not None
+
+
+async def test_the_route_answers_the_refusal_with_a_typed_403():
+    from fastapi import HTTPException
+
+    from oss.src.apis.fastapi.sessions.router import _handle_session_exceptions
+    from oss.src.core.sessions.streams.types import (
+        SessionCreationRequiresCallingSessionRecord,
+    )
+
+    @_handle_session_exceptions()
+    async def route():
+        raise SessionCreationRequiresCallingSessionRecord("s")
+
+    with pytest.raises(HTTPException) as error:
+        await route()
+
+    assert error.value.status_code == 403
+    assert error.value.detail["code"] == "session_requires_calling_session_record"

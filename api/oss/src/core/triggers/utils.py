@@ -7,8 +7,11 @@ Composio is the source of truth and the value is cached encrypted in Redis.
 
 import json
 from typing import Any, Dict, Optional
+from uuid import UUID
 from urllib.parse import urlsplit, urlunsplit
 
+from oss.src.core.triggers.dtos import TriggerSchedule
+from oss.src.core.triggers.interfaces import TriggersDAOInterface
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.crypting import decrypt, encrypt
@@ -193,3 +196,37 @@ def compose_event_inputs(
     else:
         content = (content or "") + text
     return {**inputs, "messages": [*messages[:-1], {**last, "content": content}]}
+
+
+async def purge_hidden_schedule(
+    *,
+    dao: TriggersDAOInterface,
+    project_id: UUID,
+    schedule_id: UUID,
+) -> bool:
+    """Remove a schedule that server code created, with its deliveries, from the table,
+    and log the schedule id, the target session and the principal, so an operator can
+    trace a fire after the row is gone. A schedule that is gone (or is not hidden) is
+    left as it is, and the call answers False."""
+
+    removed = await dao.purge_hidden_schedule(
+        project_id=project_id,
+        schedule_id=schedule_id,
+    )
+    if removed is None:
+        return False
+    log_hidden_schedule_purged(project_id=project_id, schedule=removed)
+    return True
+
+
+def log_hidden_schedule_purged(*, project_id: UUID, schedule: TriggerSchedule) -> None:
+    """The log line of every purge of a hidden schedule: the schedule id, the target
+    session and the principal."""
+    log.info(
+        "[SCHEDULE] Purged hidden schedule",
+        schedule_id=str(schedule.id),
+        project_id=str(project_id),
+        session_id=schedule.data.session_id,
+        principal_kind=schedule.principal.kind.value if schedule.principal else None,
+        principal_id=str(schedule.principal.id) if schedule.principal else None,
+    )

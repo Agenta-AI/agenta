@@ -51,6 +51,11 @@ from agenta.sdk.agents.platform.op_catalog import (
     READ_SESSION_SPANS_DEFAULT_LIMIT,
     READ_SESSION_SPANS_MAX_LIMIT,
 )
+from agenta.sdk.agents.tools.models import (
+    CANCEL_SESSION_CALL_REF,
+    SEND_SESSION_MESSAGE_CALL_REF,
+    START_SESSION_CALL_REF,
+)
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.models.workflows import WorkflowServiceStatus
 
@@ -132,8 +137,13 @@ from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.env import env
 from oss.src.utils.web_links import agent_page_url
 
-if TYPE_CHECKING:
+if (
+    TYPE_CHECKING
+):  # pragma: no cover - `gate.py` and `session_writes.py` import this module
     from oss.src.core.sessions.service import SessionsService
+    from oss.src.core.tools.gate import GateReader
+    from oss.src.core.tools.session_writes import SessionWriteServices
+
 
 AGENTA_TOOL_CALL_REF_PREFIX = "tools.agenta."
 TEST_RUN_CALL_REF = "tools.agenta.test_run"
@@ -1177,8 +1187,13 @@ EDIT_AGENT_CONFIG_CALL_REF = "tools.agenta.edit_agent_config"
 # Not a model tool: the runner calls it when the approval gate of one of the two writes
 # above opens, and puts the answer on the approval card.
 PREVIEW_AGENT_CHANGE_CALL_REF = "tools.agenta.preview_agent_change"
+# Not a model tool: the runner calls it when the gate of a session write would show a card
+# (`core/tools/gate.py`).
+RESOLVE_GATE_CALL_REF = "tools.agenta.resolve_gate"
 # The handlers only the runner calls. Every other handler backs an op of the SDK catalog.
-RUNNER_ONLY_CALL_REFS = frozenset({PREVIEW_AGENT_CHANGE_CALL_REF})
+RUNNER_ONLY_CALL_REFS = frozenset(
+    {PREVIEW_AGENT_CHANGE_CALL_REF, RESOLVE_GATE_CALL_REF}
+)
 
 _FIND_AGENT_STEP = (
     "Call list_agents and pass the agent's `slug` or `id` as `agent`, not its name."
@@ -2516,7 +2531,9 @@ def _origin_entry(stream: Any) -> Dict[str, Any]:
             "id": calling.id,
             "turn_id": calling.turn_id,
             "agent_id": str(calling.agent_id),
-            "revision_id": str(calling.revision_id),
+            "revision_id": (
+                str(calling.revision_id) if calling.revision_id is not None else None
+            ),
         }
     trigger = getattr(stream, "trigger", None)
     if trigger is not None:
@@ -3444,6 +3461,79 @@ def _arguments_include_delta(arguments: Any) -> bool:
     return isinstance(arguments, dict) and arguments.get("delta") is not None
 
 
+async def handle_resolve_gate(
+    *,
+    arguments: Any,
+    headers: Any = None,
+    project_id: UUID,
+    user_id: UUID,
+    workflows_service: Optional[WorkflowsService],
+    tracing_service: Optional[TracingService] = None,
+    timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
+    session_caller: SessionCaller,
+    gate_reader: Optional[GateReader] = None,
+) -> PlatformHandlerResult:
+    """The server's answer at the gate of a session write: `{permission, basis}`."""
+    from oss.src.core.tools.gate import resolve_gate
+
+    if gate_reader is None:
+        raise PlatformToolHandlerRefused("resolve_gate is unavailable.")
+    answer = await resolve_gate(
+        caller=session_caller,
+        project_id=project_id,
+        arguments=arguments,
+        reader=gate_reader,
+    )
+    return PlatformHandlerResult(content=answer.model_dump(mode="json"))
+
+
+# -- start_session / send_session_message / wait_for_sessions / cancel_session ------------
+#
+# The session writes live in `core/tools/session_writes.py`; these wrappers give them the
+# handler signature. They take the calling run as `session_caller`, like the reads.
+
+WAIT_FOR_SESSIONS_CALL_REF = "tools.agenta.wait_for_sessions"
+# The op budgets of design D4: the longest wait plus room for the work around it.
+START_SEND_TIMEOUT_MS = 75_000
+WAIT_FOR_SESSIONS_TIMEOUT_MS = 660_000
+CANCEL_SESSION_TIMEOUT_MS = 15_000
+
+
+def _session_write_handler(name: str) -> PlatformToolHandler:
+    async def handler(
+        *,
+        arguments: Any,
+        headers: Any = None,
+        project_id: UUID,
+        user_id: UUID,
+        workflows_service: Optional[WorkflowsService],
+        tracing_service: Optional[TracingService] = None,
+        timeout_ms: int = SESSION_READ_DEFAULT_TIMEOUT_MS,
+        session_caller: SessionCaller,
+        session_writes: Optional[SessionWriteServices] = None,
+    ) -> PlatformHandlerResult:
+        from oss.src.core.tools import session_writes as writes  # noqa: PLC0415
+
+        if session_writes is None:
+            raise PlatformToolHandlerRefused(f"{name} is unavailable.")
+        return await getattr(writes, name)(
+            session_writes,
+            caller=session_caller,
+            project_id=project_id,
+            user_id=user_id,
+            arguments=arguments,
+        )
+
+    handler.__name__ = f"handle_{name}"
+    return handler
+
+
+handle_start_session = _session_write_handler("start_session")
+handle_send_session_message = _session_write_handler("send_session_message")
+handle_wait_for_sessions = _session_write_handler("wait_for_sessions")
+handle_cancel_session = _session_write_handler("cancel_session")
+
+
 @dataclass(frozen=True)
 class PlatformToolHandlerRegistration:
     call_ref: str
@@ -3470,6 +3560,10 @@ class PlatformToolHandlerRegistration:
     needs_session_caller: bool = False
     # Handlers that read sessions take the router's SessionsService as `sessions_service`.
     needs_sessions: bool = False
+    # `resolve_gate` takes the router's `GateReader` as `gate_reader`.
+    needs_gate_reader: bool = False
+    # The session writes take the router's `SessionWriteServices` as `session_writes`.
+    needs_session_writes: bool = False
 
 
 PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
@@ -3546,6 +3640,15 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         elevated_permission=Permission.VIEW_WORKFLOWS,
         needs_agent_read_scope=True,
     ),
+    # Writes nothing. Guarded by the run credential check (design D31), like the session
+    # ops it answers for.
+    RESOLVE_GATE_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=RESOLVE_GATE_CALL_REF,
+        timeout_ms=READ_CONFIG_DEFAULT_TIMEOUT_MS,
+        handler=handle_resolve_gate,
+        needs_session_caller=True,
+        needs_gate_reader=True,
+    ),
     # Agent HTML apps. Both touch the session's drive, so they demand what the mount routes
     # demand for the same act: writing a file needs EDIT_MOUNTS, reading one VIEW_MOUNTS.
     # RUN_TOOLS alone is not enough; an EE annotator holds it without EDIT_MOUNTS.
@@ -3588,6 +3691,41 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         elevated_permission=Permission.VIEW_SESSIONS,
         needs_session_caller=True,
         needs_sessions=True,
+    ),
+    # Session writes. A start, a send and a cancel act on sessions as the session routes
+    # do, with RUN_SESSIONS; a wait reads, with VIEW_SESSIONS. Each target session is
+    # checked again for its own right.
+    START_SESSION_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=START_SESSION_CALL_REF,
+        timeout_ms=START_SEND_TIMEOUT_MS,
+        handler=handle_start_session,
+        elevated_permission=Permission.RUN_SESSIONS,
+        needs_session_caller=True,
+        needs_session_writes=True,
+    ),
+    SEND_SESSION_MESSAGE_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=SEND_SESSION_MESSAGE_CALL_REF,
+        timeout_ms=START_SEND_TIMEOUT_MS,
+        handler=handle_send_session_message,
+        elevated_permission=Permission.RUN_SESSIONS,
+        needs_session_caller=True,
+        needs_session_writes=True,
+    ),
+    WAIT_FOR_SESSIONS_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=WAIT_FOR_SESSIONS_CALL_REF,
+        timeout_ms=WAIT_FOR_SESSIONS_TIMEOUT_MS,
+        handler=handle_wait_for_sessions,
+        elevated_permission=Permission.VIEW_SESSIONS,
+        needs_session_caller=True,
+        needs_session_writes=True,
+    ),
+    CANCEL_SESSION_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=CANCEL_SESSION_CALL_REF,
+        timeout_ms=CANCEL_SESSION_TIMEOUT_MS,
+        handler=handle_cancel_session,
+        elevated_permission=Permission.RUN_SESSIONS,
+        needs_session_caller=True,
+        needs_session_writes=True,
     ),
 }
 
@@ -3655,6 +3793,8 @@ async def dispatch_platform_tool_handler(
     agent_read_scope: Optional[AgentReadScope] = None,
     access: Optional[RequestAccess] = None,
     sessions_service: Optional[SessionsService] = None,
+    gate_reader: Optional[GateReader] = None,
+    session_writes: Optional[SessionWriteServices] = None,
 ) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     if registration is None:
@@ -3686,6 +3826,10 @@ async def dispatch_platform_tool_handler(
             return PlatformHandlerResult.failure(e.error)
     if registration.needs_sessions:
         extra["sessions_service"] = sessions_service
+    if registration.needs_gate_reader:
+        extra["gate_reader"] = gate_reader
+    if registration.needs_session_writes:
+        extra["session_writes"] = session_writes
     return await registration.handler(
         arguments=arguments,
         headers=headers,

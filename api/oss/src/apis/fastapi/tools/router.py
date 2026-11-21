@@ -93,6 +93,8 @@ from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.sessions.service import SessionsService
 from oss.src.core.tracing.service import TracingService
+from oss.src.core.tools.gate import GateReader
+from oss.src.core.tools.session_writes import SessionWriteServices
 from oss.src.core.tools.exceptions import PlatformToolHandlerError
 from oss.src.core.tools.platform_handlers import (
     COMMIT_REVISION_CALL_REF,
@@ -426,6 +428,8 @@ class ToolsRouter:
         tracing_service: Optional[TracingService] = None,
         mounts_service: Optional[MountsService] = None,
         sessions_service: Optional[SessionsService] = None,
+        gate_reader: Optional[GateReader] = None,
+        session_writes: Optional[SessionWriteServices] = None,
     ):
         self.tools_service = tools_service
         # Admits each child run (the parent's principal and the child's agent).
@@ -439,6 +443,12 @@ class ToolsRouter:
         self.mounts_service = mounts_service
         # The session read handlers (list_sessions, read_session, read_session_spans).
         self.sessions_service = sessions_service
+        # Reads the session facts `resolve_gate` answers from.
+        self.gate_reader = gate_reader
+        # The session write handlers (start_session, send_session_message,
+        # wait_for_sessions, cancel_session). The composition sets it once the session
+        # starts service exists.
+        self.session_writes = session_writes
 
         self.router = APIRouter()
 
@@ -1707,6 +1717,8 @@ class ToolsRouter:
                 # The calling run of a session op comes from the credential only.
                 access=get_request_access(),
                 sessions_service=self.sessions_service,
+                gate_reader=self.gate_reader,
+                session_writes=self.session_writes,
             )
         except AdmissionDenied as refusal:
             return _admission_error_result(body=body, child=envelope, refusal=refusal)

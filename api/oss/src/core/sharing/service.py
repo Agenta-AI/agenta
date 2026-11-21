@@ -48,6 +48,7 @@ from oss.src.core.sharing.dtos import (
     MountVisibility,
     NotShareableReason,
     SessionGrant,
+    SessionGrantInput,
     SessionPolicyState,
     SessionReadScope,
     SessionRole,
@@ -692,6 +693,64 @@ class SharingService(ResourcePolicyInterface):
             project_id=project_id, session_id=session_id
         )
         return access
+
+    async def session_policy(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> Optional[AccessPolicy]:
+        """The session's current policy, through the same cache as every access
+        decision. None when no row exists."""
+
+        access = await self._session_access(
+            project_id=project_id, session_id=session_id
+        )
+        return None if access is None else access.policy
+
+    async def session_grants(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> List[SessionGrant]:
+        """The session's grants, through the same cache as `session_policy`."""
+
+        access = await self._session_access(
+            project_id=project_id, session_id=session_id
+        )
+        return [] if access is None else list(access.grants)
+
+    async def copy_grants_to_created_session(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        policy: AccessPolicy,
+        grants: Sequence[SessionGrant],
+        user_id: UUID,
+    ) -> None:
+        """Give a session that a start just created the grants of its calling session,
+        with their roles, before its first turn runs. The copy is made once: a later
+        change to the calling session's grants does not reach the child."""
+
+        result = await self._dao.set_session_sharing(
+            project_id=project_id,
+            session_id=session_id,
+            expected=policy,
+            change=SessionSharingChange(
+                upsert_grants=[
+                    SessionGrantInput(user_id=grant.user_id, role=grant.role)
+                    for grant in grants
+                ]
+            ),
+            user_id=user_id,
+        )
+        await invalidate_sharing_caches(
+            project_id=project_id,
+            session_ids=[session_id],
+            grant_user_ids=[grant.user_id for grant in result.upserted],
+        )
 
     async def _session_access_or_tombstone(
         self,

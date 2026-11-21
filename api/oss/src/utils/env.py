@@ -822,6 +822,36 @@ class SessionsConfig(BaseModel):
     commands: SessionsCommandsConfig = SessionsCommandsConfig()
     records: SessionsRecordsConfig = SessionsRecordsConfig()
     watchdog: SessionWatchdogConfig = SessionWatchdogConfig()
+    # Turns in a row in one session that no person sent. At this count a server input
+    # waits in the queue until a person sends a message.
+    turns_without_person_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_TURNS_WITHOUT_PERSON_LIMIT")
+        or 20
+    )
+    # Running child sessions of one calling session. `start_session`, and a send that
+    # would start a turn in an idle child, are refused at this count.
+    child_sessions_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_CHILD_SESSIONS_LIMIT") or 5
+    )
+    # Levels of child sessions. A session that a person started is level 0, its child
+    # is level 1, the child of that child is level 2. `start_session` is refused when
+    # the new child would be deeper than this level.
+    child_session_depth_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_CHILD_SESSION_DEPTH_LIMIT")
+        or 3
+    )
+    # Queued messages from one calling session in one child session. A send that would
+    # queue one more is refused.
+    child_queued_messages_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_CHILD_QUEUED_MESSAGES_LIMIT")
+        or 3
+    )
+    # Minutes after a start or a send before the calling session gets the still-running
+    # update, when the agent gives no `update_after_minutes`.
+    still_running_update_minutes: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_STILL_RUNNING_UPDATE_MINUTES")
+        or 30
+    )
 
     model_config = ConfigDict(extra="ignore")
 
@@ -2354,6 +2384,16 @@ class TriggersConfig(BaseModel):
             "AGENTA_TRIGGERS_SCHEDULE_MIN_INTERVAL_MINUTES"
         )
         or 15
+    )
+
+    # The most one-time schedules (`data.run_at`) that one schedule tick fires,
+    # earliest `run_at` first; the rest fire in the next tick. A total over all
+    # projects: there is no limit per project.
+    one_time_schedules_max_per_tick: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_TRIGGERS_ONE_TIME_SCHEDULES_MAX_PER_TICK"
+        )
+        or 2000
     )
 
 

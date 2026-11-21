@@ -1,5 +1,6 @@
 {
     "alwaysAutoApprove": "Toujours approuver automatiquement",
+    "anAgent": "un agent",
     "answerSavedRetry": "Réponse enregistrée, nouvel essai nécessaire",
     "answerSavedRetryHint": "La réponse est enregistrée. Envoyez votre prochain message pour réessayer la suite.",
     "answerSavedWaiting": "La réponse est enregistrée. En attente de la prochaine mise à jour de l’agent…",
@@ -15,6 +16,9 @@
     "redirect": "Rediriger",
     "seeWhatChanges": "Voir ce qui change ({{count}})",
     "seeWhatRuns": "Voir ce qui s’exécute ({{count}})",
+    "startSession": "Démarrer une session pour {{agent}}. La nouvelle session s’exécute seule.",
+    "startSessionMessage": "Premier message",
+    "startSessionName": "Nom de la session",
     "steerHint": "Refusez cette étape et dites à l’agent quoi faire à la place. Votre note est exécutée comme message suivant.",
     "steerPlaceholder": "p. ex. écris sur staging, pas sur la production, ou demande tout autre chose"
 }
