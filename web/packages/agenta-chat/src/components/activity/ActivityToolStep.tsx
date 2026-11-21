@@ -19,6 +19,7 @@ import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {unwrapToolUseError} from "../../assets/toolFormat"
+import {useAgentDisplayName} from "../../hooks/useAgentDisplayName"
 import {
     approvalVerdictText,
     isNonFinalRunnerError,
@@ -53,12 +54,14 @@ const displayFor = (
     appName?: string,
     _skinVersion?: number,
     _textVersion?: string,
+    agentName?: string,
 ): ResolvedToolDisplay =>
     resolveToolDisplay(
         partToolName(part),
         (part as {input?: unknown}).input,
         appName,
         (part as {output?: unknown}).output,
+        agentName,
     )
 
 const stateOf = (part: ToolUIPart, display: ResolvedToolDisplay): ActivityState => {
@@ -363,6 +366,26 @@ const CatalogToolStep = ({
     )
 }
 
+/** Re-resolve once the agent that the call names by its slug or id has a name. */
+const AgentToolStep = ({
+    part,
+    files,
+    base,
+    live,
+}: {
+    part: ToolUIPart
+    files: FileActivity[]
+    base: ResolvedToolDisplay
+    live?: boolean
+}) => {
+    const agentName = useAgentDisplayName(base.agentRef)
+    const display = useMemo(
+        () => (agentName ? displayFor(part, undefined, undefined, undefined, agentName) : base),
+        [part, base, agentName],
+    )
+    return <ActivityToolStepView part={part} files={files} display={display} live={live} />
+}
+
 /** One tool call on the timeline: kind node, sentence, tap for its input and result. */
 export const ActivityToolStep = ({
     part,
@@ -387,6 +410,9 @@ export const ActivityToolStep = ({
     )
     if (base.sourceKey) {
         return <CatalogToolStep part={part} files={files} base={base} live={live} />
+    }
+    if (base.agentRef) {
+        return <AgentToolStep part={part} files={files} base={base} live={live} />
     }
     return <ActivityToolStepView part={part} files={files} display={base} live={live} />
 }

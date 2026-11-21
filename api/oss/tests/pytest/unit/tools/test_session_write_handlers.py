@@ -1168,6 +1168,8 @@ async def test_the_short_wait_times_out_with_a_running_block(world):
         tool_call_id="t",
     )
     assert _lines(result.content)["status"] == "running"
+    # The model must not read a start that still runs as a finished test.
+    assert _lines(result.content)["note"].startswith("This turn is not finished.")
     assert world.clock.now == pytest.approx(5.0)
 
 
@@ -1650,6 +1652,7 @@ async def test_a_wait_returns_a_paused_child_and_leaves_other_sessions_rows(worl
         world, "wait_for_sessions", caller, session_ids=[named.session_id]
     )
     assert _lines(result.content)["status"] == "paused"
+    assert _lines(result.content)["note"].startswith("This turn is not finished.")
     assert other_row.state == PendingInputState.pending
 
 

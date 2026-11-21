@@ -28,6 +28,29 @@ describe("session tool rows", () => {
         expect(done.activity.done).not.toContain("this chat")
     })
 
+    it("names the agent of a running start once the host looked it up", () => {
+        const input = {agent: "new-agent-mwq8s56nt3", text: "Write a welcome email"}
+        const unknown = resolveToolDisplay(WRAPPED("start_session"), input)
+        expect(unknown.agentRef).toBe("new-agent-mwq8s56nt3")
+        const named = resolveToolDisplay(
+            WRAPPED("start_session"),
+            input,
+            undefined,
+            undefined,
+            "Email writer",
+        )
+        expect(named.activity.running).toBe("Starting a session of Email writer")
+        // The result's name wins over the looked-up one.
+        const done = resolveToolDisplay(
+            "start_session",
+            input,
+            undefined,
+            update("Email writer v2"),
+            "Email writer",
+        )
+        expect(done.activity.done).toBe("Started a session of Email writer v2")
+    })
+
     it("words a refused start as refused", () => {
         const display = resolveToolDisplay(WRAPPED("start_session"), {
             agent: "market-research",
