@@ -54,7 +54,7 @@ describe("phone tap-area classes on shared controls", () => {
         expect(hasPhoneTarget(screen.getByRole("button", {name: "Load more"}))).toBe(true)
     })
 
-    it("makes a compact row at least 44 px on a phone and the group heading a 44 px target", () => {
+    it("makes a compact row at least 44 px on a phone and keeps the heading target off the row", () => {
         render(
             <ListTable<Row>
                 columns={COLUMNS}
@@ -69,7 +69,15 @@ describe("phone tap-area classes on shared controls", () => {
         const row = screen.getByText("First").closest("[role='button']") as HTMLElement
         expect(classesOf(row).has("py-2")).toBe(true)
         expect(classesOf(row).has("max-md:min-h-11")).toBe(true)
-        expect(hasPhoneTarget(screen.getByRole("button", {name: /Today/}))).toBe(true)
+        // The heading's tap area fills its own padding and stops where the first row starts.
+        const toggle = classesOf(screen.getByRole("button", {name: /Today/}))
+        expect(toggle.has("max-md:after:-top-3.5")).toBe(true)
+        expect(toggle.has("max-md:after:-bottom-2.5")).toBe(true)
+        expect(
+            classesOf(screen.getByRole("button", {name: /Today/}).parentElement!).has(
+                "max-md:pb-2.5",
+            ),
+        ).toBe(true)
     })
 
     it("keeps the default row as it was", () => {

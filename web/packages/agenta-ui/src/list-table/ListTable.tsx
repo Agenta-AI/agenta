@@ -8,11 +8,18 @@ import {ChevronDown} from "lucide-react"
 import {Checkbox} from "../components/ui/checkbox"
 import {CollapseCaret} from "../components/ui/collapse-caret"
 import {SkeletonBlock} from "../components/ui/skeleton"
-import {PHONE_TOUCH_TARGET_CLASS} from "../components/ui/touch-target"
 import {cn} from "../components/ui/utils"
 
 import {ListTableSelectionBar} from "./ListTableSelectionBar"
 import type {ListTableColumn, ListTableProps} from "./types"
+
+/**
+ * A group heading's collapse button on a phone: a 44px tap area that fills the heading's own
+ * padding (14px above the one-line label, 10px below it) and so never reaches the row under it.
+ * Not PHONE_TOUCH_TARGET_CLASS: that one is centred, and the room above and below is not equal.
+ */
+const GROUP_TOGGLE_PHONE_TARGET =
+    "max-md:relative max-md:after:absolute max-md:after:inset-x-0 max-md:after:-bottom-2.5 max-md:after:-top-3.5 max-md:after:min-w-11 max-md:after:content-['']"
 
 /** The checkbox column `selection` adds in front of the consumer's columns. */
 const SELECT_COLUMN: ListTableColumn = {
@@ -344,7 +351,9 @@ export const ListTable = <Row,>({
                                     // inside the collapse button.
                                     <div
                                         className={cn(
-                                            "flex items-center gap-2 pb-1.5 pt-3.5",
+                                            // 10px under it on a phone, the room the collapse
+                                            // button's tap area reaches below it.
+                                            "flex items-center gap-2 pb-1.5 pt-3.5 max-md:pb-2.5",
                                             // Stuck directly under the column header, so a long
                                             // run still says which group you are reading.
                                             stickyHeader &&
@@ -361,7 +370,7 @@ export const ListTable = <Row,>({
                                                     "border-0 bg-transparent p-0 text-left font-[inherit]",
                                                     "text-[13px] text-muted-foreground hover:text-foreground",
                                                     FOCUS_RING,
-                                                    PHONE_TOUCH_TARGET_CLASS,
+                                                    GROUP_TOGGLE_PHONE_TARGET,
                                                 )}
                                             >
                                                 {/* A heading names a run, it does not wrap: a

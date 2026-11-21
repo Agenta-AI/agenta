@@ -414,8 +414,9 @@ function ConnectedRow({
                             className={
                                 canvas
                                     ? // Zero width, not hidden, so Tab still reaches the menu button;
-                                      // -ml-2 takes back the row's gap while it is closed.
-                                      "-ml-2 flex max-w-0 overflow-hidden group-focus-within/row:ml-0 group-focus-within/row:max-w-none group-hover/row:ml-0 group-hover/row:max-w-none has-[[data-state=open]]:ml-0 has-[[data-state=open]]:max-w-none [@media(hover:none)]:ml-0 [@media(hover:none)]:max-w-none"
+                                      // -ml-2 takes back the row's gap while it is closed. Touch
+                                      // does not clip, so the button keeps its 44px tap area.
+                                      "-ml-2 flex max-w-0 overflow-hidden group-focus-within/row:ml-0 group-focus-within/row:max-w-none group-hover/row:ml-0 group-hover/row:max-w-none has-[[data-state=open]]:ml-0 has-[[data-state=open]]:max-w-none [@media(hover:none)]:ml-0 [@media(hover:none)]:max-w-none [@media(hover:none)]:overflow-visible"
                                     : "contents"
                             }
                         >
