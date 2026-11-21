@@ -277,6 +277,54 @@ class RecordsDAO(RecordsDAOInterface):
             dbes = (await session.execute(stmt)).scalars().all()
             return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
 
+    async def get_ending_records(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> List[SessionRecord]:
+        async with self.engine.session() as session:
+            stmt = (
+                select(RecordDBE)
+                .where(
+                    RecordDBE.project_id == project_id,
+                    RecordDBE.session_id == session_id,
+                    RecordDBE.record_type.in_((TERMINAL_RECORD_TYPE, "error")),
+                    RecordDBE.deleted_at.is_(None),
+                    RecordDBE.quarantined_at.is_(None),
+                )
+                .order_by(*self._send_order())
+            )
+
+            dbes = (await session.execute(stmt)).scalars().all()
+            return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
+
+    async def get_ending_records_of_executions(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: List[str],
+        execution_ids: List[str],
+    ) -> List[SessionRecord]:
+        if not execution_ids:
+            return []
+        async with self.engine.session() as session:
+            stmt = (
+                select(RecordDBE)
+                .where(
+                    RecordDBE.project_id == project_id,
+                    RecordDBE.session_id.in_(session_ids),
+                    RecordDBE.turn_id.in_(execution_ids),
+                    RecordDBE.record_type.in_((TERMINAL_RECORD_TYPE, "error")),
+                    RecordDBE.deleted_at.is_(None),
+                    RecordDBE.quarantined_at.is_(None),
+                )
+                .order_by(*self._send_order())
+            )
+
+            dbes = (await session.execute(stmt)).scalars().all()
+            return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
+
     @staticmethod
     def _send_order():
         # The order the runner sent the records, for transcript reads. `sequence` is commit
@@ -322,6 +370,7 @@ class RecordsDAO(RecordsDAOInterface):
         offset: int,
         limit: int,
         through_sequence: int,
+        after_sequence: int = 0,
     ) -> SessionRecordsPage:
         async with self.engine.session() as session:
             stmt = (
@@ -334,6 +383,10 @@ class RecordsDAO(RecordsDAOInterface):
                     or_(
                         RecordDBE.sequence.is_(None),
                         RecordDBE.sequence <= through_sequence,
+                    )
+                    if after_sequence == 0
+                    else RecordDBE.sequence.between(
+                        after_sequence + 1, through_sequence
                     ),
                 )
                 .order_by(*self._send_order())

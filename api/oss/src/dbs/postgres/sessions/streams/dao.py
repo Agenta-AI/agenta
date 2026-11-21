@@ -519,6 +519,10 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
                     SESSION_CALLING_SESSION_AGENT_ID_TAG_KEY
                 ].astext.in_([str(agent_id) for agent_id in calling_session.agent_ids])
             )
+        if filter.created_after is not None:
+            stmt = stmt.where(SessionStreamDBE.created_at > filter.created_after)
+        if filter.created_before is not None:
+            stmt = stmt.where(SessionStreamDBE.created_at < filter.created_before)
         term = filter.search.strip() if filter.search else ""
         if term:
             # Escape LIKE metacharacters so a literal `%`/`_` in the search term
