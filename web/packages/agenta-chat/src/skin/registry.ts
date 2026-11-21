@@ -373,10 +373,20 @@ const withFailure = (activity: ToolActivity): ToolActivity => ({
     failed: tActivity("chat.activity.actionFailed", {action: activity.running}),
 })
 
-/** The call names its agent by a slug or an id, never by its name, so the row waits for the
- * result to name it. A refusal names no agent. */
-const describeStartSession = (_input: unknown, output: unknown): ToolActivity => {
-    const agent = sessionAgentName(output) ?? tNow("chat.toolActivity.termWorkflow")
+/** The slug or id of the agent a `start_session` call names. */
+const startSessionAgentRef = (input: unknown): string | undefined => {
+    const agent = isRecord(input) ? input.agent : undefined
+    return typeof agent === "string" && agent.trim() ? agent.trim() : undefined
+}
+
+/** The call names its agent by a slug or an id, never by its name: the row shows the name the
+ * result gives, else the name the host looked up, else "an agent". A refusal names no agent. */
+const describeStartSession = (
+    _input: unknown,
+    output: unknown,
+    agentName?: string,
+): ToolActivity => {
+    const agent = sessionAgentName(output) ?? agentName ?? tNow("chat.toolActivity.termWorkflow")
     return {
         running: tNow("chat.toolActivity.startSessionRunning", {agent}),
         done: tNow("chat.toolActivity.startSessionDone", {agent}),
@@ -455,7 +465,7 @@ const DEFAULT_TOOL_DISPLAY: Record<string, DefaultEntry> = {
     },
     create_agent: {sentence: "createAgent", verbId: "create", summary: summarizeAgentCall},
     edit_agent_config: {sentence: "editAgent", verbId: "commit", summary: summarizeAgentCall},
-    start_session: {icon: "agent", describe: describeStartSession},
+    start_session: {icon: "agent", describe: describeStartSession, agentRef: startSessionAgentRef},
     send_session_message: {describe: describeSendSessionMessage},
     wait_for_sessions: {describe: describeWaitForSessions},
     cancel_session: {describe: describeCancelSession},
@@ -985,6 +995,7 @@ export const resolveToolDisplay = (
     input?: unknown,
     appName?: string,
     output?: unknown,
+    agentName?: string,
 ): ResolvedToolDisplay => {
     // Canonical for the override lookup, raw for the shape: the same platform tool must get its
     // wording under every harness, while a third-party MCP tool still reads as an MCP tool.
@@ -1007,7 +1018,8 @@ export const resolveToolDisplay = (
     // built-in defaults never set either; they word a call through `activity` instead.
     const label = override?.label ?? parsed.label
     // Whichever sentence wins answers "is the app already in it?", which decides the chip.
-    const described = override?.describe?.(input, output)
+    const described = override?.describe?.(input, output, agentName)
+    const agentRef = override?.agentRef?.(input)
     const built =
         (described ? {activity: described, namedApp: false} : null) ??
         overrideActivity(override, ownApp) ??
@@ -1029,6 +1041,7 @@ export const resolveToolDisplay = (
         verb: built?.verb,
         frame: built?.frame ?? (built?.verb ? plainFrame(built.verb) : undefined),
         icon: override?.icon ?? resolveActivityIcon(kind, canonical),
+        ...(agentRef ? {agentRef} : {}),
     }
 }
 

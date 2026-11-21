@@ -108,7 +108,55 @@ def test_a_paused_update_lists_what_it_waits_for():
 def test_a_still_running_update():
     text = render_child_turn(_result(status=ChildTurnStatus.running))
 
-    assert text == f"{HEADER}\nstatus: running\nturn_id: {TURN}"
+    assert text == (
+        f"{HEADER}\nstatus: running\n"
+        "note: This turn is not finished. Do not report its work as done or tested. "
+        f"It still runs.\nturn_id: {TURN}"
+    )
+
+
+def test_a_turn_that_waits_for_an_approval_says_it_is_not_finished_and_why():
+    text = render_child_turn(
+        _result(
+            status=ChildTurnStatus.paused,
+            waiting_for=[ChildTurnWaitingFor(interaction_id="g", kind="user_approval")],
+        )
+    )
+
+    assert "status: paused\nnote: This turn is not finished. " in text
+    assert (
+        "note: This turn is not finished. Do not report its work as done or tested. "
+        "It waits for a person to approve a tool call. Only a person can answer it."
+    ) in text
+
+
+def test_a_turn_that_waits_for_a_question_says_so():
+    text = render_child_turn(
+        _result(
+            status=ChildTurnStatus.paused,
+            waiting_for=[ChildTurnWaitingFor(interaction_id="q", kind="user_input")],
+        )
+    )
+
+    assert "It waits for a person to answer a question." in text
+
+
+def test_a_turn_that_ended_without_completing_says_its_work_is_not_done():
+    for status, how in (
+        (ChildTurnStatus.failed, "failed"),
+        (ChildTurnStatus.cancelled, "was cancelled"),
+        (ChildTurnStatus.lost, "was lost"),
+    ):
+        text = render_child_turn(_result(status=status))
+
+        assert (
+            f"note: This turn {how} before it finished its work. "
+            "Do not report its work as done or tested."
+        ) in text
+
+
+def test_a_completed_turn_has_no_note():
+    assert "note:" not in render_child_turn(_result(last_message="Done."))
 
 
 def test_a_wait_with_one_ended_and_one_running_child_gives_two_marked_blocks():
