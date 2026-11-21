@@ -10,7 +10,7 @@ export const EndTimeCell = ({sessionId}: {sessionId: string}) => {
     const {endTime} = useSessionAtomValue(sessionTimeRangeAtomFamily(sessionId))
 
     if (isLoading) return <SkeletonBlock />
-    if (!endTime) return <>-</>
+    if (!endTime) return <>—</>
 
     return <TimestampCell timestamp={endTime} />
 }

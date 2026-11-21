@@ -13,6 +13,7 @@ import {testsetQueryAtomFamily} from "@agenta/entities/testset"
 import {workflowArtifactQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {atom, useAtomValue} from "jotai"
 
+import {metricDisplayLabel} from "../../metricLabel"
 import type {OverviewMetric, OverviewNames} from "../../overview/useRunOverview"
 
 /** One run of a comparison, with everything its overview column, radar series and bars need. */
@@ -56,13 +57,17 @@ export function useCompareOverview(runIds: readonly string[]): CompareRunOvervie
                     slot,
                     header,
                     references,
-                    metrics: catalog.map((entry) => ({
-                        ...entry,
-                        id: compareMetricKey(entry),
-                        evaluatorName: entry.evaluatorId
+                    metrics: catalog.map((entry) => {
+                        const evaluatorName = entry.evaluatorId
                             ? (evaluators[entry.evaluatorId] ?? entry.evaluatorSlug)
-                            : null,
-                    })),
+                            : null
+                        return {
+                            ...entry,
+                            id: compareMetricKey(entry),
+                            label: metricDisplayLabel(entry.label, evaluatorName),
+                            evaluatorName,
+                        }
+                    }),
                     metricsPending: metricsQuery.isPending,
                     metricsError: metricsQuery.isError ? metricsQuery.error : null,
                     names: {

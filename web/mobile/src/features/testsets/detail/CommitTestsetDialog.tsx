@@ -89,7 +89,7 @@ export const CommitTestsetDialog = ({
                 className={`max-h-[90vh] overflow-y-auto ${preview ? "sm:max-w-4xl" : "sm:max-w-xl"}`}
             >
                 <DialogHeader>
-                    <DialogTitle>Commit Changes</DialogTitle>
+                    <DialogTitle>Commit changes</DialogTitle>
                     <DialogDescription>
                         This will create a new revision of your test set.
                     </DialogDescription>
@@ -136,6 +136,7 @@ export const CommitTestsetDialog = ({
                                     original={preview.original}
                                     modified={preview.modified}
                                     enableFolding
+                                    computeOnMountOnly
                                 />
                             </div>
                         </div>

@@ -178,8 +178,8 @@ describe("app evaluations section", () => {
 
     it("No runs shows the kind's empty state without a start button", async () => {
         await mount("human")
-        expect(host.textContent).toContain("Get Started with Human Evaluation")
-        expect(host.textContent).toContain("Learn More")
+        expect(host.textContent).toContain("Get started with human evaluation")
+        expect(host.textContent).toContain("Learn more")
         const labels = [...host.querySelectorAll("button")].map((b) => b.textContent?.trim())
         expect(labels).not.toContain("Create Evaluation")
         expect(labels).not.toContain("Run Evaluation")
@@ -204,7 +204,7 @@ describe("app evaluations section", () => {
         http.post.mockRejectedValue(new Error("boom"))
         await mount("auto")
         expect(host.textContent).toContain("Could not load evaluations")
-        expect(host.textContent).not.toContain("Get Started")
+        expect(host.textContent).not.toContain("Get started")
         const retry = [...host.querySelectorAll("button")].find((b) =>
             /try again/i.test(b.textContent ?? ""),
         )

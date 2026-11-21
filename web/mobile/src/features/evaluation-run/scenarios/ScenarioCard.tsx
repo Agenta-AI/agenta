@@ -4,8 +4,8 @@ import {StatusTag} from "@/components/StatusTag"
 
 import {RunStatusTag} from "../overview/RunStatusTag"
 
-import {ScenarioCellValue} from "./ScenarioCellValue"
 import {scoreText, type ScenarioRow} from "./scenarioColumns"
+import {ScenarioLabeledValue} from "./ScenarioLabeledValue"
 import {ScenarioStepError} from "./states/ScenarioStepError"
 import {ScenarioValuesError} from "./states/ScenarioValuesError"
 
@@ -56,9 +56,9 @@ export const ScenarioCard = ({
                 <span className="text-sm font-medium tabular-nums">#{row.index}</span>
                 <RunStatusTag status={row.scenario.status ?? null} />
             </div>
-            {input ? <ScenarioCellValue cell={input} lines={1} /> : null}
+            {input ? <ScenarioLabeledValue cell={input} lines={1} /> : null}
             {row.valuesFailed ? <ScenarioValuesError onRetry={onRetry} /> : null}
-            {output && !row.valuesFailed ? <ScenarioCellValue cell={output} lines={2} /> : null}
+            {output && !row.valuesFailed ? <ScenarioLabeledValue cell={output} lines={2} /> : null}
             {errors.map((error) => (
                 <ScenarioStepError key={error.key} message={error.message} />
             ))}

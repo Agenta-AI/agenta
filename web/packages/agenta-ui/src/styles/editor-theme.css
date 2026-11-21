@@ -916,3 +916,13 @@ pre::-webkit-scrollbar-thumb {
     color: var(--ant-color-primary);
     text-decoration: underline;
 }
+
+/* Read-only message editors (a revision's config, a run's prompt): size to the text, and show
+   the message as text, not as markdown source in a code face. */
+.agenta-rich-text-editor.disabled .editor-input {
+    min-height: 0;
+}
+.agenta-rich-text-editor.disabled .editor-input.markdown-view .editor-code {
+    font-family: inherit;
+    font-size: inherit;
+}

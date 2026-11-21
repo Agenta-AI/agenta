@@ -118,3 +118,23 @@ describe("the revision the commit just created", () => {
         expect(queryClient.getQueryData(VARIANT_KEY)).toBeUndefined()
     })
 })
+
+describe("the app's latest revision after a commit", () => {
+    const LATEST_KEY = ["workflows", "latestRevision", WORKFLOW, "proj-1"]
+
+    it("is the new revision at once, so the Last modified tag moves to it", async () => {
+        queryClient.setQueryData(LATEST_KEY, {
+            id: "old-revision",
+            workflow_id: WORKFLOW,
+            version: 8,
+        })
+        await store.set(commitWorkflowRevisionAtom, {revisionId: SOURCE})
+        expect(queryClient.getQueryData<{id: string}>(LATEST_KEY)?.id).toBe("new-revision")
+    })
+
+    it("keeps a later latest revision than the one committed", async () => {
+        queryClient.setQueryData(LATEST_KEY, {id: "later", workflow_id: WORKFLOW, version: 12})
+        await store.set(commitWorkflowRevisionAtom, {revisionId: SOURCE})
+        expect(queryClient.getQueryData<{id: string}>(LATEST_KEY)?.id).toBe("later")
+    })
+})

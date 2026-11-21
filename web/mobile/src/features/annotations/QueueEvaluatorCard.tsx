@@ -92,7 +92,7 @@ export const QueueEvaluatorCard = ({revisionId}: {revisionId: string}) => {
                     >
                         {name}
                     </span>
-                    {evaluator?.version ? <Badge>{`V${evaluator.version}`}</Badge> : null}
+                    {evaluator?.version ? <Badge>{`v${evaluator.version}`}</Badge> : null}
                     {isHuman ? <Badge variant="purple">Human</Badge> : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">

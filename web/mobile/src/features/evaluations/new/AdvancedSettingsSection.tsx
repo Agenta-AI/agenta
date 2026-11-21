@@ -2,12 +2,13 @@ import {Button, Field, InputNumber} from "@agenta/ui/ui"
 
 import {
     CONCURRENCY_FIELDS,
+    concurrencyError,
     isDefaultConcurrency,
     type ConcurrencyField,
     type DraftConcurrency,
 } from "./newEvaluationDraft"
 
-/** The concurrency settings of an auto run. A cleared field is an error and blocks the start. */
+/** The concurrency settings of an auto run. A cleared or too small field is an error and blocks the start. */
 export const AdvancedSettingsSection = ({
     concurrency,
     disabled,
@@ -34,15 +35,15 @@ export const AdvancedSettingsSection = ({
                 </Button>
             )}
         </div>
-        {CONCURRENCY_FIELDS.map(({field, label, help}) => (
+        {CONCURRENCY_FIELDS.map(({field, label, help, min}) => (
             <Field
                 key={field}
                 label={label}
                 tooltip={help}
-                error={concurrency[field] === null ? "This field is required" : undefined}
+                error={concurrencyError(field, concurrency[field]) ?? undefined}
             >
                 <InputNumber
-                    min={0}
+                    min={min}
                     step={1}
                     value={concurrency[field]}
                     disabled={disabled}

@@ -23,5 +23,6 @@
     "saveFailed": "Échec de la mise à jour des annotations",
     "saveSuccess": "Annotations mises à jour avec succès",
     "savePending": "Annotations enregistrées. Elles peuvent mettre un instant à apparaître.",
-    "required": "Obligatoire"
+    "required": "Obligatoire",
+    "noAnnotationsHint": "Choisissez un évaluateur pour noter cette trace."
 }

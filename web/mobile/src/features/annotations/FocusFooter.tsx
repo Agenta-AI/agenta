@@ -88,13 +88,13 @@ export const FocusFooter = ({
                                 variant="outline"
                                 loading={isExporting}
                                 disabled={Boolean(addDisabledReason)}
-                                aria-label={wide ? undefined : "Add to Testset"}
+                                aria-label={wide ? undefined : "Add to test set"}
                                 onClick={() =>
                                     openAddToTestset({scope: "single", scenarioIds: [scenarioId]})
                                 }
                             >
                                 <Plus aria-hidden size={13} />
-                                {wide ? "Add to Testset" : null}
+                                {wide ? "Add to test set" : null}
                             </LoadingButton>
                         </span>
                     </SimpleTooltip>

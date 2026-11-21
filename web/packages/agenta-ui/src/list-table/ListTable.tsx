@@ -167,8 +167,16 @@ export const ListTable = <Row,>({
         // both sides, and the hover fill ends in a square edge instead of a rounded one.
         // A grid never scrolls sideways — its columns are however many fit — so it keeps the
         // wrapper (the headings align to it) and drops the scroller.
-        <div className={cn("-mx-3 px-3", !stickyHeader && !isGrid && "overflow-x-auto", className)}>
-            <div style={isGrid ? undefined : {minWidth}}>
+        // `relative` contains the absolute sr-only header cells, or they widen the whole window.
+        <div
+            className={cn(
+                "relative -mx-3 px-3",
+                !stickyHeader && !isGrid && "overflow-x-auto",
+                className,
+            )}
+        >
+            {/* An empty list has no columns to fit: its message takes the page width. */}
+            <div style={isGrid || (isEmpty && !loading) ? undefined : {minWidth}}>
                 {isGrid ? null : (
                     <div
                         role="row"

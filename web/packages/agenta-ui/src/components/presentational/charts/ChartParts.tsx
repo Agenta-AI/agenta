@@ -160,34 +160,37 @@ export interface ChartTable {
 }
 
 function VisuallyHiddenDataTable({caption, table}: {caption: string; table: ChartTable}) {
+    // A table ignores the sr-only 1px width, so the div hides it.
     return (
-        <table className="sr-only">
-            <caption>{caption}</caption>
-            <thead>
-                <tr>
-                    {table.columns.map((column, index) => (
-                        <th key={index} scope="col">
-                            {column}
-                        </th>
-                    ))}
-                </tr>
-            </thead>
-            <tbody>
-                {table.rows.map((row) => (
-                    <tr key={row.key}>
-                        {row.cells.map((cell, index) =>
-                            index === 0 ? (
-                                <th key={index} scope="row">
-                                    {cell}
-                                </th>
-                            ) : (
-                                <td key={index}>{cell}</td>
-                            ),
-                        )}
+        <div className="sr-only">
+            <table>
+                <caption>{caption}</caption>
+                <thead>
+                    <tr>
+                        {table.columns.map((column, index) => (
+                            <th key={index} scope="col">
+                                {column}
+                            </th>
+                        ))}
                     </tr>
-                ))}
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    {table.rows.map((row) => (
+                        <tr key={row.key}>
+                            {row.cells.map((cell, index) =>
+                                index === 0 ? (
+                                    <th key={index} scope="row">
+                                        {cell}
+                                    </th>
+                                ) : (
+                                    <td key={index}>{cell}</td>
+                                ),
+                            )}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
     )
 }
 

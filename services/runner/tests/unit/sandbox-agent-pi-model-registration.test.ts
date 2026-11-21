@@ -485,6 +485,35 @@ describe("models newer than the pinned Pi catalog", () => {
     }
   });
 
+  // Hy4 Flash is an OpenRouter default that Pi 1.5.2 does not carry. Without an entry it would
+  // register as a text-only 128K model and lose tool-result images.
+  it("registers Hy4 Flash with Hy4's image input and context, at its own price", async () => {
+    const registry = await loadPiBuiltinRegistry();
+    assert.ok(registry);
+    const builtin:
+      | { input?: unknown; reasoning?: boolean; contextWindow?: number; maxTokens?: number }
+      | undefined = registry.models("openrouter").find((model) => model.id === "tencent/hy4");
+    assert.ok(builtin);
+    const plan = buildPiModelRegistrationPlan(
+      piRequest("openrouter/tencent/hy4-flash"),
+      registry,
+    );
+    assert.equal(plan?.builtinProvider, "openrouter");
+    const entry = plan?.models[0];
+    assert.equal(entry?.id, "tencent/hy4-flash");
+    assert.deepEqual(entry?.input, builtin.input);
+    assert.ok((entry?.input as string[] | undefined)?.includes("image"));
+    assert.equal(entry?.reasoning, builtin.reasoning);
+    assert.equal(entry?.contextWindow, builtin.contextWindow);
+    assert.equal(entry?.maxTokens, builtin.maxTokens);
+    assert.deepEqual(pickRates(entry?.cost as Record<string, unknown>), {
+      input: 0.035,
+      output: 0.1405,
+      cacheRead: 0.0015,
+      cacheWrite: 0,
+    });
+  });
+
   it("gives an unknown anthropic model no fallback list against the real table", async () => {
     const registry = await loadPiBuiltinRegistry();
     assert.ok(registry);

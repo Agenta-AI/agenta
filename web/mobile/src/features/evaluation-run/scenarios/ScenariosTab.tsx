@@ -13,6 +13,7 @@ import {alignComparedRow} from "../compare/scenarios/alignComparedRow"
 import {CompareRowRun} from "../compare/scenarios/CompareRowRun"
 import {CompareScenarioMissing} from "../compare/scenarios/CompareScenarioMissing"
 import {useComparedScenarios} from "../compare/scenarios/useComparedScenarios"
+import {metricDisplayLabel} from "../metricLabel"
 
 import {ScenarioAnnotateButton} from "./ScenarioAnnotateButton"
 import {ScenarioCard} from "./ScenarioCard"
@@ -78,7 +79,9 @@ function cellLabel(cell: ScenarioTableCell, labels: Record<string, string>): str
     if (cell.type === "metric") return cell.label
     const {group} = cell.group
     const groupLabel = labels[group.key] ?? group.label
-    return cell.type === "evaluator" ? `${groupLabel} · ${cell.name}` : groupLabel
+    return cell.type === "evaluator"
+        ? `${groupLabel} · ${metricDisplayLabel(cell.name, groupLabel)}`
+        : groupLabel
 }
 
 /**

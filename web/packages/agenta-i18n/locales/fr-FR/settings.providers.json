@@ -21,6 +21,7 @@
     "orgEmptyBody": "Connectez un fournisseur ci-dessous. Choisissez ensuite quels projets peuvent l’utiliser.",
     "orgEmptyTitle": "Aucune connexion d’organisation pour le moment",
     "orgLoadFailed": "Impossible de charger les connexions de l’organisation.",
+    "projectConnectionsLoadFailed": "Impossible de charger les connexions du projet.",
     "removeFailed": "Agenta n’a pas pu retirer {{name}}. Réessayez.",
     "signInAgain": "Se reconnecter",
     "vertexFields": "Projet, emplacement et identifiants"

@@ -152,16 +152,17 @@ function ChildPanelContent({
         <div data-testid={POPOVER_CASCADER_TEST_IDS.childPanel} style={panelStyle}>
             {/* Child panel header */}
             {multiSelect && (
-                <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-start justify-between gap-2">
-                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-center justify-between gap-2">
+                    {/* One line, so the header keeps the left panel's height. */}
+                    <div className="flex min-w-0 flex-1 items-baseline gap-2">
                         <span
-                            className="block truncate text-[12px] font-medium"
+                            className="block min-w-0 truncate text-[12px] font-medium"
                             title={parentLabel}
                         >
                             {parentLabel}
                         </span>
                         {multiSelect && (
-                            <span className="text-colorTextSecondary text-[12px]">
+                            <span className="shrink-0 whitespace-nowrap text-colorTextSecondary text-[12px]">
                                 {selectedCount} of {filteredItems.length} selected
                             </span>
                         )}
@@ -962,6 +963,8 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                 <PopoverContent
                     side={PLACEMENT_MAP[placement].side}
                     align={PLACEMENT_MAP[placement].align}
+                    // Keep the panel off the window edge; the child column widens it on hover.
+                    collisionPadding={8}
                     className={popupClassName ? `p-0 ${popupClassName}` : "p-0"}
                 >
                     {content}
