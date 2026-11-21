@@ -379,8 +379,13 @@ async def test_bearer_without_parameters_ignores_a_state_cached_by_old_code(worl
 async def test_bearer_without_parameters_and_no_membership_at_all_is_refused(world):
     # Only the profile and the project list are open to a person without an organization.
     world.state.oldest_organization = None
-    with pytest.raises(UnauthorizedException):
+    with pytest.raises(HTTPException) as error:
         await _bearer(world, path="/organizations/")
+    assert error.value.status_code == 401
+    # Not cached, so the profile and the project list still answer afterwards.
+    assert not _denied(world)
+    state = await _bearer(world, path="/profile")
+    assert state.project_id is None
 
 
 # --- API key ----------------------------------------------------------------- #

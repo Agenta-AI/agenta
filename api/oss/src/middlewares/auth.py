@@ -1122,7 +1122,9 @@ async def verify_bearer_token(
                     request.state.organization_id = None
                     request.state.organization_name = None
                     return
-                raise NoResultFound(f"No organization membership for user {user_id}")
+                # Not cached: a cached denial would also refuse the two reads above.
+                _deny("membership", "no organization membership")
+                raise HTTPException(status_code=401, detail="Unauthorized")
 
             default = await db_manager.fetch_default_project(
                 organization_id=default_ref,
