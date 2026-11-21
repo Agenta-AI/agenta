@@ -31,7 +31,6 @@ THE LATE-STOP GUARDS. A Stop that arrives after its turn ended must not kill the
     which is exact.
 """
 
-import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union
 from uuid import UUID, uuid4
@@ -633,6 +632,7 @@ class SessionCommandsService:
         project_id: UUID,
         session_id: str,
         execution_id: str,
+        transaction: Optional[Any] = None,
     ) -> bool:
         """True when a Steer, not a Stop, cancelled this execution.
 
@@ -642,6 +642,7 @@ class SessionCommandsService:
             project_id=project_id,
             session_id=session_id,
             target_turn_id=execution_id,
+            transaction=transaction,
         )
         steer_input_id = ((command.data or {}) if command else {}).get("steer_input_id")
         return (
@@ -1866,21 +1867,20 @@ class SessionCommandsService:
             transaction=transaction,
         ):
             return False
-        # In its own task: `engine.session()` hands every caller in one task the same
-        # session and commits and closes it on exit, so the rule's reads in this task
-        # would commit the turn end's transaction early and drop the input lock. A new
-        # task reads through its own session and sees committed rows only.
-        return await asyncio.create_task(
-            server_input_waits(
-                streams_dao=self._streams_dao,
-                executions_dao=self._executions,
-                inputs_dao=self._inputs,
-                turns_dao=self._turns,
-                cancelled_by_steer=self.cancelled_by_steer,
-                project_id=project_id,
-                session_id=session_id,
-                turns_without_person_limit=env.agenta.sessions.turns_without_person_limit,
-            )
+        # The rule reads on the turn end's transaction. A read through `engine.session()`
+        # in this task would commit that transaction early and drop the input lock, and
+        # a read in another task would wait for a second pooled connection while this
+        # one is held, which never comes when the pool is full.
+        return await server_input_waits(
+            streams_dao=self._streams_dao,
+            executions_dao=self._executions,
+            inputs_dao=self._inputs,
+            turns_dao=self._turns,
+            cancelled_by_steer=self.cancelled_by_steer,
+            project_id=project_id,
+            session_id=session_id,
+            turns_without_person_limit=env.agenta.sessions.turns_without_person_limit,
+            transaction=transaction,
         )
 
     async def _promote_next_input(
