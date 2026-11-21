@@ -27,11 +27,11 @@ import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {AutosizeTextarea, Button, Checkbox, LoadingButton} from "@agenta/ui/ui"
 import {CaretRight, ShieldCheck} from "@phosphor-icons/react"
 
-import {useAgentDisplayName} from "../hooks/useAgentDisplayName"
+import {useAgentDisplayName, useAgentDisplayNames} from "../hooks/useAgentDisplayName"
 import {useAlwaysAllowTool} from "../hooks/useAlwaysAllowTool"
 import {useChangeVersions} from "../hooks/useChangeVersions"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
-import {describeApproval, describeBatchItems} from "../model/approvalPreview"
+import {batchAgentRefs, describeApproval, describeBatchItems} from "../model/approvalPreview"
 import type {PendingApproval} from "../model/approvals"
 import {changeCallState} from "../model/changeCallState"
 
@@ -198,16 +198,22 @@ export const ApprovalCard = ({
         return previews.every((one) => one.changes?.length) ? previews : null
         // Keyed on the ids and the preview arrivals: they are what change a batch's description.
     }, [batched, batchKey, homeSlug])
+    // Each batch row that names an agent names its own agent, not the first call's.
+    const batchRefs = useMemo(
+        () => (batched ? batchAgentRefs(approvals, homeSlug) : []),
+        [batched, batchKey, homeSlug],
+    )
+    const batchAgentNames = useAgentDisplayNames(batchRefs)
     const items = useMemo(
         () =>
             grouped
                 ? []
                 : batched
-                  ? describeBatchItems(approvals, homeSlug)
+                  ? describeBatchItems(approvals, homeSlug, batchAgentNames)
                   : changes
                     ? []
                     : (preview?.items ?? []),
-        [grouped, batched, approvals, homeSlug, preview, changes],
+        [grouped, batched, approvals, homeSlug, preview, changes, batchAgentNames],
     )
 
     // "Saves as v{base + 1}", and the conflict state when a newer version landed after the base.
