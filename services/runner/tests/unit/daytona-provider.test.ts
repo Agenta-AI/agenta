@@ -132,6 +132,21 @@ describe("Daytona provider create", () => {
     assert.equal(provider.previewToken("3000-sb-new.proxy.test")?.value, "token-2");
   });
 
+  it("returns the sandbox id when the preview link fails, and fails the getUrl instead", async () => {
+    // The SDK deletes a sandbox whose `getUrl` fails, but it never learns the id of a failed create.
+    const sandbox = fakeSandbox("sb-new", {
+      getPreviewLink: async () => {
+        throw new Error("preview link down");
+      },
+    });
+    const client = fakeClient(sandbox);
+    const provider = daytonaWithLifecycle({}, { client: client as any });
+
+    assert.equal(await provider.create(), "sb-new");
+    await assert.rejects(() => provider.getUrl("sb-new"), /preview link down/);
+    assert.deepEqual(sandbox.calls, [`exec:${daemonStartCommand(3000)}`]);
+  });
+
   it("keeps the daemon start command equal to sandbox-agent's own", async () => {
     // sandbox-agent does not export `buildServerStartCommand`, so load it from its dist chunk.
     const dist = join(import.meta.dirname, "../../node_modules/sandbox-agent/dist");
