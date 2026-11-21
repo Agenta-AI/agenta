@@ -23,7 +23,6 @@ import {getCollapseLabel} from "@agenta/ui/components/presentational"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {Button} from "@agenta/ui/ui"
 import {
-    ArrowBendDownRight,
     CaretUp,
     File as FileIcon,
     PencilSimple,
@@ -35,9 +34,11 @@ import {
 } from "@phosphor-icons/react"
 import type {FileUIPart} from "ai"
 
-import {isServerInput, type ChildUpdate, type ChildUpdateStatus} from "../assets/childUpdate"
+import {isServerInput, type ChildUpdate} from "../assets/childUpdate"
 import {fileKind, filePartName} from "../assets/files"
 import type {QueuedMessage} from "../hooks/useAgentChatQueue"
+
+import {ChildUpdateNotice} from "./ChildUpdateNotice"
 
 /** The dock family's surface — same geometry as the approval and connect cards. */
 const CARD_SURFACE =
@@ -113,49 +114,6 @@ const QuoteTile = ({quotes}: {quotes: QuotedExcerpt[]}) => {
     )
 }
 
-/** One key per status, so each label is a whole phrase in every language. */
-const CHILD_UPDATE_STATUS_KEYS = {
-    running: "chat.queuedMessagesDock.childUpdateRunning",
-    paused: "chat.queuedMessagesDock.childUpdatePaused",
-    completed: "chat.queuedMessagesDock.childUpdateCompleted",
-    failed: "chat.queuedMessagesDock.childUpdateFailed",
-    cancelled: "chat.queuedMessagesDock.childUpdateCancelled",
-    lost: "chat.queuedMessagesDock.childUpdateLost",
-} as const satisfies Record<ChildUpdateStatus, string>
-
-/**
- * A child update, as a notice rather than as the person's message: it names the child session
- * (the host renders the link) and what the child did. Read from the row's structured part only;
- * its message text is for the model and never shows here.
- */
-const ChildUpdateNotice = ({
-    update,
-    renderChildSession,
-}: {
-    update: ChildUpdate | undefined
-    renderChildSession?: (update: ChildUpdate) => ReactNode
-}) => {
-    const t = useT(chatQueuedMessagesDockCatalog)
-    const label = t("chat.queuedMessagesDock.childUpdateFrom")
-    const link = update && renderChildSession ? renderChildSession(update) : null
-    return (
-        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-xs">
-            {/* Labelled only beside the link; without one, the text below says the same. */}
-            <ArrowBendDownRight
-                size={12}
-                {...(link ? {role: "img", "aria-label": label} : {"aria-hidden": true})}
-                className="shrink-0 text-colorTextTertiary"
-            />
-            <span className="min-w-0 truncate text-colorText">{link ?? label}</span>
-            {update?.status ? (
-                <span className="shrink-0 text-colorTextSecondary">
-                    {t(CHILD_UPDATE_STATUS_KEYS[update.status])}
-                </span>
-            ) : null}
-        </span>
-    )
-}
-
 const Row = ({
     message,
     editing,
@@ -198,6 +156,7 @@ const Row = ({
                 <ChildUpdateNotice
                     update={message.childUpdate}
                     renderChildSession={renderChildSession}
+                    className="flex-1"
                 />
             ) : (
                 <>

@@ -172,7 +172,7 @@ export const LiveConversation = ({
     // payload is identical, so reading it higher up re-rendered the config pane and its drawers.
     const livenessUpdatedAt = useLivenessUpdatedAt(projectId)
     const startBlankSession = useStartBlankSession(`/w/${workspaceId}/p/${projectId}`)
-    // A child update row in the queue names its child session and links it.
+    // A child update, in the queue or the transcript, names its child session and links it.
     const renderChildSession = useCallback(
         (update: ChildUpdate) => (
             <ChildSessionLink
@@ -959,6 +959,7 @@ export const LiveConversation = ({
                     // answer a tool or re-run a turn (retry rides rewind) either.
                     onClientToolOutput={locked ? undefined : conversation.sendToolOutput}
                     onRewind={locked ? undefined : handleRewind}
+                    renderChildSession={renderChildSession}
                 />
             </ContentRail>
         )

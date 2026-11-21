@@ -1,5 +1,6 @@
-import {useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import type {ChildUpdate} from "@agenta/chat/assets"
 import {
     buildTurnViewModels,
     createExecutedToolIdentityCache,
@@ -23,6 +24,7 @@ import {AppShell} from "../nav/AppShell"
 import {useLivenessPoll} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
+import {ChildSessionLink} from "./ChildSessionLink"
 import {conversationKey} from "./conversationKey"
 import {LiveConversation} from "./LiveConversation"
 import {ReadOnlyComposerNotice} from "./ReadOnlyComposerNotice"
@@ -323,6 +325,17 @@ const ReplayScreen = ({
     )
     // Keyed on `turns` (new array per poll) so streamed growth also re-pins.
     const autoScroll = useTranscriptAutoScroll(turns, sessionId)
+    // A child update row names its child session and links it.
+    const renderChildSession = useCallback(
+        (update: ChildUpdate) => (
+            <ChildSessionLink
+                sessionId={update.sessionId}
+                projectId={projectId}
+                base={`/w/${workspaceId}/p/${projectId}`}
+            />
+        ),
+        [projectId, workspaceId],
+    )
 
     let body
     if (state === "loading") {
@@ -343,6 +356,7 @@ const ReplayScreen = ({
                     remoteRunning={running}
                     waitingOnUser={pendingCount > 0}
                     pending={running && !!visibleTurns[visibleTurns.length - 1]?.isUser}
+                    renderChildSession={renderChildSession}
                 />
             </ContentRail>
         )
