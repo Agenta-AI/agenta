@@ -1068,7 +1068,13 @@ class TestTheGeneralPathNeverRunsAgentPolicy:
     ):
         # The repeated list name before its own selector: one model made it in 12 percent
         # of its targets. A program that writes it wants the precise refusal instead.
-        base = {"parameters": {"agent": {"skills": [{"name": "qa", "body": "old"}]}}}
+        base = {
+            "parameters": {
+                "agent": {
+                    "skills": [{"name": "qa", "description": "QA.", "body": "old"}]
+                }
+            }
+        }
         delta = _commit(
             operations=[
                 {

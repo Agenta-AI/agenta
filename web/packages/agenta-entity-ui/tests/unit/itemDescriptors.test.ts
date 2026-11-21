@@ -102,9 +102,9 @@ describe("skillCommandName", () => {
 })
 
 describe("describeSkill", () => {
-    it("titles an inline skill from its kebab name, in the sans font", () => {
+    it("names an inline skill by its kebab name as written, in the sans font", () => {
         const d = describeSkill({name: "laptop-replacement-policy", body: "..."})
-        expect(d.name).toBe("Laptop Replacement Policy")
+        expect(d.name).toBe("laptop-replacement-policy")
         expect(d.monoName).toBe(false)
         expect(d.tags).toEqual([])
     })
@@ -114,16 +114,16 @@ describe("describeSkill", () => {
             "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__web-search"}}},
             name: "web-search",
         })
-        expect(d.name).toBe("Web Search")
+        expect(d.name).toBe("web-search")
         expect(d.tags).toEqual(["Agenta"])
     })
 
-    it("titles a registry reference from its sibling name, not the suffixed slug", () => {
+    it("names a registry reference by its sibling name, not the suffixed slug", () => {
         const d = describeSkill({
             "@ag.embed": {"@ag.references": {workflow: {slug: "pr-review-9c1d"}}},
             name: "pr-review",
         })
-        expect(d.name).toBe("PR Review")
+        expect(d.name).toBe("pr-review")
     })
 
     it("strips the built-in prefix from a sibling name that carries it", () => {
@@ -131,13 +131,13 @@ describe("describeSkill", () => {
             "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__web-search"}}},
             name: "__ag__web-search",
         })
-        expect(d.name).toBe("Web Search")
+        expect(d.name).toBe("web-search")
     })
 
-    it("titles a built-in known only by its storage slug without the prefix", () => {
+    it("names a built-in known only by its storage slug without the prefix", () => {
         const d = describeSkill({
             "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__web-search"}}},
         })
-        expect(d.name).toBe("Web Search")
+        expect(d.name).toBe("web-search")
     })
 })

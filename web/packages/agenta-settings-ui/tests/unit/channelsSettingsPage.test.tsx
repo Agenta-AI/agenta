@@ -9,6 +9,7 @@ vi.mock("@agenta/ui/ui", () => {
     return {
         Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
         cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
+        PHONE_TOUCH_TARGET_CLASS: "",
         SheetFooter: ({children}: {children?: React.ReactNode}) => <div>{children}</div>,
         Button: ({children, onClick, disabled, ...props}: React.ComponentProps<"button">) => (
             <button disabled={disabled} onClick={onClick} data-testid={props["data-testid"]}>

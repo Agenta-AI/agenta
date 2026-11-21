@@ -27,7 +27,7 @@ import {
     ListTableViewToggle,
     type ListTableColumn,
 } from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
@@ -336,7 +336,7 @@ export const AutomationListScreen = ({
                                 <Button
                                     aria-label={t("automations.screens.newAutomation")}
                                     // Square icon button on a phone, where the label is hidden.
-                                    className="max-sm:size-8 max-sm:px-0"
+                                    className={`max-sm:size-8 max-sm:px-0 ${PHONE_TOUCH_TARGET_CLASS}`}
                                     onClick={() => void router.push(`${base}/automations/new`)}
                                 >
                                     <Plus />

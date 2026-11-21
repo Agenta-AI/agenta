@@ -1591,6 +1591,8 @@ def build_agent_v0_default(
         "tools": [{"type": "agenta_tools", "tools": dict(DEFAULT_AGENTA_TOOLS)}],
         "mcps": [],
         "has_session_drive": True,
+        # Present and empty, so a first skill is an `add_item` like every later one.
+        "skills": [],
     }
     if skill_slug is not None:
         template["skills"] = [

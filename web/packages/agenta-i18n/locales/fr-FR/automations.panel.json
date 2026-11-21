@@ -1,0 +1,11 @@
+{
+    "scheduledTriggers": "Déclencheurs planifiés",
+    "appTriggers": "Déclencheurs d’application",
+    "deleteFailed": "Impossible de supprimer cette automatisation. Réessayez.",
+    "runs": "Exécutions",
+    "settings": "Paramètres",
+    "history": "Historique",
+    "seeAllRuns": "Voir toutes les exécutions",
+    "lastRun": "Dernière exécution",
+    "didNotFinish": "n’a pas abouti"
+}
