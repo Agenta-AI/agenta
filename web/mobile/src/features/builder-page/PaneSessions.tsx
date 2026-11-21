@@ -56,6 +56,8 @@ export const usePaneSessionPick = (projectId: string, agentId: string) => {
     const unlisted = blanks.filter(
         (blank) => !rows.some((row) => row.session_id === blank.session_id),
     )
+    // Once the server list has a blank session, the list owns it.
+    if (unlisted.length !== blanks.length) setBlanks(unlisted)
     const sessions = [...unlisted, ...rows]
     if (!picked && sessions[0]) setPicked(sessions[0])
     const session = sessions.find((row) => row.session_id === picked?.session_id) ?? picked

@@ -24,7 +24,7 @@ vi.mock("@agenta/entities/session", async (importOriginal) => ({
     ...(await importOriginal<object>()),
     sessionListQueryOptions: () => ({
         queryKey: ["pane-sessions-test"],
-        queryFn: async () => ({sessions: rows, total: rows.length}),
+        queryFn: async () => ({sessions: [...rows], total: rows.length}),
     }),
 }))
 vi.mock("@/features/automations/AutomationRunConversation", () => ({
@@ -151,6 +151,12 @@ const Pane = () => {
 }
 
 const byId = (id: string) => host.querySelector(`[data-testid="${id}"]`)
+/** The server list loads again, and its update reaches the screen (one more tick). */
+const refetchList = () =>
+    act(async () => {
+        await queryClient.refetchQueries()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+    })
 const newSession = () => byId("pane-new-session") as HTMLButtonElement
 /** A row of the picker list (not the picker button itself). */
 const pickerRow = (name: string) =>
@@ -209,6 +215,21 @@ describe("Pane Sessions (B04)", () => {
         expect(byId("conversation")?.textContent).toBe("s-new")
         await act(async () => pickerRow("Untitled session")?.click())
         expect(byId("conversation")?.textContent).toBe("blank-1")
+    })
+
+    it("drops a blank session once the list has it, so it does not come back", async () => {
+        await render(<Pane />)
+        await act(async () => newSession().click())
+        rows.unshift({
+            session_id: "blank-1",
+            name: "Weekly check",
+            updated_at: "2026-11-21T10:00:00Z",
+        })
+        await refetchList()
+        expect(pickerRow("Weekly check")).toBeDefined()
+        rows.shift()
+        await refetchList()
+        expect(pickerRow("Untitled session")).toBeUndefined()
     })
 
     it("offers New session when the agent has no sessions yet", async () => {
