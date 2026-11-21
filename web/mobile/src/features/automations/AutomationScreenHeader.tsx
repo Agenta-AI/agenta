@@ -2,6 +2,8 @@ import {AutomationBackLink} from "@agenta/automation-ui"
 
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {AutomationRunHistoryCrumb} from "./AutomationRunHistoryCrumb"
+
 /**
  * The header over an automation's form, in the form's own column at every width.
  *
@@ -14,24 +16,22 @@ export const AutomationScreenHeader = ({
     projectId,
     title,
     backHref,
-    onBack,
-    backLabel,
+    runHistory,
     className,
 }: {
     workspaceId: string
     projectId: string
     title: string
     backHref?: string
-    /** In-page return (the run history back to the config); takes precedence over `backHref`. */
-    onBack?: () => void
-    backLabel?: string
+    /** The run history page: a crumb up to the list and the automation, in place of the back link. */
+    runHistory?: {listHref: string; name: string; onAutomation: () => void}
     /** The frame around it, where the screen's own column differs from the form's. */
     className?: string
 }) => (
     <div
         className={
             className ??
-            "mx-auto w-full max-w-[760px] shrink-0 px-8 pb-4 pt-3 lg:pb-2.5 lg:pt-[30px]"
+            "mx-auto w-full max-w-[760px] shrink-0 px-8 pb-4 pt-3 max-md:pb-3 lg:pb-2.5 lg:pt-[30px]"
         }
     >
         {/* -ml-1.5: the glyph sits 6px inside its button, and the column edge is the glyph's. */}
@@ -43,8 +43,12 @@ export const AutomationScreenHeader = ({
                 {title}
             </p>
         </div>
-        <div className="mt-4 flex lg:mt-0">
-            <AutomationBackLink href={backHref} onBack={onBack} label={backLabel} />
+        <div className="mt-4 flex min-w-0 lg:mt-0">
+            {runHistory ? (
+                <AutomationRunHistoryCrumb {...runHistory} />
+            ) : (
+                <AutomationBackLink href={backHref} />
+            )}
         </div>
     </div>
 )

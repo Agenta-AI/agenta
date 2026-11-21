@@ -9,10 +9,12 @@ afterEach(cleanup)
 const tile = () => document.querySelector('[data-slot="icon-tile"]') as HTMLElement | null
 
 describe("SkillMark", () => {
-    it("is the neutral 28px tile with one glyph by default", () => {
+    it("is the orange 28px tile with one white 14px glyph by default (canvas F07)", () => {
         render(<SkillMark />)
-        expect(tile()?.dataset.tone).toBe("neutral")
         expect(tile()?.dataset.size).toBe("28")
+        expect(tile()?.style.background).toBe("rgb(194, 65, 12)")
+        expect(tile()?.style.color).toBe("rgb(255, 255, 255)")
+        expect(tile()?.querySelector("svg")?.style.width).toBe("14px")
         expect(tile()?.querySelectorAll("svg")).toHaveLength(1)
         expect(tile()?.getAttribute("aria-hidden")).toBe("true")
     })

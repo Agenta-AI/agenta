@@ -1,10 +1,13 @@
-import {useMemo} from "react"
+import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
+import {Button} from "@agenta/ui/ui"
 
 import {AutomationRunRow} from "./AutomationRunRow"
+import {cn} from "./lib/utils"
 import {runGroups, type RunGrouping} from "./runListView"
 import {
     AutomationRunHistoryEmpty,
@@ -31,6 +34,12 @@ export const AutomationRunList = ({
     error,
     onSelect,
     onRetry,
+    hasMore = false,
+    loadingMore = false,
+    onEndReached,
+    emptyAction,
+    plainEmpty = false,
+    phone = false,
 }: {
     runs: TriggerDelivery[]
     /** What the headings cut the list by. */
@@ -42,19 +51,56 @@ export const AutomationRunList = ({
     error?: unknown
     onSelect: (delivery: TriggerDelivery) => void
     onRetry?: () => void
+    /** More runs wait on the server; the list asks for them when its end scrolls into view. */
+    hasMore?: boolean
+    loadingMore?: boolean
+    onEndReached?: () => void
+    /** The action under "No runs yet" (the host's "Run now"). Not shown for a filtered list. */
+    emptyAction?: ReactNode
+    /**
+     * The panel's empty state (F05 f9): the text near the top of the column, under the heading,
+     * with no glyph, rather than in the middle of the column's height.
+     */
+    plainEmpty?: boolean
+    /** Phone: rows and buttons are at least 44 px high. */
+    phone?: boolean
 }) => {
-    const t = useT(automationsModelCatalog)
+    const t = useT(automationsModelCatalog, automationsEditorCatalog)
     // The group labels are text, so the groups are cut again when the language changes.
     const groups = useMemo(() => runGroups(runs, grouping), [grouping, runs, t])
+    const scrollerRef = useRef<HTMLDivElement>(null)
+    // The end marker as state: it mounts again after an error and a retry, and the observer
+    // follows it.
+    const [end, setEnd] = useState<HTMLDivElement | null>(null)
+    const endReached = useRef(onEndReached)
+    endReached.current = onEndReached
+
+    // The end of the list in view asks for the next page. The observer is made again when a page
+    // finishes, so a page that adds no visible row (a filter hides it) still asks for the next.
+    // Observed inside the list's own scroller, so it works the same in a panel and a page.
+    useEffect(() => {
+        if (!hasMore || loadingMore || !end || typeof IntersectionObserver === "undefined") return
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((entry) => entry.isIntersecting)) endReached.current?.()
+            },
+            {root: scrollerRef.current, rootMargin: "200px 0px"},
+        )
+        observer.observe(end)
+        return () => observer.disconnect()
+    }, [end, hasMore, loadingMore])
 
     // `ag-scroll-quiet`: the bar stays invisible until the pointer is in the column. A permanent
     // one sat over the times and clipped them to "17:0".
     return (
-        <div className="ag-scroll-quiet min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div
+            ref={scrollerRef}
+            className="ag-scroll-quiet min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        >
             {isLoading ? (
                 <AutomationRunListSkeleton />
-            ) : error ? (
-                <AutomationRunHistoryError onRetry={onRetry} />
+            ) : error && !groups.length ? (
+                <AutomationRunHistoryError onRetry={onRetry} phone={phone} />
             ) : groups.length ? (
                 groups.map((group) => (
                     <section key={group.key} className="mb-1 last:mb-0">
@@ -70,14 +116,48 @@ export const AutomationRunList = ({
                                     delivery={delivery}
                                     selected={delivery.id === selectedId}
                                     onSelect={() => onSelect(delivery)}
+                                    phone={phone}
                                 />
                             ))}
                         </div>
                     </section>
                 ))
+            ) : plainEmpty && !filtered ? (
+                <div className="flex flex-col items-center gap-1.5 px-6 py-20 text-center">
+                    <p className="m-0 text-sm font-medium text-foreground">
+                        {t("automations.editor.noRuns")}
+                    </p>
+                    <p className="m-0 text-[13px] leading-snug text-muted-foreground">
+                        {t("automations.editor.noRunsBody")}
+                    </p>
+                    {emptyAction ? <div className="mt-2">{emptyAction}</div> : null}
+                </div>
             ) : (
-                <AutomationRunHistoryEmpty filtered={filtered} />
+                <AutomationRunHistoryEmpty
+                    filtered={filtered}
+                    action={filtered ? undefined : emptyAction}
+                />
             )}
+            {/* A next page or a refresh failed: the loaded runs stay, with a retry under them. */}
+            {error && groups.length ? (
+                <div className="flex items-center gap-2 px-2.5 py-3 text-[13px] text-muted-foreground">
+                    <span className="min-w-0 flex-1">{t("automations.editor.loadRunsFailed")}</span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className={cn("text-xs font-normal", phone && "h-11")}
+                        onClick={onRetry}
+                    >
+                        {t("automations.editor.tryAgain")}
+                    </Button>
+                </div>
+            ) : null}
+            {/* Outside the rows: a filter that hides every loaded run still reads on. */}
+            {hasMore && !isLoading && !error ? (
+                <div ref={setEnd} data-testid="run-list-end">
+                    {loadingMore ? <AutomationRunListSkeleton groups={1} rows={2} /> : null}
+                </div>
+            ) : null}
         </div>
     )
 }

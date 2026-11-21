@@ -123,7 +123,8 @@ export const useCommandPaletteGroups = (
                 },
                 mobileSessionsEntity.getIcon?.(ref),
             ),
-            href: `${projectURL}/sessions/${ref.sessionId}`,
+            // The rail's own link: a builder chat opens on the builder page.
+            href: mobileSessionsEntity.childLink(ref, projectURL),
         })
         // Typed: the server's answer. Empty: what the rail already holds, pins leading.
         const sessions = typed

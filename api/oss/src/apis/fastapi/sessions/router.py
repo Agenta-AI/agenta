@@ -41,7 +41,10 @@ from typing import Any, Awaitable, Callable, Dict, Optional, Tuple, Union
 
 from oss.src.core.access.context import fresh_request_memo, get_request_access
 from oss.src.core.access.dtos import RunApproval
-from oss.src.core.sessions.streams.types import SessionCreationRequiresRunCredential
+from oss.src.core.sessions.streams.types import (
+    SessionCreationRequiresCallingSessionRecord,
+    SessionCreationRequiresRunCredential,
+)
 from oss.src.core.tools.dtos import AgentError
 from oss.src.core.access.principals import access_denied_error, missing_envelope_error
 from oss.src.core.access.types import MissingEnvelope
@@ -475,6 +478,15 @@ def _handle_session_exceptions():
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=AgentError(
                         code="session_requires_run_credential",
+                        message=e.message,
+                        retryable=False,
+                    ).model_dump(exclude_none=True),
+                ) from e
+            except SessionCreationRequiresCallingSessionRecord as e:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=AgentError(
+                        code="session_requires_calling_session_record",
                         message=e.message,
                         retryable=False,
                     ).model_dump(exclude_none=True),

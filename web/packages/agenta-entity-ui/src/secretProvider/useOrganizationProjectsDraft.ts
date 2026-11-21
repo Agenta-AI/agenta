@@ -8,10 +8,23 @@ import {
 } from "@agenta/entities/secret"
 import {createT} from "@agenta/i18n"
 import organizationProjectsCatalog from "@agenta/i18n/catalogs/entityUi.organizationProjects"
+import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
-import {useSetAtom} from "jotai"
+import {useSetAtom, useStore} from "jotai"
 
 const t = createT(organizationProjectsCatalog)
+
+interface QueuedWrite {
+    write: Promise<boolean>
+    projects: OrganizationSecretProjects
+    /** Set when the write failed: what the view that opened meanwhile shows. */
+    error?: string
+}
+
+// The newest write of each connection. Each write waits for the one before it, also across a
+// closed and reopened view, so a choice made during a save is never lost or overwritten. A view
+// that opens while one runs starts from its choice and shows how it ends.
+const writeQueues = new Map<string, QueuedWrite>()
 
 /** The toast an organization save shows: who may use the connection now. */
 export const organizationSavedToast = (name: string, projects: OrganizationSecretProjects) => {
@@ -65,22 +78,21 @@ export const sameProjects = (
             a.projectIds.every((id) => b.projectIds.includes(id))))
 
 /**
- * The "Projects that can use it" choice of a subscription dialog: a draft seeded from the saved
- * connection each time the dialog opens, written on Done only when it changed.
+ * The "Projects that can use it" choice of a subscription view: a draft seeded from the saved
+ * connection when the view opens, written by `apply` only when it changed.
  */
 export const useOrganizationProjectsDraft = ({
-    open,
     connection,
     enabled,
     organizationName = "",
 }: {
-    open: boolean
     connection: ProviderConnection | null | undefined
     enabled: boolean
     /** For the refusal messages that name the organization. */
     organizationName?: string
 }) => {
     const setProjects = useSetAtom(setOrganizationConnectionProjectsAtom)
+    const store = useStore()
     const saved = useMemo<OrganizationSecretProjects>(
         () => ({
             availability: connection?.availability ?? "all_projects",
@@ -92,48 +104,71 @@ export const useOrganizationProjectsDraft = ({
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    // Seeded when the dialog opens or names another connection, never on a refetch of the same
+    // Seeded when the view opens or names another connection, never on a refetch of the same
     // one: a sign-in that lands must not undo projects picked while it ran.
     const seededFor = useRef<string | null>(null)
+    // The last choice sent: a refetch of `saved` can lag behind a write that already landed.
+    const written = useRef<OrganizationSecretProjects | null>(null)
     useEffect(() => {
-        if (!open) {
-            seededFor.current = null
-            return
-        }
         const identity = connection?.id ?? ""
         if (seededFor.current === identity) return
         seededFor.current = identity
-        setDraft(saved)
+        const queued = writeQueues.get(identity)
+        written.current = queued?.projects ?? null
+        setDraft(queued?.projects ?? saved)
         setError(null)
-    }, [open, connection?.id, saved])
+        setSaving(Boolean(queued))
+        // The write of a closed view: this view shows it as saving, then its failure, if any.
+        void queued?.write.then((ok) => {
+            if (writeQueues.has(identity) || seededFor.current !== identity) return
+            setSaving(false)
+            if (ok) return
+            written.current = null
+            setError(queued.error ?? null)
+        })
+    }, [connection?.id, saved])
 
-    /** Write the draft if it changed, then close. A failure keeps the dialog open on its line. */
-    const apply = useCallback(
-        async (close: () => void) => {
-            if (!enabled || !connection || sameProjects(saved, projects)) {
-                close()
-                return
-            }
-            setSaving(true)
-            setError(null)
+    /** Write the draft if it changed. Resolves false on a failure, which shows on its line. */
+    const apply = useCallback((): Promise<boolean> => {
+        if (!enabled || !connection || sameProjects(written.current ?? saved, projects)) {
+            return Promise.resolve(true)
+        }
+        written.current = projects
+        setSaving(true)
+        const id = connection.id
+        // The project is read now: the write may run after a switch to another one.
+        const scope = store.get(projectIdAtom) ?? undefined
+        const entry: QueuedWrite = {projects, write: Promise.resolve(true)}
+        entry.write = (writeQueues.get(id)?.write ?? Promise.resolve(true)).then(async () => {
+            // A newer choice is queued behind this one, so this one is not sent.
+            if (writeQueues.get(id) !== entry) return true
+            // The view may show another connection by now; its line is not this write's.
+            const shown = () => seededFor.current === id
+            if (shown()) setError(null)
             try {
-                await setProjects({connectionId: connection.id, projects})
+                await setProjects({connectionId: id, projects, projectId: scope})
                 message.success(organizationSavedToast(connection.name, projects))
-                close()
+                return true
             } catch (failure) {
-                setError(
+                if (written.current === projects) written.current = null
+                entry.error =
                     organizationRefusal(failure, organizationName) ||
-                        t("entityUi.organizationProjects.couldNotSave", {name: connection.name}),
-                )
+                    t("entityUi.organizationProjects.couldNotSave", {name: connection.name})
+                if (shown()) setError(entry.error)
+                return false
             } finally {
-                setSaving(false)
+                if (writeQueues.get(id) === entry) {
+                    writeQueues.delete(id)
+                    if (shown()) setSaving(false)
+                }
             }
-        },
-        [connection, enabled, organizationName, projects, saved, setProjects],
-    )
+        })
+        writeQueues.set(id, entry)
+        return entry.write
+    }, [connection, enabled, organizationName, projects, saved, setProjects, store])
 
-    /** An existing connection whose projects the admin changed: Done can save them alone. */
-    const changed = enabled && !!connection && !sameProjects(saved, projects)
+    /** An existing connection whose projects the admin changed: Save can write them alone. */
+    const changed = enabled && !!connection && !sameProjects(written.current ?? saved, projects)
 
     return {projects, setProjects: setDraft, saved, saving, error, changed, apply}
 }

@@ -20,6 +20,7 @@
  */
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref} from "react"
 
+import type {AccountSource} from "@agenta/entities/accountChoice"
 import {
     askWritesPolicy,
     fromGatewayPermissions,
@@ -47,6 +48,7 @@ import {useAtomValue} from "jotai"
 import {
     IntegrationPermissionDrawer,
     type PermissionDrawerCatalog,
+    type PermissionDrawerSource,
     type PermissionPresetSource,
 } from "../DrillInView/SchemaControls/agentTemplate/IntegrationPermissionDrawer"
 import {PolicyGlyph} from "../DrillInView/SchemaControls/agentTemplate/PermissionGlyph"
@@ -55,14 +57,13 @@ import {
     TOOL_PERMISSION_OPTIONS,
     type PermissionPresetValue,
 } from "../DrillInView/SchemaControls/integrationPolicy"
-import type {PermissionPolicy} from "../DrillInView/SchemaControls/permissionPolicy"
 import type {
     GatewayConnectionPermissions,
     GatewayPermission,
 } from "../DrillInView/SchemaControls/toolUtils"
 import {ToolsEmpty} from "../shared/ToolsEmpty"
 
-import {FOLLOW_AGENT_PRESET, MCP_PRESETS, PRESET_PERMISSION, readMcpPreset} from "./mcpPresets"
+import {MCP_PRESETS, PRESET_PERMISSION, readMcpPreset} from "./mcpPresets"
 
 // Built inside memos and callbacks below, which read the language when they run.
 const tNow = createT(mcpPermissionsCatalog)
@@ -108,15 +109,6 @@ export interface McpPermissionDrawerProps {
     onRemove?: () => void
     /** Present when this drawer was opened from the add-server drawer: go back to that list. */
     onBack?: () => void
-    /**
-     * The agent-wide `runner.permissions.default`, for the note under the preset.
-     *
-     * It is the whole meaning of the "Follow agent policy" preset, so the drawer names it there
-     * rather than sending a reader to a different row to find out whether the ladder asks, allows
-     * or denies. A caller with no agent in hand (Settings' read-only "View tools") passes none,
-     * and that view has no preset select to qualify anyway.
-     */
-    agentPolicy?: PermissionPolicy | null
     /** Settings' "View tools": the same drawer with nothing to set. */
     readOnly?: boolean
     /** The "Account" block, above the preset select. Absent in Settings' "View tools". */
@@ -240,9 +232,8 @@ function DrawerTitle({
                     <CaretLeft />
                 </Button>
             ) : null}
-            {/* One generic glyph for every server: an MCP endpoint has no branding to show, and a
-                per-server logo would have to be guessed from a URL (decision 3). */}
-            <McpServerMark size={24} />
+            {/* One generic glyph for every server (decision 3); the tile color follows the name. */}
+            <McpServerMark size={24} name={connectionName} />
             <div className="flex min-w-0 flex-1 items-baseline gap-2">
                 <span className="truncate text-[15px] font-semibold">{connectionName}</span>
                 {toolPrefix ? (
@@ -293,7 +284,7 @@ function RemoveFromAgent({
         <Button
             variant="ghost"
             onClick={() => setConfirming(true)}
-            className="-ml-2 px-2 font-normal !text-colorError hover:bg-[color-mix(in_srgb,var(--ag-colorError)_10%,transparent)]"
+            className="-ml-2 px-2 font-normal !text-[var(--ag-danger-text)] hover:bg-[color-mix(in_srgb,var(--ag-danger-text)_10%,transparent)]"
         >
             <Trash data-icon="inline-start" />
             {t("entityUi.mcpPermissions.removeFromAgent")}
@@ -301,58 +292,146 @@ function RemoveFromAgent({
     )
 }
 
-export default function McpPermissionDrawer({
-    open,
-    onClose,
+export default function McpPermissionDrawer(props: McpPermissionDrawerProps) {
+    const {
+        open,
+        onClose,
+        slug,
+        toolPrefix,
+        onRemove,
+        onBack,
+        readOnly,
+        disabled,
+        panelRef,
+        account,
+    } = props
+    const mcp = useMcpPermissionSource(props)
+    return (
+        <IntegrationPermissionDrawer
+            open={open}
+            onClose={onClose}
+            panelRef={panelRef}
+            // The MCP source supplies its own header and catalog, so neither field reaches a
+            // Composio query. They are still required by the shared props.
+            target={{provider: "mcp", integration: slug ?? ""}}
+            connectionSlug={slug ?? ""}
+            permissions={mcp.permissions}
+            onChangePermissions={mcp.write}
+            onChangeToolPermission={mcp.setTool}
+            disabled={disabled}
+            account={account}
+            source={{
+                ...mcp.source,
+                title: (
+                    <DrawerTitle
+                        onBack={onBack}
+                        connectionName={mcp.name}
+                        toolPrefix={toolPrefix}
+                        status={mcp.status}
+                        toolCount={mcp.readOnlyToolCount}
+                    />
+                ),
+                footerStart:
+                    onRemove && !readOnly && !disabled ? (
+                        <RemoveFromAgent connectionName={mcp.name} onRemove={onRemove} />
+                    ) : null,
+            }}
+        />
+    )
+}
+
+export type McpPermissionSourceInput = Pick<
+    McpPermissionDrawerProps,
+    | "slug"
+    | "connectionName"
+    | "status"
+    | "cachedToolCount"
+    | "loadTools"
+    | "policy"
+    | "onChange"
+    | "onReconnect"
+    | "readOnly"
+    | "disabled"
+> & {
+    /** The tool list loads while this is true. Defaults to true. */
+    open?: boolean
+    /** Show the login-expired banner. A container that says it in its own title passes false. */
+    banner?: boolean
+    /**
+     * Read the tool list. Defaults to true. False when no sign-in can read it (a person's own
+     * sign-in only, and the viewer has none yet): the body then shows no list and no error.
+     */
+    listTools?: boolean
+    /**
+     * The relay's `account_source` for this read: whose sign-in reads the tool list, the
+     * project's (`"agent"`, the default) or the viewer's own (`"user"`). It is not the item's
+     * account source: a "user" item reads with the project's sign-in while the project has one.
+     */
+    accountSource?: AccountSource
+}
+
+/**
+ * One MCP server as a permission source for the shared permission body: the tool list (read
+ * live from the server), the presets, and the writes. The drawer above and the server view both
+ * use it, so the two cannot drift.
+ */
+export function useMcpPermissionSource({
+    open = true,
+    banner: showBanner = true,
+    listTools = true,
+    accountSource = "agent",
     slug,
     connectionName,
-    toolPrefix,
     status = "connected",
     cachedToolCount,
     loadTools: loadToolsFrom,
     policy,
     onChange,
     onReconnect,
-    onRemove,
-    onBack,
-    agentPolicy,
     readOnly,
     disabled,
-    panelRef,
-    account,
-}: McpPermissionDrawerProps) {
+}: McpPermissionSourceInput) {
     const t = useT(mcpPermissionsCatalog)
     const projectId = useAtomValue(projectIdAtom) ?? undefined
     const [tools, setTools] = useState<ToolsState>({status: "idle"})
     const name = connectionName || slug || t("entityUi.mcpPermissions.thisServer")
 
-    // Which connection the visible list belongs to. A tool list is fetched per connection and
-    // arrives whenever it arrives, so without this, switching connections mid-flight rendered the
-    // previous one's tools under the new one's name (M4).
-    const shownFor = useRef<string | undefined>(undefined)
+    // The newest read. A tool list is fetched per connection and sign-in and arrives whenever it
+    // arrives, so without this, switching connections mid-flight rendered the previous one's
+    // tools under the new one's name (M4), and an older read with the other sign-in could replace
+    // the list of the newer one.
+    const latestRead = useRef<object | null>(null)
 
     const loadTools = useCallback(async () => {
         if (!slug) return
-        shownFor.current = slug
+        const read = {}
+        latestRead.current = read
         setTools({status: "loading"})
         try {
             const listed = loadToolsFrom
                 ? await loadToolsFrom(slug)
-                : await listMcpTools(slug, projectId)
-            if (shownFor.current !== slug) return
+                : await listMcpTools(slug, projectId, {accountSource})
+            if (latestRead.current !== read) return
             setTools({status: "ready", tools: listed})
         } catch (error) {
-            if (shownFor.current !== slug) return
+            if (latestRead.current !== read) return
             console.error("[mcp] the tool list could not be read", error)
             setTools({status: "failed", ...toolListFailure(error)})
         }
-    }, [loadToolsFrom, projectId, slug])
+    }, [accountSource, loadToolsFrom, projectId, slug])
 
     useEffect(() => {
+        // No sign-in reads the list any more (the viewer signed out): drop the list and any read
+        // in flight, so no preset keeps writing tool names from a list that is gone.
+        if (!listTools) {
+            latestRead.current = null
+            setTools({status: "idle"})
+            return
+        }
         if (!open) return
         if (slug) void loadTools()
         else setTools({status: "idle"})
-    }, [loadTools, open, slug])
+    }, [listTools, loadTools, open, slug])
 
     const permissions = useMemo(() => toGatewayPermissions(policy), [policy])
 
@@ -416,25 +495,15 @@ export default function McpPermissionDrawer({
      * What a row's control shows.
      *
      * A tool with no entry in the table holds NO value on this wire, so its control reads as the
-     * fourth value rather than borrowing the one that governs it, and its trigger says what the run
-     * will actually do. A bare "Allow" on a row nobody set would claim a rule that does not exist,
-     * and it would go on claiming it after the governing value changed underneath.
+     * fourth value rather than borrowing the one that governs it, and it reads "Follow agent
+     * policy". A bare "Allow" on a row nobody set would claim a rule that does not exist, and it
+     * would go on claiming it after the governing value changed underneath.
      */
     const rowValue = useCallback(
         (toolKey: string) => {
             const explicit = permissions.tools[toolKey]
             if (explicit) return {value: explicit}
-            return {
-                value: "inherit" as GatewayPermission,
-                // Nothing governs it either, so there is no provenance to add and the row says
-                // which value it holds.
-                triggerTitle:
-                    permissions.default === "inherit"
-                        ? undefined
-                        : tNow("entityUi.mcpPermissions.inheritsPermission", {
-                              permission: permissions.default,
-                          }),
-            }
+            return {value: "inherit" as GatewayPermission}
         },
         [permissions],
     )
@@ -457,7 +526,7 @@ export default function McpPermissionDrawer({
 
     // Still on its way, as opposed to settled with no list: a failed read is not coming back, and a
     // control that waits forever is its own kind of untruth.
-    const toolsArriving = tools.status === "loading" || tools.status === "idle"
+    const toolsArriving = listTools && (tools.status === "loading" || tools.status === "idle")
 
     const {preset, overrideCount} = useMemo(
         () => readMcpPreset(policy, {names: readOnlyToolNames, arriving: toolsArriving}),
@@ -475,7 +544,6 @@ export default function McpPermissionDrawer({
                     : option,
             ),
             // Null is "not knowable until the list lands", which `pending` draws instead.
-            agentPolicyPreset: FOLLOW_AGENT_PRESET,
             value: preset ?? "custom",
             overrideCount,
             pending: preset === null,
@@ -533,6 +601,9 @@ export default function McpPermissionDrawer({
 
     const catalog = useMemo<PermissionDrawerCatalog>(() => {
         if (!slug) return {status: "error", tools: [], complete: false, errorNode}
+        // Not read: no list and no error. The default permission stays editable, except the
+        // preset that names read-only tools, which needs the list.
+        if (!listTools) return {status: "error", tools: [], complete: false, errorNode: null}
         if (tools.status === "loading" || tools.status === "idle") {
             return {status: "loading", tools: [], complete: false}
         }
@@ -542,7 +613,7 @@ export default function McpPermissionDrawer({
         // A settled list from one request, so a saved key missing from it really has left the
         // server rather than merely not having been fetched yet.
         return {status: "ready", tools: catalogTools, complete: true}
-    }, [catalogTools, errorNode, slug, tools.status])
+    }, [catalogTools, errorNode, listTools, slug, tools.status])
 
     const footNote =
         strandedByFilter.length && !readOnly ? (
@@ -566,66 +637,42 @@ export default function McpPermissionDrawer({
             </div>
         ) : null
 
-    return (
-        <IntegrationPermissionDrawer
-            open={open}
-            onClose={onClose}
-            panelRef={panelRef}
-            // The MCP source supplies its own header and catalog, so neither field reaches a
-            // Composio query. They are still required by the shared props.
-            target={{provider: "mcp", integration: slug ?? ""}}
-            connectionSlug={slug ?? ""}
-            permissions={permissions}
-            onChangePermissions={write}
-            onChangeToolPermission={setTool}
-            agentPolicy={agentPolicy}
-            disabled={disabled}
-            account={account}
-            source={{
-                catalogKey: slug ?? "mcp",
-                title: (
-                    <DrawerTitle
-                        onBack={onBack}
-                        connectionName={name}
-                        toolPrefix={toolPrefix}
-                        status={status}
-                        toolCount={
-                            readOnly
-                                ? catalog.status === "ready"
-                                    ? catalogTools.length
-                                    : (cachedToolCount ?? undefined)
-                                : undefined
-                        }
-                    />
-                ),
-                catalog,
-                searchCount:
-                    catalog.status === "ready" ? undefined : (cachedToolCount ?? undefined),
-                emptyLabel: t("entityUi.mcpPermissions.noToolsYet"),
-                readOnlyLabel: t("entityUi.mcpPermissions.readOnly"),
-                writeLabel: t("entityUi.mcpPermissions.write"),
-                // The spec's own phrase for a saved rule whose tool the server has stopped
-                // advertising. "Not in catalog" is the Composio wording and names a thing an MCP
-                // server does not have.
-                staleLabel: t("entityUi.mcpPermissions.noLongerOffered"),
-                toolOptions,
-                presets,
-                lockedTool: (toolKey) =>
-                    isToolHidden(policy, toolKey)
-                        ? t("entityUi.mcpPermissions.hiddenByFilter")
-                        : null,
-                rowValue,
-                banner: askToReconnect ? (
-                    <LoginExpiredBanner connectionName={name} onReconnect={onReconnect} />
-                ) : null,
-                controlsDisabled: loginLapsed,
-                footNote,
-                footerStart:
-                    onRemove && !readOnly && !disabled ? (
-                        <RemoveFromAgent connectionName={name} onRemove={onRemove} />
-                    ) : null,
-                readOnly,
-            }}
-        />
-    )
+    const source: Omit<PermissionDrawerSource, "title" | "footerStart"> = {
+        catalogKey: slug ?? "mcp",
+        catalog,
+        searchCount: catalog.status === "ready" ? undefined : (cachedToolCount ?? undefined),
+        emptyLabel: t("entityUi.mcpPermissions.noToolsYet"),
+        readOnlyLabel: t("entityUi.mcpPermissions.readOnly"),
+        writeLabel: t("entityUi.mcpPermissions.write"),
+        // The spec's own phrase for a saved rule whose tool the server has stopped
+        // advertising. "Not in catalog" is the Composio wording and names a thing an MCP
+        // server does not have.
+        staleLabel: t("entityUi.mcpPermissions.noLongerOffered"),
+        toolOptions,
+        presets,
+        lockedTool: (toolKey) =>
+            isToolHidden(policy, toolKey) ? t("entityUi.mcpPermissions.hiddenByFilter") : null,
+        rowValue,
+        banner:
+            askToReconnect && showBanner ? (
+                <LoginExpiredBanner connectionName={name} onReconnect={onReconnect} />
+            ) : null,
+        controlsDisabled: loginLapsed,
+        footNote,
+        readOnly,
+    }
+    return {
+        name,
+        status,
+        permissions,
+        write,
+        setTool,
+        source,
+        /** The tool count the read-only view shows in its title. */
+        readOnlyToolCount: readOnly
+            ? catalog.status === "ready"
+                ? catalogTools.length
+                : (cachedToolCount ?? undefined)
+            : undefined,
+    }
 }

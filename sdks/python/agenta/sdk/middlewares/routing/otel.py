@@ -22,6 +22,18 @@ def baggage_value(raw: Optional[str], key: str) -> Optional[str]:
     return None
 
 
+def header_session_id(request: Request) -> Optional[str]:
+    """The session a turn names outside its body: the `x-ag-session-id` header, else
+    the `ag.session.id` baggage. The invoke prelude and the credential exchange both
+    read it here, so the credential names the session the turn runs in."""
+    otel = getattr(request.state, "otel", None) or {}
+    return (
+        request.headers.get("x-ag-session-id")
+        or (otel.get("baggage") or {}).get("ag.session.id")
+        or baggage_value(request.headers.get("baggage"), "ag.session.id")
+    )
+
+
 class OTelMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable):
         request.state.otel = {"baggage": {}, "traceparent": None}

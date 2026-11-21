@@ -9,6 +9,8 @@ import {
 
 import {useMotionPresets} from "@/lib/motion/presets"
 
+import {readTranscriptPosition, writeTranscriptPosition} from "./transcriptPosition"
+
 /** Follow keeps tracking appends from this close to the bottom. Deliberately small and NOT the
  * pill's threshold: auto-scrolling someone who has scrolled up to read is the worse failure. */
 export const NEAR_BOTTOM_PX = 80
@@ -26,6 +28,13 @@ const ANCHOR_GAP_PX = SCROLL_FADE_TOP_PX + 8
 /** Past this many viewports a glide reads as slow, so the pin jumps instead. */
 const GLIDE_MAX_VIEWPORTS = 2
 
+/** The kept position to put back, or null when the session opens at its latest message. */
+const savedScrollTop = (sessionId: string | undefined): number | null =>
+    sessionId ? (readTranscriptPosition(sessionId)?.scrollTop ?? null) : null
+
+/** Content with nothing in it yet: the transcript is still loading. */
+const isEmptyContent = (content: unknown) => Array.isArray(content) && content.length === 0
+
 /** Keys that scroll the transcript; one is the reader taking over. */
 const SCROLL_KEYS = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "])
 
@@ -33,6 +42,7 @@ const SCROLL_KEYS = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home
  * Starts the transcript at the latest message; follows appends only while already near the bottom.
  * An answer that arrives while following is anchored at its first line, not its last, until the
  * reader's first scroll input (input, not position: browser scroll anchoring also moves scrollTop).
+ * With a `sessionId`, the position is kept per session and a remount puts it back (design D6).
  */
 export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) => {
     const ref = useRef<HTMLDivElement | null>(null)
@@ -57,6 +67,11 @@ export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) =>
     const pinnedRef = useRef(false)
     // Where a glide is heading; while set, the glide's own scroll events are not the reader leaving.
     const glideToRef = useRef<number | null>(null)
+    // A position kept from an earlier mount of this session, waiting for the transcript to load.
+    const restoreRef = useRef(savedScrollTop(sessionId))
+    const contentRef = useRef(content)
+    contentRef.current = content
+    const sessionRef = useRef(sessionId)
 
     const scrollTo = useCallback((el: HTMLDivElement, top: number) => {
         const distance = Math.abs(top - el.scrollTop)
@@ -89,11 +104,30 @@ export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) =>
         const edges = clippedEdges(el)
         const mask = scrollEdgeMask(edges.top, edges.bottom)
         setEdgeMask((prev) => (prev === mask ? prev : mask))
+        // Kept for a later mount, but not while a kept position is still waiting to be put back.
+        const session = sessionRef.current
+        if (session && restoreRef.current === null) {
+            // Following an anchored answer is following: a return lands on the latest again.
+            const following = nearBottomRef.current || anchorRef.current !== null
+            writeTranscriptPosition(session, {scrollTop: following ? null : el.scrollTop})
+        }
     }, [])
 
     /** Pin while following: to the bottom, but never past the top of an answer that just arrived. */
     const follow = useCallback(
         (el: HTMLDivElement) => {
+            const restore = restoreRef.current
+            if (restore !== null) {
+                // Still loading, or a hidden pane: hold the kept position until there is a layout.
+                if (el.clientHeight === 0 || isEmptyContent(contentRef.current)) return
+                restoreRef.current = null
+                pinnedRef.current = true
+                glideToRef.current = null
+                // From the top: the transcript window renders the same older turns again, and
+                // turns added while away are below. Clamped when the content is now shorter.
+                el.scrollTop = Math.max(0, Math.min(restore, el.scrollHeight - el.clientHeight))
+                return
+            }
             if (!nearBottomRef.current && !anchorRef.current) return
             if (!anchorRef.current) {
                 const key = el
@@ -133,6 +167,7 @@ export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) =>
         if (anchorRef.current) releasedRef.current.add(anchorRef.current)
         anchorRef.current = null
         glideToRef.current = null
+        restoreRef.current = null
     }, [])
 
     const onScroll = useCallback(() => {
@@ -149,8 +184,8 @@ export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) =>
         scrollTo(el, el.scrollHeight - el.clientHeight)
     }, [release, scrollTo])
 
-    // A screen kept mounted across a session switch must not carry the last session's position.
-    const sessionRef = useRef(sessionId)
+    // A screen kept mounted across a session switch must not carry the last session's position; it
+    // takes the position kept for the session it now shows.
     useLayoutEffect(() => {
         if (sessionRef.current === sessionId) return
         sessionRef.current = sessionId
@@ -158,6 +193,7 @@ export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) =>
         anchorRef.current = null
         pinnedRef.current = false
         glideToRef.current = null
+        restoreRef.current = savedScrollTop(sessionId)
     }, [sessionId])
 
     useLayoutEffect(() => {
