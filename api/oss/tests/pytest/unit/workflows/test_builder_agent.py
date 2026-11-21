@@ -324,6 +324,19 @@ def test_instructions_say_how_to_report_a_test_session():
     assert "When it still runs, say that the test still runs." in instructions
 
 
+def test_a_test_session_that_waits_for_an_approval_is_not_tested():
+    """QA N3: the builder said "tested successfully" while its test session waited for the
+    person's approval."""
+    instructions = " ".join(_agent()["instructions"]["agents_md"].split())
+
+    assert (
+        "A test session that waits for an approval (`status: paused`) is not tested, not "
+        'even "up to" the approval: say that it waits for the person\'s approval, and what '
+        "it did so far." in instructions
+    )
+    assert "has a `note` line that says the turn is not finished" in instructions
+
+
 def test_the_report_names_the_tested_version_and_the_test_session():
     """QA D9: the report after a test named neither the version nor the session."""
     instructions = _agent()["instructions"]["agents_md"]
