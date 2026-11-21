@@ -112,7 +112,9 @@ function zipEntryNames(bytes: Uint8Array): string[] {
     for (let n = view.getUint16(end + 10, true); n > 0; n--) {
         if (at + 46 > bytes.length || view.getUint32(at, true) !== 0x02014b50) break
         const nameLength = view.getUint16(at + 28, true)
-        names.push(strFromU8(bytes.subarray(at + 46, at + 46 + nameLength)))
+        // As fflate: a name without the UTF-8 flag (bit 11) is read as Latin-1.
+        const latin1 = !(view.getUint16(at + 8, true) & 0x0800)
+        names.push(strFromU8(bytes.subarray(at + 46, at + 46 + nameLength), latin1))
         at += 46 + nameLength + view.getUint16(at + 30, true) + view.getUint16(at + 32, true)
     }
     return names
