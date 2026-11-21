@@ -46,5 +46,29 @@ def test_the_agenta_tools_are_served_with_their_read_only_flag():
     assert revision.data.parameters["op_access"]["rename_session"] == "write"
 
 
-def test_every_agenta_tool_is_also_a_build_kit_tool():
-    assert set(AGENTA_TOOLS) <= set(DEFAULT_BUILD_KIT_OPS)
+# An agent gets the session tools only when its author lists them (design D12), so the
+# playground build kit does not add them.
+SESSION_TOOLS = {
+    "start_session",
+    "send_session_message",
+    "wait_for_sessions",
+    "cancel_session",
+    "list_sessions",
+    "read_session",
+    "read_session_spans",
+}
+
+
+def test_every_agenta_tool_but_the_session_tools_is_also_a_build_kit_tool():
+    assert set(AGENTA_TOOLS) - SESSION_TOOLS <= set(DEFAULT_BUILD_KIT_OPS)
+    assert SESSION_TOOLS <= set(AGENTA_TOOLS)
+    assert not SESSION_TOOLS & set(DEFAULT_BUILD_KIT_OPS)
+
+
+def test_the_session_tools_are_served_with_their_read_only_flag():
+    access = StaticWorkflowCatalog().retrieve_revision(slug="__ag__agenta_tools").data
+    access = access.parameters["op_access"]
+    assert access["list_sessions"] == "read"
+    assert access["read_session"] == "read"
+    assert access["start_session"] == "write"
+    assert access["cancel_session"] == "write"
