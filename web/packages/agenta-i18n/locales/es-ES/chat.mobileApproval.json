@@ -1,4 +1,5 @@
 {
+    "childSessionAsks": "Solicitado por la sesión <link>nombre de la sesión</link>",
     "failed": "Falló la aprobación.",
     "failedStatus": "Falló la aprobación (HTTP {{status}}).",
     "noLongerPending": "Esta aprobación ya no está pendiente: actualiza y vuelve a intentarlo.",

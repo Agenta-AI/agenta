@@ -286,6 +286,9 @@ vi.mock("@/features/chat/useApprovalActions", () => ({
     useApprovalActions: () => ({phase: "idle", errorText: null, respond: vi.fn()}),
 }))
 vi.mock("@/features/chat/useSessionWatch", () => ({useSessionWatch: () => ({connected: true})}))
+// No child session waits here; the child cards have their own test.
+vi.mock("@/features/chat/useChildApprovals", () => ({useChildApprovals: () => []}))
+vi.mock("@/features/chat/ChildSessionApproval", () => ({ChildSessionApproval: () => null}))
 vi.mock("@/features/chat/useStartBlankSession", () => ({useStartBlankSession: () => vi.fn()}))
 vi.mock("@/features/chat/useTranscriptAutoScroll", () => ({
     useTranscriptAutoScroll: () => ({ref: {current: null}, onScroll: vi.fn(), edgeMask: ""}),

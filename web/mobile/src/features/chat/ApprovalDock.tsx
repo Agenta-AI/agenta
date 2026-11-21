@@ -1,3 +1,5 @@
+import type {ReactNode} from "react"
+
 import {ApprovalCard} from "@agenta/chat/components"
 import type {PendingApproval} from "@agenta/chat/model"
 
@@ -22,6 +24,8 @@ export const ApprovalDock = ({
     bottomMost = true,
     readOnly = false,
     readOnlyNote,
+    heading,
+    shortcuts = true,
 }: {
     /** Pending gates for the paused turn (index 0 is acted on first). */
     approvals: PendingApproval[]
@@ -35,6 +39,10 @@ export const ApprovalDock = ({
     readOnly?: boolean
     /** Shown in place of the actions while read-only (it names who can answer). */
     readOnlyNote?: string | null
+    /** A line above the card: on another session's card, which session asks. */
+    heading?: ReactNode
+    /** False for another session's card, so the chat's own shortcuts answer only its own card. */
+    shortcuts?: boolean
 }) => {
     const locked = readOnly || Boolean(readOnlyNote)
     const busy = actions.phase === "resuming"
@@ -50,6 +58,9 @@ export const ApprovalDock = ({
             }`}
         >
             <ContentRail>
+                {heading ? (
+                    <p className="text-muted-foreground m-0 mb-1.5 truncate text-xs">{heading}</p>
+                ) : null}
                 <ApprovalCard
                     approvals={approvals}
                     responding={busy}
@@ -60,6 +71,7 @@ export const ApprovalDock = ({
                     touch
                     readOnly={locked}
                     readOnlyNote={readOnlyNote}
+                    shortcuts={shortcuts}
                     errorText={actions.phase === "error" ? actions.errorText : null}
                     onRespond={({approvalId, approved, message}) => {
                         if (!locked) actions.respond({approvalId, approved, message})

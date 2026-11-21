@@ -57,6 +57,11 @@ export interface ApprovalCardProps {
     readOnly?: boolean
     /** Shown in place of the actions while `readOnly`; the host words it (it names the owner). */
     readOnlyNote?: string | null
+    /**
+     * Bind the keyboard shortcuts (Cmd/Ctrl+Enter approves, Escape denies). Off for a card that
+     * shares the screen with another session's card, so one key press never answers both.
+     */
+    shortcuts?: boolean
 }
 
 export const ApprovalCard = ({
@@ -73,6 +78,7 @@ export const ApprovalCard = ({
     onDenyAll,
     readOnly = false,
     readOnlyNote,
+    shortcuts = true,
     className = "gap-2.5 border border-solid border-colorBorderSecondary bg-colorBgContainer p-3.5",
 }: ApprovalCardProps) => {
     const current = approvals[0]
@@ -165,7 +171,7 @@ export const ApprovalCard = ({
         : ""
     // The keycaps ride on the actions themselves, so the gesture reads without a hover. Gated on
     // the keyboard, not on `touch`: that prop sizes the buttons, and /m serves desktop browsers too.
-    const showKeys = hasKeyboard
+    const showKeys = hasKeyboard && shortcuts
 
     const approve = () => {
         if (responding || readOnly) return
@@ -189,7 +195,7 @@ export const ApprovalCard = ({
     // already no-op while `responding`, so a double-fire is harmless.
     useEffect(() => {
         // A read-only card answers nothing, so it binds no keys either.
-        if (readOnly) return
+        if (readOnly || !shortcuts) return
         const onKeyDown = (event: KeyboardEvent) => {
             const approveChord = (event.metaKey || event.ctrlKey) && event.key === "Enter"
             const denyChord = event.key === "Escape" && !event.metaKey && !event.ctrlKey
