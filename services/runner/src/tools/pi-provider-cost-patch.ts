@@ -32,8 +32,9 @@
  * UPSTREAM OVERLAP. Since 1.x, pi-ai's own `applyOpenRouterReportedCost` also sets
  * `usage.cost.total` from OpenRouter's report (marking `totalFromProvider`, not `source`), without
  * scaling the split. The patch runs right after `calculateCost`, before that step, so the split is
- * scaled against Pi's estimate and Pi's step then keeps the same total (or, for BYOK, adds the
- * upstream charge).
+ * scaled against Pi's estimate and Pi's step then keeps the same total. For a BYOK reply, Pi's
+ * step adds the upstream charge to `total` only, so there the split sums to the OpenRouter charge
+ * and not to `total`. The tracer reads `total`, so the span cost is still the billed charge.
  *
  * TWO COPIES OF PI-AI. The `pi` CLI (`dist/bundle/cli.js`) does not load the `pi-ai` package: it
  * runs a minified copy bundled into `pi-coding-agent` (`cli.bundlePath` in the spec). The

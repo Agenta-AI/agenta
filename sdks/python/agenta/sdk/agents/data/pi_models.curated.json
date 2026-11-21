@@ -167,6 +167,7 @@
         "input_per_mtok": 0.035,
         "output_per_mtok": 0.1405,
         "cache_read_per_mtok": 0.0015,
+        "cache_write_per_mtok": 0,
         "currency": "USD"
       },
       "context_window": 1048576,
