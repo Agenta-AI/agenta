@@ -51,6 +51,10 @@ The registry imports no view code. A view's screen loads only from its own route
 
 A view without `routes` or `nav` has no rail link.
 
+A route page that passes `betaOnly` to `DeveloperViewGate` is the exception. It shows "not found"
+when beta developer mode is off, even if the view is forced on. The app pages for variants,
+endpoints, evaluations and traces use `betaOnly` today.
+
 ## Names
 
 - "Developer" is the nav section title on purpose. The Developer Mode switch in Preferences
@@ -63,7 +67,8 @@ A view without `routes` or `nav` has no rail link.
 
 `AGENTA_DEVELOPER_VIEWS` on the web container is a comma-separated list of view ids. The
 entrypoint writes it to `__env.js` as `NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS`, so a change needs a
-restart, not a rebuild. A listed view is on for everyone on that deployment.
+restart, not a rebuild. A listed view is on for everyone on that deployment, except on route
+pages that pass `betaOnly`, which still need beta developer mode.
 
 ## Beta developer mode (deployment switch)
 
