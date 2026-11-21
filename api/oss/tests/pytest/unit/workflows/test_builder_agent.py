@@ -188,7 +188,9 @@ def test_entry_lists_the_two_client_tools_inline():
     ]
 
 
-_LATER_TOOLS = ["request_secret", "run_agent", "read_session", "read_traces"]
+# `read_session` is not here: the Agenta tools list that the builder reads names it as a
+# tool that an agent can turn on.
+_LATER_TOOLS = ["request_secret", "run_agent", "read_traces"]
 
 
 def _builder_text() -> str:
