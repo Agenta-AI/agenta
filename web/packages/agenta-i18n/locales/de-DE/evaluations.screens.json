@@ -1,0 +1,5 @@
+{
+    "annotateToSeeScores": "Annotieren Sie die Szenarien dieses Laufs, um hier die Punktzahlen jedes Evaluators zu sehen.",
+    "missingInputsHint": "Jede Zeile schlägt wegen fehlender Eingaben fehl. Wählen Sie ein anderes Testset oder fügen Sie diesem die Spalte hinzu.",
+    "namePlaceholder": "Namen eingeben"
+}

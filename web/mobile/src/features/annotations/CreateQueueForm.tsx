@@ -1,5 +1,7 @@
 import {useEffect, useState, type FormEvent} from "react"
 
+import {useT} from "@agenta/i18n"
+import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
 import {
     Field,
     Input,
@@ -54,6 +56,7 @@ export const CreateQueueForm = ({
         submitted?: boolean
     }
 }) => {
+    const t = useT(queueScreensCatalog)
     const [name, setName] = useState(initial?.name ?? "")
     const [kind, setKind] = useState<QueueKind>(defaultKind)
     const [description, setDescription] = useState(initial?.description ?? "")
@@ -89,7 +92,11 @@ export const CreateQueueForm = ({
             <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
                 <section className="flex flex-col gap-4">
                     <SectionTitle>Basic details</SectionTitle>
-                    <Field label="Queue name" required error={errors.name}>
+                    <Field
+                        label={t("annotation.queueScreens.queueName")}
+                        required
+                        error={errors.name}
+                    >
                         <Input
                             value={name}
                             placeholder="Enter name"

@@ -1,0 +1,7 @@
+{
+    "listTitle": "注釈キュー",
+    "queueName": "キュー名",
+    "emptyTitle": "このキューは空です",
+    "testcaseUnavailable": "テストケースのデータを利用できません",
+    "testcaseNoData": "このテストケースのデータはありません"
+}

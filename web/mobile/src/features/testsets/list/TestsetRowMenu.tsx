@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import testsetScreensCatalog from "@agenta/i18n/catalogs/testsets.screens"
 import {
     Button,
     DropdownMenu,
@@ -35,6 +37,7 @@ export const TestsetRowMenu = ({
     canExport: boolean
     exportDisabled: boolean
 }) => {
+    const t = useT(testsetScreensCatalog)
     const {onOpen, onExport, onClone, onRename, onArchive, onCopyId} = actions
     const showClone = canEdit && Boolean(onClone)
     const showRename = canEdit && Boolean(onRename)
@@ -47,7 +50,7 @@ export const TestsetRowMenu = ({
                     type="button"
                     size="icon-xs"
                     variant="ghost"
-                    aria-label="Test set actions"
+                    aria-label={t("testsets.screens.testsetActions")}
                     className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
                 >
                     <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />

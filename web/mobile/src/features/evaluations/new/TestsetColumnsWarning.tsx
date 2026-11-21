@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import evaluationScreensCatalog from "@agenta/i18n/catalogs/evaluations.screens"
 import {Alert} from "@agenta/ui/ui"
 
 import type {DraftTestset} from "./newEvaluationDraft"
@@ -11,6 +13,7 @@ export const TestsetColumnsWarning = ({
     /** From `useMissingInputColumns`. */
     missing: readonly string[]
 }) => {
+    const t = useT(evaluationScreensCatalog)
     if (missing.length === 0) return null
     const list = missing.join(", ")
     return (
@@ -18,7 +21,7 @@ export const TestsetColumnsWarning = ({
             type="warning"
             showIcon
             message={`${testset.name} has no ${missing.length === 1 ? "column" : "columns"} for ${list}`}
-            description="Every row will fail with missing inputs. Pick another test set, or add the column to this one."
+            description={t("evaluations.screens.missingInputsHint")}
         />
     )
 }

@@ -1,0 +1,5 @@
+{
+    "annotateToSeeScores": "Anota los escenarios de esta ejecución para ver aquí las puntuaciones de cada evaluador.",
+    "missingInputsHint": "Todas las filas fallarán por falta de entradas. Elige otro conjunto de prueba o añade la columna a este.",
+    "namePlaceholder": "Introduce un nombre"
+}

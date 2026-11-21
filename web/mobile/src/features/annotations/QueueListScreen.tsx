@@ -3,6 +3,8 @@ import {
     createQueueDrawerOpenAtom,
     createQueueDrawerSelectionAtom,
 } from "@agenta/annotation"
+import {useT} from "@agenta/i18n"
+import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
 import {Button} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 import {Plus} from "lucide-react"
@@ -30,6 +32,7 @@ export const QueueListScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const t = useT(queueScreensCatalog)
     const PAGE_FRAME = useDeveloperPageFrame()
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
@@ -49,7 +52,7 @@ export const QueueListScreen = ({
 
     return (
         <>
-            <PageTitle title="Annotation queues" />
+            <PageTitle title={t("annotation.queueScreens.listTitle")} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
