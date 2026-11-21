@@ -1,8 +1,9 @@
 import os
 import subprocess
 import tempfile
+from typing import List, Optional
 
-from sqlalchemy import text
+from sqlalchemy import make_url, text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from sqlalchemy.exc import ProgrammingError
@@ -28,16 +29,21 @@ POSTGRES_URI_POSTGRES = (
     f"{DB_PROTOCOL}://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{ADMIN_DB}"
 )
 
+# The database names follow the prefix (agenta_oss or agenta_ee for today's
+# installs), so an open source install keeps its agenta_oss_* databases.
+DB_PREFIX = env.postgres.db_prefix
+_LEGACY_SUFFIX = DB_PREFIX.removeprefix("agenta_")
+
 # Rename/create map: {'old_name': 'new_name'}
 RENAME_MAP = {
-    "agenta_ee": "agenta_ee_core",
-    "supertokens_ee": "agenta_ee_supertokens",
-    "agenta_ee_tracing": "agenta_ee_tracing",
+    DB_PREFIX: f"{DB_PREFIX}_core",
+    f"supertokens_{_LEGACY_SUFFIX}": f"{DB_PREFIX}_supertokens",
+    f"{DB_PREFIX}_tracing": f"{DB_PREFIX}_tracing",
 }
 
 
 NODES_TF = {
-    "agenta_ee_core": "agenta_ee_tracing",
+    f"{DB_PREFIX}_core": f"{DB_PREFIX}_tracing",
 }
 
 
@@ -311,3 +317,75 @@ async def split_core_and_tracing():
 
             else:
                 print(f"Both '{old_name}' and '{new_name}' exist. No action taken.")
+
+
+# Both legacy core chains end at this empty revision, first shipped in v0.104.0.
+LEGACY_ALIGN_REVISION = "park00000000"
+
+LEGACY_REVISION_REFUSAL = (
+    "The core database is at legacy revision {revisions}, which is older than "
+    "v0.104.0. This image cannot upgrade it. Upgrade to v0.129.x first, then "
+    "start this version. If this is a new install whose first start was "
+    "interrupted, delete its databases and start again."
+)
+
+
+def _database_uri(name: str) -> str:
+    return f"{DB_PROTOCOL}://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{name}"
+
+
+async def _fetch_scalar(uri: str, query: str, params: Optional[dict] = None):
+    engine = create_async_engine(uri)
+    try:
+        async with engine.connect() as conn:
+            return (await conn.execute(text(query), params or {})).scalar()
+    finally:
+        await engine.dispose()
+
+
+async def read_legacy_core_revisions() -> Optional[List[str]]:
+    """Read `alembic_version` of the core database without changing anything.
+
+    Returns None when the database or the table does not exist yet. Before the
+    split step runs, the core database can still have its legacy name, so that
+    name is read too.
+    """
+
+    core_name = make_url(env.postgres.uri_core).database
+    legacy_names = [old for old, new in RENAME_MAP.items() if new == core_name]
+
+    for name in [core_name, *legacy_names]:
+        exists = await _fetch_scalar(
+            POSTGRES_URI_POSTGRES,
+            "SELECT 1 FROM pg_database WHERE datname = :name",
+            {"name": name},
+        )
+        if not exists:
+            continue
+
+        uri = env.postgres.uri_core if name == core_name else _database_uri(name)
+        table = await _fetch_scalar(uri, "SELECT to_regclass('public.alembic_version')")
+        if table is None:
+            return None
+
+        engine = create_async_engine(uri)
+        try:
+            async with engine.connect() as conn:
+                rows = await conn.execute(
+                    text("SELECT version_num FROM alembic_version")
+                )
+                return [row[0] for row in rows]
+        finally:
+            await engine.dispose()
+
+    return None
+
+
+async def is_open_source_database() -> bool:
+    """An open source core database has neither the EE chain nor its tables."""
+
+    return not await _fetch_scalar(
+        env.postgres.uri_core,
+        "SELECT to_regclass('public.alembic_version_ee') IS NOT NULL"
+        " OR to_regclass('public.subscriptions') IS NOT NULL",
+    )
