@@ -120,7 +120,7 @@ export const useOrganizationProjectsDraft = ({
         setSaving(Boolean(queued))
         // The write of a closed view: this view shows it as saving, then its failure, if any.
         void queued?.write.then((ok) => {
-            if (writeQueues.has(identity)) return
+            if (writeQueues.has(identity) || seededFor.current !== identity) return
             setSaving(false)
             if (ok) return
             written.current = null

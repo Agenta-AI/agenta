@@ -42,14 +42,21 @@ let root: ReturnType<typeof createRoot>
 let draft: Draft
 let store: ReturnType<typeof createStore>
 
-const Probe = () => {
-    draft = useOrganizationProjectsDraft({connection, enabled: true, organizationName: "Acme"})
+const Probe = ({shown}: {shown: ProviderConnection}) => {
+    draft = useOrganizationProjectsDraft({
+        connection: shown,
+        enabled: true,
+        organizationName: "Acme",
+    })
     return null
 }
 
+const show = (shown: ProviderConnection) =>
+    act(async () => root.render(createElement(Provider, {store}, createElement(Probe, {shown}))))
+
 const open = async () => {
     root = createRoot(host)
-    await act(async () => root.render(createElement(Provider, {store}, createElement(Probe))))
+    await show(connection)
 }
 
 const close = () => act(() => root.unmount())
@@ -149,6 +156,22 @@ describe("useOrganizationProjectsDraft", () => {
             await act(async () => ({write: draft.apply()}))
         ).write
         expect(written()).toEqual([["p2"], ["p2"]])
+    })
+
+    it("ignores the end of another connection's write after the view moved on", async () => {
+        let fail: (error: Error) => void = () => undefined
+        setProjects.mockImplementationOnce(
+            () => new Promise<void>((_resolve, reject) => (fail = reject)),
+        )
+        await choose(only("p2"))
+        close()
+        await open()
+        await show({...connection, id: "org-2"} as ProviderConnection)
+
+        await act(async () => fail(new Error("offline")))
+        await act(async () => undefined)
+        expect(draft.error).toBeNull()
+        expect(draft.changed).toBe(false)
     })
 
     it("sends a queued choice to the project it was made in", async () => {
