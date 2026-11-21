@@ -1,0 +1,42 @@
+---
+title: "A new sign-in screen and cleaner annotations"
+slug: v0-128-14-sign-in-and-annotations
+date: 2026-11-18
+tags: [v0.128.14]
+description: "A redesigned sign-in screen with a preview of templates, clearer sign-in errors, and annotations that no longer disturb your sessions."
+---
+
+<Summary>
+
+The sign-in screen has a new look. Next to the form, you now see a preview of templates and a playground-style run, so you can see what you are about to use. Sign-in errors are also clearer, and annotations no longer change your session counts or order.
+
+</Summary>
+
+{/* truncate */}
+
+## A new sign-in screen
+
+The sign-in screen now shows a live preview next to the form. It lists automations that a team or an agency would run, such as support triage, client reports and social posts. One of them opens into a playground-style run, so you can see how an agent works before you sign in.
+
+Sign-in errors are also clearer.
+
+- A wrong password now says **Invalid email or password**. It used to say that Agenta could not be reached.
+- If you lose your connection while you submit a code, you stay on the code step. You can try again without starting over.
+
+## Annotations and sessions
+
+Annotations now behave better in agent sessions.
+
+- The Sessions tab and the session list no longer count annotations as traces. Annotating an old session also no longer moves it to the top of the list.
+- Annotations now carry the session, turn and app of the span they describe, so you can find all feedback on one session. Agenta never copies these links from a private session that the annotator cannot see.
+- A text note now shows as plain text in the trace drawer. Before, it showed as raw JSON. Thank you to [@yunusarda-sudo](https://github.com/yunusarda-sudo) for this fix.
+- When you clear a column in an annotation and sync to a test set, the column is now removed from the test set. Thank you to [@TbhVishal](https://github.com/TbhVishal) for this fix.
+
+## Fixes and improvements
+
+- **Tracing:** Spans now carry turn ids, and a new index makes session queries faster.
+- **Tracing:** Span ingest keeps working when many live session streams are open.
+- **SDK:** Baggage that a caller sends now reaches the trace again. Thank you to [@abrahamguo](https://github.com/abrahamguo) for this fix.
+- **Agents:** Commands now stop cleanly at their time limit, including when you press Stop.
+- **Agents:** The sandbox image now includes a newer `pypdf`.
+- **Security:** We updated Next.js, vite, dnspython, filelock and litellm to current versions.
