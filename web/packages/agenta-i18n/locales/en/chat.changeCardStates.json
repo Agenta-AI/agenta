@@ -26,6 +26,7 @@
     "savedTogether": "Saved together as v{{version}}",
     "tryAgain": "Try again",
     "turnOff": "Turn off",
+    "turnOffFailed": "Retry turning off",
     "valueFromTo": "{{old}} to {{new}}",
     "view": "View",
     "waiting": "Waiting for the agent"

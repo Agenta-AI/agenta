@@ -9,7 +9,7 @@
  * automatically", with "Turn off" while the choice is on (design D32). A test start the choice
  * ran gets one row too: what the card would have asked, and the same mark.
  */
-import {useMemo, type ReactNode} from "react"
+import {useMemo, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import chatChangeCardCatalog from "@agenta/i18n/catalogs/chat.changeCard"
@@ -79,19 +79,42 @@ export interface ChangeResultRowProps {
     onTryAgain?: () => void
     /** The person's approval choice answered the call: the row says so. */
     autoApproved?: boolean
-    /** Turns the person's approval choice for the tool off; shown while it is on. */
-    onTurnOff?: () => void
+    /** Turns the person's approval choice for the tool off; shown while it is on. A rejected
+     *  promise keeps the button, worded as a retry. */
+    onTurnOff?: () => Promise<unknown>
     /** Touch mode: the buttons keep the 44 px tap area of the card's buttons. */
     touch?: boolean
     /** The row's padding; a card that holds the row passes its own. */
     className?: string
 }
 
-const TurnOffButton = ({onClick, className}: {onClick: () => void; className: string}) => {
+const TurnOffButton = ({
+    onClick,
+    className,
+}: {
+    onClick: () => Promise<unknown>
+    className: string
+}) => {
     const t = useT(chatChangeCardStatesCatalog)
+    const [phase, setPhase] = useState<"idle" | "busy" | "failed">("idle")
+    const turnOff = () => {
+        setPhase("busy")
+        onClick().then(
+            () => setPhase("idle"),
+            () => setPhase("failed"),
+        )
+    }
     return (
-        <Button variant="ghost" size="compact" className={className} onClick={onClick}>
-            {t("chat.changeCardStates.turnOff")}
+        <Button
+            variant="ghost"
+            size="compact"
+            className={className}
+            disabled={phase === "busy"}
+            onClick={turnOff}
+        >
+            {phase === "failed"
+                ? t("chat.changeCardStates.turnOffFailed")
+                : t("chat.changeCardStates.turnOff")}
         </Button>
     )
 }
@@ -294,7 +317,7 @@ const AutoApprovedCallRow = ({
     className = "px-3 py-[7px]",
 }: {
     call: AutoApprovedCall
-    onTurnOff?: () => void
+    onTurnOff?: () => Promise<unknown>
     touch?: boolean
     className?: string
 }) => {
@@ -366,7 +389,7 @@ export interface ChangeResultActions {
     /** The person's "always approve" per tool: whether it is on, and turning it off. */
     autoApprove?: {
         isOn: (toolName: string) => boolean
-        turnOff: (toolName: string) => void
+        turnOff: (toolName: string) => Promise<unknown>
     }
 }
 
@@ -426,6 +449,7 @@ export const ChangeResultRows = ({
 }) => {
     const calls = useMemo(() => answeredChangeCalls(parts ?? [], {finished}), [parts, finished])
     const started = useMemo(() => autoApprovedCalls(parts ?? []), [parts])
+    const autoApprove = actions?.autoApprove
     if (!calls.length && !started.length) return null
     // "Try again" only where the builder did not recover: a later call of the turn that saved the
     // same agent has already made the change on the new version.
@@ -455,8 +479,8 @@ export const ChangeResultRows = ({
                     call={call}
                     touch={touch}
                     onTurnOff={
-                        actions?.autoApprove?.isOn(call.toolName)
-                            ? () => actions.autoApprove?.turnOff(call.toolName)
+                        autoApprove?.isOn(call.toolName)
+                            ? () => autoApprove.turnOff(call.toolName)
                             : undefined
                     }
                 />

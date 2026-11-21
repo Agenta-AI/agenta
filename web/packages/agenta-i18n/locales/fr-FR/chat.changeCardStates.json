@@ -30,6 +30,7 @@
     "savedTogether": "Enregistrés ensemble en v{{version}}",
     "tryAgain": "Réessayer",
     "turnOff": "Désactiver",
+    "turnOffFailed": "Réessayer de désactiver",
     "valueFromTo": "{{old}} vers {{new}}",
     "view": "Voir",
     "waiting": "En attente de l’agent"

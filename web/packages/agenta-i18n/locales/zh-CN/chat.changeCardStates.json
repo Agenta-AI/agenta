@@ -22,6 +22,7 @@
     "savedTogether": "一起保存为 v{{version}}",
     "tryAgain": "重试",
     "turnOff": "关闭",
+    "turnOffFailed": "重试关闭",
     "valueFromTo": "{{old}} 改为 {{new}}",
     "view": "查看",
     "waiting": "正在等待 Agent"

@@ -1,4 +1,7 @@
+import {act} from "react"
+
 import {atom} from "jotai"
+import {createRoot} from "react-dom/client"
 import {renderToStaticMarkup} from "react-dom/server"
 import {describe, expect, it, vi} from "vitest"
 
@@ -21,6 +24,8 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
             workflowId === "agent-9" ? named : original.workflowArtifactQueryAtomFamily(workflowId),
     }
 })
+;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
+    true
 
 const {ChangeResultRow, ChangeResultRows} = await import("../../../src/components/ChangeResultRow")
 
@@ -158,7 +163,51 @@ describe("the rows of calls the person's approval choice ran (design D32)", () =
     }
     const on = (isOn: boolean, turnedOff: string[] = []) => ({
         isOn: () => isOn,
-        turnOff: (toolName: string) => turnedOff.push(toolName),
+        turnOff: (toolName: string) => {
+            turnedOff.push(toolName)
+            return Promise.resolve()
+        },
+    })
+
+    it("words Turn off as a retry when turning off fails", async () => {
+        const host = document.createElement("div")
+        document.body.appendChild(host)
+        const root = createRoot(host)
+        let calls = 0
+        act(() => {
+            root.render(
+                <ChangeResultRows
+                    parts={[
+                        auto({state: "output-available", output: saved}),
+                        mark("c1", "edit_agent_config"),
+                    ]}
+                    actions={{
+                        autoApprove: {
+                            isOn: () => true,
+                            turnOff: () => {
+                                calls += 1
+                                return Promise.reject(new Error("offline"))
+                            },
+                        },
+                    }}
+                />,
+            )
+        })
+        const button = () =>
+            [...host.querySelectorAll("button")].find((node) =>
+                node.textContent?.includes("Turn"),
+            ) ??
+            [...host.querySelectorAll("button")].find((node) =>
+                node.textContent?.includes("Retry"),
+            )!
+        expect(button().textContent).toBe("Turn off")
+        await act(async () => {
+            button().dispatchEvent(new MouseEvent("click", {bubbles: true}))
+        })
+        expect(calls).toBe(1)
+        expect(button().textContent).toBe("Retry turning off")
+        act(() => root.unmount())
+        host.remove()
     })
 
     it("shows the saved change card's row, marked, with Turn off while the choice is on", () => {

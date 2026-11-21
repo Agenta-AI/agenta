@@ -23,10 +23,10 @@ const callRefOf = (toolName: string): string | null => {
 
 const noChoicesAtom = atom<{data?: undefined}>({})
 
-const run = (write: Promise<unknown>) => {
-    // A failed write leaves the choice as it was; the rows read the choices again either way.
-    void write.catch(() => undefined).finally(() => void invalidateApprovalChoices())
-}
+/** The rows read the choices again after every write. A failed save leaves the box on the next
+ *  card; the returned promise rejects, so "Turn off" can offer a retry. */
+const run = (write: Promise<unknown>): Promise<unknown> =>
+    write.finally(() => void invalidateApprovalChoices())
 
 /**
  * The person's "always approve" for the builder's tools: the approval card stores a choice
@@ -54,12 +54,13 @@ export const useBuilderApprovalChoices = (enabled: boolean) => {
                           for (const toolName of toolNames) {
                               const callRef = callRefOf(toolName)
                               if (!callRef) continue
+                              // A failed save shows the box again on the next card.
                               run(
                                   createApprovalChoice({
                                       projectId: projectId as string,
                                       callRef,
                                   }),
-                              )
+                              ).catch(() => undefined)
                           }
                       },
                   }
@@ -69,8 +70,8 @@ export const useBuilderApprovalChoices = (enabled: boolean) => {
                       isOn: (toolName: string) => Boolean(choiceOf(toolName)),
                       turnOff: (toolName: string) => {
                           const choice = choiceOf(toolName)
-                          if (!choice || !projectId) return
-                          run(deleteApprovalChoice({projectId, approvalChoiceId: choice.id}))
+                          if (!choice || !projectId) return Promise.resolve()
+                          return run(deleteApprovalChoice({projectId, approvalChoiceId: choice.id}))
                       },
                   }
                 : undefined,

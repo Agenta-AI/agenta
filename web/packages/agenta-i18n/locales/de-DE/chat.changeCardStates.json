@@ -26,6 +26,7 @@
     "savedTogether": "Zusammen gespeichert als v{{version}}",
     "tryAgain": "Erneut versuchen",
     "turnOff": "Ausschalten",
+    "turnOffFailed": "Ausschalten erneut versuchen",
     "valueFromTo": "{{old}} zu {{new}}",
     "view": "Ansehen",
     "waiting": "Warten auf den Agent"

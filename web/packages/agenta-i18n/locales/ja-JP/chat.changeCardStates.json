@@ -22,6 +22,7 @@
     "savedTogether": "まとめて v{{version}} として保存",
     "tryAgain": "再試行",
     "turnOff": "オフにする",
+    "turnOffFailed": "もう一度オフにする",
     "valueFromTo": "{{old}} から {{new}}",
     "view": "表示",
     "waiting": "エージェントを待っています"

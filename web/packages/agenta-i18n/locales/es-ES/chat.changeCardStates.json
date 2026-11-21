@@ -30,6 +30,7 @@
     "savedTogether": "Guardados juntos como v{{version}}",
     "tryAgain": "Reintentar",
     "turnOff": "Desactivar",
+    "turnOffFailed": "Reintentar desactivar",
     "valueFromTo": "{{old}} a {{new}}",
     "view": "Ver",
     "waiting": "Esperando al agente"
