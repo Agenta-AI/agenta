@@ -289,6 +289,35 @@ async def test_an_answer_that_leaves_another_gate_waiting_runs_as_before():
 
 
 @pytest.mark.asyncio
+async def test_a_replayed_answer_carries_the_continuation_that_already_ran():
+    # The client lost the response and resends the same transcript. The respond route
+    # returns the continuation its answers already started. The request carries that
+    # command, so the runner refuses a second run instead of starting a new turn.
+    request = _resume(("tc-1", {"approved": True, "interactionToken": "tok-1"}))
+    applied = _Response(
+        202,
+        {
+            "interaction": {},
+            "command": {"id": "cmd-exec-1", "state": "applied"},
+            "execution": {
+                "id": "cont-exec-1",
+                "state": "pending_delivery",
+                "session_turn_id": "turn-start",
+            },
+        },
+    )
+    await _record(
+        _request({"Authorization": "ApiKey person-key"}), request, responses=[applied]
+    )
+
+    assert request.meta == {
+        "run_id": "cont-exec-1",
+        "control_command_id": "cmd-exec-1",
+        "session_turn_id": "turn-start",
+    }
+
+
+@pytest.mark.asyncio
 async def test_an_unreachable_api_does_not_stop_the_run():
     request = _resume(("tc-1", {"approved": True, "interactionToken": "tok-1"}))
     captured = await _record(

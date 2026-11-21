@@ -430,18 +430,20 @@ async def record_inband_approval_answers(
 
 
 def _run_as_continuation(request: WorkflowInvokeRequest, admission: Any) -> None:
-    """Make this request the continuation that the respond route stored and left to it.
+    """Make this request the continuation that the respond route stored for its answers.
 
-    Only a continuation that nobody delivered yet (command `pending`) is taken. Without
-    one (another gate of the turn still waits, or the answer was already continued) the
-    request runs as before."""
+    A `pending` continuation is this request's to run. A continuation in any other state
+    is a replay of answers that already ran (or run now): the request still carries its
+    command id, so the runner's exactly-once admission refuses a second run instead of
+    starting the same conversation as a new turn. Without a continuation (another gate of
+    the turn still waits) the request runs as before."""
     if not isinstance(admission, dict) or (request.meta or {}).get(
         "control_command_id"
     ):
         return
     command = admission.get("command") or {}
     execution = admission.get("execution") or {}
-    if command.get("state") != "pending" or not command.get("id"):
+    if not command.get("id"):
         return
     if not execution.get("id"):
         return
