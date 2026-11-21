@@ -48,5 +48,9 @@
     "accessKeyPlaceholder": "Digite a chave de acesso secreta",
     "sessionTokenLabel": "Token de sessão",
     "sessionTokenPlaceholder": "Digite o token de sessão",
-    "bedrockAuthRequired": "O Bedrock precisa de uma chave de API do Bedrock, ou de um ID de chave de acesso e uma chave de acesso secreta."
+    "bedrockAuthRequired": "O Bedrock precisa de uma chave de API do Bedrock, ou de um ID de chave de acesso e uma chave de acesso secreta.",
+    "apiKeyLabelCustom": "Chave de API (se o endpoint exigir uma)",
+    "protocolLabel": "Protocolo",
+    "protocolOpenai": "Compatível com OpenAI",
+    "protocolAnthropic": "Anthropic Messages"
 }

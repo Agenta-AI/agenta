@@ -1172,6 +1172,8 @@ session_mounts_service = SessionMountsService(
     mounts_service=mounts_service,
 )
 
+workflows_service.set_mount_lookup(mounts_service)
+
 session_attachments_service = SessionAttachmentsService(
     attachments_dao=session_attachments_dao,
     original_store=mounts_service,
@@ -1432,10 +1434,11 @@ _channels_inbox_worker = ChannelsInboxWorker(
     dispatcher=_channels_inbox_dispatcher,
 )
 
+channels_service.inbox_dispatch_task = _channels_inbox_worker.dispatch_inbox_event
+
 channels_ingress = ChannelsIngressRouter(
     channels_service=channels_service,
     adapter_registry=channels_adapter_registry,
-    dispatch_task=_channels_inbox_worker.dispatch_inbox_event,
     telegram_binding_service=_telegram_binding_service,
     records_service=records_service,
     attachments_service=session_attachments_service,
@@ -2359,7 +2362,7 @@ async def store_jwks():
     return webidentity.jwks()
 
 
-access_router = AccessRouter()
+access_router = AccessRouter(workflows_service=workflows_service)
 app.include_router(
     access_router.router,
     prefix="/access",

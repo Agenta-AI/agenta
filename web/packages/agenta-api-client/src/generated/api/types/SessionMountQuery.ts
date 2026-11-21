@@ -3,5 +3,6 @@
 export interface SessionMountQuery {
     session_id: string;
     agent_id?: (string | null) | undefined;
+    slugs?: (string[] | null) | undefined;
     include_archived?: boolean | undefined;
 }

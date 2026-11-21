@@ -49,6 +49,8 @@ export interface MountCredentials {
    * then parks only if the run context supplied a scope, and refuses to park when neither does.
    */
   projectId?: string;
+  /** The mount's id, from the sign response's `mount` object. */
+  mountId?: string;
 }
 
 export interface SignMountDeps {
@@ -229,6 +231,8 @@ export interface GeesefsOptions {
    * read for good, and the reader cannot be killed.
    */
   readRetryAttempts?: number;
+  /** Mount read-only (`-o ro`): a write fails at once instead of being refused by the store later. */
+  readOnly?: boolean;
 }
 
 /**
@@ -265,6 +269,7 @@ function geesefsArgs(
     ...(foreground ? ["-f"] : []),
     "-o",
     "allow_other",
+    ...(options.readOnly ? ["-o", "ro"] : []),
     `${creds.bucket}:${creds.prefix}`,
     cwd,
   ];
@@ -917,10 +922,16 @@ export interface MountHarnessSessionDirsDeps {
   signSessionMountCredentials?: typeof signSessionMountCredentials;
   mountStorageRemote?: typeof mountStorageRemote;
   signal?: AbortSignal;
+  /**
+   * The sandbox's endpoint for each dir's own credentials, when the caller has no session cwd
+   * mount to take it from; null skips the dir. Used instead of `tunnelEndpoint` when set.
+   */
+  endpointFor?: (creds: MountCredentials) => Promise<string | undefined | null>;
 }
 
 /**
- * Sign and mount every durable session-scoped dir a harness needs, INSIDE a remote sandbox.
+ * Sign and mount every durable session-scoped dir a harness needs, INSIDE a remote sandbox, and
+ * return the credential expiry of each one mounted.
  * Local runs call none of this: `~/.claude` there is the runner container's own disk (see
  * module doc), so this function is Daytona/remote-only by construction (it always mounts
  * INSIDE the given sandbox, mirroring `mountStorageRemote`). Each dir is its own sign call +
@@ -934,8 +945,9 @@ export async function mountHarnessSessionDirs(
   // Tunnel URL for an in-network store; undefined for a public store (uses `creds.endpoint`).
   tunnelEndpoint: string | undefined,
   deps: MountHarnessSessionDirsDeps,
-): Promise<void> {
-  if (dirs.length === 0) return;
+): Promise<Array<string | undefined>> {
+  const expiries: Array<string | undefined> = [];
+  if (dirs.length === 0) return expiries;
   const log = deps.log ?? defaultLog;
   const signMount =
     deps.signSessionMountCredentials ?? signSessionMountCredentials;
@@ -961,10 +973,16 @@ export async function mountHarnessSessionDirs(
       );
       continue;
     }
-    await mountRemote(sandbox, dir.path, creds, {
-      endpoint: tunnelEndpoint,
-      log,
-      signal: deps.signal,
-    });
+    const endpoint = deps.endpointFor ? await deps.endpointFor(creds) : tunnelEndpoint;
+    if (endpoint === null) continue;
+    if (
+      await mountRemote(sandbox, dir.path, creds, {
+        endpoint,
+        log,
+        signal: deps.signal,
+      })
+    )
+      expiries.push(creds.expiresAt);
   }
+  return expiries;
 }

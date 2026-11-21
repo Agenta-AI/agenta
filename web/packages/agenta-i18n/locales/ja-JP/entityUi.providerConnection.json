@@ -34,5 +34,9 @@
     "showAll": "{{total}} 件をすべて表示",
     "fetched": "取得: {{time}} ·",
     "refetch": "再取得",
-    "apiKeyPlaceholder": "{{provider}} API キー"
+    "apiKeyPlaceholder": "{{provider}} API キー",
+    "anyHarness": "Agenta が対応するすべてのハーネス",
+    "noHarnessSelected": "ハーネスが選択されていません",
+    "enabledInHarness": "{{harness}} で有効",
+    "enabledInHarnesses": "{{harnesses}} と {{last}} で有効"
 }

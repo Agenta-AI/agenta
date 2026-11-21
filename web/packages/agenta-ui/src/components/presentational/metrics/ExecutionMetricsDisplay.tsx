@@ -203,7 +203,10 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
         if (showTokens && formattedTokens)
             segments.push({
                 key: "tokens",
-                label: `${formattedTokens} tokens`,
+                label: t("ui.status.tokenCount", {
+                    count: metrics.totalTokens ?? 0,
+                    tokens: formattedTokens,
+                }),
                 tooltip: tokensTooltip,
             })
         if (showCost && formattedCost) segments.push({key: "cost", label: formattedCost})
@@ -249,7 +252,9 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
                                 </Badge>
                             </span>
                         </TooltipTrigger>
-                        <TooltipContent side="top">{`Duration: ${formattedLatency}`}</TooltipContent>
+                        <TooltipContent side="top">
+                            {t("ui.status.durationValue", {duration: formattedLatency})}
+                        </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
             )}

@@ -34,5 +34,9 @@
     "showAll": "Afficher les {{total}}",
     "fetched": "Récupéré {{time}} ·",
     "refetch": "Récupérer à nouveau",
-    "apiKeyPlaceholder": "Clé API {{provider}}"
+    "apiKeyPlaceholder": "Clé API {{provider}}",
+    "anyHarness": "tout harness pris en charge par Agenta",
+    "noHarnessSelected": "aucun harness sélectionné",
+    "enabledInHarness": "activé dans {{harness}}",
+    "enabledInHarnesses": "activé dans {{harnesses}} et {{last}}"
 }

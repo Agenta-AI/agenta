@@ -299,7 +299,9 @@ def _clip(text: str, limit: int) -> str:
 
 def _card_text(card: dict[str, Any]) -> str:
     lines = [card[key] for key in ("title", "text") if card.get(key)]
-    lines.append(approval_details(card.get("arguments")))
+    details = approval_details(card.get("arguments"))
+    if details:
+        lines.append(details)
     return "\n".join(lines)
 
 

@@ -399,6 +399,9 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def count_unstarted_triggers(self, **kwargs):
         raise NotImplementedError
 
+    async def query_active_connections(self, **kwargs):
+        raise NotImplementedError
+
     async def get_project_and_connection_by_external_key(self, **kwargs):
         raise NotImplementedError
 

@@ -167,7 +167,9 @@ export const SignInScreen = () => {
                         autoSend={sendsCodeAtOnce(methods)}
                     />
                 ) : null}
-                {(methods.password || methods.otp) && methods.sso.length ? <AuthDivider /> : null}
+                {(methods.password || methods.otp) && methods.sso.length ? (
+                    <AuthDivider label={t("auth.signIn.or")} />
+                ) : null}
                 {methods.sso.map((provider) => (
                     <LoadingButton
                         key={provider.id}
@@ -207,7 +209,9 @@ export const SignInScreen = () => {
                         lastUsedProviderId={entry.promotedProvider?.id}
                     />
                 ) : null}
-                {entry.providers.length && entry.showEmailEntry ? <AuthDivider /> : null}
+                {entry.providers.length && entry.showEmailEntry ? (
+                    <AuthDivider label={t("auth.signIn.or")} />
+                ) : null}
                 {entry.showEmailEntry ? (
                     <EmailFirstForm
                         email={flow.email}

@@ -145,7 +145,6 @@ export {
     declaredEndpointProtocol,
     initialEndpointProtocol,
     credentialStatusLine,
-    harnessSummary,
     manualModelPlaceholderForKind,
     MODEL_LIST_RENDER_CAP,
     modelListView,

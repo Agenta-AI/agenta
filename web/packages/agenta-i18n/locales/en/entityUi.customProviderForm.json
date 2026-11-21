@@ -48,5 +48,9 @@
     "accessKeyPlaceholder": "Enter secret access key",
     "sessionTokenLabel": "Session token",
     "sessionTokenPlaceholder": "Enter session token",
-    "bedrockAuthRequired": "Bedrock needs either a Bedrock API key, or both an access key ID and secret access key."
+    "bedrockAuthRequired": "Bedrock needs either a Bedrock API key, or both an access key ID and secret access key.",
+    "apiKeyLabelCustom": "API key — if the endpoint requires one",
+    "protocolLabel": "Protocol",
+    "protocolOpenai": "OpenAI-compatible",
+    "protocolAnthropic": "Anthropic Messages"
 }

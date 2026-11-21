@@ -11,6 +11,7 @@
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/session-keepalive-approval.test.ts)
  */
 import { turnLogUnmoved } from "../utils/turn-log.ts";
+import { driveSigns } from "../utils/drive-sign.ts";
 import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -315,6 +316,7 @@ function makeApprovalEngine(
       return applyScript(env as unknown as DispatchFakeEnv, request, opts);
     },
     readLatestTurnIndex: turnLogUnmoved,
+    signDrive: driveSigns,
     async runCold(_request, _emit, _signal, _presigned) {
       calls.cold += 1;
       return { ok: true, output: "cold", stopReason: "complete" };
@@ -733,6 +735,86 @@ describe("runWithKeepalive: approval park + resume", () => {
     assert.equal(calls.resumes.length, 0, "the stale park was not resumed");
     assert.equal(calls.acquire, 2, "the reply took the cold path");
     assert.deepEqual(reasons, ["continuity-invalid"]);
+  });
+
+  it("a parked approval whose project drive no longer signs is evicted and its sandbox deleted", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    const parked = calls.acquiredEnvs[0];
+    (parked as unknown as { drives: unknown[] }).drives = [
+      { slug: "prices", access: "read-write", isHome: false, credentials: { accessKey: "AK" } },
+    ];
+    const signed: string[] = [];
+    engine.signDrive = async (drive) => {
+      signed.push(drive.slug!);
+      return null;
+    };
+    const reasons: Array<string | undefined> = [];
+    parked.destroy = ((opts?: { reason?: string }) => {
+      reasons.push(opts?.reason);
+      return parked.destroyImpl();
+    }) as DispatchFakeEnv["destroy"];
+
+    await runWithKeepalive(approveResume(true), undefined, undefined, ctx);
+
+    assert.deepEqual(signed, ["prices"]);
+    assert.equal(calls.resumes.length, 0, "the park was not resumed");
+    assert.equal(calls.acquire, 2, "the reply took the cold path");
+    assert.deepEqual(reasons, ["drive-revoked"]);
+  });
+
+  it("an approval evicted for another reason still deletes its sandbox when a drive no longer signs", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    const parked = calls.acquiredEnvs[0];
+    (parked as unknown as { drives: unknown[] }).drives = [
+      { slug: "prices", access: "read-write", isHome: false, credentials: { accessKey: "AK" } },
+    ];
+    engine.signDrive = async () => null;
+    const reasons: Array<string | undefined> = [];
+    parked.destroy = ((opts?: { reason?: string }) => {
+      reasons.push(opts?.reason);
+      return parked.destroyImpl();
+    }) as DispatchFakeEnv["destroy"];
+
+    // An edited history: alone, that evicts as continuity-invalid and parks the sandbox.
+    const edited = approveResume(true, {
+      messages: [
+        { role: "user", content: "do X EDITED" },
+        {
+          role: "assistant",
+          content: [{ type: "tool_call", toolCallId: "tc-gate", toolName: "commit" }],
+        },
+        {
+          role: "user",
+          content: [{ type: "tool_result", toolCallId: "tc-gate", output: { approved: true } }],
+        },
+      ],
+    });
+    await runWithKeepalive(edited, undefined, undefined, ctx);
+
+    assert.equal(calls.resumes.length, 0);
+    assert.deepEqual(reasons, ["drive-revoked"]);
   });
 
   it("a failed turn-log read refuses the resume and keeps the approval parked", async () => {

@@ -28,5 +28,7 @@
     "versionShort": "v{{version}}",
     "moreFields_other": "+{{count}} 個のフィールド",
     "trueValue": "はい",
-    "falseValue": "いいえ"
+    "falseValue": "いいえ",
+    "durationValue": "所要時間：{{duration}}",
+    "tokenCount_other": "{{tokens}} トークン"
 }

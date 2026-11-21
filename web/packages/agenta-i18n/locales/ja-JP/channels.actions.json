@@ -10,6 +10,7 @@
     "discoverSpacesFailed": "このアプリから見えるチャンネルを一覧表示できませんでした。",
     "hostedTelegramUnavailable": "このデプロイではホスト型の Telegram ボットを利用できません。",
     "loadConnectionsFailed": "チャネルの接続を読み込めませんでした。",
+    "loadInviteFailed": "招待リンクを読み込めませんでした。",
     "loadSetupFailed": "{{platform}} のセットアップを読み込めませんでした。",
     "loadSpacesFailed": "この接続の応答先を読み込めませんでした。",
     "noAgentYet": "この接続はまだどのエージェントとしても応答していません。",

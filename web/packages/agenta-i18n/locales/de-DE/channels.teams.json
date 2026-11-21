@@ -1,0 +1,22 @@
+{
+    "appSection": "Teams-App",
+    "connected": "Verbunden. Noch zwei Schritte in Teams.",
+    "download": "Teams-App herunterladen",
+    "endpointBody": "Öffnen Sie im Developer Portal Ihren Bot, dann Configure, und fügen Sie dies als Endpunktadresse ein.",
+    "endpointLabel": "Messaging-Endpunkt",
+    "endpointTitle": "Den Messaging-Endpunkt einfügen",
+    "installTitle": "Die App in Teams installieren",
+    "loadError": "Die Teams-App konnte nicht geladen werden.",
+    "noUpload": "Keine Option Upload an app? Bitten Sie Ihren Teams-Administrator, benutzerdefinierte Apps zu erlauben.",
+    "pasteBody": "Wir prüfen sie bei Microsoft und halten das Geheimnis danach verborgen.",
+    "pasteTitle": "Die drei Werte einfügen",
+    "registerBody": "Öffnen Sie im Teams Developer Portal Tools, dann Bot management, und wählen Sie New bot.",
+    "registerLink": "Developer Portal öffnen",
+    "registerTitle": "Einen Bot registrieren",
+    "secretBody": "Fügen Sie auf der Seite Client secrets des Bots ein Clientgeheimnis hinzu und kopieren Sie seinen Wert. Die App-ID steht auf der Seite des Bots.",
+    "secretTitle": "Ein Clientgeheimnis hinzufügen",
+    "tenantBody": "Sie steht auf der Seite Overview im Microsoft Entra Admin Center.",
+    "tenantLink": "Microsoft Entra öffnen",
+    "tenantTitle": "Ihre Mandanten-ID kopieren",
+    "upload": "Öffnen Sie in Teams Apps, dann Manage your apps, dann Upload an app, und wählen Sie die heruntergeladene Datei."
+}

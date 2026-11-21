@@ -1,7 +1,6 @@
 /** The connection card's Harnesses: which harnesses may use it, with unreachable ones disabled. */
 import {useRef, useState} from "react"
 
-import {harnessSummary} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import providerConnectionCatalog from "@agenta/i18n/catalogs/entityUi.providerConnection"
 import {cn} from "@agenta/ui/styles"
@@ -38,10 +37,19 @@ const HarnessesSection = ({
     const sectionRef = useRef<HTMLElement>(null)
 
     const enabled = choices.filter((choice) => selected.includes(choice.id))
-    const summary = harnessSummary(
-        enabled.map((choice) => choice.label),
-        unrestricted,
-    )
+    const labels = enabled.map((choice) => choice.label)
+    // Always shown, so the section can stay closed without hiding what it decided.
+    const summary =
+        labels.length === 0
+            ? unrestricted
+                ? t("entityUi.providerConnection.anyHarness")
+                : t("entityUi.providerConnection.noHarnessSelected")
+            : labels.length === 1
+              ? t("entityUi.providerConnection.enabledInHarness", {harness: labels[0]})
+              : t("entityUi.providerConnection.enabledInHarnesses", {
+                    harnesses: labels.slice(0, -1).join(", "),
+                    last: labels[labels.length - 1],
+                })
 
     return (
         <section ref={sectionRef} className="flex shrink-0 flex-col">

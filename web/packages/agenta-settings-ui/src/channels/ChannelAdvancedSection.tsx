@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useState} from "react"
 
-import {createT, useT} from "@agenta/i18n"
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
 import channelsActionsCatalog from "@agenta/i18n/catalogs/channels.actions"
 import channelsAdvancedCatalog from "@agenta/i18n/catalogs/channels.advanced"
 import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
@@ -25,6 +25,92 @@ const tNow = createT(
     channelsLabelsCatalog,
     commonCatalog,
 )
+
+type AdvancedKey = CatalogKey<typeof channelsAdvancedCatalog>
+
+/** The words for a platform's shared places: channels on Slack, groups on Telegram and
+ *  WhatsApp, chats (team channels and group chats) on Teams. */
+interface PlaceKeys {
+    answersIn: AdvancedKey
+    answersInHelp: AdvancedKey
+    switchedOff: AdvancedKey
+    all: AdvancedKey
+    only: AdvancedKey
+    noneYet: AdvancedKey
+    noneCheckedAnswers: AdvancedKey
+    joinsLater: AdvancedKey
+    canPostHelp: AdvancedKey
+    readTitle: AdvancedKey
+    readAll: AdvancedKey
+    readOnly: AdvancedKey
+    noneCheckedRead: AdvancedKey
+}
+
+const GROUP_KEYS: PlaceKeys = {
+    answersIn: "channels.advanced.groupsAnswersIn",
+    answersInHelp: "channels.advanced.answersInHelp",
+    switchedOff: "channels.advanced.groupsSwitchedOff",
+    all: "channels.advanced.allGroups",
+    only: "channels.advanced.onlyTheseGroups",
+    noneYet: "channels.advanced.noGroupYet",
+    noneCheckedAnswers: "channels.advanced.noGroupCheckedAnswers",
+    joinsLater: "channels.advanced.groupJoinsLater",
+    canPostHelp: "channels.advanced.canPostHelpGroup",
+    readTitle: "channels.advanced.canSearchRead",
+    readAll: "channels.advanced.allChannels",
+    readOnly: "channels.advanced.onlyTheseChannels",
+    noneCheckedRead: "channels.advanced.noGroupCheckedRead",
+}
+
+const PLACE_KEYS: Record<ChannelPlatform, PlaceKeys> = {
+    slack: {
+        answersIn: "channels.advanced.channelsAnswersIn",
+        answersInHelp: "channels.advanced.answersInHelpSlack",
+        switchedOff: "channels.advanced.channelsSwitchedOff",
+        all: "channels.advanced.allChannels",
+        only: "channels.advanced.onlyTheseChannels",
+        noneYet: "channels.advanced.noChannelYet",
+        noneCheckedAnswers: "channels.advanced.noChannelCheckedAnswers",
+        joinsLater: "channels.advanced.channelJoinsLater",
+        canPostHelp: "channels.advanced.canPostHelpChannel",
+        readTitle: "channels.advanced.canSearchRead",
+        readAll: "channels.advanced.allChannels",
+        readOnly: "channels.advanced.onlyTheseChannels",
+        noneCheckedRead: "channels.advanced.noChannelCheckedRead",
+    },
+    telegram: GROUP_KEYS,
+    whatsapp: GROUP_KEYS,
+    discord: {
+        answersIn: "channels.advanced.channelsAnswersIn",
+        answersInHelp: "channels.advanced.answersInHelpChannels",
+        switchedOff: "channels.advanced.channelsSwitchedOff",
+        all: "channels.advanced.allChannels",
+        only: "channels.advanced.onlyTheseChannels",
+        noneYet: "channels.advanced.noChannelYet",
+        noneCheckedAnswers: "channels.advanced.noChannelCheckedAnswers",
+        joinsLater: "channels.advanced.channelJoinsLater",
+        canPostHelp: "channels.advanced.canPostHelpChannel",
+        readTitle: "channels.advanced.canSearchRead",
+        readAll: "channels.advanced.allChannels",
+        readOnly: "channels.advanced.onlyTheseChannels",
+        noneCheckedRead: "channels.advanced.noChannelCheckedRead",
+    },
+    teams: {
+        answersIn: "channels.advanced.chatsAnswersIn",
+        answersInHelp: "channels.advanced.answersInHelpTeams",
+        switchedOff: "channels.advanced.chatsSwitchedOff",
+        all: "channels.advanced.allChats",
+        only: "channels.advanced.onlyTheseChats",
+        noneYet: "channels.advanced.noChatYet",
+        noneCheckedAnswers: "channels.advanced.noChatCheckedAnswers",
+        joinsLater: "channels.advanced.chatJoinsLater",
+        canPostHelp: "channels.advanced.canPostHelpChat",
+        readTitle: "channels.advanced.chatsCanSearchRead",
+        readAll: "channels.advanced.allChats",
+        readOnly: "channels.advanced.onlyTheseChats",
+        noneCheckedRead: "channels.advanced.noChatCheckedRead",
+    },
+}
 
 /**
  * What the agent's channel tools may do through this bot: post outside the conversation that
@@ -64,10 +150,10 @@ const HELP = "text-xs leading-normal text-colorTextSecondary"
  * channel the bot joins later stays off until it is checked.
  */
 const AnswersInRow = ({
-    isSlack,
+    platform,
     answersIn,
 }: {
-    isSlack: boolean
+    platform: ChannelPlatform
     answersIn: ChannelAnswersInProps
 }) => {
     const t = useT(
@@ -77,6 +163,7 @@ const AnswersInRow = ({
         commonCatalog,
     )
     const {behavior, channels, onSave, busy = false} = answersIn
+    const keys = PLACE_KEYS[platform]
     const stored = behavior?.spaceIds ?? null
     const [choice, setChoice] = useState<Choice>(stored === null ? "all" : "only")
     const [draft, setDraft] = useState<string[]>(stored ?? [])
@@ -117,9 +204,7 @@ const AnswersInRow = ({
         setDraft(stored ?? [])
     }
 
-    const title = isSlack
-        ? t("channels.advanced.channelsAnswersIn")
-        : t("channels.advanced.groupsAnswersIn")
+    const title = t(keys.answersIn)
 
     return (
         <div
@@ -128,11 +213,7 @@ const AnswersInRow = ({
         >
             <span className="flex flex-col gap-0.5">
                 <span className="text-[13px] font-medium text-colorText">{title}</span>
-                <span className={HELP}>
-                    {isSlack
-                        ? t("channels.advanced.answersInHelpSlack")
-                        : t("channels.advanced.answersInHelp")}
-                </span>
+                <span className={HELP}>{t(keys.answersInHelp)}</span>
             </span>
             {error ? <Alert type="error" showIcon message={error} /> : null}
             {behavior === null ? (
@@ -140,11 +221,7 @@ const AnswersInRow = ({
                     <Spinner size="small" /> {t("channels.labels.loading")}
                 </div>
             ) : !behavior.group ? (
-                <span className={HELP}>
-                    {isSlack
-                        ? t("channels.advanced.channelsSwitchedOff")
-                        : t("channels.advanced.groupsSwitchedOff")}
-                </span>
+                <span className={HELP}>{t(keys.switchedOff)}</span>
             ) : (
                 <>
                     <RadioGroup
@@ -155,18 +232,8 @@ const AnswersInRow = ({
                     >
                         {(
                             [
-                                [
-                                    "all",
-                                    isSlack
-                                        ? t("channels.advanced.allChannels")
-                                        : t("channels.advanced.allGroups"),
-                                ],
-                                [
-                                    "only",
-                                    isSlack
-                                        ? t("channels.advanced.onlyTheseChannels")
-                                        : t("channels.advanced.onlyTheseGroups"),
-                                ],
+                                ["all", t(keys.all)],
+                                ["only", t(keys.only)],
                             ] as const
                         ).map(([value, label]) => (
                             <label
@@ -188,9 +255,7 @@ const AnswersInRow = ({
                         >
                             {channels.length === 0 ? (
                                 <span className="text-xs text-colorTextTertiary">
-                                    {isSlack
-                                        ? t("channels.advanced.noChannelYet")
-                                        : t("channels.advanced.noGroupYet")}
+                                    {t(keys.noneYet)}
                                 </span>
                             ) : (
                                 channels.map((channel) => (
@@ -216,12 +281,8 @@ const AnswersInRow = ({
                             )}
                             <span className={HELP}>
                                 {draft.length === 0
-                                    ? isSlack
-                                        ? t("channels.advanced.noChannelCheckedAnswers")
-                                        : t("channels.advanced.noGroupCheckedAnswers")
-                                    : isSlack
-                                      ? t("channels.advanced.channelJoinsLater")
-                                      : t("channels.advanced.groupJoinsLater")}
+                                    ? t(keys.noneCheckedAnswers)
+                                    : t(keys.joinsLater)}
                             </span>
                             <div className="flex justify-end">
                                 <Button
@@ -254,7 +315,7 @@ export const ChannelAdvancedSection = ({
         channelsLabelsCatalog,
         commonCatalog,
     )
-    const isSlack = platform === "slack"
+    const keys = PLACE_KEYS[platform]
     const [open, setOpen] = useState(false)
     const [settings, setSettings] = useState<ChannelToolSettings | null>(null)
     const [choice, setChoice] = useState<Choice>("all")
@@ -355,11 +416,7 @@ export const ChannelAdvancedSection = ({
                                     <span className="text-[13px] font-medium text-colorText">
                                         {t("channels.advanced.canPostOutside")}
                                     </span>
-                                    <span className={HELP}>
-                                        {isSlack
-                                            ? t("channels.advanced.canPostHelpChannel")
-                                            : t("channels.advanced.canPostHelpGroup")}
-                                    </span>
+                                    <span className={HELP}>{t(keys.canPostHelp)}</span>
                                 </span>
                                 <Switch
                                     size="sm"
@@ -376,27 +433,27 @@ export const ChannelAdvancedSection = ({
                             <div className={`flex flex-col gap-2.5 px-3 py-3 ${DIVIDED}`}>
                                 <span className="flex flex-col gap-0.5">
                                     <span className="text-[13px] font-medium text-colorText">
-                                        {t("channels.advanced.canSearchRead")}
+                                        {t(keys.readTitle)}
                                     </span>
-                                    {isSlack ? null : (
+                                    {platform === "telegram" ? (
                                         <span
                                             className={HELP}
                                             data-testid="channels-advanced-telegram-help"
                                         >
                                             {t("channels.advanced.telegramReadHelp")}
                                         </span>
-                                    )}
+                                    ) : null}
                                 </span>
                                 <RadioGroup
                                     value={choice}
                                     onValueChange={choose}
                                     disabled={saving}
-                                    aria-label={t("channels.advanced.canSearchRead")}
+                                    aria-label={t(keys.readTitle)}
                                 >
                                     {(
                                         [
-                                            ["all", t("channels.advanced.allChannels")],
-                                            ["only", t("channels.advanced.onlyTheseChannels")],
+                                            ["all", t(keys.readAll)],
+                                            ["only", t(keys.readOnly)],
                                         ] as const
                                     ).map(([value, label]) => (
                                         <label
@@ -428,9 +485,7 @@ export const ChannelAdvancedSection = ({
                                         ) : channels.length === 0 ? (
                                             channelsError ? null : (
                                                 <span className="text-xs text-colorTextTertiary">
-                                                    {isSlack
-                                                        ? t("channels.advanced.noChannelYet")
-                                                        : t("channels.advanced.noGroupYet")}
+                                                    {t(keys.noneYet)}
                                                 </span>
                                             )
                                         ) : (
@@ -455,11 +510,7 @@ export const ChannelAdvancedSection = ({
                                             ))
                                         )}
                                         {draft.length === 0 ? (
-                                            <span className={HELP}>
-                                                {isSlack
-                                                    ? t("channels.advanced.noChannelCheckedRead")
-                                                    : t("channels.advanced.noGroupCheckedRead")}
-                                            </span>
+                                            <span className={HELP}>{t(keys.noneCheckedRead)}</span>
                                         ) : null}
                                         <div className="flex justify-end">
                                             <Button
@@ -481,7 +532,7 @@ export const ChannelAdvancedSection = ({
                                 ) : null}
                             </div>
                             {answersIn ? (
-                                <AnswersInRow isSlack={isSlack} answersIn={answersIn} />
+                                <AnswersInRow platform={platform} answersIn={answersIn} />
                             ) : null}
                         </div>
                     )}

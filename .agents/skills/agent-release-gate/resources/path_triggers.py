@@ -130,7 +130,7 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     "services/runner/src/engines/sandbox_agent/run-plan.ts": AGENT_TOOLS
     + CUSTOM_SECRETS,
     "services/runner/src/environment/timing.ts": AGENT_TOOLS,
-    "services/runner/src/engines/sandbox_agent/agent-mount.ts": AGENT_TOOLS,
+    "services/runner/src/engines/sandbox_agent/run-drives.ts": AGENT_TOOLS,
     "services/runner/src/engines/sandbox_agent/environment.ts": AGENT_TOOLS,
     "services/runner/src/environment/mount-lifecycle.ts": AGENT_TOOLS,
     "services/runner/images/**": AGENT_TOOLS,

@@ -5,6 +5,7 @@
     "anotherAgent": "另一个 Agent",
     "answersNowhere": "不在任何地方回复",
     "channelCount_other": "{{count}} 个频道",
+    "chatCount_other": "{{count}} 个聊天",
     "directMessages": "私信",
     "dms": "私信",
     "dmsAndPlaces": "私信和{{places}}",

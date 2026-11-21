@@ -51,7 +51,9 @@ class _RecordingStore:
         self.endpoint_url = "http://seaweedfs:8333"
         self.region = "us-east-1"
 
-    async def sign_temp_credentials(self, *, bucket, prefix, duration_seconds):
+    async def sign_temp_credentials(
+        self, *, bucket, prefix, duration_seconds, read_only=False
+    ):
         self.signed_with = {"bucket": bucket, "prefix": prefix}
         return _FakeCredentials()
 

@@ -264,7 +264,8 @@ async def test_the_exchange_names_a_turns_user_items_and_skips_the_cache(exchang
     assert exchange.calls[0]["item_keys"] == ["app_connection:user/gmail"]
 
 
-async def test_a_turn_without_user_items_sends_nothing_new_and_is_cached(exchange):
+async def test_a_turn_without_user_items_names_its_agent_and_is_cached(exchange):
+    """The agent goes on every turn, for the credential's `run_agent_id` claim."""
     body = {
         "references": {"application": {"id": AGENT_ID}},
         "data": {"parameters": _agent(tools=[])},
@@ -273,7 +274,7 @@ async def test_a_turn_without_user_items_sends_nothing_new_and_is_cached(exchang
         await auth_module.get_credentials(_BodyRequest(body), "http://agenta.test")
     assert len(exchange.calls) == 1
     assert "item_keys" not in exchange.calls[0]
-    assert "workflow_id" not in exchange.calls[0]
+    assert exchange.calls[0]["workflow_id"] == AGENT_ID
 
 
 async def test_an_unsaved_agent_still_names_its_user_items(exchange):

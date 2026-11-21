@@ -942,7 +942,21 @@ class ChannelsDAOInterface(ABC):
         windowing: Optional[Windowing] = None,
     ) -> List[ChannelOutboxEvent]: ...
 
-    # --- ingress: the one unscoped read ------------------------------------- #
+    # --- ingress: the unscoped reads ----------------------------------------- #
+
+    @abstractmethod
+    async def query_active_connections(
+        self,
+        *,
+        channel: str,
+    ) -> List[Tuple[UUID, ChannelConnection]]:
+        """Every active, verified, not archived connection of one channel, as
+        (project_id, connection) pairs. Cross-project on purpose: the Discord
+        socket loop holds one socket per connection in every project, as the
+        schedule tick reads every project's active schedules
+        (`fetch_active_schedules_with_project` in triggers). Credentials are
+        not resolved here."""
+        ...
 
     @abstractmethod
     async def get_project_and_connection_by_external_key(
@@ -958,7 +972,7 @@ class ChannelsDAOInterface(ABC):
         route to a disconnected connection, but the unique key covers archived
         rows, so the create paths look them up to restore rather than collide.
 
-        Deliberately cross-project, and the ONLY unscoped method here. An inbound
+        Deliberately cross-project, like `query_active_connections`. An inbound
         platform event carries no tenant, so this lookup *recovers* the project
         before anything else can be scoped. Exactly the shape and the
         justification of `get_project_and_subscription_by_trigger_id` in

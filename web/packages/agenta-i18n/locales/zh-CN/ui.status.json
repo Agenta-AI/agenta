@@ -28,5 +28,7 @@
     "versionShort": "v{{version}}",
     "moreFields_other": "+{{count}} 个更多字段",
     "trueValue": "是",
-    "falseValue": "否"
+    "falseValue": "否",
+    "durationValue": "耗时：{{duration}}",
+    "tokenCount_other": "{{tokens}} Token"
 }

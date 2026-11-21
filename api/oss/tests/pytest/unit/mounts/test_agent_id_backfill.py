@@ -3,10 +3,9 @@
 The migration's backfill is inline SQL (`split_part(substr(slug, N), '__', 1)`),
 matching the sibling core_oss data migrations (oss000000010, oss000000011),
 which are also plain SQL with no dedicated unit test. This file pins the
-parsing invariant in Python so any drift in the slug format (verified against
-`mint_agent_slug`, `core/mounts/service.py`) is caught without a live DB: the
-SQL and `mint_agent_slug`/`mint_agent_id` must derive the identical id from
-the identical slug. The SQL itself was validated against a real Postgres
+parsing invariant in Python against the reserved slug format that older API
+pods mint (`__ag__agent__<artifact id>__<name>`, frozen below): the SQL and
+`mint_agent_id` must derive the identical id from the identical slug. The SQL itself was validated against a real Postgres
 instance (ephemeral, local) during implementation.
 """
 
@@ -14,11 +13,19 @@ from uuid import uuid4
 
 from oss.src.core.mounts.service import (
     mint_agent_id,
-    mint_agent_slug,
     mint_session_slug,
+    slugify_mount_name,
 )
 
 _AGENT_SLUG_PREFIX = "__ag__agent__"
+
+
+def mint_agent_slug(*, artifact_id: str, name: str) -> str:
+    """The reserved agent drive slug older API pods mint, frozen."""
+    return (
+        f"{_AGENT_SLUG_PREFIX}{mint_agent_id(artifact_id=artifact_id)}__"
+        f"{slugify_mount_name(name)}"
+    )
 
 
 def _parse_agent_id_like_the_migration_sql(slug: str):

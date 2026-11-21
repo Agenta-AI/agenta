@@ -54,7 +54,9 @@ class _FakeStorage:
         self.endpoint_url = "http://seaweedfs:8333"
         self.region = "us-east-1"
 
-    async def sign_temp_credentials(self, *, bucket, prefix, duration_seconds):
+    async def sign_temp_credentials(
+        self, *, bucket, prefix, duration_seconds, read_only=False
+    ):
         self.signed_with = {
             "bucket": bucket,
             "prefix": prefix,
@@ -287,6 +289,60 @@ class TestStoragePolicyScope:
             r in (f"arn:aws:s3:::{_BUCKET}/{prefix}/*", f"arn:aws:s3:::{_BUCKET}")
             for r in resources
         )
+
+    async def test_read_only_policy_grants_no_write_or_delete(self):
+        from json import loads
+
+        from oss.src.core.store.storage import ObjectStore
+
+        storage = ObjectStore(
+            endpoint_url="http://seaweedfs:8333",
+            access_key=_MASTER_KEY,
+            secret_key=_MASTER_SECRET,
+        )
+        prefix = f"{uuid4()}/{uuid4()}"
+        policy = loads(
+            storage._scope_policy(bucket=_BUCKET, prefix=prefix, read_only=True)
+        )
+        actions = {action for stmt in policy["Statement"] for action in stmt["Action"]}
+        assert actions == {
+            "s3:GetObject",
+            "s3:GetObjectAttributes",
+            "s3:GetBucketLocation",
+            "s3:ListBucketMultipartUploads",
+            "s3:ListBucket",
+        }
+        objects = next(s for s in policy["Statement"] if s["Sid"] == "ObjRO")
+        assert objects["Resource"] == [f"arn:aws:s3:::{_BUCKET}/{prefix}/*"]
+        listing = next(s for s in policy["Statement"] if s["Sid"] == "BktListScoped")
+        assert listing["Condition"] == {"StringLike": {"s3:prefix": [f"{prefix}/*"]}}
+
+        read_write = loads(storage._scope_policy(bucket=_BUCKET, prefix=prefix))
+        assert "s3:PutObject" in read_write["Statement"][0]["Action"]
+        assert "s3:DeleteObject" in read_write["Statement"][0]["Action"]
+
+    async def test_sign_passes_the_read_only_policy_to_sts(self, monkeypatch):
+        from json import loads
+
+        from oss.src.core.store.storage import ObjectStore
+
+        storage = ObjectStore(
+            endpoint_url="http://seaweedfs:8333",
+            access_key=_MASTER_KEY,
+            secret_key=_MASTER_SECRET,
+        )
+        seen = {}
+
+        async def fake_sign(policy, duration_seconds):
+            seen["policy"] = loads(policy)
+            return _FakeCredentials("a", "b", "c")
+
+        monkeypatch.setattr(storage, "_sign_web_identity", fake_sign)
+        monkeypatch.setattr(storage, "_sign_federation_token", fake_sign)
+        await storage.sign_temp_credentials(
+            bucket=_BUCKET, prefix="org/mount", read_only=True
+        )
+        assert seen["policy"]["Statement"][0]["Sid"] == "ObjRO"
 
     async def test_parses_sts_credentials_xml(self):
         from oss.src.core.store.storage import _parse_sts_credentials

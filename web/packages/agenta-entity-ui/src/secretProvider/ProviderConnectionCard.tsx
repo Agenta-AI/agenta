@@ -81,6 +81,11 @@ import OrganizationProjectsSection, {
     type OrganizationConnectionScope,
 } from "./OrganizationProjectsSection"
 import {
+    providerDisplayTitle,
+    translateProtocolField,
+    translateProviderField,
+} from "./providerFieldText"
+import {
     organizationSavedToast,
     organizationSaveError,
     sameProjects,
@@ -184,6 +189,8 @@ const ProviderConnectionCard = ({
 
     const fields = useMemo(() => credentialFieldsForKind(kind), [kind])
     const title = providerTitleForKind(kind)
+    // Shown in the active language; the default connection name keeps `title`, since it is saved.
+    const displayTitle = providerDisplayTitle(kind, title)
     // Test sits beside the field that carries the key. A kind without one (Vertex's credentials
     // JSON, Bedrock's either/or pair) has no single field to attach it to, so it stands alone.
     const testedField = useMemo(
@@ -409,12 +416,14 @@ const ProviderConnectionCard = ({
             })
             setProbe(result)
             if (!result)
-                setProbeFailure(tNow("entityUi.providerConnection.couldNotRead", {provider: title}))
+                setProbeFailure(
+                    tNow("entityUi.providerConnection.couldNotRead", {provider: displayTitle}),
+                )
         } catch (error) {
             setProbe(null)
             setProbeFailure(probeFailureMessage(error, title))
         }
-    }, [projectId, probeMutation, probeRequest, readsOrganizationSecret, title])
+    }, [projectId, probeMutation, probeRequest, readsOrganizationSecret, title, displayTitle])
 
     const setField = (key: string, value: string) => {
         setCredential((previous) => ({...previous, [key]: value}))
@@ -489,7 +498,7 @@ const ProviderConnectionCard = ({
         } catch (error) {
             setSaveError(
                 (organization && organizationSaveError(error, organization.name, savedName)) ||
-                    tNow("entityUi.providerConnection.couldNotSave", {provider: title}),
+                    tNow("entityUi.providerConnection.couldNotSave", {provider: displayTitle}),
             )
         } finally {
             setSaving(false)
@@ -543,10 +552,13 @@ const ProviderConnectionCard = ({
         </TooltipProvider>
     )
 
+    const protocolText = protocolField ? translateProtocolField(protocolField) : null
+
     return (
         <div className="flex min-h-full flex-1 flex-col gap-4 text-xs">
             <section className="flex shrink-0 flex-col gap-3">
-                {fields.map((field, index) => {
+                {fields.map((declaredField, index) => {
+                    const field = translateProviderField(declaredField, kind, {perKindLabels: true})
                     const value = credential[field.key] ?? ""
                     const block =
                         field.attributes?.kind === "json" || field.attributes?.kind === "textarea"
@@ -637,13 +649,13 @@ const ProviderConnectionCard = ({
                     )
                 })}
 
-                {protocolField ? (
+                {protocolText ? (
                     <div className="flex flex-col gap-1">
-                        <span className="font-medium text-colorText">{protocolField.label}</span>
+                        <span className="font-medium text-colorText">{protocolText.label}</span>
                         <Segmented
                             size="sm"
                             disabled={readOnly}
-                            options={protocolField.options}
+                            options={protocolText.options}
                             // An undeclared record shows the default without having declared it;
                             // pressing an option is what makes the statement.
                             value={protocol ?? DEFAULT_ENDPOINT_PROTOCOL}
@@ -767,7 +779,7 @@ const ProviderConnectionCard = ({
                         {t("entityUi.providerConnection.activeModels")}
                     </span>
                     <p className="m-0 rounded-md border border-dashed border-colorBorderSecondary px-3 py-4 text-center text-colorTextTertiary">
-                        {t("entityUi.providerConnection.enterCredential", {provider: title})}
+                        {t("entityUi.providerConnection.enterCredential", {provider: displayTitle})}
                     </p>
                 </section>
             )}

@@ -148,6 +148,29 @@ class WorkflowsDAOInterface(GitDAOInterface):
         agent access backfill and of `ensure_first_agent_access`."""
 
     @abstractmethod
+    async def has_revision_with_drives(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+    ) -> bool:
+        """True when a stored revision of the artifact states `drives` as a list (a
+        `drives: null` does not count), in one indexed read."""
+
+    @abstractmethod
+    async def fetch_agents_using_drives(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+        slugs: List[str],
+        read_scope: AgentReadScope,
+    ) -> List[str]:
+        """The names of the other agents in `read_scope` that use one of the drives
+        (by slug): a latest revision lists it, or it is their own drive and they state
+        no `drives`."""
+
+    @abstractmethod
     async def query_artifacts(  # type: ignore[override]
         self,
         *,

@@ -1,5 +1,7 @@
 {
+    "addDiscordBot": "Discord ボットを追加",
     "addSlackWorkspace": "Slack ワークスペースを追加",
+    "addTeamsBot": "Teams ボットを追加",
     "addTelegramBot": "Telegram ボットを追加",
     "addWhatsAppNumber": "WhatsApp の番号を追加",
     "agent": "エージェント",

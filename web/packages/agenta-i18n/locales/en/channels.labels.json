@@ -6,6 +6,8 @@
     "answersNowhere": "Answers nowhere",
     "channelCount_one": "{{count}} channel",
     "channelCount_other": "{{count}} channels",
+    "chatCount_one": "{{count}} chat",
+    "chatCount_other": "{{count}} chats",
     "directMessages": "Direct messages",
     "dms": "DMs",
     "dmsAndPlaces": "DMs and {{places}}",

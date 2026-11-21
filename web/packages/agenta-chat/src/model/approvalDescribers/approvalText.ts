@@ -2,6 +2,7 @@
  * Text helpers shared by the approval describers and the generic preview. A leaf module so the
  * describers and `approvalPreview` can both use it without importing each other.
  */
+import {AGENT_FILES_DIR, DRIVES_DIR, presentToolPath} from "@agenta/entities/drive"
 import {drivePathFromToolPath, PATH_KEYS} from "@agenta/entities/session"
 
 // Collapsed rows truncate to one line with CSS; expanded rows show the full string. This cap is
@@ -47,41 +48,55 @@ const isOpaqueId = (segment: string): boolean =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment) ||
     /^[0-9a-f]{32,}$/i.test(segment)
 
-/** A sandbox path a person can read: run root dropped, id segments elided (#6349).
- * A path under no sandbox root (`/etc/hosts`) stays verbatim; an approval must not soften that. */
-export const displayPath = (value: string): string => {
-    const drive = drivePathFromToolPath(value)
-    if (!drive) return value
+/** A sandbox path a person can read: run root dropped, id segments elided (#6349), a drive's file
+ * under its drive folder. A path under no sandbox root (`/etc/hosts`) stays verbatim; an approval
+ * must not soften that. */
+export const displayPath = (value: string, homeSlug: string | null = null): string => {
+    const tool = drivePathFromToolPath(value)
+    if (!tool) return value
+    const path = presentToolPath(tool, homeSlug)
     const kept: string[] = []
-    for (const segment of drive.path.split("/")) {
+    for (const segment of path.split("/")) {
         if (!isOpaqueId(segment)) kept.push(segment)
         // A run of ids collapses to one gap rather than a row of them.
         else if (kept[kept.length - 1] !== "…") kept.push("…")
     }
-    return kept.join("/") || drive.path
+    return kept.join("/") || path
 }
 
-/** Folder + name, as the drive cards show it. A path outside the workspace keeps every segment:
- * "reading .ssh/id_rsa" would word an escape from the sandbox like a project file. */
-export const fileTarget = (path: string): string => {
+/** The drive folder a presented path starts with (`agent-files`, `drives/<slug>`), if any. */
+const driveFolderOf = (parts: readonly string[]): number =>
+    parts[0] === AGENT_FILES_DIR ? 1 : parts[0] === DRIVES_DIR && parts.length > 2 ? 2 : 0
+
+/** Folder + name, as the drive cards show it, after the drive folder when the file is in a drive.
+ * A path outside the workspace keeps every segment: "reading .ssh/id_rsa" would word an escape
+ * from the sandbox like a project file. */
+export const fileTarget = (path: string, homeSlug: string | null = null): string => {
     if (!drivePathFromToolPath(path)) return path
-    const parts = displayPath(path).split("/").slice(-2)
+    const all = displayPath(path, homeSlug).split("/")
+    const folder = driveFolderOf(all)
+    const parts = all.slice(folder).slice(-2)
     // An elided parent is dropped — "SKILL.md" says more than "…/SKILL.md".
-    return (parts.length === 2 && parts[0] === "…" ? parts.slice(1) : parts).join("/")
+    const tail = parts.length === 2 && parts[0] === "…" ? parts.slice(1) : parts
+    return [...all.slice(0, folder), ...tail].join("/")
 }
 
 /** One row per readable field, labelled by its name. Nested objects are skipped, never stringified.
  * `resolvePaths` is opt-in: a gateway tool's `path` addresses a third party's storage, not this sandbox. */
 export const readableFieldRows = (
     input: unknown,
-    {resolvePaths = false}: {resolvePaths?: boolean} = {},
+    {
+        resolvePaths = false,
+        homeSlug = null,
+    }: {resolvePaths?: boolean; homeSlug?: string | null} = {},
 ): {title: string; detail: string}[] => {
     if (!input || typeof input !== "object" || Array.isArray(input)) return []
     const rows: {title: string; detail: string}[] = []
     for (const [field, value] of Object.entries(input as Record<string, unknown>)) {
         const readable = readableValue(value)
         if (!readable) continue
-        const detail = resolvePaths && PATH_KEYS.includes(field) ? displayPath(readable) : readable
+        const detail =
+            resolvePaths && PATH_KEYS.includes(field) ? displayPath(readable, homeSlug) : readable
         rows.push({title: fieldLabel(field), detail: oneLine(detail)})
     }
     return rows

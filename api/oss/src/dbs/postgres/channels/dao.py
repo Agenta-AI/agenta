@@ -2489,7 +2489,30 @@ class ChannelsDAO(ChannelsDAOInterface):
                 for dbe in result.scalars().all()
             ]
 
-    # --- ingress: the one unscoped read ------------------------------------ #
+    # --- ingress: the unscoped reads ----------------------------------------- #
+
+    async def query_active_connections(
+        self,
+        *,
+        channel: str,
+    ) -> List[Tuple[UUID, ChannelConnection]]:
+        # Deliberately unscoped, like fetch_active_schedules_with_project in
+        # triggers: the socket loop serves every project's connections.
+        async with self.engine.session() as session:
+            stmt = select(ChannelConnectionDBE).where(
+                ChannelConnectionDBE.channel == channel,
+                ChannelConnectionDBE.flags.contains(
+                    {"is_active": True, "is_verified": True}
+                ),
+                ChannelConnectionDBE.deleted_at.is_(None),
+            )
+
+            result = await session.execute(stmt)
+
+            return [
+                (dbe.project_id, map_connection_dbe_to_dto(connection_dbe=dbe))
+                for dbe in result.scalars().all()
+            ]
 
     async def get_project_and_connection_by_external_key(
         self,

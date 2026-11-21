@@ -34,5 +34,9 @@
     "showAll": "显示全部 {{total}} 个",
     "fetched": "获取于 {{time}} ·",
     "refetch": "重新获取",
-    "apiKeyPlaceholder": "{{provider}} API 密钥"
+    "apiKeyPlaceholder": "{{provider}} API 密钥",
+    "anyHarness": "Agenta 支持的任意运行框架",
+    "noHarnessSelected": "未选择运行框架",
+    "enabledInHarness": "已在 {{harness}} 中启用",
+    "enabledInHarnesses": "已在 {{harnesses}} 和 {{last}} 中启用"
 }

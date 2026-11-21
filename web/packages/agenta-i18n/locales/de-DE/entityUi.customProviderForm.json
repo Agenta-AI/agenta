@@ -48,5 +48,9 @@
     "accessKeyPlaceholder": "Geheimen Zugriffsschlüssel eingeben",
     "sessionTokenLabel": "Sitzungstoken",
     "sessionTokenPlaceholder": "Sitzungstoken eingeben",
-    "bedrockAuthRequired": "Bedrock benötigt einen Bedrock-API-Schlüssel oder sowohl eine Zugriffsschlüssel-ID als auch einen geheimen Zugriffsschlüssel."
+    "bedrockAuthRequired": "Bedrock benötigt einen Bedrock-API-Schlüssel oder sowohl eine Zugriffsschlüssel-ID als auch einen geheimen Zugriffsschlüssel.",
+    "apiKeyLabelCustom": "API-Schlüssel (falls der Endpunkt einen erfordert)",
+    "protocolLabel": "Protokoll",
+    "protocolOpenai": "OpenAI-kompatibel",
+    "protocolAnthropic": "Anthropic Messages"
 }

@@ -1,6 +1,6 @@
 import {Suspense, useCallback, useRef, useState} from "react"
 
-import {useT} from "@agenta/i18n"
+import {useT, type CatalogKey} from "@agenta/i18n"
 import channelsPanelCatalog from "@agenta/i18n/catalogs/channels.panel"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner} from "@agenta/ui/ui"
 import {Broadcast, ChatCircleText, Code} from "@phosphor-icons/react"
@@ -27,6 +27,15 @@ import type {
     ChannelsPanelAgent,
 } from "./types"
 import {ViewTransition} from "./ViewTransition"
+
+/** The title of the connect flow when the agent already has a connection on the platform. */
+const ADD_ANOTHER_TITLES: Record<ChannelPlatform, CatalogKey<typeof channelsPanelCatalog>> = {
+    slack: "channels.panel.addSlackWorkspace",
+    telegram: "channels.panel.addTelegramBot",
+    whatsapp: "channels.panel.addWhatsAppNumber",
+    discord: "channels.panel.addDiscordBot",
+    teams: "channels.panel.addTeamsBot",
+}
 
 const connectFlowPanel = lazyPanel(() =>
     import("./ChannelConnectFlow").then((m) => m.ChannelConnectFlow),
@@ -468,11 +477,7 @@ export const useChannelPanel = ({
                 const hasAny = agentConnectionsOf(connections, route.platform).length > 0
                 const title = !hasAny
                     ? t("channels.panel.connectPlatform", {platform: label})
-                    : route.platform === "slack"
-                      ? t("channels.panel.addSlackWorkspace")
-                      : route.platform === "whatsapp"
-                        ? t("channels.panel.addWhatsAppNumber")
-                        : t("channels.panel.addTelegramBot")
+                    : t(ADD_ANOTHER_TITLES[route.platform])
                 return {title, icon: platformLogo(route.platform, 18)}
             }
             default:

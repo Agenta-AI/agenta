@@ -22,6 +22,8 @@ describe("sandbox teardown disposition", () => {
       ["session-incompatible", "stop"],
       ["continuity-invalid", "stop"],
       ["runtime-incompatible", "delete"],
+      // The sandbox holds credentials for a drive the agent lost.
+      ["drive-revoked", "delete"],
       ["sandbox-incompatible", "delete"],
       ["clean-resumable", "stop"],
       // A turn outside the keep-alive pool: no pool entry would own a stopped sandbox.
@@ -49,11 +51,11 @@ describe("sandbox teardown disposition", () => {
 });
 
 describe("command sandbox disposition (harness in the runner)", () => {
-  it("keeps the sandbox on every turn ending, and deletes it on a kill or a shutdown", () => {
+  it("keeps the sandbox on every turn ending, and deletes it on a kill, a shutdown or a revoked drive", () => {
     for (const reason of ["failed-turn", "aborted", "clean-resumable", "idle-expiry", undefined] as const) {
       assert.equal(commandSandboxDisposition(reason), "stop", String(reason));
     }
-    for (const reason of ["kill", "shutdown-idle", "shutdown-in-flight"] as const) {
+    for (const reason of ["kill", "drive-revoked", "shutdown-idle", "shutdown-in-flight"] as const) {
       assert.equal(commandSandboxDisposition(reason), "delete", reason);
     }
   });

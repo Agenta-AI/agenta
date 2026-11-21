@@ -11,7 +11,7 @@
  */
 import {type ReactElement, useCallback, useContext} from "react"
 
-import {downloadMountArchive} from "@agenta/entities/drive"
+import {downloadMountArchive, driveDir} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
 import {createT, useT} from "@agenta/i18n"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
@@ -43,6 +43,8 @@ const tNow = createT(driveExplorerCatalog)
 
 /** An item's write verbs; rename is file-only (no backend move endpoint). */
 export interface DriveItemWriteActions {
+    /** False for a mount root or an item in a read drive: its menu offers no write verb. */
+    canChange: (path: string) => boolean
     onRename: (path: string) => void
     onDelete: (path: string, isFolder: boolean) => void
 }
@@ -73,6 +75,25 @@ export function useCopyDrivePath(): (path: string) => void {
     )
 }
 
+/** The archive of a presented folder: the mount that backs it, plus every drive folded in
+ * below it (the `drives/` folder holds them). The API keeps the source folder in each member path
+ * (`drives/notes.md`), so each drive goes under its full folder, `drives/<slug>/`. */
+export const folderArchiveMounts = (
+    drive: Pick<SessionDriveData, "resolveMount" | "otherDrives">,
+    path: string,
+): {mountId: string; prefix: string; path: string}[] => {
+    const resolved = drive.resolveMount(path)
+    const out = resolved?.mount
+        ? [{mountId: resolved.mount.id, prefix: "", path: resolved.path}]
+        : []
+    for (const other of drive.otherDrives ?? []) {
+        const dir = driveDir(other.slug)
+        if (path && dir.startsWith(`${path}/`))
+            out.push({mountId: other.mount.id, prefix: dir, path: ""})
+    }
+    return out
+}
+
 /** A `download(presentedPath, isFolder)` for a drive item — a single file via the bytes endpoint, a
  * folder as a scoped zip via the streaming archive. Resolves which mount (cwd / agent-files) backs
  * the path. Call ONCE per view; pass down to the context menus (`onDownload`). Themed toast. */
@@ -84,12 +105,13 @@ export function useDriveItemDownload(
     return useCallback(
         (path: string, isFolder: boolean) => {
             const resolved = drive.resolveMount(path)
-            if (!resolved?.mount) return
+            const mounts = isFolder ? folderArchiveMounts(drive, path) : []
+            if (!resolved?.mount && !mounts.length) return
             const name = path.split("/").pop() || "download"
             const key = `drive-download:${path}`
             void (async () => {
                 if (!isFolder) {
-                    await downloadFile(resolved.mount, resolved.path)
+                    if (resolved?.mount) await downloadFile(resolved.mount, resolved.path)
                     return
                 }
                 message.open({
@@ -99,7 +121,7 @@ export function useDriveItemDownload(
                     duration: 0,
                 })
                 const result = await downloadMountArchive({
-                    mounts: [{mountId: resolved.mount.id, prefix: "", path: resolved.path}],
+                    mounts,
                     projectId,
                     filename: `${name}.zip`,
                 })
@@ -143,7 +165,7 @@ export const DriveItemContextMenu = ({
     onCopyPath: (path: string) => void
     /** Download this item (a file's bytes, or a folder as a zip). Omit → no Download entry. */
     onDownload?: (path: string, isFolder: boolean) => void
-    /** Rename / delete — omit on a read-only mount. */
+    /** Rename / delete — omit where nothing can be written. */
     writes?: DriveItemWriteActions
     /** Wrapper class — defaults to `min-w-0` so grid-cell truncation still wins; pass `w-full`
      * variants where the cell needs to stretch. */
@@ -185,7 +207,7 @@ export const DriveItemContextMenu = ({
                             : t("entityUi.driveExplorer.download")}
                     </ContextMenuItem>
                 ) : null}
-                {writes ? (
+                {writes?.canChange(path) ? (
                     <>
                         <ContextMenuSeparator />
                         {/* Folder rename needs a backend move endpoint: shown disabled. */}

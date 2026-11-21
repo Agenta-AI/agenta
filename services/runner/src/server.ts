@@ -20,6 +20,11 @@
  */
 import { join } from "node:path";
 import { apiBase, envApiUrl, runWithRequestApiBase } from "./apiBase.ts";
+import {
+  signAgentMountCredentials,
+  signMountCredentialsBySlug,
+  signRunDrive,
+} from "./engines/sandbox_agent/run-drives.ts";
 import { runWithStallRetry } from "./lifecycle/stall-retry.ts";
 import { loadDurableDecisions } from "./sessions/interactions.ts";
 import type { PlatformCredentialSource } from "./sessions/auth.ts";
@@ -383,6 +388,17 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
     if (!cwd) return true;
     return isMounted(cwd, klog);
   },
+  signDrive: (drive, authorization, signal) =>
+    signRunDrive(
+      drive,
+      {
+        apiBase: apiBase(),
+        authorization,
+        log: (message) => klog(`warm re-sign: ${message}`),
+        signal,
+      },
+      { signBySlug: signMountCredentialsBySlug, signAgent: signAgentMountCredentials },
+    ),
   readLatestTurnIndex: async (sessionId, authorization) => {
     const read = await readLatestSessionTurn(sessionId, undefined, {
       authorization,

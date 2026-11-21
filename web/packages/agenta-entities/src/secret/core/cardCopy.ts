@@ -73,18 +73,6 @@ export const manualModelPlaceholderForKind = (kind: string): string =>
         ? "Add a model ID the API doesn't list"
         : "Add a model ID the endpoint doesn't list"
 
-/**
- * The collapsed Harnesses row's value — always shown, so the section can stay closed without
- * hiding what it decided.
- */
-export const harnessSummary = (labels: string[], unrestricted: boolean): string => {
-    if (labels.length === 0) {
-        return unrestricted ? "any harness Agenta supports" : "no harness selected"
-    }
-    if (labels.length === 1) return `enabled in ${labels[0]}`
-    return `enabled in ${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`
-}
-
 /** "just now" / "3 min ago" / "2 h ago" — enough to judge whether the fetched list is stale. */
 export const relativeFetchTime = (iso: string): string => {
     const elapsed = Date.now() - new Date(iso).getTime()

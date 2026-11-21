@@ -22,6 +22,7 @@ from oss.src.core.channels.dtos import (
     ChannelKeyGrain,
 )
 from oss.src.core.channels.types import ChannelNotSupported
+from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.utils import compose_external_key
 from oss.src.utils.throttling import ThrottleResult
 
@@ -44,6 +45,11 @@ class FakeAdapterRegistry:
 class FakeChannelsService:
     """One embed connection. `archived` makes the lookup find nothing, as the
     DAO does for a row with `deleted_at` set."""
+
+    # The shared store-and-enqueue step runs for real over this fake's
+    # record_inbox_event.
+    inbox_dispatch_task = None
+    record_and_enqueue_inbox_event = ChannelsService.record_and_enqueue_inbox_event
 
     def __init__(self):
         self.project_id = uuid4()

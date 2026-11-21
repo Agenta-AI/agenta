@@ -2,6 +2,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import uuid4
 
+from types import SimpleNamespace
+
 import pytest
 
 from agenta.sdk.agents import SkillTemplate
@@ -296,6 +298,11 @@ class _Mounts:
         self.events = events
         self.fail_once = fail_once
         self.calls = []
+        # The drive the load's first commit created; None when the template opted out.
+        self.created_drive = SimpleNamespace(id=uuid4())
+
+    async def fetch_agent_drive(self, *, project_id, artifact_id):
+        return self.created_drive
 
     async def materialize_entries_if_absent(self, **kwargs):
         self.events.append("workspace")
@@ -1097,3 +1104,32 @@ async def test_a_completed_replay_is_checked_before_it_returns_stored_ids():
             envelope=make_envelope(),
         )
     assert len(workflows.records) == created_before
+
+
+@pytest.mark.asyncio
+async def test_load_writes_files_only_into_a_drive_created_by_the_load():
+    loader, _, _, _, _, mounts, starts = _loader()
+    result = await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=_command(),
+        envelope=make_envelope(),
+    )
+    assert mounts.calls[0]["mount"] is mounts.created_drive
+    assert result.skipped_files == []
+
+
+@pytest.mark.asyncio
+async def test_load_skips_the_files_when_the_template_names_its_home():
+    loader, events, _, _, _, mounts, starts = _loader()
+    mounts.created_drive = None
+    result = await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=_command(),
+        envelope=make_envelope(),
+    )
+    assert mounts.calls == []
+    assert "workspace" not in events
+    assert result.skipped_files == ["target-profile.md"]
+    assert len(starts.calls) == 1

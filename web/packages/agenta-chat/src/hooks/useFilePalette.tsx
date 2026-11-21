@@ -21,6 +21,7 @@ import {
     DriveBreadcrumb,
     driveFileIcon,
     useDriveArtifactId,
+    useDriveRevisionId,
     useDriveSessionId,
     useLazyDriveTree,
 } from "@agenta/entity-ui/drive"
@@ -56,6 +57,7 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
     const t = useT(chatFilePaletteCatalog)
     const sessionId = useDriveSessionId() ?? ""
     const artifactId = useDriveArtifactId() ?? undefined
+    const revisionId = useDriveRevisionId() ?? undefined
     const active = enabled && Boolean(sessionId)
 
     const [query, setQuery] = useState<string | null>(null)
@@ -64,7 +66,11 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
     // The summary drive: record-log recents plus a count, no whole-tree listing to open a menu.
     // Read once `@` opens: every session mounts this composer, and most never type it.
     const opened = active && query !== null
-    const drive = useSessionDriveSummary(opened ? sessionId : "", opened ? artifactId : undefined)
+    const drive = useSessionDriveSummary(
+        opened ? sessionId : "",
+        opened ? artifactId : undefined,
+        opened ? revisionId : undefined,
+    )
 
     const deferredQuery = useDeferredValue(query ?? "")
     const searchActive = useDelayedTrue(deferredQuery.trim() !== "", SEARCH_DELAY_MS)
@@ -124,9 +130,9 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
      */
     const byOrigin = useCallback(
         (rows: PaletteFileRow[], keyPrefix: string): PaletteSection[] => {
-            const session = rows.filter((r) => fileOrigin(r.path) === "session")
-            const agent = rows.filter((r) => fileOrigin(r.path) === "agent")
-            if (!session.length || !agent.length) {
+            const session = rows.filter((r) => fileOrigin(r.path, drive.otherDrives) === "session")
+            const durable = rows.filter((r) => fileOrigin(r.path, drive.otherDrives) !== "session")
+            if (!session.length || !durable.length) {
                 return rows.length
                     ? [{key: keyPrefix, title: "", items: rows.map((r) => toItem(r, keyPrefix))}]
                     : []
@@ -140,11 +146,11 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
                 {
                     key: `${keyPrefix}-agent`,
                     title: t("chat.filePalette.agent"),
-                    items: agent.map((r) => toItem(r, keyPrefix)),
+                    items: durable.map((r) => toItem(r, keyPrefix)),
                 },
             ]
         },
-        [toItem, t],
+        [toItem, drive.otherDrives, t],
     )
 
     const sections = useMemo<PaletteSection[]>(() => {

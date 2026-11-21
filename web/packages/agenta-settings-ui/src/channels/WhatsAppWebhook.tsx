@@ -17,7 +17,16 @@ export const copyText = async (text: string): Promise<boolean> => {
     }
 }
 
-const CopyField = ({label, value, testId}: {label: string; value: string; testId: string}) => {
+/** A read-only value with a copy button. */
+export const CopyField = ({
+    label,
+    value,
+    testId,
+}: {
+    label: string
+    value: string
+    testId: string
+}) => {
     const t = useT(channelsWhatsappCatalog, commonCatalog)
     const [copied, setCopied] = useState(false)
     useEffect(() => {

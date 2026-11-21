@@ -112,6 +112,14 @@ class _Workflows:
             return SimpleNamespace(data=SimpleNamespace(parameters=_TOOLS))
         return None
 
+    async def listed_agent_drives(self, *, project_id, artifact_id, read_scope):
+        return [], []
+
+    async def fetch_agents_using_drives(
+        self, *, project_id, artifact_id, slugs, read_scope
+    ):
+        return []
+
     async def resolve_agent_artifact_id(self, *, project_id, references):
         for reference in references or []:
             if reference.key == "workflow":

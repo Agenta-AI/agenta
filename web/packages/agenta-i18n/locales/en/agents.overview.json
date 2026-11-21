@@ -6,7 +6,7 @@
     "automationsLoadError": "Couldn't load automations.",
     "automationsTitle": "Automations",
     "channelsLoadError": "Couldn't load channels.",
-    "channelsLogosLabel": "Slack, Telegram and WhatsApp",
+    "channelsLogosLabel": "Slack, Telegram, WhatsApp, Discord and Microsoft Teams",
     "channelsManage": "Manage",
     "channelsPanelLoadError": "Could not load Channels. Try again.",
     "channelsPublish": "Publish",
@@ -17,12 +17,13 @@
     "descriptionUpdateFailed": "Couldn't update this agent's description",
     "driveEmpty": "This agent has no drive yet.",
     "edit": "Edit",
-    "filesEmpty": "This agent isn't carrying any files yet.",
+    "filesLoadError": "Couldn't load files.",
     "filesTitle": "Files",
     "needsAttention": "Needs attention",
     "openChat": "Open chat",
     "openFiles": "Open files",
     "pageTitle": "Agents",
+    "readOnly": "read only",
     "renameFailed": "Couldn't rename this agent",
     "retry": "Retry"
 }

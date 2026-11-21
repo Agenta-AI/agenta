@@ -76,7 +76,6 @@ export {
 export {
     activeModelsCount,
     credentialStatusLine,
-    harnessSummary,
     manualModelPlaceholderForKind,
     MODEL_LIST_RENDER_CAP,
     modelListView,

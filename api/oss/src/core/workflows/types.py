@@ -22,6 +22,8 @@ from agenta.sdk.engines.running.utils import (  # noqa: F401
 )
 from agenta.sdk.agents import HarnessKind
 
+from oss.src.core.sharing.types import HOME_DRIVE_NOT_ALLOWED
+
 
 class WorkflowError(Exception):
     """Base exception for workflow-domain errors."""
@@ -183,6 +185,78 @@ class InvalidAgentConnectionError(Exception):
                 "reason": self.reason,
             },
         }
+
+
+class AgentDriveError(Exception):
+    """The commit carries ``parameters.agent.drives``, ``home_drive`` or ``has_session_drive``
+    that no run can use. Kept outside :class:`WorkflowError` for the reason :class:`InvalidAgentHarnessError`
+    gives; the commit routes map every subclass to 422."""
+
+    code: str
+
+    def __init__(self, *, field: str, value: Any, message: str, next_step: str) -> None:
+        super().__init__(message)
+        self.field = field
+        self.value = value
+        self.message = message
+        self.next_step = next_step
+
+    def to_detail(self) -> Dict[str, Any]:
+        return {
+            "code": self.code,
+            "message": self.message,
+            "retryable": False,
+            "next_step": self.next_step,
+            "details": {
+                "field": f"parameters.agent.{self.field}",
+                "value": _json_safe_echo(self.value),
+            },
+        }
+
+
+class InvalidAgentDrivesError(AgentDriveError):
+    """A drive entry breaks a rule of the SDK's ``validate_agent_drives``."""
+
+    code = "invalid_drive_entry"
+
+
+class InvalidSessionDriveError(AgentDriveError):
+    """``has_session_drive`` is not a boolean."""
+
+    code = "invalid_session_drive"
+
+
+class InvalidHomeDriveError(AgentDriveError):
+    """``home_drive`` names no entry of ``drives``, or a read entry."""
+
+    code = "invalid_home_drive"
+
+
+class AgentDriveNotFoundError(AgentDriveError):
+    """An entry names no active drive in this project, or a private drive the saver may
+    not use."""
+
+    code = "drive_not_found"
+
+
+class AgentDriveNotSharedError(AgentDriveError):
+    """A shared agent lists a private drive of the saver."""
+
+    code = "drive_not_shared"
+
+
+class HomeDriveNotAllowedError(AgentDriveError):
+    """A private agent's home drive is not a private drive of the agent's owner."""
+
+    code = HOME_DRIVE_NOT_ALLOWED
+
+
+class MountLookupMissing(WorkflowError):
+    """The service was built without the mount lookup, so it cannot check the drives of
+    an agent. A wiring fault of the server, never the caller's."""
+
+    def __init__(self, message: Optional[str] = None):
+        super().__init__(message or "Drives cannot be checked: no mount lookup.")
 
 
 class WorkflowServiceUrlMissing(WorkflowError):

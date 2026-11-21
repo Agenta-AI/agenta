@@ -38,6 +38,8 @@ vi.mock("@agenta/settings-ui", async (importOriginal) => {
                     } as ChannelConnections["slack"],
                     telegram: null,
                     whatsapp: null,
+                    discord: null,
+                    teams: null,
                 }
             },
         }),
