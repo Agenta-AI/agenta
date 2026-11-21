@@ -38,7 +38,11 @@ class SessionStreamsDAOInterface(ABC):
         project_id: UUID,
         user_id: UUID,
         stream: SessionStreamCreate,
-    ) -> SessionStream: ...
+        grants_from_session_id: Optional[str] = None,
+    ) -> SessionStream:
+        """Insert the row. With `grants_from_session_id`, the same transaction gives the
+        row that session's grants, and fails (`SharingConflict`) when that session's
+        policy is no longer `stream.access`."""
 
     @abstractmethod
     async def get_by_session_id(

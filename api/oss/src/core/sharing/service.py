@@ -48,7 +48,6 @@ from oss.src.core.sharing.dtos import (
     MountVisibility,
     NotShareableReason,
     SessionGrant,
-    SessionGrantInput,
     SessionPolicyState,
     SessionReadScope,
     SessionRole,
@@ -720,37 +719,6 @@ class SharingService(ResourcePolicyInterface):
             project_id=project_id, session_id=session_id
         )
         return [] if access is None else list(access.grants)
-
-    async def copy_grants_to_created_session(
-        self,
-        *,
-        project_id: UUID,
-        session_id: str,
-        policy: AccessPolicy,
-        grants: Sequence[SessionGrant],
-        user_id: UUID,
-    ) -> None:
-        """Give a session that a start just created the grants of its calling session,
-        with their roles, before its first turn runs. The copy is made once: a later
-        change to the calling session's grants does not reach the child."""
-
-        result = await self._dao.set_session_sharing(
-            project_id=project_id,
-            session_id=session_id,
-            expected=policy,
-            change=SessionSharingChange(
-                upsert_grants=[
-                    SessionGrantInput(user_id=grant.user_id, role=grant.role)
-                    for grant in grants
-                ]
-            ),
-            user_id=user_id,
-        )
-        await invalidate_sharing_caches(
-            project_id=project_id,
-            session_ids=[session_id],
-            grant_user_ids=[grant.user_id for grant in result.upserted],
-        )
 
     async def _session_access_or_tombstone(
         self,
@@ -1611,12 +1579,14 @@ async def cache_created_session_access(
     session_id: str,
     stream_id: Optional[UUID],
     policy: AccessPolicy,
+    grants: Sequence[SessionGrant] = (),
     is_channel: Optional[bool] = None,
     channel_binding_id: Optional[UUID] = None,
 ) -> None:
     """After the commit of the insert that created a session row: write its entry with a
-    plain SET, over a cached "no row" (a new row has no grants). A failure is logged and
-    never fails the insert; the entry then expires on its TTL."""
+    plain SET, over a cached "no row". `grants` are the grants the insert gave the row
+    (none, except a child's copy of its calling session's grants). A failure is logged
+    and never fails the insert; the entry then expires on its TTL."""
 
     try:
         if stream_id is None:
@@ -1624,7 +1594,7 @@ async def cache_created_session_access(
         value = CachedSessionAccess(
             stream_id=stream_id,
             policy=policy,
-            grants=[],
+            grants=list(grants),
             # The insert path knows it (a channel session is created by its installation's
             # run, see `created_session_access`); an owned session that no channel run
             # created is never one. None: read once from the row.
