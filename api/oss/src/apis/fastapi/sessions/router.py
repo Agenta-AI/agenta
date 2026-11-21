@@ -614,11 +614,13 @@ class SessionStreamsRouter:
         interactions_service: SessionInteractionsService,
         run_admission: RunAdmission,
         records_service: Optional[RecordsService] = None,
+        commands_service: Optional[SessionCommandsService] = None,
     ) -> None:
         self._service = service
         self._interactions_service = interactions_service
         self._run_admission = run_admission
         self._records_service = records_service
+        self._commands_service = commands_service
         self.router = APIRouter()
 
         self.router.add_api_route(
@@ -758,6 +760,14 @@ class SessionStreamsRouter:
             action=Permission.RUN_SESSIONS,
             session_id=payload.session_id,
         )
+        if mode == CommandMode.cancel:
+            await self._record_running_turn_stop(
+                project_id=UUID(str(project_id)),
+                user_id=UUID(str(user_id)) if user_id else None,
+                session_id=payload.session_id,
+                expected_execution_id=payload.expected_execution_id,
+                arrived_at_ms=arrived_at_ms,
+            )
         try:
             response = await self._service.command(
                 arrived_at_ms=arrived_at_ms,
@@ -805,6 +815,58 @@ class SessionStreamsRouter:
                 )
 
         return response
+
+    async def _record_running_turn_stop(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+        expected_execution_id: Optional[str],
+        arrived_at_ms: int,
+    ) -> None:
+        """Record this Stop as the durable cancel command of `POST
+        /sessions/{session_id}/cancel`, for the turn that runs now.
+
+        The stop below clears the live flags in the database, so the orphan sweep no
+        longer sees the turn, and nothing wrote an ending when the runner was gone. With
+        the command, a runner that is alive settles the turn as it does for the cancel
+        route, and when no runner answers, the abandoned-command sweep settles it and the
+        sweep writes the missing `done`. Only a running turn: this stop never ends a
+        paused one unless the caller names it. Before the stop, so a failed write leaves
+        the turn running for a retry."""
+        if self._commands_service is None:
+            return
+        # The route check found no row: a turn running now is in a session created since,
+        # which this request has no right to stop.
+        if session_was_missing(project_id=project_id, session_id=session_id):
+            return
+        # Read from Redis, as the stop below does: the row's turn and start time are
+        # written later and by another clock, so a check against them can refuse a turn
+        # that the stop below then stops, and that turn gets no ending.
+        turn_id, started_at_ms = await self._service.running_turn_start(
+            project_id=project_id, session_id=session_id
+        )
+        if turn_id is None:
+            return
+        # The same two guards as the stop below, which cannot undo this command: a Stop
+        # that names a turn stops only that turn, and an unnamed Stop never stops a turn
+        # that started after it arrived. An unknown start does not refuse, as below.
+        if expected_execution_id is not None:
+            if expected_execution_id != turn_id:
+                return
+        elif started_at_ms is not None and started_at_ms > arrived_at_ms:
+            return
+        try:
+            await self._commands_service.request_cancel(
+                project_id=project_id,
+                user_id=user_id,
+                session_id=session_id,
+                expected_execution_id=turn_id,
+            )
+        except ExecutionExpectationFailed:
+            # The turn ended or another one runs now; the stop below gives the answer.
+            pass
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -911,6 +973,28 @@ class SessionStreamsRouter:
         ):
             return {"ok": True}
 
+        # The kill writes no ending for the execution that runs now, so it is settled
+        # `stopped` by the watchdog, and the orphan sweep writes the missing `done` when
+        # the runner writes none. It is settled before the kill: the kill clears the
+        # flags and soft-deletes the row, so a retry after a failed settle could not
+        # find the execution again. Only the live flag decides: neither the execution
+        # row nor the stored records can prove a turn runs (a paused execution has no
+        # outcome, and its paused `done` can still be on its way to the database).
+        stream = await self._service.fetch(
+            project_id=UUID(str(project_id)),
+            session_id=session_id,
+        )
+        if (
+            stream is not None
+            and stream.flags.is_running
+            and stream.turn_id
+            and self._commands_service is not None
+        ):
+            await self._commands_service.settle_execution_killed(
+                project_id=UUID(str(project_id)),
+                session_id=session_id,
+                execution_id=stream.turn_id,
+            )
         await self._service.kill(
             project_id=UUID(str(project_id)),
             user_id=UUID(str(user_id)),
@@ -1646,13 +1730,15 @@ class RecordsRouter:
             # The runner cannot tell a Steer from a Stop: both abort the turn the same way. The
             # cancel command can, so name the cause on the record and the transcript does not
             # call a turn the user's own reply replaced "Stopped".
+            # `cancel_session` marks its cancel command the same way.
             try:
-                if await self.commands_service.cancelled_by_steer(
+                cancelled_by = await self.commands_service.cancel_cause(
                     project_id=UUID(project_id),
                     session_id=body.session_id,
                     execution_id=body.turn_id,
-                ):
-                    attributes = {**(attributes or {}), "cancelledBy": "steer"}
+                )
+                if cancelled_by is not None:
+                    attributes = {**(attributes or {}), "cancelledBy": cancelled_by}
             except Exception:  # noqa: BLE001 - the cause is a label; the record must land
                 log.warning(
                     "cancel cause lookup failed session=%s turn=%s",
@@ -3856,6 +3942,7 @@ class SessionsRouter:
             interactions_service=interactions_service,
             run_admission=run_admission,
             records_service=records_service,
+            commands_service=commands_service,
         )
         self.records = RecordsRouter(
             records_service=records_service,

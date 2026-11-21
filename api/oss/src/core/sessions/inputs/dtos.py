@@ -38,6 +38,9 @@ class PendingInput(Identifier, Lifecycle):
     # The run envelope this work continues under (M2). Internal: never in a response
     # (`exclude=True`), and copied, never dumped, between services.
     run_envelope: Optional[RunEnvelope] = Field(default=None, exclude=True)
+    # The first execution id of the calling turn of a child input. Server-owned and
+    # internal: never in a response.
+    calling_turn_id: Optional[str] = Field(default=None, exclude=True)
 
 
 class PendingInputCreate(BaseModel):
@@ -50,6 +53,8 @@ class PendingInputCreate(BaseModel):
     request_fingerprint: str
     # The admitting request's run envelope; the delivery of this input runs under it.
     run_envelope: Optional[RunEnvelope] = None
+    # The first execution id of the calling turn, for a child input only.
+    calling_turn_id: Optional[str] = None
 
 
 class PendingInputAdmission(BaseModel):

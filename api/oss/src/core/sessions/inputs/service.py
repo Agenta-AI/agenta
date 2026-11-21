@@ -210,6 +210,7 @@ class SessionInputsService:
         idempotency_key: Optional[str],
         envelope: RunEnvelope,
         kind: PendingInputKind = PendingInputKind.message,
+        calling_turn_id: Optional[str] = None,
     ) -> PendingInputAdmission:
         fingerprint = input_fingerprint(content=content, policy=policy, kind=kind)
         if idempotency_key:
@@ -342,6 +343,7 @@ class SessionInputsService:
                         idempotency_key=idempotency_key,
                         request_fingerprint=fingerprint,
                         run_envelope=envelope,
+                        calling_turn_id=calling_turn_id,
                     ),
                     prioritize=policy == "steer",
                     transaction=transaction,
@@ -360,6 +362,7 @@ class SessionInputsService:
                 idempotency_key=idempotency_key,
                 envelope=envelope,
                 kind=kind,
+                calling_turn_id=calling_turn_id,
             )
         return PendingInputAdmission(
             action="pending",
@@ -410,6 +413,7 @@ class SessionInputsService:
         idempotency_key: str,
         envelope: RunEnvelope,
         kind: PendingInputKind,
+        calling_turn_id: Optional[str] = None,
     ) -> PendingInput:
         """Write one input as `pending` with the policy `queue`, whatever the session
         is doing. A settle promotes it after a later turn. A repeat of the key answers
@@ -426,6 +430,7 @@ class SessionInputsService:
                 idempotency_key=idempotency_key,
                 request_fingerprint=fingerprint,
                 run_envelope=envelope,
+                calling_turn_id=calling_turn_id,
             ),
         )
         if item.request_fingerprint != fingerprint:
@@ -443,6 +448,7 @@ class SessionInputsService:
         idempotency_key: str,
         envelope: RunEnvelope,
         kind: PendingInputKind = PendingInputKind.message,
+        calling_turn_id: Optional[str] = None,
     ) -> PendingInput:
         """Create and promote one exact input without exposing it to the queue."""
         fingerprint = input_fingerprint(content=content, policy="queue", kind=kind)
@@ -458,6 +464,7 @@ class SessionInputsService:
                     idempotency_key=idempotency_key,
                     request_fingerprint=fingerprint,
                     run_envelope=envelope,
+                    calling_turn_id=calling_turn_id,
                 ),
                 transaction=transaction,
             )
