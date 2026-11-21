@@ -93,36 +93,52 @@ export const useOrganizationProjectsDraft = ({
     // Seeded when the view opens or names another connection, never on a refetch of the same
     // one: a sign-in that lands must not undo projects picked while it ran.
     const seededFor = useRef<string | null>(null)
+    // The last choice sent: a refetch of `saved` can lag behind a write that already landed.
+    const written = useRef<OrganizationSecretProjects | null>(null)
+    // Writes run in order and outlive the view, so a choice made during a save is never lost.
+    const writes = useRef<Promise<unknown>>(Promise.resolve())
+    const running = useRef(0)
     useEffect(() => {
         const identity = connection?.id ?? ""
         if (seededFor.current === identity) return
         seededFor.current = identity
+        written.current = null
         setDraft(saved)
         setError(null)
     }, [connection?.id, saved])
 
     /** Write the draft if it changed. Resolves false on a failure, which shows on its line. */
-    const apply = useCallback(async (): Promise<boolean> => {
-        if (!enabled || !connection || sameProjects(saved, projects)) return true
+    const apply = useCallback((): Promise<boolean> => {
+        if (!enabled || !connection || sameProjects(written.current ?? saved, projects)) {
+            return Promise.resolve(true)
+        }
+        written.current = projects
+        running.current += 1
         setSaving(true)
         setError(null)
-        try {
-            await setProjects({connectionId: connection.id, projects})
-            message.success(organizationSavedToast(connection.name, projects))
-            return true
-        } catch (failure) {
-            setError(
-                organizationRefusal(failure, organizationName) ||
-                    t("entityUi.organizationProjects.couldNotSave", {name: connection.name}),
-            )
-            return false
-        } finally {
-            setSaving(false)
-        }
+        const write = writes.current.then(async () => {
+            try {
+                await setProjects({connectionId: connection.id, projects})
+                message.success(organizationSavedToast(connection.name, projects))
+                return true
+            } catch (failure) {
+                if (written.current === projects) written.current = null
+                setError(
+                    organizationRefusal(failure, organizationName) ||
+                        t("entityUi.organizationProjects.couldNotSave", {name: connection.name}),
+                )
+                return false
+            } finally {
+                running.current -= 1
+                if (running.current === 0) setSaving(false)
+            }
+        })
+        writes.current = write
+        return write
     }, [connection, enabled, organizationName, projects, saved, setProjects])
 
     /** An existing connection whose projects the admin changed: Save can write them alone. */
-    const changed = enabled && !!connection && !sameProjects(saved, projects)
+    const changed = enabled && !!connection && !sameProjects(written.current ?? saved, projects)
 
     return {projects, setProjects: setDraft, saved, saving, error, changed, apply}
 }

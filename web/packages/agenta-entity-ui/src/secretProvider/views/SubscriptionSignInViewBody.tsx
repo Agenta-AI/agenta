@@ -46,13 +46,10 @@ const SubscriptionSignInViewBody = ({params, nav}: ViewProps<SubscriptionViewPar
         enabled: editProjects,
         organizationName: organization?.name,
     })
-    // Each choice is saved once; one made while a save ran is saved when that save ends.
-    const savedChoice = useRef(draft.projects)
+    // Each choice is saved once; the draft queues one made while a save runs.
     useEffect(() => {
-        if (!draft.changed || draft.saving || savedChoice.current === draft.projects) return
-        savedChoice.current = draft.projects
-        void draft.apply()
-    }, [draft.projects, draft.saving])
+        if (draft.changed) void draft.apply()
+    }, [draft.projects])
 
     // Opening is the Connect click; a ready connection opens to its status instead. Once per
     // mount. The timer keeps a mount that React runs twice in development from starting two
