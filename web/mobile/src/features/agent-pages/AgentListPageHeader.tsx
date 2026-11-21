@@ -14,8 +14,6 @@ import {AgentPagesHeader} from "./AgentPagesHeader"
 
 /** The page column of the agent's Sessions page on a desktop (A02). */
 export const AGENT_SESSIONS_PAGE_COLUMN = "mx-auto box-border w-full max-w-[1120px] px-8 pb-12 pt-4"
-/** The page column of the agent's Analytics page on a desktop (A09). */
-export const AGENT_ANALYTICS_PAGE_COLUMN = "mx-auto box-border w-full max-w-[928px] px-8 pb-10 pt-4"
 /** The page column of the agent's Channels page on a desktop (A07). */
 export const AGENT_CHANNELS_PAGE_COLUMN = "mx-auto box-border w-full max-w-[760px] pb-6 pt-4"
 

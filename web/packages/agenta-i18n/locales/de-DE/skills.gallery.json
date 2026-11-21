@@ -3,6 +3,8 @@
     "filesParsed_one": "{{count}} Datei analysiert",
     "filesParsed_other": "{{count}} Dateien analysiert",
     "noSkillMdFound": "Im Upload wurde keine SKILL.md gefunden.",
+    "manySkillMdFound": "Der Upload enthält mehr als eine SKILL.md.",
+    "duplicateUploadPath": "Zwei Dateien im Upload haben denselben Pfad: {{path}}",
     "readUploadFailed": "Der Upload konnte nicht gelesen werden.",
     "createFailedDetail": "Erstellen fehlgeschlagen: {{error}}",
     "createFailed": "Erstellen fehlgeschlagen.",

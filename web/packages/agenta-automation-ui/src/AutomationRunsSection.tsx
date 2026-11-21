@@ -2,16 +2,19 @@ import {useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {formatNextRun} from "@agenta/entities/gatewayTrigger"
 import {scheduleTextNow} from "@agenta/entity-ui/gatewayTrigger"
-import {formatDate, useT} from "@agenta/i18n"
+import {createT, formatDate, textVersionAtom, useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsPanelCatalog from "@agenta/i18n/catalogs/automations.panel"
 import {CaretRight} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
 
 import {deliveryOutcome, type Automation} from "./automationModel"
 import {ROW_LINK} from "./lib/interactive"
 import {cn} from "./lib/utils"
 import {runDotClass, runWhenLabel} from "./runModel"
 import {useRecentAutomationRuns} from "./useAutomationRuns"
+
+const tNow = createT(automationsEditorCatalog)
 
 const GroupTitle = ({title, action}: {title: string; action?: ReactNode}) => (
     <div className="flex min-h-7 items-center gap-2">
@@ -92,6 +95,7 @@ export const AutomationRunsSection = ({
     onOpenRunHistory: (runId?: string) => void
 }) => {
     const t = useT(automationsPanelCatalog, automationsEditorCatalog)
+    const textVersion = useAtomValue(textVersionAtom)
     const {runs} = useRecentAutomationRuns(automation)
     const newest = runs[0]
     // "Next run" and its "in 14h" are read from the clock: a tick per minute keeps them true
@@ -109,7 +113,7 @@ export const AutomationRunsSection = ({
         return formatNextRun(automation.cron, {
             ...text,
             nextRun: (date, time, relative) =>
-                t("automations.editor.nextRunAt", {
+                tNow("automations.editor.nextRunAt", {
                     date: formatDate(date, {
                         weekday: "short",
                         month: "short",
@@ -120,8 +124,8 @@ export const AutomationRunsSection = ({
                     relative,
                 }),
         })
-        // `t` changes with the language, so the line is built again in the new one.
-    }, [automation.cron, automation.isActive, automation.kind, tick, t])
+        // `textVersion` changes with the language, so the line is built again in the new one.
+    }, [automation.cron, automation.isActive, automation.kind, tick, textVersion])
     const lastRunFailed = newest ? deliveryOutcome(newest) === "bad" : false
 
     return (
