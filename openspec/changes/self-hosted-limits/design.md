@@ -48,7 +48,7 @@ Non-goals:
 
 ## Decisions
 
-### Decision 1: Where the key check lives
+### Decision 1: Where the key check lives (decided 2026-11-21: option A)
 
 The OSS image must check a key to lift its limits. The OSS image does not ship `api/ee/`.
 
