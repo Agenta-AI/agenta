@@ -252,14 +252,21 @@ export const refreshVaultSecretsAtom = atom(null, async () => {
 
 /** Refresh the connection lists; true when a refreshed list shows `secretId` signed in. */
 export const refreshSignedInAtom = atom(null, async (get, set, secretId: string) => {
+    const started = Date.now()
     await set(refreshVaultSecretsAtom)
-    // Read the cache (list atoms update later); the org list has connections other projects use.
     const queryClient = getHostQueryClient()
     const owner = [get(userAtom)?.id, get(projectIdAtom)]
-    return ["secrets", "organization-secrets"].some((list) => {
-        const key = ["vault", list, ...owner]
-        // A failed refetch keeps the old rows; only a list that refetched answers.
-        if (queryClient.getQueryState(key)?.status !== "success") return false
+    const keys = ["secrets", "organization-secrets"].map((list) => ["vault", list, ...owner])
+    // The invalidation refetches only lists a page reads; fetch the other one here too.
+    await Promise.all(
+        keys.map((queryKey) =>
+            queryClient.refetchQueries({queryKey, exact: true, type: "inactive"}),
+        ),
+    )
+    // Read the cache (list atoms update later), and only a list that this refresh read.
+    return keys.some((key) => {
+        const state = queryClient.getQueryState(key)
+        if (state?.status !== "success" || state.dataUpdatedAt < started) return false
         return (queryClient.getQueryData<LlmProvider[]>(key) ?? []).some(
             (row) => row.id === secretId && row.subscription?.loginState === "ready",
         )

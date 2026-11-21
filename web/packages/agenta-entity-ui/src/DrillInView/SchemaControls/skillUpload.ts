@@ -120,22 +120,26 @@ function zipEntryNames(bytes: Uint8Array): string[] {
     return names
 }
 
+/** A name that an archive in the upload holds twice; unzipping keeps only one of the two. */
+function repeatedArchivePath(raw: RawFile[]): string | undefined {
+    for (const f of raw) {
+        if (!ARCHIVE_EXT.test(f.path)) continue
+        const names = zipEntryNames(f.bytes)
+        const repeated = names.find((name, i) => names.indexOf(name) !== i)
+        if (repeated !== undefined) return repeated
+    }
+    return undefined
+}
+
 /** Expand any `.zip` / `.skill` archives into their entries; pass other files through. */
 function expandArchives(raw: RawFile[]): RawFile[] {
     const out: RawFile[] = []
     for (const f of raw) {
         if (ARCHIVE_EXT.test(f.path)) {
             try {
-                // `unzipSync` keys entries by name, so a repeated name keeps one; count them first.
-                const counts = new Map<string, number>()
-                for (const name of zipEntryNames(f.bytes)) {
-                    counts.set(name, (counts.get(name) ?? 0) + 1)
-                }
-                for (const [path, bytes] of Object.entries(unzipSync(f.bytes))) {
-                    // A repeated name goes in once per entry, so the duplicate-path check sees it.
-                    for (let i = 0; i < (counts.get(path) ?? 1); i++) {
-                        out.push({path, bytes: bytes as Uint8Array})
-                    }
+                const entries = unzipSync(f.bytes)
+                for (const [path, bytes] of Object.entries(entries)) {
+                    out.push({path, bytes: bytes as Uint8Array})
                 }
                 continue
             } catch {
@@ -332,7 +336,7 @@ export interface SkillUpload {
 }
 
 /** Split an upload into its text files and the files that are skipped. */
-export function readSkillUpload(raw: RawFile[]): SkillUpload {
+export function readSkillUpload(raw: RawFile[], repeatedPath?: string): SkillUpload {
     const {files, usable, skipped} = splitTextFiles(raw)
     const skill = buildSkillFromFiles(usable)
     const paths = skill.files.map((file) => file.path)
@@ -340,7 +344,7 @@ export function readSkillUpload(raw: RawFile[]): SkillUpload {
         hasSkillMd: usable.some((f) => SKILL_MD.test(f.path)),
         // A skipped SKILL.md still marks a second skill, as in `scanSkillFiles`.
         manySkills: files.filter((f) => SKILL_MD.test(f.path)).length > 1,
-        duplicatePath: paths.find((path, i) => paths.indexOf(path) !== i),
+        duplicatePath: repeatedPath ?? paths.find((path, i) => paths.indexOf(path) !== i),
         skill,
         skipped,
     }
@@ -348,12 +352,14 @@ export function readSkillUpload(raw: RawFile[]): SkillUpload {
 
 /** Top-level: a selected FileList → an upload for the skill view. */
 export async function readSkillUploadFromFileList(list: FileList | File[]): Promise<SkillUpload> {
-    return readSkillUpload(expandArchives(await filesToRaw(list)))
+    const raw = await filesToRaw(list)
+    return readSkillUpload(expandArchives(raw), repeatedArchivePath(raw))
 }
 
 /** Top-level: a drop's DataTransfer → an upload for the skill view. */
 export async function readSkillUploadFromDataTransfer(dt: DataTransfer): Promise<SkillUpload> {
-    return readSkillUpload(expandArchives(await readDataTransfer(dt)))
+    const raw = await readDataTransfer(dt)
+    return readSkillUpload(expandArchives(raw), repeatedArchivePath(raw))
 }
 
 export type SkillUploadMode = "add" | "replace"

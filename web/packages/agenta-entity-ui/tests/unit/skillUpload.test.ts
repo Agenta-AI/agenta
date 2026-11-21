@@ -7,6 +7,7 @@ import {
     parseSkillMarkdown,
     readSkillUpload,
     readSkillUploadFromFileList,
+    scanSkillFromFileList,
     scanSkillFiles,
 } from "../../src/DrillInView/SchemaControls/skillUpload"
 
@@ -289,6 +290,13 @@ describe("applySkillUpload", () => {
         expect(applySkillUpload(skill, await zipUpload(TWO_LATIN1_ZIP), "add")).toMatchObject({
             error: "duplicatePath",
         })
+    })
+
+    it("the gallery scan of such a zip keeps one entry per path, as before", async () => {
+        const zip = Uint8Array.from(atob(TWO_NOTES_ZIP), (c) => c.charCodeAt(0))
+        const file = {name: "skill.zip", arrayBuffer: async () => zip.buffer} as unknown as File
+        const scan = await scanSkillFromFileList([file])
+        expect(scan.candidates[0].skill.files.map((entry) => entry.path)).toEqual(["notes.md"])
     })
 
     it("Replace with no SKILL.md changes nothing and says so", () => {
