@@ -1,13 +1,15 @@
 import {useState} from "react"
 
+import {sessionMessagesAtom, sessionStatusAtomFamily} from "@agenta/chat/state"
 import type {SessionStream} from "@agenta/entities/session"
-import {isSessionFresh, sessionListQueryOptions} from "@agenta/entities/session"
+import {sessionListQueryOptions} from "@agenta/entities/session"
 import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {livePollInterval} from "@agenta/navigation"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {SkeletonRows} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
+import {useStore} from "jotai"
 
 import {AutomationRunConversation} from "../automations/AutomationRunConversation"
 import {mintBlankSession} from "../chat/useStartBlankSession"
@@ -47,13 +49,14 @@ export const usePaneSessions = (projectId: string, agentId: string) =>
  */
 export const usePaneSessionPick = (projectId: string, agentId: string) => {
     const query = usePaneSessions(projectId, agentId)
+    const store = useStore()
     const rows = query.data?.sessions ?? []
     const [picked, setPicked] = useState<SessionStream | null>(null)
     const [blanks, setBlanks] = useState<SessionStream[]>([])
-    const sessions = [
-        ...blanks.filter((blank) => !rows.some((row) => row.session_id === blank.session_id)),
-        ...rows,
-    ]
+    const unlisted = blanks.filter(
+        (blank) => !rows.some((row) => row.session_id === blank.session_id),
+    )
+    const sessions = [...unlisted, ...rows]
     if (!picked && sessions[0]) setPicked(sessions[0])
     const session = sessions.find((row) => row.session_id === picked?.session_id) ?? picked
     const pick = (sessionId: string) => {
@@ -61,8 +64,14 @@ export const usePaneSessionPick = (projectId: string, agentId: string) => {
         if (row) setPicked(row)
     }
     const startNew = () => {
-        // A blank session with no message yet is already the new session (a double tap too).
-        if (session && isSessionFresh(session.session_id)) return
+        // A blank session with no message sent is still the new session: a second tap, or a tap
+        // after a switch away, shows it again and does not add another "Untitled session".
+        const unused = unlisted.find(
+            ({session_id: id}) =>
+                !store.get(sessionMessagesAtom)[id]?.length &&
+                store.get(sessionStatusAtomFamily(id)) === "idle",
+        )
+        if (unused) return setPicked(unused)
         const blank = {project_id: projectId, session_id: mintBlankSession()}
         setBlanks((current) => [blank, ...current])
         setPicked(blank)

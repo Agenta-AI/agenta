@@ -6,6 +6,7 @@
  */
 import {act, type ReactNode} from "react"
 
+import {sessionMessagesAtom} from "@agenta/chat/state"
 import {clearSessionFresh, isSessionFresh} from "@agenta/entities/session"
 import {QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
@@ -107,6 +108,7 @@ const store = () => {
     return value
 }
 let root: Root
+let jotaiStore: ReturnType<typeof createStore>
 
 beforeEach(() => {
     menu.clicked = []
@@ -129,7 +131,7 @@ const render = async (node: ReactNode) => {
     await act(async () => {
         root.render(
             <QueryClientProvider client={queryClient}>
-                <Provider store={store()}>{node}</Provider>
+                <Provider store={(jotaiStore = store())}>{node}</Provider>
             </QueryClientProvider>,
         )
     })
@@ -179,12 +181,25 @@ describe("Pane Sessions (B04)", () => {
         expect(router.push).not.toHaveBeenCalled()
     })
 
-    it("keeps one blank session on a second tap", async () => {
+    it("shows the unused blank session again on a second tap or after a switch away", async () => {
         await render(<Pane />)
         await act(async () => newSession().click())
         await act(async () => newSession().click())
+        await act(async () => pickerRow("Zahnwerk GmbH")?.click())
+        await act(async () => newSession().click())
         expect(minted.count).toBe(1)
         expect(byId("conversation")?.textContent).toBe("blank-1")
+    })
+
+    it("starts another blank session once the first has a message", async () => {
+        await render(<Pane />)
+        await act(async () => newSession().click())
+        act(() =>
+            jotaiStore.set(sessionMessagesAtom, {"blank-1": [{id: "m1", role: "user", parts: []}]}),
+        )
+        await act(async () => newSession().click())
+        expect(minted.count).toBe(2)
+        expect(byId("conversation")?.textContent).toBe("blank-2")
     })
 
     it("lists the blank session, so a switch away can come back to it", async () => {
