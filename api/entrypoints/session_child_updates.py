@@ -30,6 +30,7 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.sharing.admission import RunAdmission
+from oss.src.core.sharing.service import get_sharing_service
 from oss.src.core.store.storage import ObjectStore
 from oss.src.core.triggers.utils import purge_hidden_schedule
 from oss.src.core.workflows.service import WorkflowsService
@@ -228,6 +229,11 @@ def build_session_child_updates_service() -> SessionChildUpdatesService:
         turns_dao=turns_dao,
         records_service=records_service,
         starts_service=starts_service,
+        session_readers=lambda project_id, session_id: (
+            get_sharing_service().session_readers(
+                project_id=project_id, session_id=session_id
+            )
+        ),
         result_files=mounts_service,
         agent_lookup=_agent_lookup,
         # The start and send handlers create the still-running schedule; the producer
