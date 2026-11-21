@@ -5,6 +5,8 @@
 import {act, createElement} from "react"
 
 import type {OrganizationSecretProjects, ProviderConnection} from "@agenta/entities/secret"
+import {projectIdAtom} from "@agenta/shared/state"
+import {createStore, Provider} from "jotai"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -38,6 +40,7 @@ Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true})
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 let draft: Draft
+let store: ReturnType<typeof createStore>
 
 const Probe = () => {
     draft = useOrganizationProjectsDraft({connection, enabled: true, organizationName: "Acme"})
@@ -46,7 +49,7 @@ const Probe = () => {
 
 const open = async () => {
     root = createRoot(host)
-    await act(async () => root.render(createElement(Probe)))
+    await act(async () => root.render(createElement(Provider, {store}, createElement(Probe))))
 }
 
 const close = () => act(() => root.unmount())
@@ -77,6 +80,8 @@ describe("useOrganizationProjectsDraft", () => {
     beforeEach(async () => {
         setProjects.mockReset()
         setProjects.mockResolvedValue(undefined)
+        store = createStore()
+        store.set(projectIdAtom, "project-1")
         host = document.createElement("div")
         await open()
     })
@@ -108,6 +113,32 @@ describe("useOrganizationProjectsDraft", () => {
         await third
         // The closed view's queued choice is replaced by the newer one, never sent after it.
         expect(written()).toEqual([["p2"], ["p1"]])
+    })
+
+    it("opens on the choice a closed view is still saving, and shows the save", async () => {
+        const finishFirst = holdNextWrite()
+        await choose(only("p2"))
+        close()
+
+        await open()
+        expect(draft.projects).toEqual(only("p2"))
+        expect(draft.changed).toBe(false)
+        expect(draft.saving).toBe(true)
+        await finishFirst()
+        expect(draft.saving).toBe(false)
+        expect(written()).toEqual([["p2"]])
+    })
+
+    it("sends a queued choice to the project it was made in", async () => {
+        const finishFirst = holdNextWrite()
+        await choose(only("p2"))
+        await choose(only())
+        store.set(projectIdAtom, "project-2")
+        await finishFirst()
+        expect(setProjects.mock.calls.map(([call]) => call.projectId)).toEqual([
+            "project-1",
+            "project-1",
+        ])
     })
 
     it("writes a return to the saved projects when the saved value is not refetched yet", async () => {

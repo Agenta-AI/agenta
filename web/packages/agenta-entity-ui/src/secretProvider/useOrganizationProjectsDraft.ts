@@ -14,9 +14,13 @@ import {useSetAtom, useStore} from "jotai"
 
 const t = createT(organizationProjectsCatalog)
 
-// The newest write of each connection. Each write waits for the one before it, also across a
-// closed and reopened view, so a choice made during a save is never lost or overwritten.
-const writeQueues = new Map<string, Promise<boolean>>()
+// The newest write of each connection and the choice it sends. Each write waits for the one
+// before it, also across a closed and reopened view, so a choice made during a save is never lost
+// or overwritten. A view that opens while one runs starts from that choice.
+const writeQueues = new Map<
+    string,
+    {write: Promise<boolean>; projects: OrganizationSecretProjects}
+>()
 
 /** The toast an organization save shows: who may use the connection now. */
 export const organizationSavedToast = (name: string, projects: OrganizationSecretProjects) => {
@@ -105,9 +109,15 @@ export const useOrganizationProjectsDraft = ({
         const identity = connection?.id ?? ""
         if (seededFor.current === identity) return
         seededFor.current = identity
-        written.current = null
-        setDraft(saved)
+        const queued = writeQueues.get(identity)
+        written.current = queued?.projects ?? null
+        setDraft(queued?.projects ?? saved)
         setError(null)
+        setSaving(Boolean(queued))
+        // The write of a closed view: this view shows it as saving until the queue is done.
+        void queued?.write.finally(() => {
+            if (!writeQueues.has(identity)) setSaving(false)
+        })
     }, [connection?.id, saved])
 
     /** Write the draft if it changed. Resolves false on a failure, which shows on its line. */
@@ -120,10 +130,10 @@ export const useOrganizationProjectsDraft = ({
         const id = connection.id
         // The project is read now: the write may run after a switch to another one.
         const scope = store.get(projectIdAtom) ?? undefined
-        const write: Promise<boolean> = (writeQueues.get(id) ?? Promise.resolve(true)).then(
+        const write: Promise<boolean> = (writeQueues.get(id)?.write ?? Promise.resolve(true)).then(
             async () => {
                 // A newer choice is queued behind this one, so this one is not sent.
-                if (writeQueues.get(id) !== write) return true
+                if (writeQueues.get(id)?.write !== write) return true
                 setError(null)
                 try {
                     await setProjects({connectionId: id, projects, projectId: scope})
@@ -139,14 +149,14 @@ export const useOrganizationProjectsDraft = ({
                     )
                     return false
                 } finally {
-                    if (writeQueues.get(id) === write) {
+                    if (writeQueues.get(id)?.write === write) {
                         writeQueues.delete(id)
                         setSaving(false)
                     }
                 }
             },
         )
-        writeQueues.set(id, write)
+        writeQueues.set(id, {write, projects})
         return write
     }, [connection, enabled, organizationName, projects, saved, setProjects, store])
 
