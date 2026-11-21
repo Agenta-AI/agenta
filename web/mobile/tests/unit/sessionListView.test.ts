@@ -30,6 +30,7 @@ const row = (
         agentId,
         activityAt,
         isAutomation: false,
+        isChildSession: false,
         automation: null,
         deliveryId: null,
         isPinned: false,

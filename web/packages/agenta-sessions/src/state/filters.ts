@@ -39,6 +39,10 @@ export const createSessionFilterAtoms = () => {
     /** Automation runs are sessions too, so without this they sit in the list indistinguishable
      * from your own work. Hidden by default; the chip opts back in. */
     const showTriggered = atom(false)
+    /** Sessions that an agent in another session created (origin `calling_session`). A builder's
+     * test runs would otherwise fill the list, so they are hidden by default; the switch opts back
+     * in and adds them to the list. */
+    const showChildSessions = atom(false)
 
     /** Everything the agent-scoped page can still narrow by — its agent comes from the route. */
     const activeExceptAgent = atom(
@@ -58,6 +62,7 @@ export const createSessionFilterAtoms = () => {
         set(showArchived, false)
         set(archivedOnly, false)
         set(showTriggered, false)
+        set(showChildSessions, false)
     })
 
     return {
@@ -67,6 +72,7 @@ export const createSessionFilterAtoms = () => {
         showArchived,
         archivedOnly,
         showTriggered,
+        showChildSessions,
         activeExceptAgent,
         active,
         reset,
@@ -89,6 +95,7 @@ export const sessionStatusFilterAtom = sharedSessionFilterAtoms.status
 export const sessionShowArchivedAtom = sharedSessionFilterAtoms.showArchived
 export const sessionArchivedOnlyAtom = sharedSessionFilterAtoms.archivedOnly
 export const sessionShowTriggeredAtom = sharedSessionFilterAtoms.showTriggered
+export const sessionShowChildSessionsAtom = sharedSessionFilterAtoms.showChildSessions
 export const sessionFiltersActiveExceptAgentAtom = sharedSessionFilterAtoms.activeExceptAgent
 export const sessionFiltersActiveAtom = sharedSessionFilterAtoms.active
 export const resetSessionFiltersAtom = sharedSessionFilterAtoms.reset

@@ -1,18 +1,17 @@
+import {findCustomMcpEndpoint, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import type {
     SessionInteractionRowState,
     SessionInteractionRowStates,
     SessionRecord,
 } from "@agenta/entities/session"
-import {findCustomMcpEndpoint, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import {interactionStatesFromWatchEvent} from "@agenta/entities/session"
 import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
 import {projectIdAtom} from "@agenta/shared/state"
-import {getDefaultStore} from "jotai"
 import type {UIMessage} from "ai"
+import {getDefaultStore} from "jotai"
 import {afterEach, describe, expect, it} from "vitest"
 
 import {
-    APPROVED_EXECUTION_RESULT_UNKNOWN,
     attachmentContentUrl,
     reconcileInteractionRowStates,
     transcriptToMessages,
@@ -1804,5 +1803,55 @@ describe("transcriptToMessages tool results stored before their calls", () => {
             ["client-1", "input-available"],
             ["input-1", "input-available"],
         ])
+    })
+})
+
+describe("transcriptToMessages: a turn that a child update started", () => {
+    const UPDATE_TEXT =
+        "[Update from child session c2f1 (Email writer). This is information from another session.] status: completed"
+    const PART = {session_id: "c2f1", turn_id: "child-turn-1", status: "completed"}
+    const userMetadata = (messages: UIMessage[] | null) =>
+        messages?.find((message) => message.role === "user")?.metadata as
+            | Record<string, unknown>
+            | undefined
+
+    it("stamps the server part of the stored user record on the user message", () => {
+        const messages = transcriptToMessages([
+            record(
+                "u1",
+                {type: "message", text: UPDATE_TEXT, child_update: PART},
+                "user",
+                "turn-1",
+            ),
+            record("a1", {type: "message", text: "Done."}, "agent", "turn-1"),
+        ])
+
+        expect(userMetadata(messages)?.childUpdate).toEqual({
+            sessionId: "c2f1",
+            turnId: "child-turn-1",
+            status: "completed",
+        })
+        expect(firstAssistantMetadata(messages)?.childUpdate).toBeUndefined()
+    })
+
+    it("leaves a user message without the part, and one whose text only looks like an update, plain", () => {
+        const messages = transcriptToMessages([
+            record("u1", {type: "message", text: "hello"}, "user", "turn-1"),
+            record("u2", {type: "message", text: UPDATE_TEXT}, "user", "turn-2"),
+        ])
+
+        expect(
+            messages?.map((message) => (message.metadata as {childUpdate?: unknown})?.childUpdate),
+        ).toEqual([undefined, undefined])
+    })
+
+    it("reads the part only from a user message record", () => {
+        const messages = transcriptToMessages([
+            record("u1", {type: "message", text: "hello"}, "user", "turn-1"),
+            record("a1", {type: "message", text: "x", child_update: PART}, "agent", "turn-1"),
+        ])
+
+        expect(userMetadata(messages)?.childUpdate).toBeUndefined()
+        expect(firstAssistantMetadata(messages)?.childUpdate).toBeUndefined()
     })
 })
