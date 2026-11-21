@@ -307,7 +307,8 @@ class GatewayConnectionToolConfig(BaseModel):
 
 
 # The Agenta tools an ``agenta_tools`` entry can turn on, in every run of the agent. Every one is
-# a platform op; ``search_skills`` stays in the playground build kit only.
+# a platform op; ``search_skills`` stays in the playground build kit only. The session tools at
+# the end are not in the build kit: an agent gets them only when its author lists them (design D12).
 AGENTA_TOOLS: tuple = (
     "get_current_session",
     "rename_session",
@@ -325,6 +326,13 @@ AGENTA_TOOLS: tuple = (
     "read_config",
     "check_skill_updates",
     "apply_skill_update",
+    "start_session",
+    "send_session_message",
+    "wait_for_sessions",
+    "cancel_session",
+    "list_sessions",
+    "read_session",
+    "read_session_spans",
 )
 # What a new agent's entry holds. The defaults live in the saved entry, never in the resolver.
 DEFAULT_AGENTA_TOOLS: Dict[str, Literal["allow", "ask"]] = {
