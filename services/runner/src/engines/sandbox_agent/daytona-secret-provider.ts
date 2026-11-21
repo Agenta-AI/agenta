@@ -548,7 +548,7 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
         currentSandboxId = sandboxId;
         return sandboxId;
       } catch (cause) {
-        // The vendored provider creates the remote sandbox before it starts the daemon and only
+        // The Daytona provider creates the remote sandbox before it starts the daemon and only
         // returns the id after both succeed. A rejection therefore cannot prove remote absence.
         // Retain Secrets rather than deleting records that a partially-created sandbox may mount.
         // The lease says so out loud, which is what stops an inherited one from being deleted by

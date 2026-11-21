@@ -19,7 +19,6 @@ vi.mock(
     let count = 0;
     return {
       ...original,
-      applyDaytonaSdkEnv: () => {},
       buildDaytonaClient: () => ({
         secret: {
           async create(input: { name: string; hosts: string[] }) {

@@ -17,7 +17,6 @@
 import type { Daytona } from "@daytonaio/sdk";
 
 import {
-  applyDaytonaSdkEnv,
   buildDaytonaClient,
   deleteDaytonaSandbox,
 } from "./daytona-provider.ts";
@@ -162,7 +161,6 @@ export function daytonaKillDependencies(
   if (!enabled.includes("daytona") && !enabled.includes("inprocess")) {
     return undefined;
   }
-  applyDaytonaSdkEnv(config.daytona);
   const client = buildClient();
   const deletePlain = (sandboxId: string): Promise<void> =>
     deleteDaytonaSandbox(client, sandboxId);
