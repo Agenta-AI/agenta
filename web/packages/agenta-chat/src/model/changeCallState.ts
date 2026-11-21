@@ -143,6 +143,45 @@ export interface ChangeCall {
     state: ChangeCallState
     /** The revision the call changed: what Revert goes back to. `create_agent` has none. */
     baseRevisionId?: string
+    /** The person's "always approve" ran the call with no card (`data-auto-approved`). */
+    autoApproved?: true
+}
+
+/**
+ * The calls of a message that the person's approval choice ran with no card. The runner marks
+ * each one with a sibling `data-auto-approved` part, `{toolCallId, toolName}` (design D32).
+ */
+export const autoApprovedCallIds = (parts: readonly unknown[] = []): Set<string> => {
+    const ids = new Set<string>()
+    for (const raw of parts) {
+        const part = asRecord(raw)
+        if (part?.type !== "data-auto-approved") continue
+        const toolCallId = stringOf(asRecord(part.data)?.toolCallId)
+        if (toolCallId) ids.add(toolCallId)
+    }
+    return ids
+}
+
+/** A call that is not a change call and that the person's approval choice ran (a test start). */
+export interface AutoApprovedCall {
+    toolCallId: string
+    toolName: string
+    input: unknown
+}
+
+/** The auto-approved calls of a message that are not change calls, in message order. */
+export const autoApprovedCalls = (parts: readonly unknown[] = []): AutoApprovedCall[] => {
+    const ids = autoApprovedCallIds(parts)
+    if (!ids.size) return []
+    const calls: AutoApprovedCall[] = []
+    for (const raw of parts) {
+        const part = raw as ToolUIPart
+        if (!isToolPart(part?.type as string) || !ids.has(part.toolCallId ?? "")) continue
+        const toolName = partToolName(part)
+        if (isChangeTool(toolName)) continue
+        calls.push({toolCallId: part.toolCallId, toolName, input: part.input})
+    }
+    return calls
 }
 
 /** The base a call names: `base_revision_id`, or the commit's own for `commit_revision`. */
@@ -157,7 +196,7 @@ const baseRevisionOf = (input: unknown): string | undefined => {
 /** The state of a tool part, from its own fields. */
 export const changeCallStateOfPart = (
     part: ToolUIPart,
-    options: {readOnly?: boolean} = {},
+    options: {readOnly?: boolean; answered?: boolean} = {},
 ): ChangeCallState => {
     const approved = (part as {approval?: {approved?: boolean}}).approval?.approved
     return changeCallState({
@@ -166,29 +205,35 @@ export const changeCallStateOfPart = (
         output: (part as {output?: unknown}).output,
         errorText: (part as {errorText?: string}).errorText,
         readOnly: options.readOnly,
+        answered: options.answered,
     })
 }
 
 /**
- * The change calls of a message that had an approval and are past it, in message order. A call
- * that still waits for its answer is the dock's; it has no row yet.
+ * The change calls of a message that had an approval and are past it, in message order, and the
+ * ones the person's approval choice ran with no card. A call that still waits for its answer is
+ * the dock's; it has no row yet.
  */
 export const answeredChangeCalls = (
     parts: readonly unknown[] = [],
     options: {finished?: boolean} = {},
 ): ChangeCall[] => {
     const calls: ChangeCall[] = []
+    const autoApproved = autoApprovedCallIds(parts)
     for (const raw of parts) {
         const part = raw as ToolUIPart
         if (!isToolPart(part?.type as string)) continue
         const toolName = partToolName(part)
         if (!isChangeTool(toolName)) continue
+        // An auto-approved call keeps its card as a row, answered by the person's choice.
+        const auto = autoApproved.has(part.toolCallId ?? "")
         // A call that never asked (an "allow" permission) shows as a step only.
         const asked =
+            auto ||
             (part as {approval?: unknown}).approval !== undefined ||
             (part.state as string) === "output-denied"
         if (!asked) continue
-        const state = changeCallStateOfPart(part)
+        const state = changeCallStateOfPart(part, {answered: auto})
         if (state.kind === "pending" || state.kind === "read_only") continue
         // A turn that ended with no result for the call will not get one: no row, rather than
         // a row that waits forever (the step still says what the person answered).
@@ -200,6 +245,7 @@ export const answeredChangeCalls = (
             input: part.input,
             state,
             ...(baseRevisionId ? {baseRevisionId} : {}),
+            ...(auto ? {autoApproved: true as const} : {}),
         })
     }
     return calls

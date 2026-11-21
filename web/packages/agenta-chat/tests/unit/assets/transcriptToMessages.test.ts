@@ -49,6 +49,30 @@ const firstAssistantMetadata = (
         | undefined
 
 describe("transcriptToMessages", () => {
+    it("replays the runner's auto-approved mark as the live stream's data part", () => {
+        const messages = transcriptToMessages([
+            record("r1", {
+                type: "tool_call",
+                id: "call-1",
+                name: "start_session",
+                input: {agent: "email-writer", message: "Draft it"},
+            }),
+            record("r2", {
+                type: "data",
+                name: "auto-approved",
+                data: {toolCallId: "call-1", toolName: "start_session"},
+            }),
+            record("r3", {type: "data", name: "agent-status", data: {phase: "x"}}),
+        ])
+        const parts = messages?.find((message) => message.role === "assistant")?.parts ?? []
+        expect(parts.filter((part) => part.type.startsWith("data-"))).toEqual([
+            {
+                type: "data-auto-approved",
+                data: {toolCallId: "call-1", toolName: "start_session"},
+            },
+        ])
+    })
+
     it("replays the approved-content manifest as the egress's sibling data part", () => {
         // `tool-approval-request` is a strict object, so the manifest cannot ride the approval
         // itself; replay must mirror the live data part or a reload loses the card.
