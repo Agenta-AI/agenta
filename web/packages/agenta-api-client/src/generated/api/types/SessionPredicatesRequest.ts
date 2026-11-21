@@ -6,4 +6,5 @@ export interface SessionPredicatesRequest {
     search?: (string | null) | undefined;
     liveness?: (AgentaApi.SessionStreamQueryFlags | null) | undefined;
     origins?: (AgentaApi.SessionOrigin[] | null) | undefined;
+    calling_session?: (AgentaApi.SessionCallingSessionRequest | null) | undefined;
 }
