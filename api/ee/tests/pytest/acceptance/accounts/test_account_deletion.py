@@ -196,7 +196,7 @@ class TestSelfServeAccountDeletion:
         invited = requests.post(
             f"{api_url}/organizations/{host_org_id}/workspaces/{host_ws_id}/invite",
             headers={"Authorization": host_bearer},
-            json=[{"email": guest_email, "roles": ["viewer"]}],
+            json=[{"email": guest_email, "roles": ["member"]}],
             timeout=BASE_TIMEOUT,
         )
         assert invited.status_code == 200, invited.text
