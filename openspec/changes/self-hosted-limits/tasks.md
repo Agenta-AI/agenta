@@ -2,6 +2,21 @@
 
 Program tier. Milestones ship to the same release (v0.130.1). M1, M2 and M3 can start in parallel. M4 needs M2 for its end-to-end check. M5 runs last. The cloud repo work in M4 is its own PR in the private repo.
 
+## Milestone plan
+
+All PRs target v0.130.1. The spec PR is the base of the stack. M1 to M4 start together; M4's end-to-end check waits for M2 and M3. M5 starts when M1 to M3 are in review.
+
+| Milestone | Tasks | Depends on | Parallel group | Clone | PR base | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| Spec | this change | #8242 | none | worktree | `feat/self-hosted-free-key` | done |
+| M1 Limits | 1.x | spec | A | `/data/mahmoud/agenta-limits-m1` | `feat/one-image-spec` | starting |
+| M2 EE path everywhere | 2.x | spec | A | `/data/mahmoud/agenta-limits-m2` | `feat/one-image-spec` | starting |
+| M3 One migration runner | 3.x | spec | A | `/data/mahmoud/agenta-limits-m3` | `feat/one-image-spec` | starting |
+| M4 Images, hosting, builds | 4.x | spec; check needs M2 and M3 | A | `/data/mahmoud/agenta-limits-m4` | `feat/one-image-spec` | starting |
+| M5 License text, docs, QA | 5.x | M1 to M4 | B | `/data/mahmoud/agenta-limits-m5` | `feat/one-image-spec` | waiting |
+
+Shared files: M1 and M2 both touch `api/oss/src/services/commoners.py` (limit check and the analytics call). Merge order: spec, M1, M2, M3, M4, M5; a later PR merges the base into its branch to resolve conflicts.
+
 ## M1. Limits in `ee/` (API and /m)
 
 - [ ] 1.1 `api/ee/src/core/access/entitlements/types.py`: add `self_hosted_community: 1` to `PROJECT_LIMITS`, add `ORGANIZATION_LIMITS` (community 1, registered 1), `ProjectLimitReachedError` and `InstanceOrganizationLimitReachedError` (its own class).
