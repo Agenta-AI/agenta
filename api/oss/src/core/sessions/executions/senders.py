@@ -75,6 +75,7 @@ async def is_sent_by_person(
     project_id: UUID,
     session_id: str,
     execution_id: str,
+    transaction: Optional[Any] = None,
 ) -> bool:
     """True when a person sent the turn of `execution_id`, from the app, a channel or
     an API key. False when a server input started it, when its run origin is one of
@@ -82,11 +83,13 @@ async def is_sent_by_person(
     its chain of approval continuations is broken.
 
     A person's message into an idle session writes no input row, so no row reads as a
-    `message`. Every lookup is scoped to `project_id` and `session_id`."""
+    `message`. Every lookup is scoped to `project_id` and `session_id`. Given a
+    `transaction`, every read runs on it."""
     execution = await executions_dao.fetch_execution(
         project_id=project_id,
         session_id=session_id,
         execution_id=execution_id,
+        transaction=transaction,
     )
     first_id = execution_id
     if execution is not None:
@@ -97,6 +100,7 @@ async def is_sent_by_person(
             project_id=project_id,
             session_id=session_id,
             execution=execution,
+            transaction=transaction,
         )
         if first is None:
             return False
@@ -105,6 +109,7 @@ async def is_sent_by_person(
         project_id=project_id,
         session_id=session_id,
         execution_id=first_id,
+        transaction=transaction,
     )
     if promoted is not None and promoted.kind != PendingInputKind.message:
         return False
@@ -116,6 +121,7 @@ async def is_sent_by_person(
         project_id=project_id,
         session_id=session_id,
         turn_id=turn_id,
+        transaction=transaction,
     )
     if turn is None or turn.context is None:
         return False
@@ -132,6 +138,7 @@ async def server_input_waits(
     project_id: UUID,
     session_id: str,
     turns_without_person_limit: int,
+    transaction: Optional[Any] = None,
 ) -> bool:
     """The one rule for a server input: it starts no turn when a person ended the
     session, when a person stopped its latest execution, or when no person sent any of
@@ -139,10 +146,15 @@ async def server_input_waits(
     after the person's next turn.
 
     A Steer also stops an execution, but its reply runs next, so it is not a person
-    stopping the session."""
+    stopping the session.
+
+    Given a `transaction`, every read runs on it: a caller that holds a transaction
+    (the queue promotion at a turn end) must not wait for a second pooled connection
+    while it keeps the first."""
     stream = await streams_dao.get_by_session_id_including_archived(
         project_id=project_id,
         session_id=session_id,
+        transaction=transaction,
     )
     if stream is not None and stream.deleted_at is not None:
         return True
@@ -153,6 +165,7 @@ async def server_input_waits(
             project_id=project_id,
             session_id=session_id,
             execution_id=stream.turn_id,
+            transaction=transaction,
         )
         if (
             latest is not None
@@ -161,6 +174,7 @@ async def server_input_waits(
                 project_id=project_id,
                 session_id=session_id,
                 execution_id=stream.turn_id,
+                transaction=transaction,
             )
         ):
             return True
@@ -168,6 +182,7 @@ async def server_input_waits(
         project_id=project_id,
         query=SessionTurnQuery(session_id=session_id),
         windowing=Windowing(limit=turns_without_person_limit, order="descending"),
+        transaction=transaction,
     )
     if len(turns) < turns_without_person_limit:
         return False
@@ -179,6 +194,7 @@ async def server_input_waits(
             project_id=project_id,
             session_id=session_id,
             execution_id=str(turn.turn_id),
+            transaction=transaction,
         ):
             return False
     return True

@@ -515,3 +515,80 @@ async def test_a_call_without_a_run_credential_is_refused(world, call_ref, kind)
 
     content = await _call(world, call_ref, access, arguments)
     assert content["code"] == RUN_CREDENTIAL_REQUIRED
+
+
+# -- against the real mounts service ----------------------------------------------------
+
+
+class _StoredMounts:
+    """The drive lookups of `_Mounts`, with the file reads and listings of the real
+    `MountsService` over an in-memory object store."""
+
+    def __init__(self, world, drive) -> None:
+        from oss.src.core.mounts.dtos import Mount
+        from oss.src.core.mounts.service import MountsService
+        from oss.tests.pytest.unit.test_mounts_file_ops import FakeMountStorage
+
+        self._lookups = world.mounts
+        self.mount = Mount(
+            id=drive.id,
+            project_id=world.project_id,
+            storage_prefix=f"mounts/{world.project_id}/{drive.id}",
+            slug=drive.slug,
+        )
+
+        class _Dao:
+            async def fetch_mount(_self, *, project_id, mount_id):
+                return self.mount if mount_id == self.mount.id else None
+
+        self.service = MountsService(
+            mounts_dao=_Dao(), mounts_store=FakeMountStorage(), bucket="drives"
+        )
+        self.fetch_mount = self._lookups.fetch_mount
+        self.read_file = self.service.read_file
+        self.list_files = self.service.list_files
+
+    async def put(self, path, body: bytes):
+        await self.service.write_file(
+            project_id=self.mount.project_id,
+            mount_id=self.mount.id,
+            path=path,
+            content=body,
+        )
+
+
+async def test_a_folder_that_holds_only_hidden_entries_reads_as_an_empty_folder(world):
+    """`git init repo`: the drive root lists `repo`, and reading `repo` answers an empty
+    folder, not `drive_file_not_found`."""
+    stored = _StoredMounts(world, world.shared_drive)
+    await stored.put("repo/.git/HEAD", b"ref: refs/heads/main\n")
+    world.mounts = stored
+    access = world.access_of(world.ana, session=world.ana_shared)
+
+    root = await _read(world, access, world.shared_drive)
+    assert root["entries"] == [{"path": "repo", "kind": "folder"}]
+    assert await _read(world, access, world.shared_drive, "repo") == {
+        "kind": "folder",
+        "path": "repo",
+        "entries": [],
+        "is_entry_list_truncated": False,
+    }
+    missing = await _read(world, access, world.shared_drive, "no-such-folder")
+    assert missing["code"] == "drive_file_not_found"
+
+
+async def test_text_that_holds_u_fffd_is_text_and_bytes_that_are_not_utf8_are_binary(
+    world,
+):
+    stored = _StoredMounts(world, world.shared_drive)
+    await stored.put("note.md", "The replacement character is �.".encode())
+    await stored.put("latin1.txt", b"caf\xe9")
+    world.mounts = stored
+    access = world.access_of(world.ana, session=world.ana_shared)
+
+    note = await _read(world, access, world.shared_drive, "note.md")
+    assert note["text"] == "The replacement character is �."
+    assert note["is_binary"] is False
+    latin1 = await _read(world, access, world.shared_drive, "latin1.txt")
+    assert latin1["text"] is None
+    assert latin1["is_binary"] is True

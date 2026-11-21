@@ -243,6 +243,7 @@ export {
     loginAttemptOutcome,
     loginAttemptPollInterval,
     loginAttemptQueryAtomFamily,
+    refreshSignedInAtom,
     refreshVaultSecretsAtom,
     setSubscriptionTokenAtom,
     startSubscriptionLoginAtom,

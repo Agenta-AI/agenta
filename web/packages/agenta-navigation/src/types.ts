@@ -2,6 +2,8 @@ import type {ComponentType, MouseEvent, ReactElement, ReactNode} from "react"
 
 import type {PrimitiveAtom, WritableAtom} from "jotai"
 
+import type {SidebarGroupEnter} from "./dynamic/types"
+
 /**
  * Identity of a hand-arrangeable row or heading. Items sharing a `zone` reorder against each
  * other and nothing else — which is what makes a cross-heading drop impossible by construction.
@@ -43,9 +45,9 @@ export interface SidebarConfig {
     isCollapsed?: boolean
     /** Collapsible heading only: a trailing "+" that links somewhere (an agent's new session). */
     groupAdd?: {link: string; label: string; onClick?: (event: MouseEvent) => void}
-    /** Collapsible heading only: a trailing open button beside the "+". It runs `onClick` and
-     * does not navigate (an agent heading opens that agent's sidebar). */
-    groupEnter?: {label: string; onClick: () => void}
+    /** Collapsible heading only: a trailing open button beside the "+" that runs `onClick` (an
+     * agent heading opens that agent's sidebar). */
+    groupEnter?: SidebarGroupEnter
     /** Render the item normally but suppress its navigation — clicking it is a no-op (current location). */
     inert?: boolean
     /** Route prefixes that select this row; empty opts it out of matching. Defaults to `[link]`. */

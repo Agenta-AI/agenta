@@ -44,14 +44,14 @@ from pydantic import ValidationError
 from agenta.sdk.agents.platform.op_catalog import (
     LIST_AGENTS_DEFAULT_LIMIT,
     LIST_AGENTS_MAX_LIMIT,
+    READ_DRIVE_MAX_ENTRIES,
+    READ_DRIVE_TEXT_MAX_BYTES,
     LIST_SESSIONS_DEFAULT_LIMIT,
     LIST_SESSIONS_MAX_LIMIT,
     READ_SESSION_DEFAULT_LIMIT,
     READ_SESSION_MAX_LIMIT,
     READ_SESSION_SPANS_DEFAULT_LIMIT,
     READ_SESSION_SPANS_MAX_LIMIT,
-    READ_DRIVE_MAX_ENTRIES,
-    READ_DRIVE_TEXT_MAX_BYTES,
 )
 from agenta.sdk.agents.tools.models import (
     CANCEL_SESSION_CALL_REF,
@@ -127,6 +127,8 @@ from oss.src.core.tracing.dtos import (
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.workflows.dtos import (
     CommitWarning,
+    ReadConfigResponse,
+    ReadConfigRevision,
     WorkflowRevisionCommit,
     WorkflowRevisionDelta,
     WorkflowServiceBatchResponse,
@@ -878,10 +880,6 @@ async def handle_read_config(
 
 def _read_config_response(outcome: Any, *, is_draft: bool):
     """The read answer, shared by `read_config` and `read_agent_config`."""
-    from oss.src.apis.fastapi.workflows.models import (
-        ReadConfigResponse,
-        ReadConfigRevision,
-    )
     from oss.src.core.workflows.read_config import draft_warning
 
     revision = outcome.revision
@@ -1488,7 +1486,7 @@ async def _allowed_on_agent(
 
 
 def _agent_summary(
-    workflow: Any, *, project_id: UUID, workspace_id: Optional[UUID]
+    workflow: Any, *, project_id: UUID, organization_id: Optional[UUID]
 ) -> Dict[str, Any]:
     """The agent as every answer names it. `name` comes first, because it is what the model
     tells the person; `id` and `slug` are tool arguments. `url` opens the agent in the web
@@ -1496,7 +1494,7 @@ def _agent_summary(
     summary = {"name": workflow.name, "id": str(workflow.id), "slug": workflow.slug}
     url = agent_page_url(
         web_url=env.agenta.web_url,
-        workspace_id=workspace_id,
+        organization_id=organization_id,
         project_id=project_id,
         agent_id=workflow.id,
     )
@@ -1642,7 +1640,7 @@ async def handle_list_agents(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
     """The agents in the caller's project, one page at a time, in a fixed order.
@@ -1719,7 +1717,7 @@ async def handle_list_agents(
                 continue
             agent = {
                 **_agent_summary(
-                    workflow, project_id=project_id, workspace_id=workspace_id
+                    workflow, project_id=project_id, organization_id=organization_id
                 ),
                 "description": workflow.description,
                 "revision": _revision_summary(head),
@@ -1747,7 +1745,7 @@ async def handle_read_agent_config(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
     """Another agent's latest saved configuration, with the same answer `read_config` gives.
@@ -1805,7 +1803,7 @@ async def handle_read_agent_config(
     return PlatformHandlerResult(
         content={
             "agent": _agent_summary(
-                workflow, project_id=project_id, workspace_id=workspace_id
+                workflow, project_id=project_id, organization_id=organization_id
             ),
             **_read_config_response(outcome, is_draft=False).model_dump(
                 mode="json", exclude_none=True
@@ -1823,7 +1821,7 @@ async def handle_edit_agent_config(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
     """Commit ordered operations to another agent's latest revision. Never deploys.
@@ -1905,7 +1903,7 @@ async def handle_edit_agent_config(
         content={
             "status": outcome.status,
             "agent": _agent_summary(
-                workflow, project_id=project_id, workspace_id=workspace_id
+                workflow, project_id=project_id, organization_id=organization_id
             ),
             "revision": _revision_summary(revision),
             # The base the next edit of this agent sends: the head after this call.
@@ -1946,7 +1944,7 @@ async def handle_create_agent(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     first_agent_owner_user_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
@@ -2108,7 +2106,7 @@ async def handle_create_agent(
         content={
             "status": "created",
             "agent": _agent_summary(
-                created, project_id=project_id, workspace_id=workspace_id
+                created, project_id=project_id, organization_id=organization_id
             ),
             "visibility": result.visibility.value,
             "revision": _revision_summary(result.revision),
@@ -2132,7 +2130,7 @@ async def handle_preview_agent_change(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
     """What a waiting `edit_agent_config` or `create_agent` call would change, saving nothing.
@@ -2304,7 +2302,7 @@ async def handle_list_agent_drives(
     timeout_ms: int = DRIVE_OPS_DEFAULT_TIMEOUT_MS,
     mounts_service: Any = None,
     agent_read_scope: Optional[AgentReadScope] = None,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     session_caller: SessionCaller,
 ) -> PlatformHandlerResult:
     """The drives of another agent that the run authority can see, from the agent's head
@@ -2355,7 +2353,7 @@ async def handle_list_agent_drives(
     return PlatformHandlerResult(
         content={
             "agent": _agent_summary(
-                workflow, project_id=project_id, workspace_id=workspace_id
+                workflow, project_id=project_id, organization_id=organization_id
             ),
             "drives": drives,
         }
@@ -2409,18 +2407,29 @@ def _file_answer(
     }
 
 
-def _file_text(path: str, content: str) -> Dict[str, Any]:
-    """The `kind: file` answer for a file the mounts service read as text. A NUL byte or a
-    byte that is not UTF-8 (the service reads it as U+FFFD) marks a binary file, whose
-    bytes are not returned; a text file that holds U+FFFD itself reads as binary too.
-    Text longer than the limit is cut on a character boundary."""
-    if "\x00" in content or "\ufffd" in content:
+def _file_text(path: str, file: Any) -> Dict[str, Any]:
+    """The `kind: file` answer for a file the mounts service read. Bytes that are not
+    UTF-8, or a NUL byte, mark a binary file, whose bytes are not returned. Text longer
+    than the limit is cut on a character boundary."""
+    content = file.content
+    if not file.is_utf8 or "\x00" in content:
         return _file_answer(path, None, is_binary=True)
     encoded = content.encode("utf-8")
     is_truncated = len(encoded) > READ_DRIVE_TEXT_MAX_BYTES
     if is_truncated:
         content = encoded[:READ_DRIVE_TEXT_MAX_BYTES].decode("utf-8", "ignore")
     return _file_answer(path, content, is_truncated=is_truncated)
+
+
+async def _drive_folder_exists(
+    mounts_service: Any, *, project_id: UUID, mount_id: UUID, path: str
+) -> bool:
+    """Whether a folder whose answer is empty exists: the raw listing still holds its
+    hidden entries (a repository with only `.git`) or its empty-folder marker."""
+    raw = await mounts_service.list_files(
+        project_id=project_id, mount_id=mount_id, path=path, depth=1
+    )
+    return bool(raw.files)
 
 
 async def handle_read_drive(
@@ -2478,7 +2487,7 @@ async def handle_read_drive(
                 content = await mounts_service.read_file(
                     project_id=project_id, mount_id=mount.id, path=path
                 )
-                return PlatformHandlerResult(content=_file_text(path, content.content))
+                return PlatformHandlerResult(content=_file_text(path, content))
             except MountFileTooLarge:
                 return PlatformHandlerResult(
                     content=_file_answer(path, None, is_too_large=True)
@@ -2497,7 +2506,13 @@ async def handle_read_drive(
             git_aware=True,
             include_gitignored=True,
         )
-        if path and not listing.files:
+        if (
+            path
+            and not listing.files
+            and not await _drive_folder_exists(
+                mounts_service, project_id=project_id, mount_id=mount.id, path=path
+            )
+        ):
             raise _drive_file_not_found()
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
@@ -3851,8 +3866,8 @@ class PlatformToolHandlerRegistration:
     # Handlers that commit a revision take the calling run's agent owner as
     # `first_agent_owner_user_id`.
     needs_agent_owner: bool = False
-    # Handlers that link to a page of the web app take the caller's `workspace_id`.
-    needs_workspace: bool = False
+    # Handlers that link to a page of the web app take the caller's `organization_id`.
+    needs_organization: bool = False
     # Handlers that show or name an agent take the caller's `agent_read_scope`: they answer
     # only about agents it shows.
     needs_agent_read_scope: bool = False
@@ -3905,7 +3920,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         timeout_ms=READ_CONFIG_DEFAULT_TIMEOUT_MS,
         handler=handle_list_agents,
         elevated_permission=Permission.VIEW_WORKFLOWS,
-        needs_workspace=True,
+        needs_organization=True,
         needs_agent_read_scope=True,
     ),
     READ_AGENT_CONFIG_CALL_REF: PlatformToolHandlerRegistration(
@@ -3913,7 +3928,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         timeout_ms=READ_CONFIG_DEFAULT_TIMEOUT_MS,
         handler=handle_read_agent_config,
         elevated_permission=Permission.VIEW_WORKFLOWS,
-        needs_workspace=True,
+        needs_organization=True,
         needs_agent_read_scope=True,
     ),
     CREATE_AGENT_CALL_REF: PlatformToolHandlerRegistration(
@@ -3921,7 +3936,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         timeout_ms=COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
         handler=handle_create_agent,
         elevated_permission=Permission.EDIT_WORKFLOWS,
-        needs_workspace=True,
+        needs_organization=True,
         needs_agent_read_scope=True,
         needs_agent_owner=True,
     ),
@@ -3930,7 +3945,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         timeout_ms=COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
         handler=handle_edit_agent_config,
         elevated_permission=Permission.EDIT_WORKFLOWS,
-        needs_workspace=True,
+        needs_organization=True,
         needs_agent_read_scope=True,
     ),
     # Reads the target like `read_agent_config` and writes nothing.
@@ -3941,15 +3956,6 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         elevated_permission=Permission.VIEW_WORKFLOWS,
         needs_agent_read_scope=True,
     ),
-    # Writes nothing. Guarded by the run credential check (design D31), like the session
-    # ops it answers for.
-    RESOLVE_GATE_CALL_REF: PlatformToolHandlerRegistration(
-        call_ref=RESOLVE_GATE_CALL_REF,
-        timeout_ms=READ_CONFIG_DEFAULT_TIMEOUT_MS,
-        handler=handle_resolve_gate,
-        needs_session_caller=True,
-        needs_gate_reader=True,
-    ),
     # The builder's drive reads demand what the mounts route demands for a read:
     # VIEW_MOUNTS on the project, then on each drive. The calling run comes from the run
     # credential only.
@@ -3959,7 +3965,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         handler=handle_list_agent_drives,
         elevated_permission=Permission.VIEW_MOUNTS,
         needs_mounts=True,
-        needs_workspace=True,
+        needs_organization=True,
         needs_agent_read_scope=True,
         needs_session_caller=True,
     ),
@@ -3970,6 +3976,15 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         elevated_permission=Permission.VIEW_MOUNTS,
         needs_mounts=True,
         needs_session_caller=True,
+    ),
+    # Writes nothing. Guarded by the run credential check (design D31), like the session
+    # ops it answers for.
+    RESOLVE_GATE_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=RESOLVE_GATE_CALL_REF,
+        timeout_ms=READ_CONFIG_DEFAULT_TIMEOUT_MS,
+        handler=handle_resolve_gate,
+        needs_session_caller=True,
+        needs_gate_reader=True,
     ),
     # Agent HTML apps. Both touch the session's drive, so they demand what the mount routes
     # demand for the same act: writing a file needs EDIT_MOUNTS, reading one VIEW_MOUNTS.
@@ -4111,7 +4126,7 @@ async def dispatch_platform_tool_handler(
     mounts_service: Any = None,
     envelope: Optional[RunEnvelope] = None,
     agent_owner_user_id: Optional[UUID] = None,
-    workspace_id: Optional[UUID] = None,
+    organization_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
     access: Optional[RequestAccess] = None,
     sessions_service: Optional[SessionsService] = None,
@@ -4137,8 +4152,8 @@ async def dispatch_platform_tool_handler(
         extra["envelope"] = envelope
         # A handler that starts a run admits it.
         extra["run_admission"] = run_admission
-    if registration.needs_workspace:
-        extra["workspace_id"] = workspace_id
+    if registration.needs_organization:
+        extra["organization_id"] = organization_id
     if registration.needs_agent_read_scope:
         extra["agent_read_scope"] = agent_read_scope
     if registration.needs_session_caller:

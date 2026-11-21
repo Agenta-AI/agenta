@@ -36,9 +36,12 @@ export const ProbeResultCard = ({mode, onChange}: ProbeResultCardProps) => {
     return (
         <div
             data-testid="mcp-probe-result"
-            className="flex items-center gap-2.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer px-3.5 py-2.5"
+            // Canvas F03 f5: radius 8, the check in a 16 px green tile.
+            className="flex items-center gap-2 rounded-[8px] border border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-2.5"
         >
-            <Check size={12} weight="bold" className="shrink-0 text-colorSuccess" />
+            <span className="flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-colorSuccessBg text-colorSuccess">
+                <Check size={12} weight="bold" />
+            </span>
             <span className="min-w-0 flex-1 truncate text-[13px] leading-5 text-colorText">
                 {t(SUMMARY[mode])}
             </span>

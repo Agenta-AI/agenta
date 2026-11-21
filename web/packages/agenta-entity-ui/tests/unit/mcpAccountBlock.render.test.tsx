@@ -114,6 +114,12 @@ describe("the account switch", () => {
         access.value = "on"
         await render({server: endpoint({auth_mode: "none"}), source: "agent"})
         expect(radio("Each person's own")).toBeUndefined()
+        // No sign-in, no account to name: the whole block is gone (canvas F03 f6).
+        expect(host.firstChild).toBeNull()
+
+        // A saved "each person's own" on such a server still shows, so it can be changed back.
+        await render({server: endpoint({auth_mode: "none"}), source: "user"})
+        expect(radio("Each person's own")?.getAttribute("aria-checked")).toBe("true")
 
         await render({server: null as unknown as MCPEndpoint, source: "agent"})
         expect(radio("Each person's own")).toBeUndefined()

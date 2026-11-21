@@ -1095,11 +1095,11 @@ async def test_a_template_start_keeps_its_boundary_and_a_cold_sandbox():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("raced", [False, True])
-async def test_the_row_a_start_creates_gets_the_copied_grants_before_the_invoke(
-    monkeypatch, raced
-):
-    """A child of a private session gets the grants of its calling session when its
-    row is created, before the invoke. A row that already existed is not changed."""
+async def test_the_row_insert_copies_the_grants_before_the_invoke(monkeypatch, raced):
+    """A child of a private session gets the grants of its calling session in the
+    transaction that inserts its row, before the invoke: no row exists without them,
+    and nothing writes grants after the insert. A row that already existed is not
+    changed."""
     import oss.src.core.sharing.service as sharing_module
     from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
     from oss.src.core.sharing.dtos import (
@@ -1115,32 +1115,38 @@ async def test_the_row_a_start_creates_gets_the_copied_grants_before_the_invoke(
     ben = uuid4()
     policy = AccessPolicy(visibility=Visibility.PRIVATE, owner_user_id=USER_ID)
     events = []
+    creates = []
     streams = AsyncMock()
 
     async def create(**kwargs):
         events.append("create")
+        creates.append(kwargs)
         if raced:
             raise SessionStreamAlreadyExists("s")
+        state = world.dao.add_session(
+            project_id=PROJECT_ID,
+            policy=policy,
+            session_id=kwargs["stream"].session_id,
+        )
         return SimpleNamespace(
-            id=world.dao.add_session(
-                project_id=PROJECT_ID,
-                policy=policy,
-                session_id=kwargs["stream"].session_id,
-            ).stream_id
+            id=state.stream_id,
+            created_grants=[
+                SessionGrant(
+                    stream_id=state.stream_id,
+                    user_id=ben,
+                    role=SessionRole.PARTICIPANT,
+                )
+            ],
         )
 
     streams.create.side_effect = create
-    grant = SessionGrant(stream_id=uuid4(), user_id=ben, role=SessionRole.PARTICIPANT)
 
     result = await _start_with_streams(streams, events).start_once(
-        **_args(), access=policy, grants=[grant]
+        **_args(), access=policy, grants_from_session_id="calling"
     )
 
     assert events == ["create", "invoke"]
-    copied = [
-        (g.user_id, g.role)
-        for (_, _), grants in world.dao.grants.items()
-        for g in grants
-    ]
-    assert copied == ([] if raced else [(ben, SessionRole.PARTICIPANT)])
+    assert creates[0]["grants_from_session_id"] == "calling"
+    # No grant write after the insert: the insert made them.
+    assert world.dao.grants == {}
     assert result.replayed is False

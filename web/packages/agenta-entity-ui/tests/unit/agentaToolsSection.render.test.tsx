@@ -11,9 +11,11 @@ vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/PermissionPolicySele
         disabled?: boolean
         options: {value: string; title: string; disabled?: boolean}[]
         "aria-label"?: string
+        triggerClassName?: string
     }) => (
         <select
             aria-label={props["aria-label"]}
+            className={props.triggerClassName}
             value={props.value}
             disabled={props.disabled}
             onChange={(event) => props.onChange(event.target.value)}
@@ -84,6 +86,12 @@ describe("Agenta tools section", () => {
         expect(row("create_schedule").value).toBe("deny")
         expect(row("list_schedules").value).toBe("deny")
         expect(preset().value).toBe("custom")
+    })
+
+    it("draws a deactivated tool as a plain value, not a red refusal (L8-22)", async () => {
+        await act(async () => root.render(<Harness initial={defaults} />))
+        expect(row("create_schedule").value).toBe("deny")
+        expect(row("create_schedule").className).not.toContain("colorError")
     })
 
     it("starts at the description, without repeating the view title", async () => {

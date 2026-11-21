@@ -17,6 +17,8 @@ const CLAMP: Record<number, string> = {
 const TEXT_CLASS = "text-xs text-[var(--ag-colorTextTertiary)]"
 // 12 px: `text-xs` is 13 px in /m.
 const CANVAS_TEXT_CLASS = "text-[12px] leading-5 text-[var(--ag-colorTextTertiary)]"
+/** The whole text a phone shows (M09): 12/16, as the canvas draws a wrapped line. */
+const CANVAS_FULL_TEXT_CLASS = "text-[12px] leading-4 text-[var(--ag-colorTextTertiary)]"
 const EXPANDED_CLASS = "whitespace-pre-line leading-relaxed text-[var(--ag-colorTextSecondary)]"
 
 export interface ExpandableDescriptionProps {
@@ -83,7 +85,7 @@ export function ExpandableDescription({
     const truncatable = isDescriptionTruncatable(text, overflows)
     const clamp = CLAMP[lines] ?? CLAMP[1]
 
-    const base = canvas ? CANVAS_TEXT_CLASS : TEXT_CLASS
+    const base = canvas ? (full ? CANVAS_FULL_TEXT_CLASS : CANVAS_TEXT_CLASS) : TEXT_CLASS
     const textClass = `${base} ${full ? "whitespace-pre-line" : expanded ? EXPANDED_CLASS : clamp}`
 
     if (full || !truncatable) {

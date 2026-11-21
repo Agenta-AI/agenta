@@ -47,6 +47,7 @@ from oss.src.core.sessions.streams.types import (
     SessionIdTombstoned,
     SessionStreamAlreadyExists,
 )
+from oss.src.dbs.postgres.sharing.dao import copy_calling_session_grants
 from oss.src.dbs.postgres.sharing.dbes import SessionTraceTombstoneDBE
 from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.core.sharing.dtos import AccessPolicy, SessionReadScope, Visibility
@@ -176,6 +177,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         project_id: UUID,
         user_id: Optional[UUID],
         stream: SessionStreamCreate,
+        grants_from_session_id: Optional[str] = None,
     ) -> SessionStream:
         dbe = map_stream_dto_to_dbe_create(
             project_id=project_id,
@@ -245,6 +247,20 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
                     {"lock_key": f"{project_id}:{stream.session_id}"},
                 )
                 row = (await session.execute(statement)).first()
+                # The row and its copied grants commit together: a failed copy leaves
+                # no row, so a retry with the same key creates both.
+                grants = (
+                    await copy_calling_session_grants(
+                        session,
+                        project_id=project_id,
+                        calling_session_id=grants_from_session_id,
+                        stream_id=row._mapping["id"],
+                        expected=stream.access,
+                        user_id=user_id,
+                    )
+                    if row is not None and grants_from_session_id is not None
+                    else []
+                )
                 await session.commit()
         except IntegrityError as e:
             error_str = str(e.orig) if e.orig else str(e)
@@ -259,6 +275,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             )
         )
         created._has_channel_thread = bool(row._mapping["has_channel_thread"])
+        created._created_grants = grants
         return created
 
     async def claim_trigger_delivery(
@@ -391,16 +408,19 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         *,
         project_id: UUID,
         session_id: str,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionStream]:
         """Like `get_by_session_id`, but also returns a soft-archived row — the
         confirmation read for `archive`/`unarchive` (S7/F2, WP5)."""
-        async with self.engine.session() as session:
-            stmt = select(SessionStreamDBE).where(
-                SessionStreamDBE.project_id == project_id,
-                SessionStreamDBE.session_id == session_id,
-            )
-            result = await session.execute(stmt)
-            dbe = result.scalar_one_or_none()
+        stmt = select(SessionStreamDBE).where(
+            SessionStreamDBE.project_id == project_id,
+            SessionStreamDBE.session_id == session_id,
+        )
+        if transaction is not None:
+            dbe = (await transaction.execute(stmt)).scalar_one_or_none()
+        else:
+            async with self.engine.session() as session:
+                dbe = (await session.execute(stmt)).scalar_one_or_none()
         if dbe is None:
             return None
         return map_stream_dbe_to_dto(stream_dbe=dbe)

@@ -4,7 +4,7 @@ import {createT, useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {useInlineRename} from "@agenta/sessions-ui"
 import {message} from "@agenta/ui/app-message"
-import {Input} from "@agenta/ui/ui"
+import {Input, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {PencilSimple} from "@phosphor-icons/react"
 
 const tNow = createT(automationsEditorCatalog)
@@ -86,7 +86,7 @@ export const AutomationTitle = ({
                     className={
                         compact
                             ? "h-auto border-transparent bg-transparent px-0 py-0.5 text-[16px] font-semibold shadow-none placeholder:font-semibold placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0 md:text-[16px]"
-                            : "text-[16px] font-semibold placeholder:font-medium placeholder:text-muted-foreground focus-visible:border-input focus-visible:ring-0 md:text-[16px]"
+                            : "text-[16px] font-semibold placeholder:font-medium placeholder:text-muted-foreground focus-visible:border-input focus-visible:ring-0 max-md:h-11 md:text-[16px]"
                     }
                 />
             ) : (
@@ -98,7 +98,7 @@ export const AutomationTitle = ({
                     // the softer ring still glowed around the title. Hover carries the affordance.
                     className={`group flex min-w-0 cursor-pointer items-center rounded-lg border-0 bg-transparent text-left text-foreground outline-none hover:bg-accent focus-visible:bg-accent ${
                         compact ? "-mx-1 px-1 py-0.5" : "-ml-2 px-2 py-1"
-                    }`}
+                    } ${PHONE_TOUCH_TARGET_CLASS}`}
                 >
                     <h1
                         className={`m-0 min-w-0 truncate font-semibold ${

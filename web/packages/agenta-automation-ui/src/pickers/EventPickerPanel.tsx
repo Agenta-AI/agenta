@@ -134,7 +134,7 @@ export const EventPickerPanel = ({
         connection?.integration_key ?? "",
         eventKey,
     )
-    const schema = (event?.trigger_config ?? null) as Record<string, unknown> | null
+    const schema = useMemo(() => liveConfigSchema(event?.trigger_config), [event?.trigger_config])
 
     const activeApp = useMemo<ConnectedApp | undefined>(() => {
         const key = railKey ?? connection?.integration_key
@@ -382,6 +382,31 @@ function requiredGaps(
 }
 
 /**
+ * The event's filter schema without the fields the provider marks deprecated.
+ *
+ * Composio still lists a deprecated polling "interval" on its polling events ("use
+ * `polling_interval` on the trigger instance instead"), with a default. Shown, it read as a
+ * required setting of the event; left out, the provider uses its default. Null when nothing is
+ * left to fill.
+ */
+function liveConfigSchema(config: unknown): Record<string, unknown> | null {
+    if (!config || typeof config !== "object") return null
+    const schema = config as Record<string, unknown>
+    const properties = schema.properties as Record<string, unknown> | undefined
+    if (!properties) return schema
+    const kept = Object.fromEntries(
+        Object.entries(properties).filter(
+            ([, property]) => !(property as {deprecated?: unknown} | null)?.deprecated,
+        ),
+    )
+    if (Object.keys(kept).length === 0) return null
+    const required = Array.isArray(schema.required)
+        ? schema.required.filter((key) => typeof key === "string" && key in kept)
+        : schema.required
+    return {...schema, properties: kept, required}
+}
+
+/**
  * Which event runs a new automation, open in the form (F05 f4): an "App" select over the connected
  * apps, an "Event" select over that app's events, and the event's filters with the optional ones
  * behind "Add optional filters (n)". Every change goes to the host's draft at once; nothing is
@@ -419,7 +444,7 @@ export const EventInlineCard = ({
         if (hasNextPage && !isFetchingNextPage) requestMore()
     }, [hasNextPage, isFetchingNextPage, requestMore])
     const {event, isLoading: eventLoading} = useTriggerEvent(app?.integrationKey ?? "", eventKey)
-    const schema = (event?.trigger_config ?? null) as Record<string, unknown> | null
+    const schema = useMemo(() => liveConfigSchema(event?.trigger_config), [event?.trigger_config])
     const [configForm] = useSchemaFormInstance()
 
     const formRef = useRef<SchemaFormHandle>(null)
@@ -492,18 +517,23 @@ export const EventInlineCard = ({
                 <span className={label}>{t("automations.editor.app")}</span>
                 <Select value={app?.connectionId ?? ""} onValueChange={selectApp}>
                     <SelectTrigger
-                        className="h-auto min-h-11 py-1.5"
+                        size="compact"
+                        className="h-auto min-h-11 py-[3px]"
                         aria-label={t("automations.editor.app")}
                     >
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                         {apps.map((candidate) => (
-                            <SelectItem key={candidate.connectionId} value={candidate.connectionId}>
+                            <SelectItem
+                                key={candidate.connectionId}
+                                value={candidate.connectionId}
+                                size="compact"
+                            >
                                 <span className="flex min-w-0 flex-col text-left">
                                     <span className="truncate">{candidate.label}</span>
                                     {accountOf(candidate.connectionId) ? (
-                                        <span className="truncate text-xs font-normal text-colorTextTertiary">
+                                        <span className="truncate text-[12px] font-normal leading-4 text-colorTextTertiary">
                                             {accountOf(candidate.connectionId)}
                                         </span>
                                     ) : null}
@@ -520,12 +550,16 @@ export const EventInlineCard = ({
                     disabled={!app || eventsLoading}
                     onValueChange={setEventKey}
                 >
-                    <SelectTrigger aria-label={t("automations.editor.event")}>
+                    <SelectTrigger
+                        size="compact"
+                        className="max-md:h-11"
+                        aria-label={t("automations.editor.event")}
+                    >
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                         {events.map((candidate) => (
-                            <SelectItem key={candidate.key} value={candidate.key}>
+                            <SelectItem key={candidate.key} value={candidate.key} size="compact">
                                 {eventLabel(candidate.name, candidate.key)}
                             </SelectItem>
                         ))}

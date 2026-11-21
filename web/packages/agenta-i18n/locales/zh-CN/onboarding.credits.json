@@ -15,8 +15,6 @@
     "chatgpt": "ChatGPT 订阅",
     "chatgptHint": "用你的 Plus 或 Pro 套餐运行 Agent。",
     "chatgptReadyHint": "Agent 可以使用你的 ChatGPT 套餐运行。",
-    "chatgptDialogTitle": "连接 ChatGPT",
-    "chatgptDialogBody": "使用你的 ChatGPT 订阅登录。你的 Agent 将通过 Codex harness 在其上运行。",
     "chatgptConnected": "ChatGPT 已连接。你的 Agent 将使用它运行。",
     "claude": "Claude 订阅",
     "claudeHint": "用你的 Pro 或 Max 套餐运行 Agent。",

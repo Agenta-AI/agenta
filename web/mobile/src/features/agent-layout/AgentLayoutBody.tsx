@@ -1,11 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
-import {
-    FILES_PANE_MAX,
-    FILES_PANE_MIN,
-    filesPaneWidthAtom,
-    useFilesPaneLayout,
-} from "@agenta/chat/state"
 import {CONFIG_REVEAL_TTL_MS, configPaneRevealRequestAtom} from "@agenta/chat/state"
 import {
     driveQuickLookAtomFamily,
@@ -32,19 +26,17 @@ import {ConfigPaneLoading} from "../chat/states/ConfigPaneLoading"
 import {useDriveUrlSync} from "../chat/useDriveUrlSync"
 
 import {AgentPanelContext, type AgentPanelApi} from "./agentPanelContext"
-import {AgentPanelFrame, type PanelMode} from "./AgentPanelFrame"
+import {AgentPanelFrame} from "./AgentPanelFrame"
 import {
     agentPanelStateAtomFamily,
     nextPanelContent,
-    OVERLAY_BELOW,
-    PANEL_MAX,
     PANEL_MIN,
-    PANEL_WIDE,
     panelStateKey,
     PHONE_BELOW,
     type PanelContent,
 } from "./agentPanelState"
-import {useConfirmLeave} from "./leaveGuard"
+import {useConfirmLeave} from "./LeaveGuardProvider"
+import {usePanelSize} from "./usePanelSize"
 
 // Each content loads on first use, so the session page does not carry it.
 const ConfigurationContent = dynamic(
@@ -55,6 +47,9 @@ const BuilderPanel = dynamic(() => import("../builder/BuilderPanel").then((m) =>
     ssr: false,
     loading: ChatLoading,
 })
+
+/** The session column a pushed panel leaves at least (the header's name, session and icons). */
+const SESSION_COLUMN_MIN = 480
 
 export interface AgentLayoutProps {
     agentId: string | null
@@ -90,23 +85,20 @@ export const AgentLayoutBody = ({
     const user = useAtomValue(userAtom)
     const panelKey = panelStateKey(user?.id ?? "anonymous", projectId)
     const [state, setState] = useAtom(agentPanelStateAtomFamily(panelKey))
-    const twoPane = useMediaQuery(`(min-width: ${PHONE_BELOW}px)`)
-    const pushWidth = useMediaQuery(`(min-width: ${OVERLAY_BELOW}px)`)
-    const phone = !twoPane
-    const [wide, setWide] = useState(false)
+    const phone = !useMediaQuery(`(min-width: ${PHONE_BELOW}px)`)
+    // Files, Configuration and Builder share this one width, drag and widen.
+    const {pushWidth, mode, width, resize, wide, setWide} = usePanelSize({
+        phone,
+        storedWidth: state.width,
+        storeWidth: (next) => setState({width: next}),
+    })
+    // The widen belongs to one session: another session opens at the stored width.
+    useEffect(() => setWide(false), [sessionId, setWide])
 
-    // Files keeps its production open state, width and URL sync; the panel follows it.
+    // Files keeps its production open state and URL sync; the panel follows it.
     const filesScope = agentId ?? sessionId
     const files = useSessionFilesPane(filesScope, sessionId)
     const driveLink = useDriveUrlSync({sessionId, open: files.open, enabled: deepLinks})
-    const filesLayout = useFilesPaneLayout(
-        `m:${workspaceId}:${projectId}:${filesScope}`,
-        sessionId,
-        files.open,
-    )
-    const [storedFilesWidth, setStoredFilesWidth] = useAtom(filesPaneWidthAtom)
-    const [filesWidth, setFilesWidth] = useState(storedFilesWidth)
-    useEffect(() => setFilesWidth(storedFilesWidth), [storedFilesWidth])
 
     const canConfigure = Boolean(revisionId && agentId) && !agentHidden
     const available = useMemo<Record<PanelContent, boolean>>(
@@ -175,15 +167,19 @@ export const AgentLayoutBody = ({
         if (stored === "files" && !files.open) files.openPane()
     }, [panelKey, filesScope, stored, files])
 
-    // Files opened or closed from anywhere moves the panel with it.
+    // Files opened or closed from anywhere moves the panel with it, at the stored width.
     useEffect(() => {
         if (files.open && !filesWasOpen.current) {
             setState({content: "files"})
+            setWide(false)
             giveBack()
         }
-        if (!files.open && filesWasOpen.current && stored === "files") setState({content: null})
+        if (!files.open && filesWasOpen.current && stored === "files") {
+            setState({content: null})
+            setWide(false)
+        }
         filesWasOpen.current = files.open
-    }, [files.open, stored, setState, giveBack])
+    }, [files.open, stored, setState, setWide, giveBack])
 
     const setContent = useCallback(
         (next: PanelContent | null) => {
@@ -199,7 +195,7 @@ export const AgentLayoutBody = ({
             setState({content: next})
             setWide(false)
         },
-        [files, setState, putAside, sessionId],
+        [files, setState, setWide, putAside, sessionId],
     )
 
     // The panel takes the focus when it opens, so Escape reaches it.
@@ -294,7 +290,7 @@ export const AgentLayoutBody = ({
             phone,
             available,
         }),
-        [content, toggle, close, state.configTab, setState, wide, phone, available],
+        [content, toggle, close, state.configTab, setState, wide, setWide, phone, available],
     )
 
     // Contents stay mounted after first use (hidden), so a swap keeps their state and an upload
@@ -304,11 +300,7 @@ export const AgentLayoutBody = ({
         if (content && !mounted.has(content)) setMounted(new Set(mounted).add(content))
     }, [content, mounted])
 
-    const [liveWidth, setLiveWidth] = useState(state.width)
-    useEffect(() => setLiveWidth(state.width), [state.width])
     const isFiles = content === "files"
-    const panelWidth = isFiles ? filesWidth : wide ? PANEL_WIDE : liveWidth
-    const filesExpanded = isFiles && filesLayout.expanded
 
     const panelBody = (
         <>
@@ -331,9 +323,10 @@ export const AgentLayoutBody = ({
                                 // The header icon closes it on desktop, the phone header on a
                                 // phone.
                                 closeControl="none"
-                                expanded={!phone && filesLayout.expanded}
+                                // Expand is the panel's widen, as in a wide Configuration view.
+                                expanded={!phone && wide}
                                 // A phone has no wider pane.
-                                onToggleExpand={phone ? undefined : filesLayout.toggleExpand}
+                                onToggleExpand={phone ? undefined : () => setWide(!wide)}
                                 readOnly={phone}
                                 touch={phone}
                             />
@@ -367,25 +360,8 @@ export const AgentLayoutBody = ({
         </>
     )
 
-    const open = content !== null
     // One tree at every width, so neither a resize nor a mode change remounts the conversation.
-    const mode: PanelMode =
-        phone || filesExpanded ? "full" : !pushWidth || (wide && !isFiles) ? "overlay" : "push"
-    const [min, max] = isFiles ? [FILES_PANE_MIN, FILES_PANE_MAX] : [PANEL_MIN, PANEL_MAX]
-    const resize =
-        mode !== "full" && !(wide && !isFiles)
-            ? {
-                  min,
-                  max,
-                  onLive: isFiles ? setFilesWidth : setLiveWidth,
-                  onCommit: (width: number) => {
-                      if (isFiles) {
-                          setFilesWidth(width)
-                          setStoredFilesWidth(width)
-                      } else setState({width})
-                  },
-              }
-            : null
+    const open = content !== null
 
     return (
         <AgentPanelContext.Provider value={api}>
@@ -396,6 +372,16 @@ export const AgentLayoutBody = ({
             <div className="relative flex h-full min-h-0 overflow-x-clip">
                 <div
                     className="ag-canvas flex h-full min-h-0 min-w-0 flex-1 flex-col"
+                    // A pushed panel stops short of this column (a wide panel at 1100 px), so the
+                    // session header keeps the agent name, the session and its icons. Never more
+                    // than the room the panel's own minimum leaves, so nothing is clipped.
+                    style={
+                        mode === "push" && open
+                            ? {
+                                  minWidth: `min(${SESSION_COLUMN_MIN}px, calc(100% - ${PANEL_MIN}px))`,
+                              }
+                            : undefined
+                    }
                     inert={mode === "full" && open}
                 >
                     {header}
@@ -411,7 +397,7 @@ export const AgentLayoutBody = ({
                 <AgentPanelFrame
                     open={open}
                     mode={mode}
-                    width={panelWidth}
+                    width={width}
                     resize={resize}
                     // Under 1100 px the panel lies over the conversation, below the session
                     // header: the header icons that swap the panel stay in reach.

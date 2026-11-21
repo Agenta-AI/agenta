@@ -1,11 +1,4 @@
-/**
- * The one leave guard of the agent layout host.
- *
- * Every source of unsaved work registers here: the view stack (an open form with edits), the
- * Files draft guard, the automation guard. A content swap, a panel close and a route change out
- * of the agent call `confirmLeave`; each dirty source asks in turn, in its own words. A source
- * that is not dirty does not ask. `beforeunload` asks the browser when any source is dirty.
- */
+// The agent layout's one leave guard: each dirty source of unsaved work asks before a leave.
 import {
     createContext,
     useCallback,
@@ -132,10 +125,7 @@ export const LeaveGuardProvider = ({
 export const useConfirmLeave = (): LeaveGuard["confirmLeave"] =>
     (useContext(LeaveGuardContext) ?? UNGUARDED).confirmLeave
 
-/**
- * Register a source of unsaved work while the caller is mounted. The latest `isDirty` and
- * `ask` are read at leave time, so the caller may pass new closures every render.
- */
+/** Register a source of unsaved work while mounted; the latest `isDirty` and `ask` are read. */
 export const useLeaveSource = (source: LeaveSource | null): void => {
     const {register} = useContext(LeaveGuardContext) ?? UNGUARDED
     const latest = useRef(source)

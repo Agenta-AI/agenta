@@ -28,7 +28,7 @@ export interface SectionMarks {
 export const SectionMarksContext = createContext<SectionMarks | null>(null)
 
 const Mark = ({label}: {label: string}) => (
-    <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-[var(--ag-colorInfo)]">
+    <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[12px] font-normal leading-4 text-[var(--ag-colorInfo)]">
         <span aria-hidden className="size-[7px] rounded-full bg-[var(--ag-colorInfo)]" />
         {label}
     </span>
@@ -60,6 +60,8 @@ export const useSectionMarks = (sections: AgentTemplateSectionDescriptor[]) => {
             marks.keys.has(section.key as MarkableSectionKey)
                 ? {
                       ...section,
+                      // The whole header row is tinted (canvas B03).
+                      highlight: true,
                       titleBadge: (
                           <span className="flex items-center gap-2">
                               {section.titleBadge}

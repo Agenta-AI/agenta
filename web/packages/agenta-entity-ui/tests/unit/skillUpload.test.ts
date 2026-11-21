@@ -6,6 +6,8 @@ import {
     mergePastedSkill,
     parseSkillMarkdown,
     readSkillUpload,
+    readSkillUploadFromFileList,
+    scanSkillFromFileList,
     scanSkillFiles,
 } from "../../src/DrillInView/SchemaControls/skillUpload"
 
@@ -187,6 +189,24 @@ describe("scanSkillFiles", () => {
 const raw = (path: string, text: string) => ({path, bytes: bytes(text)})
 const file = (path: string, content = "") => ({path, content})
 
+// A zip with SKILL.md and two `notes.md` entries ("first", "second"), written with Python's zipfile.
+const TWO_NOTES_ZIP =
+    "UEsDBBQAAAAAAPJidV2+sYzIEQAAABEAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogYQotLS0KQVBLAwQUAAAAAADyYnVdV+5xkgUAAAAFAAAACAAAAG5vdGVzLm1kZmlyc3RQSwMEFAAAAAAA8mJ1XWkRH7YGAAAABgAAAAgAAABub3Rlcy5tZHNlY29uZFBLAQIUAxQAAAAAAPJidV2+sYzIEQAAABEAAAAIAAAAAAAAAAAAAACAAQAAAABTS0lMTC5tZFBLAQIUAxQAAAAAAPJidV1X7nGSBQAAAAUAAAAIAAAAAAAAAAAAAACAATcAAABub3Rlcy5tZFBLAQIUAxQAAAAAAPJidV1pER+2BgAAAAYAAAAIAAAAAAAAAAAAAACAAWIAAABub3Rlcy5tZFBLBQYAAAAAAwADAKIAAACOAAAAAAA="
+
+// The same, with two `né.md` entries and the UTF-8 name flag cleared, so the names read as Latin-1.
+const TWO_LATIN1_ZIP =
+    "UEsDBBQAAAAAAM9jdV2+sYzIEQAAABEAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogYQotLS0KQVBLAwQUAAAAAADPY3VdV+5xkgUAAAAFAAAABgAAAG7DqS5tZGZpcnN0UEsDBBQAAAAAAM9jdV1pER+2BgAAAAYAAAAGAAAAbsOpLm1kc2Vjb25kUEsBAhQDFAAAAAAAz2N1Xb6xjMgRAAAAEQAAAAgAAAAAAAAAAAAAAIABAAAAAFNLSUxMLm1kUEsBAhQDFAAAAAAAz2N1XVfucZIFAAAABQAAAAYAAAAAAAAAAAAAAIABNwAAAG7DqS5tZFBLAQIUAxQAAAAAAM9jdV1pER+2BgAAAAYAAAAGAAAAAAAAAAAAAACAAWAAAABuw6kubWRQSwUGAAAAAAMAAwCeAAAAigAAAAAA"
+
+// SKILL.md, the `references/` folder entry twice, and `references/a.md`.
+const TWO_FOLDER_ENTRIES_ZIP =
+    "UEsDBBQAAAAAAE9mdV2+sYzIEQAAABEAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogYQotLS0KQVBLAwQUAAAAAABPZnVdAAAAAAAAAAAAAAAACwAAAHJlZmVyZW5jZXMvUEsDBBQAAAAAAE9mdV0AAAAAAAAAAAAAAAALAAAAcmVmZXJlbmNlcy9QSwMEFAAAAAAAT2Z1XYMW3IwBAAAAAQAAAA8AAAByZWZlcmVuY2VzL2EubWR4UEsBAhQDFAAAAAAAT2Z1Xb6xjMgRAAAAEQAAAAgAAAAAAAAAAAAAAIABAAAAAFNLSUxMLm1kUEsBAhQDFAAAAAAAT2Z1XQAAAAAAAAAAAAAAAAsAAAAAAAAAAAAQAP1BNwAAAHJlZmVyZW5jZXMvUEsBAhQDFAAAAAAAT2Z1XQAAAAAAAAAAAAAAAAsAAAAAAAAAAAAQAP1BYAAAAHJlZmVyZW5jZXMvUEsBAhQDFAAAAAAAT2Z1XYMW3IwBAAAAAQAAAA8AAAAAAAAAAAAAAIABiQAAAHJlZmVyZW5jZXMvYS5tZFBLBQYAAAAABAAEAOUAAAC3AAAAAAA="
+
+const zipUpload = (base64: string) => {
+    const zip = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
+    const file = {name: "skill.zip", arrayBuffer: async () => zip.buffer} as unknown as File
+    return readSkillUploadFromFileList([file])
+}
+
 describe("applySkillUpload", () => {
     const skill = {
         name: "ticket-triage",
@@ -230,6 +250,62 @@ describe("applySkillUpload", () => {
             {path: "templates/reply-refund.md", content: "new file"},
             {path: "references/categories.md", content: "replaced"},
         ])
+    })
+
+    it("Replace refuses an upload with two skills, so one skill's files never land in the other", () => {
+        const two = readSkillUpload([
+            raw("alpha/SKILL.md", "---\nname: alpha\n---\nA"),
+            raw("beta/SKILL.md", "---\nname: beta\n---\nB"),
+            raw("beta/notes.md", "n"),
+        ])
+        expect(applySkillUpload(skill, two, "replace")).toEqual({error: "manySkills"})
+        // A nested SKILL.md that is skipped as binary still marks a second skill.
+        const nested = readSkillUpload([
+            raw("SKILL.md", "---\nname: a\n---\nA"),
+            {path: "nested/SKILL.md", bytes: new Uint8Array([0, 1, 2])},
+            raw("nested/helper.py", "print(1)"),
+        ])
+        expect(applySkillUpload(skill, nested, "replace")).toEqual({error: "manySkills"})
+    })
+
+    it("refuses two uploaded files with the same path instead of keeping only the last", () => {
+        const distinct = readSkillUpload([raw("one/notes.md", "first"), raw("notes.md", "second")])
+        const withSkill = readSkillUpload([
+            raw("SKILL.md", "---\nname: a\n---\nA"),
+            raw("notes.md", "first"),
+            raw("notes.md", "second"),
+        ])
+        expect(applySkillUpload(skill, withSkill, "add")).toEqual({
+            error: "duplicatePath",
+            path: "notes.md",
+        })
+        expect(applySkillUpload(skill, withSkill, "replace")).toEqual({
+            error: "duplicatePath",
+            path: "notes.md",
+        })
+        expect("skill" in applySkillUpload(skill, distinct, "add")).toBe(true)
+    })
+
+    it("refuses a zip with two entries of one name, which unzipping would collapse", async () => {
+        expect(applySkillUpload(skill, await zipUpload(TWO_NOTES_ZIP), "add")).toEqual({
+            error: "duplicatePath",
+            path: "notes.md",
+        })
+        expect(applySkillUpload(skill, await zipUpload(TWO_LATIN1_ZIP), "add")).toMatchObject({
+            error: "duplicatePath",
+        })
+    })
+
+    it("accepts a zip whose only repeat is a folder entry", async () => {
+        const result = applySkillUpload(skill, await zipUpload(TWO_FOLDER_ENTRIES_ZIP), "add")
+        expect("skill" in result).toBe(true)
+    })
+
+    it("the gallery scan of such a zip keeps one entry per path, as before", async () => {
+        const zip = Uint8Array.from(atob(TWO_NOTES_ZIP), (c) => c.charCodeAt(0))
+        const file = {name: "skill.zip", arrayBuffer: async () => zip.buffer} as unknown as File
+        const scan = await scanSkillFromFileList([file])
+        expect(scan.candidates[0].skill.files.map((entry) => entry.path)).toEqual(["notes.md"])
     })
 
     it("Replace with no SKILL.md changes nothing and says so", () => {

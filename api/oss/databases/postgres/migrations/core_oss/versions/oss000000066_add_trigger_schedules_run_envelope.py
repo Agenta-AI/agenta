@@ -1,7 +1,7 @@
 """add the stored run envelope to trigger schedules
 
-Revision ID: oss000000065
-Revises: oss000000064
+Revision ID: oss000000066
+Revises: oss000000065
 Create Date: 2026-11-20 00:00:00.000000
 
 A schedule that server code creates sends an input into an existing session, and runs
@@ -22,8 +22,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "oss000000065"
-down_revision: Union[str, None] = "oss000000064"
+revision: str = "oss000000066"
+down_revision: Union[str, None] = "oss000000065"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

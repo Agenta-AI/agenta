@@ -46,7 +46,11 @@ export const AgentChannelsScreen = ({
                                 : AGENT_CHANNELS_PAGE_COLUMN
                         }
                     >
-                        <AgentChannels agentId={agentId} />
+                        <AgentChannels
+                            agentId={agentId}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                        />
                     </div>
                 </ScreenScaffold>
             </AppShell>

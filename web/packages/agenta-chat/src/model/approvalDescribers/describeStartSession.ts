@@ -27,13 +27,14 @@ export const describeStartSession = (
 ): ApprovalPreview | null => {
     const agentRef = stringField(input, "agent")
     if (!agentRef) return null
+    // The first message comes first: a batch of approvals shows only a call's first row.
     const items: ApprovalPreviewItem[] = []
-    const name = stringField(input, "name")
-    if (name) items.push({title: tNow("chat.approvalCard.startSessionName"), detail: oneLine(name)})
     const text = stringField(input, "text")
     if (text) {
         items.push({title: tNow("chat.approvalCard.startSessionMessage"), detail: oneLine(text)})
     }
+    const name = stringField(input, "name")
+    if (name) items.push({title: tNow("chat.approvalCard.startSessionName"), detail: oneLine(name)})
     return {
         sentence: tNow("chat.approvalCard.startSession", {
             agent: agentName ?? tNow("chat.approvalCard.anAgent"),

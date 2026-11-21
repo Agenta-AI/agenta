@@ -46,6 +46,7 @@ from oss.src.dbs.redis.sessions.locks import (
     get_alive_owner,
     get_running_owner,
     get_session_liveness,
+    get_turn_start,
     get_routable_turn_binding,
     mark_turn_superseded,
     record_turn_start,
@@ -286,6 +287,25 @@ class SessionStreamsService:
 
     async def clock_ms(self) -> int:
         return await redis_time_ms(self._lock)
+
+    async def running_turn_start(
+        self, *, project_id: UUID, session_id: str
+    ) -> Tuple[Optional[str], Optional[int]]:
+        """The turn that holds `running` and its start in Redis milliseconds: the same
+        two values the unnamed cancel's displacement guard compares. The start is None
+        when nothing recorded it."""
+        turn_id = await get_running_owner(
+            self._lock, project_id=str(project_id), session_id=session_id
+        )
+        if turn_id is None:
+            return None, None
+        started_at_ms = await get_turn_start(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_id=turn_id,
+        )
+        return turn_id, started_at_ms
 
     async def _publish_lifecycle(
         self, *, project_id: UUID, session_id: str, state: str

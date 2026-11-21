@@ -91,6 +91,7 @@ from oss.src.core.sharing.dtos import (
     Visibility,
 )
 from oss.src.core.sharing.service import get_sharing_service
+from oss.src.core.sharing.types import SharingConflict
 from oss.src.core.tools.dtos import AgentError, PlatformHandlerResult
 from oss.src.core.tools.exceptions import PlatformToolHandlerRefused
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
@@ -145,6 +146,7 @@ SEND_KEY_PREFIX = "ag:send:"
 SESSION_DEPTH_LIMIT_REACHED = "session_depth_limit_reached"
 CHILD_SESSION_LIMIT_REACHED = "child_session_limit_reached"
 CHILD_QUEUE_LIMIT_REACHED = "child_queue_limit_reached"
+SHARING_CHANGED = "sharing_changed"
 SESSION_NOT_CHILD = "session_not_child"
 AGENT_NOT_ALLOWED = "agent_not_allowed"
 # Not in design D29: the server finds no turn row for the calling turn, so it cannot
@@ -300,6 +302,18 @@ def _access_denied_private() -> _Refusal:
         "Do the work in this session, or ask the owner to share this session with the "
         "project and then try again.",
         details={"reason": DecisionReason.RESOURCE_DENIED.value},
+    )
+
+
+def _sharing_changed() -> _Refusal:
+    """The calling session's policy changed between the start's check and the child row
+    insert, which then created nothing."""
+    return _refusal(
+        SHARING_CHANGED,
+        "The sharing of this session changed while the child session was starting, "
+        "so no child session started.",
+        "Call `start_session` again.",
+        retryable=True,
     )
 
 
@@ -1311,8 +1325,9 @@ async def start_session(
             project_id=project_id, session_id=caller.run_session_id
         )
         # A private child copies the people named on its calling session, so as many
-        # people read it. A session with no stored policy fails closed, as a policy the
-        # authority may not run with does.
+        # people read it: the row insert copies them as they are then (these are only
+        # for the check below). A session with no stored policy fails closed, as a
+        # policy the authority may not run with does.
         grants = (
             await sharing.session_grants(
                 project_id=project_id, session_id=caller.run_session_id
@@ -1373,7 +1388,11 @@ async def start_session(
                 access=AccessPolicy(
                     visibility=policy.visibility, owner_user_id=policy.owner_user_id
                 ),
-                grants=grants,
+                grants_from_session_id=(
+                    caller.run_session_id
+                    if policy.visibility == Visibility.PRIVATE
+                    else None
+                ),
                 calling_session=SessionCallingSession(
                     id=caller.run_session_id,
                     turn_id=calling.first_execution_id,
@@ -1393,6 +1412,10 @@ async def start_session(
         return PlatformHandlerResult.failure(
             _dispatch_not_confirmed(is_start=True).error
         )
+    except SharingConflict:
+        # The calling session's sharing changed between the check above and the row
+        # insert, which rolled back: no child exists, and a retry reads the new policy.
+        return PlatformHandlerResult.failure(_sharing_changed().error)
 
     agent = ChildTurnAgent(
         id=target.workflow.id, slug=target.workflow.slug, name=target.workflow.name

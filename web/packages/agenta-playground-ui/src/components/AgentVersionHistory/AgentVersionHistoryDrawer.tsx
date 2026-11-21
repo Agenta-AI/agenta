@@ -125,8 +125,6 @@ export const AgentVersionHistoryDrawer = ({
 
     // Drawer-local: nothing outside reads either.
     const [phase, setPhase] = useState<RevertPhase>("idle")
-    // The panel element, so the revert confirmation can mask the drawer and not the page.
-    const [panel, setPanel] = useState<HTMLDivElement | null>(null)
     // Phone: one pane at a time. Picking a version pushes the diff; a back link returns.
     const [mobileView, setMobileView] = useState<"list" | "diff">("list")
 
@@ -227,15 +225,27 @@ export const AgentVersionHistoryDrawer = ({
                               paddingBottom: "env(safe-area-inset-bottom)",
                           },
                       }
-                    : // Flush to the right edge, full height, square (canvas S06).
+                    : // Flush to the right edge, full height, square, with the right drawer's
+                      // shadow at its left edge (canvas S06).
                       {
-                          content: {top: 0, right: 0, bottom: 0, height: "100%", borderRadius: 0},
+                          content: {
+                              top: 0,
+                              right: 0,
+                              bottom: 0,
+                              height: "100%",
+                              borderRadius: 0,
+                              boxShadow: "var(--shadow-drawer-right)",
+                          },
                           header: {paddingLeft: 24},
                       }
             }
-            panelRef={setPanel}
             // px-3 so the buttons' outer edge lands on the same line as the section bands.
             classNames={{
+                // Title and Close 1 px higher, Close radius 6 (canvas S06); the header keeps its
+                // height, so the body does not move.
+                header: phone
+                    ? undefined
+                    : "pt-[15px] pb-[17px] [&_[data-slot=sheet-close]]:rounded-[6px]",
                 body: phone ? "!p-0 flex flex-col" : "!p-0",
                 footer: phone ? "px-3 [&_button]:min-h-11" : "px-3",
             }}
@@ -265,7 +275,6 @@ export const AgentVersionHistoryDrawer = ({
         >
             <RevertConfirmDialog
                 open={phase === "confirm"}
-                container={panel}
                 selectedVersion={selectedRow?.version ?? null}
                 latestVersion={latestRow?.version ?? null}
                 onCancel={() => setPhase("idle")}

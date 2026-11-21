@@ -1,7 +1,7 @@
 import {useEffect, useId, useRef, useState} from "react"
 
 import {revalidateAgentRevisionReads, workflowMolecule} from "@agenta/entities/workflow"
-import {useT} from "@agenta/i18n"
+import {formatDate, formatRelativeTime, useT} from "@agenta/i18n"
 import headerCatalog from "@agenta/i18n/catalogs/playground.agentHeader"
 import revisionStatusCatalog from "@agenta/i18n/catalogs/playground.revisionStatus"
 import {
@@ -37,6 +37,25 @@ const AgentVersionHistoryDrawer = dynamic(
  */
 const historyChipsAtomFamily = atomFamily((_workflowId: string) => atom<string[]>([]))
 
+/**
+ * When a version was saved, as the Configuration page header writes it (canvas A04): "Today
+ * 09:12", "Yesterday 17:40", else "Nov 3 09:12". Null when the date is missing or not a date.
+ */
+const savedWhen = (iso: string | null | undefined, now: Date = new Date()): string | null => {
+    const at = iso ? new Date(iso) : null
+    if (!at || Number.isNaN(at.getTime())) return null
+    // A 24-hour clock, as the canvas writes it ("09:12").
+    const time = formatDate(at, {hour: "2-digit", minute: "2-digit", hourCycle: "h23"})
+    const startOf = (date: Date) =>
+        new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+    const days = Math.round((startOf(now) - startOf(at)) / 86_400_000)
+    if (days === 0 || days === 1) {
+        const day = formatRelativeTime(-days, "day", {numeric: "auto"})
+        return `${day.charAt(0).toLocaleUpperCase()}${day.slice(1)} ${time}`
+    }
+    return `${formatDate(at, {month: "short", day: "numeric"})} ${time}`
+}
+
 /** Wraps in a tooltip only when there is something to say beyond the visible label. */
 const StatusWrap = ({tip, children}: {tip: string | null; children: React.ReactElement}) =>
     tip ? <SimpleTooltip title={tip}>{children}</SimpleTooltip> : <>{children}</>
@@ -59,8 +78,9 @@ export interface AgentRevisionStatusProps {
     /** Re-check for a newer version when this changes: pass the session id, so a switch checks. */
     checkKey?: string | null
     /**
-     * Lay out for a phone: the chip says "Saved as vN" and has a 44 px hit area, and the version
-     * history covers the screen with a back arrow.
+     * Lay out for a phone: the chip says "Saved as vN" and has a 44 px hit area, the version
+     * history covers the screen with a back arrow, and a save state that needs attention ("Not
+     * saved") shows its words, not only its icon.
      */
     phone?: boolean
     /** On a phone, the name of the screen the history's back arrow returns to. */
@@ -70,6 +90,12 @@ export interface AgentRevisionStatusProps {
      * status as a bordered "Saved as vN". Needs `historyWorkflowId`.
      */
     footer?: boolean
+    /**
+     * Lay out for the Configuration page header (canvas A04): the version and when it was saved
+     * as a history button ("v4 · Today 09:12"), then the status as a bordered "Saved as vN".
+     * Needs `historyWorkflowId`.
+     */
+    page?: boolean
     className?: string
 }
 
@@ -92,6 +118,7 @@ export const AgentRevisionStatus = ({
     phone = false,
     backTitle,
     footer = false,
+    page = false,
     className,
 }: AgentRevisionStatusProps) => {
     const t = useT(headerCatalog, revisionStatusCatalog)
@@ -147,6 +174,7 @@ export const AgentRevisionStatus = ({
     }, [offersUpdate, historyWorkflowId, projectId, checkKey, historyOpens])
 
     const version = (data?.version as number | null | undefined) ?? null
+    const savedAt = page ? savedWhen(data?.created_at) : null
     const commitMessage = data?.message?.trim() || null
     const newer =
         onUpdate &&
@@ -221,8 +249,11 @@ export const AgentRevisionStatus = ({
             ) : (
                 <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${dot.tone}`} />
             )}
-            {/* Words only for states that need attention; hidden on a narrow bar. */}
-            {showLabel ? <span className="hidden sm:inline">{dot.label}</span> : null}
+            {/* Words only for states that need attention; hidden on a narrow bar, except on a
+                phone, where the icon alone does not say that a save failed. */}
+            {showLabel ? (
+                <span className={phone ? undefined : "hidden sm:inline"}>{dot.label}</span>
+            ) : null}
         </>
     )
 
@@ -238,6 +269,44 @@ export const AgentRevisionStatus = ({
             />
         ) : null
 
+    // "Update to vN": a newer version saved elsewhere. On a phone the pill keeps its size and gets
+    // a 44 px high hit area.
+    const updatePill =
+        newer && !autoUpdateId ? (
+            <button
+                type="button"
+                onClick={() => onUpdate?.(newer.id)}
+                className={cn(
+                    "shrink-0 cursor-pointer whitespace-nowrap rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]",
+                    phone &&
+                        "relative after:absolute after:inset-x-0 after:-inset-y-3 after:content-['']",
+                )}
+            >
+                {t("playground.agentHeader.updateAvailable", {version: newer.version})}
+            </button>
+        ) : null
+
+    // The bordered "Saved as vN" of the footer and the page header. A status, not an action:
+    // enabled only as the retry of a failed save.
+    const savedAsButton =
+        (footer || page) && version !== null ? (
+            <StatusWrap tip={failed ? dot.tip : null}>
+                <Button
+                    variant="outline"
+                    size="compact"
+                    disabled={!failed}
+                    aria-label={failed ? t("playground.agentHeader.retrySaving") : undefined}
+                    onClick={failed ? () => void retrySave({revisionId}) : undefined}
+                    className={cn(
+                        "disabled:opacity-100",
+                        failed ? "text-colorError" : "text-colorTextSecondary",
+                    )}
+                >
+                    {settled ? t("playground.revisionStatus.savedAs", {version}) : dot.label}
+                </Button>
+            </StatusWrap>
+        ) : null
+
     if (footer) {
         return (
             <div className={cn("flex items-center gap-2", className)}>
@@ -250,28 +319,33 @@ export const AgentRevisionStatus = ({
                         {t("playground.revisionStatus.history")}
                     </Button>
                 ) : null}
-                {version !== null ? (
-                    <StatusWrap tip={failed ? dot.tip : null}>
-                        {/* A status, not an action: enabled only as the retry of a failed save. */}
+                {savedAsButton}
+                {historyDrawer}
+            </div>
+        )
+    }
+
+    if (page) {
+        return (
+            <div className={cn("flex items-center gap-2", className)}>
+                {historyWorkflowId && version !== null ? (
+                    <SimpleTooltip title={t("playground.agentHeader.versionHistory")}>
                         <Button
-                            variant="outline"
+                            variant="ghost"
                             size="compact"
-                            disabled={!failed}
-                            aria-label={
-                                failed ? t("playground.agentHeader.retrySaving") : undefined
-                            }
-                            onClick={failed ? () => void retrySave({revisionId}) : undefined}
-                            className={cn(
-                                "disabled:opacity-100",
-                                failed ? "text-colorError" : "text-colorTextSecondary",
-                            )}
+                            aria-label={t("playground.agentHeader.openVersionHistory")}
+                            onClick={() => openHistory(historyWorkflowId)}
                         >
-                            {settled
-                                ? t("playground.revisionStatus.savedAs", {version})
-                                : dot.label}
+                            <ClockCounterClockwise className="size-3.5" />
+                            <span className="font-mono text-[12px]">v{version}</span>
+                            {savedAt ? (
+                                <span className="text-colorTextTertiary">· {savedAt}</span>
+                            ) : null}
                         </Button>
-                    </StatusWrap>
+                    </SimpleTooltip>
                 ) : null}
+                {updatePill}
+                {savedAsButton}
                 {historyDrawer}
             </div>
         )
@@ -293,20 +367,27 @@ export const AgentRevisionStatus = ({
                         className={cn(
                             "flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillSecondary hover:text-colorText",
                             phone
-                                ? "min-h-11 whitespace-nowrap px-2 text-[13px]"
+                                ? "min-h-11 whitespace-nowrap pl-2 pr-0.5 text-[14px] leading-5"
                                 : "px-1.5 py-0.5 text-xs",
                         )}
                     >
                         {/* One chip: the save state is a fact about this version. */}
-                        <span className="flex items-center gap-1">
+                        <span className={cn("flex items-center", phone ? "gap-1.5" : "gap-1")}>
                             {/* A caret would promise a menu; this opens a drawer of history. */}
-                            <span className="relative flex shrink-0">
-                                <ClockCounterClockwise size={11} />
-                                {/* Save state as a badge on the icon, so it never trails the text. */}
-                                <span
-                                    className={`absolute -right-[2px] -top-[2px] h-[5px] w-[5px] rounded-full ring-[1.5px] ring-[var(--ag-surface-raised)] ${dot.tone}`}
-                                />
-                            </span>
+                            {phone ? (
+                                // Canvas M07: a 14 px glyph and no dot; the words carry the state
+                                // ("Saved as vN", "Saving…").
+                                <ClockCounterClockwise size={14} className="shrink-0" />
+                            ) : (
+                                <span className="relative flex shrink-0">
+                                    <ClockCounterClockwise size={11} />
+                                    {/* Save state as a badge on the icon, so it never trails the
+                                        text. */}
+                                    <span
+                                        className={`absolute -right-[2px] -top-[2px] h-[5px] w-[5px] rounded-full ring-[1.5px] ring-[var(--ag-surface-raised)] ${dot.tone}`}
+                                    />
+                                </span>
+                            )}
                             {phone
                                 ? settled
                                     ? t("playground.revisionStatus.savedAs", {version})
@@ -359,20 +440,7 @@ export const AgentRevisionStatus = ({
                 )
             ) : null}
 
-            {newer && !autoUpdateId ? (
-                <button
-                    type="button"
-                    onClick={() => onUpdate?.(newer.id)}
-                    // On a phone the pill keeps its size and gets a 44 px high hit area.
-                    className={cn(
-                        "shrink-0 cursor-pointer whitespace-nowrap rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]",
-                        phone &&
-                            "relative after:absolute after:inset-x-0 after:-inset-y-3 after:content-['']",
-                    )}
-                >
-                    {t("playground.agentHeader.updateAvailable", {version: newer.version})}
-                </button>
-            ) : null}
+            {updatePill}
 
             {historyDrawer}
 

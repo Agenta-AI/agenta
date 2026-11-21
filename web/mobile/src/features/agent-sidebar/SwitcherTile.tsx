@@ -1,5 +1,5 @@
 import {useAgentIconChrome} from "@agenta/entity-ui/agent"
-import {RobotIcon} from "@phosphor-icons/react"
+import {Bot} from "lucide-react"
 
 /**
  * The agent's tile in the switcher: 32 px, radius 8, with an 18 px glyph (`small`: the menu's
@@ -10,7 +10,8 @@ export const SwitcherTile = ({agentId, small = false}: {agentId: string; small?:
     const glyph = small ? 14 : 18
     const chrome = useAgentIconChrome(agentId, {
         size: glyph,
-        fallbackGlyph: <RobotIcon aria-hidden size={glyph} />,
+        // The canvas draws an outline robot (Lucide); Phosphor's robot has a filled face.
+        fallbackGlyph: <Bot aria-hidden size={glyph} />,
     })
     return (
         <span

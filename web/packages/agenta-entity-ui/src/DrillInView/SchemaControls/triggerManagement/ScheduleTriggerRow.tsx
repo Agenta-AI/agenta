@@ -74,9 +74,8 @@ export function ScheduleTriggerRow({
 
     return (
         <TriggerRow
-            // The canvas violet has no token yet; the info ink is the nearest one.
             tile={
-                <RowTile className="bg-[var(--ag-colorInfo)]">
+                <RowTile className="bg-[var(--ag-tile-schedule)]">
                     <Clock />
                 </RowTile>
             }

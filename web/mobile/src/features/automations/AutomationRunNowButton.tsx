@@ -1,7 +1,7 @@
 import type {Automation} from "@agenta/automation-ui"
 import {useT} from "@agenta/i18n"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
-import {Button} from "@agenta/ui/ui"
+import {Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {Play} from "@phosphor-icons/react"
 
 import {useAutomationRunNow} from "./useAutomationRunNow"
@@ -43,14 +43,17 @@ export const AutomationRunNowButton = ({
         <span title={blockedText}>
             <Button
                 type="button"
-                size="sm"
+                size="compact"
                 variant="outline"
-                className={phone ? "h-11 text-sm font-normal" : "text-xs font-normal"}
+                // A screen that does not say it is a phone still gets the 44 px tap area below md.
+                className={
+                    phone ? "h-11 text-sm font-normal" : `font-normal ${PHONE_TOUCH_TARGET_CLASS}`
+                }
                 disabled={blocked !== null || starting}
                 title={blockedText ?? t("automations.screens.runNowTitle")}
                 onClick={() => void run()}
             >
-                <Play aria-hidden className="size-3" />
+                <Play aria-hidden className="size-3.5" />
                 {t("automations.screens.runNow")}
             </Button>
         </span>

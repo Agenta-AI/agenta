@@ -65,9 +65,24 @@ class ChildTurnResult(BaseModel):
     waiting_for: Optional[List[ChildTurnWaitingFor]] = None
 
 
+# The key of the structured part, on the row's one message and on the stored user
+# `message` record of the turn that the row started.
+CHILD_UPDATE_PART_KEY = "child_update"
+
+
 def child_update_part(
     *, session_id: str, turn_id: Optional[str], status: ChildTurnStatus
 ) -> Dict[str, Any]:
     """The one server-written structured part of a `child_update` row. The chat and the
     wait tool read only this part, and only on a row with `kind = child_update`."""
     return {"session_id": session_id, "turn_id": turn_id, "status": status.value}
+
+
+def stored_child_update_part(content: Any) -> Optional[Dict[str, Any]]:
+    """The part of a stored `child_update` row: at `child_update` on the last message of
+    `data.inputs.messages`. None when the row holds none."""
+    try:
+        part = content["data"]["inputs"]["messages"][-1][CHILD_UPDATE_PART_KEY]
+    except (KeyError, IndexError, TypeError):
+        return None
+    return dict(part) if isinstance(part, dict) else None

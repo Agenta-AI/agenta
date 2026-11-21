@@ -8,14 +8,7 @@ import {useT} from "@agenta/i18n"
 import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import subscriptionViewsCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionViews"
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
-import {
-    ArrowSquareOut,
-    Check,
-    CheckCircle,
-    CircleNotch,
-    Copy,
-    WarningCircle,
-} from "@phosphor-icons/react"
+import {ArrowSquareOut, Check, CheckCircle, CircleNotch, WarningCircle} from "@phosphor-icons/react"
 
 import {countdownLabel, type PendingAttempt} from "../useSubscriptionSignIn"
 
@@ -112,7 +105,6 @@ export const SubscriptionSignInCard = ({
                                     aria-label={t("entityUi.subscriptionSignIn.copySignInCode")}
                                     onClick={() => onCopy(attempt.userCode)}
                                 >
-                                    <Copy size={12} />
                                     {t("entityUi.subscriptionSignIn.copy")}
                                 </Button>
                             )}

@@ -760,6 +760,14 @@ class SessionStreamsRouter:
             action=Permission.RUN_SESSIONS,
             session_id=payload.session_id,
         )
+        if mode == CommandMode.cancel:
+            await self._record_running_turn_stop(
+                project_id=UUID(str(project_id)),
+                user_id=UUID(str(user_id)) if user_id else None,
+                session_id=payload.session_id,
+                expected_execution_id=payload.expected_execution_id,
+                arrived_at_ms=arrived_at_ms,
+            )
         try:
             response = await self._service.command(
                 arrived_at_ms=arrived_at_ms,
@@ -807,6 +815,58 @@ class SessionStreamsRouter:
                 )
 
         return response
+
+    async def _record_running_turn_stop(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+        expected_execution_id: Optional[str],
+        arrived_at_ms: int,
+    ) -> None:
+        """Record this Stop as the durable cancel command of `POST
+        /sessions/{session_id}/cancel`, for the turn that runs now.
+
+        The stop below clears the live flags in the database, so the orphan sweep no
+        longer sees the turn, and nothing wrote an ending when the runner was gone. With
+        the command, a runner that is alive settles the turn as it does for the cancel
+        route, and when no runner answers, the abandoned-command sweep settles it and the
+        sweep writes the missing `done`. Only a running turn: this stop never ends a
+        paused one unless the caller names it. Before the stop, so a failed write leaves
+        the turn running for a retry."""
+        if self._commands_service is None:
+            return
+        # The route check found no row: a turn running now is in a session created since,
+        # which this request has no right to stop.
+        if session_was_missing(project_id=project_id, session_id=session_id):
+            return
+        # Read from Redis, as the stop below does: the row's turn and start time are
+        # written later and by another clock, so a check against them can refuse a turn
+        # that the stop below then stops, and that turn gets no ending.
+        turn_id, started_at_ms = await self._service.running_turn_start(
+            project_id=project_id, session_id=session_id
+        )
+        if turn_id is None:
+            return
+        # The same two guards as the stop below, which cannot undo this command: a Stop
+        # that names a turn stops only that turn, and an unnamed Stop never stops a turn
+        # that started after it arrived. An unknown start does not refuse, as below.
+        if expected_execution_id is not None:
+            if expected_execution_id != turn_id:
+                return
+        elif started_at_ms is not None and started_at_ms > arrived_at_ms:
+            return
+        try:
+            await self._commands_service.request_cancel(
+                project_id=project_id,
+                user_id=user_id,
+                session_id=session_id,
+                expected_execution_id=turn_id,
+            )
+        except ExecutionExpectationFailed:
+            # The turn ended or another one runs now; the stop below gives the answer.
+            pass
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -2136,6 +2196,7 @@ class InteractionsRouter:
                     expected_execution_id=body.expected_execution_id,
                     idempotency_key=idempotency_key,
                     approved_by=approved_by,
+                    deliver=body.delivery == "server",
                 )
             else:
                 admission = await self.commands_service.respond_interaction(
@@ -2146,6 +2207,7 @@ class InteractionsRouter:
                     expected_execution_id=body.expected_execution_id,
                     idempotency_key=idempotency_key,
                     approved_by=approved_by,
+                    deliver=body.delivery == "server",
                 )
         except MissingEnvelope:
             # Parked before this release: the interaction was cancelled (committed).
@@ -2188,6 +2250,9 @@ class InteractionsRouter:
                     "awaiting_interactions"
                     if getattr(admission, "waiting_for_interactions", False)
                     else admission.execution_state.value
+                ),
+                session_turn_id=(getattr(admission.command, "data", None) or {}).get(
+                    "session_turn_id"
                 ),
             ),
         )
