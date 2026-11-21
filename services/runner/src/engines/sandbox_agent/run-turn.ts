@@ -26,16 +26,14 @@ import {
   ApprovalResponder,
   ApprovedExecutionGrants,
   ConversationDecisions,
-  extractApprovalDecisions,
   extractClientToolOutputs,
-  extractInBandApprovalAnswers,
 } from "../../responder.ts";
 import {
   buildInteractionData,
   buildWorkflowReferenceList,
   createInteraction,
+  decisionMapOf,
   resolveInteraction,
-  seedDecisionMap,
 } from "../../sessions/interactions.ts";
 import { toolSpecsByName } from "../../tools/public-spec.ts";
 import {
@@ -467,11 +465,6 @@ export async function runTurn(
     resume: !!opts.resume,
     nextPromptFollows: !!opts.settleApprovalsThenPrompt,
   });
-  // Assigned once the turn's interaction plumbing exists; called from the `finally` so EVERY exit
-  // path (done, paused, cancelled, error) settles the durable rows this turn's in-band answers
-  // consumed. Without it, a resume the harness does not re-gate leaves them `pending` forever.
-  let settleInBandInteractions: (() => Promise<void>) | undefined;
-
   // Time-based run deadlines (total/idle/TTFB/per-tool-call) for THIS turn: an idle/wedged harness
   // has no deadline anywhere, so a silent or hung turn would hold its sandbox forever. Tripping a
   // limit resolves the prompt race with `RUN_LIMIT_TRIPPED`, which ends the turn as an error so the
@@ -1129,25 +1122,12 @@ export async function runTurn(
       onPermissionRequest: undefined,
     };
     const permissionPlan = permissionsFromRequest(request);
-    // Unconditional: an EMPTY decision map on a turn the transcript called a resume is the
-    // interesting case, and the old `size > 0` guard was exactly the condition that hid it.
-    const storedDecisionMap = extractApprovalDecisions(request, logger);
-    // The transcript is not the only place an answer can live: a client that answered out of
-    // band, or whose resume never reached us, leaves the decision only on the interactions
-    // plane. The caller reads and claims those rows (`loadDurableDecisions`) and hands them in,
-    // so this merge is SYNCHRONOUS — see the invariant at the top of this function.
-    //
-    // History wins: `seedDecisionMap` sets only keys the transcript does not already carry,
-    // because an envelope this turn actually received in band is the fresher fact.
-    const adopted = seedDecisionMap(
-      storedDecisionMap,
-      opts.seededDecisions ?? [],
-    );
-    if (adopted.length) {
-      logger(
-        `[HITL] seeded decisions from interaction rows: ${JSON.stringify(adopted.map((entry) => entry.key))}`,
-      );
-    }
+    // The session's answered interaction rows are the ONLY source of an approval decision; an
+    // approval envelope in the request messages is not one. The caller reads and claims those
+    // rows (`TurnApprovalRows.claimAll`) and hands them in, so this build is SYNCHRONOUS — see
+    // the invariant at the top of this function.
+    const storedDecisionMap = decisionMapOf(opts.seededDecisions ?? []);
+    // Logged even when empty: an empty map on a resume is the case worth seeing.
     logger(
       `[HITL] resume state: decisions=${JSON.stringify([...storedDecisionMap.keys()])}`,
     );
@@ -1204,18 +1184,21 @@ export async function runTurn(
     // Transition the durable interaction row to resolved once its gate is answered. Used both by
     // the cold decision-map path (via attachPermissionResponder) and the live approval resume,
     // which answers the parked gate directly. The turn-start `cancelStaleInteractions` sweep
-    // (server.ts) cancels only PENDING gates of OTHER turns and spares this gate two ways: an
-    // interactions-plane answer already transitioned it to responded, and an in-band answer is
-    // detected at sweep time (`inBandAnswerToken`) and exempted via the sweep's `tokens` — the
-    // row stays pending until this resolve lands it as resolved, never cancelled.
-    // Seeded with the tokens the CALLER already claimed. `loadDurableDecisions` resolves a row
-    // before adopting its decision, so those rows are terminal before this turn starts, and any
-    // further transition on them is a guaranteed 404. Without this seed a healthy run logged
-    // `resolve failed ... HTTP 404` every time — an error line for work that had already
-    // succeeded, which is worse than noise: it trains the reader to ignore a real failure.
-    const resolvedInteractionTokens = new Set<string>(
-      (opts.seededDecisions ?? []).map((entry) => entry.token),
-    );
+    // (server.ts) cancels only PENDING gates of OTHER turns, and an answered gate is never
+    // pending: the person's answer moved it to responded, and the caller's claim to resolved.
+    // Seeded with the tokens the CALLER already claimed: the cold seed, and the warm resume's
+    // answers (the coordinator claims each row before it hands the decision in).
+    // `TurnApprovalRows` resolves a row before adopting its decision, so those rows are terminal
+    // before this turn starts, and any further transition on them is a guaranteed 404. Without
+    // this seed a healthy run logged `resolve failed ... HTTP 404` every time — an error line for
+    // work that had already succeeded, which is worse than noise: it trains the reader to ignore
+    // a real failure.
+    const resolvedInteractionTokens = new Set<string>([
+      ...(opts.seededDecisions ?? []).map((entry) => entry.token),
+      ...(
+        (opts.resume ?? opts.settleApprovalsThenPrompt)?.decisions ?? []
+      ).map((decision) => decision.interactionToken),
+    ]);
     const resolveInteractionToken = (
       token: string,
       verdict?: { approved: boolean; toolCallId: string },
@@ -1249,42 +1232,6 @@ export async function runTurn(
             }
           : undefined,
       );
-    };
-    // A resume's approval envelope is a CONSUMED decision even when the harness never re-raises
-    // the gate: on a cold replay the transcript already contains the human's answer, so the agent
-    // just proceeds and no reply path ever reaches `resolveInteractionToken`. That is exactly how a
-    // gate outlives its turn as a forever-actionable `pending` row. Settle the leftovers here, with
-    // the verdict the human actually gave, so the row lands `resolved` and not `cancelled`. A row
-    // already terminal (resolved by the reply path, or cancelled by the turn-start sweep) simply
-    // 404s the transition — the CAS is the arbiter, this is only a last writer.
-    //
-    // Deliberately does NOT go through `resolveInteractionToken`: that emits an
-    // `interaction_response` event, and this can run once the turn's event stream is closed,
-    // which would land a record after the turn's terminal `done`. The durable row is the only
-    // thing to fix.
-    //
-    // Awaited, and awaited BEFORE the terminal record is emitted. `record()` hands `done`
-    // straight to the sink, so the moment `finish()` runs the API's gate reconciliation may
-    // consume it and cancel this still-pending row — after which the transition below finds a
-    // terminal row and 404s, filing a decision the human actually made as an abandonment.
-    settleInBandInteractions = async (): Promise<void> => {
-      if (!credential()) return;
-      const settling: Promise<unknown>[] = [];
-      for (const answer of extractInBandApprovalAnswers(request)) {
-        if (resolvedInteractionTokens.has(answer.token)) continue;
-        resolvedInteractionTokens.add(answer.token);
-        logger(
-          `[HITL] settling in-band answer with no harness gate token=${answer.token} ` +
-            `approved=${answer.approved}`,
-        );
-        settling.push(
-          resolveInteraction(sessionId, answer.token, credential, {
-            verdict: answer.approved ? "approved" : "denied",
-            tool_call_id: answer.toolCallId,
-          }),
-        );
-      }
-      await Promise.all(settling);
     };
     const mcpPermissions = mcpPermissionsFromRequest(request, logger);
     const settleBufferedPausedCompletions = (): void => {
@@ -2119,8 +2066,6 @@ export async function runTurn(
       await harnessTrace.emitMissingBatchFallback(run);
     }
 
-    // Before `finish()`, which emits the terminal `done` the API reconciles gates against.
-    await settleInBandInteractions?.();
     if (outputLimitReason) throw new Error(outputLimitReason);
     const output = run.finish(
       swallowedError || endedByShutdown ? "error" : stopReason,
@@ -2269,8 +2214,6 @@ export async function runTurn(
     // An aborted turn may have left a partial turn in the native transcript: roll it back, or
     // drop the resume point.
     const turnRowCompleted = await settleFailedTurnContinuity();
-    // Same ordering as the happy path: settle the durable rows before the terminal record goes out.
-    await settleInBandInteractions?.();
     // finish() must not throw uncaught — tracing must not mask the run error.
     try {
       otel?.finish("error");
@@ -2322,10 +2265,6 @@ export async function runTurn(
   } finally {
     platformCredentialLease?.release();
     toolCallback.release();
-    // Backstop for the exits that reach neither branch above (cancel, abort). Idempotent via the
-    // resolved-token set, so the ordered calls make this a no-op on the paths that took them, and
-    // never throws — a row whose gate is gone is unanswerable however the turn ended.
-    void settleInBandInteractions?.();
     // Release every run-limits timer (idempotent, never re-arms on a late event) on EVERY path.
     runLimits.dispose();
     // Same contract for the sandbox liveness probe: one timer, released on EVERY path.
