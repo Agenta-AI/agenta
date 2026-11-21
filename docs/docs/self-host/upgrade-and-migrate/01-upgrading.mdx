@@ -434,13 +434,11 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml pull
 
 **2. Apply Database Migrations**
 
-Before updating services, apply any database schema changes:
+Before updating services, apply any database schema changes. This runs the `alembic` migration job once, from the image you just pulled:
 
 ```bash
-docker exec <api-container-name> python -m ee.databases.postgres.migrations.runner
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh run --rm alembic
 ```
-
-Replace `<api-container-name>` with your actual API container name (e.g., `agenta-oss-gh-api-1`).
 
 **3. Rolling Update Services**
 
@@ -569,14 +567,12 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file ho
   psql -U username -d postgres -c "\l"
 ```
 
-Start the full stack, then run Agenta migrations if your release requires them:
+Start the full stack. The `alembic` job runs the migrations at start. Check its log:
 
 ```bash
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
 
-docker ps | grep api
-docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/core <api-container-name> \
-  alembic -c alembic.ini upgrade head
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh logs alembic
 ```
 
 Verify the stack:
@@ -662,23 +658,13 @@ Check the release notes to see if a version requires database migrations. Not al
 
 ### Manual Migration Process
 
-**1. Find Your API Container Name**
-
-List running containers to identify your API container:
+Apply all pending migrations by running the `alembic` migration job once, from the image in your compose file:
 
 ```bash
-docker ps | grep api
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh run --rm alembic
 ```
 
-**2. Run the Migration Command**
-
-Apply all pending migrations:
-
-```bash
-docker exec <api-container-name> python -m ee.databases.postgres.migrations.runner
-```
-
-The command runs the same migration job that the `alembic` container runs at start: every core and tracing migration, in order.
+The job is the same one that runs at every start: every core and tracing migration, in order.
 
 ### Verifying Migrations
 
