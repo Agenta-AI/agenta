@@ -49,12 +49,6 @@ export interface PermissionPolicySelectProps {
     triggerClassName?: string
     /** Menu width override. The panel is pinned to the trigger, which wraps a compact chip's rows. */
     contentClassName?: string
-    /**
-     * What the TRIGGER says, where that differs from what the menu calls the selected value. An
-     * MCP tool row names the value in the menu ("Follow agent policy") and says what the run will
-     * do with it at rest ("Inherits ask"), so a row never shows a bare value with no provenance.
-     */
-    triggerTitle?: string
     size?: "sm" | "default"
     /** Which trigger edge the menu lines up with. A row's trailing chip opens leftward ("end"). */
     align?: "start" | "end"
@@ -77,7 +71,6 @@ export function PermissionPolicySelect({
     container,
     triggerClassName = "w-full",
     contentClassName,
-    triggerTitle,
     size,
     align,
     canvas,
@@ -109,9 +102,7 @@ export function PermissionPolicySelect({
                 <SelectValue>
                     {canvas === "field" ? (
                         <span className="flex min-w-0 flex-col items-start text-left">
-                            <span className="max-w-full truncate leading-5">
-                                {triggerTitle ?? selected?.title}
-                            </span>
+                            <span className="max-w-full truncate leading-5">{selected?.title}</span>
                             {selected?.help ? (
                                 <span className="max-w-full truncate text-[12px] leading-4 text-colorTextTertiary">
                                     {selected.help}
@@ -121,7 +112,7 @@ export function PermissionPolicySelect({
                     ) : (
                         <span className="flex min-w-0 items-center gap-2">
                             {canvas ? null : selected?.icon}
-                            <span className="truncate">{triggerTitle ?? selected?.title}</span>
+                            <span className="truncate">{selected?.title}</span>
                         </span>
                     )}
                 </SelectValue>

@@ -13,7 +13,7 @@
  *   what `inherit` asks for. `MCPPolicy.permission` is optional for exactly that reason.
  * - At the tool level, no entry in `tool_permissions` means the tool follows whatever governs the
  *   tools the table does not name. That is what the shipped drawer already labels
- *   "Inherits ask" or "Inherits allow".
+ *   "Follow agent policy".
  *
  * The one thing `default` here is NOT is "the whole-server permission". It is the value a tool
  * with no entry of its own ends up with, because that is what the drawer reads it as and what
