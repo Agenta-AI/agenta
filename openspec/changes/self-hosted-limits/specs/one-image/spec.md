@@ -61,9 +61,9 @@ Both runner modules SHALL run the same chains, pick the legacy chain from the da
 
 Outside cloud, the API SHALL apply no throttles for a plan that has none, the SDK SHALL read provider keys from the environment unless `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` is false, and `/m` SHALL use cloud settings only on cloud.
 
-#### Scenario: Slow routes on a community instance
+#### Scenario: Slow routes on an instance with no key
 
-- **WHEN** a community instance sends 200 requests to a slow route within a minute
+- **WHEN** an instance with no key sends 200 requests to a slow route within a minute
 - **THEN** none is refused with HTTP 429
 
 #### Scenario: Provider key in the env file

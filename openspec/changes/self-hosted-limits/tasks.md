@@ -4,32 +4,32 @@ Program tier. Milestones ship to the same release (v0.130.1). M1, M2 and M3 can 
 
 ## M1. Limits in `ee/` (API and /m)
 
-- [ ] 1.1 Add `api/ee/src/core/licenses/limits.py`: `SELF_HOSTED_LIMITS` (plan to `Limits(max_projects, max_organizations)`), `check_project_limit`, `check_instance_organization_limit`. Reuse `FREE_SELF_HOSTED_PLANS` from `controls.py`. Replace `project_limit_refusal` (cloud half moves into `check_project_limit`).
-- [ ] 1.2 Add `ProjectLimitReachedError` to `api/ee/src/core/licenses/types.py` and `InstanceOrganizationLimitReachedError` to `api/oss/src/core/organizations/exceptions.py`; add `db_manager.count_organizations()`.
+- [ ] 1.1 `api/ee/src/core/access/entitlements/types.py`: add `self_hosted_community: 1` to `PROJECT_LIMITS`, add `ORGANIZATION_LIMITS` (community 1, registered 1), `ProjectLimitReachedError` and `InstanceOrganizationLimitReachedError` (its own class).
+- [ ] 1.2 `entitlements/service.py`: `check_project_limit` (replaces `project_limit_refusal`) and `check_instance_organization_limit`; add `db_manager.count_organizations()`.
 - [ ] 1.3 `create_project`: call `check_project_limit`; answer HTTP 403 `{"code": "project_limit_reached", "message", "limit"}`.
-- [ ] 1.4 `create_organization_for_user` and its router: raise and answer HTTP 403 `{"code": "instance_organization_limit_reached", "message", "limit"}`; catch it before `OrganizationCreationNotAllowedError`.
+- [ ] 1.4 `create_organization_for_user` and its router: raise and answer HTTP 403 `{"code": "instance_organization_limit_reached", "message", "limit"}`.
 - [ ] 1.5 `oss.src.services.commoners.create_accounts`: call `check_instance_organization_limit()` before `create_organization_for_signup`, catch the error, log and skip.
 - [ ] 1.6 `/m`: `DrawerProjectSwitcher.tsx` and `OrganizationsTab.tsx` read `detail.code`; "Open License settings" for the instance admin, "Ask your instance admin." for others; zero-organization screen text in `ContextResolver.tsx`.
-- [ ] 1.7 English strings: project limit "This organization has reached its limit of {{limit}} project(s)."; free key note "A free key gives more projects."; organization limit "This instance allows {{limit}} organization(s). Ask for an invitation to an existing organization, or add a paid license key."; non-admin ending "Ask your instance admin."; zero organizations "You are not in an organization yet. Ask an admin to invite you." Translate into the 6 other locales with the `.meta` files.
+- [ ] 1.7 English strings: project limit "This organization has reached its limit of {{limit}} project(s)."; free key note "A free key gives more projects."; organization limit "This instance allows {{limit}} organization(s). Ask for an invitation to an existing organization, or add a paid license key."; non-admin ending "Ask your instance admin."; zero organizations "You are not in an organization yet. Ask an organization admin to invite you." Translate into the 6 other locales with the `.meta` files.
 - [ ] 1.8 Unit tests for every scenario in `specs/self-hosted-limits/spec.md` that needs no browser; `/m` unit tests for the code-to-text mapping and the admin branch.
 - [ ] 1.9 Find API and SDK tests that create a second project or organization through the public routes, and move them to the platform admin routes.
 
 ## M2. The EE path on every install (API, SDK, web)
 
-- [ ] 2.1 `api/oss/src/utils/env.py` and `common.py`: `is_ee()` true when the `ee` package imports; `AGENTA_LICENSE` only sets the default database prefix (default `oss`). Check every reader of `env.agenta.license` and `_LICENSE` (database names, lock key, alembic ini path).
+- [ ] 2.1 `api/oss/src/utils/env.py` and `common.py`: `is_ee()` true when the `ee` package imports, with docstrings that say so; `AGENTA_LICENSE` is read only as the database prefix fallback (default `oss`). Move every other reader of `env.agenta.license` and `_LICENSE` (lock key, alembic ini path) off it. Env examples for new installs set `POSTGRES_DB_PREFIX`.
 - [ ] 2.2 Throttling: outside `is_cloud()`, no fallback to the free cloud plan's throttles.
 - [ ] 2.3 SDK vault: read provider keys from the environment unless `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=false`. Note in the PR that cloud must set it before the new services image deploys.
-- [ ] 2.4 Server analytics: deployment event on `not is_cloud()`, sign-up event field from `is_cloud()`.
+- [ ] 2.4 Server analytics: replace `oss_deployment_created` with `self_hosted_deployment_created` (`deployment_type="self_hosted"`, sent when `not is_cloud()`), and the sign-up property `is_ee` with `is_cloud`.
 - [ ] 2.5 Default plan for new subscriptions outside cloud: `self_hosted_community`.
-- [ ] 2.6 `web/entrypoint.sh`: write a cloud flag into `__env.js` from the existing cloud key check; `@agenta/shared` exposes `isCloud()`. Replace `isEE()` in `/m` analytics, `DrillInBridgeProvider.tsx`, `providerKey.ts`, and remove the `isEE()` branch in `LicenseTab.tsx`. List every other `isEE()` in `web/mobile` and `web/packages` and decide each.
+- [ ] 2.6 `web/entrypoint.sh`: drop the edition condition from the cloud key check that sets `AGENTA_BILLING_ENABLED`; `@agenta/shared` adds `isCloud()` that reads that same value. `isBillingEnabled()` calls `isCloud()`. The entrypoint drops the edition condition from the Turnstile gate too. In `web/mobile` and `web/packages`, every `isEE()` branch takes the EE side, except the cloud branches (analytics `OSS_CONFIG` renamed `SELF_HOSTED_CONFIG`, `DrillInBridgeProvider.tsx`, `providerKey.ts`), which use `isCloud()`. Remove the `isEE()` branch in `LicenseTab.tsx`.
 - [ ] 2.7 `run-tests.py` (api, sdks/python, services): stop selecting tests by `AGENTA_LICENSE`; the EE path is the only path.
 
 ## M3. One migration runner
 
-- [ ] 3.1 One runner sequence behind both module names: legacy chain, `core_oss`, `core_ee`, tracing chains.
+- [ ] 3.1 The `ee` runner owns the sequence (legacy chain, `core_oss`, adoption step, `core_ee`, tracing chains); the `oss` runner module only calls it, with a docstring that records why. The runner ignores `ALEMBIC_CFG_PATH_CORE` for the legacy chain.
 - [ ] 3.2 Pick the legacy chain from the database state (skip it at `park00000000` or on an empty database; on any older or unknown revision, stop before any change with a message that asks for an upgrade to v0.129.x first).
-- [ ] 3.3 Detect adoption before `core_ee` (no `alembic_version_ee`, no `subscriptions`); after `core_ee`, run the membership materialize step.
-- [ ] 3.4 CI replay: fresh, OSS v0.104.0, OSS v0.129.x, EE v0.129.x; check schema heads and member project access before and after.
+- [ ] 3.3 Detect adoption (no `alembic_version_ee`, no `subscriptions`); run the membership materialize step after `core_oss` and before `core_ee`.
+- [ ] 3.4 CI replay: fresh, OSS v0.104.0, OSS v0.129.x, EE v0.129.x, and an OSS start interrupted during the materialize step; check schema heads and member project access before and after.
 
 ## M4. Images, hosting and builds
 

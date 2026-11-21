@@ -65,8 +65,9 @@ Non-goals:
 
 What "the EE path always on" means in code:
 
-- `is_ee()` is true when the `ee` package is in the image, which is always for a shipped image. `is_oss()` is its opposite. `AGENTA_LICENSE` no longer changes them.
-- `AGENTA_LICENSE` keeps one meaning: the default database prefix `agenta_{AGENTA_LICENSE}`, with `oss` when unset. Existing OSS env files and the Helm default set `oss`, so they keep `agenta_oss_*`. Existing EE installs set `ee` and keep `agenta_ee_*`. New installs get `agenta_oss_*` unless they set a prefix. The docs describe the variable as the database prefix choice.
+- `is_ee()` is true when the `ee` package is in the image, which is always for a shipped image. `is_oss()` is its opposite. `AGENTA_LICENSE` no longer changes them. Their docstrings say they mean "the `ee` code is present", not "this install has an enterprise plan". New code in this change calls the `ee/` limits through the existing `is_ee()` seam; a follow-up removes the seams and the dead OSS-only branches.
+- In the API, `AGENTA_LICENSE` is read in one place only: the fallback for the database prefix, `agenta_{AGENTA_LICENSE}` with `oss` when unset. Existing OSS env files and the Helm default set `oss`, so they keep `agenta_oss_*`. Existing EE installs set `ee` and keep `agenta_ee_*`. The env examples for new installs set `POSTGRES_DB_PREFIX` instead. The alembic ini path no longer derives from it (Decision 4). The docs say that adding a key is the only step to a paid plan, and that changing `AGENTA_LICENSE` on an existing install points it at other, empty databases.
+- In the web image, `AGENTA_LICENSE` only picks the classic `/w` build (Decision 3). `/m` stops reading it: every `isEE()` branch in `web/mobile` and `web/packages` takes the EE side, because the API always runs the EE path, except the branches that mean "cloud", which use `isCloud()` (Decision 2).
 - Cloud stays `is_cloud()`: a valid cloud key in `AGENTA_LICENSE_KEY` (`api/ee/src/core/licenses/cloud.py`).
 - The limits, the key check and the plans stay in `api/ee/`. The OSS routers call them through the existing `is_ee()` seams.
 
@@ -76,9 +77,9 @@ What "the EE path always on" means in code:
 | --- | --- |
 | Throttling falls back to the free cloud plan's throttles for a plan with none | Outside `is_cloud()`, a plan with no throttles has none |
 | SDK reads provider keys from the environment when `AGENTA_LICENSE != "ee"` | It reads them unless `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=false`. The cloud deploy sets it to false before it deploys the new services image (the services image and the API can be on different versions) |
-| `/m` uses `isEE()` for cloud analytics, cloud labels and the provider key guard | `/m` uses `isCloud()`. `web/entrypoint.sh` already detects the cloud key for billing (`web/entrypoint.sh:64-76`) and writes the flag into `__env.js` |
+| `/m` uses `isEE()` for cloud analytics (`OSS_CONFIG` or `CLOUD_CONFIG`), cloud labels and the provider key guard | `/m` uses `isCloud()`. It reads the value `web/entrypoint.sh` already derives from the cloud key for billing (`AGENTA_BILLING_ENABLED`, `web/entrypoint.sh:64-76`); `isBillingEnabled()` becomes a call to `isCloud()`, so one value has one source. The entrypoint drops the edition condition from that check and from the Turnstile gate. No new flag. `OSS_CONFIG` becomes `SELF_HOSTED_CONFIG` |
 | `/m` hides the add-a-key form when not EE (`LicenseTab.tsx`) | The form shows on every self-hosted install; the `isEE()` branch goes away |
-| Server analytics: `is_oss()` for the deployment event, `is_ee` in the sign-up event | `not is_cloud()` and `is_cloud()` |
+| Server analytics: `oss_deployment_created` under `is_oss()` (`api/oss/src/middlewares/analytics.py:118-126`); sign-up event property `is_ee` (`api/oss/src/core/auth/supertokens/overrides.py:211`) | New event `self_hosted_deployment_created` (`deployment_type="self_hosted"`) under `not is_cloud()`; sign-up property `is_cloud`. The old names stop in v0.130.1; the release notes for the analytics dashboards say so |
 | New subscriptions outside cloud store `self_hosted_enterprise` | They store `self_hosted_community`; reads keep using the instance plan |
 
 ### Decision 3: Images and names
@@ -92,36 +93,36 @@ What "the EE path always on" means in code:
 
 ### Decision 4: One migration runner
 
-- `oss.databases.postgres.migrations.runner` and `ee.databases.postgres.migrations.runner` run the same sequence: the legacy chain, `core_oss`, `core_ee`, then the tracing chains. Old compose, Helm and Railway files that name the OSS module keep working.
-- The legacy chain is picked from the database, not from `AGENTA_LICENSE`: no `alembic_version` table or `park00000000` skips it. Any other revision is a database older than v0.104.0. The runner stops before any change and tells the operator to upgrade to v0.129.x first (Question 6, option A in spec).
-- Adoption of an OSS database (detected before `core_ee` runs: no `alembic_version_ee` and no `subscriptions` table): after `core_ee`, the runner writes project membership rows (today's `memberships_check --materialize`), so every member keeps the projects they had. It does not run on an EE database, where it would widen access.
+- `ee.databases.postgres.migrations.runner` owns the sequence: the legacy chain, `core_oss`, the adoption step, `core_ee`, then the tracing chains. `oss.databases.postgres.migrations.runner` stays as a module name only because old compose, Helm and Railway files call it; in the one image it calls the `ee` runner and does nothing else. This alias is recorded in the module docstring and removed when those files no longer name it.
+- The runner picks the legacy chain itself and ignores `ALEMBIC_CFG_PATH_CORE` and the edition for it (today `env.py:925` and the Helm alembic job derive that path from the edition). The legacy chain is picked from the database, not from `AGENTA_LICENSE`: no `alembic_version` table or `park00000000` skips it. Any other revision is a database older than v0.104.0. The runner stops before any change and tells the operator to upgrade to v0.129.x first (Question 6, option A in spec).
+- Adoption of an OSS database (no `alembic_version_ee` and no `subscriptions` table): after `core_oss` and before `core_ee`, the runner writes project membership rows (today's `memberships_check --materialize`), so every member keeps the projects they had. The materializer needs only the membership schema from `core_oss`. Because `core_ee` runs after it, an interrupted start leaves the adoption condition in place and the next start repeats the step, which is safe to repeat. It never runs on an EE database, where it would widen access.
 - `ee0000000010_add_licenses` stays in `core_ee`, unchanged.
-- Tests: replay a fresh database, an OSS database at v0.104.0, an OSS database at v0.129.x, and an EE database at v0.129.x through the runner in CI, and check the member access before and after.
+- Tests: replay a fresh database, an OSS database at v0.104.0, an OSS database at v0.129.x, an EE database at v0.129.x, and an OSS database whose first start stopped during the materialize step, through the runner in CI, and check the member access before and after.
 
-### Decision 5: The limits table, in `ee/`
+### Decision 5: The limits tables, in the entitlements domain
 
-`api/ee/src/core/licenses/limits.py`:
+Both limits live next to today's `PROJECT_LIMITS` in `api/ee/src/core/access/entitlements/types.py`, and both checks in `entitlements/service.py`:
 
-| Plan | `max_projects` (per organization) | `max_organizations` (per instance) |
+| Plan | `PROJECT_LIMITS` (per organization) | `ORGANIZATION_LIMITS` (per instance) |
 | --- | --- | --- |
-| `self_hosted_community` (no key, expired, invalid) | 1 | 1 |
-| `self_hosted_registered` (free key) | None (no limit) | 1 |
-| any other self-hosted plan (paid key) | None | None |
-| cloud | from `PROJECT_LIMITS` by Stripe plan, as today | None |
+| `cloud_v0_hobby` | 1 (today) | not in table |
+| `self_hosted_community` (no key, expired, invalid) | 1 (new row) | 1 |
+| `self_hosted_registered` (free key) | not in table | 1 |
+| any other plan (paid key, other cloud plans) | not in table | not in table |
 
-A plan missing from the table has no limit, the same rule as `PROJECT_LIMITS`. `FREE_SELF_HOSTED_PLANS` already exists in `api/ee/src/core/access/entitlements/controls.py:36`; the table reuses it.
+A plan missing from a table has no limit. Outside cloud, `plan_for` already returns the instance plan (`SubscriptionsService.read` replaces the stored plan), so one table serves cloud and self-hosted for projects. `ORGANIZATION_LIMITS` is never read on cloud.
 
 ### Decision 6: The two checks
 
-| Check (`limits.py`) | Raises | `detail.code` |
+| Check (`entitlements/service.py`) | Raises (`entitlements/types.py`) | `detail.code` |
 | --- | --- | --- |
 | `check_project_limit(organization_id)` | `ProjectLimitReachedError` | `project_limit_reached` |
 | `check_instance_organization_limit()` | `InstanceOrganizationLimitReachedError` | `instance_organization_limit_reached` |
 
-- `check_project_limit`: on cloud, the plan from `plan_for` and `PROJECT_LIMITS` (replaces `project_limit_refusal`; the English message stays `PROJECT_LIMIT_MESSAGE`). Else `SELF_HOSTED_LIMITS[instance_plan()].max_projects` against `count_organization_projects`.
-- `check_instance_organization_limit`: returns at once on cloud. Else `max_organizations` against a new `db_manager.count_organizations()` (not deleted).
+- `check_project_limit` replaces `project_limit_refusal`: `PROJECT_LIMITS.get(plan_for(org))` against `count_organization_projects`. The English message is `PROJECT_LIMIT_MESSAGE` on cloud and a self-hosted message otherwise.
+- `check_instance_organization_limit` returns at once on cloud. Else `ORGANIZATION_LIMITS.get(instance_plan())` against a new `db_manager.count_organizations()` (not deleted), next to `count_organization_projects`.
 - Both fail open: a failed plan read logs and allows the creation, as today.
-- `ProjectLimitReachedError` lives in `api/ee/src/core/licenses/types.py`. `InstanceOrganizationLimitReachedError` lives in `api/oss/src/core/organizations/exceptions.py`, next to the per-user `OrganizationLimitReachedError`, and subclasses `OrganizationCreationNotAllowedError`, so the router must catch it first.
+- `InstanceOrganizationLimitReachedError` is its own class, not a subclass of `OrganizationCreationNotAllowedError` (which means "this person may not create organizations"). The organization router catches it explicitly.
 - Response shape: HTTP 403, `detail = {"code", "message" (English), "limit"}`, flat like `vault` and `mounts`.
 
 Where they run:
@@ -138,9 +139,9 @@ The platform admin routes are the operator's tool, authorized by `AUTH_KEY`, and
 ### Decision 7: `/m` refusal and next step (decided 2026-11-21: option A)
 
 - `DrawerProjectSwitcher.tsx` and `OrganizationsTab.tsx` read `detail.code` and show translated text for the two codes; other errors keep the string fallback.
-- The instance admin gets "Open License settings", which opens the License tab with the free key form (#8242) and the add-a-key form (#8238). Others get "Ask your instance admin."
+- The instance admin (the person who manages the instance license) gets "Open License settings", which opens the License tab with the free key form (#8242) and the add-a-key form (#8238). Others get "Ask your instance admin."
 - Cloud project refusal: the existing upgrade path to Billing, translated.
-- The zero-organization screen says the person needs an invitation.
+- The zero-organization screen says the person needs an invitation from an organization admin.
 
 ### Decision 8: The Enterprise License text
 

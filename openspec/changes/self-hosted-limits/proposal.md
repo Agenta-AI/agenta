@@ -40,7 +40,7 @@ Existing installs keep every project and organization they have. Only new ones a
 
 ## Impact
 
-- API: `api/oss/src/utils/env.py`, `api/oss/src/utils/common.py`, both migration runners, `api/ee/src/middlewares/throttling.py`, analytics, `api/ee/src/core/subscriptions`, new `api/ee/src/core/licenses/limits.py`, `api/oss/src/routers/projects_router.py`, `api/oss/src/routers/organization_router.py`, `api/oss/src/services/commoners.py`.
+- API: `api/oss/src/utils/env.py`, `api/oss/src/utils/common.py`, both migration runners, `api/ee/src/middlewares/throttling.py`, analytics, `api/ee/src/core/subscriptions`, `api/ee/src/core/access/entitlements/` (limits tables and checks), `api/oss/src/routers/projects_router.py`, `api/oss/src/routers/organization_router.py`, `api/oss/src/services/commoners.py`.
 - SDK: `sdks/python/agenta/sdk/middlewares/running/vault.py` (provider keys from the environment).
 - Frontend: `web/entrypoint.sh`, `/m` cloud checks, analytics, the License tab, the project and organization refusals, the zero-organization screen, 7 locales.
 - Images and hosting: Dockerfiles, `hosting/docker-compose/{oss,ee}`, `run.sh`, the Helm chart, Railway, public workflows 17, 42, 12 and 44, and the private image build (workflows 19, 63 and 43 in the cloud repo, a separate PR there).
