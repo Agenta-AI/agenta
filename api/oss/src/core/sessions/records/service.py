@@ -357,6 +357,34 @@ class RecordsService:
             session_id=session_id,
         )
 
+    async def get_ending_records(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> List[SessionRecord]:
+        """The `done` and `error` records of every execution of the session, in send
+        order: what a turn's status, stop reason and error are read from."""
+        return await self.records_dao.get_ending_records(
+            project_id=project_id,
+            session_id=session_id,
+        )
+
+    async def get_ending_records_of_executions(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: List[str],
+        execution_ids: List[str],
+    ) -> List[SessionRecord]:
+        """The `done` and `error` records of these executions (record `turn_id`s), in
+        send order: one read for the newest ending of every session of a list page."""
+        return await self.records_dao.get_ending_records_of_executions(
+            project_id=project_id,
+            session_ids=session_ids,
+            execution_ids=execution_ids,
+        )
+
     async def get_event(
         self,
         *,
@@ -405,13 +433,18 @@ class RecordsService:
         offset: int,
         limit: int,
         through_sequence: int,
+        after_sequence: int = 0,
     ) -> SessionRecordsPage:
+        """A page in send order of the records committed in the sequence window
+        (`after_sequence`, `through_sequence`]. Unsequenced legacy rows come with the
+        first window only (`after_sequence` 0)."""
         return await self.records_dao.get_records_page(
             project_id=project_id,
             session_id=session_id,
             offset=offset,
             limit=limit,
             through_sequence=through_sequence,
+            after_sequence=after_sequence,
         )
 
     async def get_read_state(

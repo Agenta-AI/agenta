@@ -479,6 +479,16 @@ def _artifact_uuid(*, slug: str) -> UUID:
     return uuid5(_STATIC_NAMESPACE_UUID, f"artifact:{slug}")
 
 
+# The builder's artifact id: what the `run_agent_id` claim of a builder run holds.
+BUILDER_AGENT_ID = _artifact_uuid(slug=BUILDER_AGENT_SLUG)
+
+
+def is_builder_agent(agent_id: Optional[UUID]) -> bool:
+    """The one predicate that names the builder, read from its reserved static catalog
+    identity. The session tools give it a wider scope than any other agent."""
+    return agent_id is not None and agent_id == BUILDER_AGENT_ID
+
+
 def _variant_uuid(*, slug: str) -> UUID:
     return uuid5(_STATIC_NAMESPACE_UUID, f"variant:{slug}")
 
