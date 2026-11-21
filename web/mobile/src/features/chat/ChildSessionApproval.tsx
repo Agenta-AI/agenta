@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef} from "react"
+import {useCallback, useMemo} from "react"
 
 import type {PendingApproval} from "@agenta/chat/model"
 import {richText, useT} from "@agenta/i18n"
@@ -10,7 +10,7 @@ import {sharingCopy} from "@/lib/sharingCopy"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {ChildSessionLink} from "./ChildSessionLink"
-import {sessionReadOnlyReason} from "./sessionReadOnly"
+import {sessionAccessKnown, sessionReadOnlyReason} from "./sessionReadOnly"
 import {useApprovalActions} from "./useApprovalActions"
 import {useSessionSharing} from "./useSessionSharing"
 
@@ -45,9 +45,23 @@ export const ChildSessionApproval = ({
         () => approvals.map((approval) => approval.approvalId),
         [approvals],
     )
-    const actions = useApprovalActions({sessionId, projectId, pendingApprovalIds})
+    // This chat watches only its own session, so nothing else tells the project's actionable
+    // interactions that the child's gate moved on: re-read them once a submit ends.
+    const refreshWaiting = useCallback(() => {
+        void queryClient.invalidateQueries({queryKey: actionableInteractionsQueryKey(projectId)})
+    }, [projectId, queryClient])
+    const actions = useApprovalActions({
+        sessionId,
+        projectId,
+        pendingApprovalIds,
+        onSettled: refreshWaiting,
+    })
 
-    const known = Boolean(sharing) && !query.isError
+    const known = sessionAccessKnown({
+        fresh: false,
+        loaded: Boolean(sharing),
+        failed: query.isError,
+    })
     const reason = sessionReadOnlyReason({
         sharing,
         agentHidden: sharing?.agent_hidden === true,
@@ -56,19 +70,6 @@ export const ChildSessionApproval = ({
     const readOnlyNote = reason
         ? sharingCopy.approvalWaiting(ownerName || sharingCopy.ownerFallback)
         : null
-
-    // This chat watches only its own session, so nothing else tells the project's actionable
-    // interactions that the child's gate moved on: re-read them once a submit settles.
-    const phaseRef = useRef(actions.phase)
-    useEffect(() => {
-        const previous = phaseRef.current
-        phaseRef.current = actions.phase
-        if (previous === "resuming" && actions.phase !== "resuming") {
-            void queryClient.invalidateQueries({
-                queryKey: actionableInteractionsQueryKey(projectId),
-            })
-        }
-    }, [actions.phase, projectId, queryClient])
 
     return (
         <ApprovalDock

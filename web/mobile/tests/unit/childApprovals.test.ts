@@ -1,7 +1,12 @@
 import type {SessionInteraction, SessionStream} from "@agenta/entities/session"
 import {describe, expect, it} from "vitest"
 
-import {childApprovalsOf, otherWaitingSessionIds} from "../../src/features/chat/childApprovals"
+import {
+    childApprovalsOf,
+    otherWaitingSessionIds,
+    SESSION_QUERY_BATCH,
+    sessionIdBatches,
+} from "../../src/features/chat/childApprovals"
 
 const gate = (overrides: Partial<SessionInteraction> = {}): SessionInteraction => ({
     id: "int-1",
@@ -114,5 +119,22 @@ describe("childApprovalsOf", () => {
             sessionId: "parent",
         })
         expect(out).toEqual([])
+    })
+})
+
+describe("sessionIdBatches", () => {
+    it("splits the ids at the server's page limit and leaves none out", () => {
+        const ids = Array.from({length: SESSION_QUERY_BATCH * 2 + 1}, (_, i) => `s-${i}`)
+        const batches = sessionIdBatches(ids)
+        expect(batches.map((batch) => batch.length)).toEqual([
+            SESSION_QUERY_BATCH,
+            SESSION_QUERY_BATCH,
+            1,
+        ])
+        expect(batches.flat()).toEqual(ids)
+    })
+
+    it("is empty for no ids", () => {
+        expect(sessionIdBatches([])).toEqual([])
     })
 })

@@ -1,18 +1,25 @@
 import {useMemo} from "react"
 
-import {rowsFromPages, useActionableInteractions, useSessionList} from "@agenta/sessions/state"
+import {sessionListQueryOptions, sessionRowsFromPages} from "@agenta/entities/session"
+import {useActionableInteractions} from "@agenta/sessions/state"
+import {keepPreviousData, useQuery} from "@tanstack/react-query"
 
-import {childApprovalsOf, otherWaitingSessionIds, type ChildApprovals} from "./childApprovals"
+import {
+    childApprovalsOf,
+    otherWaitingSessionIds,
+    sessionIdBatches,
+    type ChildApprovals,
+} from "./childApprovals"
 
 /**
  * The approvals that the child sessions of the open chat wait on.
  *
  * No request of its own on a schedule: the project's actionable interactions are the one shared
  * flight that the waiting badges already read (its own cadence, the session watch invalidates
- * it). The ids of the other waiting sessions go to the server as a `session_ids` pushdown, and
- * the rows say which of them this session created (`calling_session`). The structured part of a
- * child update is not used: it leaves the queue when its turn runs, and the transcript does not
- * keep it.
+ * it). The ids of the other waiting sessions go to the server as a `session_ids` pushdown, one
+ * request per batch of the server's page limit, and the rows say which of them this session
+ * created (`calling_session`). The structured part of a child update is not used: it leaves the
+ * queue when its turn runs, and the transcript does not keep it.
  */
 export const useChildApprovals = ({
     sessionId,
@@ -26,26 +33,37 @@ export const useChildApprovals = ({
         () => otherWaitingSessionIds(interactions.data, sessionId),
         [interactions.data, sessionId],
     )
-    const waiting = useSessionList({
-        sessionIds: waitingIds,
-        // A child session has the origin `calling_session`, which the default lists leave out.
-        originPolicy: "all",
-        expansions: [],
-        enabled: waitingIds.length > 0,
+    const waiting = useQuery({
+        queryKey: ["child-approvals", "waiting-sessions", projectId, waitingIds],
+        // Every origin: a child session has the origin `calling_session`, which the default
+        // lists leave out.
+        queryFn: ({signal}) =>
+            Promise.all(
+                sessionIdBatches(waitingIds).map((ids) =>
+                    sessionListQueryOptions({
+                        projectId,
+                        sessionIds: ids,
+                        limit: ids.length,
+                    }).queryFn({signal}),
+                ),
+            ),
+        enabled: Boolean(projectId) && waitingIds.length > 0,
+        // The rows of the previous id set stay correct while a new set resolves: the session
+        // that created a row never changes, and the current interactions decide what waits. So
+        // the cards do not unmount (and lose a typed note) when another session starts waiting.
+        placeholderData: keepPreviousData,
+        staleTime: 30_000,
     })
     const noneWaiting = waitingIds.length === 0
-    // The list keeps the previous id set's rows while a new one resolves; those may name a
-    // child that no longer waits.
-    const stale = waiting.isPlaceholderData
     return useMemo(
         () =>
-            noneWaiting || stale
+            noneWaiting
                 ? []
                 : childApprovalsOf({
                       interactions: interactions.data,
-                      sessions: rowsFromPages(waiting.data?.pages),
+                      sessions: sessionRowsFromPages(waiting.data),
                       sessionId,
                   }),
-        [noneWaiting, stale, interactions.data, waiting.data?.pages, sessionId],
+        [noneWaiting, interactions.data, waiting.data, sessionId],
     )
 }

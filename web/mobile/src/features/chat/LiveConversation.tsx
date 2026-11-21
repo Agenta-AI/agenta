@@ -1022,16 +1022,22 @@ export const LiveConversation = ({
                         ) : null}
                         {/* A child session's approval, one card per child, each answered in the
                         child. Its own access rule decides the buttons, not this chat's. */}
-                        {childApprovals.map((child) => (
-                            <ChildSessionApproval
-                                key={child.sessionId}
-                                sessionId={child.sessionId}
-                                approvals={child.approvals}
-                                projectId={projectId}
-                                workspaceId={workspaceId}
-                                bottomMost={false}
-                            />
-                        ))}
+                        {childApprovals.length > 0 ? (
+                            // Bounded, so many waiting children never push the composer off
+                            // the screen.
+                            <div className="ag-scroll-quiet max-h-[40dvh] min-h-0 overflow-y-auto">
+                                {childApprovals.map((child) => (
+                                    <ChildSessionApproval
+                                        key={child.sessionId}
+                                        sessionId={child.sessionId}
+                                        approvals={child.approvals}
+                                        projectId={projectId}
+                                        workspaceId={workspaceId}
+                                        bottomMost={false}
+                                    />
+                                ))}
+                            </div>
+                        ) : null}
                         {/* Parked question forms, between approval and connect — the same order as
                         desktop, and the same order as the keyboard precedence. */}
                         {secrets.front ? (

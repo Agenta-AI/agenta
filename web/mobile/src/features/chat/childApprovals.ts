@@ -10,13 +10,9 @@ export interface ChildApprovals {
 const isApproval = (row: SessionInteraction): boolean =>
     row.kind === "user_approval" && typeof row.token === "string" && Boolean(row.token)
 
-/** The server refuses a longer `session_ids` list (422). */
-const MAX_SESSION_IDS_PER_QUERY = 500
-
 /**
  * Sessions other than the open one that wait on an approval, from the project's actionable
- * interactions. Sorted, so a reorder of the same rows keeps the list query's key, and capped at
- * the server's id limit.
+ * interactions. Sorted, so a reorder of the same rows keeps the list query's key.
  */
 export const otherWaitingSessionIds = (
     interactions: SessionInteraction[] | null | undefined,
@@ -28,9 +24,19 @@ export const otherWaitingSessionIds = (
                 .filter((row) => isApproval(row) && row.session_id !== sessionId)
                 .map((row) => row.session_id),
         ),
-    ]
-        .sort()
-        .slice(0, MAX_SESSION_IDS_PER_QUERY)
+    ].sort()
+
+/** The server returns at most 200 rows per session query (`windowing.limit`). */
+export const SESSION_QUERY_BATCH = 200
+
+/** `ids` in batches the session query accepts, so no waiting session is left out. */
+export const sessionIdBatches = (ids: string[]): string[][] => {
+    const batches: string[][] = []
+    for (let start = 0; start < ids.length; start += SESSION_QUERY_BATCH) {
+        batches.push(ids.slice(start, start + SESSION_QUERY_BATCH))
+    }
+    return batches
+}
 
 /**
  * The card's view of one stored approval. The transcript keys a gate by the row's `token` (the

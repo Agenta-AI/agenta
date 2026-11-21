@@ -7,6 +7,7 @@
  */
 import {act} from "react"
 
+import {actionableInteractionsQueryKey} from "@agenta/sessions/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
@@ -62,8 +63,10 @@ let root: Root
 
 const flush = () => act(async () => void (await new Promise((resolve) => setTimeout(resolve, 0))))
 
+let client: QueryClient
+
 const mount = async (approvals = [approval]) => {
-    const client = new QueryClient({defaultOptions: {queries: {retry: false}}})
+    client = new QueryClient({defaultOptions: {queries: {retry: false}}})
     await act(async () =>
         root.render(
             <QueryClientProvider client={client}>
@@ -137,6 +140,29 @@ describe("a child session's approval in the calling chat", () => {
             projectId: "proj-1",
             expectedExecutionId: "child-exec",
             answer: {approved: true},
+        })
+    })
+
+    it("re-reads the project's waiting sessions once the answer is sent", async () => {
+        api.queryInteractions.mockResolvedValue([
+            {
+                id: "child-interaction",
+                session_id: CHILD,
+                turn_id: "child-exec",
+                token: "gate-1",
+                kind: "user_approval",
+                status: "pending",
+            },
+        ])
+        api.respondInteraction.mockResolvedValue({accepted: true})
+        await mount()
+        const invalidate = vi.spyOn(client, "invalidateQueries")
+
+        await act(async () => button("Approve")?.click())
+        await flush()
+
+        expect(invalidate).toHaveBeenCalledWith({
+            queryKey: actionableInteractionsQueryKey("proj-1"),
         })
     })
 
