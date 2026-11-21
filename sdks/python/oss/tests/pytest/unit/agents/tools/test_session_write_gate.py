@@ -142,6 +142,21 @@ async def test_chief_of_staff_sends_its_session_writes_as_ask_with_both_fields()
     assert specs["call_blog_writer"].permission is None
 
 
+async def test_session_writes_from_the_agenta_tools_entry_take_the_same_gate():
+    """The author lists the writes in the `agenta_tools` entry, the place the screen and the
+    builder write; the runner still asks the server about each call."""
+    specs = await _resolve(
+        [
+            {"type": "agenta_tools", "tools": {op: "allow" for op in _OPS}},
+            _reference("email-writer", "ask"),
+        ]
+    )
+    for op in _OPS:
+        assert specs[op].permission == "ask"
+        assert specs[op].configured_permission == "allow"
+        assert specs[op].target_permissions == {"email-writer": "ask"}
+
+
 async def test_a_deny_session_write_stays_deny():
     specs = await _resolve([_platform("start_session", "deny")])
     assert specs["start_session"].permission == "deny"

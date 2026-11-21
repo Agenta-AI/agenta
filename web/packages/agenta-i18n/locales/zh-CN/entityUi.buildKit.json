@@ -88,5 +88,19 @@
     "agentaTools": "Agenta 工具",
     "agentaToolsHint": "你的 Agent 在任何运行位置都可使用的工具：调试台、API、Slack、Telegram、WhatsApp 和自动化。随 Agent 一起保存。",
     "noAgentaTools": "没有可用的 Agenta 工具。",
-    "couldNotLoadAgentaTools": "无法加载 Agenta 工具。请重新加载页面后重试。"
+    "couldNotLoadAgentaTools": "无法加载 Agenta 工具。请重新加载页面后重试。",
+    "startSessionName": "启动 Agent 的会话",
+    "startSessionDescription": "用第一条消息启动 Agent 的新会话。新会话独立运行。",
+    "sendSessionMessageName": "向会话发送消息",
+    "sendSessionMessageDescription": "向此 Agent 启动的会话发送消息。",
+    "waitForSessionsName": "等待会话",
+    "waitForSessionsDescription": "等待此 Agent 启动的会话结束其轮次。",
+    "cancelSessionName": "取消会话的轮次",
+    "cancelSessionDescription": "停止此 Agent 启动的会话中正在运行的轮次。",
+    "listSessionsName": "列出会话",
+    "listSessionsDescription": "列出此项目中此人可以打开的会话。",
+    "readSessionName": "读取会话",
+    "readSessionDescription": "读取一个会话的消息和状态。",
+    "readSessionSpansName": "读取会话的步骤",
+    "readSessionSpansDescription": "读取会话中一个轮次的模型调用和工具调用。"
 }

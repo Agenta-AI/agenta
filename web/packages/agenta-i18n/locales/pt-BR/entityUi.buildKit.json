@@ -88,5 +88,19 @@
     "agentaTools": "Ferramentas do Agenta",
     "agentaToolsHint": "Ferramentas que seu agente pode usar onde quer que seja executado: o playground, a API, Slack, Telegram, WhatsApp e automações. Salvas com o agente.",
     "noAgentaTools": "Nenhuma ferramenta do Agenta disponível.",
-    "couldNotLoadAgentaTools": "Não foi possível carregar as ferramentas do Agenta. Recarregue a página para tentar novamente."
+    "couldNotLoadAgentaTools": "Não foi possível carregar as ferramentas do Agenta. Recarregue a página para tentar novamente.",
+    "startSessionName": "Iniciar uma sessão de um agente",
+    "startSessionDescription": "Inicia uma nova sessão de um agente com uma primeira mensagem. A nova sessão roda sozinha.",
+    "sendSessionMessageName": "Enviar uma mensagem para uma sessão",
+    "sendSessionMessageDescription": "Envia uma mensagem para uma sessão que este agente iniciou.",
+    "waitForSessionsName": "Aguardar sessões",
+    "waitForSessionsDescription": "Aguarda até que as sessões que este agente iniciou terminem o turno.",
+    "cancelSessionName": "Cancelar o turno de uma sessão",
+    "cancelSessionDescription": "Interrompe o turno em andamento de uma sessão que este agente iniciou.",
+    "listSessionsName": "Listar sessões",
+    "listSessionsDescription": "Lista as sessões deste projeto que a pessoa pode abrir.",
+    "readSessionName": "Ler uma sessão",
+    "readSessionDescription": "Lê as mensagens e o status de uma sessão.",
+    "readSessionSpansName": "Ler as etapas de uma sessão",
+    "readSessionSpansDescription": "Lê as chamadas ao modelo e as chamadas de ferramentas de um turno de uma sessão."
 }

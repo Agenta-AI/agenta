@@ -88,5 +88,19 @@
     "agentaTools": "Agenta tools",
     "agentaToolsHint": "Tools your agent can use wherever it runs: the playground, the API, Slack, Telegram, WhatsApp and automations. Saved with the agent.",
     "noAgentaTools": "No Agenta tools available.",
-    "couldNotLoadAgentaTools": "Could not load the Agenta tools. Reload the page to try again."
+    "couldNotLoadAgentaTools": "Could not load the Agenta tools. Reload the page to try again.",
+    "startSessionName": "Start a session of an agent",
+    "startSessionDescription": "Starts a new session of an agent with a first message. The new session runs on its own.",
+    "sendSessionMessageName": "Send a message to a session",
+    "sendSessionMessageDescription": "Sends a message to a session that this agent started.",
+    "waitForSessionsName": "Wait for sessions",
+    "waitForSessionsDescription": "Waits until the sessions that this agent started end their turn.",
+    "cancelSessionName": "Cancel the turn of a session",
+    "cancelSessionDescription": "Stops the running turn of a session that this agent started.",
+    "listSessionsName": "List sessions",
+    "listSessionsDescription": "Lists the sessions of this project that the person can open.",
+    "readSessionName": "Read a session",
+    "readSessionDescription": "Reads the messages and the status of one session.",
+    "readSessionSpansName": "Read the steps of a session",
+    "readSessionSpansDescription": "Reads the model calls and the tool calls of one turn of a session."
 }

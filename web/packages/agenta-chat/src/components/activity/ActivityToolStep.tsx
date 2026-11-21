@@ -61,7 +61,7 @@ const displayFor = (
         (part as {output?: unknown}).output,
     )
 
-const stateOf = (part: ToolUIPart): ActivityState => {
+const stateOf = (part: ToolUIPart, display: ResolvedToolDisplay): ActivityState => {
     const state = part.state as string
     const output = (part as {output?: unknown}).output
     const errorText = (part as {errorText?: string}).errorText
@@ -71,7 +71,11 @@ const stateOf = (part: ToolUIPart): ActivityState => {
         const verdict = approvalVerdictText(part)
         return verdict === "approved" ? "approved" : verdict === "denied" ? "denied" : "responded"
     }
-    if (state === "output-error") return isNonFinalRunnerError(errorText) ? "deferred" : "idle"
+    if (state === "output-error") {
+        if (isNonFinalRunnerError(errorText)) return "deferred"
+        // A tool that words its failure shows it; the others keep their plain row.
+        return display.activity.failed ? "failed" : "idle"
+    }
     if (state === "output-available") return isNotHandledOutput(output) ? "not-handled" : "idle"
     if (state === "input-streaming") return "queued"
     return isSettled(state) ? "idle" : "running"
@@ -143,6 +147,8 @@ const Sentence = ({
     if (state === "approved") return <>{withAction(t("chat.activity.youApproved", {action}))}</>
     if (state === "denied") return <>{withAction(t("chat.activity.youDenied", {action}))}</>
     if (state === "responded") return <>{withAction(t("chat.activity.youAnswered", {action}))}</>
+    if (state === "failed" && display.activity.failed)
+        return <span className="text-colorError">{display.activity.failed}</span>
     const opens = display.detail ? onOpenFile : undefined
     if (before !== undefined && object) {
         return (
@@ -218,7 +224,7 @@ interface StepViewProps {
 
 const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}: StepViewProps) => {
     const t = useT(chatActivityCatalog)
-    const state = stateOf(part)
+    const state = stateOf(part, display)
     const input = (part as {input?: unknown}).input
     const output = (part as {output?: unknown}).output
     const errorText = (part as {errorText?: string}).errorText
