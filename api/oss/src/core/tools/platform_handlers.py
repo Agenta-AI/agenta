@@ -2231,18 +2231,6 @@ async def _allowed_on_drive(*, project_id: UUID, mount_id: UUID) -> bool:
     )
 
 
-async def _would_widen(
-    caller: SessionCaller, *, project_id: UUID, mount_id: UUID
-) -> bool:
-    """Design D11 for a drive read: the drive's text would reach a reader of the
-    calling session who cannot read the drive."""
-    from oss.src.core.sharing.service import get_sharing_service
-
-    return await get_sharing_service().session_wider_than_drive(
-        project_id=project_id, session_id=caller.run_session_id, mount_id=mount_id
-    )
-
-
 def _listed_drive_slugs(head: Any) -> List[tuple[str, bool]]:
     """The `(slug, is_home)` pairs of the agent's `drives`, in order. The revision read
     already fills the drive keys of a configuration stored before drives were
@@ -2277,8 +2265,7 @@ async def handle_list_agent_drives(
 ) -> PlatformHandlerResult:
     """The drives of another agent that the run authority can see, from the agent's head
     (the configuration `read_agent_config` reads). Each drive passes the `VIEW_MOUNTS`
-    check of the mounts route, and a drive that fewer people can read than the calling
-    session is left out (D11). Session working folders are never listed: a slug never
+    check of the mounts route. Session working folders are never listed: a slug never
     resolves to one."""
     if workflows_service is None or mounts_service is None:
         raise PlatformToolHandlerRefused("list_agent_drives is unavailable.")
@@ -2312,8 +2299,6 @@ async def handle_list_agent_drives(
         if mount is None:
             continue
         if not await _allowed_on_drive(project_id=project_id, mount_id=mount.id):
-            continue
-        if await _would_widen(session_caller, project_id=project_id, mount_id=mount.id):
             continue
         drives.append(
             {
@@ -2410,9 +2395,7 @@ async def handle_read_drive(
     `GET /mounts/{mount_id}/files`: the project's `VIEW_MOUNTS` (the registration's
     elevated permission) and the drive's own `VIEW_MOUNTS` decision, which `_require_mount`
     makes. Only a drive: a session's working folder or attachments answer
-    `drive_not_found`, like a drive the run authority cannot see. Then design D11: a drive
-    that fewer people can read than the calling session answers `sharing_would_widen`.
-    A file is read through the service's text read and its size cap, and the answer holds
+    `drive_not_found`, like a drive the run authority cannot see. A file is read through the service's text read and its size cap, and the answer holds
     at most `READ_DRIVE_TEXT_MAX_BYTES` of it."""
     from oss.src.core.mounts.types import (
         MountFileNotFound,
@@ -2443,13 +2426,6 @@ async def handle_read_drive(
             or not await _allowed_on_drive(project_id=project_id, mount_id=mount.id)
         ):
             raise _drive_not_found()
-        if await _would_widen(session_caller, project_id=project_id, mount_id=mount.id):
-            raise _agent_refusal(
-                "sharing_would_widen",
-                "Fewer people can read this drive than this session, so its files "
-                "cannot be shown here.",
-                "Ask the person to open the drive in a session that only they can see.",
-            )
 
         if path and _is_hidden_drive_path(path):
             raise _drive_file_not_found()

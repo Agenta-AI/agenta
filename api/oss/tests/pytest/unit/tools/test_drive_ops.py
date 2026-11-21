@@ -1,7 +1,7 @@
 """The builder's drive reads, `list_agent_drives` and `read_drive` (design D26).
 
 The access decisions are real: an `AccessService` and a `SharingService` over in-memory
-rows decide the run authority's `VIEW_MOUNTS` on each drive and the D11 rule. The agent
+rows decide the run authority's `VIEW_MOUNTS` on each drive. The agent
 lookup and the drive files are stubbed, because other cells cover them.
 """
 
@@ -21,7 +21,7 @@ from oss.src.core.access.service import AccessService
 from oss.src.core.mounts.dtos import MountFile, MountFileContent, MountFileList
 from oss.src.core.mounts.service import validate_file_path
 from oss.src.core.mounts.types import MountFileNotFound, MountFileTooLarge
-from oss.src.core.sharing.dtos import AccessPolicy, SessionRole, Visibility
+from oss.src.core.sharing.dtos import AccessPolicy, Visibility
 from oss.src.core.tools import platform_handlers
 from oss.src.core.tools.platform_handlers import (
     LIST_AGENT_DRIVES_CALL_REF,
@@ -270,11 +270,11 @@ async def test_a_private_drive_of_another_owner_is_not_listed(world):
     assert _slugs(content) == ["email-drafts", "ben-notes"]
 
 
-async def test_a_private_drive_is_left_out_of_a_project_visible_session(world):
-    """Ana's project-visible session: Ben reads it, so Ana's private drive stays out."""
+async def test_ana_lists_her_private_drive_from_a_project_visible_session(world):
+    """Ana's project-visible session: the list shows what Ana may see."""
     content = await _list(world, world.access_of(world.ana, session=world.ana_shared))
 
-    assert _slugs(content) == ["email-drafts"]
+    assert _slugs(content) == ["email-drafts", "ana-notes"]
 
 
 async def test_a_configuration_without_drives_lists_none(world):
@@ -484,24 +484,12 @@ async def test_a_drive_of_another_project_or_a_bad_id_answers_drive_not_found(wo
     assert content["code"] == "drive_not_found"
 
 
-async def test_a_private_drive_read_into_a_project_visible_session_would_widen(world):
+async def test_ana_reads_her_private_drive_into_a_project_visible_session(world):
     world.mounts.files[(world.ana_drive.id, "notes.md")] = "Ana's text"
     access = world.access_of(world.ana, session=world.ana_shared)
 
     content = await _read(world, access, world.ana_drive, "notes.md")
-    assert content["code"] == "sharing_would_widen"
-    assert content["next_step"] == (
-        "Ask the person to open the drive in a session that only they can see."
-    )
-    assert "text" not in content
-
-    own = await _read(
-        world,
-        world.access_of(world.ana, session=world.ana_private),
-        world.ana_drive,
-        "notes.md",
-    )
-    assert own["text"] == "Ana's text"
+    assert content["text"] == "Ana's text"
 
 
 # -- who may call -----------------------------------------------------------------------
@@ -527,48 +515,3 @@ async def test_a_call_without_a_run_credential_is_refused(world, call_ref, kind)
 
     content = await _call(world, call_ref, access, arguments)
     assert content["code"] == RUN_CREDENTIAL_REQUIRED
-
-
-# -- the D11 stand-in -------------------------------------------------------------------
-
-
-async def test_a_grant_or_a_channel_makes_a_private_session_wider(world):
-    service = world.world.service
-    session = world.world.add_session(policy=world.private(world.ana))
-
-    async def wider():
-        return await service.session_wider_than_drive(
-            project_id=world.project_id,
-            session_id=session.session_id,
-            mount_id=world.ana_drive.id,
-        )
-
-    assert not await wider()
-    world.world.add_grant(state=session, user_id=world.ben, role=SessionRole.VIEWER)
-    assert await wider()
-
-    # A channel shows the text outside the project: wider than a project drive too.
-    session = world.world.add_session(policy=world.private(world.ana), is_channel=True)
-    assert await wider()
-    assert await service.session_wider_than_drive(
-        project_id=world.project_id,
-        session_id=session.session_id,
-        mount_id=world.shared_drive.id,
-    )
-
-
-@pytest.mark.parametrize("drive", ["shared_drive", "ana_drive"])
-async def test_a_session_with_no_row_is_wider_than_any_drive(world, drive):
-    assert await world.world.service.session_wider_than_drive(
-        project_id=world.project_id,
-        session_id=str(uuid4()),
-        mount_id=getattr(world, drive).id,
-    )
-
-
-async def test_a_project_drive_is_not_narrower_than_a_project_visible_session(world):
-    assert not await world.world.service.session_wider_than_drive(
-        project_id=world.project_id,
-        session_id=world.ana_shared.session_id,
-        mount_id=world.shared_drive.id,
-    )
