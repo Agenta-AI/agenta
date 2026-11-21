@@ -22,8 +22,9 @@ _COMMITTED_REVISION = (
 
 HEARTBEAT_INTERVAL = literal_column("interval '12 hours'")
 # `evaluation_runs`, `session_turns`, `workflow_revisions` and `environment_revisions`
-# have no index on `created_at`, so their window counts scan the table. A count that
-# runs longer is sent as null.
+# have no index on `created_at`, so their window counts scan the table. The workflow
+# kind counts read the revisions of every workflow. A count that runs longer is sent
+# as null.
 WINDOW_COUNT_TIMEOUT = text("SET LOCAL statement_timeout = '5s'")
 
 
@@ -35,18 +36,48 @@ def _is_statement_timeout(error: DBAPIError) -> bool:
     )
 
 
-async def _count_or_none(scope, statement, params) -> Optional[int]:
-    """Run one count in its own transaction from `scope`. The error is handled after
-    the transaction rolled back."""
+# The workflow kinds, by the rules of the workflows API. An agent is a workflow with
+# a revision that carries `flags.is_agent` (`_IS_AGENT_ARTIFACT_SQL` in the workflows
+# DAO). It can also carry `is_application`, so the agent rule comes first. The other
+# kinds are the role flags of the artifact.
+_WORKFLOW_KINDS_SQL = """
+SELECT
+    count(*) FILTER (WHERE NOT is_agent AND flags @> '{"is_application": true}'),
+    count(*) FILTER (WHERE is_agent),
+    count(*) FILTER (WHERE NOT is_agent AND flags @> '{"is_evaluator": true}'),
+    count(*) FILTER (WHERE NOT is_agent AND flags @> '{"is_snippet": true}')
+FROM (
+    SELECT a.flags, EXISTS (
+        SELECT 1
+        FROM workflow_revisions r
+        WHERE r.project_id = a.project_id
+          AND r.artifact_id = a.id
+          AND r.flags @> '{"is_agent": true}'::jsonb
+    ) AS is_agent
+    FROM workflow_artifacts a
+    WHERE a.deleted_at IS NULL
+) AS workflows
+"""
+
+
+async def _row_or_none(scope, statement, params) -> Optional[Tuple[int, ...]]:
+    """Run one count query in its own transaction from `scope`. The error is handled
+    after the transaction rolled back."""
 
     try:
         async with scope() as executor:
             await executor.execute(WINDOW_COUNT_TIMEOUT)
-            return int((await executor.execute(statement, params)).scalar_one())
+            row = (await executor.execute(statement, params)).one()
+            return tuple(int(value) for value in row)
     except DBAPIError as error:
         if not _is_statement_timeout(error):
             raise
         return None
+
+
+async def _count_or_none(scope, statement, params) -> Optional[int]:
+    row = await _row_or_none(scope, statement, params)
+    return row[0] if row is not None else None
 
 
 class InstancesDAO:
@@ -166,6 +197,14 @@ class InstancesDAO:
                 .all()
             )
             return (*totals, list(project_ids))
+
+    async def count_workflow_kinds(self) -> Optional[Tuple[int, int, int, int]]:
+        """`(prompts, agents, evaluators, snippets)` among the workflows that are not
+        archived, or None past the statement timeout."""
+
+        return await _row_or_none(
+            get_transactions_engine().transaction, text(_WORKFLOW_KINDS_SQL), {}
+        )
 
     async def count_window_evaluation_runs(
         self, *, window_start: datetime, window_end: datetime

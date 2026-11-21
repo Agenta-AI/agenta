@@ -56,6 +56,11 @@ class InstanceHeartbeat(BaseModel):
     total_projects: int
     total_users: int
     total_workflows: int
+    # Null when the count runs past its statement timeout on a large database.
+    total_prompts: Optional[int]
+    total_agents: Optional[int]
+    total_evaluators: Optional[int]
+    total_snippets: Optional[int]
     window_start: str
     window_end: str
     # Null when the count runs past its statement timeout on a large database.
@@ -78,6 +83,10 @@ GROUP_PROPERTIES = (
     "total_projects",
     "total_users",
     "total_workflows",
+    "total_prompts",
+    "total_agents",
+    "total_evaluators",
+    "total_snippets",
 )
 
 
@@ -130,6 +139,9 @@ async def collect_heartbeat(
         total_workflows,
         project_ids,
     ) = await instances_dao.count_totals()
+    total_prompts, total_agents, total_evaluators, total_snippets = (
+        await instances_dao.count_workflow_kinds() or (None, None, None, None)
+    )
     window_evaluation_runs = await instances_dao.count_window_evaluation_runs(
         window_start=window_start,
         window_end=window_end,
@@ -166,6 +178,10 @@ async def collect_heartbeat(
         total_projects=total_projects,
         total_users=total_users,
         total_workflows=total_workflows,
+        total_prompts=total_prompts,
+        total_agents=total_agents,
+        total_evaluators=total_evaluators,
+        total_snippets=total_snippets,
         window_start=_iso(window_start),
         window_end=_iso(window_end),
         window_spans=window_spans,

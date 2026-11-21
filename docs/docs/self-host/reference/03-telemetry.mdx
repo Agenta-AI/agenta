@@ -79,6 +79,10 @@ The distinct id is the instance id. The event has these properties and no others
 | `total_projects` | The number of projects |
 | `total_users` | The number of users |
 | `total_workflows` | The number of workflows (applications, agents, evaluators and snippets) that are not archived |
+| `total_prompts` | The number of those workflows that are prompts (completion and chat applications), not agents |
+| `total_agents` | The number of those workflows that are agents |
+| `total_evaluators` | The number of those workflows that are evaluators |
+| `total_snippets` | The number of those workflows that are snippets |
 | `window_start` | The start of the period the counts below cover: the time of the last heartbeat, or the time the instance was created |
 | `window_end` | The end of that period: the time of this heartbeat |
 | `window_spans` | The number of trace spans that started in the period |
@@ -90,9 +94,9 @@ The distinct id is the instance id. The event has these properties and no others
 | `$groups` | `{"instance": "<instance id>"}` |
 | `$geoip_disable` | `true`. PostHog does not look up a location. |
 
-A `window_` count is null when it takes longer than 5 seconds on a large database.
+A `window_` count is null when it takes longer than 5 seconds on a large database. The same is true of `total_prompts`, `total_agents`, `total_evaluators` and `total_snippets`.
 
-After each heartbeat, the API also sets these properties on the PostHog group of the instance: `instance_kind`, `agenta_version`, `edition`, `deployment_method`, `plan` and the four `total_` counts.
+After each heartbeat, the API also sets these properties on the PostHog group of the instance: `instance_kind`, `agenta_version`, `edition`, `deployment_method`, `plan` and the `total_` counts.
 
 ## Product events from the API
 

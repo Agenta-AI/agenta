@@ -40,6 +40,10 @@ CONTRACT_FIELDS = {
     "total_projects",
     "total_users",
     "total_workflows",
+    "total_prompts",
+    "total_agents",
+    "total_evaluators",
+    "total_snippets",
     "window_start",
     "window_end",
     "window_spans",
@@ -109,6 +113,9 @@ class _InstancesDAO:
     async def count_totals(self):
         self.collected += 1
         return 2, 3, 4, 5, [UUID(int=1), UUID(int=2)]
+
+    async def count_workflow_kinds(self):
+        return 1, 2, 1, 1
 
     async def count_window_evaluation_runs(self, *, window_start, window_end):
         return 6
@@ -190,6 +197,10 @@ async def test_payload_has_exactly_the_contract_fields(dao, posthog):
         "total_projects": 3,
         "total_users": 4,
         "total_workflows": 5,
+        "total_prompts": 1,
+        "total_agents": 2,
+        "total_evaluators": 1,
+        "total_snippets": 1,
         "window_start": "2026-11-01T08:00:00+00:00",
         "window_end": "2026-11-09T20:00:00+00:00",
         "window_spans": 8,
@@ -238,6 +249,10 @@ async def test_group_properties_come_from_the_heartbeat(dao, posthog):
                 "total_projects": 3,
                 "total_users": 4,
                 "total_workflows": 5,
+                "total_prompts": 1,
+                "total_agents": 2,
+                "total_evaluators": 1,
+                "total_snippets": 1,
             },
         )
     ]
@@ -405,6 +420,20 @@ async def test_a_count_past_its_timeout_is_sent_as_null(monkeypatch, dao, postho
     assert properties["window_deployments"] == 10
 
 
+@pytest.mark.asyncio
+async def test_workflow_kinds_past_their_timeout_are_sent_as_null(
+    monkeypatch, dao, posthog
+):
+    monkeypatch.setattr(dao, "count_workflow_kinds", AsyncMock(return_value=None))
+
+    assert await heartbeat.send_heartbeat() == "sent"
+
+    properties = posthog.captures[0]["properties"]
+    assert properties["total_workflows"] == 5
+    for name in ("total_prompts", "total_agents", "total_evaluators", "total_snippets"):
+        assert properties[name] is None
+
+
 def test_domains_hold_domains_only():
     rows = [
         ("example.org", 50),
@@ -435,6 +464,10 @@ def test_model_refuses_more_than_100_domains_or_an_email():
         total_projects=0,
         total_users=0,
         total_workflows=0,
+        total_prompts=0,
+        total_agents=0,
+        total_evaluators=0,
+        total_snippets=0,
         window_start="2026-11-01T08:00:00+00:00",
         window_end="2026-11-09T20:00:00+00:00",
         window_spans=0,
@@ -504,6 +537,21 @@ async def test_count_past_the_statement_timeout_gives_none():
 
     assert count is None
     assert "statement_timeout" in executor.statements[0]
+
+
+@pytest.mark.asyncio
+async def test_workflow_kinds_past_the_statement_timeout_give_none():
+    executor = _Executor(
+        _PostgresError("canceling statement due to statement timeout", "57014")
+    )
+
+    kinds = await instances_dao_module._row_or_none(
+        _scope(executor), text(instances_dao_module._WORKFLOW_KINDS_SQL), {}
+    )
+
+    assert kinds is None
+    assert "statement_timeout" in executor.statements[0]
+    assert "is_agent" in executor.statements[1]
 
 
 @pytest.mark.asyncio
