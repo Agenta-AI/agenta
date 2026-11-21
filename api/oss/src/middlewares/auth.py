@@ -204,6 +204,20 @@ _PUBLIC_ENDPOINTS = (
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
+# The reads a signed-in person without an organization may make: their profile and
+# their (empty) project list. Sign-up skips the personal organization when the
+# instance is at its organization limit; with these the app can show the
+# invitation screen and accept an invitation.
+_ORGANIZATIONLESS_READ_PATHS = frozenset(
+    {
+        "/profile",
+        "/api/profile",
+        "/projects",
+        "/projects/",
+        "/api/projects",
+        "/api/projects/",
+    }
+)
 _INVITE_ACCEPT_ENDPOINT_IDENTIFIER = "/invite/accept"
 _INVITATION_POLICY_ENDPOINT_IDENTIFIERS = (
     _INVITE_ACCEPT_ENDPOINT_IDENTIFIER,
@@ -1097,6 +1111,17 @@ async def verify_bearer_token(
                 user_id=user_id,
             )
             if default_ref is None:
+                if (
+                    request.method == "GET"
+                    and request.url.path in _ORGANIZATIONLESS_READ_PATHS
+                ):
+                    request.state.user_id = user_id
+                    request.state.user_email = user_email
+                    request.state.project_id = None
+                    request.state.workspace_id = None
+                    request.state.organization_id = None
+                    request.state.organization_name = None
+                    return
                 raise NoResultFound(f"No organization membership for user {user_id}")
 
             default = await db_manager.fetch_default_project(

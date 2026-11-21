@@ -120,6 +120,8 @@ export const ContextResolver = ({workspaceId, forwardTo}: ContextResolverProps =
 
     if (hasInvite) return <HomePageSkeleton />
 
+    // No project at all: a person without an organization (sign-up skips the personal one
+    // when the instance is at its organization limit) needs an invitation.
     if (result?.kind === "error" || (result?.kind === "ok" && groups.length === 0)) {
         return (
             <ScreenScaffold>

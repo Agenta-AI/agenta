@@ -815,6 +815,10 @@ PROJECT_LIMITS: dict[str, int] = {
 PROJECT_LIMIT_MESSAGE = (
     "The Hobby plan includes 1 project. Upgrade to Starter for unlimited projects."
 )
+SELF_HOSTED_PROJECT_LIMIT_MESSAGE = (
+    "This organization has reached its limit of {limit} project(s). "
+    "A free key gives more projects."
+)
 
 # The most organizations an instance that is not cloud can hold, by instance plan. A
 # plan not listed here has no limit. Never read on cloud.

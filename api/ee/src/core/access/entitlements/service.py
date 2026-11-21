@@ -15,6 +15,7 @@ from ee.src.core.access.entitlements.types import (
     ORGANIZATION_LIMITS,
     PROJECT_LIMIT_MESSAGE,
     PROJECT_LIMITS,
+    SELF_HOSTED_PROJECT_LIMIT_MESSAGE,
     InstanceOrganizationLimitReachedError,
     ProjectLimitReachedError,
     Tracker,
@@ -336,10 +337,7 @@ async def check_project_limit(organization_id: UUID) -> None:
         message=(
             PROJECT_LIMIT_MESSAGE
             if is_cloud()
-            else (
-                f"This organization has reached its limit of {limit} project(s). "
-                "A free key gives more projects."
-            )
+            else SELF_HOSTED_PROJECT_LIMIT_MESSAGE.format(limit=limit)
         ),
     )
 

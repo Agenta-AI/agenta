@@ -84,6 +84,18 @@ def _owner_key_headers(authed_api, admin_api, organization_id):
 
 @pytest.mark.usefixtures("cls_account")
 class TestOrganizationLifecycle:
+    def test_create_organization_is_refused_at_the_instance_limit(self, authed_api):
+        # A test stack has no license key: the instance already holds its one
+        # organization, so the public route refuses another one.
+        response = authed_api(
+            "POST", "/organizations/", json={"name": f"org-{uuid4().hex[:8]}"}
+        )
+
+        assert response.status_code == 403, response.text
+        detail = response.json()["detail"]
+        assert detail["code"] == "instance_organization_limit_reached"
+        assert detail["limit"] == 1
+
     def test_create_organization(self, authed_api, admin_api):
         name = f"org-{uuid4().hex[:8]}"
 

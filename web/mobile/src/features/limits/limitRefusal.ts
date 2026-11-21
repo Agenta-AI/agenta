@@ -1,7 +1,12 @@
 import {createT} from "@agenta/i18n"
 import limitRefusalCatalog from "@agenta/i18n/catalogs/shell.limitRefusal"
 
-export type LimitRefusalCode = "project_limit_reached" | "instance_organization_limit_reached"
+const LIMIT_REFUSAL_CODES = [
+    "project_limit_reached",
+    "instance_organization_limit_reached",
+] as const
+
+export type LimitRefusalCode = (typeof LIMIT_REFUSAL_CODES)[number]
 
 /** The API's refusal of a new project or organization at the plan's limit. */
 export interface LimitRefusal {
@@ -12,13 +17,15 @@ export interface LimitRefusal {
 /** What the reader can do next: upgrade the cloud plan, add a key, or ask the instance admin. */
 export type LimitNextStep = "billing" | "license" | "askAdmin"
 
-const CODES: readonly string[] = ["project_limit_reached", "instance_organization_limit_reached"]
-
 /** The limit refusal in an API error (`detail.code`), or null for any other error. */
 export const readLimitRefusal = (error: unknown): LimitRefusal | null => {
     const detail = (error as {response?: {data?: {detail?: unknown}}} | null)?.response?.data
         ?.detail as {code?: unknown; limit?: unknown} | undefined
-    if (!detail || typeof detail !== "object" || !CODES.includes(detail.code as string)) {
+    if (
+        !detail ||
+        typeof detail !== "object" ||
+        !LIMIT_REFUSAL_CODES.includes(detail.code as LimitRefusalCode)
+    ) {
         return null
     }
     return {
