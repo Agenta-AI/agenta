@@ -344,7 +344,9 @@ def test_the_start_session_description_is_true_for_the_builder():
     description = PLATFORM_OPS["start_session"].description
 
     assert "of your own agent or of one of your" not in description
-    assert "The Builder may start any agent that the\nperson can run" in description
+    assert "The Builder may start any agent that the person can run" in " ".join(
+        description.split()
+    )
 
 
 @pytest.mark.asyncio

@@ -2276,21 +2276,22 @@ async def _allowed_on_drive(*, project_id: UUID, mount_id: UUID) -> bool:
     )
 
 
-async def _would_widen(
+async def _drive_would_widen(
     caller: SessionCaller, *, project_id: UUID, mount_id: UUID
 ) -> bool:
     """Design D11 for a drive read, `is_wider(calling session, drive)`: the drive's
     text would reach a reader of the calling session who cannot read the drive. A
-    session or a drive with no row counts as wider. A drive has no grants."""
+    drive has no grants. A drive with no row is refused. Unlike a session read
+    (`_source_would_widen`), a calling session with no row is refused too, as the
+    drive read did before the shared rule, so it fails closed."""
     from oss.src.core.sharing.service import get_sharing_service
 
-    sharing = get_sharing_service()
-    drive = await sharing.fetch_mount_policy(project_id=project_id, mount_id=mount_id)
+    drive = await get_sharing_service().fetch_mount_policy(
+        project_id=project_id, mount_id=mount_id
+    )
     if drive is None:
         return True
-    calling = await sharing.session_readers(
-        project_id=project_id, session_id=caller.run_session_id
-    )
+    calling = await _calling_readers(caller=caller, project_id=project_id)
     if calling is None:
         return True
     return is_wider(calling, SharedItemReaders(policy=drive))
@@ -2366,7 +2367,9 @@ async def handle_list_agent_drives(
             continue
         if not await _allowed_on_drive(project_id=project_id, mount_id=mount.id):
             continue
-        if await _would_widen(session_caller, project_id=project_id, mount_id=mount.id):
+        if await _drive_would_widen(
+            session_caller, project_id=project_id, mount_id=mount.id
+        ):
             continue
         drives.append(
             {
@@ -2496,7 +2499,9 @@ async def handle_read_drive(
             or not await _allowed_on_drive(project_id=project_id, mount_id=mount.id)
         ):
             raise _drive_not_found()
-        if await _would_widen(session_caller, project_id=project_id, mount_id=mount.id):
+        if await _drive_would_widen(
+            session_caller, project_id=project_id, mount_id=mount.id
+        ):
             raise _agent_refusal(
                 "sharing_would_widen",
                 "Fewer people can read this drive than this session, so its files "

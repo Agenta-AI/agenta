@@ -534,7 +534,7 @@ async def test_a_call_without_a_run_credential_is_refused(world, call_ref, kind)
 
 def _wider(world, session, drive):
     caller = SimpleNamespace(run_session_id=session.session_id)
-    return platform_handlers._would_widen(
+    return platform_handlers._drive_would_widen(
         caller, project_id=world.project_id, mount_id=drive.id
     )
 
