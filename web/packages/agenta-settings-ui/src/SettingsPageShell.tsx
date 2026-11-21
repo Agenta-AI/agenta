@@ -110,7 +110,12 @@ const SettingsPageShell = ({
 
             <div
                 ref={scrollRef}
-                className={clsx("min-h-0 flex-1 overflow-y-auto", scrollClassName)}
+                // On a phone the clip starts 12px higher, into the header's bottom padding, so a
+                // control in the first row keeps its 44px tap area. Nothing moves.
+                className={clsx(
+                    "min-h-0 flex-1 overflow-y-auto max-md:-mt-3 max-md:pt-3",
+                    scrollClassName,
+                )}
             >
                 <div className={clsx(columnClassName(variant), "flex flex-col pb-16")}>
                     <HeaderActionsContext.Provider value={actionsSlot}>
