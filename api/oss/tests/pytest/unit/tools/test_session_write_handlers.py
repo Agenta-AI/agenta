@@ -489,6 +489,13 @@ def world(monkeypatch) -> _World:
     import oss.src.core.access.service as access_module
     import oss.src.core.sharing.service as sharing_module
 
+    from oss.src.utils.env import env  # noqa: PLC0415
+
+    # The tests expect the default settings, whatever the environment sets.
+    sessions = env.agenta.sessions
+    monkeypatch.setattr(sessions, "child_sessions_limit", 5)
+    monkeypatch.setattr(sessions, "child_queued_messages_limit", 3)
+    monkeypatch.setattr(sessions, "still_running_update_minutes", 30)
     world = _World()
     monkeypatch.setattr(access_module, "_access_service", world.access)
     monkeypatch.setattr(sharing_module, "_sharing_service", world.sharing.service)
@@ -1114,7 +1121,10 @@ async def test_the_still_running_schedule_targets_the_calling_session(world):
 
 
 @pytest.mark.asyncio
-async def test_the_default_deadline_is_the_setting(world):
+async def test_the_default_deadline_is_the_setting(world, monkeypatch):
+    from oss.src.utils.env import env  # noqa: PLC0415
+
+    monkeypatch.setattr(env.agenta.sessions, "still_running_update_minutes", 10)
     research = world.workflows.add("market-research")
     caller, _ = world.calling(agent=research)
     before = datetime.now(timezone.utc)
@@ -1128,8 +1138,8 @@ async def test_the_default_deadline_is_the_setting(world):
         tool_call_id="t",
     )
     run_at = world.triggers.created[0]["run_at"]
-    assert run_at - before >= timedelta(minutes=30)
-    assert run_at - before < timedelta(minutes=31)
+    assert run_at - before >= timedelta(minutes=10)
+    assert run_at - before < timedelta(minutes=11)
 
 
 @pytest.mark.asyncio
