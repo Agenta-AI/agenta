@@ -17,16 +17,15 @@ import {message} from "@agenta/ui/app-message"
 import {
     Button,
     Checkbox,
-    cn,
+    CollapseCaret,
     Input,
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-    touchTargetExpansion,
 } from "@agenta/ui/ui"
-import {CaretDown, Copy, SlidersHorizontal} from "@phosphor-icons/react"
+import {Copy, SlidersHorizontal} from "@phosphor-icons/react"
 
 import {HintedField} from "./HintedField"
 
@@ -57,6 +56,8 @@ export interface OAuthAdvancedFieldsProps {
     onToggleScope: (scope: string) => void
     /** The server signs in only an app registered with it by hand. */
     needsOwnApp: boolean
+    /** What the section holds, on its row ("Callback URL, client ID, scopes"). */
+    summary?: string
     disabled?: boolean
 }
 
@@ -71,6 +72,7 @@ export const OAuthAdvancedFields = ({
     scopesSelected,
     onToggleScope,
     needsOwnApp,
+    summary,
     disabled,
 }: OAuthAdvancedFieldsProps) => {
     const t = useT(mcpConnectCatalog)
@@ -97,24 +99,22 @@ export const OAuthAdvancedFields = ({
 
     return (
         <div className="flex flex-col gap-3" data-testid="mcp-oauth-advanced">
-            <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                    "w-full justify-start px-2 text-xs text-colorTextSecondary",
-                    touchTargetExpansion(28),
-                )}
+            {/* A section row (canvas F03 f5): the glyph, the title, what is inside, a caret. */}
+            <button
+                type="button"
+                className="flex h-10 w-full cursor-pointer items-center gap-2 border-0 border-b border-solid border-colorSplit bg-transparent px-1 text-left font-[inherit] text-colorText outline-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-solid focus-visible:outline-ring max-md:h-11"
                 aria-expanded={open}
                 onClick={() => setToggled(!open)}
             >
-                <SlidersHorizontal size={14} data-icon="inline-start" />
-                <span className="flex-1 text-left">{t("entityUi.mcpConnect.advanced")}</span>
-                <CaretDown
-                    size={12}
-                    data-icon="inline-end"
-                    className={cn("transition-transform", open && "rotate-180")}
-                />
-            </Button>
+                <SlidersHorizontal size={14} className="shrink-0 text-colorTextSecondary" />
+                <span className="text-[13px] font-medium leading-5">
+                    {t("entityUi.mcpConnect.advanced")}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-right text-[12px] leading-4 text-colorTextSecondary">
+                    {summary}
+                </span>
+                <CollapseCaret open={open} size={10} className="text-colorText" />
+            </button>
             {open ? (
                 <div className="flex flex-col gap-4">
                     <p id={introId} className="m-0 text-xs leading-normal text-colorTextSecondary">

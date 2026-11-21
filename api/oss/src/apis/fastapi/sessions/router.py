@@ -40,10 +40,16 @@ from starlette.datastructures import UploadFile
 from typing import Any, Awaitable, Callable, Dict, Optional, Tuple, Union
 
 from oss.src.core.access.context import fresh_request_memo, get_request_access
-from oss.src.core.access.dtos import RunApproval
-from oss.src.core.sessions.streams.types import SessionCreationRequiresRunCredential
+from oss.src.core.sessions.streams.types import (
+    SessionCreationRequiresCallingSessionRecord,
+    SessionCreationRequiresRunCredential,
+)
 from oss.src.core.tools.dtos import AgentError
-from oss.src.core.access.principals import access_denied_error, missing_envelope_error
+from oss.src.core.access.principals import (
+    access_denied_error,
+    approval_from_request,
+    missing_envelope_error,
+)
 from oss.src.core.access.types import MissingEnvelope
 from oss.src.middlewares.auth import request_run_envelope
 from oss.src.apis.fastapi.sharing.utils import (
@@ -476,6 +482,15 @@ def _handle_session_exceptions():
                         retryable=False,
                     ).model_dump(exclude_none=True),
                 ) from e
+            except SessionCreationRequiresCallingSessionRecord as e:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=AgentError(
+                        code="session_requires_calling_session_record",
+                        message=e.message,
+                        retryable=False,
+                    ).model_dump(exclude_none=True),
+                ) from e
             except SessionTurnInUse as e:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
@@ -747,6 +762,7 @@ class SessionStreamsRouter:
                 user_id=user_id,
                 request=payload,
                 access=policy_for_request(request, kind=SharedItemKind.SESSION),
+                envelope=request_run_envelope(request),
                 recheck=recheck,
             )
         except SessionStreamNotFound as error:
@@ -1120,6 +1136,7 @@ class SessionStreamsRouter:
             access=policy_for_request(
                 request, kind=SharedItemKind.SESSION, requested=visibility
             ),
+            envelope=request_run_envelope(request),
             recheck=session_recheck(request, action=action, session_id=session_id),
         )
         return SessionStreamResponse(stream=sanitize_session_stream(stream))
@@ -1803,8 +1820,12 @@ class InteractionsRouter:
 
         resolution = body.resolution
         # `resolved` is approval-only whether or not an answer rides along, so the row lookup
-        # runs for a bare `resolved` transition too.
-        if resolution is not None or body.status == SessionInteractionStatus.resolved:
+        # runs for a bare `resolved` transition too. A bare `responded` needs the row to
+        # refuse it on an approval.
+        if resolution is not None or body.status in (
+            SessionInteractionStatus.resolved,
+            SessionInteractionStatus.responded,
+        ):
             interactions = await self.interactions_service.query_interactions(
                 project_id=project_id,
                 query=SessionInteractionQuery(session_id=body.session_id),
@@ -1841,6 +1862,22 @@ class InteractionsRouter:
                         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail=e.errors(include_context=False),
                     ) from e
+            # Only a person or a channel answers an approval. An agent run settles an
+            # answer that it consumed (`resolved`), but it may not record one
+            # (`responded`, with or without a resolution), and it may not replace the
+            # answer a row already holds.
+            if (
+                source.kind == SessionInteractionKind.user_approval
+                and approval_from_request(
+                    principal=request.state.principal,
+                    credential_kind=getattr(request.state, "credential_kind", None),
+                    user_id=UUID(str(request.state.user_id)),
+                ).is_run_credential
+            ):
+                if body.status == SessionInteractionStatus.responded:
+                    raise FORBIDDEN_EXCEPTION
+                if source.status == SessionInteractionStatus.responded:
+                    resolution = None
 
         try:
             interaction = await self.interactions_service.transition_interaction(
@@ -1989,6 +2026,16 @@ class InteractionsRouter:
         )
         if not authorized:
             raise FORBIDDEN_EXCEPTION
+        # The approver is the answering request's principal and acting user. An agent
+        # run may not answer an interaction: refuse its credential before anything is
+        # stored, so no stored command carries `is_run_credential`.
+        approved_by = approval_from_request(
+            principal=request.state.principal,
+            credential_kind=getattr(request.state, "credential_kind", None),
+            user_id=UUID(str(user_id)),
+        )
+        if approved_by.is_run_credential:
+            raise FORBIDDEN_EXCEPTION
 
         if body.answers is not None and interaction_id not in {
             item.interaction_id for item in body.answers
@@ -2051,11 +2098,6 @@ class InteractionsRouter:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Interaction not found",
             )
-        # The approver is the answering request's principal and acting user.
-        approved_by = RunApproval(
-            principal=request.state.principal,
-            user_id=UUID(str(user_id)),
-        )
         try:
             if body.answers is not None:
                 admission = await self.commands_service.respond_interactions(
@@ -2065,6 +2107,7 @@ class InteractionsRouter:
                     expected_execution_id=body.expected_execution_id,
                     idempotency_key=idempotency_key,
                     approved_by=approved_by,
+                    deliver=body.delivery == "server",
                 )
             else:
                 admission = await self.commands_service.respond_interaction(
@@ -2075,6 +2118,7 @@ class InteractionsRouter:
                     expected_execution_id=body.expected_execution_id,
                     idempotency_key=idempotency_key,
                     approved_by=approved_by,
+                    deliver=body.delivery == "server",
                 )
         except MissingEnvelope:
             # Parked before this release: the interaction was cancelled (committed).
@@ -2117,6 +2161,9 @@ class InteractionsRouter:
                     "awaiting_interactions"
                     if getattr(admission, "waiting_for_interactions", False)
                     else admission.execution_state.value
+                ),
+                session_turn_id=(getattr(admission.command, "data", None) or {}).get(
+                    "session_turn_id"
                 ),
             ),
         )

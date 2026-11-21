@@ -24,6 +24,16 @@ const tNow = createT(subscriptionSignInCatalog)
 /** Every `claude setup-token` value starts with this. */
 const SETUP_TOKEN_PREFIX = "sk-ant-oat"
 
+/**
+ * The token in a pasted text, or null when it is not a setup token. A setup token never contains
+ * whitespace. A terminal that wraps the long token can add spaces where the lines break, and the
+ * password field hides them, so they are removed.
+ */
+export const setupTokenOf = (pasted: string): string | null => {
+    const token = pasted.replace(/\s/g, "")
+    return token.startsWith(SETUP_TOKEN_PREFIX) ? token : null
+}
+
 /** A pasted token: create the connection if needed, store the token, reuse the row on retry. */
 export const useSubscriptionToken = ({
     provider,
@@ -56,13 +66,12 @@ export const useSubscriptionToken = ({
     const name = connection?.name || subscriptionProviderName(provider)
     // A failed replacement keeps the old token, so the steps stay open on its error.
     const connected = subscriptionIsReady(connection?.subscription) && !replacing
-    // A setup-token never contains whitespace. A terminal that wraps the long token can add
-    // spaces where the lines break, and the password field hides them, so they are removed.
-    const token = value.replace(/\s/g, "")
-    const canSubmit = token.startsWith(SETUP_TOKEN_PREFIX) && !checking
+    const token = setupTokenOf(value)
+    const canSubmit = !!token && !checking
 
-    const submit = useCallback(async () => {
-        if (!canSubmit) return
+    /** Resolves true when the token is stored. */
+    const submit = useCallback(async (): Promise<boolean> => {
+        if (!canSubmit || !token) return false
         setChecking(true)
         setError(null)
         let created = false
@@ -80,6 +89,7 @@ export const useSubscriptionToken = ({
             setCreatedId(null)
             setReplacing(false)
             setValue("")
+            return true
         } catch (caught) {
             // So a refused token still leaves the row where the next surface finds it.
             if (created) void refreshVault()
@@ -89,6 +99,7 @@ export const useSubscriptionToken = ({
                     extractApiErrorMessage(caught) ||
                     tNow("entityUi.subscriptionSignIn.couldNotStoreToken"),
             )
+            return false
         } finally {
             setChecking(false)
         }

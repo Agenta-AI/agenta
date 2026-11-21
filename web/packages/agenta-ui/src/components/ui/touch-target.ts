@@ -30,7 +30,7 @@ export const TOUCH_TARGET_MINIMUM_PX = 44
 export type TouchTargetControlHeight = 24 | 28
 
 /** Rendered control widths the expansion is defined for, in px. */
-export type TouchTargetControlWidth = 28 | 30
+export type TouchTargetControlWidth = 24 | 28 | 30
 
 /** A control's own border, in px: the shared Button's 1, or 0 for a button that zeroes it. */
 export type TouchTargetControlBorder = 0 | 1
@@ -76,6 +76,8 @@ const horizontalByWidth: Record<
     TouchTargetControlWidth,
     Record<TouchTargetControlBorder, string>
 > = {
+    // Reach 10: 24 + 20 = 44 bare, (24 - 2) + 22 = 44 bordered (an `icon-xs` button).
+    24: {0: "after:-inset-x-2.5", 1: "after:-inset-x-[11px]"},
     // Reach 8: 28 + 16 = 44 bare, (28 - 2) + 18 = 44 bordered.
     28: {0: "after:-inset-x-2", 1: "after:-inset-x-[9px]"},
     // Reach 7: 30 + 14 = 44 bare, (30 - 2) + 16 = 44 bordered. No spacing step is 7px, so the
@@ -210,3 +212,14 @@ export const touchTargetWidth = (className: string): number | null =>
 
 /** What a labelled control reaches past each visible edge horizontally, in px. */
 export const TOUCH_TARGET_LABELLED_REACH_PX = LABELLED_REACH_PX
+
+/**
+ * The same minimum on a phone only (below 768 px), for any control size. The `after` box is at
+ * least 44 x 44 px and never smaller than the control, centred on it, so neither the control's
+ * size nor its border enters the arithmetic (no D126). Use it where the desktop must keep its own
+ * pointer box, or where the control is not one of the heights `touchTargetExpansion` knows (the
+ * turn footer's 18px icons). The control keeps its drawn size; an ancestor that clips its
+ * overflow also clips the area.
+ */
+export const PHONE_TOUCH_TARGET_CLASS =
+    "max-md:relative max-md:after:absolute max-md:after:left-1/2 max-md:after:top-1/2 max-md:after:h-full max-md:after:min-h-11 max-md:after:w-full max-md:after:min-w-11 max-md:after:-translate-x-1/2 max-md:after:-translate-y-1/2 max-md:after:content-['']"

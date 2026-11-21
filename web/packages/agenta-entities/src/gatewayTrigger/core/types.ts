@@ -362,6 +362,8 @@ export type TriggerDeliveriesResponse = z.infer<typeof triggerDeliveriesResponse
 export interface TriggerDeliveryWindowing {
     oldest?: string
     newest?: string
+    /** The id of the last row already read; with `newest` (its `created_at`) it reads the next page. */
+    next?: string
     limit?: number
     order?: "ascending" | "descending"
 }

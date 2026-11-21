@@ -3,6 +3,8 @@ import type {PendingApproval} from "@agenta/chat/model"
 
 import {ContentRail} from "@/components/ContentRail"
 
+import {useIsBuilderChat} from "./builderChat"
+import {ownsShortcutAt} from "./conversationFocus"
 import {isSteerEnabled} from "./steer"
 import type {ApprovalActions} from "./useApprovalActions"
 
@@ -37,13 +39,15 @@ export const ApprovalDock = ({
     readOnlyNote?: string | null
 }) => {
     const locked = readOnly || Boolean(readOnlyNote)
+    const builderChat = useIsBuilderChat()
     const busy = actions.phase === "resuming"
     const answered = actions.phase === "answered" || actions.phase === "recoverable"
 
     if (approvals.length === 0) return null
     return (
         <div
-            className={`bg-background shrink-0 px-3 pt-3 ${
+            // The card sits 16 px in: the builder panel (S03) and a phone (M05).
+            className={`bg-background shrink-0 px-4 pt-3 ${
                 // When the composer sits below it brings its own top padding, so only the
                 // bottom-most dock pads the safe area — a full pb here just doubles the gap.
                 bottomMost ? "pb-[calc(0.75rem+env(safe-area-inset-bottom))]" : "pb-0"
@@ -60,6 +64,9 @@ export const ApprovalDock = ({
                     touch
                     readOnly={locked}
                     readOnlyNote={readOnlyNote}
+                    alwaysAllowOffered={!builderChat}
+                    // Two conversations can each show a card: a key answers the focused one only.
+                    ownsShortcut={ownsShortcutAt}
                     errorText={actions.phase === "error" ? actions.errorText : null}
                     onRespond={({approvalId, approved, message}) => {
                         if (!locked) actions.respond({approvalId, approved, message})

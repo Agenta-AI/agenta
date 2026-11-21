@@ -4,7 +4,7 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
-import {Group} from "lucide-react"
+import {List} from "lucide-react"
 
 import {Popover, PopoverContent} from "../components/ui/popover"
 
@@ -103,7 +103,7 @@ export const GroupMenu = <Value extends string = string>({
         <Popover open={open} onOpenChange={setOpen}>
             <FilterMenuTrigger
                 label={label}
-                icon={icon ?? <Group size={14} aria-hidden />}
+                icon={icon ?? <List size={14} aria-hidden />}
                 size={size}
                 variant={variant}
                 triggerClassName={triggerClassName}

@@ -2,7 +2,7 @@
 import {useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {
-    describeCron,
+    describeSchedule,
     isEntityActive,
     nextCronRuns,
     type TriggerSchedule,
@@ -13,6 +13,7 @@ import {Clock} from "@phosphor-icons/react"
 
 import {scheduleTextNow} from "../../../gatewayTrigger/scheduleText"
 
+import {RowTile} from "./rowParts"
 import {TriggerRow} from "./TriggerRow"
 
 const tNow = createT(triggersCatalog)
@@ -36,11 +37,17 @@ export function ScheduleTriggerRow({
     disabled,
     onOpen,
     menu,
+    phone,
+    onToggle,
 }: {
     record: TriggerSchedule
     disabled?: boolean
     onOpen: () => void
     menu: ReactNode
+    /** The phone shape of the row (M10). */
+    phone?: boolean
+    /** Phone only: the row's switch. */
+    onToggle?: (next: boolean) => void
 }) {
     const t = useT(triggersCatalog)
     const cron = record.data?.schedule
@@ -49,7 +56,9 @@ export function ScheduleTriggerRow({
     // cron, so memoize on it; the countdown bucket needn't track unrelated re-renders.
     const cadence = useMemo(
         () =>
-            cron ? describeCron(cron, scheduleTextNow()) : tNow("entityUi.triggers.noScheduleSet"),
+            cron
+                ? describeSchedule(cron, scheduleTextNow())
+                : tNow("entityUi.triggers.noScheduleSet"),
         // `t` re-words the cadence when the language changes.
         [cron, t],
     )
@@ -65,7 +74,11 @@ export function ScheduleTriggerRow({
 
     return (
         <TriggerRow
-            icon={<Clock size={15} />}
+            tile={
+                <RowTile className="bg-[var(--ag-tile-schedule)]">
+                    <Clock />
+                </RowTile>
+            }
             name={named ? (record.name as string) : t("entityUi.triggers.untitledSchedule")}
             nameMuted={!named}
             subtitle={next ? `${cadence} · ${next}` : cadence}
@@ -73,6 +86,8 @@ export function ScheduleTriggerRow({
             disabled={disabled}
             onOpen={onOpen}
             menu={menu}
+            phone={phone}
+            onToggle={onToggle}
         />
     )
 }

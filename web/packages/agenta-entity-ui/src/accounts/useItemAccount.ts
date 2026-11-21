@@ -33,11 +33,16 @@ export interface ItemAccountState {
     failed: boolean
 }
 
-export const useItemAccount = (context: ItemAccountContext, itemKey: string): ItemAccountState => {
+/** The agent of an item's view: the one the context names, else the revision's. */
+export const useItemWorkflowId = (context: ItemAccountContext): string => {
     const fromRevision = useAtomValue(
         workflowMolecule.selectors.workflowId(context.workflowId ? "" : (context.revisionId ?? "")),
     )
-    const workflowId = context.workflowId || fromRevision || ""
+    return context.workflowId || fromRevision || ""
+}
+
+export const useItemAccount = (context: ItemAccountContext, itemKey: string): ItemAccountState => {
+    const workflowId = useItemWorkflowId(context)
     const key = useMemo(
         () => draftItemAccountsFamilyKey(workflowId, context.agent),
         [context.agent, workflowId],

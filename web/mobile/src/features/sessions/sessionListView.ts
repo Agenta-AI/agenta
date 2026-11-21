@@ -43,9 +43,13 @@ export interface SessionListView {
  */
 export const DEFAULT_SESSION_LIST_VIEW: SessionListView = {group: "agent", activity: "7d"}
 
-export const isDefaultSessionListView = (view: SessionListView): boolean =>
-    view.group === DEFAULT_SESSION_LIST_VIEW.group &&
-    view.activity === DEFAULT_SESSION_LIST_VIEW.activity
+/** The Sessions page of one agent groups by date: every row has the same agent. */
+export const LOCKED_AGENT_SESSION_LIST_VIEW: SessionListView = {group: "date", activity: "7d"}
+
+export const isDefaultSessionListView = (
+    view: SessionListView,
+    defaults: SessionListView = DEFAULT_SESSION_LIST_VIEW,
+): boolean => view.group === defaults.group && view.activity === defaults.activity
 
 /**
  * The window as an ISO instant the server can compare against, or `undefined` for no bound.

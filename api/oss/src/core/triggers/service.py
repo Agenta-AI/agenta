@@ -21,6 +21,8 @@ from oss.src.dbs.redis.shared.engine import get_cache_engine
 
 from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.gateway.connections.service import ConnectionsService
+from oss.src.core.sessions.executions.dtos import SessionExecutionSettlement
+from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.git.types import RetrieveRefsInconsistent, RetrieveRefsInsufficient
 from oss.src.core.triggers.dtos import (
     DiscoveredTriggerAlternative,
@@ -351,6 +353,53 @@ def _resumed_meta(meta):
     return {key: value for key, value in dict(meta).items() if key != "paused_reason"}
 
 
+# How a settled detached run reads on its delivery. "continued" is not here on purpose: the
+# run went on in a continuation, so the delivery is not finished yet. "not_running" is a Stop
+# that reached the runner after the run was gone; it reads like "stopped".
+_RUN_OUTCOME_STATUS: Dict[str, str] = {
+    "completed": "success",
+    "failed": "failed",
+    "stopped": "failed",
+    "not_running": "failed",
+    "lost": "failed",
+}
+
+# Outcomes after which a child execution may carry the run on.
+_HANDED_ON = ("continued", "lost")
+
+
+def _successor(
+    execution: SessionExecutionSettlement,
+    candidates: List[SessionExecutionSettlement],
+    seen: Set[str],
+) -> Optional[SessionExecutionSettlement]:
+    """The child that carries the run on, or None when the run ended here.
+
+    After "continued", only the continuation a person's answer started counts (it names its
+    interaction); a queued message does not. After "lost", only a lost continuation attempt
+    is carried on, by its replacement; a lost first run stays failed, even when a queued
+    message starts after it. Among the children that count: one still going, else one that
+    ended the run (the last settled), else the last one handed on.
+    """
+    if execution.terminal_outcome == "continued":
+        candidates = [c for c in candidates if c.source_interaction_id is not None]
+    elif execution.parent_execution_id is None:
+        return None
+    candidates = [c for c in candidates if c.execution_id not in seen]
+    if not candidates:
+        return None
+    going = [c for c in candidates if c.terminal_outcome is None]
+    if going:
+        return going[0]
+    return max(
+        candidates,
+        key=lambda c: (
+            c.terminal_outcome not in _HANDED_ON,
+            c.settled_at or datetime.min.replace(tzinfo=timezone.utc),
+        ),
+    )
+
+
 class TriggersService:
     """Triggers domain orchestration.
 
@@ -368,10 +417,14 @@ class TriggersService:
         triggers_dao: TriggersDAOInterface,
         connections_service: ConnectionsService,
         workflows_service: WorkflowsService,
+        # Reads how a detached run ended, so its delivery stops reading "dispatched".
+        # None in test compositions that do not read deliveries.
+        executions_dao: Optional[SessionExecutionsDAOInterface] = None,
         # Assigned post-construction in the composition root (worker wiring); guarded at use.
         schedule_dispatch_task: Optional[Any] = None,
     ):
         self.adapter_registry = adapter_registry
+        self.executions_dao = executions_dao
         self.catalog_service = catalog_service
         self.dao = triggers_dao
         self.connections_service = connections_service
@@ -2136,10 +2189,16 @@ class TriggersService:
         #
         delivery_id: UUID,
     ) -> Optional[TriggerDelivery]:
-        return await self.dao.fetch_delivery(
+        delivery = await self.dao.fetch_delivery(
             project_id=project_id,
             delivery_id=delivery_id,
         )
+        if delivery is None:
+            return None
+        resolved = await self._with_run_outcomes(
+            project_id=project_id, deliveries=[delivery]
+        )
+        return resolved[0]
 
     async def query_deliveries(
         self,
@@ -2150,11 +2209,97 @@ class TriggersService:
         #
         windowing: Optional[Windowing] = None,
     ) -> List[TriggerDelivery]:
-        return await self.dao.query_deliveries(
+        deliveries = await self.dao.query_deliveries(
             project_id=project_id,
             delivery=delivery,
             windowing=windowing,
         )
+        return await self._with_run_outcomes(
+            project_id=project_id, deliveries=deliveries
+        )
+
+    async def _with_run_outcomes(
+        self,
+        *,
+        project_id: UUID,
+        deliveries: List[TriggerDelivery],
+    ) -> List[TriggerDelivery]:
+        """Show how a detached run ended on its "dispatched" delivery.
+
+        The dispatcher writes `202 dispatched` when the runner accepts a detached run. It has
+        no callback for the end of the run, so the stored row never changes after that. The
+        end of the run is in `session_executions`: the run id is the first execution id, and a
+        run that waited for a person goes on in a child execution (`parent_execution_id`).
+        One read of the sessions' executions finds the last one of each run. A settled run
+        reads `success` or `failed`; a run that still goes on keeps `dispatched`. The stored
+        row does not change.
+
+        Not every child carries the run on: a message queued in the session also starts as a
+        child of the execution that just ended. See `_successor` for which children count.
+        """
+        if self.executions_dao is None:
+            return deliveries
+
+        runs: Dict[UUID, Tuple[str, str]] = {}
+        for delivery in deliveries:
+            if delivery.id is None or delivery.status.message != "dispatched":
+                continue
+            data = delivery.data
+            run_id = (data.result or {}).get("run_id") if data else None
+            if data and data.session_id and run_id:
+                runs[delivery.id] = (data.session_id, str(run_id))
+        if not runs:
+            return deliveries
+
+        executions = await self.executions_dao.query_session_executions(
+            project_id=project_id,
+            session_ids=[session_id for session_id, _ in runs.values()],
+        )
+        by_id = {(e.session_id, e.execution_id): e for e in executions}
+        children: Dict[Tuple[str, str], List[SessionExecutionSettlement]] = {}
+        for e in executions:
+            if e.parent_execution_id:
+                children.setdefault((e.session_id, e.parent_execution_id), []).append(e)
+
+        resolved: List[TriggerDelivery] = []
+        for delivery in deliveries:
+            run = runs.get(delivery.id) if delivery.id else None
+            execution = by_id.get(run) if run else None
+            # Follow the run into the execution that carries it on: the continuation after a
+            # person answered ("continued"), or the replacement of a lost attempt ("lost").
+            # `seen` stops a malformed cycle.
+            seen = set()
+            while (
+                execution is not None
+                and execution.terminal_outcome in _HANDED_ON
+                and execution.execution_id not in seen
+            ):
+                seen.add(execution.execution_id)
+                successor = _successor(
+                    execution,
+                    children.get((execution.session_id, execution.execution_id), []),
+                    seen,
+                )
+                if successor is None:
+                    break
+                execution = successor
+            message = (
+                _RUN_OUTCOME_STATUS.get(execution.terminal_outcome or "")
+                if execution
+                else None
+            )
+            if execution is None or message is None:
+                resolved.append(delivery)
+                continue
+            status_update: Dict[str, Any] = {"message": message}
+            if execution.settled_at:
+                status_update["timestamp"] = execution.settled_at
+            resolved.append(
+                delivery.model_copy(
+                    update={"status": delivery.status.model_copy(update=status_update)}
+                )
+            )
+        return resolved
 
     async def write_delivery(
         self,
