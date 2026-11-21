@@ -10,6 +10,7 @@ import {SkeletonRows} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 
 import {AutomationRunConversation} from "../automations/AutomationRunConversation"
+import {mintBlankSession} from "../chat/useStartBlankSession"
 
 /** How many latest sessions the pane lists. */
 const PANE_SESSION_LIMIT = 50
@@ -39,7 +40,10 @@ export const usePaneSessions = (projectId: string, agentId: string) =>
         refetchInterval: (query) => livePollInterval(query.state.data?.sessions),
     })
 
-/** The session the Sessions tab shows: the first latest one, then the pick; kept on refresh. */
+/**
+ * The session the Sessions tab shows: the first latest one, then the pick; kept on refresh.
+ * "New session" shows a blank session; the list takes it in after its first message.
+ */
 export const usePaneSessionPick = (projectId: string, agentId: string) => {
     const query = usePaneSessions(projectId, agentId)
     const rows = query.data?.sessions ?? []
@@ -50,7 +54,8 @@ export const usePaneSessionPick = (projectId: string, agentId: string) => {
         const row = rows.find((entry) => entry.session_id === sessionId)
         if (row) setPicked(row)
     }
-    return {query, session, pick}
+    const startNew = () => setPicked({project_id: projectId, session_id: mintBlankSession()})
+    return {query, session, pick, startNew}
 }
 export type PaneSessionPick = ReturnType<typeof usePaneSessionPick>
 
@@ -68,23 +73,25 @@ export const PaneSessions = ({
 }) => {
     const t = useT(builderPageCatalog)
     const {query, session} = pick
-    if (query.isPending) return <SkeletonRows count={6} className="p-4" />
-    if (query.isError)
-        return (
-            <div className="p-4">
-                <LoadError
-                    framed
-                    title={t("builder.page.sessionsFailed")}
-                    onRetry={() => void query.refetch()}
-                />
-            </div>
-        )
-    if (!session)
+    // A picked or new session shows even when the list fails, as "New session" still works.
+    if (!session) {
+        if (query.isPending) return <SkeletonRows count={6} className="p-4" />
+        if (query.isError)
+            return (
+                <div className="p-4">
+                    <LoadError
+                        framed
+                        title={t("builder.page.sessionsFailed")}
+                        onRetry={() => void query.refetch()}
+                    />
+                </div>
+            )
         return (
             <p className="m-0 p-4 text-[13px] text-colorTextSecondary">
                 {t("builder.page.noSessions")}
             </p>
         )
+    }
     return (
         <div className="h-full min-h-0" data-testid="pane-sessions">
             <AutomationRunConversation

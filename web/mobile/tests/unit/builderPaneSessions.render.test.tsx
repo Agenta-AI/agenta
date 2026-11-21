@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The pane Sessions tab (B04) and the builder chat "⋯" menu (B03): the latest session shows at
- * once and the switcher picks another; the menu offers the session row's actions, and "Rename"
+ * The pane Sessions tab (B04, B07) and the builder chat "⋯" menu (B03): the latest session shows
+ * at once, the picker picks another and "New session" shows a blank one; the menu offers the session row's actions, and "Rename"
  * turns the title into an input.
  */
 import {act, type ReactNode} from "react"
@@ -12,7 +12,7 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const rows = [
+const rows: {session_id: string; name: string; updated_at: string}[] = [
     {session_id: "s-new", name: "Zahnwerk GmbH", updated_at: "2026-11-20T10:00:00Z"},
     {session_id: "s-old", name: "Dentalis AG", updated_at: "2026-11-19T10:00:00Z"},
 ]
@@ -27,6 +27,14 @@ vi.mock("@/features/automations/AutomationRunConversation", () => ({
     AutomationRunConversation: ({sessionId}: {sessionId: string}) => (
         <div data-testid="conversation">{sessionId}</div>
     ),
+}))
+const fresh = vi.hoisted(() => ({ids: [] as string[]}))
+vi.mock("@/features/chat/useStartBlankSession", () => ({
+    mintBlankSession: () => {
+        const id = `blank-${fresh.ids.length + 1}`
+        fresh.ids.push(id)
+        return id
+    },
 }))
 // The popover renders its content in place, so the rows are clickable in jsdom.
 vi.mock("@agenta/ui/ui", async (importOriginal) => ({
@@ -81,8 +89,8 @@ vi.mock("@/features/sessions/SessionRowMenu", () => ({
 vi.mock("next/router", () => ({useRouter: () => ({basePath: "/m", push: vi.fn()})}))
 
 import {BuilderChatTitle} from "@/features/builder-page/BuilderChatTitle"
+import {PaneSessionBar} from "@/features/builder-page/PaneSessionBar"
 import {PaneSessions, usePaneSessionPick} from "@/features/builder-page/PaneSessions"
-import {PaneSessionSwitcher} from "@/features/builder-page/PaneSessionSwitcher"
 import {queryClient} from "@/lib/queryClient"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -98,6 +106,7 @@ let root: Root
 
 beforeEach(() => {
     menu.clicked = []
+    fresh.ids = []
     host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
@@ -126,7 +135,7 @@ const Pane = () => {
     const pick = usePaneSessionPick("p1", "agent-1")
     return (
         <>
-            <PaneSessionSwitcher pick={pick} />
+            <PaneSessionBar pick={pick} />
             <PaneSessions pick={pick} agentId="agent-1" projectId="p1" workspaceId="w1" />
         </>
     )
@@ -145,6 +154,30 @@ describe("Pane Sessions (B04)", () => {
         await act(async () => older?.click())
         expect(byId("conversation")?.textContent).toBe("s-old")
         expect(byId("pane-session-switcher")?.textContent).toContain("Dentalis AG")
+    })
+
+    it("shows a blank session of the agent on New session", async () => {
+        await render(<Pane />)
+        await act(async () => (byId("pane-new-session") as HTMLButtonElement).click())
+        expect(fresh.ids).toEqual(["blank-1"])
+        expect(byId("conversation")?.textContent).toBe("blank-1")
+        expect(byId("pane-session-switcher")?.textContent).toContain("Untitled session")
+    })
+
+    it("offers New session when the agent has no sessions yet", async () => {
+        rows.splice(0, rows.length)
+        try {
+            await render(<Pane />)
+            expect(byId("pane-session-switcher")).toBeNull()
+            expect(host.textContent).toContain("This agent has no sessions yet.")
+            await act(async () => (byId("pane-new-session") as HTMLButtonElement).click())
+            expect(byId("conversation")?.textContent).toBe("blank-1")
+        } finally {
+            rows.push(
+                {session_id: "s-new", name: "Zahnwerk GmbH", updated_at: "2026-11-20T10:00:00Z"},
+                {session_id: "s-old", name: "Dentalis AG", updated_at: "2026-11-19T10:00:00Z"},
+            )
+        }
     })
 })
 
