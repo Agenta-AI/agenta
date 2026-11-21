@@ -653,6 +653,7 @@ class SessionCommandsService:
                 project_id=project_id,
                 session_id=session_id,
                 execution_id=execution_id,
+                transaction=transaction,
             )
             == "steer"
         )
@@ -663,6 +664,7 @@ class SessionCommandsService:
         project_id: UUID,
         session_id: str,
         execution_id: str,
+        transaction: Optional[Any] = None,
     ) -> Optional[CancelledBy]:
         """Who cancelled this execution, when it was not a person's Stop: `steer` (a
         person's message replaced the turn) or `calling_session` (`cancel_session`).

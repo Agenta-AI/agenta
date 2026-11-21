@@ -130,7 +130,9 @@ class _CommandsDAO:
     async def transaction(self):
         yield SimpleNamespace()
 
-    async def fetch_turn_cancel(self, *, project_id, session_id, target_turn_id):
+    async def fetch_turn_cancel(
+        self, *, project_id, session_id, target_turn_id, transaction=None
+    ):
         return self.command
 
 
