@@ -258,7 +258,7 @@ export const refreshSignedInAtom = atom(null, async (get, set, secretId: string)
     const owner = [get(userAtom)?.id, get(projectIdAtom)]
     return ["secrets", "organization-secrets"].some((list) => {
         const rows = queryClient.getQueryData<LlmProvider[]>(["vault", list, ...owner])
-        return (Array.isArray(rows) ? rows : []).some(
+        return (rows ?? []).some(
             (row) => row.id === secretId && row.subscription?.loginState === "ready",
         )
     })

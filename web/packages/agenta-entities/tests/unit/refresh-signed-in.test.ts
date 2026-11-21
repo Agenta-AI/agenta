@@ -1,5 +1,5 @@
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
-import {QueryClient} from "@tanstack/react-query"
+import {QueryClient, QueryObserver} from "@tanstack/react-query"
 import {createStore} from "jotai"
 import {describe, expect, it, vi} from "vitest"
 
@@ -45,5 +45,42 @@ describe("refreshSignedInAtom", () => {
     it("is false when the list still shows it waiting for a sign-in", async () => {
         client.setQueryData(KEY, [row("pending_login")])
         await expect(store().set(refreshSignedInAtom, "s1")).resolves.toBe(false)
+    })
+
+    describe("with a list a page is reading", () => {
+        const watch = (queryFn: () => Promise<unknown>) => {
+            client.removeQueries({queryKey: KEY})
+            const observer = new QueryObserver(client, {queryKey: KEY, queryFn})
+            const stop = observer.subscribe(() => undefined)
+            return {observer, stop}
+        }
+
+        it("waits for the refetch and reads the fresh list", async () => {
+            const queryFn = vi
+                .fn()
+                .mockResolvedValueOnce([row("pending_login")])
+                .mockImplementationOnce(
+                    () => new Promise((resolve) => setTimeout(() => resolve([row("ready")]), 20)),
+                )
+            const {observer, stop} = watch(queryFn)
+            await vi.waitFor(() => expect(observer.getCurrentResult().isSuccess).toBe(true))
+
+            await expect(store().set(refreshSignedInAtom, "s1")).resolves.toBe(true)
+            expect(queryFn).toHaveBeenCalledTimes(2)
+            stop()
+        })
+
+        it("is false when the refetch fails", async () => {
+            const queryFn = vi
+                .fn()
+                .mockResolvedValueOnce([row("pending_login")])
+                .mockRejectedValueOnce(new Error("offline"))
+            const {observer, stop} = watch(queryFn)
+            await vi.waitFor(() => expect(observer.getCurrentResult().isSuccess).toBe(true))
+
+            await expect(store().set(refreshSignedInAtom, "s1")).resolves.toBe(false)
+            expect(queryFn).toHaveBeenCalledTimes(2)
+            stop()
+        })
     })
 })
