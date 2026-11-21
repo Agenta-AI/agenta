@@ -2,7 +2,7 @@
  * Apply the Codex ACP approval-decoupling patch to the adapter the pin step just installed.
  *
  * Runs in the runner image build immediately after `pin-codex-adapter.ts install-agent codex`
- * (decision D-005), so the baked adapter sends `on-request` approvals under the full-access
+ * (decision D-005), so the baked adapter sends `untrusted` approvals under the full-access
  * preset. See `src/engines/sandbox_agent/codex-acp-patch.ts` for why, and for how the patch
  * retires once upstream lands agentclientprotocol/codex-acp#310.
  *
@@ -18,6 +18,7 @@ import { join } from "node:path";
 import {
   applyCodexAcpApprovalPatch,
   CODEX_ACP_BUNDLE_PATH,
+  PATCHED_FULL_ACCESS_APPROVAL,
 } from "../src/engines/sandbox_agent/codex-acp-patch.ts";
 
 /**
@@ -59,11 +60,13 @@ for (const bundle of bundles) {
     process.exit(1);
   }
   if (outcome.kind === "already-patched") {
-    console.log(`patch-codex-acp-approvals: already on-request in ${bundle}`);
+    console.log(
+      `patch-codex-acp-approvals: already ${PATCHED_FULL_ACCESS_APPROVAL} in ${bundle}`,
+    );
     continue;
   }
   writeFileSync(bundle, outcome.source);
   console.log(
-    `patch-codex-acp-approvals: agent-full-access now sends on-request approvals in ${bundle}`,
+    `patch-codex-acp-approvals: agent-full-access now sends ${PATCHED_FULL_ACCESS_APPROVAL} approvals in ${bundle}`,
   );
 }
