@@ -37,8 +37,8 @@ export const useChildApprovals = ({
         queryKey: ["child-approvals", "waiting-sessions", projectId, waitingIds],
         // Every origin: a child session has the origin `calling_session`, which the default
         // lists leave out.
-        queryFn: ({signal}) =>
-            Promise.all(
+        queryFn: async ({signal}) => {
+            const pages = await Promise.all(
                 sessionIdBatches(waitingIds).map((ids) =>
                     sessionListQueryOptions({
                         projectId,
@@ -46,7 +46,12 @@ export const useChildApprovals = ({
                         limit: ids.length,
                     }).queryFn({signal}),
                 ),
-            ),
+            )
+            // The fetcher answers a failed read with null. Throw, so the query retries and keeps
+            // the last rows instead of reading the failure as "no children".
+            if (pages.some((page) => page === null)) throw new Error("waiting sessions read failed")
+            return pages
+        },
         enabled: Boolean(projectId) && waitingIds.length > 0,
         // The rows of the previous id set stay correct while a new set resolves: the session
         // that created a row never changes, and the current interactions decide what waits. So

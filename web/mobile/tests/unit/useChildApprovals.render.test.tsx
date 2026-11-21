@@ -6,6 +6,7 @@
  */
 import {act} from "react"
 
+import {actionableInteractionsQueryKey} from "@agenta/sessions/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -32,6 +33,7 @@ const OPEN = "open-session"
 
 let host: HTMLDivElement
 let root: Root
+let client: QueryClient
 let result: ChildApprovals[] = []
 
 const Probe = () => {
@@ -41,8 +43,8 @@ const Probe = () => {
 
 const flush = () => act(async () => void (await new Promise((resolve) => setTimeout(resolve, 0))))
 
-const mount = async () => {
-    const client = new QueryClient({defaultOptions: {queries: {retry: false}}})
+const mount = async (retry: number | false = false) => {
+    client = new QueryClient({defaultOptions: {queries: {retry, retryDelay: 0}}})
     await act(async () =>
         root.render(
             <QueryClientProvider client={client}>
@@ -111,6 +113,33 @@ describe("useChildApprovals", () => {
                 approvals: [{approvalId: "t-child", toolName: "send_email", input: {}}],
             },
         ])
+    })
+
+    it("retries a failed read of the waiting sessions instead of reading it as no children", async () => {
+        const child = {session_id: "z-child", calling_session: {id: OPEN}}
+        api.queryInteractions.mockResolvedValue([gate("z-child", "t-child")])
+        api.querySessionsPage.mockResolvedValue({count: 1, sessions: [child]})
+        await mount(1)
+        expect(result.map((entry) => entry.sessionId)).toEqual(["z-child"])
+
+        // A second session starts waiting; the first read of the new id set fails (the fetcher
+        // answers null), the retry succeeds.
+        api.queryInteractions.mockResolvedValue([
+            gate("z-child", "t-child"),
+            gate("other", "t-other"),
+        ])
+        api.querySessionsPage.mockResolvedValueOnce(null).mockResolvedValue({
+            count: 2,
+            sessions: [child, {session_id: "other", calling_session: null}],
+        })
+        await act(async () => {
+            await client.invalidateQueries({queryKey: actionableInteractionsQueryKey("proj-1")})
+        })
+        await flush()
+        await flush()
+
+        expect(api.querySessionsPage).toHaveBeenCalledTimes(3)
+        expect(result.map((entry) => entry.sessionId)).toEqual(["z-child"])
     })
 
     it("reads no session rows when no other session waits", async () => {
