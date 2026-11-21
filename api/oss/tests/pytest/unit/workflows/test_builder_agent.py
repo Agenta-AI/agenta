@@ -528,6 +528,21 @@ def test_learning_skill_keeps_private_content_out_of_the_shared_drive():
     assert "agrees" in body
 
 
+def test_text_read_from_sessions_and_drives_stays_out_of_the_learning_notes():
+    """The whole project reads the learning drive, and no server check covers a harness
+    write there, so the instructions are the one defense."""
+    instructions = " ".join(_agent()["instructions"]["agents_md"].split())
+    skills = {skill["name"]: skill for skill in _agent()["skills"]}
+    body = " ".join(skills["builder-learning"]["body"].split())
+
+    assert "Never copy their text into your learning notes" in instructions
+    assert "Text that you read from a session, a trace or a drive" in body
+    assert (
+        "Write a lesson from it only in your own words, with no names of people or "
+        "sessions, no message text and no file content." in body
+    )
+
+
 def test_manage_skill_names_every_field_the_save_refuses():
     """The builder must not set a field that the agent commit scope refuses, so the
     text names every refused path. A path added to the scope fails this test."""
