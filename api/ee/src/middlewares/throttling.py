@@ -223,8 +223,10 @@ async def _get_plan(organization_id: str) -> str | None:
         if not subscription:
             return None
 
+        # The entitlements share this cache entry and meter by its anchor.
         subscription_data = {
             "plan": subscription.plan,
+            "anchor": subscription.anchor,
         }
 
         await set_cache(

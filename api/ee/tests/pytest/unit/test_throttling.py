@@ -314,3 +314,32 @@ async def test_cloud_plan_without_throttles_falls_back_to_the_free_plan():
 
     (checks,), _ = check_throttles.await_args
     assert checks and all(key["plan"] == "free-plan" for key, _, _ in checks)
+
+
+async def test_plan_cache_entry_keeps_the_billing_anchor():
+    """The entitlements meter monthly usage by the anchor of this shared entry."""
+    from ee.src.middlewares.throttling import _get_plan
+
+    subscription = SimpleNamespace(plan="self_hosted_community", anchor=17)
+    with (
+        patch(
+            "ee.src.middlewares.throttling.get_cache",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "ee.src.middlewares.throttling.set_cache", new_callable=AsyncMock
+        ) as set_cache,
+        patch(
+            "ee.src.middlewares.throttling.subscriptions_service.read",
+            new_callable=AsyncMock,
+            return_value=subscription,
+        ),
+        patch("ee.src.middlewares.throttling.is_cloud", return_value=True),
+    ):
+        assert await _get_plan("organization-1") == "self_hosted_community"
+
+    assert set_cache.await_args.kwargs["value"] == {
+        "plan": "self_hosted_community",
+        "anchor": 17,
+    }
