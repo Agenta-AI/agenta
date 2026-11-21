@@ -6,6 +6,7 @@ import {
     mergePastedSkill,
     parseSkillMarkdown,
     readSkillUpload,
+    readSkillUploadFromFileList,
     scanSkillFiles,
 } from "../../src/DrillInView/SchemaControls/skillUpload"
 
@@ -187,6 +188,10 @@ describe("scanSkillFiles", () => {
 const raw = (path: string, text: string) => ({path, bytes: bytes(text)})
 const file = (path: string, content = "") => ({path, content})
 
+// A zip with SKILL.md and two `notes.md` entries ("first", "second"), written with Python's zipfile.
+const TWO_NOTES_ZIP =
+    "UEsDBBQAAAAAAPJidV2+sYzIEQAAABEAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogYQotLS0KQVBLAwQUAAAAAADyYnVdV+5xkgUAAAAFAAAACAAAAG5vdGVzLm1kZmlyc3RQSwMEFAAAAAAA8mJ1XWkRH7YGAAAABgAAAAgAAABub3Rlcy5tZHNlY29uZFBLAQIUAxQAAAAAAPJidV2+sYzIEQAAABEAAAAIAAAAAAAAAAAAAACAAQAAAABTS0lMTC5tZFBLAQIUAxQAAAAAAPJidV1X7nGSBQAAAAUAAAAIAAAAAAAAAAAAAACAATcAAABub3Rlcy5tZFBLAQIUAxQAAAAAAPJidV1pER+2BgAAAAYAAAAIAAAAAAAAAAAAAACAAWIAAABub3Rlcy5tZFBLBQYAAAAAAwADAKIAAACOAAAAAAA="
+
 describe("applySkillUpload", () => {
     const skill = {
         name: "ticket-triage",
@@ -264,6 +269,16 @@ describe("applySkillUpload", () => {
             path: "notes.md",
         })
         expect("skill" in applySkillUpload(skill, distinct, "add")).toBe(true)
+    })
+
+    it("refuses a zip with two entries of one name, which unzipping would collapse", async () => {
+        const zip = Uint8Array.from(atob(TWO_NOTES_ZIP), (c) => c.charCodeAt(0))
+        const file = {name: "skill.zip", arrayBuffer: async () => zip.buffer} as unknown as File
+        const upload = await readSkillUploadFromFileList([file])
+        expect(applySkillUpload(skill, upload, "add")).toEqual({
+            error: "duplicatePath",
+            path: "notes.md",
+        })
     })
 
     it("Replace with no SKILL.md changes nothing and says so", () => {

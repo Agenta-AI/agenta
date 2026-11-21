@@ -14,11 +14,6 @@ import {AgentPagesHeader} from "./AgentPagesHeader"
 
 /** The page column of the agent's Sessions page on a desktop (A02). */
 export const AGENT_SESSIONS_PAGE_COLUMN = "mx-auto box-border w-full max-w-[1120px] px-8 pb-12 pt-4"
-/** The page column of the agent's Analytics page on a desktop (A09). */
-const AGENT_ANALYTICS_PAGE_COLUMN = "mx-auto box-border w-full max-w-[928px] px-8 pb-10 pt-4"
-/** The Analytics page column on a phone or a desktop; the loading state uses it too. */
-export const agentAnalyticsColumnClass = (phone: boolean) =>
-    phone ? `min-w-0 px-4 pb-12 pt-3 ${SESSIONS_PAGE_FRAME}` : AGENT_ANALYTICS_PAGE_COLUMN
 /** The page column of the agent's Channels page on a desktop (A07). */
 export const AGENT_CHANNELS_PAGE_COLUMN = "mx-auto box-border w-full max-w-[760px] pb-6 pt-4"
 

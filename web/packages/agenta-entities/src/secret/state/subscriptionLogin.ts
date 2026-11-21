@@ -257,8 +257,10 @@ export const refreshSignedInAtom = atom(null, async (get, set, secretId: string)
     const queryClient = getHostQueryClient()
     const owner = [get(userAtom)?.id, get(projectIdAtom)]
     return ["secrets", "organization-secrets"].some((list) => {
-        const rows = queryClient.getQueryData<LlmProvider[]>(["vault", list, ...owner])
-        return (rows ?? []).some(
+        const key = ["vault", list, ...owner]
+        // A failed refetch keeps the old rows; only a list that refetched answers.
+        if (queryClient.getQueryState(key)?.status !== "success") return false
+        return (queryClient.getQueryData<LlmProvider[]>(key) ?? []).some(
             (row) => row.id === secretId && row.subscription?.loginState === "ready",
         )
     })

@@ -100,15 +100,40 @@ export function buildSkillFromFiles(raw: RawFile[]): ParsedSkill {
     }
 }
 
+/** The entry names of a zip, repeats included, read from its central directory. */
+function zipEntryNames(bytes: Uint8Array): string[] {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    // The end-of-directory record: the last 22 bytes, before any archive comment.
+    let end = bytes.length - 22
+    while (end >= 0 && view.getUint32(end, true) !== 0x06054b50) end--
+    if (end < 0) return []
+    const names: string[] = []
+    let at = view.getUint32(end + 16, true)
+    for (let n = view.getUint16(end + 10, true); n > 0; n--) {
+        if (at + 46 > bytes.length || view.getUint32(at, true) !== 0x02014b50) break
+        const nameLength = view.getUint16(at + 28, true)
+        names.push(strFromU8(bytes.subarray(at + 46, at + 46 + nameLength)))
+        at += 46 + nameLength + view.getUint16(at + 30, true) + view.getUint16(at + 32, true)
+    }
+    return names
+}
+
 /** Expand any `.zip` / `.skill` archives into their entries; pass other files through. */
 function expandArchives(raw: RawFile[]): RawFile[] {
     const out: RawFile[] = []
     for (const f of raw) {
         if (ARCHIVE_EXT.test(f.path)) {
             try {
-                const entries = unzipSync(f.bytes)
-                for (const [path, bytes] of Object.entries(entries)) {
-                    out.push({path, bytes: bytes as Uint8Array})
+                // `unzipSync` keys entries by name, so a repeated name keeps one; count them first.
+                const counts = new Map<string, number>()
+                for (const name of zipEntryNames(f.bytes)) {
+                    counts.set(name, (counts.get(name) ?? 0) + 1)
+                }
+                for (const [path, bytes] of Object.entries(unzipSync(f.bytes))) {
+                    // A repeated name goes in once per entry, so the duplicate-path check sees it.
+                    for (let i = 0; i < (counts.get(path) ?? 1); i++) {
+                        out.push({path, bytes: bytes as Uint8Array})
+                    }
                 }
                 continue
             } catch {

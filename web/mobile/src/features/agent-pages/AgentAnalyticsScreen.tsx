@@ -9,7 +9,8 @@ import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {AnalyticsTab} from "../settings/AnalyticsTab"
 
-import {agentAnalyticsColumnClass, AgentListPageHeader} from "./AgentListPageHeader"
+import {AgentListPageHeader} from "./AgentListPageHeader"
+import {agentAnalyticsColumnClass} from "./analyticsColumn"
 
 /** The Analytics page of one agent (A09): today's Analytics page, locked to the agent. */
 export const AgentAnalyticsScreen = ({

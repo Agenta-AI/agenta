@@ -6,7 +6,7 @@ import {SkeletonBlock} from "@agenta/ui/ui"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {PageHeaderSkeleton} from "../../sessions/states/PageHeaderSkeleton"
-import {agentAnalyticsColumnClass} from "../AgentListPageHeader"
+import {agentAnalyticsColumnClass} from "../analyticsColumn"
 
 import {AnalyticsCardSkeleton} from "./AnalyticsCardSkeleton"
 

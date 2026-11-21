@@ -70,10 +70,10 @@ describe("refreshSignedInAtom", () => {
             stop()
         })
 
-        it("is false when the refetch fails", async () => {
+        it("is false when the refetch fails, even over a list that read ready before", async () => {
             const queryFn = vi
                 .fn()
-                .mockResolvedValueOnce([row("pending_login")])
+                .mockResolvedValueOnce([row("ready")])
                 .mockRejectedValueOnce(new Error("offline"))
             const {observer, stop} = watch(queryFn)
             await vi.waitFor(() => expect(observer.getCurrentResult().isSuccess).toBe(true))
