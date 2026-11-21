@@ -72,7 +72,7 @@ const permissionGroupsExpandedAtom = atomWithStorage<Record<string, boolean>>(
     {},
 )
 
-/** What one row's control shows, where the saved default is not the whole answer. */
+/** What one row's control shows, where it is not the saved default. */
 export interface PermissionRowValue {
     value: GatewayPermission
 }

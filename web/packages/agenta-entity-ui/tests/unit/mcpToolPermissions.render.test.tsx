@@ -116,11 +116,11 @@ describe("a tool with no rule of its own", () => {
         expect(selectFor("Permission for wipe")?.textContent).toContain("Follow agent policy")
     })
 
-    it("says Ask for an unnamed tool even when the server permission is allow", async () => {
+    it("never reads Allow for an unnamed tool when the server permission is allow", async () => {
         // The discriminating shape: a per-tool table BESIDE a server permission. The runner's gate
         // never consults the whole-server permission once a table is declared — a human decides for
-        // anything the table does not name — so a server set to allow must still read Ask here, or
-        // the label promises a tool will run unapproved when the run will stop and ask (D88).
+        // anything the table does not name — so a server set to allow must not make the row read
+        // Allow, or the row promises a tool will run unapproved when the run will ask (D88).
         await render({tool_permissions: {echo: "allow"}, permission: "allow"})
 
         expect(selectFor("Permission for wipe")?.textContent).toContain("Follow agent policy")
