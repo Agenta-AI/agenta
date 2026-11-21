@@ -77,7 +77,6 @@ from oss.src.core.sharing.dtos import (
     Visibility,
 )
 from oss.src.core.sharing.service import get_sharing_service
-from oss.src.core.sharing.widening import SharedItemReaders, is_wider
 from oss.src.core.sessions.session_results import (
     ERROR_MESSAGE_MAX_CHARS,
     ExecutionEnding,
@@ -2276,27 +2275,6 @@ async def _allowed_on_drive(*, project_id: UUID, mount_id: UUID) -> bool:
     )
 
 
-async def _drive_would_widen(
-    caller: SessionCaller, *, project_id: UUID, mount_id: UUID
-) -> bool:
-    """Design D11 for a drive read, `is_wider(calling session, drive)`: the drive's
-    text would reach a reader of the calling session who cannot read the drive. A
-    drive has no grants. A drive with no row is refused. Unlike a session read
-    (`_source_would_widen`), a calling session with no row is refused too: the read
-    fails closed."""
-    from oss.src.core.sharing.service import get_sharing_service
-
-    drive = await get_sharing_service().fetch_mount_policy(
-        project_id=project_id, mount_id=mount_id
-    )
-    if drive is None:
-        return True
-    calling = await _calling_readers(caller=caller, project_id=project_id)
-    if calling is None:
-        return True
-    return is_wider(calling, SharedItemReaders(policy=drive))
-
-
 def _listed_drive_slugs(head: Any) -> List[tuple[str, bool]]:
     """The `(slug, is_home)` pairs of the agent's `drives`, in order. The revision read
     already fills the drive keys of a configuration stored before drives were
@@ -2331,8 +2309,7 @@ async def handle_list_agent_drives(
 ) -> PlatformHandlerResult:
     """The drives of another agent that the run authority can see, from the agent's head
     (the configuration `read_agent_config` reads). Each drive passes the `VIEW_MOUNTS`
-    check of the mounts route, and a drive that fewer people can read than the calling
-    session is left out (D11). Session working folders are never listed: a slug never
+    check of the mounts route. Session working folders are never listed: a slug never
     resolves to one."""
     if workflows_service is None or mounts_service is None:
         raise PlatformToolHandlerRefused("list_agent_drives is unavailable.")
@@ -2366,10 +2343,6 @@ async def handle_list_agent_drives(
         if mount is None:
             continue
         if not await _allowed_on_drive(project_id=project_id, mount_id=mount.id):
-            continue
-        if await _drive_would_widen(
-            session_caller, project_id=project_id, mount_id=mount.id
-        ):
             continue
         drives.append(
             {
@@ -2466,9 +2439,7 @@ async def handle_read_drive(
     `GET /mounts/{mount_id}/files`: the project's `VIEW_MOUNTS` (the registration's
     elevated permission) and the drive's own `VIEW_MOUNTS` decision, which `_require_mount`
     makes. Only a drive: a session's working folder or attachments answer
-    `drive_not_found`, like a drive the run authority cannot see. Then design D11: a drive
-    that fewer people can read than the calling session answers `sharing_would_widen`.
-    A file is read through the service's text read and its size cap, and the answer holds
+    `drive_not_found`, like a drive the run authority cannot see. A file is read through the service's text read and its size cap, and the answer holds
     at most `READ_DRIVE_TEXT_MAX_BYTES` of it."""
     from oss.src.core.mounts.types import (
         MountFileNotFound,
@@ -2499,15 +2470,6 @@ async def handle_read_drive(
             or not await _allowed_on_drive(project_id=project_id, mount_id=mount.id)
         ):
             raise _drive_not_found()
-        if await _drive_would_widen(
-            session_caller, project_id=project_id, mount_id=mount.id
-        ):
-            raise _agent_refusal(
-                "sharing_would_widen",
-                "Fewer people can read this drive than this session, so its files "
-                "cannot be shown here.",
-                "Ask the person to open the drive in a session that only they can see.",
-            )
 
         if path and _is_hidden_drive_path(path):
             raise _drive_file_not_found()
@@ -2564,9 +2526,7 @@ async def handle_read_drive(
 # The calling agent and the calling session come from the run credential (`session_caller`)
 # and from nowhere else; the ops bind no caller id. One function, `session_scope_for`, sets
 # which sessions the caller may list and read, and the model's filters only narrow it. Every
-# target is checked again for the run authority's own `VIEW_SESSIONS`. A source that fewer
-# people can read than the calling session is refused (`sharing_would_widen`) or left out of
-# a list, because its text would land in the calling session's transcript. Every result that
+# target is checked again for the run authority's own `VIEW_SESSIONS`. Every result that
 # carries another session's text is the marked form of design D33, with that text inside
 # delimited fields, and no result names an execution id.
 
@@ -2576,7 +2536,6 @@ READ_SESSION_SPANS_CALL_REF = "tools.agenta.read_session_spans"
 SESSION_READ_DEFAULT_TIMEOUT_MS = 15_000
 
 SESSION_NOT_FOUND = "session_not_found"
-SHARING_WOULD_WIDEN = "sharing_would_widen"
 TURN_NOT_FOUND = "turn_not_found"
 
 # A session name as the session tools show it, cut so that a long name cannot crowd out
@@ -2612,9 +2571,6 @@ _READ_SESSION_FIELDS = ("session_id", "cursor", "limit")
 _READ_SESSION_SPANS_FIELDS = ("session_id", "turn_id", "cursor", "limit")
 
 _READ_NOT_FOUND_STEP = "Check the id with `list_sessions`."
-_READ_WIDEN_STEP = (
-    "Ask the person to open the source in a session that only they can see."
-)
 
 
 @dataclass(frozen=True)
@@ -2661,15 +2617,6 @@ def _session_not_found() -> _Refusal:
         SESSION_NOT_FOUND,
         "No session with this id is visible to this agent.",
         _READ_NOT_FOUND_STEP,
-    )
-
-
-def _sharing_would_widen_read() -> _Refusal:
-    return _agent_refusal(
-        SHARING_WOULD_WIDEN,
-        "Fewer people can read that session than this one, so its text would reach "
-        "people who cannot read it.",
-        _READ_WIDEN_STEP,
     )
 
 
@@ -2786,31 +2733,6 @@ def _check_project(caller: SessionCaller, project_id: UUID) -> None:
         )
 
 
-async def _calling_readers(
-    *, caller: SessionCaller, project_id: UUID
-) -> Optional[SharedItemReaders]:
-    """Who can read the calling session. None when it has no row."""
-    return await get_sharing_service().session_readers(
-        project_id=project_id, session_id=caller.run_session_id
-    )
-
-
-async def _source_would_widen(
-    *, project_id: UUID, calling: Optional[SharedItemReaders], session_id: str
-) -> bool:
-    """`is_wider(calling session, source)`: whether the source's text would reach
-    people who cannot read the source. A source with no row is refused. A calling
-    session with no row has unknown readers, so it gets only project-visible text."""
-    source = await get_sharing_service().session_readers(
-        project_id=project_id, session_id=session_id
-    )
-    if source is None:
-        return True
-    if calling is None:
-        return source.policy.visibility == Visibility.PRIVATE
-    return is_wider(calling, source)
-
-
 async def _readable_source(
     *,
     caller: SessionCaller,
@@ -2820,9 +2742,7 @@ async def _readable_source(
 ) -> Any:
     """The source session of a read, after the checks of design D23 in their order: a
     session outside the scope, unknown, or hidden from the run authority answers
-    `session_not_found`, so the error never says that a hidden session exists; then a
-    source that fewer people can read than the calling session answers
-    `sharing_would_widen`."""
+    `session_not_found`, so the error never says that a hidden session exists."""
 
     if not await caller_may(
         caller, session_id=session_id, action=Permission.VIEW_SESSIONS
@@ -2833,12 +2753,6 @@ async def _readable_source(
     )
     if stream is None or not session_scope_for(caller).admits(stream):
         raise _session_not_found()
-    if await _source_would_widen(
-        project_id=project_id,
-        calling=await _calling_readers(caller=caller, project_id=project_id),
-        session_id=session_id,
-    ):
-        raise _sharing_would_widen_read()
     return stream
 
 
@@ -2976,8 +2890,7 @@ async def handle_list_sessions(
     sessions_service: Optional[SessionsService],
 ) -> PlatformHandlerResult:
     """The sessions in the caller's scope that its run authority can see, newest first,
-    one page at a time. A session that fewer people can read than the calling session
-    is left out of the page."""
+    one page at a time."""
 
     from oss.src.core.sessions.dtos import (  # noqa: PLC0415
         SessionExpansion,
@@ -3116,17 +3029,8 @@ async def handle_list_sessions(
                 Windowing(next=last.id, newest=activity)
             )
 
-    calling = await _calling_readers(caller=caller, project_id=project_id)
-    kept = []
-    for stream in sessions:
-        if await _source_would_widen(
-            project_id=project_id, calling=calling, session_id=stream.session_id
-        ):
-            continue
-        kept.append(stream)
-
     endings = await _newest_endings(
-        sessions_service=sessions_service, project_id=project_id, streams=kept
+        sessions_service=sessions_service, project_id=project_id, streams=sessions
     )
     names = await _agent_names(
         workflows_service=workflows_service,
@@ -3134,12 +3038,14 @@ async def handle_list_sessions(
         caller=caller,
         agent_ids=[
             reference.id
-            for reference in (_agent_reference_of(stream.references) for stream in kept)
+            for reference in (
+                _agent_reference_of(stream.references) for stream in sessions
+            )
             if reference is not None
         ],
     )
     items = []
-    for stream in kept:
+    for stream in sessions:
         preview = getattr(stream, "last_message", None)
         # A session that never ran a turn has no status.
         status = (

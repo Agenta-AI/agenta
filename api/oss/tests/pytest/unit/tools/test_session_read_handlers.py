@@ -1,6 +1,6 @@
 """`list_sessions`, `read_session` and `read_session_spans` (design D23, D24, D25, D11,
 D33): the scope that `session_scope_for` sets, the run authority's own right on every
-target, the wider-session rule, the marked form, the totals added up at read time, and
+target, the marked form, the totals added up at read time, and
 that no execution id reaches the model."""
 
 import json
@@ -22,7 +22,7 @@ from oss.src.core.sessions.types import (
     SessionReference,
 )
 from oss.src.core.shared.dtos import RunUsage
-from oss.src.core.sharing.dtos import AccessPolicy, SessionRole, Visibility
+from oss.src.core.sharing.dtos import AccessPolicy, Visibility
 from oss.src.core.access.dtos import RunContext, RunOrigin, RunSender
 from oss.src.core.tools.platform_handlers import (
     LIST_SESSIONS_CALL_REF,
@@ -31,7 +31,6 @@ from oss.src.core.tools.platform_handlers import (
     READ_SESSION_SPANS_CALL_REF,
     SESSION_NOT_FOUND,
     SESSION_READ_BUDGET_BYTES,
-    SHARING_WOULD_WIDEN,
     TURN_NOT_FOUND,
     SessionCaller,
     handle_list_sessions,
@@ -571,8 +570,9 @@ async def test_a_configured_agent_reads_only_sessions_it_created(world):
     assert (await _read(world, caller, session_id=by_agent.session_id)).ok
 
 
-async def test_a_shared_session_cannot_read_a_private_one(world):
-    """Ana's builder session is project-visible; "Salary review" is private to Ana."""
+async def test_a_shared_session_reads_a_private_one_that_the_person_can_see(world):
+    """Ana's builder session is project-visible; "Salary review" is private to Ana. The
+    read shows what Ana may see."""
     calling = world.add_session(world.shared(world.ana))
     salary = world.add_session(world.private(world.ana), name="Salary review")
     world.sessions.records[salary.session_id] = [
@@ -583,25 +583,8 @@ async def test_a_shared_session_cannot_read_a_private_one(world):
         world.caller(world.ana, session=calling, agent_id=BUILDER_AGENT_ID),
         session_id=salary.session_id,
     )
-    error = _error(result)
-    assert error["code"] == SHARING_WOULD_WIDEN
-    assert error["next_step"] == (
-        "Ask the person to open the source in a session that only they can see."
-    )
-
-
-async def test_a_session_shared_with_ben_cannot_read_anas_private_session(world):
-    calling_state = world.add_session(world.private(world.ana))
-    world.world.add_grant(
-        state=calling_state, user_id=world.ben, role=SessionRole.VIEWER
-    )
-    source = world.add_session(world.private(world.ana))
-    result = await _read(
-        world,
-        world.caller(world.ana, session=calling_state, agent_id=BUILDER_AGENT_ID),
-        session_id=source.session_id,
-    )
-    assert _error(result)["code"] == SHARING_WOULD_WIDEN
+    assert result.ok
+    assert "Salaries" in result.content
 
 
 async def test_a_private_session_reads_a_shared_one(world):
@@ -703,17 +686,19 @@ def _items(result):
     ]
 
 
-async def test_a_shared_builder_session_lists_no_private_session(world):
+async def test_a_shared_builder_session_lists_what_the_person_can_see(world):
     calling = world.add_session(world.shared(world.ana))
     private = world.add_session(world.private(world.ana))
     shared = world.add_session(world.shared(world.ben))
+    hidden = world.add_session(world.private(world.ben))
     items = _items(
         await _list(
             world, world.caller(world.ana, session=calling, agent_id=BUILDER_AGENT_ID)
         )
     )
     ids = {item["session_id"] for item in items}
-    assert shared.session_id in ids and private.session_id not in ids
+    assert shared.session_id in ids and private.session_id in ids
+    assert hidden.session_id not in ids
 
 
 async def test_a_configured_agent_lists_the_sessions_it_created(world):
@@ -905,21 +890,6 @@ async def test_a_turn_stored_before_spans_carried_turn_ids_says_so(world):
     assert "cannot be read by turn" in _lines(result.content)["note"]
 
 
-async def test_spans_of_a_private_source_from_a_shared_session_are_refused(world):
-    calling = world.add_session(world.shared(world.ana))
-    source = world.add_session(world.private(world.ana))
-    turn = _turn(0)
-    world.sessions.turns[source.session_id] = [turn]
-    result = await _spans(
-        world,
-        world.caller(world.ana, session=calling, agent_id=BUILDER_AGENT_ID),
-        _Tracing([]),
-        session_id=source.session_id,
-        turn_id=str(turn.turn_id),
-    )
-    assert _error(result)["code"] == SHARING_WOULD_WIDEN
-
-
 async def test_spans_of_a_session_out_of_scope_are_not_found(world):
     calling = world.add_session(world.private(world.ana))
     source = world.add_session(world.shared(world.ana))
@@ -1046,7 +1016,7 @@ async def test_creation_bounds_filter_on_creation_not_on_activity(world):
     assert world.sessions.windowings[-1].newest is None
 
 
-async def test_a_calling_session_with_no_row_reads_only_shared_sessions(world):
+async def test_a_calling_session_with_no_row_reads_what_the_person_can_see(world):
     shared = world.add_session(world.shared(world.ben))
     private = world.add_session(world.private(world.ana))
     caller = SessionCaller(
@@ -1055,5 +1025,4 @@ async def test_a_calling_session_with_no_row_reads_only_shared_sessions(world):
         run_agent_id=BUILDER_AGENT_ID,
     )
     assert (await _read(world, caller, session_id=shared.session_id)).ok
-    refused = await _read(world, caller, session_id=private.session_id)
-    assert _error(refused)["code"] == SHARING_WOULD_WIDEN
+    assert (await _read(world, caller, session_id=private.session_id)).ok

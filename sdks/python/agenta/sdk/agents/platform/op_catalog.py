@@ -2355,8 +2355,9 @@ open it and reply in it.
 
 `agent` is the slug or id of the agent. An agent may start its own agent and the agents
 that its configuration names as Subagents. The Builder may start any agent that the
-person can run, but not itself. `name` names the new session. A child session cannot start
-sessions of its own.
+person can run, but not itself. `name` names the new session. A child session can start
+sessions of its own, down to a limit of levels below the session that a person started.
+Past that limit the call is refused: then do the work yourself.
 
 {_CHILD_TIMING_NOTE}
 
@@ -2529,8 +2530,7 @@ _LIST_AGENT_DRIVES_DESCRIPTION = """List the drives of another agent in this pro
 
 A drive is a folder of files that the agent keeps across sessions. Each drive has
 `drive_id`, `slug`, `name` and `is_home`. Pass its `drive_id` to `read_drive`. A drive that
-the person cannot see, or that would show its files to more people than can read it now, is
-left out."""
+the person cannot see is left out."""
 
 _LIST_AGENT_DRIVES_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
