@@ -7,10 +7,9 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
-import {SESSIONS_PAGE_FRAME} from "../sessions/pageFrame"
 import {AnalyticsTab} from "../settings/AnalyticsTab"
 
-import {AGENT_ANALYTICS_PAGE_COLUMN, AgentListPageHeader} from "./AgentListPageHeader"
+import {agentAnalyticsColumnClass, AgentListPageHeader} from "./AgentListPageHeader"
 
 /** The Analytics page of one agent (A09): today's Analytics page, locked to the agent. */
 export const AgentAnalyticsScreen = ({
@@ -38,13 +37,7 @@ export const AgentAnalyticsScreen = ({
                         />
                     }
                 >
-                    <div
-                        className={
-                            phone
-                                ? `min-w-0 px-4 pb-12 pt-3 ${SESSIONS_PAGE_FRAME}`
-                                : AGENT_ANALYTICS_PAGE_COLUMN
-                        }
-                    >
+                    <div className={agentAnalyticsColumnClass(phone)}>
                         <AnalyticsTab
                             workspaceId={workspaceId}
                             projectId={projectId}

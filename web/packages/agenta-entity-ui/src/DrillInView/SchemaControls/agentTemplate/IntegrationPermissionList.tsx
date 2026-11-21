@@ -856,8 +856,7 @@ export function IntegrationTitle({
     const {integration} = useToolIntegrationDetail(target.integration)
     const {connections, isLoading, error} = useToolConnectionsQuery()
     const connection = findTargetConnection(connections, target, connectionSlug)
-    // A saved shared connection that the project no longer has needs attention too. A failed
-    // read says nothing about it.
+    // A saved shared connection the project no longer has needs attention; a failed read says nothing.
     const missing = Boolean(connectionSlug) && !isLoading && !error && !connection
     const displayName = integration?.name || target.integration
     const showSlug = displayName.toLowerCase() !== target.integration.toLowerCase()

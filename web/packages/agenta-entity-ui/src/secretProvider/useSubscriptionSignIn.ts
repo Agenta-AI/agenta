@@ -7,6 +7,7 @@ import {
     loginAttemptKey,
     loginAttemptOutcome,
     loginAttemptQueryAtomFamily,
+    refreshSignedInAtom,
     refreshVaultSecretsAtom,
     startSubscriptionLoginAtom,
     subscriptionAttemptErrorSentence,
@@ -69,6 +70,7 @@ export const useSubscriptionSignIn = ({
     const cancelLogin = useSetAtom(cancelSubscriptionLoginAtom)
     const forgetAttempt = useSetAtom(forgetLoginAttemptAtom)
     const refreshVault = useSetAtom(refreshVaultSecretsAtom)
+    const refreshSignedIn = useSetAtom(refreshSignedInAtom)
 
     const [pending, setPending] = useState<PendingAttempt | null>(null)
     const [starting, setStarting] = useState(false)
@@ -76,8 +78,6 @@ export const useSubscriptionSignIn = ({
     const [lostPoll, setLostPoll] = useState(false)
     // A sign-in arrived and the vault refresh is on its way.
     const [finishing, setFinishing] = useState(false)
-    // A sign-in arrived; the view leaves once the vault lists the connection ready.
-    const [awaitingReady, setAwaitingReady] = useState(false)
     const onSignedInRef = useRef(onSignedIn)
     onSignedInRef.current = onSignedIn
     const [now, setNow] = useState(() => Date.now())
@@ -128,8 +128,15 @@ export const useSubscriptionSignIn = ({
         if (outcome === "succeeded") {
             setError(null)
             setFinishing(true)
-            setAwaitingReady(true)
-            void refreshVault().finally(() => setFinishing(false))
+            // The view leaves only once the vault lists the connection ready; a failed refresh
+            // keeps it here with the lost-track line.
+            void refreshSignedIn(attempt.secretId)
+                .catch(() => false)
+                .then((signedIn) => {
+                    setFinishing(false)
+                    if (signedIn) onSignedInRef.current?.()
+                    else setLostPoll(true)
+                })
             return
         }
         if (outcome === "unreadable") {
@@ -160,25 +167,9 @@ export const useSubscriptionSignIn = ({
         outcome,
         pending,
         provider,
+        refreshSignedIn,
         refreshVault,
     ])
-
-    // A refresh that ends with the connection still not ready failed: the view stays, and says so.
-    useEffect(() => {
-        if (!awaitingReady) return
-        if (isReady) {
-            setAwaitingReady(false)
-            onSignedInRef.current?.()
-            return
-        }
-        if (finishing) return
-        // The refetched list reaches its readers a task after the refresh resolves.
-        const timer = window.setTimeout(() => {
-            setAwaitingReady(false)
-            setLostPoll(true)
-        }, 0)
-        return () => window.clearTimeout(timer)
-    }, [awaitingReady, finishing, isReady])
 
     // A sign-in that landed after all: the connection answers, so there is nothing to recover.
     useEffect(() => {
@@ -190,7 +181,6 @@ export const useSubscriptionSignIn = ({
         setStarting(true)
         setError(null)
         setLostPoll(false)
-        setAwaitingReady(false)
         try {
             const secretId =
                 connection?.id ?? (await createSubscriptionConnection({provider, name, scope}))
@@ -246,7 +236,6 @@ export const useSubscriptionSignIn = ({
     const cancel = useCallback(() => {
         startRef.current += 1
         setStarting(false)
-        setAwaitingReady(false)
         if (!pending) return
         void cancelLogin({
             secretId: pending.secretId,
@@ -270,7 +259,7 @@ export const useSubscriptionSignIn = ({
         hasSignedInBefore,
         pending,
         starting,
-        finishing: finishing || awaitingReady,
+        finishing,
         error,
         lostPoll,
         now,

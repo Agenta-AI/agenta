@@ -306,15 +306,14 @@ export interface SkillUpload {
 
 /** Split an upload into its text files and the files that are skipped. */
 export function readSkillUpload(raw: RawFile[]): SkillUpload {
-    const {usable, skipped} = splitTextFiles(raw)
-    const skillMds = usable.filter((f) => SKILL_MD.test(f.path)).length
+    const {files, usable, skipped} = splitTextFiles(raw)
     const skill = buildSkillFromFiles(usable)
     const paths = skill.files.map((file) => file.path)
-    const duplicatePath = paths.find((path, i) => paths.indexOf(path) !== i)
     return {
-        hasSkillMd: skillMds > 0,
-        ...(skillMds > 1 ? {manySkills: true} : {}),
-        ...(duplicatePath !== undefined ? {duplicatePath} : {}),
+        hasSkillMd: usable.some((f) => SKILL_MD.test(f.path)),
+        // A skipped SKILL.md still marks a second skill, as in `scanSkillFiles`.
+        manySkills: files.filter((f) => SKILL_MD.test(f.path)).length > 1,
+        duplicatePath: paths.find((path, i) => paths.indexOf(path) !== i),
         skill,
         skipped,
     }

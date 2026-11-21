@@ -103,9 +103,14 @@ vi.mock("@agenta/entities/secret", async (importOriginal) => {
         },
         // The refetch after a sign-in or a stored token reads the subscription as ready.
         refreshVaultSecretsAtom: atom(null, async (get, set) => {
-            if (!fx.refreshFails && get(attemptState) === "succeeded") {
+            if (get(attemptState) === "succeeded") {
                 set(connections, ready("chatgpt")(get(connections)))
             }
+        }),
+        refreshSignedInAtom: atom(null, async (get, set) => {
+            if (fx.refreshFails || get(attemptState) !== "succeeded") return false
+            set(connections, ready("chatgpt")(get(connections)))
+            return true
         }),
         setSubscriptionTokenAtom: atom(null, async (get, set, {token}: {token: string}) => {
             fx.tokens.push(token)

@@ -239,6 +239,13 @@ describe("applySkillUpload", () => {
             raw("beta/notes.md", "n"),
         ])
         expect(applySkillUpload(skill, two, "replace")).toEqual({error: "manySkills"})
+        // A nested SKILL.md that is skipped as binary still marks a second skill.
+        const nested = readSkillUpload([
+            raw("SKILL.md", "---\nname: a\n---\nA"),
+            {path: "nested/SKILL.md", bytes: new Uint8Array([0, 1, 2])},
+            raw("nested/helper.py", "print(1)"),
+        ])
+        expect(applySkillUpload(skill, nested, "replace")).toEqual({error: "manySkills"})
     })
 
     it("refuses two uploaded files with the same path instead of keeping only the last", () => {

@@ -3,6 +3,7 @@
 
 import {getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
+import type {LlmProvider} from "@agenta/shared/types"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -247,4 +248,17 @@ export const refreshVaultSecretsAtom = atom(null, async () => {
         queryClient.invalidateQueries({queryKey: ["vault", "secrets"]}),
         queryClient.invalidateQueries({queryKey: ["vault", "organization-secrets"]}),
     ])
+})
+
+/** Refresh the connection lists; true when the refreshed project list shows `secretId` signed in. */
+export const refreshSignedInAtom = atom(null, async (_get, set, secretId: string) => {
+    await set(refreshVaultSecretsAtom)
+    // Read from the cache: the list atoms hear about the refetch a task later.
+    return getHostQueryClient()
+        .getQueriesData<LlmProvider[]>({queryKey: ["vault", "secrets"]})
+        .some(([, rows]) =>
+            (rows ?? []).some(
+                (row) => row.id === secretId && row.subscription?.loginState === "ready",
+            ),
+        )
 })
