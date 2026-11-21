@@ -75,7 +75,9 @@ describe("McpServersSectionBody row names", () => {
         expect(container.textContent).not.toContain("audit2_mock")
         const row = container.querySelector("[role=button]") as HTMLElement
         act(() => row.click())
-        const opened = [...openServer.mock.calls, ...openForm.mock.calls].flat()
-        expect(JSON.stringify(opened)).toContain("audit2_mock")
+        // A server that resolves opens its view, keyed by the saved item, not the form.
+        expect(openForm).not.toHaveBeenCalled()
+        expect(openServer).toHaveBeenCalledTimes(1)
+        expect(JSON.stringify(openServer.mock.calls[0])).toContain("audit2_mock")
     })
 })
