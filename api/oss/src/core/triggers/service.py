@@ -77,6 +77,16 @@ log = get_module_logger(__name__)
 
 _ENQUEUE_TIMEOUT_SECONDS = 5.0
 
+# The `run_at` part of a one-time event id, `<schedule id>:<run_at>`: ISO form in UTC
+# to the second. `TriggersDAO.fetch_due_one_time_schedules` renders the same text in
+# SQL to find fired schedules, so the two formats must stay equal.
+_ONE_TIME_RUN_AT_FORMAT = "%Y-%m-%dT%H:%M:%S+00:00"
+
+
+def _one_time_run_at_text(run_at: datetime) -> str:
+    return run_at.astimezone(timezone.utc).strftime(_ONE_TIME_RUN_AT_FORMAT)
+
+
 # Seconds /subscriptions/test long-polls for a captured event before teardown.
 _TEST_TIMEOUT_SECONDS = 300
 
@@ -1808,6 +1818,24 @@ class TriggersService:
                 reason="empty window",
             )
 
+    @classmethod
+    def _normalize_timing(cls, data: TriggerScheduleData) -> None:
+        """Validate a cron schedule and its window, or round a one-time `run_at` up
+        to the whole minute in UTC. Ticks are whole minutes, so the first tick at or
+        after `run_at` does not change, and the one-time event id has no seconds."""
+        if data.run_at is None:
+            cls._validate_schedule(data.schedule)
+            cls._normalize_window(data)
+            return
+        run_at = data.run_at
+        if run_at.tzinfo is None:
+            run_at = run_at.replace(tzinfo=timezone.utc)
+        # Compare in UTC: Python's equality across zones is false for a time in a
+        # repeated daylight saving hour, even for the same instant.
+        run_at = run_at.astimezone(timezone.utc)
+        floored = cls._align_to_minute_utc(run_at)
+        data.run_at = floored if floored == run_at else floored + timedelta(minutes=1)
+
     async def create_schedule(
         self,
         *,
@@ -1818,8 +1846,7 @@ class TriggersService:
         principal: PrincipalRef,
     ) -> TriggerSchedule:
         """`principal` is the creating request's principal: the schedule runs as it."""
-        self._validate_schedule(schedule.data.schedule)
-        self._normalize_window(schedule.data)
+        self._normalize_timing(schedule.data)
 
         artifact_id = await self._validate_references(
             project_id=project_id,
@@ -1892,8 +1919,7 @@ class TriggersService:
         if existing is None:
             return None
 
-        self._validate_schedule(schedule.data.schedule)
-        self._normalize_window(schedule.data)
+        self._normalize_timing(schedule.data)
 
         artifact_id = await self._validate_references(
             project_id=project_id,
@@ -1981,7 +2007,8 @@ class TriggersService:
         timestamp: datetime,
         interval: int,
     ) -> bool:
-        """Fire every active schedule whose cron matches this tick.
+        """Fire every active schedule whose cron matches this tick, then every due
+        one-time schedule (`_refresh_one_time_schedules`).
 
         Mirrors live-eval ``refresh_runs``: point-in-time ``croniter.match`` gate,
         deterministic ``event_id`` per (schedule, tick) for dedup, enqueue onto the
@@ -1995,7 +2022,7 @@ class TriggersService:
             return False
 
         try:
-            schedules = await self.dao.fetch_active_schedules_with_project()
+            schedules = await self.dao.fetch_active_recurring_schedules_with_project()
         except Exception as e:  # pylint: disable=broad-exception-caught
             log.error(f"[SCHEDULE] Error fetching active schedules: {e}", exc_info=True)
             return False
@@ -2036,14 +2063,6 @@ class TriggersService:
                 if already_seen:
                     continue
 
-                event = {
-                    "metadata": {
-                        "trigger_slug": schedule.data.event_key,
-                        "id": event_id,
-                    },
-                    "payload": {"timestamp": timestamp.isoformat()},
-                }
-
                 log.info(
                     "[SCHEDULE] Dispatching...",
                     project_id=project_id,
@@ -2051,14 +2070,11 @@ class TriggersService:
                     timestamp=timestamp,
                 )
 
-                await asyncio.wait_for(
-                    self.schedule_dispatch_task.kiq(
-                        project_id=str(project_id),
-                        event_id=event_id,
-                        event=event,
-                        schedule_id=str(schedule.id),
-                    ),
-                    timeout=_ENQUEUE_TIMEOUT_SECONDS,
+                await self._enqueue_schedule_event(
+                    project_id=project_id,
+                    schedule=schedule,
+                    event_id=event_id,
+                    timestamp=timestamp.isoformat(),
                 )
 
                 log.info(
@@ -2074,8 +2090,92 @@ class TriggersService:
                     exc_info=True,
                 )
 
+        one_time_ok = await self._refresh_one_time_schedules(timestamp=timestamp)
+
         # Report failure if any schedule dropped, so the cron/admin caller can
         # surface a non-200 instead of seeing a false success.
+        return failures == 0 and one_time_ok
+
+    async def _enqueue_schedule_event(
+        self,
+        *,
+        project_id: UUID,
+        schedule: TriggerSchedule,
+        event_id: str,
+        timestamp: str,
+    ) -> None:
+        """Queue one schedule fire on the schedule dispatch task."""
+        event = {
+            "metadata": {
+                "trigger_slug": schedule.data.event_key,
+                "id": event_id,
+            },
+            "payload": {"timestamp": timestamp},
+        }
+        await asyncio.wait_for(
+            self.schedule_dispatch_task.kiq(
+                project_id=str(project_id),
+                event_id=event_id,
+                event=event,
+                schedule_id=str(schedule.id),
+            ),
+            timeout=_ENQUEUE_TIMEOUT_SECONDS,
+        )
+
+    async def _refresh_one_time_schedules(self, *, timestamp: datetime) -> bool:
+        """Fire every due one-time schedule once: late rather than never.
+
+        Due means `run_at` at or before the earlier of the tick and the server's own
+        time, so a tick sent far ahead fires nothing early. The DAO leaves out
+        schedules that already have a delivery for their event id
+        `<schedule id>:<run_at in ISO form>`, unless that delivery is retryable. A
+        schedule still waiting in the task queue has no delivery yet, so a later tick
+        queues it again; if two tasks carry the same event id, the dispatcher's
+        delivery claim lets one fire.
+        """
+        due_by = min(
+            self._align_to_minute_utc(timestamp),
+            self._align_to_minute_utc(datetime.now(timezone.utc)),
+        )
+
+        try:
+            schedules = await self.dao.fetch_due_one_time_schedules(
+                due_by=due_by,
+                limit=env.triggers.one_time_schedules_max_per_tick,
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            log.error(
+                f"[SCHEDULE] Error fetching due one-time schedules: {e}", exc_info=True
+            )
+            return False
+
+        failures = 0
+        for project_id, schedule in schedules:
+            try:
+                run_at = _one_time_run_at_text(schedule.data.run_at)
+                event_id = f"{schedule.id}:{run_at}"
+
+                log.info(
+                    "[SCHEDULE] Dispatching one-time schedule...",
+                    project_id=project_id,
+                    schedule_id=schedule.id,
+                    run_at=run_at,
+                )
+
+                await self._enqueue_schedule_event(
+                    project_id=project_id,
+                    schedule=schedule,
+                    event_id=event_id,
+                    timestamp=run_at,
+                )
+
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                failures += 1
+                log.error(
+                    f"[SCHEDULE] Error refreshing one-time schedule {schedule.id}: {e}",
+                    exc_info=True,
+                )
+
         return failures == 0
 
     # -----------------------------------------------------------------------

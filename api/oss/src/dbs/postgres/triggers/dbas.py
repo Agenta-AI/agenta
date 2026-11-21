@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String
+from sqlalchemy import TIMESTAMP, Column, String
 from sqlalchemy.dialects.postgresql import UUID
 
 from oss.src.dbs.postgres.shared.dbas import (
@@ -60,6 +60,10 @@ class TriggerScheduleDBA(
     principal_kind = Column(String, nullable=True)
     principal_id = Column(UUID(as_uuid=True), nullable=True)
     artifact_id = Column(UUID(as_uuid=True), nullable=True)
+
+    # A one-time schedule's fire time (`data.run_at`); NULL for a cron schedule. A
+    # column, not a `data` key, so the one-time pass reads due rows by index.
+    run_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
 
 class TriggerDeliveryDBA(
