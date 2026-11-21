@@ -92,8 +92,8 @@ If Agenta doesn't start properly, check these common issues:
 2. Container status: Run `docker ps` to check if all Agenta containers are running
 3. Logs: Examine container logs with:
    ```bash
-   docker logs agenta-oss-gh-web
-   docker logs agenta-oss-gh-api
+   docker logs agenta-oss-gh-web-1
+   docker logs agenta-oss-gh-api-1
    ```
 4. SDK connectivity issues: If you're using the Agenta SDK from outside Docker to connect to your localhost Agenta instance and experiencing connection failures, ensure the `DOCKER_NETWORK_MODE` environment variable is unset (this is the default behavior).
 5. Docker network layout: The Docker networks are defined in the compose files. See `hosting/docker-compose/oss/docker-compose.gh.yml` (OSS) or `hosting/docker-compose/ee/docker-compose.dev.yml` (EE) for the network names and service attachments.
