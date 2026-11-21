@@ -50,6 +50,13 @@ describe("normalizeRepoFilters", () => {
         ).toEqual({owner: " agenta-ai ", repo: "agenta-ai/agenta"})
     })
 
+    it("joins a repo name that arrives as a number", () => {
+        expect(normalizeRepoFilters(ownerRepoSchema, {owner: "agenta-ai", repo: 2024})).toEqual({
+            owner: "agenta-ai",
+            repo: "agenta-ai/2024",
+        })
+    })
+
     it("keeps a repo that is already in owner/repo form", () => {
         const values = {owner: "someone-else", repo: "agenta-ai/agenta"}
         expect(normalizeRepoFilters(ownerRepoSchema, values)).toBe(values)

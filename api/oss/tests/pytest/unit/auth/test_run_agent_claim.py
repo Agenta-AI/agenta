@@ -98,10 +98,15 @@ class _Workflows:
     def __init__(self, agent_id):
         self.agent_id = agent_id
         self.calls = []
+        self.drive_calls = []
 
     async def resolve_run_agent_id(self, **kwargs):
         self.calls.append(kwargs)
         return self.agent_id
+
+    async def ensure_static_agent_drive(self, **kwargs):
+        # A first mint ensures a static agent's own drive; a no-op for these agents.
+        self.drive_calls.append(kwargs)
 
 
 async def _exchange(*, credential_kind, workflows, workflow_id, carried=None):
@@ -137,6 +142,9 @@ async def test_a_first_mint_names_the_agent_the_api_resolved():
     (call,) = workflows.calls
     assert call["references"] == {"workflow": {"id": str(named)}}
     assert call["project_id"] == envelope.authority.project_id
+    # The first mint starts a run, so it ensures the agent's own drive (static agents).
+    (drive,) = workflows.drive_calls
+    assert drive["artifact_id"] == resolved
 
 
 async def test_a_first_mint_without_an_agent_or_a_resolution_names_none():

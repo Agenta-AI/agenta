@@ -1,7 +1,7 @@
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import uiLlmProviderCatalog from "@agenta/i18n/catalogs/ui.llmProvider"
-import {Faders} from "@phosphor-icons/react"
+import {FadersHorizontal} from "@phosphor-icons/react"
 
 /**
  * The model picker's one footer row.
@@ -17,13 +17,13 @@ export interface ManageProvidersRowProps {
 const ManageProvidersRow = ({onClick}: ManageProvidersRowProps) => {
     const t = useT(uiLlmProviderCatalog, commonCatalog)
     return (
-        <div className="border-0 border-t border-solid border-border p-1">
+        <div className="border-0 border-t border-solid border-colorSplit p-1">
             <button
                 type="button"
                 onClick={onClick}
-                className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border-0 bg-transparent px-3 py-1.5 text-left text-xs text-colorText hover:bg-accent"
+                className="flex w-full cursor-pointer items-center gap-2 rounded-[6px] border-0 bg-transparent px-3 py-1.5 text-left text-[13px] leading-5 text-colorText hover:bg-accent"
             >
-                <Faders size={14} className="shrink-0 text-colorTextTertiary" />
+                <FadersHorizontal size={14} className="shrink-0 text-colorTextTertiary" />
                 {t("ui.llmProvider.manageProviders")}
             </button>
         </div>

@@ -2,6 +2,7 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import agentsActivity from "@agenta/i18n/catalogs/agents.activity"
+import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 
 import {FOCUS_RING} from "@/lib/interactive"
 import {cn} from "@/lib/utils"
@@ -10,7 +11,9 @@ import type {AgentActivityTab} from "./agentActivityView"
 
 const TAB_BASE =
     "box-border cursor-pointer appearance-none border-0 border-b-2 border-solid bg-transparent px-0.5 pb-2.5 font-[inherit] text-[15px] leading-none outline-none transition-colors " +
-    FOCUS_RING
+    FOCUS_RING +
+    " " +
+    PHONE_TOUCH_TARGET_CLASS
 const TAB_ON = "border-b-foreground font-semibold text-foreground"
 const TAB_OFF = "border-b-transparent font-normal text-muted-foreground hover:text-foreground"
 

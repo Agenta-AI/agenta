@@ -160,9 +160,11 @@ vi.mock("@agenta/entities/session", async () => {
 vi.mock("@agenta/entities/workflow", async () => {
     const {atom} = await import("jotai")
     const ready = atom(true)
+    const name = atom("Support triage")
     return {
         invalidateAgentCommittedRevisionCache: vi.fn(),
         workflowBuildKitOverlayReadyAtomFamily: () => ready,
+        workflowMolecule: {selectors: {artifactName: () => name}},
     }
 })
 vi.mock("@agenta/entity-ui/agent", () => ({AgentIntroCard: () => null}))
@@ -184,7 +186,9 @@ vi.mock("@agenta/ui/app-message", () => ({
     modal: dialog,
 }))
 vi.mock("@agenta/ui/components/presentational", () => ({ChatBubble: () => null}))
-vi.mock("@agenta/ui/quote-selection", () => ({QuoteSelectionLayer: () => null}))
+vi.mock("@agenta/ui/quote-selection", () => ({
+    QuoteSelectionLayer: () => <div data-testid="quote-layer" />,
+}))
 vi.mock("@agenta/ui/shortcuts", () => ({
     isAltChord: (e: KeyboardEvent) => e.altKey && !e.ctrlKey && !e.metaKey,
 }))
@@ -303,6 +307,10 @@ vi.mock("@/features/chat/useApprovalActions", () => ({
     useApprovalActions: () => ({phase: "idle", errorText: null, respond: calls.steerRespond}),
 }))
 vi.mock("@/features/chat/useSessionWatch", () => ({useSessionWatch: () => ({connected: true})}))
+// The builder follow reads `@agenta/playground/state`; it has its own test.
+vi.mock("@/features/builder/useBuilderCommitChecks", () => ({
+    useBuilderCommitChecks: () => undefined,
+}))
 vi.mock("@/features/chat/useStartBlankSession", () => ({useStartBlankSession: () => vi.fn()}))
 vi.mock("@/features/chat/useTranscriptAutoScroll", () => ({
     useTranscriptAutoScroll: () => ({ref: {current: null}, onScroll: vi.fn(), edgeMask: ""}),
@@ -340,12 +348,13 @@ const render = async (props: {
     readOnly?: SessionReadOnly | null
     canSend?: boolean
     accessPending?: boolean
+    hideComposer?: boolean
 }) => {
     await act(async () =>
         root.render(
             <Provider store={createStore()}>
                 <LiveConversation
-                    embedded
+                    parentOwnsShell
                     entityId="rev-1"
                     sessionId="session-1"
                     projectId="proj-1"
@@ -411,6 +420,19 @@ describe("the live chat for a reader who cannot send", () => {
         await render({readOnly: null, canSend: false})
         expect(byId("read-only-composer")).toBeNull()
         expect(byId("composer")?.dataset.disabled).toBe("true")
+    })
+})
+
+describe("a read-only run (F05)", () => {
+    it("draws no composer and no notice, and its cards still answer", async () => {
+        await render({readOnly: null, canSend: true, hideComposer: true})
+        expect(byId("composer")).toBeNull()
+        expect(byId("read-only-composer")).toBeNull()
+        expect(byId("approval-card")?.dataset.readOnly).toBe("false")
+        // Rewind and a queued edit put text back in the composer: none without one.
+        expect(byId("transcript")?.dataset.rewind).toBe("false")
+        // A quote reply is sent by the composer too.
+        expect(byId("quote-layer")).toBeNull()
     })
 })
 

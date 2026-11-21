@@ -11,7 +11,10 @@
  * The reader has to refuse an inset that paints no box, keep each axis to its own inset, and
  * charge the same border, or a site test passes on a control a finger still misses.
  */
+import {describe, expect, it} from "vitest"
+
 import {
+    PHONE_TOUCH_TARGET_CLASS,
     TOUCH_TARGET_LABELLED_REACH_PX,
     TOUCH_TARGET_MINIMUM_PX,
     touchTargetExpansion,
@@ -21,7 +24,6 @@ import {
     type TouchTargetControlBorder,
     type TouchTargetControlBox,
 } from "../../src/components/ui/touch-target"
-import {describe, expect, it} from "vitest"
 
 /** The class that sets each height, so a case reads the arithmetic back instead of restating it. */
 const heightClass = {24: "h-control-xs", 28: "h-control-sm"} as const
@@ -63,6 +65,7 @@ describe("touchTargetExpansion", () => {
         const boxes: {box: TouchTargetControlBox; sizeClasses: string}[] = [
             {box: {height: 24, width: 30, border: 0}, sizeClasses: "h-6 w-[30px] border-0"},
             {box: {height: 28, width: 28}, sizeClasses: "size-control-sm border"},
+            {box: {height: 24, width: 24}, sizeClasses: "size-control-xs border"},
         ]
         for (const {box, sizeClasses} of boxes) {
             const reached = touchTargetHitArea(`${sizeClasses} ${touchTargetExpansion(box)}`)
@@ -182,5 +185,21 @@ describe("touchTargetHitArea", () => {
                 "h-6 border-0 relative after:absolute after:-inset-1 after:content-['']",
             ),
         ).toBe(32)
+    })
+})
+
+describe("PHONE_TOUCH_TARGET_CLASS", () => {
+    const classes = PHONE_TOUCH_TARGET_CLASS.split(" ")
+
+    it("changes nothing above the phone width", () => {
+        for (const candidate of classes)
+            expect(candidate.startsWith("max-md:"), candidate).toBe(true)
+    })
+
+    it("paints a box no smaller than the minimum", () => {
+        // min-*-11: 11 spacing steps of 4 px.
+        expect(classes).toEqual(
+            expect.arrayContaining(["max-md:after:min-h-11", "max-md:after:min-w-11"]),
+        )
     })
 })

@@ -43,6 +43,9 @@ export interface SidebarConfig {
     isCollapsed?: boolean
     /** Collapsible heading only: a trailing "+" that links somewhere (an agent's new session). */
     groupAdd?: {link: string; label: string; onClick?: (event: MouseEvent) => void}
+    /** Collapsible heading only: a trailing open button beside the "+". It runs `onClick` and
+     * does not navigate (an agent heading opens that agent's sidebar). */
+    groupEnter?: {label: string; onClick: () => void}
     /** Render the item normally but suppress its navigation — clicking it is a no-op (current location). */
     inert?: boolean
     /** Route prefixes that select this row; empty opts it out of matching. Defaults to `[link]`. */
@@ -130,4 +133,7 @@ export interface SidebarShellProps {
     /** Dismisses the rail. Passed ONLY by an overlay mount (the drawer), so the header slot can
      * offer a close instead of a collapse toggle without testing a viewport width. */
     onDismiss?: () => void
+    /** The side the rail's content slides in from when it mounts (a focus change between two
+     * sidebars). Unset: no slide. Reduced motion: no slide. */
+    enterFrom?: "start" | "end"
 }

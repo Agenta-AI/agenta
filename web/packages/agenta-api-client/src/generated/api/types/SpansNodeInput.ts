@@ -22,6 +22,7 @@ export interface SpansNodeInput {
     status_code?: (AgentaApi.OTelStatusCode | null) | undefined;
     status_message?: (string | null) | undefined;
     session_id?: (string | null) | undefined;
+    turn_id?: (string | null) | undefined;
     user_id?: (string | null) | undefined;
     agent_id?: (string | null) | undefined;
     attributes?: (Record<string, AgentaApi.FullJsonInput | null> | null) | undefined;

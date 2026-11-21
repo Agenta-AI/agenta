@@ -17,6 +17,9 @@ import {
 } from "@agenta/ui/ui"
 import {DownloadSimple, FilePlus, FolderPlus, LinkSimple, UploadSimple} from "@phosphor-icons/react"
 
+/** A phone's menu rows are 44 px high (the tap rule); a desktop keeps the kit's 28 px rows. */
+export const PHONE_MENU_ROWS = "max-md:[&_[role^=menuitem]]:min-h-11"
+
 // The entries are built by a plain function that menus call while rendering.
 const tNow = createT(driveExplorerCatalog, driveBrowserCatalog)
 
@@ -37,6 +40,8 @@ export interface DriveFolderMenuProps {
     onCopyLink?: () => void
     onDownloadAll?: () => void
     downloadingAll?: boolean
+    /** The explorer is read only (a phone): the write entries are left out, not disabled. */
+    readOnly?: boolean
 }
 
 export type DriveFolderMenuEntry =
@@ -51,14 +56,8 @@ export type DriveFolderMenuEntry =
           shortcut?: string
       }
 
-/** The folder's menu, in order, with separators — the single source both menus render from. */
-export const driveFolderMenuEntries = ({
-    actions,
-    onCopyPath,
-    onCopyLink,
-    onDownloadAll,
-    downloadingAll,
-}: DriveFolderMenuProps): DriveFolderMenuEntry[] => [
+/** New folder, New file and Upload, then a separator; disabled on a read-only mount. */
+const driveFolderWriteEntries = (actions?: DriveFolderActions): DriveFolderMenuEntry[] => [
     {
         key: "new-folder",
         icon: <FolderPlus />,
@@ -83,6 +82,18 @@ export const driveFolderMenuEntries = ({
         onSelect: actions?.onUpload,
     },
     "separator",
+]
+
+/** The folder's menu, in order, with separators — the single source both menus render from. */
+export const driveFolderMenuEntries = ({
+    actions,
+    onCopyPath,
+    onCopyLink,
+    onDownloadAll,
+    downloadingAll,
+    readOnly,
+}: DriveFolderMenuProps): DriveFolderMenuEntry[] => [
+    ...(readOnly ? [] : driveFolderWriteEntries(actions)),
     {
         key: "copy-path",
         icon: <LinkSimple />,
@@ -158,7 +169,7 @@ export const DriveFolderContextMenu = ({
                 <div {...wrapper}>{children}</div>
             </ContextMenuTrigger>
             <ContextMenuContent
-                className="min-w-[180px]"
+                className={`min-w-[180px] ${PHONE_MENU_ROWS}`}
                 // New folder / New file open a name field; the menu must not pull focus back.
                 onCloseAutoFocus={(e) => e.preventDefault()}
             >

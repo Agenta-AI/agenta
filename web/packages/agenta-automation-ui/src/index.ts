@@ -21,13 +21,18 @@ export * from "./runListView"
 // Data: the entity hooks, already scoped to a project by the host's binding.
 export {useAutomation} from "./useAutomation"
 export {useAutomations} from "./useAutomations"
-export {useAutomationRuns} from "./useAutomationRuns"
+export {useAutomationRunPages, useRecentAutomationRuns} from "./useAutomationRuns"
 export {useAutomationDraft} from "./useAutomationDraft"
 
 // One drawer for both kinds — what the playground mounts in place of its two forms.
 export {AutomationDrawer} from "./AutomationDrawer"
 export {AutomationCreateBody} from "./AutomationCreateBody"
-export {useAutomationCreate, DEFAULT_CRON, DRAFT_ID} from "./useAutomationCreate"
+export {
+    useAutomationCreate,
+    defaultAutomationName,
+    DEFAULT_CRON,
+    DRAFT_ID,
+} from "./useAutomationCreate"
 export type {AutomationCreateState, AutomationDraft} from "./useAutomationCreate"
 export {useAutomationEditor} from "./useAutomationEditor"
 
@@ -43,13 +48,7 @@ export {AutomationSaveBar} from "./AutomationSaveBar"
 export {AutomationBackLink} from "./AutomationBackLink"
 export {AutomationLastRunCell} from "./AutomationLastRunCell"
 export {AutomationFailureBanner} from "./AutomationFailureBanner"
-export {AutomationRunHistoryCard} from "./AutomationRunHistoryCard"
 export {AutomationRunHistoryView} from "./AutomationRunHistoryView"
-export {AutomationRunHistoryDrawer} from "./AutomationRunHistoryDrawer"
-export {
-    automationRunHistoryDrawerAtom,
-    type AutomationRunHistoryDrawerState,
-} from "./runHistoryDrawerAtom"
 export {AutomationTriggerDrawers} from "./AutomationTriggerDrawers"
 
 // Run history.

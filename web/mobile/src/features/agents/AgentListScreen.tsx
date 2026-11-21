@@ -9,18 +9,17 @@ import {useT} from "@agenta/i18n"
 import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {useWaitingByAgent} from "@agenta/sessions/state"
 import {userAtom} from "@agenta/shared/state"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
-import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
+import {openAgentFromList} from "../agent-pages/openAgentFromList"
 import {startBlankSession} from "../chat/useStartBlankSession"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
@@ -28,7 +27,6 @@ import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
-import {isAgentOverviewEnabled} from "./agentEntry"
 import {AgentFilterMenu} from "./AgentFilterMenu"
 import {AgentListTable} from "./AgentListTable"
 import {
@@ -46,8 +44,8 @@ import {useAgentRowActions} from "./useAgentRowActions"
 import {useArchivedAgents} from "./useArchivedAgents"
 import {useNewAgentAction} from "./useNewAgentAction"
 
-/** The page column, shared with sessions and automations, so the nav entries line up. */
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
+/** The page column: centered, 960 px wide with 24 px gutters on a desktop (A03). */
+const PAGE_FRAME = "mx-auto box-border w-full max-w-[960px] px-4 md:px-6"
 
 /**
  * The full agent roster — where the nav's Agents entry lands.
@@ -68,7 +66,6 @@ export const AgentListScreen = ({
 }) => {
     const t = useT(agentsList)
     useBindProjectContext(projectId)
-    const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
     const newAgent = useNewAgentAction(base)
     const rowActions = useAgentRowActions(base, projectId)
@@ -126,10 +123,12 @@ export const AgentListScreen = ({
     const projectHasAgents = (query.data ?? []).length > 0
     const openRow = useCallback(
         (row: AgentListRow) => {
-            if (isAgentOverviewEnabled()) void router.push(`${base}/agents/${row.id}`)
-            else startBlankSession(base, row.id)
+            // An archived agent has no agent sidebar (the sidebar shows only listed agents): it
+            // opens a new session, as before.
+            if (row.archived) startBlankSession(base, row.id)
+            else void openAgentFromList({queryClient, base, projectId, agentId: row.id})
         },
-        [base, router],
+        [base, projectId, queryClient],
     )
     const failed = showArchived ? archived.isError : query.isError
     const refetchArchived = archived.refetch
@@ -183,14 +182,12 @@ export const AgentListScreen = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        <div
-                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
-                        >
+                        <div className={`shrink-0 pb-3 pt-3 md:pt-10 ${PAGE_FRAME}`}>
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 {/* From `sm`, 24px is the desktop page-title rung; on a phone it
                                     eats the row, so the title drops to the 16px body ramp. */}
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-8">
                                     {t("agents.list.pageTitle")}
                                 </h1>
                                 {projectEmpty ? null : (
@@ -200,13 +197,15 @@ export const AgentListScreen = ({
                                     newAgent={newAgent}
                                     base={base}
                                     align="end"
-                                    className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
+                                    // The canvas size (A03): 28 px high, radius 6, 13 px; a 44 px
+                                    // tap area on a phone.
+                                    className={`h-control-sm rounded-[6px] px-btn-sm text-btn-sm ${PHONE_TOUCH_TARGET_CLASS}`}
                                 />
                             </div>
                         </div>
                     }
                 >
-                    <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
+                    <div className={`min-w-0 pb-12 pt-3 md:pt-0 ${PAGE_FRAME}`}>
                         {projectEmpty ? (
                             <>
                                 <FeatureOnboarding guideKey="agents" base={base} />
@@ -231,6 +230,9 @@ export const AgentListScreen = ({
                                     the far edge, where it changes how the results are drawn rather
                                     than which ones are. */}
                                 <ListTableToolbar
+                                    // A 300 x 30 field with a light border, 10 px above the
+                                    // table (A03).
+                                    className="mb-2.5 md:[&_[data-slot=input-group]]:h-[30px] md:[&_[data-slot=input-group]]:max-w-[300px] md:[&_[data-slot=input-group]]:rounded-[6px] md:[&_[data-slot=input-group]]:border-colorBorderSecondary"
                                     search={search}
                                     onSearchChange={setSearch}
                                     searchPlaceholder={t("agents.list.searchPlaceholder")}

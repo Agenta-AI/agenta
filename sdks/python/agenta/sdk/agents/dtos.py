@@ -77,7 +77,7 @@ def _is_legacy_gateway_entry(entry: Any) -> bool:
     ``composio`` is the same shape under its older name: ``coerce_tool_config`` renames it
     before it parses, so a refusal for either spelling names the same legacy entry.
     """
-    if not isinstance(entry, dict) or entry.get("type") not in {"gateway", "composio"}:
+    if not isinstance(entry, dict) or entry.get("type") not in ("gateway", "composio"):
         return False
     if entry.get("provider_action"):
         return True
@@ -981,7 +981,8 @@ class SandboxEnvironmentBinding(BaseModel):
 
 
 class SandboxCredentialConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    # The input can hold an inline secret value; errors must not echo it.
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
     secret: SandboxSecretReference
     binding: SandboxEnvironmentBinding
 
@@ -1099,6 +1100,7 @@ class AgentTemplate(BaseModel):
                     diagnostic.message,
                     index=diagnostic.index,
                     value=entry,
+                    issues=diagnostic.issues,
                 )
             log.warning(
                 "agent: dropped an unrepairable legacy gateway tool entry: %s",
@@ -1137,9 +1139,17 @@ class AgentTemplate(BaseModel):
         # stale caller gets a named 400 instead of silently running defaults (finding F-016).
         _validate_agent_template_shape(params)
         base = defaults or cls()
-        instructions, model, tools = _parse_agent_fields(params, base)
-        harness, sandbox, permission_default = _parse_run_selection(params, base)
-        harness_permissions, harness_extras = _parse_harness_slice(params, base)
+        try:
+            instructions, model, tools = _parse_agent_fields(params, base)
+            harness, sandbox, permission_default = _parse_run_selection(params, base)
+            harness_permissions, harness_extras = _parse_harness_slice(params, base)
+        except (AttributeError, TypeError) as error:
+            # The field readers expect objects and lists where the template has them; a
+            # value of another type (``prompt.llm_config`` as a string, say) is the
+            # caller's configuration, not a server fault: answer 400.
+            raise AgentTemplateShapeError(
+                f"a field of the agent template has the wrong type: {error}"
+            ) from error
         try:
             return cls(
                 instructions=instructions,
@@ -1794,7 +1804,7 @@ def _section(params: Dict[str, Any], key: str) -> Dict[str, Any]:
 
 
 # The keys that mark a bare template (no `agent` wrapper) as an agent template.
-_BARE_TEMPLATE_KEYS = (
+BARE_TEMPLATE_KEYS = (
     "instructions",
     "llm",
     "tools",
@@ -1813,7 +1823,7 @@ def _has_agent_template(params: Dict[str, Any]) -> bool:
     Mirrors the ``has_template`` branch in :func:`_parse_agent_fields` so shape validation and
     field parsing agree on which requests own an agent template."""
     return isinstance(params.get("agent"), dict) or any(
-        key in params for key in _BARE_TEMPLATE_KEYS
+        key in params for key in BARE_TEMPLATE_KEYS
     )
 
 
@@ -2085,7 +2095,7 @@ def _parse_agent_fields(
     ``tools`` flat on it), and the ``prompt`` prompt-template for a bare chat run. The agent-template
     shape wins when present; the prompt fallback applies only when there is no agent template."""
     has_template = isinstance(params.get("agent"), dict) or any(
-        key in params for key in _BARE_TEMPLATE_KEYS
+        key in params for key in BARE_TEMPLATE_KEYS
     )
     if has_template:
         agent = _template(params)

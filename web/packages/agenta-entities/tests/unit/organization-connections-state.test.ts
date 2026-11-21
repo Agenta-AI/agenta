@@ -30,6 +30,7 @@ import {saveProviderConnectionAtom} from "../../src/secret/state/connections"
 import {
     organizationConnectionsAccessAtom,
     organizationSecretsQueryAtom,
+    setOrganizationConnectionProjectsAtom,
 } from "../../src/secret/state/organizationConnections"
 
 const PROJECT = "p1"
@@ -150,5 +151,23 @@ describe("saveProviderConnectionAtom for an organization connection", () => {
         })
 
         expect(organizationApi.setOrganizationSecretProjects).not.toHaveBeenCalled()
+    })
+
+    it("sends a projects write to the project it names, not the current one", async () => {
+        organizationApi.setOrganizationSecretProjects.mockResolvedValue(undefined)
+        const store = makeStore()
+        store.set(projectIdAtom, "p9")
+
+        await store.set(setOrganizationConnectionProjectsAtom, {
+            connectionId: "s1",
+            projects: limited,
+            projectId: PROJECT,
+        })
+
+        expect(organizationApi.setOrganizationSecretProjects).toHaveBeenCalledWith({
+            projectId: PROJECT,
+            secretId: "s1",
+            projects: limited,
+        })
     })
 })

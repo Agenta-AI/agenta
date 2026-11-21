@@ -167,9 +167,11 @@ vi.mock("@agenta/entities/session", async () => {
 vi.mock("@agenta/entities/workflow", async () => {
     const {atom} = await import("jotai")
     const ready = atom(true)
+    const name = atom("Support triage")
     return {
         invalidateAgentCommittedRevisionCache: vi.fn(),
         workflowBuildKitOverlayReadyAtomFamily: () => ready,
+        workflowMolecule: {selectors: {artifactName: () => name}},
     }
 })
 vi.mock("@agenta/entity-ui/agent", () => ({AgentIntroCard: () => null}))
@@ -286,6 +288,10 @@ vi.mock("@/features/chat/useApprovalActions", () => ({
     useApprovalActions: () => ({phase: "idle", errorText: null, respond: vi.fn()}),
 }))
 vi.mock("@/features/chat/useSessionWatch", () => ({useSessionWatch: () => ({connected: true})}))
+// The builder follow reads `@agenta/playground/state`; it has its own test.
+vi.mock("@/features/builder/useBuilderCommitChecks", () => ({
+    useBuilderCommitChecks: () => undefined,
+}))
 vi.mock("@/features/chat/useStartBlankSession", () => ({useStartBlankSession: () => vi.fn()}))
 vi.mock("@/features/chat/useTranscriptAutoScroll", () => ({
     useTranscriptAutoScroll: () => ({ref: {current: null}, onScroll: vi.fn(), edgeMask: ""}),
@@ -319,7 +325,7 @@ const render = async () => {
         root.render(
             <Provider store={store}>
                 <LiveConversation
-                    embedded
+                    parentOwnsShell
                     entityId="rev-1"
                     sessionId="session-1"
                     projectId="proj-1"

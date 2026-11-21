@@ -1,0 +1,115 @@
+import {useState, type ComponentType} from "react"
+
+import {useT} from "@agenta/i18n"
+import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
+import {Chats, Compass, Lightning, SlidersHorizontal} from "@phosphor-icons/react"
+import {ChartColumn} from "lucide-react"
+
+import {cn} from "@/lib/utils"
+
+import {
+    QUICK_ACTION_LABELS,
+    QUICK_ACTIONS,
+    READY_REQUESTS,
+    readOpenQuickAction,
+    writeOpenQuickAction,
+    type QuickAction,
+} from "./quickActions"
+
+// "Test" is the canvas's bar chart with axes (S08, M04): lucide draws it, Phosphor does not.
+const ICONS: Record<
+    QuickAction,
+    ComponentType<{size?: number; className?: string; "aria-hidden"?: boolean}>
+> = {
+    improve: SlidersHorizontal,
+    test: ChartColumn,
+    skills: Compass,
+    automate: Lightning,
+    explain: Chats,
+}
+
+/** The quick actions of a new chat; one opens its ready requests, a pick fills the composer. */
+export const QuickActions = ({
+    sessionId,
+    onPick,
+    phone = false,
+}: {
+    sessionId: string
+    onPick: (text: string) => void
+    phone?: boolean
+}) => {
+    const t = useT(builderPanelCatalog)
+    const [open, setOpenState] = useState(() => readOpenQuickAction(sessionId))
+    const setOpen = (next: QuickAction | null) => {
+        writeOpenQuickAction(sessionId, next)
+        setOpenState(next)
+    }
+    const RowIcon = open ? ICONS[open] : null
+    return (
+        <div className="flex flex-col gap-3" data-testid="builder-quick-actions">
+            <div className={cn("flex flex-wrap justify-center", phone ? "gap-2" : "gap-1.5")}>
+                {QUICK_ACTIONS.map((action) => {
+                    const ActionIcon = ICONS[action]
+                    return (
+                        <button
+                            key={action}
+                            type="button"
+                            aria-pressed={open === action}
+                            onClick={() => setOpen(open === action ? null : action)}
+                            className={cn(
+                                "inline-flex cursor-pointer items-center rounded-full border-0 text-zinc-8 ring-1 ring-inset",
+                                phone
+                                    ? "relative h-10 gap-1.5 px-3.5 text-sm after:absolute after:-inset-0.5 after:content-['']"
+                                    : "h-[30px] px-3 text-[13px] leading-5",
+                                open === action
+                                    ? "bg-accent ring-colorBorder"
+                                    : "bg-colorBgContainer ring-colorBorderSecondary hover:bg-muted",
+                            )}
+                        >
+                            {phone ? (
+                                <ActionIcon
+                                    aria-hidden
+                                    size={14}
+                                    className="text-colorTextSecondary"
+                                />
+                            ) : null}
+                            {t(QUICK_ACTION_LABELS[action])}
+                        </button>
+                    )
+                })}
+            </div>
+            {open && RowIcon ? (
+                <div
+                    className="flex flex-col overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgContainer"
+                    data-testid="builder-ready-requests"
+                >
+                    {READY_REQUESTS[open].map((entry) => {
+                        const request = t(entry.request)
+                        return (
+                            <button
+                                key={entry.request}
+                                type="button"
+                                onClick={() => onPick(request)}
+                                className="flex w-full cursor-pointer items-center gap-2.5 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-3 py-2 text-left last:border-b-0 hover:bg-muted"
+                            >
+                                <RowIcon
+                                    aria-hidden
+                                    size={14}
+                                    className="shrink-0 text-colorTextSecondary"
+                                />
+                                <span className="flex min-w-0 flex-col">
+                                    <span className="text-[13px] font-medium leading-5 text-colorText">
+                                        {request}
+                                    </span>
+                                    <span className="text-[12px] leading-4 text-colorTextSecondary">
+                                        {t(entry.line)}
+                                    </span>
+                                </span>
+                            </button>
+                        )
+                    })}
+                </div>
+            ) : null}
+        </div>
+    )
+}

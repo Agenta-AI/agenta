@@ -13,8 +13,10 @@
 .ag-app-ground {
     background: var(--ag-surface-app);
 }
+/* The docked right panel and the full screen views. The design paints them with the container
+   colour, the same as the chat beside them; the shadow still lifts the panel off its seam. */
 .ag-panel-raised {
-    background: var(--ag-surface-raised);
+    background: var(--ag-colorBgContainer);
     box-shadow: var(--ag-surface-raised-shadow);
 }
 .ag-canvas {
@@ -77,6 +79,14 @@
 
 .ag-scroll-quiet {
     scrollbar-gutter: stable;
+}
+
+/* A phone screen is full width: a reserved gutter leaves an empty strip at the right edge, so
+   rows and controls stop short of the screen edge (X7). */
+@media (max-width: 767.98px) {
+    .ag-scroll-quiet {
+        scrollbar-gutter: auto;
+    }
 }
 
 /* Same split as the global rules: the standard properties would otherwise switch off this

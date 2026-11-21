@@ -63,5 +63,8 @@
     "countSkill_other": "{{count}} skills",
     "countTool_one": "{{count}} herramienta",
     "countTool_many": "{{count}} herramientas",
-    "countTool_other": "{{count}} herramientas"
+    "countTool_other": "{{count}} herramientas",
+    "change": "Cambiar",
+    "policyHint": "Lo que el agente puede hacer sin preguntar",
+    "modelVia": "vía {{harness}}"
 }

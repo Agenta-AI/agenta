@@ -15,8 +15,6 @@
     "chatgpt": "ChatGPT サブスクリプション",
     "chatgptHint": "Plus または Pro プランでエージェントを実行します。",
     "chatgptReadyHint": "エージェントは ChatGPT プランで実行できます。",
-    "chatgptDialogTitle": "ChatGPT を接続",
-    "chatgptDialogBody": "ChatGPT サブスクリプションでサインインします。エージェントは Codex ハーネス経由でそれを使って実行されます。",
     "chatgptConnected": "ChatGPT を接続しました。エージェントはこれを使って実行されます。",
     "claude": "Claude サブスクリプション",
     "claudeHint": "Pro または Max プランでエージェントを実行します。",
