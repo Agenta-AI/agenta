@@ -2242,19 +2242,9 @@ DRIVE_OPS_DEFAULT_TIMEOUT_MS = 15_000
 _LIST_DRIVES_STEP = "List the drives with `list_agent_drives`."
 
 
-def _require_builder(
-    caller: SessionCaller, workflows_service: WorkflowsService
-) -> None:
+def _require_builder(caller: SessionCaller) -> None:
     """The drive ops are the builder's only: any other calling agent is refused."""
-    from oss.src.core.workflows.builder_agent import BUILDER_AGENT_SLUG
-
-    static = workflows_service.static_catalog
-    builder = (
-        static.retrieve_revision(slug=BUILDER_AGENT_SLUG)
-        if static is not None
-        else None
-    )
-    if builder is None or caller.run_agent_id != builder.artifact_id:
+    if not is_builder_agent(caller.run_agent_id):
         raise _agent_refusal(
             "agent_not_allowed",
             "Only the builder can read the drives of other agents.",
@@ -2324,7 +2314,7 @@ async def handle_list_agent_drives(
     read_scope = agent_read_scope or AgentReadScope(owner_user_id=None)
 
     try:
-        _require_builder(session_caller, workflows_service)
+        _require_builder(session_caller)
         parsed = _parse_arguments(arguments)
         workflow, head = await _resolve_other_agent(
             workflows_service=workflows_service,
@@ -2466,11 +2456,11 @@ async def handle_read_drive(
         MountPathInvalid,
     )
 
-    if workflows_service is None or mounts_service is None:
+    if mounts_service is None:
         raise PlatformToolHandlerRefused("read_drive is unavailable.")
 
     try:
-        _require_builder(session_caller, workflows_service)
+        _require_builder(session_caller)
         parsed = _parse_arguments(arguments)
         path = _drive_path(parsed)
         try:
