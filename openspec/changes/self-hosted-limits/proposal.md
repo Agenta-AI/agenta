@@ -1,6 +1,6 @@
 # Self-hosted project and organization limits
 
-Status: draft. Decided 2026-11-21: the free key gives no project limit, and a paid key means no project or organization limit. The key check, its storage and the add-a-key form move into the OSS code. Waiting for answers on the refusal in /m and the upgrade notice. Target release: v0.130.1, together with the telemetry and license PRs. Stacked on #8238 (signed license keys) and #8242 (free registration key) until a `release/v0.130.1` branch exists.
+Status: draft. Decided 2026-11-21: the free key gives no project limit, and a paid key means no project or organization limit. The key check, its storage and the add-a-key form move into the OSS code. The refusal in /m shows one next step by role, and upgrades show no notice. Question 3 (where the key check lives) is open again: Mahmoud asked whether one image for both editions is better. Target release: v0.130.1, together with the telemetry and license PRs. Stacked on #8238 (signed license keys) and #8242 (free registration key) until a `release/v0.130.1` branch exists.
 
 ## Why
 

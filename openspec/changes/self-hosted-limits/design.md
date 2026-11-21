@@ -48,7 +48,7 @@ Non-goals:
 
 ## Decisions
 
-### Decision 1: Where the key check lives (decided 2026-11-21: option A)
+### Decision 1: Where the key check lives (reopened 2026-11-21: one image is under review)
 
 The OSS image must check a key to lift its limits. The OSS image does not ship `api/ee/`.
 
@@ -129,7 +129,7 @@ The router error shape is `detail = {"code": ..., "message": <English>, "limit":
 
 Two sign-ups at the same moment on an empty instance can both create an organization. This needs two people to sign up within milliseconds on a new install; the instance then has 2 organizations and refuses more. No lock.
 
-### Decision 5: `/m` refusal and next step
+### Decision 5: `/m` refusal and next step (decided 2026-11-21: option A)
 
 The create-project dialog and the Organizations tab read `detail.code`. For `project_limit_reached` and `instance_organization_limit_reached` they show a translated message and one next step:
 
@@ -143,9 +143,9 @@ The License tab shows the add-a-key form on the OSS image too. Today `LicenseTab
 
 The zero-organization screen changes from "No projects found." to a text that says the person has no organization yet and needs an invitation. This also helps the existing allowlist case.
 
-### Decision 6: Existing installs on upgrade
+### Decision 6: Existing installs on upgrade (decided 2026-11-21: no notice)
 
-No data changes. A count above the limit is kept; only creating a new one is refused. The release notes and the editions page say what changes. Question 5 on the decision page asks whether the instance admin also sees a notice in `/m`.
+No data changes. A count above the limit is kept; only creating a new one is refused. The release notes and the editions page say what changes. The instance admin sees no extra notice in `/m`.
 
 ## Risks / Trade-offs
 
