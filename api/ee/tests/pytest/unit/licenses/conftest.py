@@ -14,6 +14,10 @@ from ee.src.core.licenses import keys
 from ee.src.core.licenses.cloud import is_cloud
 
 
+RELEASE = "release-1"
+REGISTRATION = "registration-1"
+
+
 def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
@@ -22,6 +26,7 @@ def sign_key(private_key: Ed25519PrivateKey, **fields) -> str:
     """A signed key; a field set to `...` is left out of the payload."""
     payload = {
         "key_id": str(uuid4()),
+        "signing_key_id": RELEASE,
         "plan": "self_hosted_enterprise",
         "customer": "Acme",
         "seats": 10,
@@ -39,20 +44,38 @@ def sign_key(private_key: Ed25519PrivateKey, **fields) -> str:
     return f"agenta_license_v1.{body}.{signature}"
 
 
+def public_key_line(private_key: Ed25519PrivateKey) -> str:
+    """The base64 line of the public key PEM, the form `SIGNING_KEYS` holds."""
+    der = private_key.public_key().public_bytes(
+        serialization.Encoding.DER,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    return base64.b64encode(der).decode("ascii")
+
+
+def _use_key(monkeypatch, signing_key_id: str) -> Ed25519PrivateKey:
+    private_key = Ed25519PrivateKey.generate()
+    signing_key = keys.SIGNING_KEYS[signing_key_id]
+    monkeypatch.setitem(
+        keys.SIGNING_KEYS,
+        signing_key_id,
+        keys.SigningKey(
+            public_key=public_key_line(private_key), plans=signing_key.plans
+        ),
+    )
+    return private_key
+
+
 @pytest.fixture
 def signing_key(monkeypatch) -> Ed25519PrivateKey:
-    """A throwaway key pair made for the test; its public half replaces `PUBLIC_KEY`."""
-    private_key = Ed25519PrivateKey.generate()
-    public_pem = (
-        private_key.public_key()
-        .public_bytes(
-            serialization.Encoding.PEM,
-            serialization.PublicFormat.SubjectPublicKeyInfo,
-        )
-        .decode("ascii")
-    )
-    monkeypatch.setattr(keys, "PUBLIC_KEY", public_pem)
-    return private_key
+    """A throwaway key pair made for the test, in place of the release key."""
+    return _use_key(monkeypatch, RELEASE)
+
+
+@pytest.fixture
+def registration_key(monkeypatch) -> Ed25519PrivateKey:
+    """A throwaway key pair made for the test, in place of the registration key."""
+    return _use_key(monkeypatch, REGISTRATION)
 
 
 @pytest.fixture(autouse=True)
