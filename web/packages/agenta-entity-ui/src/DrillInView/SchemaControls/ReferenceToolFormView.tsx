@@ -187,10 +187,10 @@ function SubagentDetailPanel({
                     <span className="text-[13px] font-medium leading-5">
                         {t("entityUi.toolForm.configuration")}
                     </span>
-                    {/* Canvas F03 f2: a bordered 12 px tag with a 12 px lock. */}
+                    {/* Canvas F03 f2: a bordered 12 px tag, radius 4, with a 12 px lock. */}
                     <Badge
                         variant="outlined"
-                        className="m-0 gap-1 bg-colorBgContainer px-1.5 text-[12px] font-normal leading-4 text-colorTextSecondary"
+                        className="m-0 gap-1 rounded-[4px] bg-colorBgContainer px-1.5 text-[12px] font-normal leading-4 text-colorTextSecondary"
                     >
                         <Lock size={12} />
                         {t("entityUi.toolForm.readOnly")}

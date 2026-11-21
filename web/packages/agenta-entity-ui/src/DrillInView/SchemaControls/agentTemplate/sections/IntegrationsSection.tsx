@@ -4,6 +4,7 @@ import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {createT, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
+import {humanizeActionKey} from "@agenta/shared/utils"
 import {AppWindow, Plus, Wrench} from "@phosphor-icons/react"
 
 import type {IntegrationRow} from "../../toolUtils"
@@ -54,8 +55,9 @@ export const integrationsSection = ({
         key: "tools",
         icon: <Wrench size={14} />,
         title: t("entityUi.agentTemplate.integrations"),
-        // "None" when empty, as the canvas draws the Agent tab.
+        // "None" when empty, as the canvas draws the phone (M07) and the builder pane (B03).
         summary: countSummary(integrationCount, "integration") || tNow("common.none"),
+        empty: integrationCount === 0,
         // The phone row names the integrations (M07: "Zendesk").
         phoneSummary: integrationRows.length ? (
             <IntegrationNames rows={integrationRows} />
@@ -84,7 +86,8 @@ export const integrationsSection = ({
             !disabled && openAddIntegration
                 ? {
                       label: t("entityUi.agentTemplate.addIntegration"),
-                      icon: <Plus size={14} />,
+                      // A 14 px plus (canvas M08); a size class keeps the button from resizing it.
+                      icon: <Plus className="size-3.5" />,
                       onClick: openAddIntegration,
                   }
                 : undefined,
@@ -113,9 +116,10 @@ const IntegrationNames = ({rows}: {rows: IntegrationRow[]}) => (
     </>
 )
 
+/** The app's name as its card writes it ("Zendesk", not the slug "zendesk"). */
 const IntegrationName = ({slug}: {slug: string}) => {
     const {integration} = useToolIntegrationDetail(slug)
-    return <>{integration?.name || slug}</>
+    return <>{integration?.name || humanizeActionKey(slug)}</>
 }
 
 /** The row bin's question (F06 f2): removing from the agent keeps the project connection. */

@@ -76,7 +76,11 @@ async def test_durable_response_returns_202_and_stable_refs(monkeypatch):
     assert json.loads(response.body) == {
         "interaction": interaction.model_dump(mode="json"),
         "command": {"id": str(command_id), "state": "pending"},
-        "execution": {"id": "turn-2", "state": "pending_delivery"},
+        "execution": {
+            "id": "turn-2",
+            "state": "pending_delivery",
+            "session_turn_id": None,
+        },
     }
     commands.respond_interaction.assert_awaited_once_with(
         project_id=project_id,
@@ -88,7 +92,71 @@ async def test_durable_response_returns_202_and_stable_refs(monkeypatch):
         approved_by=RunApproval(
             principal=PrincipalRef(kind="human", id=user_id), user_id=user_id
         ),
+        deliver=True,
     )
+
+
+async def test_a_caller_delivery_is_left_to_the_caller_with_its_turn(monkeypatch):
+    """`delivery: caller` stores the continuation without delivering it, and the
+    response names the session turn that the caller's run continues."""
+    project_id = uuid4()
+    user_id = uuid4()
+    interaction_id = uuid4()
+    command_id = uuid4()
+    interaction = SessionInteraction(
+        id=interaction_id,
+        project_id=project_id,
+        session_id="session-1",
+        turn_id="turn-1",
+        token="approval-1",
+        kind=SessionInteractionKind.user_approval,
+        status=SessionInteractionStatus.responded,
+    )
+    admission = SimpleNamespace(
+        interaction=interaction,
+        command=SimpleNamespace(
+            id=command_id,
+            state=SessionCommandState.pending,
+            data={"session_turn_id": "turn-1"},
+        ),
+        execution_id="turn-2",
+        execution_state=SessionExecutionState.pending_delivery,
+    )
+    commands = SimpleNamespace(respond_interaction=AsyncMock(return_value=admission))
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    request = SimpleNamespace(
+        state=SimpleNamespace(
+            project_id=project_id,
+            user_id=user_id,
+            principal=PrincipalRef(kind="human", id=user_id),
+            credential_kind=RequestCredentialKind.API_KEY,
+        ),
+        headers={"Idempotency-Key": "inband-approval:turn-1:digest"},
+    )
+    router = InteractionsRouter(
+        interactions_service=AsyncMock(),
+        commands_service=commands,
+    )
+
+    response = await router.respond_interaction(
+        request=request,
+        interaction_id=interaction_id,
+        body=SessionInteractionRespondRequest(
+            answer={"approved": True},
+            expected_execution_id="turn-1",
+            delivery="caller",
+        ),
+    )
+
+    assert response.status_code == 202
+    assert json.loads(response.body)["execution"] == {
+        "id": "turn-2",
+        "state": "pending_delivery",
+        "session_turn_id": "turn-1",
+    }
+    assert commands.respond_interaction.await_args.kwargs["deliver"] is False
 
 
 async def test_matching_partial_answer_retry_returns_terminal_source(monkeypatch):
@@ -140,7 +208,11 @@ async def test_matching_partial_answer_retry_returns_terminal_source(monkeypatch
     assert json.loads(response.body) == {
         "interaction": interaction.model_dump(mode="json"),
         "command": None,
-        "execution": {"id": "source-1", "state": "terminal"},
+        "execution": {
+            "id": "source-1",
+            "state": "terminal",
+            "session_turn_id": None,
+        },
     }
 
 
@@ -207,6 +279,7 @@ async def test_durable_batch_returns_202_with_one_continuation(monkeypatch):
         approved_by=RunApproval(
             principal=PrincipalRef(kind="human", id=user_id), user_id=user_id
         ),
+        deliver=True,
     )
 
 

@@ -7,6 +7,7 @@ import {
     loginAttemptKey,
     loginAttemptOutcome,
     loginAttemptQueryAtomFamily,
+    refreshSignedInAtom,
     refreshVaultSecretsAtom,
     startSubscriptionLoginAtom,
     subscriptionAttemptErrorSentence,
@@ -69,6 +70,7 @@ export const useSubscriptionSignIn = ({
     const cancelLogin = useSetAtom(cancelSubscriptionLoginAtom)
     const forgetAttempt = useSetAtom(forgetLoginAttemptAtom)
     const refreshVault = useSetAtom(refreshVaultSecretsAtom)
+    const refreshSignedIn = useSetAtom(refreshSignedInAtom)
 
     const [pending, setPending] = useState<PendingAttempt | null>(null)
     const [starting, setStarting] = useState(false)
@@ -126,10 +128,14 @@ export const useSubscriptionSignIn = ({
         if (outcome === "succeeded") {
             setError(null)
             setFinishing(true)
-            void refreshVault().finally(() => {
-                setFinishing(false)
-                onSignedInRef.current?.()
-            })
+            // Leave only once the vault lists it ready; otherwise show the lost-track line.
+            void refreshSignedIn(attempt.secretId)
+                .catch(() => false)
+                .then((signedIn) => {
+                    setFinishing(false)
+                    if (signedIn) onSignedInRef.current?.()
+                    else setLostPoll(true)
+                })
             return
         }
         if (outcome === "unreadable") {
@@ -160,6 +166,7 @@ export const useSubscriptionSignIn = ({
         outcome,
         pending,
         provider,
+        refreshSignedIn,
         refreshVault,
     ])
 

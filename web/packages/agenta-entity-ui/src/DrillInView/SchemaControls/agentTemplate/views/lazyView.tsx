@@ -9,12 +9,22 @@ import {AgentEditorContext} from "../useAgentConfigWriter"
  * `readOnlyOnPhone`), the body reads the agent through a read-only editor, so it shows its content
  * with no edit control and no Save; otherwise it passes the outer editor through unchanged.
  */
-const ReadOnlyEditor = ({readOnly, children}: {readOnly: boolean; children: ReactNode}) => {
+const ReadOnlyEditor = ({
+    readOnly,
+    revisionId,
+    children,
+}: {
+    readOnly: boolean
+    /** The view's own revision, for a host with no editor around its stack. */
+    revisionId: string
+    children: ReactNode
+}) => {
     const editor = useContext(AgentEditorContext)
-    const value = useMemo(
-        () => (editor && readOnly ? {...editor, readOnly: true} : editor),
-        [editor, readOnly],
-    )
+    const value = useMemo(() => {
+        if (!readOnly) return editor
+        if (editor) return {...editor, readOnly: true}
+        return revisionId ? {revisionId, readOnly: true} : null
+    }, [editor, readOnly, revisionId])
     return <AgentEditorContext.Provider value={value}>{children}</AgentEditorContext.Provider>
 }
 
@@ -27,7 +37,10 @@ export const lazyView = <P,>(
     const LazyView = (props: ViewProps<P>) => {
         // One root in both modes, so a resize across the phone width keeps the body's draft.
         return (
-            <ReadOnlyEditor readOnly={Boolean(props.readOnly)}>
+            <ReadOnlyEditor
+                readOnly={Boolean(props.readOnly)}
+                revisionId={props.target?.kind === "agent_draft" ? props.target.revisionId : ""}
+            >
                 <Suspense fallback={fallback}>
                     <Body {...props} />
                 </Suspense>

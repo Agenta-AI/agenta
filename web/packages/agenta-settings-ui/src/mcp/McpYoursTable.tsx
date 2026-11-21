@@ -135,7 +135,10 @@ export const McpYoursTable = ({
                             return (
                                 <>
                                     <span className="flex min-w-0 items-center gap-2.5">
-                                        <McpServerMark size={28} />
+                                        <McpServerMark
+                                            size={28}
+                                            name={record.name || record.slug}
+                                        />
                                         <span
                                             className="truncate font-medium text-foreground"
                                             title={record.name || record.slug || undefined}

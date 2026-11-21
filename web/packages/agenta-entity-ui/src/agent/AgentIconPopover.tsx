@@ -3,7 +3,7 @@ import {type ReactNode} from "react"
 import {agentIconAtomFamily} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import agentActionsCatalog from "@agenta/i18n/catalogs/entityUi.agentActions"
-import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {PHONE_TOUCH_TARGET_CLASS, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {useAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -42,7 +42,7 @@ export const AgentIconPopover = ({
                 <button
                     type="button"
                     aria-label={t("entityUi.agentActions.changeAgentIcon")}
-                    className={`flex shrink-0 cursor-pointer items-center rounded-lg border-0 bg-transparent p-0 ${AGENT_FOCUS_RING}`}
+                    className={`flex shrink-0 cursor-pointer items-center rounded-lg border-0 bg-transparent p-0 ${AGENT_FOCUS_RING} ${PHONE_TOUCH_TARGET_CLASS}`}
                 >
                     {children}
                 </button>

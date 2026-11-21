@@ -15,8 +15,14 @@ from oss.src.core.sessions.records.dtos import (
     RunnerEnding,
     runner_ending,
 )
+from oss.src.core.sessions.child_updates.dtos import (
+    CHILD_UPDATE_PART_KEY,
+    stored_child_update_part,
+)
 from oss.src.core.sessions.executions.dtos import SessionExecutionSettlement
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
+from oss.src.core.sessions.inputs.dtos import PendingInputKind
+from oss.src.core.sessions.inputs.interfaces import SessionInputsDAOInterface
 from oss.src.core.sessions.records.events import durable_events_from_records
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
 from oss.src.utils.env import env
@@ -42,9 +48,11 @@ class RecordsService:
         self,
         records_dao: RecordsDAOInterface,
         executions_dao: Optional[SessionExecutionsDAOInterface] = None,
+        inputs_dao: Optional[SessionInputsDAOInterface] = None,
     ):
         self.records_dao = records_dao
         self.executions_dao = executions_dao
+        self.inputs_dao = inputs_dao
 
     async def append(
         self,
@@ -81,10 +89,63 @@ class RecordsService:
             return []
 
         guarded = await self._handle_late_events(events=events)
+        guarded = await self._child_update_parts(events=guarded)
         records = await self.records_dao.append_many(events=guarded)
         await self._settle_ended_continuations(records=records)
         await self._mark_endings_written(events=guarded)
         return records
+
+    async def _child_update_parts(
+        self,
+        *,
+        events: List[SessionRecordEvent],
+    ) -> List[SessionRecordEvent]:
+        """The user `message` record of a turn that a `child_update` row started keeps
+        the row's structured part at `attributes.child_update`, so the transcript can show
+        the update as an update. The part comes only from the server-written row (by the
+        record's execution id); a `child_update` key that a producer sent is dropped from
+        every record.
+
+        A failed row lookup appends the record without the part: the text is still there."""
+        result: List[SessionRecordEvent] = []
+        for event in events:
+            attributes = event.attributes
+            if attributes and CHILD_UPDATE_PART_KEY in attributes:
+                attributes = {
+                    key: value
+                    for key, value in attributes.items()
+                    if key != CHILD_UPDATE_PART_KEY
+                }
+            part = None
+            if (
+                self.inputs_dao is not None
+                and event.record_type == "message"
+                and event.record_source == "user"
+                and event.turn_id
+            ):
+                try:
+                    row = await self.inputs_dao.fetch_by_execution_id(
+                        project_id=event.project_id,
+                        session_id=event.session_id,
+                        execution_id=event.turn_id,
+                    )
+                except Exception:
+                    log.warning(
+                        "[RECORDS] Child update row lookup failed; the record keeps its text only",
+                        project_id=str(event.project_id),
+                        session_id=event.session_id,
+                        turn_id=event.turn_id,
+                        exc_info=True,
+                    )
+                    row = None
+                if row is not None and row.kind == PendingInputKind.child_update:
+                    part = stored_child_update_part(row.content)
+            if part is not None:
+                attributes = {**(attributes or {}), CHILD_UPDATE_PART_KEY: part}
+            if attributes is not event.attributes:
+                event = event.model_copy(update={"attributes": attributes})
+            result.append(event)
+        return result
 
     async def _mark_endings_written(
         self,
@@ -357,6 +418,19 @@ class RecordsService:
             session_id=session_id,
         )
 
+    async def get_execution_records(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_ids: List[str],
+    ) -> List[SessionRecord]:
+        return await self.records_dao.get_execution_records(
+            project_id=project_id,
+            session_id=session_id,
+            execution_ids=execution_ids,
+        )
+
     async def get_ending_records(
         self,
         *,
@@ -382,19 +456,6 @@ class RecordsService:
         return await self.records_dao.get_ending_records_of_executions(
             project_id=project_id,
             session_ids=session_ids,
-            execution_ids=execution_ids,
-        )
-
-    async def get_execution_records(
-        self,
-        *,
-        project_id: UUID,
-        session_id: str,
-        execution_ids: List[str],
-    ) -> List[SessionRecord]:
-        return await self.records_dao.get_execution_records(
-            project_id=project_id,
-            session_id=session_id,
             execution_ids=execution_ids,
         )
 

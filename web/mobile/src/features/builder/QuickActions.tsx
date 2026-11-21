@@ -1,15 +1,9 @@
-import {useState} from "react"
+import {useState, type ComponentType} from "react"
 
 import {useT} from "@agenta/i18n"
 import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
-import {
-    ChartBar,
-    Chats,
-    Compass,
-    Lightning,
-    SlidersHorizontal,
-    type Icon,
-} from "@phosphor-icons/react"
+import {Chats, Compass, Lightning, SlidersHorizontal} from "@phosphor-icons/react"
+import {ChartColumn} from "lucide-react"
 
 import {cn} from "@/lib/utils"
 
@@ -22,9 +16,13 @@ import {
     type QuickAction,
 } from "./quickActions"
 
-const ICONS: Record<QuickAction, Icon> = {
+// "Test" is the canvas's bar chart with axes (S08, M04): lucide draws it, Phosphor does not.
+const ICONS: Record<
+    QuickAction,
+    ComponentType<{size?: number; className?: string; "aria-hidden"?: boolean}>
+> = {
     improve: SlidersHorizontal,
-    test: ChartBar,
+    test: ChartColumn,
     skills: Compass,
     automate: Lightning,
     explain: Chats,

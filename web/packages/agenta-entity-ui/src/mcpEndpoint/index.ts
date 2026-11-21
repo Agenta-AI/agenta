@@ -2,11 +2,9 @@ export {McpAddServerList} from "./McpAddServerList"
 export type {McpAddServerListProps, McpConnectionOption} from "./McpAddServerList"
 export {
     ConnectionListRow,
-    NoticeBox,
     ProbeResultCard,
     ShowResponsePanel,
     type ConnectionListRowProps,
-    type NoticeBoxProps,
     type ProbeResultCardProps,
     type ProbeResultMode,
     type ShowResponsePanelProps,

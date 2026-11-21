@@ -65,6 +65,7 @@ describe("touchTargetExpansion", () => {
         const boxes: {box: TouchTargetControlBox; sizeClasses: string}[] = [
             {box: {height: 24, width: 30, border: 0}, sizeClasses: "h-6 w-[30px] border-0"},
             {box: {height: 28, width: 28}, sizeClasses: "size-control-sm border"},
+            {box: {height: 24, width: 24}, sizeClasses: "size-control-xs border"},
         ]
         for (const {box, sizeClasses} of boxes) {
             const reached = touchTargetHitArea(`${sizeClasses} ${touchTargetExpansion(box)}`)

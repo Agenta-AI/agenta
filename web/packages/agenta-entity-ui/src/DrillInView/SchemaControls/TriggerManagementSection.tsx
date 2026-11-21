@@ -24,7 +24,9 @@ import {
     triggerScheduleDrawerAtom,
     triggerSubscriptionDrawerAtom,
     useTriggerSchedule,
+    useTriggerSchedules,
     useTriggerSubscription,
+    useTriggerSubscriptions,
     type TriggerSchedule,
     type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
@@ -34,7 +36,7 @@ import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens
 import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
-import {DropdownMenuItem, DropdownMenuSeparator} from "@agenta/ui/ui"
+import {DropdownMenuItem} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
     ClockCounterClockwise,
@@ -45,6 +47,8 @@ import {
     XCircle,
 } from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
+
+import {SectionLoadError} from "../../agent/SectionLoadError"
 
 import {AppTriggerProviderGroups} from "./triggerManagement/AppTriggerProviderGroups"
 import {AutomationDeleteDialog} from "./triggerManagement/AutomationDeleteDialog"
@@ -101,6 +105,16 @@ export function TriggerManagementSection({
 }: TriggerManagementSectionProps) {
     const t = useT(triggersCatalog, automationsPanelCatalog)
     const {scopedSubscriptions, scopedSchedules} = useAgentTriggers(entityId)
+    // The same cached lists `useAgentTriggers` reads: a failed or pending read must not show
+    // "No automations yet" for an agent that has some.
+    const subscriptionsQuery = useTriggerSubscriptions()
+    const schedulesQuery = useTriggerSchedules()
+    const loadFailed = Boolean(subscriptionsQuery.error || schedulesQuery.error)
+    const loading = subscriptionsQuery.isLoading || schedulesQuery.isLoading
+    const retryLoad = useCallback(() => {
+        if (subscriptionsQuery.error) void subscriptionsQuery.refetch()
+        if (schedulesQuery.error) void schedulesQuery.refetch()
+    }, [subscriptionsQuery, schedulesQuery])
 
     const {
         remove: removeSubscription,
@@ -266,7 +280,6 @@ export function TriggerManagementSection({
                         <XCircle size={16} />
                         {tNow("entityUi.triggers.revoke")}
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
                     {deleteItem(record.name ?? "", async () => {
                         await removeSubscription(id)
                         message.success(tScreens("automations.screens.deleted"))
@@ -307,7 +320,6 @@ export function TriggerManagementSection({
                         isEntityActive(record),
                         (next) => void toggleAutomation(setScheduleActive, id, next),
                     )}
-                    <DropdownMenuSeparator />
                     {deleteItem(record.name ?? "", async () => {
                         await removeSchedule(id)
                         message.success(tScreens("automations.screens.deleted"))
@@ -332,8 +344,8 @@ export function TriggerManagementSection({
         <h3
             className={
                 phone
-                    ? "m-0 pb-1.5 pt-4 text-[12px] font-medium text-[var(--ag-colorTextTertiary)]"
-                    : "m-0 mt-1 text-[12px] font-medium text-[var(--ag-colorTextSecondary)]"
+                    ? "m-0 pb-1.5 pt-4 text-[12px] font-medium leading-5 text-[var(--ag-colorTextTertiary)]"
+                    : "m-0 mt-1 text-[12px] font-medium leading-4 text-[var(--ag-colorTextSecondary)]"
             }
         >
             {label}
@@ -400,7 +412,16 @@ export function TriggerManagementSection({
                 </section>
             ) : null}
 
-            {scopedSubscriptions.length === 0 && scopedSchedules.length === 0 ? (
+            {loadFailed ? (
+                // A list that did not load is not an empty list; one that half loaded says so
+                // under the rows it has.
+                <div className={phone ? "[&_button]:min-h-11" : undefined}>
+                    <SectionLoadError
+                        message={tScreens("automations.screens.loadFailed")}
+                        onRetry={retryLoad}
+                    />
+                </div>
+            ) : !loading && scopedSubscriptions.length === 0 && scopedSchedules.length === 0 ? (
                 // One quiet line; the header's "Add automation" is the way to add one.
                 <span className="text-xs text-colorTextTertiary">
                     {t("entityUi.triggers.noAutomations")}

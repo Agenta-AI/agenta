@@ -232,7 +232,14 @@ export const useSecretAttachForm = ({
         setSelected(value)
         setError(null)
         const next = readSecretChoice(value)
-        if (keepEnv || (next.kind !== "shared" && next.kind !== "user")) return
+        if (keepEnv) return
+        // A new secret has no name yet: the variable starts from the request, else empty, and
+        // follows the name as it is typed. It must not keep the variable of an earlier pick.
+        if (next.kind === "new") {
+            setEnvVarState(suggestion())
+            return
+        }
+        if (next.kind !== "shared" && next.kind !== "user") return
         // The variable follows the picked secret, a shared one or the person's own.
         const secret =
             next.kind === "shared"

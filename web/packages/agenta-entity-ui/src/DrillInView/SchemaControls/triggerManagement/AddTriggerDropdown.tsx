@@ -5,7 +5,7 @@ import {
     triggerScheduleDrawerAtom,
     triggerSubscriptionDrawerAtom,
 } from "@agenta/entities/gatewayTrigger"
-import {useT} from "@agenta/i18n"
+import {createT, textVersionAtom, useT} from "@agenta/i18n"
 import agentOperationsCatalog from "@agenta/i18n/catalogs/entityUi.agentOperations"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
@@ -20,9 +20,11 @@ import {
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
 import {Clock, Lightning, Plus} from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAgentTriggers} from "./useAgentTriggers"
+
+const tNow = createT(triggersCatalog)
 
 /**
  * Opens the form of the chosen kind in the host (the panel opens it as a view), with the
@@ -36,7 +38,7 @@ type OnAddAutomation = (
 
 /** "App trigger" and "Scheduled trigger", each opening its form with the kind fixed. */
 function useManualAutomationItems(entityId: string | null, onAdd?: OnAddAutomation) {
-    const t = useT(triggersCatalog)
+    const textVersion = useAtomValue(textVersionAtom)
     const {defaultReferences, defaultBoundLabel} = useAgentTriggers(entityId)
     const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
@@ -52,8 +54,8 @@ function useManualAutomationItems(entityId: string | null, onAdd?: OnAddAutomati
             {
                 key: "app",
                 icon: <Lightning size={16} />,
-                title: t("entityUi.triggers.appTrigger"),
-                hint: t("entityUi.triggers.appTriggerSubtitle"),
+                title: tNow("entityUi.triggers.appTrigger"),
+                hint: tNow("entityUi.triggers.appTriggerSubtitle"),
                 onSelect: () =>
                     onAdd
                         ? onAdd("subscription", defaultReferences)
@@ -62,8 +64,8 @@ function useManualAutomationItems(entityId: string | null, onAdd?: OnAddAutomati
             {
                 key: "schedule",
                 icon: <Clock size={16} />,
-                title: t("entityUi.triggers.scheduledTrigger"),
-                hint: t("entityUi.triggers.scheduledTriggerSubtitle"),
+                title: tNow("entityUi.triggers.scheduledTrigger"),
+                hint: tNow("entityUi.triggers.scheduledTriggerSubtitle"),
                 onSelect: () =>
                     onAdd ? onAdd("schedule", defaultReferences) : openScheduleDrawer(draft),
             },
@@ -75,7 +77,7 @@ function useManualAutomationItems(entityId: string | null, onAdd?: OnAddAutomati
         onAdd,
         openScheduleDrawer,
         openSubscriptionDrawer,
-        t,
+        textVersion,
     ])
 }
 

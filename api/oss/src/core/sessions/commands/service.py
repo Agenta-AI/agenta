@@ -31,7 +31,6 @@ THE LATE-STOP GUARDS. A Stop that arrives after its turn ended must not kill the
     which is exact.
 """
 
-import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Union
 from uuid import UUID, uuid4
@@ -646,6 +645,7 @@ class SessionCommandsService:
         project_id: UUID,
         session_id: str,
         execution_id: str,
+        transaction: Optional[Any] = None,
     ) -> bool:
         """True when a Steer, not a Stop, cancelled this execution."""
         return (
@@ -653,6 +653,7 @@ class SessionCommandsService:
                 project_id=project_id,
                 session_id=session_id,
                 execution_id=execution_id,
+                transaction=transaction,
             )
             == "steer"
         )
@@ -663,6 +664,7 @@ class SessionCommandsService:
         project_id: UUID,
         session_id: str,
         execution_id: str,
+        transaction: Optional[Any] = None,
     ) -> Optional[CancelledBy]:
         """Who cancelled this execution, when it was not a person's Stop: `steer` (a
         person's message replaced the turn) or `calling_session` (`cancel_session`).
@@ -673,6 +675,7 @@ class SessionCommandsService:
             project_id=project_id,
             session_id=session_id,
             target_turn_id=execution_id,
+            transaction=transaction,
         )
         if command is None:
             return None
@@ -696,6 +699,7 @@ class SessionCommandsService:
         expected_execution_id: Optional[str],
         idempotency_key: str,
         approved_by: RunApproval,
+        deliver: bool = True,
     ) -> InteractionContinuationAdmission:
         return await self.respond_interactions(
             project_id=project_id,
@@ -704,6 +708,7 @@ class SessionCommandsService:
             expected_execution_id=expected_execution_id,
             idempotency_key=idempotency_key,
             approved_by=approved_by,
+            deliver=deliver,
         )
 
     async def respond_interactions(
@@ -715,9 +720,16 @@ class SessionCommandsService:
         expected_execution_id: Optional[str],
         idempotency_key: str,
         approved_by: RunApproval,
+        deliver: bool = True,
     ) -> InteractionContinuationAdmission:
         """`approved_by` is the answering principal. The continuation keeps the asked
-        run's authority, sender and origin, and records the approver."""
+        run's authority, sender and origin, and records the approver.
+
+        With `deliver=False` the caller runs the continuation in its own request (an
+        in-band answer that the agent service records before its run): the command is
+        stored and left `pending`, and the runner's admission report settles it. A
+        caller that never runs it leaves it to the abandoned-command sweep, which then
+        delivers it as usual."""
         if self._executions is None:
             raise RuntimeError(
                 "durable interaction responses require executions storage"
@@ -988,7 +1000,8 @@ class SessionCommandsService:
                 error,
             )
         if (
-            admission.command is not None
+            deliver
+            and admission.command is not None
             and admission.command.state == SessionCommandState.pending
         ):
             try:
@@ -1903,21 +1916,20 @@ class SessionCommandsService:
             transaction=transaction,
         ):
             return False
-        # In its own task: `engine.session()` hands every caller in one task the same
-        # session and commits and closes it on exit, so the rule's reads in this task
-        # would commit the turn end's transaction early and drop the input lock. A new
-        # task reads through its own session and sees committed rows only.
-        return await asyncio.create_task(
-            server_input_waits(
-                streams_dao=self._streams_dao,
-                executions_dao=self._executions,
-                inputs_dao=self._inputs,
-                turns_dao=self._turns,
-                cancelled_by_steer=self.cancelled_by_steer,
-                project_id=project_id,
-                session_id=session_id,
-                turns_without_person_limit=env.agenta.sessions.turns_without_person_limit,
-            )
+        # The rule reads on the turn end's transaction. A read through `engine.session()`
+        # in this task would commit that transaction early and drop the input lock, and
+        # a read in another task would wait for a second pooled connection while this
+        # one is held, which never comes when the pool is full.
+        return await server_input_waits(
+            streams_dao=self._streams_dao,
+            executions_dao=self._executions,
+            inputs_dao=self._inputs,
+            turns_dao=self._turns,
+            cancelled_by_steer=self.cancelled_by_steer,
+            project_id=project_id,
+            session_id=session_id,
+            turns_without_person_limit=env.agenta.sessions.turns_without_person_limit,
+            transaction=transaction,
         )
 
     async def _promote_next_input(

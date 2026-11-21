@@ -19,6 +19,12 @@ vi.mock("@agenta/shared/api", () => ({
     getAgentaApiUrl: vi.fn(() => "https://api.example.test"),
 }))
 
+const {issueGatewayCredentials} = vi.hoisted(() => ({issueGatewayCredentials: vi.fn()}))
+vi.mock("@agenta/sdk/resources", () => ({
+    getGatewayClient: () => ({issueGatewayCredentials}),
+    getGatewayMcpClient: vi.fn(),
+}))
+
 const BASE = "https://api.example.test/gateways/mcps/endpoints"
 
 describe("mcpEndpoints api", () => {
@@ -172,10 +178,8 @@ describe("listMcpTools", () => {
     /** A server that answers each method from `answers`, after the credential mint. */
     const server = (answers: Record<string, Answer | Answer[] | Error>) => {
         const pages: Record<string, number> = {}
-        vi.mocked(axios.post).mockImplementation((async (url: string, body: unknown) => {
-            if (url.endsWith("/gateways/credentials")) {
-                return {data: {credentials: "Secret token"}}
-            }
+        issueGatewayCredentials.mockResolvedValue({credentials: "Secret token"})
+        vi.mocked(axios.post).mockImplementation((async (_url: string, body: unknown) => {
             const method = (body as {method: string}).method
             const answer = answers[method]
             if (answer === undefined) return {data: "", headers: {}}
@@ -194,10 +198,7 @@ describe("listMcpTools", () => {
         headers: headers ?? {},
     })
 
-    const sent = () =>
-        vi
-            .mocked(axios.post)
-            .mock.calls.filter(([url]) => !String(url).endsWith("/gateways/credentials"))
+    const sent = () => vi.mocked(axios.post).mock.calls
 
     it("completes the handshake before it lists: initialize, initialized, tools/list", async () => {
         server({
@@ -226,10 +227,10 @@ describe("listMcpTools", () => {
 
         await listMcpTools("acme", "project-1")
 
-        const mint = vi
-            .mocked(axios.post)
-            .mock.calls.find(([url]) => String(url).endsWith("/gateways/credentials"))
-        expect(mint?.[1]).toEqual({})
+        expect(issueGatewayCredentials).toHaveBeenCalledWith(
+            {},
+            {queryParams: {project_id: "project-1"}},
+        )
         for (const [, , config] of sent()) {
             expect((config as {params?: unknown}).params).toEqual({project_id: "project-1"})
         }
@@ -240,11 +241,11 @@ describe("listMcpTools", () => {
 
         await listMcpTools("acme", "project-1", {accountSource: "user"})
 
-        const mint = vi
-            .mocked(axios.post)
-            .mock.calls.find(([url]) => String(url).endsWith("/gateways/credentials"))
         // The credential names the item; the server resolves the caller's own account for it.
-        expect(mint?.[1]).toEqual({item_keys: ["mcp_server:user/acme"]})
+        expect(issueGatewayCredentials).toHaveBeenCalledWith(
+            {item_keys: ["mcp_server:user/acme"]},
+            {queryParams: {project_id: "project-1"}},
+        )
         expect(sent()).toHaveLength(3)
         for (const [, , config] of sent()) {
             expect((config as {params?: unknown}).params).toEqual({

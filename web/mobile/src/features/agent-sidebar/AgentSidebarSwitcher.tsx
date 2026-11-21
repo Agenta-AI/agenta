@@ -111,7 +111,7 @@ export const AgentSidebarSwitcher = ({
                     className={
                         collapsed
                             ? "flex size-8 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 [font-family:inherit] hover:bg-colorFillTertiary"
-                            : `flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent text-left text-colorText [font-family:inherit] hover:bg-colorFillTertiary ${phone ? "h-[52px] px-2" : "h-[38px] px-1.5"}`
+                            : `flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent text-left text-colorText [font-family:inherit] hover:bg-colorFillTertiary ${phone ? "h-[52px] px-2" : "h-[38px] pl-1.5 pr-0.5"}`
                     }
                 >
                     {agentId ? <SwitcherTile agentId={agentId} /> : <BuilderTile />}

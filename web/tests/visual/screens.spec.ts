@@ -21,11 +21,19 @@ function fillRoute(route: string): string {
     })
 }
 
-/** A step target is a visible text, or "role:name" for a role (for example "button:Save"). */
+/**
+ * A step target is a visible text, or "role:name" for a role (for example "button:Save"). A quoted
+ * name ('button:"Files"') must match exactly, so it skips "Attach files".
+ */
 function locate(page: Page, target: string) {
     const [role, ...rest] = target.split(":")
     if (rest.length > 0 && /^[a-z]+$/.test(role)) {
-        return page.getByRole(role as Parameters<Page["getByRole"]>[0], {name: rest.join(":")})
+        const name = rest.join(":")
+        const exact = /^".*"$/.test(name)
+        return page.getByRole(role as Parameters<Page["getByRole"]>[0], {
+            name: exact ? name.slice(1, -1) : name,
+            exact,
+        })
     }
     return page.getByText(target).first()
 }
@@ -43,7 +51,7 @@ async function runStep(page: Page, step: ScreenStep) {
 async function signIn(page: Page) {
     await page.goto(`${requireEnv("APP_URL")}/m/auth`, {waitUntil: "networkidle"})
     await page.getByPlaceholder("Enter your email address").fill(requireEnv("QA_EMAIL"))
-    await page.getByRole("button", {name: "Continue"}).first().click()
+    await page.getByRole("button", {name: "Continue", exact: true}).first().click()
     await page.getByLabel("Password").first().fill(requireEnv("QA_PASSWORD"))
     await page.keyboard.press("Enter")
     await page.waitForURL((url) => !url.pathname.startsWith("/m/auth"), {timeout: 60_000})
@@ -75,8 +83,9 @@ test.describe("screen captures", () => {
             })
             const page = await context.newPage()
             try {
+                // A live app keeps requests open, so "networkidle" can stall: the steps wait.
                 await page.goto(requireEnv("APP_URL") + fillRoute(recipe.route), {
-                    waitUntil: "networkidle",
+                    waitUntil: "load",
                 })
                 for (const step of recipe.steps) await runStep(page, step)
                 await page.evaluate(() => document.fonts.ready)

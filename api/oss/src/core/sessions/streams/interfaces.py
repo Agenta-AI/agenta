@@ -58,6 +58,7 @@ class SessionStreamsDAOInterface(ABC):
         *,
         project_id: UUID,
         session_id: str,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionStream]: ...
 
     @abstractmethod

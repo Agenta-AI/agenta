@@ -2,7 +2,8 @@
 /**
  * The Automations tab (F05 f1): "Scheduled triggers" first, "App triggers" second, a group with
  * no automation does not show, and "Delete" asks first with "Delete this automation?" (F06 f4).
- * A failed delete keeps the dialog and the automation.
+ * A failed delete keeps the dialog and the automation. A list that failed to load says so, with
+ * Retry, rather than "No automations yet".
  */
 import {act, createElement} from "react"
 
@@ -14,11 +15,26 @@ const triggers = vi.hoisted(() => ({
     schedules: [] as unknown[],
     subscriptions: [] as unknown[],
     removeSchedule: vi.fn(),
+    listError: null as Error | null,
+    listLoading: false,
+    refetch: vi.fn(),
 }))
 
 vi.mock("@agenta/entities/gatewayTrigger", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/entities/gatewayTrigger")>()),
     useTriggerSchedule: () => ({remove: triggers.removeSchedule, setActive: vi.fn()}),
+    useTriggerSchedules: () => ({
+        schedules: [],
+        error: triggers.listError,
+        isLoading: triggers.listLoading,
+        refetch: triggers.refetch,
+    }),
+    useTriggerSubscriptions: () => ({
+        subscriptions: [],
+        error: null,
+        isLoading: triggers.listLoading,
+        refetch: vi.fn(),
+    }),
     useTriggerSubscription: () => ({
         remove: vi.fn(),
         refresh: vi.fn(),
@@ -66,6 +82,9 @@ beforeEach(() => {
     triggers.schedules = []
     triggers.subscriptions = []
     triggers.removeSchedule.mockReset()
+    triggers.listError = null
+    triggers.listLoading = false
+    triggers.refetch.mockReset()
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -120,6 +139,24 @@ describe("Automations tab list", () => {
     it("says No automations yet with none", () => {
         renderSection()
         expect(container.textContent).toContain("No automations yet")
+    })
+
+    it("says nothing about an empty list while it loads", () => {
+        triggers.listLoading = true
+        renderSection()
+        expect(container.textContent).not.toContain("No automations yet")
+    })
+
+    it("shows the load error with Retry when the list fails to load", () => {
+        triggers.listError = new Error("502")
+        renderSection()
+        expect(container.textContent).toContain("Could not load automations")
+        expect(container.textContent).not.toContain("No automations yet")
+        const retry = [...container.querySelectorAll("button")].find(
+            (button) => button.textContent === "Retry",
+        ) as HTMLButtonElement
+        act(() => retry.click())
+        expect(triggers.refetch).toHaveBeenCalledTimes(1)
     })
 })
 

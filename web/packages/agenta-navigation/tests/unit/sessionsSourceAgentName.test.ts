@@ -18,10 +18,13 @@ vi.mock("@agenta/entities/session", () => ({
 
 /** What the artifact query has answered so far, by workflow id. */
 const artifactNames = vi.hoisted(() => new Map<string, string>())
+/** The builder's workflow id once it has loaded. The catalog never lists the builder. */
+const builder = vi.hoisted(() => ({id: null as string | null}))
 vi.mock("@agenta/entities/workflow", async () => {
     const {atom} = await import("jotai")
     return {
         agentWorkflowsListQueryStateAtom: atom({data: [], isPending: false}),
+        builderAgentWorkflowIdAtom: atom(() => builder.id),
         appWorkflowsListQueryAtom: atom({
             data: {
                 refs: [
@@ -82,6 +85,7 @@ const headings = async () => {
     querySessions.mockImplementation(async () => [
         {session_id: "s1", agent: "support", updated_at: at(1)},
         {session_id: "s2", agent: "email", updated_at: at(2)},
+        {session_id: "s3", agent: "builder", updated_at: at(3)},
     ])
     const store = createStore()
     store.set(queryClientAtom, new QueryClient({defaultOptions: {queries: {retry: false}}}))
@@ -95,9 +99,22 @@ const headings = async () => {
 describe("agent headings in the main sidebar", () => {
     it("name the agent from the catalog while its artifact has not answered", async () => {
         artifactNames.clear()
+        builder.id = null
         const labels = await headings()
         expect(labels).toEqual(expect.arrayContaining(["Support triage", "Email writer"]))
         expect(labels).not.toContain("Agent")
+    })
+
+    it("list the builder's chats under their own heading once the builder id has loaded", async () => {
+        artifactNames.clear()
+        artifactNames.set("builder", "Builder")
+        builder.id = null
+        expect(await headings()).not.toContain("Builder")
+        builder.id = "builder"
+        expect(await headings()).toEqual(
+            expect.arrayContaining(["Support triage", "Email writer", "Builder"]),
+        )
+        builder.id = null
     })
 
     it("prefer the artifact name once it answers", async () => {

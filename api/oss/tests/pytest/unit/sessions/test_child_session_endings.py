@@ -3,6 +3,7 @@ running turn (design D27), the `cancel_session` cause, and the server-owned
 `calling_turn_id` of a child input."""
 
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -129,7 +130,9 @@ class _CommandsDAO:
     async def transaction(self):
         yield SimpleNamespace()
 
-    async def fetch_turn_cancel(self, *, project_id, session_id, target_turn_id):
+    async def fetch_turn_cancel(
+        self, *, project_id, session_id, target_turn_id, transaction=None
+    ):
         return self.command
 
 
@@ -374,3 +377,222 @@ async def test_start_once_passes_the_calling_turn_id_to_the_first_input():
         inputs.claim_for_execution.await_args.kwargs["calling_turn_id"]
         == "calling-turn-1"
     )
+
+
+# --- QA D6: the deprecated Stop records the durable cancel command --------------------
+
+
+class _StopStreamsService(_StreamsService):
+    def __init__(self, *, running, order, turn_started_at=None, redis_started_ms=None):
+        super().__init__(running=running)
+        self.order = order
+        # The row's start, written by the API process clock after the turn took the lock.
+        self.turn_started_at = turn_started_at
+        # The start Redis recorded as the turn took the lock: the value the stop compares.
+        self.redis_started_ms = redis_started_ms
+
+    async def fetch(self, *, project_id, session_id):
+        return SimpleNamespace(
+            turn_id=EXECUTION_ID,
+            turn_started_at=self.turn_started_at,
+            flags=SimpleNamespace(is_running=self.running),
+        )
+
+    async def running_turn_start(self, *, project_id, session_id):
+        if not self.running:
+            return None, None
+        return EXECUTION_ID, self.redis_started_ms
+
+    async def clock_ms(self):
+        return 1_000_000
+
+    async def command(self, **_kwargs):
+        self.order.append("stop")
+        return SimpleNamespace(
+            session_id=SESSION_ID,
+            cancelled_turn_ids=[EXECUTION_ID] if self.running else [],
+        )
+
+
+async def _stop_route(
+    monkeypatch,
+    *,
+    running: bool,
+    expected_execution_id=None,
+    turn_started_at=None,
+    redis_started_ms=None,
+    session_missing: bool = False,
+):
+    from oss.src.apis.fastapi.sessions import router as router_module
+    from oss.src.core.sessions.streams.dtos import SessionStreamCommandRequest
+
+    order: list = []
+    commands = AsyncMock()
+    commands.request_cancel.side_effect = lambda **_kwargs: order.append("command")
+    streams = _StopStreamsService(
+        running=running,
+        order=order,
+        turn_started_at=turn_started_at,
+        redis_started_ms=redis_started_ms,
+    )
+    route = router_module.SessionStreamsRouter(
+        service=streams,
+        interactions_service=AsyncMock(),
+        run_admission=AsyncMock(),
+        commands_service=commands,
+    )
+    request = SimpleNamespace(
+        state=SimpleNamespace(project_id=str(PROJECT_ID), user_id=str(uuid4()))
+    )
+    monkeypatch.setattr(router_module, "allow_resource", AsyncMock(return_value=True))
+    monkeypatch.setattr(
+        router_module,
+        "session_recheck",
+        lambda *a, **k: SimpleNamespace(checked=True),
+    )
+    monkeypatch.setattr(
+        router_module, "session_was_missing", lambda **_k: session_missing
+    )
+    monkeypatch.setattr(router_module, "policy_for_request", lambda *a, **k: None)
+    monkeypatch.setattr(router_module, "request_run_envelope", lambda *a, **k: None)
+    payload = SessionStreamCommandRequest(
+        session_id=SESSION_ID, expected_execution_id=expected_execution_id
+    )
+    return route, request, payload, commands, order
+
+
+@pytest.mark.asyncio
+async def test_a_stop_of_a_running_turn_records_the_durable_cancel_first(monkeypatch):
+    # With the command, the abandoned-command sweep settles the turn when the runner is
+    # gone, and the sweep writes the missing `done`; before, this Stop left no trace.
+    route, request, payload, commands, order = await _stop_route(
+        monkeypatch, running=True
+    )
+
+    await route.set_session_stream(request, payload=payload)
+
+    assert order == ["command", "stop"]
+    kwargs = commands.request_cancel.await_args.kwargs
+    assert kwargs["project_id"] == PROJECT_ID
+    assert kwargs["session_id"] == SESSION_ID
+    assert kwargs["expected_execution_id"] == EXECUTION_ID
+
+
+@pytest.mark.asyncio
+async def test_a_stop_of_an_idle_session_records_no_command(monkeypatch):
+    route, request, payload, commands, order = await _stop_route(
+        monkeypatch, running=False
+    )
+
+    await route.set_session_stream(request, payload=payload)
+
+    assert order == ["stop"]
+    commands.request_cancel.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_stop_after_the_turn_ended_still_stops(monkeypatch):
+    from oss.src.core.sessions.commands.types import ExecutionExpectationFailed
+
+    route, request, payload, commands, order = await _stop_route(
+        monkeypatch, running=True
+    )
+    commands.request_cancel.side_effect = ExecutionExpectationFailed(
+        expected=EXECUTION_ID, current=None
+    )
+
+    await route.set_session_stream(request, payload=payload)
+
+    assert order == ["stop"]
+
+
+# --- QA D3: the producer resolves a static calling agent ------------------------------
+
+
+@pytest.mark.asyncio
+async def test_the_producer_workflows_service_resolves_a_static_agent(monkeypatch):
+    # The Builder is a static workflow with no row. Without the static catalog, the run
+    # admission of every child update to a Builder session raised
+    # `AgentReferenceUnresolved`, and no update was written.
+    from entrypoints import session_child_updates as composition
+    from oss.src.core.sessions.types import SessionReference
+    from oss.src.core.workflows.build_kit import BUILD_KIT_WORKFLOW_SLUG
+    from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
+
+    monkeypatch.setattr(composition, "get_lock_engine", lambda: AsyncMock())
+    workflows_service, _ = composition._workflows_service(
+        transactions_engine=AsyncMock(), mounts_store=AsyncMock()
+    )
+    workflows_service.workflows_dao = AsyncMock()
+
+    artifact_id = await workflows_service.resolve_agent_artifact_id(
+        project_id=PROJECT_ID,
+        references=[SessionReference(key="workflow", slug=BUILD_KIT_WORKFLOW_SLUG)],
+    )
+
+    static = StaticWorkflowCatalog().retrieve_revision(slug=BUILD_KIT_WORKFLOW_SLUG)
+    assert artifact_id == (static.artifact_id or static.workflow_id)
+    assert workflows_service.workflows_dao.method_calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_stop_that_names_another_turn_records_no_command(monkeypatch):
+    # The stop below refuses a Stop that names an older turn; the command must not
+    # cancel the turn that runs now in its place.
+    route, request, payload, commands, order = await _stop_route(
+        monkeypatch, running=True, expected_execution_id="older-turn"
+    )
+
+    await route.set_session_stream(request, payload=payload)
+
+    assert order == ["stop"]
+    commands.request_cancel.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_stop_records_no_command_for_a_turn_that_started_after_it(monkeypatch):
+    route, request, payload, commands, order = await _stop_route(
+        monkeypatch,
+        running=True,
+        # After the request arrived (the stub clock says 1_000_000 ms), on both clocks.
+        turn_started_at=datetime.fromtimestamp(2_000, tz=timezone.utc),
+        redis_started_ms=2_000_000,
+    )
+
+    await route.set_session_stream(request, payload=payload)
+
+    assert order == ["stop"]
+    commands.request_cancel.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_stop_records_the_command_when_only_the_row_start_is_after_it(
+    monkeypatch,
+):
+    # Redis started the turn before the Stop arrived, and the row got its later start
+    # from the API clock. The stop below accepts on the Redis start and clears the live
+    # flags, so a check on the row start left the turn with no command and no ending.
+    route, request, payload, commands, order = await _stop_route(
+        monkeypatch,
+        running=True,
+        turn_started_at=datetime.fromtimestamp(1_000.010, tz=timezone.utc),
+        redis_started_ms=999_995,
+    )
+
+    await route.set_session_stream(request, payload=payload)
+
+    assert order == ["command", "stop"]
+    kwargs = commands.request_cancel.await_args.kwargs
+    assert kwargs["expected_execution_id"] == EXECUTION_ID
+
+
+@pytest.mark.asyncio
+async def test_a_stop_whose_route_check_found_no_row_records_no_command(monkeypatch):
+    route, request, payload, commands, order = await _stop_route(
+        monkeypatch, running=True, session_missing=True
+    )
+
+    await route.set_session_stream(request, payload=payload)
+
+    assert order == ["stop"]
+    commands.request_cancel.assert_not_awaited()

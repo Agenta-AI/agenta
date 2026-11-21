@@ -86,7 +86,7 @@
     "applySkillUpdateDescription": "このエージェントのスキルを 1 つ新しいバージョンに更新します。",
     "buildKitSettingApplies": "{{description}} プレイグラウンドでは、ビルドキットの設定が適用されます。",
     "agentaTools": "Agenta ツール",
-    "agentaToolsHint": "エージェントがどこで実行されても使えるツールです: プレイグラウンド、API、Slack、Telegram、WhatsApp、自動化。エージェントと一緒に保存されます。",
+    "agentaToolsHint": "エージェントがどこで実行されても使えるツールです。エージェントと一緒に保存されます。",
     "noAgentaTools": "利用できる Agenta ツールはありません。",
     "couldNotLoadAgentaTools": "Agenta ツールを読み込めませんでした。ページを再読み込みして、もう一度お試しください。",
     "startSessionName": "エージェントのセッションを開始",

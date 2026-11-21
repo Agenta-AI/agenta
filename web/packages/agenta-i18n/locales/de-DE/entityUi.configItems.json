@@ -58,5 +58,6 @@
     "countTool_one": "{{count}} Werkzeug",
     "countTool_other": "{{count}} Werkzeuge",
     "change": "Ändern",
-    "policyHint": "Was der Agent ohne Nachfrage tun darf"
+    "policyHint": "Was der Agent ohne Nachfrage tun darf",
+    "modelVia": "über {{harness}}"
 }

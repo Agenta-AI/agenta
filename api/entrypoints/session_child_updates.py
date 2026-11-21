@@ -33,6 +33,7 @@ from oss.src.core.sharing.admission import RunAdmission
 from oss.src.core.store.storage import ObjectStore
 from oss.src.core.triggers.utils import purge_hidden_schedule
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 from oss.src.dbs.http.sessions.control_delivery_direct import DirectControlDelivery
 from oss.src.dbs.postgres.environments.dbes import (
     EnvironmentArtifactDBE,
@@ -78,6 +79,8 @@ def _workflows_service(
             VariantDBE=WorkflowVariantDBE,
             RevisionDBE=WorkflowRevisionDBE,
         ),
+        # The calling session can run a static agent (the Builder), which has no row.
+        static_catalog=StaticWorkflowCatalog(),
         watch_publisher=SessionsWatchPublisher(),
     )
     mounts_service = MountsService(

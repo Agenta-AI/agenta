@@ -29,6 +29,7 @@ export interface QueryWorkflowRevisionsRequest {
     tags?: string | null;
     meta?: string | null;
     include_archived?: boolean | null;
+    include_data?: boolean | null;
     next?: string | null;
     newest?: string | null;
     oldest?: string | null;

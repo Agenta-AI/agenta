@@ -1096,6 +1096,7 @@ triggers_service = TriggersService(
     triggers_dao=triggers_dao,
     connections_service=connections_service,
     workflows_service=workflows_service,
+    executions_dao=session_executions_dao,
 )
 
 

@@ -443,10 +443,7 @@ export {
 export {CatalogListRow} from "./SchemaControls/agentTemplate/CatalogListRow"
 export type {CatalogListRowProps} from "./SchemaControls/agentTemplate/CatalogListRow"
 export {AddSubagentList} from "./SchemaControls/agentTemplate/AddSubagentList"
-export type {
-    SubagentOption,
-    SubagentIntegration,
-} from "./SchemaControls/agentTemplate/AddSubagentList"
+export type {SubagentOption} from "./SchemaControls/agentTemplate/AddSubagentList"
 export type {SubagentListProps} from "./SchemaControls/agentTemplate/ToolManagementList"
 export type {ReferenceToolFormViewProps} from "./SchemaControls/ReferenceToolFormView"
 export {McpServerFormView} from "./SchemaControls/McpServerFormView"

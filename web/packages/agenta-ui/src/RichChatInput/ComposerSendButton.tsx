@@ -78,7 +78,14 @@ export function ComposerSendButton({
                 // spinner: one glyph swaps for another at the same weight on the same button.
                 <CircleNotch size={16} weight="bold" className="animate-spin" />
             ) : (
-                (icon ?? <ArrowUp size={16} weight="bold" />)
+                (icon ?? (
+                    // The canvas draws a 14 px arrow, on a phone too (S03, M01).
+                    <ArrowUp
+                        size={16}
+                        weight="bold"
+                        className={surface === "canvas" ? "size-3.5" : undefined}
+                    />
+                ))
             )}
         </Button>
     )

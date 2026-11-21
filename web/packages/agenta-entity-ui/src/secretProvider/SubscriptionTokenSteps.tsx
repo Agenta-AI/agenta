@@ -2,8 +2,9 @@ import {Fragment, useEffect, useId, useState} from "react"
 
 import {richText, useT} from "@agenta/i18n"
 import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
+import {copyToClipboard} from "@agenta/ui"
 import {Button, Input} from "@agenta/ui/ui"
-import {Check, Copy, WarningCircle} from "@phosphor-icons/react"
+import {Check, WarningCircle} from "@phosphor-icons/react"
 
 import {SignInStep} from "./SignInStep"
 import type {SubscriptionTokenState} from "./useSubscriptionToken"
@@ -28,11 +29,11 @@ const CopyCommand = () => {
                 size="sm"
                 variant="ghost"
                 aria-label={t("entityUi.subscriptionSignIn.copyCommand")}
-                onClick={() =>
-                    void navigator.clipboard?.writeText(SETUP_COMMAND).then(() => setCopied(true))
-                }
+                // A refused clipboard falls back to a selection copy; "Copied" shows only on success.
+                onClick={() => void copyToClipboard(SETUP_COMMAND).then(setCopied)}
             >
-                {copied ? <Check size={14} /> : <Copy size={14} />}
+                {/* Text only, as the canvas draws it (F11 f10); the check marks a done copy. */}
+                {copied ? <Check size={14} /> : null}
                 {copied
                     ? t("entityUi.subscriptionSignIn.copied")
                     : t("entityUi.subscriptionSignIn.copy")}
@@ -71,7 +72,7 @@ export const SubscriptionTokenSteps = ({
         <ol className="m-0 flex list-none flex-col p-0">
             <SignInStep index={1} title={t("entityUi.subscriptionSignIn.runCommand")}>
                 <CopyCommand />
-                <span className="text-xs text-muted-foreground">
+                <span className="text-[12px] leading-5 text-muted-foreground">
                     {richText(t("entityUi.subscriptionSignIn.youNeedInstalled"), {
                         link: (text) => (
                             <a
@@ -87,7 +88,7 @@ export const SubscriptionTokenSteps = ({
                 </span>
             </SignInStep>
             <SignInStep index={2} title={t("entityUi.subscriptionSignIn.signInToClaude")}>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-[12px] leading-5 text-muted-foreground">
                     {t("entityUi.subscriptionSignIn.browserOpens")}
                 </span>
             </SignInStep>
@@ -126,7 +127,7 @@ export const SubscriptionTokenSteps = ({
                         </span>
                     </span>
                 ) : (
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-[11px] leading-5 text-colorTextTertiary">
                         {t("entityUi.subscriptionSignIn.tokenWorksOneYear")}
                     </span>
                 )}

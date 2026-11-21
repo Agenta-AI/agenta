@@ -86,7 +86,7 @@
     "applySkillUpdateDescription": "Updates one of this agent's skills to its newer version.",
     "buildKitSettingApplies": "{{description}} In the playground, the Build kit setting applies.",
     "agentaTools": "Agenta tools",
-    "agentaToolsHint": "Tools your agent can use wherever it runs: the playground, the API, Slack, Telegram, WhatsApp and automations. Saved with the agent.",
+    "agentaToolsHint": "Tools your agent can use wherever it runs. Saved with the agent.",
     "noAgentaTools": "No Agenta tools available.",
     "couldNotLoadAgentaTools": "Could not load the Agenta tools. Reload the page to try again.",
     "startSessionName": "Start a session of an agent",

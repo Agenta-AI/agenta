@@ -3,6 +3,7 @@ import {useRouter} from "next/router"
 
 import {AgentPageBuilderHost} from "@/features/agent-layout/AgentPageBuilderHost"
 import {isConfigurationTab} from "@/features/agent-pages/configurationTabs"
+import {AgentAnalyticsPageSkeleton} from "@/features/agent-pages/states/AgentAnalyticsPageSkeleton"
 import {isAgentOverviewEnabled, OPEN_PLAYGROUND} from "@/features/agents/agentEntry"
 import {AgentOverviewScreen} from "@/features/agents/AgentOverviewScreen"
 import {AgentPlaygroundRedirect} from "@/features/agents/AgentPlaygroundRedirect"
@@ -27,7 +28,7 @@ const AgentConfigurationPage = dynamic(
 )
 const AgentAnalyticsPage = dynamic(
     () => import("@/features/agent-pages/AgentAnalyticsScreen").then((m) => m.AgentAnalyticsScreen),
-    {loading: () => <SessionsPageSkeleton />},
+    {loading: () => <AgentAnalyticsPageSkeleton />},
 )
 
 export default function AgentOverviewPage() {

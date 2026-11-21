@@ -4,6 +4,7 @@ import {createT, useT} from "@agenta/i18n"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {projectIdAtom} from "@agenta/shared/state"
 import {SkillAgentPicker} from "@agenta/skills-ui"
+import {cn} from "@agenta/ui/styles"
 import {
     Button,
     DropdownMenu,
@@ -14,6 +15,7 @@ import {
     Popover,
     PopoverAnchor,
     PopoverContent,
+    touchTargetExpansion,
 } from "@agenta/ui/ui"
 import {
     Archive,
@@ -82,7 +84,11 @@ export const SkillActionsMenu = ({
                                 size="icon-xs"
                                 variant="ghost"
                                 aria-label={t("skills.list.skillActions")}
-                                className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
+                                // Drawn at 24 px; the hit area reaches 44 px for a finger.
+                                className={cn(
+                                    "hover:bg-foreground/10 dark:hover:bg-foreground/15",
+                                    touchTargetExpansion({height: 24, width: 24}),
+                                )}
                             >
                                 <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
                             </Button>

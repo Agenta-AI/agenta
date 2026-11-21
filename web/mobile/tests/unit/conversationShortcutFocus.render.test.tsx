@@ -231,7 +231,7 @@ const Conversation = ({sessionId, role}: {sessionId: string; role: ConversationR
     <ConversationRoleContext.Provider value={role}>
         <LiveConversation
             key={sessionId}
-            embedded
+            parentOwnsShell
             entityId="rev-1"
             sessionId={sessionId}
             projectId="proj-1"

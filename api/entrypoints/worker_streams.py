@@ -142,6 +142,8 @@ async def _build_records_worker(redis_client: Redis) -> StreamConsumer:
         service=RecordsService(
             records_dao=RecordsDAO(),
             executions_dao=SessionExecutionsDAO(),
+            # The structured part of a child update, read from its input row.
+            inputs_dao=SessionInputsDAO(),
         ),
         redis_client=redis_client,
         stream_name=RECORD_STREAM_NAME,

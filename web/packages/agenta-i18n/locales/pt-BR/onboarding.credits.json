@@ -15,8 +15,6 @@
     "chatgpt": "Assinatura do ChatGPT",
     "chatgptHint": "Execute agentes com seu plano Plus ou Pro.",
     "chatgptReadyHint": "Os agentes podem ser executados com seu plano do ChatGPT.",
-    "chatgptDialogTitle": "Conectar o ChatGPT",
-    "chatgptDialogBody": "Entre com sua assinatura do ChatGPT. Seu agente é executado com ela por meio do harness do Codex.",
     "chatgptConnected": "ChatGPT conectado. Seu agente será executado com ele.",
     "claude": "Assinatura do Claude",
     "claudeHint": "Execute agentes com seu plano Pro ou Max.",

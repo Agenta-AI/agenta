@@ -8,7 +8,7 @@ import {SessionListLoadMore, type SessionMenuEntry} from "@agenta/sessions-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn, type ListTableGroup} from "@agenta/ui/list-table"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Button, PHONE_TOUCH_TARGET_CLASS, SimpleTooltip} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import {Plus} from "lucide-react"
 
@@ -210,7 +210,7 @@ export const SessionListTable = ({
                         aria-label={t("sessions.mobileList.newSessionWith", {
                             agent: run.label ?? "",
                         })}
-                        className="size-6 text-muted-foreground hover:text-foreground max-md:relative max-md:after:absolute max-md:after:-inset-[10px] max-md:after:content-['']"
+                        className={`size-6 text-muted-foreground hover:text-foreground ${PHONE_TOUCH_TARGET_CLASS}`}
                         onClick={() => onNewSession(agentId)}
                     >
                         <Plus className="size-3.5" />
@@ -250,8 +250,12 @@ export const SessionListTable = ({
                     // the minima fit every width this page is read at, so the frame's own
                     // horizontal scroller was never doing anything.
                     stickyHeader
+                    // The first rows sit right under the header line, as drawn (A02, A03).
+                    flushFirstRows
                     // Compact for the same reason it is sticky: this is the long list.
                     density="compact"
+                    // On a phone a row is a 44 px tap target (compact rows are 40 px).
+                    rowClassName="max-md:min-h-11"
                     // The page of one agent draws the light chevron on its headings (A02).
                     groupCaret={lockedAgentId ? "chevron" : "fill"}
                     loading={list.isPending}
