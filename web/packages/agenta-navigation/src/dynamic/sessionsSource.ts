@@ -1303,10 +1303,19 @@ export const sidebarSessionAgentOptionsAtomFamily = atomFamily((scopeId: string)
         if (!sessionFilterMenuOpen(get, scopeId)) return []
 
         const agents = get(agentWorkflowsListQueryStateAtom)
-        return agents.data.map((agent) => ({
+        const options = agents.data.map((agent) => ({
             value: agent.id,
             label: agent.name || agent.slug || "Untitled agent",
         }))
+        // The builder is not in the catalog, but the sidebar lists its chats: offer it too.
+        const builderId = get(builderAgentWorkflowIdAtom)
+        if (builderId && !options.some((option) => option.value === builderId)) {
+            options.push({
+                value: builderId,
+                label: get(agentDisplayNameAtomFamily(builderId)) || "Builder",
+            })
+        }
+        return options
     }),
 )
 

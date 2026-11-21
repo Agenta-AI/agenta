@@ -163,6 +163,9 @@ const linkClickHandler =
             onItemSelect(item.key, event)
             return
         }
+        // A modified click opens the page in another tab; the click work belongs to THIS tab
+        // only, as on a heading's "+".
+        if (isModifiedClick(event)) return
         item.onClick?.(event)
     }
 
