@@ -2742,6 +2742,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/ingest-teams-event",
+          label: "Ingest Teams Event",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/ingest-bridge-event",
           label: "Ingest Bridge Event",
           className: "api-method post",
@@ -3404,6 +3410,12 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "reference/api/query-mounts",
           label: "Query Mounts",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/sign-mount-credentials-by-slug",
+          label: "Sign Mount Credentials By Slug",
           className: "api-method post",
         },
         {
