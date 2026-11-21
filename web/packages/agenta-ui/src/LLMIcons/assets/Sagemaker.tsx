@@ -1,6 +1,8 @@
 import {IconProps} from "./types"
+import {useSvgIds} from "./useSvgIds"
 
 const Sagemaker = ({...props}: IconProps) => {
+    const {paint, clip} = useSvgIds()
     return (
         <svg
             width="100%"
@@ -10,10 +12,10 @@ const Sagemaker = ({...props}: IconProps) => {
             xmlns="http://www.w3.org/2000/svg"
             {...props}
         >
-            <g clipPath="url(#clip0_9276_24450)">
+            <g clipPath={`url(#${clip})`}>
                 <path
                     d="M24 4H8C5.79086 4 4 5.79086 4 8V24C4 26.2091 5.79086 28 8 28H24C26.2091 28 28 26.2091 28 24V8C28 5.79086 26.2091 4 24 4Z"
-                    fill="url(#paint0_linear_9276_24450)"
+                    fill={`url(#${paint})`}
                 />
                 <path
                     fillRule="evenodd"
@@ -24,7 +26,7 @@ const Sagemaker = ({...props}: IconProps) => {
             </g>
             <defs>
                 <linearGradient
-                    id="paint0_linear_9276_24450"
+                    id={paint}
                     x1="4"
                     y1="28"
                     x2="28"
@@ -34,7 +36,7 @@ const Sagemaker = ({...props}: IconProps) => {
                     <stop stopColor="#56C0A7" />
                     <stop offset="1" stopColor="#2F5F53" />
                 </linearGradient>
-                <clipPath id="clip0_9276_24450">
+                <clipPath id={clip}>
                     <rect width="24" height="24" fill="white" transform="translate(4 4)" />
                 </clipPath>
             </defs>

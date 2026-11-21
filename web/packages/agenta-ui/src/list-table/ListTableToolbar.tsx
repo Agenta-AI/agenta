@@ -40,7 +40,9 @@ export const ListTableToolbar = ({
     const t = useT(commonCatalog)
     return (
         <div className={cn("mb-3 flex items-center gap-2", className)}>
-            <InputGroup className="min-w-0 max-w-[340px] flex-1 bg-transparent dark:bg-transparent">
+            {/* 46 px high on a phone, so the field inside its 1 px border is 44 px (tap rule); the
+                desktop keeps the control height. */}
+            <InputGroup className="min-w-0 max-w-[340px] flex-1 bg-transparent max-md:h-[46px] dark:bg-transparent">
                 <InputGroupAddon>
                     <Search size={14} aria-hidden />
                 </InputGroupAddon>
@@ -49,7 +51,8 @@ export const ListTableToolbar = ({
                     onChange={(event) => onSearchChange(event.target.value)}
                     placeholder={searchPlaceholder}
                     aria-label={searchAriaLabel ?? searchPlaceholder}
-                    className="text-[13px] md:text-[13px]"
+                    // Fills the group on a phone, so a tap anywhere in it lands on the field.
+                    className="text-[13px] max-md:h-full md:text-[13px]"
                 />
                 {search ? (
                     <InputGroupAddon align="inline-end">

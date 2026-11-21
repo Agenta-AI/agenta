@@ -121,7 +121,7 @@ describe("the drawer after a partial save", () => {
 
         // Narrow to selected projects and save: the projects land, the key does not.
         await act(async () => radios()[1]?.click())
-        await press("Done")
+        await press("Save connection")
         expect(saveConnection).toHaveBeenCalledTimes(1)
         expect(saveConnection.mock.calls[0]?.[0]?.organization?.projectsChanged).toBe(true)
 
@@ -131,7 +131,7 @@ describe("the drawer after a partial save", () => {
         // Back to all projects, the choice the drawer opened on, and save again.
         saveConnection.mockResolvedValueOnce("org-1")
         await act(async () => radios()[0]?.click())
-        await press("Done")
+        await press("Save connection")
 
         expect(saveConnection).toHaveBeenCalledTimes(2)
         const retry = saveConnection.mock.calls[1]?.[0]

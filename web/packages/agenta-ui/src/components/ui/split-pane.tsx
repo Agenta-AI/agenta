@@ -45,6 +45,9 @@ export interface SplitPaneProps {
     barHidden?: boolean
     /** Let the driven pane grow past `paneSize` — for one-pane layouts where the fill is hidden. */
     paneGrow?: boolean
+    /** Draw the grip pill only under the pointer, with keyboard focus, or while dragging (the
+     * builder page, B03). The drag area and the keyboard resizing stay the same. */
+    gripOnHover?: boolean
     /** Accessible name for the divider — it is focusable whenever `resizable`. */
     barLabel?: string
     onResizeStart?: () => void
@@ -155,6 +158,7 @@ export function SplitPane({
     revealContent = false,
     barHidden = false,
     paneGrow = false,
+    gripOnHover = false,
     barLabel: barLabelProp,
     onResizeStart,
     onResize,
@@ -411,6 +415,7 @@ export function SplitPane({
                         "absolute left-1/2 top-1/2 h-6 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-colorTextTertiary",
                         "transition-[background,height,opacity] duration-150",
                         "group-hover:h-9 group-hover:bg-colorPrimary group-hover:opacity-70",
+                        gripOnHover && "opacity-0 group-focus-visible:opacity-70",
                         dragging && "h-9 bg-colorPrimary opacity-70",
                     )}
                 />

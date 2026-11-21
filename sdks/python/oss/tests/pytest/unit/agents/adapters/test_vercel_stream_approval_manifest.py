@@ -153,3 +153,53 @@ async def test_no_manifest_part_when_the_gate_carries_none() -> None:
 
     assert not [p for p in parts if p.get("type") == "data-approval-manifest"]
     assert any(p.get("type") == "tool-approval-request" for p in parts)
+
+
+# The server preview of an agent write rides its own part, for the manifest's reasons.
+PREVIEW: Dict[str, Any] = {
+    "applies": True,
+    "operations": [{"index": 0, "applies": True}],
+    "changes": [
+        {
+            "path": ["parameters", "agent", "llm", "model"],
+            "operations": [0],
+            "change": "changed",
+            "old": "claude-sonnet-5-5",
+            "new": "claude-opus-5-5",
+        }
+    ],
+}
+
+
+@pytest.mark.asyncio
+async def test_the_preview_rides_its_own_data_part_before_the_approval() -> None:
+    parts = [
+        part
+        async for part in agent_run_to_vercel_parts(
+            _gated_commit_run({"toolCallId": "tool-1", "preview": PREVIEW})
+        )
+    ]
+
+    (preview_part,) = [p for p in parts if p.get("type") == "data-approval-preview"]
+    assert preview_part["data"] == {
+        "toolCallId": "tool-1",
+        "approvalId": "perm-1",
+        "preview": PREVIEW,
+    }
+    types = [p.get("type") for p in parts]
+    assert types.index("data-approval-preview") < types.index("tool-approval-request")
+    for part in parts:
+        if part.get("type") == "tool-input-available":
+            assert "preview" not in (part.get("input") or {})
+
+
+@pytest.mark.asyncio
+async def test_no_preview_part_when_the_gate_carries_none() -> None:
+    parts = [
+        part
+        async for part in agent_run_to_vercel_parts(
+            _gated_commit_run({"toolCallId": "tool-1"})
+        )
+    ]
+
+    assert not [p for p in parts if p.get("type") == "data-approval-preview"]

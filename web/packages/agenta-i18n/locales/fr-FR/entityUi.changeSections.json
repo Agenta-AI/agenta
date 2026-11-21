@@ -5,5 +5,6 @@
     "viewFullDiff": "Voir toutes les différences",
     "lineCount_one": "{{count}} ligne",
     "lineCount_many": "{{count}} lignes",
-    "lineCount_other": "{{count}} lignes"
+    "lineCount_other": "{{count}} lignes",
+    "changed": "Modifié"
 }

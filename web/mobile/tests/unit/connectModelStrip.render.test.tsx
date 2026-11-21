@@ -9,40 +9,14 @@ vi.mock("@agenta/chat/components", () => ({
         open ? <>{children}</> : null,
 }))
 
-vi.mock("@agenta/entities/secret", () => ({
-    providerConnectionsAtom: Symbol("providerConnectionsAtom"),
-    useVaultSecret: () => ({mutate: vi.fn()}),
+vi.mock("@agenta/entity-ui/secretProvider", () => ({
+    providerAddView: {id: "project.modelProviders.add"},
 }))
 
-vi.mock("jotai", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("jotai")>()
-    // The provider atom above is a symbol stand-in; the language atoms are real.
-    return {
-        ...actual,
-        useAtomValue: ((atom: unknown) =>
-            typeof atom === "symbol" ? [] : actual.useAtomValue(atom as never)) as never,
-    }
-})
-
-vi.mock("@agenta/entity-ui/secretProvider", () => ({
-    ProviderDrawer: ({
-        open,
-        context,
-        connection,
-    }: {
-        open: boolean
-        context?: "playground" | "settings"
-        connection?: unknown
-    }) =>
-        open ? (
-            <div role="dialog">
-                {connection
-                    ? "OpenAI API key"
-                    : context === "playground"
-                      ? "Model providers"
-                      : "Add a provider"}
-            </div>
-        ) : null,
+vi.mock("@agenta/ui/view-stack", () => ({
+    ViewDrawerHost: ({request}: {request: {view: {id: string}; target: {kind: string}}}) => (
+        <div role="dialog">{`${request.view.id} ${request.target.kind}`}</div>
+    ),
 }))
 
 vi.mock("@agenta/ui/ui", () => ({
@@ -66,7 +40,7 @@ afterEach(() => {
 })
 
 describe("ConnectModelStrip", () => {
-    it("opens the provider catalog instead of the current provider key dialog", async () => {
+    it("opens Add a provider or subscription, not the current provider's key form", async () => {
         host = document.createElement("div")
         document.body.appendChild(host)
         root = createRoot(host)
@@ -83,7 +57,8 @@ describe("ConnectModelStrip", () => {
             button?.dispatchEvent(new MouseEvent("click", {bubbles: true}))
         })
 
-        expect(host.querySelector('[role="dialog"]')?.textContent).toBe("Model providers")
-        expect(host.textContent).not.toContain("OpenAI API key")
+        expect(host.querySelector('[role="dialog"]')?.textContent).toBe(
+            "project.modelProviders.add project",
+        )
     })
 })

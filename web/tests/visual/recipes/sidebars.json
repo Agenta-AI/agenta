@@ -1,0 +1,46 @@
+{
+    "slug": "sidebars",
+    "recipes": [
+        {
+            "frame": "Main",
+            "name": "Main sidebar, one section per agent",
+            "kind": "story",
+            "story": "builderlayout-main-and-a01-sidebars--main-sidebar",
+            "crop": "[data-testid=\"sidebar-story\"]",
+            "design": "boards/1__Main.png",
+            "themes": ["light", "dark"]
+        },
+        {
+            "frame": "Main",
+            "name": "Main sidebar, agent heading under the pointer",
+            "kind": "story",
+            "story": "builderlayout-main-and-a01-sidebars--main-sidebar-heading-hover",
+            "crop": "[data-testid=\"sidebar-story\"]",
+            "design": "boards/1__Main.png",
+            "themes": ["light"]
+        },
+        {
+            "frame": "A01",
+            "name": "Agent sidebar on a session",
+            "kind": "story",
+            "story": "builderlayout-main-and-a01-sidebars--agent-sidebar",
+            "crop": "[data-testid=\"sidebar-story\"]",
+            "design": "boards/3__A01-agent-sidebar.png",
+            "themes": ["light", "dark"]
+        },
+        {
+            "frame": "A01",
+            "name": "Agent sidebar, full screen",
+            "kind": "screen",
+            "route": "/m/w/{workspace}/p/{project}/sessions/{s_charged}",
+            "steps": [
+                "Hover the heading \"Support triage\" in the main sidebar",
+                "Click the button \"Open Support triage\""
+            ],
+            "capture": "page",
+            "viewport": [1440, 900],
+            "design": "boards/3__A01-agent-sidebar.png",
+            "themes": ["light"]
+        }
+    ]
+}

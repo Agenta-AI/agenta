@@ -24,10 +24,6 @@
     "urlHelp": "サーバーの HTTP エンドポイントです。Agenta がチェックし、OAuth、API キーのどれが必要か、または何も不要かを検出します。",
     "legacyTransportWarning": "このアドレスは Agenta が対応していない旧式の SSE トランスポートを使用している可能性があります。多くのプロバイダーは、/mcp で終わるアドレスで新しいトランスポートを提供しています。プロバイダーのドキュメントを確認してください。",
     "name": "名前",
-    "nameHelp": "このサーバーのツールでモデルに表示される名前です。接続を選択した時点で固定されるため、接続名を変更してもここのツール名は変わりません。",
-    "namePrefixHint": "このプロジェクト全体に表示されます。ツールには <code>{{prefix}}_</code> が接頭辞として付きます",
-    "oauthNotice": "「接続」を押すと、{{name}} の認可ページが新しいウィンドウで開きます。{{name}} から付与する権限（通常は読み取りと書き込み）を尋ねられます。ログインはこのプロジェクトにのみ保存されます。",
-    "theServer": "サーバー",
     "clientSecret": "クライアントシークレット",
     "projectSecret": "プロジェクトシークレット",
     "noKeyRefusedAdvice": "上で別の認証方式を選択してください。",
@@ -37,11 +33,11 @@
     "openWindowAgain": "ウィンドウを再度開く",
     "savedOauthUnreadable": "保存済みの OAuth 設定を読み込めませんでした。もう一度お試しください。",
     "consentCancelled": "{{name}} は Agenta を認可しませんでした。サインインはキャンセルまたは拒否されました。何も保存されていません。",
-    "continue": "続行",
     "tryAgain": "再試行",
     "connect": "接続",
     "selectProjectSecret": "プロジェクトシークレットを選択",
     "noProjectSecrets": "プロジェクトシークレットが見つかりません",
     "unnamedSecret": "名前のないシークレット",
-    "createSecret": "シークレットを作成"
+    "createSecret": "シークレットを作成",
+    "advancedSummary": "コールバック URL、クライアント ID、スコープ"
 }

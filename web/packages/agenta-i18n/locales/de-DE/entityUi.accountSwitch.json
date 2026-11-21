@@ -1,0 +1,19 @@
+{
+    "chooseWhose": "Wähle, wessen {{name}}-Konto der Agent verwendet",
+    "eachPersonsOwn": "Eigenes Konto jeder Person",
+    "eachPersonsOwnNote": "Alle verwenden ihr eigenes {{name}}-Konto.",
+    "oneShared": "Ein gemeinsames Konto",
+    "oneSharedNote": "Alle verwenden das Konto, das du auswählst.",
+    "yourAccount": "Dein Konto",
+    "yourAccountNote": "Das {{name}}-Konto, das deine eigenen Ausführungen verwenden",
+    "sharedAccount": "Gemeinsames Konto",
+    "sharedAccountNote": "Jede Ausführung verwendet dieses Konto, egal wer sie startet",
+    "useMyDefault": "Mein Standardkonto verwenden",
+    "connectAnotherShared": "Weiteres gemeinsames Konto verbinden",
+    "noAccountYet": "Noch kein Konto",
+    "connectApp": "{{name}} verbinden",
+    "noSharedAccountYet": "Noch kein gemeinsames Konto",
+    "noPersonWarning": "Ausführungen aus einem Kanal oder aus einer mit einem API-Schlüssel erstellten Automatisierung haben keine Person. Sie können nicht das eigene Konto einer Person verwenden, daher ist diese Integration für sie nicht verfügbar.",
+    "onlyMeShort": "Nur deine eigenen Ausführungen verwenden es.",
+    "everyoneShort": "Agenten in diesem Projekt können es verwenden."
+}
