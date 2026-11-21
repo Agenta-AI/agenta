@@ -66,6 +66,9 @@ vi.mock("@agenta/entities/gatewayTrigger", async () => {
         triggerSubscriptionDrawerAtom: mocks.subscriptionDrawer,
         useTriggerSchedule: () => ({schedule: null, create: mocks.createSchedule}),
         useTriggerSubscription: () => ({subscription: null, create: vi.fn()}),
+        // The new automation's default name reads the picked event's catalog entry.
+        useTriggerConnectionsQuery: () => ({connections: []}),
+        useTriggerEvent: () => ({event: null, isLoading: false, error: null}),
     }
 })
 vi.mock("@agenta/entity-ui/gatewayTrigger", async () => ({

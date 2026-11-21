@@ -2,7 +2,7 @@ import asyncio
 from copy import deepcopy
 from contextlib import asynccontextmanager
 from time import monotonic
-from typing import Any, AsyncIterator, Awaitable, Callable, Optional, Sequence
+from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 from uuid import UUID, uuid4
 
 from agenta.sdk.agents import Message
@@ -38,7 +38,7 @@ from oss.src.core.sharing.service import (
     channel_binding_of,
     channel_session_policy,
     created_session_access,
-    get_sharing_service,
+    invalidate_sharing_caches,
 )
 from oss.src.core.sessions.streams.dtos import SessionNameSource, SessionStreamCreate
 from oss.src.core.sessions.types import SessionCallingSession
@@ -50,7 +50,7 @@ from oss.src.core.sessions.streams.types import (
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
 from oss.src.core.access.prefetch import request_memo_scope
 from oss.src.core.sharing.admission import TEMPLATE_START_BOUNDARY, RunAdmission
-from oss.src.core.sharing.dtos import AccessPolicy, SessionGrant
+from oss.src.core.sharing.dtos import AccessPolicy
 from oss.src.core.shared.idempotency import resource_identity
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.types import invoke_never_dispatched
@@ -255,14 +255,15 @@ class SessionStartsService:
         channel_binding_id: Optional[UUID] = None,
         calling_session: Optional[SessionCallingSession] = None,
         name: Optional[str] = None,
-        grants: Sequence[SessionGrant] = (),
+        grants_from_session_id: Optional[str] = None,
     ) -> bool:
         """Create the session row with its initial policy, unless a first touch (a
         heartbeat, a rename, another start with the same key) already created it: that
         row keeps its policy. True when this call created the row. An id a channel
         thread names is created only by its channel's run (`SessionIdTombstoned`
-        otherwise). The row this call creates gets `grants` before any claim, so the
-        first turn runs with them."""
+        otherwise). With `grants_from_session_id`, the row this call creates gets that
+        session's grants in the insert's transaction, before any claim, so the first
+        turn runs with them and no row exists without them."""
         try:
             created = await self._streams.create(
                 project_id=project_id,
@@ -276,27 +277,27 @@ class SessionStartsService:
                     name=name,
                     name_source=SessionNameSource.automatic if name else None,
                 ),
+                grants_from_session_id=grants_from_session_id,
             )
         except SessionStreamAlreadyExists:
             return False
         policy, in_channel, binding_id = created_session_access(
             created, requested=access, channel_binding_id=channel_binding_id
         )
+        grants = list(getattr(created, "created_grants", None) or [])
         await cache_created_session_access(
             project_id=project_id,
             session_id=session_id,
             stream_id=getattr(created, "id", None),
             policy=policy,
+            grants=grants,
             is_channel=in_channel,
             channel_binding_id=binding_id,
         )
         if grants:
-            await get_sharing_service().copy_grants_to_created_session(
+            await invalidate_sharing_caches(
                 project_id=project_id,
-                session_id=session_id,
-                policy=policy,
-                grants=grants,
-                user_id=user_id,
+                grant_user_ids=[grant.user_id for grant in grants],
             )
         return True
 
@@ -684,7 +685,7 @@ class SessionStartsService:
         calling_turn_id: str | None = None,
         boundary: str = TEMPLATE_START_BOUNDARY,
         name: str | None = None,
-        grants: Sequence[SessionGrant] = (),
+        grants_from_session_id: Optional[str] = None,
     ) -> SessionStartResult:
         """`access` is the first session's initial policy (the caller's requested
         visibility, through `initial_policy`). When given, the session row is created
@@ -700,8 +701,9 @@ class SessionStartsService:
 
         `boundary` is the admission point every check of this start logs (the template
         loader's by default; `start_session` passes the child run's). `name` names the
-        session row that this start creates, and `grants` are the grants that row gets
-        (a child's copy of its calling session's grants)."""
+        session row that this start creates, and `grants_from_session_id` names the
+        session whose grants that row gets (a private child's copy of its calling
+        session's grants)."""
         if calling_session is not None and access is None:
             raise ValueError("a calling session record needs the initial policy")
         # The start runs as the request's principal; recheck before anything is
@@ -764,7 +766,7 @@ class SessionStartsService:
                     channel_binding_id=channel_binding_id,
                     calling_session=calling_session,
                     name=name,
-                    grants=grants,
+                    grants_from_session_id=grants_from_session_id,
                 )
                 if not created:
                     await self._run_admission.admit(

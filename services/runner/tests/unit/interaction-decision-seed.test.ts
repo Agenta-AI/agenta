@@ -337,6 +337,37 @@ describe("decisionMapOf", () => {
     );
     assert.equal(decisions.take(gate), undefined, "and only twice");
   });
+
+  it("queues the answers of two identical calls in the order their gates were raised", () => {
+    // The person approved the first call and denied the second. The query returns the rows in
+    // no set order (here: the denial first). The cold replay raises the first call first, so it
+    // must take the approval.
+    const gate = { executor: "relay" as const, toolName: "run_tool", args };
+    const decisions = new ConversationDecisions(
+      decisionMapOf(
+        decisionsFromInteractionRows([
+          row({
+            token: "tok-2",
+            created_at: "2026-01-01T00:00:02Z",
+            data: {
+              request: { tool: "run_tool", args },
+              resolution: { verdict: "denied" },
+            },
+          }),
+          row({ token: "tok-1", created_at: "2026-01-01T00:00:01Z" }),
+        ]),
+      ),
+    );
+
+    assert.deepEqual(decisions.take(gate), {
+      decision: "allow",
+      interactionToken: "tok-1",
+    });
+    assert.deepEqual(decisions.take(gate), {
+      decision: "deny",
+      interactionToken: "tok-2",
+    });
+  });
 });
 
 describe("TurnApprovalRows", () => {

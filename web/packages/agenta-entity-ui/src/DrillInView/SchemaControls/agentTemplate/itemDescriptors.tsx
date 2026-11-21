@@ -259,7 +259,7 @@ export function describeMcp(server: unknown): ItemDescriptor {
         description: typeof connection.url === "string" ? connection.url : undefined,
         mono: "",
         color: "transparent",
-        icon: <McpServerMark size={28} />,
+        icon: <McpServerMark size={28} name={name} />,
         // The mark paints itself; a chip class keeps ItemAvatar from adding its white text.
         avatarClassName: "bg-transparent",
         // No type tag. Every MCP row carried "HTTP", which said the same thing on every

@@ -12,6 +12,7 @@ import {
     ClockCounterClockwise,
     Lightning,
     List,
+    MagnifyingGlass,
     SlidersHorizontal,
     Users,
     Wrench,
@@ -105,7 +106,16 @@ export const BrowseIdeasDialog = ({
                         placeholder={t("builder.page.searchIdeas")}
                         value={search}
                         onChange={(event) => setSearch(event.target.value)}
-                        className="h-[30px] w-60 rounded-[6px] border-colorBorderSecondary text-[13px] max-sm:w-40 md:text-[13px]"
+                        // B02: a tertiary glyph 8 px in, 8 px before the text. The prefix is the
+                        // default glyph; passing it is how its color is set.
+                        prefix={
+                            <MagnifyingGlass
+                                aria-hidden
+                                size={14}
+                                className="text-colorTextTertiary"
+                            />
+                        }
+                        className="h-[30px] w-60 gap-2 rounded-[6px] border-colorBorderSecondary px-2 text-[13px] max-sm:w-40 md:text-[13px]"
                     />
                     <DialogClose asChild>
                         <Button

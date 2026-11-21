@@ -78,6 +78,7 @@
     "sessions": "Sessions",
     "noSessions": "This agent has no sessions yet.",
     "sessionsFailed": "The sessions could not be loaded.",
+    "newSessionShort": "New",
     "openItem": "Open an item",
     "closeTab": "Close {{name}}",
     "moreTabs": "{{count}} more",

@@ -1,12 +1,14 @@
-"""A person's in-band approval answer is recorded on its interaction row before the run.
+"""A person's in-band approval answer is recorded on its interaction row before the run,
+and the run continues the turn that paused.
 
 The runner takes an approval decision only from a ``responded`` row. A caller that answers
 a card inside the messages (the public Vercel ``tool-approval-response`` input) leaves no row,
-so the service sends the answer to the transition route first, with the caller's own
-credential, and the API decides whether that credential may answer.
+so the service sends the answer to the respond route first, the route that the app uses,
+with the caller's own credential, and the API decides whether that credential may answer.
+The API stores a continuation of the paused execution and leaves it to this request, which
+then runs under its execution id, command id and session turn id.
 """
 
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -15,10 +17,13 @@ from starlette.requests import Request
 
 from agenta.sdk.decorators.routing import (
     MAX_INBAND_APPROVAL_ANSWERS,
+    admit_session_input,
     apply_invoke_prelude,
     record_inband_approval_answers,
 )
 from agenta.sdk.models.workflows import WorkflowInvokeRequest
+
+API = "https://platform.example/api"
 
 
 def _request(headers=None) -> Request:
@@ -37,10 +42,36 @@ def _request(headers=None) -> Request:
     return request
 
 
+def _admission(execution_id="exec-1"):
+    """What the respond route answers when it stored a continuation for the caller."""
+    return {
+        "interaction": {},
+        "command": {"id": f"cmd-{execution_id}", "state": "pending"},
+        "execution": {
+            "id": f"cont-{execution_id}",
+            "state": "pending_delivery",
+            "session_turn_id": "turn-start",
+        },
+    }
+
+
+class _Response:
+    def __init__(self, status_code, body=None):
+        self.status_code = status_code
+        self._body = body if body is not None else {}
+
+    def json(self):
+        return self._body
+
+
 class _Client:
-    def __init__(self, responses, captured):
+    """The interactions query answers one row per token, paused on `rows[token]`
+    (`exec-1` by default). Each respond call takes the next of `responses`."""
+
+    def __init__(self, responses, captured, rows):
         self.responses = list(responses)
         self.captured = captured
+        self.rows = rows
 
     async def __aenter__(self):
         return self
@@ -50,15 +81,33 @@ class _Client:
 
     async def post(self, url, **kwargs):
         self.captured.append({"url": url, **kwargs})
-        response = self.responses.pop(0) if self.responses else 200
+        if url.endswith("/sessions/interactions/query"):
+            return _Response(
+                200,
+                {
+                    "interactions": [
+                        {"id": f"id-{token}", "token": token, "turn_id": execution}
+                        for token, execution in self.rows.items()
+                    ]
+                },
+            )
+        response = self.responses.pop(0) if self.responses else 202
         if isinstance(response, Exception):
             raise response
-        return SimpleNamespace(status_code=response)
+        if isinstance(response, _Response):
+            return response
+        execution = url.split("/id-")[1].split("/")[0] if "/id-" in url else ""
+        return _Response(
+            response,
+            _admission(self.rows.get(execution, "exec-1"))
+            if response < 400
+            else {"detail": "refused"},
+        )
 
 
 def _platform():
     connection = MagicMock()
-    connection.base_url.return_value = "https://platform.example/api"
+    connection.base_url.return_value = API
     connection.timeout = 3
     return connection
 
@@ -90,13 +139,35 @@ def _resume(*answers, meta=None, history=()):
     )
 
 
-async def _record(req, request, responses=(), client_kwargs=None):
+def _tokens(request):
+    found = []
+    for message in request.data.inputs["messages"]:
+        content = message.get("content")
+        for block in content if isinstance(content, list) else []:
+            token = (block.get("output") or {}).get("interactionToken")
+            if isinstance(token, str):
+                found.append(token)
+    return found
+
+
+async def _record(req, request, responses=(), client_kwargs=None, rows=None):
+    captured, _accepted = await _record_with_result(
+        req, request, responses, client_kwargs, rows
+    )
+    return captured
+
+
+async def _record_with_result(
+    req, request, responses=(), client_kwargs=None, rows=None
+):
     captured = []
+    if rows is None:
+        rows = {token: "exec-1" for token in _tokens(request)}
 
     def _client(**kwargs):
         if client_kwargs is not None:
             client_kwargs.update(kwargs)
-        return _Client(responses, captured)
+        return _Client(responses, captured, rows)
 
     with (
         patch(
@@ -108,30 +179,71 @@ async def _record(req, request, responses=(), client_kwargs=None):
             side_effect=_client,
         ),
     ):
-        await record_inband_approval_answers(req, request)
-    return captured
+        accepted = await record_inband_approval_answers(req, request)
+    return captured, accepted
+
+
+def _responds(captured):
+    return [call for call in captured if call["url"].endswith("/respond")]
+
+
+def _answered(captured):
+    """(interaction id, answer) of every respond call, in order."""
+    return [
+        (item["interaction_id"], item["answer"])
+        for call in _responds(captured)
+        for item in call["json"]["answers"]
+    ]
 
 
 @pytest.mark.asyncio
-async def test_an_api_key_answer_is_recorded_as_responded_with_the_original_credential():
-    captured = await _record(
+async def test_an_api_key_answer_continues_the_paused_turn_with_the_original_credential():
+    request = _resume(("tc-1", {"approved": True, "interactionToken": "tok-1"}))
+    captured = await _record(_request({"Authorization": "ApiKey person-key"}), request)
+
+    query, respond = captured
+    assert query["url"] == f"{API}/sessions/interactions/query"
+    assert query["json"] == {
+        "query": {"session_id": "session-1", "kind": "user_approval"}
+    }
+    assert respond["url"] == f"{API}/sessions/interactions/id-tok-1/respond"
+    # The caller's own credential, not the one the middleware exchanged it for.
+    assert respond["headers"]["Authorization"] == "ApiKey person-key"
+    assert respond["headers"]["Idempotency-Key"].startswith("inband-approval:exec-1:")
+    assert respond["json"] == {
+        "answers": [
+            {
+                "interaction_id": "id-tok-1",
+                "answer": {"approved": True, "tool_call_id": "tc-1"},
+            }
+        ],
+        "expected_execution_id": "exec-1",
+        "delivery": "caller",
+    }
+    # The run is the continuation the API stored: the execution after the paused one,
+    # in the turn that paused, so the turn's end reaches whoever waits on that turn.
+    assert request.meta == {
+        "run_id": "cont-exec-1",
+        "control_command_id": "cmd-exec-1",
+        "session_turn_id": "turn-start",
+    }
+
+
+@pytest.mark.asyncio
+async def test_a_retried_answer_sends_the_same_idempotency_key():
+    first = await _record(
+        _request({"Authorization": "ApiKey person-key"}),
+        _resume(("tc-1", {"approved": True, "interactionToken": "tok-1"})),
+    )
+    second = await _record(
         _request({"Authorization": "ApiKey person-key"}),
         _resume(("tc-1", {"approved": True, "interactionToken": "tok-1"})),
     )
 
-    assert len(captured) == 1
-    call = captured[0]
     assert (
-        call["url"] == "https://platform.example/api/sessions/interactions/transition"
+        _responds(first)[0]["headers"]["Idempotency-Key"]
+        == _responds(second)[0]["headers"]["Idempotency-Key"]
     )
-    # The caller's own credential, not the one the middleware exchanged it for.
-    assert call["headers"]["Authorization"] == "ApiKey person-key"
-    assert call["json"] == {
-        "session_id": "session-1",
-        "token": "tok-1",
-        "status": "responded",
-        "resolution": {"verdict": "approved", "tool_call_id": "tc-1"},
-    }
 
 
 @pytest.mark.asyncio
@@ -141,35 +253,172 @@ async def test_a_denial_is_recorded_as_denied():
         _resume(("tc-1", {"approved": False, "interactionToken": "tok-1"})),
     )
 
-    assert captured[0]["json"]["resolution"] == {
-        "verdict": "denied",
-        "tool_call_id": "tc-1",
-    }
+    assert _answered(captured) == [
+        ("id-tok-1", {"approved": False, "tool_call_id": "tc-1"})
+    ]
 
 
 @pytest.mark.asyncio
-async def test_a_refused_answer_does_not_raise():
+async def test_a_refused_answer_does_not_raise_and_runs_as_before():
     # A run credential answering in-band: the API refuses it, the row stays pending, and
     # nothing raises, so the run starts and the gate shows the card again.
+    request = _resume(("tc-1", {"approved": True, "interactionToken": "tok-1"}))
     captured = await _record(
+        _request({"Authorization": "Secret run-credential"}),
+        request,
+        responses=[403],
+    )
+
+    assert len(_responds(captured)) == 1
+    assert _responds(captured)[0]["headers"]["Authorization"] == (
+        "Secret run-credential"
+    )
+    assert request.meta is None
+
+
+@pytest.mark.asyncio
+async def test_an_answer_that_leaves_another_gate_waiting_runs_as_before():
+    # The turn paused on two gates and the request answers one: the API stores the
+    # answer and no continuation yet.
+    request = _resume(("tc-1", {"approved": True, "interactionToken": "tok-1"}))
+    waiting = _Response(
+        202,
+        {
+            "interaction": {},
+            "command": None,
+            "execution": {"id": "exec-1", "state": "awaiting_interactions"},
+        },
+    )
+    captured = await _record(
+        _request({"Authorization": "ApiKey person-key"}), request, responses=[waiting]
+    )
+
+    assert len(_responds(captured)) == 1
+    assert request.meta is None
+
+
+@pytest.mark.asyncio
+async def test_an_answer_that_leaves_another_gate_waiting_is_not_new_input():
+    # The answer was stored: the request answers the paused turn, so the invoke routes
+    # must not admit it as new input (with `on_busy: queue` it would queue a second run).
+    request = _resume(("tc-1", {"approved": True, "interactionToken": "tok-1"}))
+    request.on_busy = "queue"
+    waiting = _Response(
+        202,
+        {
+            "interaction": {},
+            "command": None,
+            "execution": {"id": "exec-1", "state": "awaiting_interactions"},
+        },
+    )
+    _captured, accepted = await _record_with_result(
+        _request({"Authorization": "ApiKey person-key"}), request, responses=[waiting]
+    )
+
+    assert accepted is True
+
+
+@pytest.mark.asyncio
+async def test_a_refused_answer_is_still_admitted_as_input():
+    _captured, accepted = await _record_with_result(
         _request({"Authorization": "Secret run-credential"}),
         _resume(("tc-1", {"approved": True, "interactionToken": "tok-1"})),
         responses=[403],
     )
 
-    assert len(captured) == 1
-    assert captured[0]["headers"]["Authorization"] == "Secret run-credential"
+    assert accepted is False
+
+
+@pytest.mark.asyncio
+async def test_a_replayed_answer_carries_the_continuation_that_already_ran():
+    # The client lost the response and resends the same transcript. The respond route
+    # returns the continuation its answers already started. The request carries that
+    # command, so the runner refuses a second run instead of starting a new turn.
+    request = _resume(("tc-1", {"approved": True, "interactionToken": "tok-1"}))
+    applied = _Response(
+        202,
+        {
+            "interaction": {},
+            "command": {"id": "cmd-exec-1", "state": "applied"},
+            "execution": {
+                "id": "cont-exec-1",
+                "state": "pending_delivery",
+                "session_turn_id": "turn-start",
+            },
+        },
+    )
+    await _record(
+        _request({"Authorization": "ApiKey person-key"}), request, responses=[applied]
+    )
+
+    assert request.meta == {
+        "run_id": "cont-exec-1",
+        "control_command_id": "cmd-exec-1",
+        "session_turn_id": "turn-start",
+    }
+
+
+@pytest.mark.asyncio
+async def test_the_invoke_route_skips_admission_for_a_recorded_answer():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from agenta.sdk.decorators.routing import route
+
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def _fake_auth(request, call_next):
+        request.state.auth = {}
+        return await call_next(request)
+
+    async def handler(messages: list | None = None):
+        return "ran"
+
+    route("/", app=app)(handler)
+    admit = MagicMock()
+
+    async def _admit(*_args, **_kwargs):
+        admit()
+        return None
+
+    async def _recorded(*_args, **_kwargs):
+        return True
+
+    with (
+        patch(
+            "agenta.sdk.decorators.routing.record_inband_approval_answers",
+            side_effect=_recorded,
+        ),
+        patch(
+            "agenta.sdk.decorators.routing.admit_session_input",
+            side_effect=_admit,
+        ),
+    ):
+        # Only the admission matters here; the workflow's own run is out of scope.
+        TestClient(app).post(
+            "/invoke",
+            json={
+                "session_id": "session-1",
+                "on_busy": "queue",
+                "data": {"inputs": {"messages": []}},
+            },
+        )
+
+    admit.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_an_unreachable_api_does_not_stop_the_run():
+    request = _resume(("tc-1", {"approved": True, "interactionToken": "tok-1"}))
     captured = await _record(
         _request({"Authorization": "ApiKey person-key"}),
-        _resume(("tc-1", {"approved": True, "interactionToken": "tok-1"})),
+        request,
         responses=[httpx.ConnectError("down")],
     )
 
-    assert len(captured) == 1
+    assert len(_responds(captured)) == 1
+    assert request.meta is None
 
 
 @pytest.mark.asyncio
@@ -184,6 +433,20 @@ async def test_a_delivery_the_api_made_itself_is_not_recorded_again():
             ),
         )
         assert captured == []
+
+
+@pytest.mark.asyncio
+async def test_a_continuation_skips_the_busy_admission():
+    # The paused turn makes the session busy; its continuation must not queue behind it.
+    request = _resume(
+        ("tc-1", {"approved": True, "interactionToken": "tok-1"}),
+        meta={"run_id": "cont-1", "control_command_id": "cmd-1"},
+    )
+    request.on_busy = "queue"
+
+    with patch("agenta.sdk.decorators.routing.PlatformConnection") as connection:
+        assert await admit_session_input(_request(), request, "ApiKey key") is None
+    connection.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -212,7 +475,18 @@ async def test_only_answers_with_a_token_in_the_current_turn_are_recorded():
         ),
     )
 
-    assert [call["json"]["token"] for call in captured] == ["tok-1"]
+    assert [interaction for interaction, _ in _answered(captured)] == ["id-tok-1"]
+
+
+@pytest.mark.asyncio
+async def test_an_unknown_token_is_not_answered():
+    captured = await _record(
+        _request({"Authorization": "ApiKey person-key"}),
+        _resume(("tc-1", {"approved": True, "interactionToken": "tok-1"})),
+        rows={},
+    )
+
+    assert _responds(captured) == []
 
 
 @pytest.mark.asyncio
@@ -260,13 +534,11 @@ async def test_the_public_vercel_approval_response_part_is_recorded():
     )
     apply_invoke_prelude(req, request)
 
-    captured = await _record(req, request)
+    captured = await _record(req, request, rows={"tok-1": "exec-1"})
 
-    assert [call["json"]["token"] for call in captured] == ["tok-1"]
-    assert captured[0]["json"]["resolution"] == {
-        "verdict": "approved",
-        "tool_call_id": "tc-1",
-    }
+    assert _answered(captured) == [
+        ("id-tok-1", {"approved": True, "tool_call_id": "tc-1"})
+    ]
 
 
 @pytest.mark.asyncio
@@ -288,8 +560,9 @@ async def test_a_browser_session_cookie_is_sent_when_there_is_no_header():
     )
 
     assert client_kwargs["cookies"] == {"sAccessToken": "person-session"}
-    assert "Authorization" not in captured[0]["headers"]
-    assert captured[0]["params"] == {"project_id": "project-1"}
+    for call in captured:
+        assert "Authorization" not in call["headers"]
+        assert call["params"] == {"project_id": "project-1"}
 
 
 @pytest.mark.asyncio
@@ -327,13 +600,11 @@ async def test_an_answered_vercel_tool_part_is_recorded():
     )
     apply_invoke_prelude(req, request)
 
-    captured = await _record(req, request)
+    captured = await _record(req, request, rows={"tok-1": "exec-1"})
 
-    assert [call["json"]["token"] for call in captured] == ["tok-1"]
-    assert captured[0]["json"]["resolution"] == {
-        "verdict": "denied",
-        "tool_call_id": "tc-1",
-    }
+    assert _answered(captured) == [
+        ("id-tok-1", {"approved": False, "tool_call_id": "tc-1"})
+    ]
 
 
 @pytest.mark.asyncio
@@ -383,23 +654,26 @@ async def test_one_request_records_a_bounded_number_of_answers():
         _resume(*answers),
     )
 
-    tokens = [call["json"]["token"] for call in captured]
-    assert len(tokens) == MAX_INBAND_APPROVAL_ANSWERS
+    ids = [interaction for interaction, _ in _answered(captured)]
+    assert len(ids) == MAX_INBAND_APPROVAL_ANSWERS
     # The newest answer is always inside the bound, so a resent turn whose settled answers
     # come first still records the one the person just gave.
-    assert tokens[-1] == f"tok-{MAX_INBAND_APPROVAL_ANSWERS + 9}"
-    assert "tok-0" not in tokens
+    assert ids[-1] == f"id-tok-{MAX_INBAND_APPROVAL_ANSWERS + 9}"
+    assert "id-tok-0" not in ids
 
 
 @pytest.mark.asyncio
 async def test_the_api_asking_to_slow_down_stops_the_recording():
+    request = _resume(
+        ("tc-1", {"approved": True, "interactionToken": "tok-1"}),
+        ("tc-2", {"approved": True, "interactionToken": "tok-2"}),
+    )
     captured = await _record(
         _request({"Authorization": "ApiKey person-key"}),
-        _resume(
-            ("tc-1", {"approved": True, "interactionToken": "tok-1"}),
-            ("tc-2", {"approved": True, "interactionToken": "tok-2"}),
-        ),
-        responses=[429, 200],
+        request,
+        responses=[429, 202],
+        rows={"tok-1": "exec-1", "tok-2": "exec-2"},
     )
 
-    assert len(captured) == 1
+    assert len(_responds(captured)) == 1
+    assert request.meta is None

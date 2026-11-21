@@ -16,7 +16,7 @@ import {
     findSubagentIndex,
     removeSubagentByRef,
     setSubagentDescription,
-    subagentSlugRef,
+    uniqueSlugRef,
     toolsOf,
 } from "../subagentReference"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
@@ -39,15 +39,11 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
     const {workflowReference} = useDrillInUI()
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const tools = toolsOf(writer.agent)
-    // A write made elsewhere can drop a legacy copied `name`, which changes the entry's key; the
-    // view keeps finding its entry by the slug it opened on.
-    const [openedSlug] = useState(() => {
+    // By its slug when unique: a write elsewhere can drop the copied `name` that keyed it.
+    const [itemRef] = useState<ConfigItemRef>(() => {
         const opened = findSubagentIndex(tools, params.item)
-        return opened < 0 ? undefined : toolReferenceSlug(tools[opened])
+        return (opened < 0 ? null : uniqueSlugRef(tools[opened], tools)) ?? params.item
     })
-    // The entry the view opened on, by its slug when it has one: a key can move to another
-    // entry when writes elsewhere drop copied names.
-    const itemRef: ConfigItemRef = openedSlug ? subagentSlugRef(openedSlug) : params.item
     const index = findSubagentIndex(tools, itemRef)
     const entry = index < 0 ? null : (tools[index] as Record<string, unknown>)
     // The text the view opened with. A builder save meanwhile does not reset the person's edits.

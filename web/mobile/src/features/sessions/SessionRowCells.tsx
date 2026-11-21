@@ -14,8 +14,14 @@ import {
 } from "@agenta/sessions-ui"
 import {userAtom} from "@agenta/shared/state"
 import {timeAgo} from "@agenta/shared/utils"
-import {Button} from "@agenta/ui/ui"
-import {ChatCircle, Lightning, PencilSimple, PushPin} from "@phosphor-icons/react"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {
+    ArrowBendDownRight,
+    ChatCircle,
+    Lightning,
+    PencilSimple,
+    PushPin,
+} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {cn} from "@/lib/utils"
@@ -82,7 +88,7 @@ const KindIcon = ({vm}: {vm: SessionRowVm}) => {
             title={vm.status.label}
             className="relative flex shrink-0 text-muted-foreground"
         >
-            <Glyph size={15} aria-hidden />
+            <Glyph size={14} aria-hidden />
             <span
                 aria-hidden
                 className={cn(
@@ -167,6 +173,17 @@ export const SessionRowCells = ({
                         >
                             {vm.title}
                         </span>
+                        {vm.isChildSession ? (
+                            <SimpleTooltip title={t("sessions.mobileList.childSessionMark")}>
+                                <span
+                                    role="img"
+                                    aria-label={t("sessions.mobileList.childSessionMark")}
+                                    className="flex shrink-0 text-muted-foreground"
+                                >
+                                    <ArrowBendDownRight size={12} aria-hidden />
+                                </span>
+                            </SimpleTooltip>
+                        ) : null}
                         {archived ? null : (
                             <span
                                 // Revealed on the ROW's hover, and gone below `sm` where the pair

@@ -366,6 +366,93 @@ describe("useBuilderTabs follows a new save of the active agent", () => {
     })
 })
 
+describe("release QA bug 4: a save that opens the first tab", () => {
+    const user = {id: "u1", role: "user", parts: [{type: "text", text: "add a line"}]}
+    const saveOf = (id: string, toolCallId: string) =>
+        ({
+            id: `m-${toolCallId}`,
+            role: "assistant",
+            parts: [
+                {
+                    type: "tool-edit_agent_config",
+                    toolCallId,
+                    state: "output-available",
+                    input: {
+                        operations: [
+                            {
+                                operation: "set",
+                                target: ["parameters", "agent", "instructions", "agents_md"],
+                                value: "x",
+                            },
+                        ],
+                    },
+                    output: {
+                        status: "committed",
+                        agent: {id, name: id},
+                        revision: {id: `rev-${toolCallId}`, version: "2"},
+                    },
+                },
+            ],
+        }) as unknown as UIMessage
+    const props = {
+        sessionId: "chat-q",
+        routeChatId: "chat-q",
+        tab: undefined,
+        linkedAgentId: null,
+        workspaceId: "w",
+        projectId: "p",
+    }
+
+    it("marks the changed sections and reports the save when a fresh save opens the tab", () => {
+        const hook = renderHook(() => useBuilderTabs(props), {wrapper})
+        act(() => hook.result.current.onMessagesChanged([user as unknown as UIMessage]))
+        expect(hook.result.current.state.tabs).toEqual([])
+        act(() =>
+            hook.result.current.onMessagesChanged([
+                user as unknown as UIMessage,
+                saveOf("a", "c1"),
+            ]),
+        )
+        expect(hook.result.current.state.active).toBe("agent:a")
+        expect(hook.result.current.state.tabs[0].changedSections).toEqual(["instructions"])
+        expect(hook.result.current.activeSaveToolCallId).toBe("c1")
+        expect(hook.result.current.activeSaveRevisionId).toBe("rev-c1")
+    })
+
+    it("marks nothing for the saves a chat loads with (a reload)", () => {
+        const hook = renderHook(() => useBuilderTabs(props), {wrapper})
+        act(() =>
+            hook.result.current.onMessagesChanged([
+                user as unknown as UIMessage,
+                saveOf("a", "c1"),
+            ]),
+        )
+        expect(hook.result.current.state.active).toBe("agent:a")
+        expect(hook.result.current.state.tabs[0].changedSections).toBeUndefined()
+        expect(hook.result.current.activeSaveToolCallId).toBeNull()
+    })
+
+    it("does not hand a save to another agent's tab, also after coming back", () => {
+        const hook = renderHook(() => useBuilderTabs(props), {wrapper})
+        act(() => hook.result.current.onMessagesChanged([user as unknown as UIMessage]))
+        act(() =>
+            hook.result.current.onMessagesChanged([
+                user as unknown as UIMessage,
+                saveOf("a", "c1"),
+            ]),
+        )
+        expect(hook.result.current.activeSaveToolCallId).toBe("c1")
+        act(() => {
+            hook.result.current.open(agent("b"))
+        })
+        expect(hook.result.current.activeSaveToolCallId).toBeNull()
+        act(() => {
+            hook.result.current.activate("agent:a")
+        })
+        expect(hook.result.current.activeSaveToolCallId).toBeNull()
+    })
+})
+
 describe("Changed by the builder (task 41.2)", () => {
     const T = ["parameters", "agent"]
     it("names the panel section of the first segment of each operation target", () => {

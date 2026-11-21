@@ -251,12 +251,19 @@ class _Starts:
                 agent_id=kwargs["workflow_id"],
                 is_running=True,
             )
-            # The real start gives the row it creates the copied grants.
-            state = self.world.sharing.dao.sessions[(self.world.project_id, session_id)]
-            for grant in kwargs.get("grants", ()):
-                self.world.sharing.add_grant(
-                    state=state, user_id=grant.user_id, role=grant.role
-                )
+            # The real start's row insert copies the calling session's grants as they
+            # are when the row is created.
+            source = kwargs.get("grants_from_session_id")
+            if source is not None:
+                dao = self.world.sharing.dao
+                state = dao.sessions[(self.world.project_id, session_id)]
+                calling = dao.sessions[(self.world.project_id, source)]
+                for grant in list(
+                    dao.grants.get((self.world.project_id, calling.stream_id), [])
+                ):
+                    self.world.sharing.add_grant(
+                        state=state, user_id=grant.user_id, role=grant.role
+                    )
         # One input per request key, as the real start stores one row per key.
         input_id = self.inputs.setdefault(kwargs["request_key"], uuid4())
         self.world.store.started_inputs[input_id] = SimpleNamespace(
@@ -1688,9 +1695,7 @@ async def test_a_participant_starts_a_child_that_the_same_people_can_read(world)
     )
     assert result.ok
     start = world.starts.starts[0]
-    assert [(g.user_id, g.role) for g in start["grants"]] == [
-        (world.ben, SessionRole.PARTICIPANT)
-    ]
+    assert start["grants_from_session_id"] == "s-calling"
     child_id = f"child-{start['request_key']}"
     assert await _can_view(world, world.ben, child_id)
     assert await _can_view(world, world.ana, child_id)
@@ -1718,7 +1723,7 @@ async def test_a_child_of_a_project_session_copies_no_grants(world):
     )
     assert result.ok
     assert world.starts.starts[0]["access"] == shared
-    assert world.starts.starts[0]["grants"] == []
+    assert world.starts.starts[0]["grants_from_session_id"] is None
 
 
 @pytest.mark.asyncio

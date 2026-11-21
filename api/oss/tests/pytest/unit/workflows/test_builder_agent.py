@@ -338,11 +338,21 @@ def test_a_test_session_that_waits_for_an_approval_is_not_tested():
 
 
 def test_the_report_names_the_tested_version_and_the_test_session():
-    """QA D9: the report after a test named neither the version nor the session."""
-    instructions = _agent()["instructions"]["agents_md"]
+    """QA D9: the report after a test named neither the version nor the session. The
+    version is named only for a completed test: an untested agent has no tested
+    version."""
+    instructions = " ".join(_agent()["instructions"]["agents_md"].split())
 
-    assert "names the version you tested" in instructions
-    assert "each test session by the name you gave it" in instructions
+    assert "name each test session you started by the name you gave it" in instructions
+    assert (
+        "When a test completed and its result gives a version number, name the version "
+        "you tested" in instructions
+    )
+    assert (
+        "Report a test that did not complete, or that you did not run, as not tested."
+        in instructions
+    )
+    assert "Then one sentence that names the version you tested" not in instructions
 
 
 def test_the_builder_adds_session_tools_where_the_runtime_reads_them():

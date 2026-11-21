@@ -57,11 +57,10 @@ export const AutomationRunHistoryView = ({
     /** The run's transcript, given its session — the host's chat surface. */
     renderConversation: (sessionId: string) => ReactNode
     /**
-     * Where it sits. A page centres the single-column list on the page's 760px line; a drawer
-     * already is the column, so the list fills it edge to edge on the drawer's own gutters. The
-     * panel is a column too, and it has no filter menu: the full page keeps the filters.
+     * Where it sits. A page centres the single-column list on the page's 760px line. The panel
+     * already is the column, and it has no filter menu: the full page keeps the filters.
      */
-    frame?: "page" | "drawer" | "panel"
+    frame?: "page" | "panel"
     /** The full run history page. Given, the panel shows an icon that opens it in a new tab. */
     runHistoryHref?: string
     /** A run's session page. Given, an open run shows an icon that opens it in a new tab. */
@@ -146,7 +145,14 @@ export const AutomationRunHistoryView = ({
             )}
         >
             {header}
-            <div className="flex min-h-0 w-full min-w-0 flex-1 overflow-hidden">
+            {/* On a phone page the clip starts 8px higher (into the header's own bottom padding),
+                so the filter in the first row keeps its 44px tap area. Nothing moves. */}
+            <div
+                className={cn(
+                    "flex min-h-0 w-full min-w-0 flex-1 overflow-hidden",
+                    phone && frame === "page" && "-mt-2 pt-2",
+                )}
+            >
                 {showList ? (
                     <div
                         className={cn(
@@ -155,7 +161,7 @@ export const AutomationRunHistoryView = ({
                                 ? "min-w-[240px] max-w-[380px] flex-[1_1_240px] border-0 border-r border-solid border-border pb-6 pr-4"
                                 : "w-full min-w-0 flex-1 pb-6 pr-5",
                             // The heading's own 10px inset makes up the rest: 30px on a page's
-                            // grid, the drawer header's 16px in a drawer.
+                            // grid, the panel's own gutter in a panel.
                             frame === "page" ? "pl-5" : "pl-1.5",
                             frame === "page" && !showPane && "max-w-[760px]",
                         )}

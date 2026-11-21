@@ -57,14 +57,13 @@ import {
     TOOL_PERMISSION_OPTIONS,
     type PermissionPresetValue,
 } from "../DrillInView/SchemaControls/integrationPolicy"
-import type {PermissionPolicy} from "../DrillInView/SchemaControls/permissionPolicy"
 import type {
     GatewayConnectionPermissions,
     GatewayPermission,
 } from "../DrillInView/SchemaControls/toolUtils"
 import {ToolsEmpty} from "../shared/ToolsEmpty"
 
-import {FOLLOW_AGENT_PRESET, MCP_PRESETS, PRESET_PERMISSION, readMcpPreset} from "./mcpPresets"
+import {MCP_PRESETS, PRESET_PERMISSION, readMcpPreset} from "./mcpPresets"
 
 // Built inside memos and callbacks below, which read the language when they run.
 const tNow = createT(mcpPermissionsCatalog)
@@ -110,15 +109,6 @@ export interface McpPermissionDrawerProps {
     onRemove?: () => void
     /** Present when this drawer was opened from the add-server drawer: go back to that list. */
     onBack?: () => void
-    /**
-     * The agent-wide `runner.permissions.default`, for the note under the preset.
-     *
-     * It is the whole meaning of the "Follow agent policy" preset, so the drawer names it there
-     * rather than sending a reader to a different row to find out whether the ladder asks, allows
-     * or denies. A caller with no agent in hand (Settings' read-only "View tools") passes none,
-     * and that view has no preset select to qualify anyway.
-     */
-    agentPolicy?: PermissionPolicy | null
     /** Settings' "View tools": the same drawer with nothing to set. */
     readOnly?: boolean
     /** The "Account" block, above the preset select. Absent in Settings' "View tools". */
@@ -242,9 +232,8 @@ function DrawerTitle({
                     <CaretLeft />
                 </Button>
             ) : null}
-            {/* One generic glyph for every server: an MCP endpoint has no branding to show, and a
-                per-server logo would have to be guessed from a URL (decision 3). */}
-            <McpServerMark size={24} />
+            {/* One generic glyph for every server (decision 3); the tile color follows the name. */}
+            <McpServerMark size={24} name={connectionName} />
             <div className="flex min-w-0 flex-1 items-baseline gap-2">
                 <span className="truncate text-[15px] font-semibold">{connectionName}</span>
                 {toolPrefix ? (
@@ -295,7 +284,7 @@ function RemoveFromAgent({
         <Button
             variant="ghost"
             onClick={() => setConfirming(true)}
-            className="-ml-2 px-2 font-normal !text-colorError hover:bg-[color-mix(in_srgb,var(--ag-colorError)_10%,transparent)]"
+            className="-ml-2 px-2 font-normal !text-[var(--ag-danger-text)] hover:bg-[color-mix(in_srgb,var(--ag-danger-text)_10%,transparent)]"
         >
             <Trash data-icon="inline-start" />
             {t("entityUi.mcpPermissions.removeFromAgent")}
@@ -329,7 +318,6 @@ export default function McpPermissionDrawer(props: McpPermissionDrawerProps) {
             permissions={mcp.permissions}
             onChangePermissions={mcp.write}
             onChangeToolPermission={mcp.setTool}
-            agentPolicy={props.agentPolicy}
             disabled={disabled}
             account={account}
             source={{
@@ -507,25 +495,15 @@ export function useMcpPermissionSource({
      * What a row's control shows.
      *
      * A tool with no entry in the table holds NO value on this wire, so its control reads as the
-     * fourth value rather than borrowing the one that governs it, and its trigger says what the run
-     * will actually do. A bare "Allow" on a row nobody set would claim a rule that does not exist,
-     * and it would go on claiming it after the governing value changed underneath.
+     * fourth value rather than borrowing the one that governs it, and it reads "Follow agent
+     * policy". A bare "Allow" on a row nobody set would claim a rule that does not exist, and it
+     * would go on claiming it after the governing value changed underneath.
      */
     const rowValue = useCallback(
         (toolKey: string) => {
             const explicit = permissions.tools[toolKey]
             if (explicit) return {value: explicit}
-            return {
-                value: "inherit" as GatewayPermission,
-                // Nothing governs it either, so there is no provenance to add and the row says
-                // which value it holds.
-                triggerTitle:
-                    permissions.default === "inherit"
-                        ? undefined
-                        : tNow("entityUi.mcpPermissions.inheritsPermission", {
-                              permission: permissions.default,
-                          }),
-            }
+            return {value: "inherit" as GatewayPermission}
         },
         [permissions],
     )
@@ -566,7 +544,6 @@ export function useMcpPermissionSource({
                     : option,
             ),
             // Null is "not knowable until the list lands", which `pending` draws instead.
-            agentPolicyPreset: FOLLOW_AGENT_PRESET,
             value: preset ?? "custom",
             overrideCount,
             pending: preset === null,

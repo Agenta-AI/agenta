@@ -146,6 +146,11 @@ export interface ListTableBaseProps<Row> {
      */
     stickyHeader?: boolean
     /**
+     * The first rows start right under the sticky header's line, with no 4 px of padding above
+     * them. For a list whose design draws them flush (the Sessions and Agents tables, A02, A03).
+     */
+    flushFirstRows?: boolean
+    /**
      * Keep the column names for screen readers only. For a list whose surroundings already say
      * what the rows are — a tab named "Sessions" over a single-column list — where a header row
      * only repeats the tab. Ignored with `selection`, whose controls live in the header row.

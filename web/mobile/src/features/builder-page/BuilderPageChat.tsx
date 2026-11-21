@@ -163,7 +163,7 @@ export const BuilderPageChat = ({
                 <div className="flex h-full min-h-0 flex-col" onInputCapture={onComposerInput}>
                     <LiveConversation
                         key={sessionId}
-                        embedded
+                        parentOwnsShell
                         entityId={builderRevisionId}
                         sessionId={sessionId}
                         projectId={projectId}

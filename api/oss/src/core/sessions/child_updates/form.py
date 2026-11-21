@@ -12,6 +12,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from oss.src.core.sessions.child_updates.dtos import (
+    CHILD_UPDATE_PART_KEY,
     ChildTurnResult,
     ChildTurnStatus,
     child_update_part,
@@ -159,7 +160,7 @@ def child_update_message(result: ChildTurnResult) -> Dict[str, Any]:
     return {
         "role": "user",
         "content": render_child_turn(result),
-        "child_update": child_update_part(
+        CHILD_UPDATE_PART_KEY: child_update_part(
             session_id=result.session_id,
             turn_id=result.turn_id,
             status=result.status,

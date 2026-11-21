@@ -109,7 +109,8 @@ describe("McpAddServerList, a project with servers", () => {
 
         const added = rows()[0]!
         expect(added.textContent).toContain("Added")
-        expect(added.className).toContain("opacity-70")
+        // Full color, as the canvas draws it (F03 f4): "Added" is the only mark.
+        expect(added.className).not.toContain("opacity")
         // Not merely styled as inert: the row carries no control at all.
         expect([...added.querySelectorAll("button")]).toHaveLength(0)
         expect(onAdd).not.toHaveBeenCalled()
@@ -133,12 +134,10 @@ describe("McpAddServerList, a project with servers", () => {
         expect(onReconnect).toHaveBeenCalledWith(OPTIONS[2])
     })
 
-    it("shows the expiry in place of the host, so the row never claims a live host", async () => {
+    it("shows the expiry after the host, so the row never reads as a live server", async () => {
         await render()
 
-        const expired = rows()[2]!
-        expect(expired.textContent).toContain("Login expired")
-        expect(expired.textContent).not.toContain("mcp.octolens.com")
+        expect(rows()[2]!.textContent).toContain("mcp.octolens.com · Login expired")
     })
 
     it("shows the host alone when no cached tool count is on the record", async () => {
@@ -163,8 +162,7 @@ describe("McpAddServerList, a project with servers", () => {
             options: [{...OPTIONS[1]!, status: "unreachable"}],
         })
 
-        expect(text()).toContain("Unreachable")
-        expect(text()).not.toContain("mcp.axiom.co")
+        expect(text()).toContain("mcp.axiom.co · Unreachable")
         expect(buttonNamed("Reconnect Axiom")).toBeDefined()
     })
 })

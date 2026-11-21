@@ -54,7 +54,6 @@ describe("integration permission list", () => {
         await render({default: "allow_reads", tools: {write_1: "allow"}})
         const trigger = host.querySelector('[aria-label="Default permission"]')
         expect(trigger?.textContent).toContain("Custom · 1 override")
-        expect(host.textContent).toContain("Picking a preset resets them.")
     })
 
     it("lists 25 tools of a group of 40, then the rest after Show 15 more", async () => {

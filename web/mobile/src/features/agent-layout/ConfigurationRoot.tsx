@@ -92,7 +92,8 @@ export const ConfigurationRoot = ({
                     // Underline tabs (canvas S02, M07): the open tab has a 2 px bar on the row's line.
                     className={cn(
                         "relative flex shrink-0 items-center truncate rounded-none",
-                        panel.phone ? "h-11 min-w-11 px-0 text-sm" : "px-0.5 text-[13px]",
+                        // Canvas `.ltabs button`: 2 px on each side, on a phone too (M07).
+                        panel.phone ? "h-11 min-w-11 px-0.5 text-sm" : "px-0.5 text-[13px]",
                         configTab === tab.key
                             ? "font-medium text-colorText after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-[1px] after:bg-colorText after:content-['']"
                             : "text-colorTextSecondary hover:text-colorText",

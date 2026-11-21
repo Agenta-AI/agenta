@@ -29,20 +29,20 @@ Every agent screen SHALL have one right panel. The panel SHALL show at most one 
 
 ### Requirement: Panel width and drag
 
-The Configuration and Builder contents SHALL open 440 px wide. The user SHALL be able to drag the panel edge between 360 px and 640 px. The Files content SHALL keep the production width rules: 620 px by default and a drag between 420 px and 1600 px. Each width SHALL be remembered per user and project.
+Files, Configuration and Builder SHALL share one panel width: 440 px by default. The user SHALL be able to drag the panel edge between 360 px and 640 px. The width SHALL be remembered per user and project. At 1100 px and wider, when the window is too narrow for the panel and a 480 px session column, the panel SHALL draw narrower, down to 360 px.
 
 #### Scenario: Drag the edge
 - **WHEN** the user drags the left edge of the panel with Configuration open
 - **THEN** the panel width follows the pointer between 360 px and 640 px and stops at these limits
 - **AND** the new width is stored when the user releases the pointer, not on every move
 
-#### Scenario: Width is shared by Configuration and Builder
-- **WHEN** the user set Configuration to 520 px and then swaps to Builder
-- **THEN** Builder opens 520 px wide
+#### Scenario: Width is shared by all three contents
+- **WHEN** the user set Configuration to 520 px and then swaps to Builder or Files
+- **THEN** Builder or Files opens 520 px wide
 
-#### Scenario: Files keeps its own width
-- **WHEN** the user opens Files after Configuration was 520 px wide
-- **THEN** Files opens at its own stored width, 620 px when nothing is stored
+#### Scenario: Narrow window keeps the session column
+- **WHEN** the window is 1100 px wide and the panel is open
+- **THEN** the session column is at least 480 px wide and the panel takes the rest
 
 #### Scenario: Width after a reload
 - **WHEN** the user reloads the page with the panel open
@@ -50,7 +50,7 @@ The Configuration and Builder contents SHALL open 440 px wide. The user SHALL be
 
 ### Requirement: Widen a wide view to 760 px
 
-A wide view (its view definition sets `wide`) SHALL show a button with the title "Widen the panel". The button SHALL grow the panel to 760 px for that view only. Going back from the view SHALL restore the width the panel had before. A widen SHALL NOT change the stored width. Only the panel reads `wide`; other containers ignore it.
+A wide view (its view definition sets `wide`) SHALL show a button with the title "Widen the panel". The Files "Expand files pane" button SHALL do the same widen. The button SHALL grow the panel to 760 px for that view only. Going back from the view SHALL restore the width the panel had before. A widen SHALL NOT change the stored width. Only the panel reads `wide`; other containers ignore it.
 
 #### Scenario: Widen the AGENTS.md editor
 - **WHEN** the user opens AGENTS.md from the Agent tab and clicks "Widen the panel"

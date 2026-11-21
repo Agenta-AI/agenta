@@ -148,11 +148,36 @@ export const describeApproval = (
 export const describeBatchItems = (
     approvals: PendingApproval[],
     homeSlug: string | null = null,
+    agentNames: Record<string, string | undefined> = {},
 ): ApprovalPreviewItem[] =>
     approvals.map((approval) => {
+        const preview = describeApproval(approval, undefined, homeSlug)
+        // A call that names an agent (`start_session`): its own sentence names its own agent.
+        if (preview.agentRef) {
+            const named = describeApproval(
+                approval,
+                undefined,
+                homeSlug,
+                agentNames[preview.agentRef],
+            )
+            return {title: named.sentence, detail: named.items[0]?.detail}
+        }
         const display = resolveToolDisplay(approval.toolName, approval.input)
         return {
             title: display.activity.running || display.label,
-            detail: describeApproval(approval, undefined, homeSlug).items[0]?.detail,
+            detail: preview.items[0]?.detail,
         }
     })
+
+/** The agent refs of a batch's calls, for the card to look the agents up by name. */
+export const batchAgentRefs = (
+    approvals: PendingApproval[],
+    homeSlug: string | null = null,
+): string[] => [
+    ...new Set(
+        approvals.flatMap((approval) => {
+            const ref = describeApproval(approval, undefined, homeSlug).agentRef
+            return ref ? [ref] : []
+        }),
+    ),
+]

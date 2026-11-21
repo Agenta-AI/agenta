@@ -8,8 +8,8 @@ import {cn} from "./utils"
  * IconTile — the rounded square that leads a server row, a sheet header or an empty state.
  *
  * `info` is the identity tile (a tinted fill with the glyph in the info foreground); `muted` is
- * the empty-state tile; `neutral` is the identity tile of an MCP server (`McpServerMark`) and of a
- * skill (`SkillMark`).
+ * the empty-state tile; `neutral` is the identity tile of a skill (`SkillMark`) and of an MCP server
+ * with no name; `solid` is a white glyph on a fill the caller sets (a named MCP server).
  *
  * The spec draws the `info` fill with `--info`, the system's info FOREGROUND, and a white glyph
  * on top; this uses `--info-bg` with an `--info` glyph, which is the same reading in both themes
@@ -33,6 +33,7 @@ const iconTileVariants = cva(
                 info: "bg-colorInfoBg text-colorInfo",
                 muted: "bg-colorFillTertiary text-colorTextTertiary",
                 neutral: "bg-colorFillSecondary text-colorTextSecondary",
+                solid: "text-white",
             },
         },
         defaultVariants: {size: 28, tone: "info"},
@@ -40,7 +41,7 @@ const iconTileVariants = cva(
 )
 
 export type IconTileSize = 24 | 28 | 32 | 44
-export type IconTileTone = "info" | "muted" | "neutral"
+export type IconTileTone = "info" | "muted" | "neutral" | "solid"
 
 export interface IconTileProps
     extends

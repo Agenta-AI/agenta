@@ -10,6 +10,7 @@ import {
 
 import {
     latestTurnId,
+    type ChildUpdate,
     resolveStopExecution,
     shouldShowStopControl,
     restoreRefusedSend as restoreRefusedSendInto,
@@ -92,11 +93,13 @@ import {ApprovalDock} from "./ApprovalDock"
 import {useIsBuilderChat} from "./builderChat"
 import {waitForBuildKit} from "./buildKitWait"
 import {ChangeResultHostContext} from "./changeResultHost"
+import {ChildSessionLink} from "./ChildSessionLink"
 import {createCommitFollower} from "./commitFollower"
 import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
 import {ownsShortcutAt} from "./conversationFocus"
+import {useConversationRole} from "./conversationRole"
 import {ConversationRoot} from "./ConversationRoot"
 import {hasUnsavedConfigEdits} from "./hasUnsavedConfigEdits"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
@@ -153,7 +156,7 @@ export const LiveConversation = ({
     readOnly = null,
     canSend = true,
     accessPending = false,
-    embedded = false,
+    parentOwnsShell = false,
     beforeSend,
     emptyState,
     composerHeaderExtra,
@@ -164,6 +167,7 @@ export const LiveConversation = ({
     composerPlaceholder,
     inputRef,
     hideSlashCommands = false,
+    hideComposer = false,
     userMessageAccessory,
     onMessagesChanged,
 }: {
@@ -198,7 +202,7 @@ export const LiveConversation = ({
      * Rendered inside a workspace pane — the shell and its rail belong to the parent. Layout only:
      * the conversation's role ("page" or "embedded" builder chat) comes from `ConversationRoleContext`.
      */
-    embedded?: boolean
+    parentOwnsShell?: boolean
     /**
      * Called when a message leaves the composer, with the person's trimmed words. Returns the
      * text the model reads instead (the builder chat puts its context line first); the words
@@ -223,6 +227,11 @@ export const LiveConversation = ({
     inputRef?: MutableRefObject<RichChatInputHandle | null>
     /** The `/` palette would change the agent's own configuration: offer none (the builder). */
     hideSlashCommands?: boolean
+    /**
+     * No composer and no model or credit strips: a finished automation run is read here only
+     * (F05). Its approval and connect cards still answer.
+     */
+    hideComposer?: boolean
     /** Shown with each sent user message, from the message as stored (with its full text). */
     userMessageAccessory?: (message: UIMessage) => ReactNode
     /** Called after the messages change (the builder page reads its tool results). */
@@ -231,12 +240,24 @@ export const LiveConversation = ({
     const t = useT(chatMobileLiveCatalog, chatMobileComposerCatalog)
     // The builder's own chat: its answers carry the author line and its cards no always-allow.
     const builderChat = useIsBuilderChat()
+    const role = useConversationRole()
     // The composer reads "Message <agent>" in the agent's own chat.
     const agentName = useAtomValue(workflowMolecule.selectors.artifactName(entityId))
     // Subscribed HERE, not in ChatScreen: this timestamp moves on every poll tick even when the
     // payload is identical, so reading it higher up re-rendered the config pane and its drawers.
     const livenessUpdatedAt = useLivenessUpdatedAt(projectId)
     const startBlankSession = useStartBlankSession(`/w/${workspaceId}/p/${projectId}`)
+    // A child update, in the queue or the transcript, names its child session and links it.
+    const renderChildSession = useCallback(
+        (update: ChildUpdate) => (
+            <ChildSessionLink
+                sessionId={update.sessionId}
+                projectId={projectId}
+                base={`/w/${workspaceId}/p/${projectId}`}
+            />
+        ),
+        [projectId, workspaceId],
+    )
     // The composer's input handle. Declared here because the released task puts its text back in
     // the composer, rewind (far below) refills it the same way, and a refused send comes back
     // through it too.
@@ -459,14 +480,17 @@ export const LiveConversation = ({
         }
     }, [locked])
     const disabled = conversation.isHydrating || modelBlocked || walletPending || locked
+    // Not in a side conversation (the builder chats, a pane session): its composer waits at rest
+    // (S07, M04), and on a phone a focus there opens the keyboard over the page.
+    const sideConversation = builderChat || role === "embedded"
     useEffect(() => {
-        if (disabled) return
+        if (disabled || sideConversation) return
         const frame = requestAnimationFrame(() => {
             if (isTypingElsewhere(document.activeElement)) return
             composerRef.current?.focus()
         })
         return () => cancelAnimationFrame(frame)
-    }, [disabled, sessionId, composerRef])
+    }, [disabled, sideConversation, sessionId, composerRef])
 
     // Keep Home tasks session-scoped until admission; failures require an explicit retry.
     const pendingTasks = useAtomValue(pendingTasksAtom)
@@ -532,9 +556,10 @@ export const LiveConversation = ({
     const changeResultHost = useMemo(
         () => ({
             readOnly: locked,
-            // The composer's own gates: the row sends only when the composer could.
+            // The composer's own gates: the row sends only when the composer could (and a run
+            // read with no composer sends nothing).
             send:
-                disabled || setupBlocked
+                disabled || setupBlocked || hideComposer
                     ? undefined
                     : (text: string) => {
                           if (lockedRef.current) return
@@ -543,7 +568,7 @@ export const LiveConversation = ({
                           )
                       },
         }),
-        [locked, disabled, setupBlocked, send, beforeSend],
+        [locked, disabled, setupBlocked, hideComposer, send, beforeSend],
     )
     // The viewer's own missing "user" items. Optional: it never holds a message.
     const personalSetup = usePersonalSetupStep(sessionId, entityId)
@@ -1018,7 +1043,10 @@ export const LiveConversation = ({
                     ref={quoteRootRef}
                     className="relative flex grow flex-col gap-3 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]"
                 >
-                    <QuoteSelectionLayer rootRef={quoteRootRef} sessionId={sessionId} touch />
+                    {/* A quote reply is sent by the composer: none without one. */}
+                    {hideComposer ? null : (
+                        <QuoteSelectionLayer rootRef={quoteRootRef} sessionId={sessionId} touch />
+                    )}
                     {/* A held or failed Home task stays visible until accepted. */}
                     {heldTaskText ? (
                         <div className={`${mobileTurnRowClass} justify-end`}>
@@ -1085,7 +1113,9 @@ export const LiveConversation = ({
                                 onClientToolOutput={
                                     locked ? undefined : conversation.sendToolOutput
                                 }
-                                onRewind={locked ? undefined : handleRewind}
+                                // Rewind puts the message back in the composer: none without one.
+                                onRewind={locked || hideComposer ? undefined : handleRewind}
+                                renderChildSession={renderChildSession}
                             />
                         </ChangeResultHostContext.Provider>
                     </UserMessageAccessoryContext.Provider>
@@ -1100,7 +1130,7 @@ export const LiveConversation = ({
             <ScreenScaffold
                 scrollRef={autoScroll.ref}
                 onScroll={autoScroll.onScroll}
-                embedded={embedded}
+                embedded={parentOwnsShell}
                 scrollClassName={
                     groupLayout === "middle"
                         ? "basis-auto"
@@ -1129,9 +1159,11 @@ export const LiveConversation = ({
                                         onRemove={conversation.removeQueued}
                                         onSendNow={conversation.sendQueuedNow}
                                         sendNowBlocked={conversation.sendNowPending}
-                                        onEdit={editQueued}
+                                        // An edit borrows the composer: none without one.
+                                        onEdit={hideComposer ? undefined : editQueued}
                                         onCancelEdit={cancelQueuedEdit}
                                         editingId={conversation.editingId}
+                                        renderChildSession={renderChildSession}
                                         touch
                                     />
                                 </ContentRail>
@@ -1211,13 +1243,18 @@ export const LiveConversation = ({
                         ) : null}
                         {/* Docked with the other strips, directly above the composer it disables —
                         the same place the desktop banner sits. */}
-                        <ContentRail>
-                            <ConnectModelStrip gateActive={modelBlocked} />
-                            {modelBlocked ? null : (
-                                <ModelSetupBanner revisionId={entityId} onSetUp={openModelSetup} />
-                            )}
-                        </ContentRail>
-                        {readOnly ? null : (
+                        {hideComposer ? null : (
+                            <ContentRail>
+                                <ConnectModelStrip gateActive={modelBlocked} />
+                                {modelBlocked ? null : (
+                                    <ModelSetupBanner
+                                        revisionId={entityId}
+                                        onSetUp={openModelSetup}
+                                    />
+                                )}
+                            </ContentRail>
+                        )}
+                        {readOnly || hideComposer ? null : (
                             <div className="bg-background shrink-0 px-3">
                                 <ContentRail>
                                     <CreditAlertStrip
@@ -1266,10 +1303,15 @@ export const LiveConversation = ({
                             />
                         ) : null}
                         {newChat ? aboveComposer : null}
-                        {readOnly ? (
+                        {hideComposer ? null : readOnly ? (
                             <ReadOnlyComposerNotice text={readOnly.notice} />
                         ) : (
                             <Composer
+                                // A new chat's group: 16 px under the intro, and the quick actions
+                                // 12 px under the box (S07), 14 px on a phone (M04).
+                                className={
+                                    groupLayout && belowComposer ? "pt-0 pb-3.5 md:pb-3" : undefined
+                                }
                                 entityId={entityId}
                                 sessionId={sessionId}
                                 agentName={builderChat ? undefined : agentName}
@@ -1362,8 +1404,8 @@ export const LiveConversation = ({
         </ContentRailCapContext.Provider>
     )
 
-    // Embedded: the workspace owns the shell and the pane geometry.
-    return embedded ? (
+    // The workspace owns the shell and the pane geometry.
+    return parentOwnsShell ? (
         rootedScaffold
     ) : (
         <AppShell workspaceId={workspaceId} projectId={projectId}>

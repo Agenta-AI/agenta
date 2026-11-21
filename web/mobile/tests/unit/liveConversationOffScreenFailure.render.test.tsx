@@ -329,7 +329,7 @@ const render = async () => {
         root.render(
             <Provider store={store}>
                 <LiveConversation
-                    embedded
+                    parentOwnsShell
                     entityId="rev-1"
                     sessionId="session-1"
                     projectId="proj-1"

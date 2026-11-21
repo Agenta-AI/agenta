@@ -9,6 +9,7 @@
  */
 import {useEffect, useRef, useState} from "react"
 
+import {copyToClipboard} from "@agenta/ui"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 
 import {useOrganizationProjectsDraft} from "../useOrganizationProjectsDraft"
@@ -45,13 +46,10 @@ const SubscriptionSignInViewBody = ({params, nav}: ViewProps<SubscriptionViewPar
         enabled: editProjects,
         organizationName: organization?.name,
     })
-    // Each choice is saved once; one made while a save ran is saved when that save ends.
-    const savedChoice = useRef(draft.projects)
+    // Each choice is saved once; the draft queues one made while a save runs.
     useEffect(() => {
-        if (!draft.changed || draft.saving || savedChoice.current === draft.projects) return
-        savedChoice.current = draft.projects
-        void draft.apply()
-    }, [draft.projects, draft.saving])
+        if (draft.changed) void draft.apply()
+    }, [draft.projects])
 
     // Opening is the Connect click; a ready connection opens to its status instead. Once per
     // mount. The timer keeps a mount that React runs twice in development from starting two
@@ -93,7 +91,8 @@ const SubscriptionSignInViewBody = ({params, nav}: ViewProps<SubscriptionViewPar
             statusLine={signIn.statusLine}
             error={error}
             lostPoll={lostPoll && !isReady}
-            onCopy={(code) => void navigator.clipboard?.writeText(code).then(() => setCopied(true))}
+            // A refused clipboard falls back to a selection copy; "Copied" shows only on success.
+            onCopy={(code) => void copyToClipboard(code).then(setCopied)}
             // The sign-in ends with the view (above), so Cancel only leaves.
             onCancel={() => nav.cancel()}
             onConnect={() => void connect()}

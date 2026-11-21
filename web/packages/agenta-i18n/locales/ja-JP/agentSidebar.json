@@ -11,7 +11,7 @@
     "noSessionsMatch": "このフィルターに一致するセッションはありません",
     "retry": "再試行",
     "searchAgents": "エージェントを検索",
-    "seeAllSessions": "すべてのセッションを表で表示",
+    "seeAllSessions": "すべてのセッションを表示",
     "sessions": "セッション",
     "showOlderSessionsShort": "以前のセッションを表示",
     "showOlderSessions_other": "以前のセッションを{{count}}件表示",

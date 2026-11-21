@@ -40,7 +40,7 @@ import {McpServerMark} from "@agenta/ui/agent-icon"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {ViewDrawerHost} from "@agenta/ui/view-stack"
 import {
     ArrowsClockwise,
@@ -316,7 +316,11 @@ export default function McpServersSection({
     const empty = !isPending && rows.length === 0
 
     const connect = (
-        <Button data-testid="mcp-connect-open" onClick={openConnect}>
+        <Button
+            data-testid="mcp-connect-open"
+            className={PHONE_TOUCH_TARGET_CLASS}
+            onClick={openConnect}
+        >
             <Plus size={14} />
             {copy.connect}
         </Button>
@@ -350,9 +354,8 @@ export default function McpServersSection({
                 return (
                     <>
                         <span className="flex min-w-0 items-center gap-2.5">
-                            {/* One generic glyph for every server: the registry holds arbitrary
-                            URLs, so there is no per-server branding to show. */}
-                            <McpServerMark size={28} />
+                            {/* One glyph for every server; the tile color follows the name. */}
+                            <McpServerMark size={28} name={record.name || record.slug} />
                             <InlineName
                                 value={record.name || record.slug || ""}
                                 editing={!readOnly && renamingKey === rowKey(record)}

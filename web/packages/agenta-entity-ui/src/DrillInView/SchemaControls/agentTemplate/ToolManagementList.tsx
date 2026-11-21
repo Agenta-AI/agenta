@@ -117,7 +117,9 @@ function PhoneIntegrationRow({
                     ) : null}
                 </span>
             </span>
-            {status ? <StatusTag status={status} /> : null}
+            {/* The reason line already says the problem: no badge, so the account line keeps
+                its room (canvas M08). */}
+            {status && !status.reason ? <StatusTag status={status} /> : null}
             {disabled ? null : (
                 <CaretRight
                     size={14}

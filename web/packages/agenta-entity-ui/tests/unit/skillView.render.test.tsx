@@ -163,6 +163,15 @@ describe("agent-only skill", () => {
         expect((writer.agent.skills as unknown[])[1]).toBe(EMBED)
         await findByText("registry:ticket-triage-4k2p")
     })
+
+    it("Publish is off while a file path is one Save refuses", async () => {
+        const publishInlineSkill = vi.fn(async () => ({entry: EMBED}))
+        writer.agent = {skills: [{...TRIAGE, files: [{path: "../notes.txt", content: "x"}]}]}
+        await openSkill("ticket-triage", {publishInlineSkill})
+        await click(await findByText("", 'button[aria-label="Skill actions"]'))
+        await click(await findByText("Publish to skill registry"))
+        expect(publishInlineSkill).not.toHaveBeenCalled()
+    })
 })
 
 describe("registry skill and removed skill", () => {

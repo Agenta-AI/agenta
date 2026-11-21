@@ -136,6 +136,7 @@ const SessionListBody = ({
         activityFloor,
         defaultPolicy: {origin: "exclude-trigger", expansions: []},
         automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
+        hideChildSessions: true,
     })
 
     // Debounced: the search is a server predicate on two queries, so every keystroke would
@@ -282,7 +283,7 @@ const SessionListBody = ({
                                     status, agent and grouping are rows inside it, so the bar stays
                                     a search bar. */}
                                 <ListTableToolbar
-                                    className="max-md:[&_[data-slot=input-group]]:h-11 max-md:[&_input]:h-full"
+                                    className="max-md:[&_[data-slot=input-group]]:h-11 max-md:[&_input]:h-11"
                                     search={search.value}
                                     onSearchChange={search.onChange}
                                     searchPlaceholder={t("sessions.mobileList.searchSessions")}
@@ -329,7 +330,7 @@ const SessionListBody = ({
             </AppShell>
             {/* The trigger drawers the automation row verbs open, at screen level so one survives
                 its row unmounting underneath it. */}
-            <SessionAutomationDrawers base={base} workspaceId={workspaceId} projectId={projectId} />
+            <SessionAutomationDrawers base={base} />
         </>
     )
 }

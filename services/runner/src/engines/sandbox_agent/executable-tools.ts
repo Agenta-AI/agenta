@@ -18,7 +18,8 @@ import type {
 } from "../../tools/executable-tool-gate.ts";
 import type { ToolCallCorrelationIndex } from "./client-tools.ts";
 import {
-  raiseApproval,
+  claimApprovalCall,
+  emitApproval,
   type ParkRun,
   type PauseLike,
   type RecordPendingInteraction,
@@ -51,6 +52,8 @@ export interface BuildExecutableToolGateInput {
   executionGrants?: ApprovedExecutionGrants;
   /** The server preview of an agent write; it never fails the gate (see the fetcher). */
   resolveChangePreview?: AgentChangePreviewFetcher;
+  /** Resolves when the turn pauses; a pending preview fetch stops waiting then. */
+  pauseSignal?: Promise<unknown>;
   /**
    * Resolves the call's `@ag.file` markers and mints their records, the step a card takes. A
    * server `allow` with no harness gate before takes it here, or the commit check refuses the
@@ -70,6 +73,7 @@ export function buildExecutableToolGate({
   permissionPlan,
   executionGrants,
   resolveChangePreview,
+  pauseSignal,
   resolveApprovedContent,
   log = () => {},
 }: BuildExecutableToolGateInput): ExecutableToolGate {
@@ -152,23 +156,41 @@ export function buildExecutableToolGate({
         };
       }
 
-      const preview = await resolveChangePreview?.({
+      // Claim the call (mark it paused) before the preview fetch, so a sibling call that pauses
+      // the turn meanwhile does not close this one as not executed. The fetch then races the
+      // pause: once the turn pauses, the card opens without the preview.
+      const toolCallId = claimApprovalCall({
+        run,
+        pause,
+        toolCallIndex,
+        toolCallId: request.toolCallId,
+        toolName: request.toolName,
+        args: request.input,
+      });
+      if (toolCallId === undefined) {
+        onNonParkablePause?.();
+        return { kind: "pendingApproval" };
+      }
+      const pending = resolveChangePreview?.({
         toolName: request.spec.name,
         toolCallId: request.toolCallId,
         args: request.input,
       });
-      const raised = raiseApproval({
+      const preview = pending
+        ? await Promise.race([
+            pending,
+            ...(pauseSignal ? [pauseSignal.then(() => undefined)] : []),
+          ])
+        : undefined;
+      emitApproval({
         run,
-        pause,
         recordPendingInteraction,
-        toolCallIndex,
         id: request.id,
-        toolCallId: request.toolCallId,
+        toolCallId,
         toolName: request.toolName,
         args: request.input,
         ...(preview === undefined ? {} : { payloadExtras: { preview } }),
       });
-      if (!raised) onNonParkablePause?.();
       return { kind: "pendingApproval" };
     },
     onPause: () => pause.pause(),

@@ -87,12 +87,16 @@ const Row = ({
 }) => (
     <li className="flex items-center gap-3 px-4 py-[9px] max-md:min-h-14 max-md:border-0 max-md:border-b max-md:border-solid max-md:border-colorBorderSecondary max-md:py-1.5 max-md:pr-2">
         <ProviderLogo kind={kind} />
-        <span className="truncate text-[13px] leading-5 text-colorText max-md:text-[15px]">
-            {name}
-        </span>
-        <span className="flex min-w-0 flex-1 items-center gap-1.5">
-            {tag ? <RowTag>{tag}</RowTag> : null}
-            {state ? <RowTag warn>{state}</RowTag> : null}
+        {/* A phone has no width for a tag beside the name and the action, so the tag drops to
+            a second line under the name. */}
+        <span className="flex min-w-0 flex-1 items-center gap-3 max-md:flex-col max-md:items-start max-md:gap-0.5">
+            <span className="max-w-full truncate text-[13px] leading-5 text-colorText max-md:text-[15px]">
+                {name}
+            </span>
+            <span className="flex min-w-0 flex-1 items-center gap-1.5 max-md:flex-none max-md:empty:hidden">
+                {tag ? <RowTag>{tag}</RowTag> : null}
+                {state ? <RowTag warn>{state}</RowTag> : null}
+            </span>
         </span>
         <Button
             variant="outline"

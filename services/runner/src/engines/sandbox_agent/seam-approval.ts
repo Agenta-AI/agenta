@@ -70,36 +70,51 @@ export interface RaiseApprovalInput {
 }
 
 /**
- * Emit the approval card, mark the call paused, and seed the durable row. Returns false, and
- * raises nothing, for a call the runner already closed as not executed (see `ParkRun`).
+ * Resolve the call's tool-call id and mark the call paused. Returns undefined, and marks
+ * nothing, for a call the runner already closed as not executed (see `ParkRun`). Once marked,
+ * a sibling call that pauses the turn no longer closes this one, so a seam that must wait for
+ * something before it shows the card claims the call first and calls `emitApproval` after.
  */
-export function raiseApproval(input: RaiseApprovalInput): boolean {
+export function claimApprovalCall(
+  input: Pick<
+    RaiseApprovalInput,
+    "run" | "pause" | "toolCallIndex" | "toolCallId" | "toolName" | "args"
+  >,
+): string | undefined {
+  const correlatedId =
+    input.toolCallIndex?.lookup(input.toolName, input.args) ?? input.toolCallId;
+  if (input.run.wasForceSettled(correlatedId)) return undefined;
+  input.pause.markPausedToolCall(correlatedId);
+  return correlatedId;
+}
+
+/**
+ * Emit the approval card and seed the durable row for a call `claimApprovalCall` claimed.
+ * `toolCallId` is the claimed (correlated) id.
+ */
+export function emitApproval(
+  input: Omit<RaiseApprovalInput, "pause" | "toolCallIndex">,
+): void {
   const {
     run,
-    pause,
     recordPendingInteraction,
-    toolCallIndex,
     id,
+    toolCallId,
     toolName,
     args,
     payloadExtras,
     toolCallExtras,
   } = input;
-
-  const correlatedId =
-    toolCallIndex?.lookup(toolName, args) ?? input.toolCallId;
-  if (run.wasForceSettled(correlatedId)) return false;
-  pause.markPausedToolCall(correlatedId);
   run.emitEvent({
     type: "interaction_request",
     id,
     kind: "user_approval",
     payload: {
-      toolCallId: correlatedId,
+      toolCallId,
       ...payloadExtras,
       toolCall: {
-        id: correlatedId,
-        toolCallId: correlatedId,
+        id: toolCallId,
+        toolCallId,
         name: toolName,
         resolvedName: toolName,
         rawInput: args,
@@ -112,6 +127,16 @@ export function raiseApproval(input: RaiseApprovalInput): boolean {
   });
   // The 5th argument keys the durable interaction row by the harness's tool-call id, so
   // server.ts can match an out-of-band approval reply by tool_call_id.
-  recordPendingInteraction(id, toolName, args, "user_approval", correlatedId);
+  recordPendingInteraction(id, toolName, args, "user_approval", toolCallId);
+}
+
+/**
+ * Mark the call paused, emit the approval card, and seed the durable row. Returns false, and
+ * raises nothing, for a call the runner already closed as not executed (see `ParkRun`).
+ */
+export function raiseApproval(input: RaiseApprovalInput): boolean {
+  const toolCallId = claimApprovalCall(input);
+  if (toolCallId === undefined) return false;
+  emitApproval({ ...input, toolCallId });
   return true;
 }

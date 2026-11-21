@@ -29,7 +29,7 @@ export const PhoneViewHeader = ({crumbs, onBack}: Pick<ViewChromeProps, "crumbs"
 export const PhoneViewChrome = ({
     crumbs,
     apply,
-    readOnly,
+    hideActionRow,
     form,
     footerStartRef,
     onBack,
@@ -41,7 +41,7 @@ export const PhoneViewChrome = ({
         <PhoneViewHeader crumbs={crumbs} onBack={onBack} />
         {/* Edge to edge: each view pads itself. */}
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
-        {readOnly ? null : (
+        {hideActionRow ? null : (
             <div className="shrink-0 border-0 border-t border-solid border-colorBorderSecondary px-4 pb-6 pt-3">
                 <ViewFormActions
                     phone

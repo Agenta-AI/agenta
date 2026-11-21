@@ -8,8 +8,8 @@ It is nullable with no default, so the column is added without a table rewrite.
 from alembic import op
 import sqlalchemy as sa
 
-revision = "oss000000065"
-down_revision = "oss000000064"
+revision = "oss000000067"
+down_revision = "oss000000066"
 branch_labels = None
 depends_on = None
 

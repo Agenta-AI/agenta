@@ -19,6 +19,8 @@ export interface PhoneScreenHeaderProps {
      * read as "Back to Session". Without it the arrow shows alone and reads "Back".
      */
     backTitle?: string
+    /** The back arrow's accessible name when "Back to {backTitle}" does not read well. */
+    backLabel?: string
     /** Controls at the right end of the row (icon buttons of 44 px). */
     trailing?: ReactNode
     className?: string
@@ -32,6 +34,7 @@ export const PhoneScreenHeader = ({
     title,
     onBack,
     backTitle,
+    backLabel,
     trailing,
     className,
 }: PhoneScreenHeaderProps) => {
@@ -40,7 +43,7 @@ export const PhoneScreenHeader = ({
         <div
             data-testid="phone-screen-header"
             className={cn(
-                "flex h-[52px] min-w-0 shrink-0 items-center gap-0.5 border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer px-1",
+                "flex h-[52px] min-w-0 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer px-1",
                 className,
             )}
         >
@@ -48,7 +51,8 @@ export const PhoneScreenHeader = ({
                 <button
                     type="button"
                     aria-label={
-                        backTitle ? t("ui.phone.backTo", {title: backTitle}) : t("ui.phone.back")
+                        backLabel ??
+                        (backTitle ? t("ui.phone.backTo", {title: backTitle}) : t("ui.phone.back"))
                     }
                     className="box-border flex h-11 min-w-11 max-w-[130px] shrink-0 cursor-pointer items-center gap-0.5 rounded-[8px] border-0 bg-transparent py-0 pl-0.5 pr-1.5 font-[inherit] text-[15px] leading-5 text-colorTextSecondary active:bg-colorFillTertiary"
                     onClick={onBack}

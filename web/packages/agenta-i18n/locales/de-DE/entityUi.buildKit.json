@@ -86,7 +86,7 @@
     "applySkillUpdateDescription": "Aktualisiert einen der Skills dieses Agents auf die neuere Version.",
     "buildKitSettingApplies": "{{description}} Im Playground gilt die Build-Kit-Einstellung.",
     "agentaTools": "Agenta-Werkzeuge",
-    "agentaToolsHint": "Werkzeuge, die Ihr Agent überall nutzen kann, wo er läuft: im Playground, in der API, in Slack, Telegram, WhatsApp und Automatisierungen. Mit dem Agent gespeichert.",
+    "agentaToolsHint": "Werkzeuge, die Ihr Agent überall nutzen kann, wo er läuft. Mit dem Agent gespeichert.",
     "noAgentaTools": "Keine Agenta-Werkzeuge verfügbar.",
     "couldNotLoadAgentaTools": "Die Agenta-Werkzeuge konnten nicht geladen werden. Laden Sie die Seite neu, um es erneut zu versuchen.",
     "startSessionName": "Eine Sitzung eines Agenten starten",

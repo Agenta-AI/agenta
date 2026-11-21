@@ -1,5 +1,6 @@
 import {
     useCallback,
+    useContext,
     useEffect,
     useRef,
     useState,
@@ -35,9 +36,14 @@ import dynamic from "next/dynamic"
 
 import {ContentRail} from "@/components/ContentRail"
 import {useMotionPresets} from "@/lib/motion/presets"
+import {cn} from "@/lib/utils"
 
+import {AgentPanelContext} from "../agent-layout/agentPanelContext"
+
+import {useIsBuilderChat} from "./builderChat"
 import {ComposerModelButton} from "./ComposerModelButton"
 import {ComposerModelPanel} from "./ComposerModelPanel"
+import {useConversationRole} from "./conversationRole"
 import {sendRefusalRejections} from "./sessionReadOnly"
 import {useComposerPrefill} from "./useComposerPrefill"
 
@@ -81,6 +87,7 @@ export const Composer = ({
     headerExtra,
     hideSlashCommands = false,
     modelButtonHidden = false,
+    className,
 }: {
     /** The agent revision the `/` palette reads and writes (model, permissions, skills). */
     entityId: string
@@ -136,8 +143,18 @@ export const Composer = ({
      * shows with no palette too: the builder chats pick the builder's model with it.
      */
     modelButtonHidden?: boolean
+    /** The dock's padding where the host places the composer (merged over the default). */
+    className?: string
 }) => {
     const t = useT(chatMobileComposerCatalog, uiLlmProviderCatalog)
+    // The builder page's new chat draws a taller box with a smaller paperclip (B01).
+    const builderChat = useIsBuilderChat()
+    const role = useConversationRole()
+    const pageNewChat = builderChat && role === "page" && !hasTurns
+    // The session composer next to an open builder panel takes the builder composer's height:
+    // the builder's context chip row is 36 px. Null outside the agent layout.
+    const panel = useContext(AgentPanelContext)
+    const besideBuilder = !builderChat && panel?.content === "builder" && !panel.phone
     const ownInputRef = useRef<RichChatInputHandle | null>(null)
     const richInputRef = inputRef ?? ownInputRef
     // A tab switch is a route change here, so the whole composer unmounts — the per-session
@@ -361,7 +378,18 @@ export const Composer = ({
     }, [])
 
     return (
-        <div className="bg-background shrink-0 px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+        // 16 px under the box (S03, A01), 24 px in the builder page's new chat (B01), 20 px on
+        // a phone (M01).
+        <div
+            className={cn(
+                "bg-background shrink-0 px-3 pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:px-4 md:pb-4",
+                // The builder pads 16 px on a phone too (M04).
+                builderChat && "px-4",
+                // B01: the ideas sit 10 px over the box, and 24 px stay under it.
+                pageNewChat && "md:pb-6 md:pt-0",
+                className,
+            )}
+        >
             <ContentRail>
                 <MicPermissionNotice
                     open={!!micError && !voiceRecorder.active}
@@ -433,6 +461,16 @@ export const Composer = ({
                             inputRef={richInputRef}
                             // The session and builder composer as the canvas draws it (S03, M01).
                             surface="canvas"
+                            // B01: a two-line text area, the box 112 px high. Beside the builder
+                            // panel, 34 px plus its 36 px chip row.
+                            minHeightClassName={
+                                pageNewChat
+                                    ? "min-h-[60px]"
+                                    : besideBuilder
+                                      ? "min-h-[70px]"
+                                      : undefined
+                            }
+                            smallAttach={pageNewChat}
                             onSubmit={submit}
                             fileMentions
                             attachments={attachments}
@@ -481,6 +519,7 @@ export const Composer = ({
                                     onDictatingChange={setDictating}
                                     stopRef={dictationStopRef}
                                     disabled={disabled}
+                                    surface="canvas"
                                 />
                             }
                         />

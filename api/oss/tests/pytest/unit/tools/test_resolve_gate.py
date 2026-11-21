@@ -91,7 +91,9 @@ class _Inputs:
     def __init__(self):
         self.kinds = {}
 
-    async def fetch_by_execution_id(self, *, project_id, session_id, execution_id):
+    async def fetch_by_execution_id(
+        self, *, project_id, session_id, execution_id, transaction=None
+    ):
         kind = self.kinds.get(execution_id)
         return SimpleNamespace(kind=kind) if kind else None
 
@@ -100,7 +102,7 @@ class _Turns:
     def __init__(self):
         self.origins = {}
 
-    async def find_turn(self, *, project_id, session_id, turn_id):
+    async def find_turn(self, *, project_id, session_id, turn_id, transaction=None):
         if (session_id, turn_id) not in self.origins:
             return None
         return SimpleNamespace(

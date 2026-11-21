@@ -12,7 +12,11 @@
  */
 import {describe, expect, it} from "vitest"
 
-import {sessionsQueryResponseSchema, sessionStreamSchema} from "../../src/session/core/schema"
+import {
+    pendingSessionInputSchema,
+    sessionsQueryResponseSchema,
+    sessionStreamSchema,
+} from "../../src/session/core/schema"
 
 /** A fully-populated `/sessions/query` row exactly as the backend serializes it today:
  * `SessionListItem` (`SessionStream` + `Identifier`/`Header`/`Lifecycle` + `references`),
@@ -197,6 +201,28 @@ describe("sessionsQueryResponseSchema (envelope)", () => {
         expect(out.sessions[0].origin).toBeUndefined()
         expect(out.sessions[1].session_id).toBe("sess-unknown-trigger-kind")
         expect(out.sessions[1].trigger).toBeUndefined()
+    })
+})
+
+describe("queued input kind", () => {
+    const row = {
+        id: "input-1",
+        session_id: "session-1",
+        content: {},
+        position: 0,
+        state: "pending",
+        policy: "queue",
+    }
+
+    it("keeps the kind, and reads a row without one as unset", () => {
+        expect(pendingSessionInputSchema.parse({...row, kind: "child_update"}).kind).toBe(
+            "child_update",
+        )
+        expect(pendingSessionInputSchema.parse(row).kind).toBeUndefined()
+    })
+
+    it("degrades a malformed kind instead of failing the snapshot", () => {
+        expect(pendingSessionInputSchema.parse({...row, kind: 7}).kind).toBeUndefined()
     })
 })
 

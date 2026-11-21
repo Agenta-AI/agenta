@@ -100,6 +100,40 @@ export function buildSkillFromFiles(raw: RawFile[]): ParsedSkill {
     }
 }
 
+/** The entry names of a zip, repeats included, read from its central directory. */
+function zipEntryNames(bytes: Uint8Array): string[] {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    // The end-of-directory record: the last 22 bytes, before any archive comment.
+    let end = bytes.length - 22
+    while (end >= 0 && view.getUint32(end, true) !== 0x06054b50) end--
+    if (end < 0) return []
+    const names: string[] = []
+    let at = view.getUint32(end + 16, true)
+    for (let n = view.getUint16(end + 10, true); n > 0; n--) {
+        if (at + 46 > bytes.length || view.getUint32(at, true) !== 0x02014b50) break
+        const nameLength = view.getUint16(at + 28, true)
+        // As fflate: a name without the UTF-8 flag (bit 11) is read as Latin-1.
+        const latin1 = !(view.getUint16(at + 8, true) & 0x0800)
+        names.push(strFromU8(bytes.subarray(at + 46, at + 46 + nameLength), latin1))
+        at += 46 + nameLength + view.getUint16(at + 30, true) + view.getUint16(at + 32, true)
+    }
+    return names
+}
+
+/** A name that an archive in the upload holds twice; unzipping keeps only one of the two. */
+function repeatedArchivePath(raw: RawFile[]): string | undefined {
+    for (const f of raw) {
+        if (!ARCHIVE_EXT.test(f.path)) continue
+        // Folders and ignored files never reach the skill, so their repeats do not count.
+        const names = zipEntryNames(f.bytes).filter(
+            (name) => !name.endsWith("/") && !IGNORED.test(name),
+        )
+        const repeated = names.find((name, i) => names.indexOf(name) !== i)
+        if (repeated !== undefined) return repeated
+    }
+    return undefined
+}
+
 /** Expand any `.zip` / `.skill` archives into their entries; pass other files through. */
 function expandArchives(raw: RawFile[]): RawFile[] {
     const out: RawFile[] = []
@@ -295,29 +329,40 @@ export async function scanSkillFromDataTransfer(dt: DataTransfer): Promise<Skill
 export interface SkillUpload {
     /** The upload held a SKILL.md (as text). */
     hasSkillMd: boolean
+    /** It held more than one, so it is more than one skill. */
+    manySkills?: boolean
+    /** A path two uploaded files share: one would silently replace the other. */
+    duplicatePath?: string
     skill: ParsedSkill
     /** Files that are not text, or too large, with the reason. */
     skipped: {path: string; reason: string}[]
 }
 
 /** Split an upload into its text files and the files that are skipped. */
-export function readSkillUpload(raw: RawFile[]): SkillUpload {
-    const {usable, skipped} = splitTextFiles(raw)
+export function readSkillUpload(raw: RawFile[], repeatedPath?: string): SkillUpload {
+    const {files, usable, skipped} = splitTextFiles(raw)
+    const skill = buildSkillFromFiles(usable)
+    const paths = skill.files.map((file) => file.path)
     return {
         hasSkillMd: usable.some((f) => SKILL_MD.test(f.path)),
-        skill: buildSkillFromFiles(usable),
+        // A skipped SKILL.md still marks a second skill, as in `scanSkillFiles`.
+        manySkills: files.filter((f) => SKILL_MD.test(f.path)).length > 1,
+        duplicatePath: repeatedPath ?? paths.find((path, i) => paths.indexOf(path) !== i),
+        skill,
         skipped,
     }
 }
 
 /** Top-level: a selected FileList → an upload for the skill view. */
 export async function readSkillUploadFromFileList(list: FileList | File[]): Promise<SkillUpload> {
-    return readSkillUpload(expandArchives(await filesToRaw(list)))
+    const raw = await filesToRaw(list)
+    return readSkillUpload(expandArchives(raw), repeatedArchivePath(raw))
 }
 
 /** Top-level: a drop's DataTransfer → an upload for the skill view. */
 export async function readSkillUploadFromDataTransfer(dt: DataTransfer): Promise<SkillUpload> {
-    return readSkillUpload(expandArchives(await readDataTransfer(dt)))
+    const raw = await readDataTransfer(dt)
+    return readSkillUpload(expandArchives(raw), repeatedArchivePath(raw))
 }
 
 export type SkillUploadMode = "add" | "replace"
@@ -334,8 +379,13 @@ export function applySkillUpload(
     skill: Record<string, unknown>,
     upload: SkillUpload,
     mode: SkillUploadMode,
-): {skill: Record<string, unknown>} | {error: "noSkillMd"} {
+):
+    | {skill: Record<string, unknown>}
+    | {error: "noSkillMd" | "manySkills"}
+    | {error: "duplicatePath"; path: string} {
     const parsed = upload.skill
+    if (upload.duplicatePath !== undefined)
+        return {error: "duplicatePath", path: upload.duplicatePath}
     if (mode === "add") {
         const files = [...skillFilesOf(skill)]
         for (const file of parsed.files) {
@@ -350,6 +400,8 @@ export function applySkillUpload(
         return {skill: next}
     }
     if (!upload.hasSkillMd) return {error: "noSkillMd"}
+    // Replace takes one skill; the files of a second one would land in this one.
+    if (upload.manySkills) return {error: "manySkills"}
     const next: Record<string, unknown> = {...skill, body: parsed.body}
     // As production: a SKILL.md with no name or description keeps the ones the skill has.
     if (parsed.name) next.name = parsed.name

@@ -1,5 +1,6 @@
-import {useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import type {ChildUpdate} from "@agenta/chat/assets"
 import {
     buildTurnViewModels,
     createExecutedToolIdentityCache,
@@ -14,6 +15,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
+import {ContentRailCapContext} from "@/components/contentRailCap"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {StatusTag} from "@/components/StatusTag"
 
@@ -23,6 +25,7 @@ import {AppShell} from "../nav/AppShell"
 import {useLivenessPoll} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
+import {ChildSessionLink} from "./ChildSessionLink"
 import {conversationKey} from "./conversationKey"
 import {ConversationRoleContext} from "./conversationRole"
 import {ConversationRoot} from "./ConversationRoot"
@@ -211,7 +214,7 @@ export const ChatScreen = ({
             // Per SESSION only — see `conversationKey`. Keying it here and not the page keeps the
             // shell, the split and the config pane mounted while the transcript is rebuilt.
             key={conversationKey({sessionId, revisionId: heldEntityId})}
-            embedded
+            parentOwnsShell
             entityId={heldEntityId}
             sessionId={sessionId}
             projectId={projectId}
@@ -335,6 +338,17 @@ const ReplayScreen = ({
     )
     // Keyed on `turns` (new array per poll) so streamed growth also re-pins.
     const autoScroll = useTranscriptAutoScroll(turns, sessionId)
+    // A child update row names its child session and links it.
+    const renderChildSession = useCallback(
+        (update: ChildUpdate) => (
+            <ChildSessionLink
+                sessionId={update.sessionId}
+                projectId={projectId}
+                base={`/w/${workspaceId}/p/${projectId}`}
+            />
+        ),
+        [projectId, workspaceId],
+    )
 
     let body
     if (state === "loading") {
@@ -353,6 +367,7 @@ const ReplayScreen = ({
                     remoteRunning={running}
                     waitingOnUser={pendingCount > 0}
                     pending={running && !!visibleTurns[visibleTurns.length - 1]?.isUser}
+                    renderChildSession={renderChildSession}
                 />
             </ContentRail>
         )
@@ -416,7 +431,12 @@ const ReplayScreen = ({
     )
 
     // The read-only replay is a conversation too: its approval card answers keys by the focus.
-    const rootedScaffold = <ConversationRoot>{scaffold}</ConversationRoot>
+    // Its rails take the session column, as the live conversation's do.
+    const rootedScaffold = (
+        <ContentRailCapContext.Provider value="max-w-[720px]">
+            <ConversationRoot>{scaffold}</ConversationRoot>
+        </ContentRailCapContext.Provider>
+    )
     return embedded ? (
         rootedScaffold
     ) : (

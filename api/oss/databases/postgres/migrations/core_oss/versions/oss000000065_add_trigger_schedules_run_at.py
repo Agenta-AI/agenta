@@ -1,7 +1,7 @@
 """add the one-time fire time to trigger schedules
 
-Revision ID: oss000000064
-Revises: oss000000063
+Revision ID: oss000000065
+Revises: oss000000064
 Create Date: 2026-11-20 00:00:00.000000
 
 A schedule fires on a cron expression or, new, once at `run_at`. Only server code
@@ -25,8 +25,8 @@ from typing import Sequence, Union
 from alembic import op
 from sqlalchemy import text
 
-revision: str = "oss000000064"
-down_revision: Union[str, None] = "oss000000063"
+revision: str = "oss000000065"
+down_revision: Union[str, None] = "oss000000064"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

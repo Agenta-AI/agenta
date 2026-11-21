@@ -13,7 +13,17 @@ test.describe("story captures", () => {
         test(recipe.id, async ({page}) => {
             await page.setViewportSize({width: recipe.width, height: recipe.height})
             const url = `${requireEnv("STORYBOOK_URL")}/iframe.html?id=${recipe.story}&globals=theme:${recipe.theme}&viewMode=story`
-            await page.goto(url, {waitUntil: "networkidle"})
+            // A Storybook dev server keeps its socket open, so "networkidle" never comes. Wait for
+            // the story render to finish instead.
+            await page.goto(url, {waitUntil: "load"})
+            await page.waitForFunction(
+                () =>
+                    (
+                        window as unknown as {
+                            __STORYBOOK_PREVIEW__?: {currentRender?: {phase?: string}}
+                        }
+                    ).__STORYBOOK_PREVIEW__?.currentRender?.phase === "finished",
+            )
             if (recipe.ready) await page.locator(recipe.ready).first().waitFor()
             await page.evaluate(() => document.fonts.ready)
             const path = `${requireEnv("OUT")}/${recipe.id}.png`

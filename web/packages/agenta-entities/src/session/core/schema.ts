@@ -120,6 +120,7 @@ export const sessionReferenceSchema = z.object({
     key: z.string().nullish().catch(undefined),
 })
 
+/** How the session was created. `calling_session`: an agent in another session created it. */
 export const sessionOriginSchema = z.enum([
     "manual",
     "trigger",
@@ -268,6 +269,10 @@ export const pendingSessionInputSchema = z.object({
     position: z.number(),
     state: z.enum(["pending", "promoted", "removed"]),
     policy: z.enum(["queue", "steer"]),
+    // What the input is. `message` (or absent, on older servers) is a person's message; any
+    // other kind is a server input, which nobody can edit. An open string, so a kind this client
+    // does not know yet still reads as a server input instead of failing the snapshot.
+    kind: z.string().nullish().catch(undefined),
     created_at: z.string().nullish(),
     promoted_execution_id: z.string().nullish(),
     /** The admitting client's `Idempotency-Key`: the echo id of the send it came from. */

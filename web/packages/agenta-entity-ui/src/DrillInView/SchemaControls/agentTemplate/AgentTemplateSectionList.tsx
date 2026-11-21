@@ -36,6 +36,11 @@ export interface AgentTemplateSectionDescriptor {
     titleBadge?: ReactNode
     summary?: ReactNode
     /**
+     * The section holds nothing. The panel row then shows no summary (canvas F01, F02); the
+     * phone and the builder pane keep the "None" summary (M07, B03).
+     */
+    empty?: boolean
+    /**
      * On a phone, the row's summary line in place of `summary`, where the phone canvas (M07) says
      * more than the desktop header ("AGENTS.md · 33 words", the skill names).
      */
@@ -65,7 +70,16 @@ export interface AgentTemplateSectionDescriptor {
     hideExtraOnPhone?: boolean
     /** When set, the header opens a drawer instead of expanding inline. */
     onOpen?: () => void
+    /** A row that opens a view ends with the canvas triangle instead of a chevron (Advanced). */
+    drawerAffordance?: "chevron" | "triangle"
+    /** Tint the header row (a container's mark, the builder page's "Changed by the builder"). */
+    highlight?: boolean
     bodyClassName?: string
+    /**
+     * The body is one card set under the title: in the panel it is indented 22 px and sits 6 px
+     * under the row (canvas F01, the AGENTS.md card).
+     */
+    insetBody?: boolean
     content: ReactNode
 }
 
@@ -107,8 +121,11 @@ export const AgentTemplateSectionList = ({
     if (phoneSections) return <PhoneSectionList sections={sections} phoneSections={phoneSections} />
     if (layout === "page") return <PageSectionList sections={sections} />
 
+    const pane = layout === "pane"
     return (
-        <>
+        // Canvas F01 for the panel, B03 for the pane: there the rows run full width, so `-mx-4`
+        // undoes the host's inset and the rows carry it.
+        <div className={pane ? "-mx-4 flex flex-col" : "flex flex-col gap-1.5 pt-3.5"}>
             {sections.map((s, index) => {
                 const controlled = Boolean(controlledKeys?.has(s.key))
                 return (
@@ -124,15 +141,24 @@ export const AgentTemplateSectionList = ({
                             icon={s.icon}
                             title={s.title}
                             titleBadge={s.titleBadge}
-                            summary={s.summary}
+                            summary={!pane && s.empty ? undefined : s.summary}
                             extra={s.extra}
                             indicator={s.indicator}
                             onOpen={s.onOpen}
-                            bodyClassName={s.bodyClassName}
-                            // Canvas S02: rows inset in the panel's `px-4`, an open section stays
-                            // white (no band).
-                            canvas
-                            noDivider={index === sections.length - 1}
+                            drawerAffordance={s.drawerAffordance}
+                            highlight={s.highlight}
+                            bodyClassName={
+                                s.bodyClassName ??
+                                (pane
+                                    ? "flex flex-col gap-2 px-4 pb-4 pt-3"
+                                    : s.insetBody
+                                      ? PANEL_INSET_BODY
+                                      : PANEL_BODY)
+                            }
+                            // Canvas F01: rows inset in the panel's `px-4`, an open section stays
+                            // white (no band). The builder pane keeps the last divider (B03).
+                            canvas={pane ? "pane" : "panel"}
+                            noDivider={!pane && index === sections.length - 1}
                             {...(controlled
                                 ? {
                                       open: openByKey?.[s.key] ?? s.defaultOpen ?? false,
@@ -145,9 +171,14 @@ export const AgentTemplateSectionList = ({
                     </div>
                 )
             })}
-        </>
+        </div>
     )
 }
+
+/** The body of an open panel section (canvas F01, with the list's gap). */
+const PANEL_BODY = "flex flex-col gap-2 pb-2.5 pt-3"
+/** A body that is one card under the title (see `insetBody`). */
+const PANEL_INSET_BODY = "flex flex-col pl-[22px] pt-1.5"
 
 /** The phone row's summary line. */
 const summaryOf = (s: AgentTemplateSectionDescriptor) => s.phoneSummary ?? s.summary
@@ -227,7 +258,9 @@ const PhoneSectionList = ({
                     ) : null}
                     <span className="flex min-w-0 flex-1 flex-col">
                         <span className="flex min-w-0 items-center gap-1.5">
-                            <span className="truncate text-[15px] text-colorText">{s.title}</span>
+                            <span className="truncate text-[15px] leading-5 text-colorText">
+                                {s.title}
+                            </span>
                             <IndicatorDot indicator={s.indicator} />
                             {s.titleBadge ? <span className="shrink-0">{s.titleBadge}</span> : null}
                         </span>
@@ -259,7 +292,7 @@ const PageSectionList = ({sections}: {sections: AgentTemplateSectionDescriptor[]
                 className="flex flex-col gap-2"
             >
                 <div className="flex min-h-7 items-center justify-between gap-2">
-                    <h3 className="m-0 flex min-w-0 items-center gap-1.5 text-[15px] font-semibold text-colorText">
+                    <h3 className="m-0 flex min-w-0 items-center gap-1.5 text-[15px] font-semibold leading-5 text-colorText">
                         <span className="truncate">{s.title}</span>
                         <IndicatorDot indicator={s.indicator} />
                         {s.titleBadge ? <span className="shrink-0">{s.titleBadge}</span> : null}
@@ -279,8 +312,9 @@ const PageSectionList = ({sections}: {sections: AgentTemplateSectionDescriptor[]
                     ) : (
                         // Flat rows draw a line above themselves: -mt-px tucks the first one under
                         // the card's edge, and a list of rows keeps no gap. Content with no rows
-                        // (an empty line, a notice) gets the card's padding instead.
-                        <div className="-mt-px flex flex-col [&:not(:has([data-page-row]))]:mt-0 [&:not(:has([data-page-row]))]:px-3.5 [&:not(:has([data-page-row]))]:py-3 [&_:has([data-page-row])]:gap-0 empty:hidden">
+                        // (an empty line, a notice) gets the card's padding instead, and an empty
+                        // line reads 13/20 (canvas A04 `.cpe`).
+                        <div className="-mt-px flex flex-col empty:hidden [&:not(:has([data-page-row]))]:mt-0 [&:not(:has([data-page-row]))]:p-3.5 [&:not(:has([data-page-row]))>span]:!text-[13px] [&:not(:has([data-page-row]))>span]:!leading-5 [&_:has([data-page-row])]:gap-0">
                             {s.content}
                         </div>
                     )}

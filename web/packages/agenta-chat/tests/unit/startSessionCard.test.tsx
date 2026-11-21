@@ -47,10 +47,14 @@ const {ApprovalCard} = await import("../../src/components/ApprovalCard")
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
-const start = (agent: string) => ({
+const start = (
+    agent: string,
+    text = "Write a welcome email to Dana",
+    name = "Welcome email test",
+) => ({
     approvalId: `a-${agent}`,
     toolName: "mcp__agenta-tools__start_session",
-    input: {agent, text: "Write a welcome email to Dana", name: "Welcome email test"},
+    input: {agent, text, name},
 })
 
 let host: HTMLDivElement
@@ -89,6 +93,25 @@ describe("the start session card", () => {
         await render([start(AGENT_ID)])
         expect(host.textContent).toContain("Start a session of Email writer.")
         expect(host.textContent).not.toContain(AGENT_ID.slice(0, 8))
+    })
+
+    it("names each call's own agent and first message in a batch", async () => {
+        await render([
+            start(SLUG),
+            start("market-research", "Find three competitors", "Competitor scan"),
+        ])
+        const toggle = [...host.querySelectorAll("button")].find(
+            (button) => button.getAttribute("aria-expanded") === "false",
+        )
+        await act(async () => toggle?.click())
+        const rows = [...host.querySelectorAll("button[aria-expanded]")]
+            .map((row) => row.textContent ?? "")
+            .filter((text) => text.startsWith("Start a session"))
+        expect(rows).toHaveLength(2)
+        expect(rows[0]).toContain("Start a session of Email writer.")
+        expect(rows[0]).toContain("Write a welcome email to Dana")
+        expect(rows[1]).toContain("Start a session of market-research.")
+        expect(rows[1]).toContain("Find three competitors")
     })
 
     it("falls back to the slug, never to an id, for an agent it cannot find", async () => {
