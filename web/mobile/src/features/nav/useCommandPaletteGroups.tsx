@@ -2,7 +2,6 @@ import {createElement, useMemo} from "react"
 
 import {
     agentWorkflowsListQueryStateAtom,
-    builderAgentWorkflowIdAtom,
     isHumanEvaluator,
     nonArchivedEvaluatorsAtom,
     promptWorkflowsListQueryStateAtom,
@@ -99,8 +98,6 @@ export const useCommandPaletteGroups = (
     const hits = useAtomValue(sidebarSessionSearchResultsAtom)
     const searching = useAtomValue(sidebarSessionSearchLoadingAtom)
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
-    // A session row's link depends on whether its agent is the builder: rebuild once that id loads.
-    const builderId = useAtomValue(builderAgentWorkflowIdAtom)
     const access = useMobileSettingsAccess()
     // Beta developer mode only, and only while the palette is open with a query: the prompt apps
     // and the evaluators load then, not with the rail.
@@ -279,7 +276,6 @@ export const useCommandPaletteGroups = (
     }, [
         access,
         agentsQuery.data,
-        builderId,
         developerMode,
         evaluators,
         findWorkflows,
