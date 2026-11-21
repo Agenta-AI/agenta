@@ -10,6 +10,7 @@ import {
 } from "../../tools/denial-text.ts";
 import type { ApprovedExecutionGrants, Responder } from "../../responder.ts";
 import type { AgentChangePreviewFetcher } from "../../tools/agent-change-preview.ts";
+import { AUTO_APPROVED_DATA_NAME } from "../../tools/gate-answer.ts";
 import type {
   ExecutableToolGate,
   ExecutableToolGateRequest,
@@ -96,7 +97,23 @@ export function buildExecutableToolGate({
             (preApproved ? " grant=consumed" : ""),
         );
       }
-      if (verdict.kind === "allow") return { kind: "allow" };
+      if (verdict.kind === "allow") {
+        // The person's approval choice allowed it here, with no harness gate before: mark the
+        // call as the harness gate does, under the id the chat's card attaches to.
+        if (verdict.autoApproved) {
+          run.emitEvent({
+            type: "data",
+            name: AUTO_APPROVED_DATA_NAME,
+            data: {
+              toolCallId:
+                toolCallIndex?.lookup(request.spec.name, request.input) ??
+                request.toolCallId,
+              toolName: request.spec.name,
+            },
+          });
+        }
+        return { kind: "allow" };
+      }
       if (verdict.kind === "deny") {
         // A server deny at the gate refuses one target (D34), not the tool and not a person's
         // answer, so the model may still pick another target.

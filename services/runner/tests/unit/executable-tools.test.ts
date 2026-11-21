@@ -346,8 +346,9 @@ describe("buildExecutableToolGate with a server answer at the gate", () => {
   function serverSeam(
     permission: "allow" | "ask" | "deny",
     executionGrants?: ApprovedExecutionGrants,
-    opts: { recordCard?: boolean } = {},
+    opts: { recordCard?: boolean; basis?: string } = {},
   ) {
+    const events: AgentEvent[] = [];
     let pauses = 0;
     let asked = 0;
     const permissionPlan: PermissionPlan = {
@@ -363,13 +364,16 @@ describe("buildExecutableToolGate with a server answer at the gate", () => {
         return Promise.resolve(
           permission === "ask"
             ? { permission }
-            : { permission, basis: "configured_permission" },
+            : { permission, basis: opts.basis ?? "configured_permission" },
         );
       },
     );
     const gate = buildExecutableToolGate({
       responder,
-      run: { emitEvent: () => {}, wasForceSettled: () => false },
+      run: {
+        emitEvent: (event) => events.push(event),
+        wasForceSettled: () => false,
+      },
       pause: {
         markPausedToolCall: () => {},
         pause: () => {
@@ -382,13 +386,28 @@ describe("buildExecutableToolGate with a server answer at the gate", () => {
       permissionPlan,
       executionGrants,
     });
-    return { gate, pauses: () => pauses, asked: () => asked };
+    return { gate, events, pauses: () => pauses, asked: () => asked };
   }
 
   it("runs the call with no card on allow", async () => {
-    const { gate, pauses } = serverSeam("allow");
+    const { gate, events, pauses } = serverSeam("allow");
     assert.deepEqual(await gate.onExecutableTool(request), { kind: "allow" });
     assert.equal(pauses(), 0);
+    assert.deepEqual(events, [], "a configured allow leaves no mark");
+  });
+
+  it("marks a call that the person's approval choice allowed", async () => {
+    const { gate, events } = serverSeam("allow", undefined, {
+      basis: "approval_choice",
+    });
+    assert.deepEqual(await gate.onExecutableTool(request), { kind: "allow" });
+    assert.deepEqual(events, [
+      {
+        type: "data",
+        name: "auto-approved",
+        data: { toolCallId: request.toolCallId, toolName: "publish" },
+      },
+    ]);
   });
 
   it("spends the grant that the harness gate left and does not ask the server again", async () => {

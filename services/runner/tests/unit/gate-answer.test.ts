@@ -103,7 +103,7 @@ function fetcher(
 }
 
 describe("buildGateAnswerFetcher", () => {
-  it("asks only about the three session writes", () => {
+  it("asks only about the session writes and the builder's agent writes", () => {
     stubFetch(() =>
       toolResult({ permission: "allow", basis: "configured_permission" }),
     );
@@ -125,6 +125,8 @@ describe("buildGateAnswerFetcher", () => {
       "tools.agenta.start_session",
       "tools.agenta.send_session_message",
       "tools.agenta.cancel_session",
+      "tools.agenta.create_agent",
+      "tools.agenta.edit_agent_config",
     ]) {
       const asked = fetcher([{ name: "op", callRef }])({
         toolName: "op",
@@ -394,6 +396,21 @@ describe("ApprovalResponder at the gate", () => {
     });
     assert.equal(calls.length, 1);
     assert.equal(calls[0].callId, "call-1");
+  });
+
+  it("marks an allow that the person's approval choice gave", async () => {
+    const fetch: GateAnswerFetcher = () =>
+      Promise.resolve({ permission: "allow", basis: "approval_choice" });
+    const verdict = await ask(
+      responder(fetch),
+      relayGate({ toolName: "edit_agent_config" }),
+      "call-1",
+    );
+    assert.deepEqual(verdict, {
+      kind: "allow",
+      byGateAnswer: true,
+      autoApproved: true,
+    });
   });
 
   it("refuses the call with no card when the server answers deny", async () => {
