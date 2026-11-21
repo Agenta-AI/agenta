@@ -17,7 +17,10 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscriptionFlags,
 )
 
-from oss.src.dbs.postgres.access.mappings import map_principal_columns
+from oss.src.dbs.postgres.access.mappings import (
+    map_envelope_column,
+    map_principal_columns,
+)
 from oss.src.dbs.postgres.triggers.dbes import (
     TriggerDeliveryDBE,
     TriggerScheduleDBE,
@@ -172,6 +175,7 @@ def map_schedule_dbe_to_dto(
             kind=schedule_dbe.principal_kind, id=schedule_dbe.principal_id
         ),
         artifact_id=schedule_dbe.artifact_id,
+        run_envelope=map_envelope_column(data=schedule_dbe.run_envelope),
     )
 
 

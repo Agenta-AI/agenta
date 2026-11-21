@@ -25,6 +25,7 @@ import {
   type StoredPermissionDecisions,
   type Verdict,
 } from "./permission-plan.ts";
+import type { GateAnswerFetcher } from "./tools/gate-answer.ts";
 
 export type PermissionDecision = "allow" | "deny";
 
@@ -34,6 +35,15 @@ export type ClientToolOutcome =
 /** A permission gate raised by the harness, normalized from the ACP request. */
 export interface PermissionGateRequest {
   id: string;
+  /** The harness's id for the gated call, when the gate knows it. */
+  toolCallId?: string;
+  /**
+   * Spends an approval that an earlier gate of this same call left (an execution grant), and
+   * says whether there was one. Called only when the configuration would show a card, before
+   * the server is asked, so a call that a person or the server already allowed runs once and
+   * the server is not asked a second time.
+   */
+  takeGrant?: () => boolean;
   availableReplies: string[];
   gate: GateDescriptor;
   raw?: unknown;
@@ -349,16 +359,43 @@ export class ApprovalResponder implements Responder {
     private readonly plan: PermissionPlan,
     private readonly decisions: ConversationDecisions,
     private readonly log: (msg: string) => void = () => {},
+    private readonly fetchGateAnswer?: GateAnswerFetcher,
   ) {}
 
   async onPermission(request: PermissionGateRequest): Promise<Verdict> {
     const permission = effectivePermission(request.gate, this.plan);
-    const verdict = decide(request.gate, this.plan, this.decisions);
+    let verdict = decide(request.gate, this.plan, this.decisions);
+    // Only a call that would show a card spends a grant or asks the server, and only for a
+    // runner-executed tool: the answer can remove that card or refuse the call, never skip a
+    // policy decision. A grant that an earlier gate of this call left answers first.
+    if (
+      verdict.kind === "pendingApproval" &&
+      request.gate.executor === "relay"
+    ) {
+      verdict = request.takeGrant?.()
+        ? { kind: "allow" }
+        : await this.serverVerdict(request);
+    }
     this.log(
       `[HITL] gate toolName=${JSON.stringify(request.gate.toolName)} ` +
         `permission=${permission} outcome=${verdict.kind}`,
     );
     return verdict;
+  }
+
+  private async serverVerdict(
+    request: PermissionGateRequest,
+  ): Promise<Verdict> {
+    const { gate } = request;
+    const answer = await this.fetchGateAnswer?.({
+      toolName: gate.toolName,
+      callId: request.toolCallId ?? request.id,
+      args: gate.args,
+    });
+    if (!answer || answer.permission === "ask") {
+      return { kind: "pendingApproval" };
+    }
+    return { kind: answer.permission, byGateAnswer: true };
   }
 
   async onClientTool(
