@@ -2,17 +2,17 @@
 title: Configure SSO Authentication
 slug: /self-host/guides/configure-sso
 sidebar_label: Configure SSO
-description: Set up Single Sign-On with Okta, Azure AD, or BoxySAML for your self-hosted Agenta Enterprise deployment
+description: Set up Single Sign-On with Okta, Azure AD, or BoxySAML for your self-hosted Agenta deployment
 ---
 
 import Admonition from "@theme/Admonition";
 
-<Admonition type="warning" title="Enterprise Feature">
-SSO authentication requires an Agenta Enterprise license. <a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo">Book a demo</a> or <a href="mailto:team@agenta.ai">contact our team</a> to get started.
+<Admonition type="info" title="Free on every self-hosted edition">
+SSO login that you configure with environment variables is free on every self-hosted edition: OSS, and EE with or without a license key. SSO providers per organization configured in the app, SSO enforcement, domain verification, and custom roles need an Agenta Enterprise license. <a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo">Book a demo</a> or <a href="mailto:team@agenta.ai">contact our team</a> for those features.
 </Admonition>
 
 <Admonition type="info" title="Deployment-wide configuration">
-This guide covers setting up SSO at the deployment level via environment variables. The configured providers will be available to all users on the login page. Once signed in, organization owners can further control which authentication methods are allowed per organization (SSO-only, disable password login, restrict to verified domains, etc.) from <strong>Settings → Access & Security</strong>. See the [SSO administration guide](/administration/access-control/sso) for details.
+This guide covers setting up SSO at the deployment level via environment variables. The configured providers will be available to all users on the login page. With an Enterprise license, organization owners can also control which authentication methods are allowed per organization (SSO-only, disable password login, restrict to verified domains, etc.) from <strong>Settings → Access & Security</strong>. See the [SSO administration guide](/administration/access-control/sso) for details.
 </Admonition>
 
 Agenta supports Single Sign-On (SSO) through OpenID Connect (OIDC) providers. When you configure an SSO provider's environment variables, the corresponding login button automatically appears on the sign-in page.
