@@ -18,17 +18,14 @@ import dynamic from "next/dynamic"
 import {ChatLoading} from "../chat/states/ChatStates"
 
 import {AgentPanelContext, type AgentPanelApi} from "./agentPanelContext"
-import {AgentPanelFrame, type PanelMode} from "./AgentPanelFrame"
+import {AgentPanelFrame} from "./AgentPanelFrame"
 import {
     agentPanelStateAtomFamily,
-    OVERLAY_BELOW,
-    PANEL_MAX,
-    PANEL_MIN,
-    PANEL_WIDE,
     panelStateKey,
     PHONE_BELOW,
     type PanelContent,
 } from "./agentPanelState"
+import {usePanelSize} from "./usePanelSize"
 
 const BuilderPanel = dynamic(() => import("../builder/BuilderPanel").then((m) => m.BuilderPanel), {
     ssr: false,
@@ -70,9 +67,11 @@ export const AgentPageBuilderHost = ({
         agentPanelStateAtomFamily(panelStateKey(user?.id ?? "anonymous", projectId)),
     )
     const phone = !useMediaQuery(`(min-width: ${PHONE_BELOW}px)`)
-    const pushWidth = useMediaQuery(`(min-width: ${OVERLAY_BELOW}px)`)
-    const [wide, setWide] = useState(false)
-    const [liveWidth, setLiveWidth] = useState<number | null>(null)
+    const {pushWidth, mode, width, resize, wide, setWide} = usePanelSize({
+        phone,
+        storedWidth: state.width,
+        storeWidth: (next) => setState({width: next}),
+    })
     const open = state.content === "builder"
     // Mounted from the first open on and kept while closed, so a close keeps the chat's state.
     const [used, setUsed] = useState(open)
@@ -85,12 +84,12 @@ export const AgentPageBuilderHost = ({
         setWide(false)
         if (next) requestAnimationFrame(() => panelRef.current?.focus({preventScroll: true}))
         return true
-    }, [open, setState])
+    }, [open, setState, setWide])
     const close = useCallback(async () => {
         setState({content: null})
         setWide(false)
         return true
-    }, [setState])
+    }, [setState, setWide])
     // On a phone the panel covers the page: the browser back closes it, as its back arrow does.
     useSystemBack(useIsPhone() && open ? 1 : 0, "panel", close)
 
@@ -106,12 +105,9 @@ export const AgentPageBuilderHost = ({
             phone,
             available: AVAILABLE,
         }),
-        [open, toggle, close, state.configTab, setState, wide, phone],
+        [open, toggle, close, state.configTab, setState, wide, setWide, phone],
     )
     const openBuilder = useCallback(() => void toggle(), [toggle])
-
-    const mode: PanelMode = phone ? "full" : !pushWidth || wide ? "overlay" : "push"
-    const width = wide ? PANEL_WIDE : (liveWidth ?? state.width)
 
     return (
         <AgentPageBuilderContext.Provider value={openBuilder}>
@@ -124,19 +120,7 @@ export const AgentPageBuilderHost = ({
                         open={open}
                         mode={mode}
                         width={width}
-                        resize={
-                            wide
-                                ? null
-                                : {
-                                      min: PANEL_MIN,
-                                      max: PANEL_MAX,
-                                      onLive: setLiveWidth,
-                                      onCommit: (next) => {
-                                          setLiveWidth(null)
-                                          setState({width: next})
-                                      },
-                                  }
-                        }
+                        resize={resize}
                         // Under 1100 px the panel lies over the page, below its header: the
                         // header's Builder icon stays in reach.
                         overlayTop={pushWidth ? undefined : "top-12"}
