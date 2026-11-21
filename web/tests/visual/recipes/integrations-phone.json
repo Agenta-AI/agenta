@@ -1,0 +1,65 @@
+[
+    {
+        "id": "integrations-phone-m08-light",
+        "story": "builderlayout-integrations-phone-integrations--list",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=Each person's own account"
+    },
+    {
+        "id": "integrations-phone-m08-dark",
+        "story": "builderlayout-integrations-phone-integrations--list-dark",
+        "width": 390,
+        "height": 844,
+        "theme": "dark",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=Each person's own account"
+    },
+    {
+        "id": "integrations-phone-m08-empty",
+        "story": "builderlayout-integrations-phone-integrations--empty",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=Add integration"
+    },
+    {
+        "id": "integrations-phone-m09-light",
+        "story": "builderlayout-integrations-phone-integration--each-persons-own",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=Use my default"
+    },
+    {
+        "id": "integrations-phone-m09-dark",
+        "story": "builderlayout-integrations-phone-integration--each-persons-own-dark",
+        "width": 390,
+        "height": 844,
+        "theme": "dark",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=Use my default"
+    },
+    {
+        "id": "integrations-phone-m09-shared",
+        "story": "builderlayout-integrations-phone-integration--one-shared-account",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=One shared account"
+    },
+    {
+        "id": "integrations-phone-m09-personal-off",
+        "story": "builderlayout-integrations-phone-integration--personal-accounts-off",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"phone-screen\"]",
+        "ready": "text=Default permission"
+    }
+]

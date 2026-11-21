@@ -1779,3 +1779,60 @@ async def test_delivery_passes_the_session_turn_id_to_respond_many(monkeypatch):
         command=without, interactions_dispatcher=dispatcher
     )
     assert dispatcher.respond_many.await_args.kwargs["session_turn_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_an_in_band_answer_links_a_continuation_that_the_caller_runs():
+    """An in-band answer (the agent service records it before its own run) continues
+    the paused execution as an answer in the app does: the source settles `continued`
+    and a continuation with the source as parent is stored. The server does not deliver
+    it, because the caller's request runs it."""
+    project_id = uuid4()
+    interaction_id = uuid4()
+    interactions = _Interactions(
+        SessionInteraction(
+            run_envelope=make_envelope(),
+            id=interaction_id,
+            project_id=project_id,
+            session_id="session-1",
+            turn_id="source-1",
+            token="approval-1",
+            kind=SessionInteractionKind.user_approval,
+            status=SessionInteractionStatus.pending,
+        )
+    )
+    commands = _Commands()
+    delivery = _Unreachable()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=None,
+        interactions_service=interactions,
+        lock_engine=None,
+        delivery=delivery,
+        executions_dao=executions,
+    )
+
+    admission = await service.respond_interaction(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_id=interaction_id,
+        answer={"approved": True, "tool_call_id": "call-1"},
+        expected_execution_id="source-1",
+        idempotency_key="inband-approval:source-1:digest",
+        approved_by=any_approval(),
+        deliver=False,
+    )
+
+    assert delivery.delivered == []
+    assert admission.command is not None
+    assert admission.command.state == SessionCommandState.pending
+    assert admission.command.target_turn_id == admission.execution_id
+    assert admission.command.data["session_turn_id"] == "source-1"
+    assert executions.source.terminal_outcome == "continued"
+    assert executions.continuation.execution_id == admission.execution_id
+    assert executions.continuation.parent_execution_id == "source-1"
+    assert executions.continuation.source_interaction_id == interaction_id
+    assert executions.continuation.state == SessionExecutionState.pending_delivery

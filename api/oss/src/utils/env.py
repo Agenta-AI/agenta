@@ -210,11 +210,12 @@ class AccessConfig(BaseModel):
     ).lower() in _TRUTHY
 
     # People may store their own accounts (custom secrets, Composio connections, MCP
-    # sign-ins), and an agent's "user" items use them. Off until every API pod and runner
-    # of the deployment runs the release that added them: an older pod reads a person's
-    # row as an organization row.
+    # sign-ins), and an agent's "user" items use them. On by default. An installation can
+    # set it to false. Set it to false until every API pod, services pod and runner of the deployment
+    # runs the release that added them: an older pod reads a person's row as an
+    # organization row.
     personal_accounts_enabled: bool = _parse_bool_env(
-        "AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED", False
+        "AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED", True
     )
 
     plans: dict | None = _load_json_env_dict("AGENTA_ACCESS_PLANS")
@@ -821,6 +822,12 @@ class SessionsConfig(BaseModel):
     commands: SessionsCommandsConfig = SessionsCommandsConfig()
     records: SessionsRecordsConfig = SessionsRecordsConfig()
     watchdog: SessionWatchdogConfig = SessionWatchdogConfig()
+    # Turns in a row in one session that no person sent. At this count a server input
+    # waits in the queue until a person sends a message.
+    turns_without_person_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_TURNS_WITHOUT_PERSON_LIMIT")
+        or 20
+    )
 
     model_config = ConfigDict(extra="ignore")
 

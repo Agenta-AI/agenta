@@ -89,7 +89,13 @@ def test_unknown_trigger_kind_is_rejected():
 
 
 def test_session_origin_is_typed():
-    assert {origin.value for origin in SessionOrigin} == {"manual", "trigger"}
+    assert {origin.value for origin in SessionOrigin} == {
+        "manual",
+        "trigger",
+        "channel",
+        "api",
+        "calling_session",
+    }
 
 
 async def test_claim_compiles_as_one_postgres_statement():
@@ -100,6 +106,7 @@ async def test_claim_compiles_as_one_postgres_statement():
     delivery_id = uuid4()
 
     claimed = await dao.claim_trigger_delivery(
+        envelope=None,
         project_id=uuid4(),
         user_id=uuid4(),
         event_id="event-1",

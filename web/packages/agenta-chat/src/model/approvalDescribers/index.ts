@@ -6,11 +6,19 @@
  */
 import type {ApprovalDescriber} from "../../skin/types"
 
+import {describeCreateAgent, describeEditAgentConfig} from "./describeAgentChanges"
 import {describeCommitRevision} from "./describeCommitRevision"
 import {describeRunTool} from "./describeRunTool"
 
-export {describeCommitRevision}
+export {describeCommitRevision, describeOperationItems} from "./describeCommitRevision"
+export {
+    agentCallTarget,
+    describeCreateAgent,
+    describeEditAgentConfig,
+    summarizeAgentCall,
+} from "./describeAgentChanges"
 export {describeRunTool}
+export {describeConfigChanges, parseChangePreview, type DescribedChanges} from "./describeChanges"
 export {parseApprovedContentManifest} from "./approvedContentManifest"
 export type {ApprovedContentManifestValue} from "./approvedContentManifest"
 export {
@@ -23,5 +31,7 @@ export {
 /** Keyed by the CANONICAL tool name (`describeApproval` canonicalizes before lookup). */
 export const BUILTIN_APPROVAL_DESCRIBERS: Record<string, ApprovalDescriber> = {
     commit_revision: describeCommitRevision,
+    create_agent: describeCreateAgent,
+    edit_agent_config: describeEditAgentConfig,
     run_tool: describeRunTool,
 }

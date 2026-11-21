@@ -29,6 +29,7 @@ from oss.src.core.sessions.types import SessionReference
 from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.workflows.dtos import AGENT_REFERENCE_KEYS
 from oss.src.core.workflows.types import AgentReferenceUnresolved
+from oss.src.dbs.redis.sessions.contract import validate_session_id
 from oss.src.utils.logging import get_module_logger
 
 if TYPE_CHECKING:  # pragma: no cover - types only, no import cycle at runtime
@@ -47,6 +48,54 @@ CHANNEL_TURN_BOUNDARY = "channel_turn"
 TRIGGER_DISPATCH_BOUNDARY = "trigger_dispatch"
 CHILD_RUN_BOUNDARY = "child_run"
 TEMPLATE_START_BOUNDARY = "template_start"
+
+
+async def session_allowed(
+    *,
+    envelope: RunEnvelope,
+    session_id: str,
+    action: Permission,
+) -> bool:
+    """Whether the envelope's run authority may do `action` (`VIEW_SESSIONS` or
+    `RUN_SESSIONS`) on the session, decided now. An id with no session row in the
+    authority's project is decided by the project role alone (the resource rules answer
+    only for an existing row), and a deleted private session is refused."""
+
+    from oss.src.core.access.service import get_access_service  # noqa: PLC0415
+
+    authority = envelope.authority
+    decision = await get_access_service().decide(
+        authority=authority,
+        principal=authority.principal,
+        action=action,
+        resource=ResourceRef(kind=ResourceKind.SESSION, id=str(session_id)),
+        context=envelope.context,
+    )
+    return decision.allowed
+
+
+async def bind_run_session(
+    *,
+    envelope: RunEnvelope,
+    session_id: Optional[str],
+) -> Optional[str]:
+    """The `run_session_id` claim a mint of a run credential for this envelope may
+    write, or None. The one decision for every mint (design D31).
+
+    The claim names the session when the run authority has `RUN_SESSIONS` on it, or
+    when no session row with that id exists yet in the envelope's project: a first
+    message creates its session after the credential is minted. Otherwise, and for an
+    id the session store would refuse, the credential names no session and every
+    session op refuses it. A renewal does not call this: it copies the claim."""
+
+    if not session_id or not validate_session_id(session_id):
+        return None
+    allowed = await session_allowed(
+        envelope=envelope,
+        session_id=session_id,
+        action=Permission.RUN_SESSIONS,
+    )
+    return session_id if allowed else None
 
 
 class RunAdmission:

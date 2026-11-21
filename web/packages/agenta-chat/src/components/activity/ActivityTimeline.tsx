@@ -3,6 +3,7 @@ import {useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} f
 import {createT} from "@agenta/i18n"
 import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
 import {AgentActivityDots, HeightCollapse, type AgentActivityFormat} from "@agenta/ui"
+import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {CaretRight, FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -466,7 +467,7 @@ export const ActivityTimeline = ({
                 // Nothing to open yet (no step, no raw failure): a plain line, not a toggle.
                 disabled={!nodes}
                 aria-expanded={nodes ? open : undefined}
-                className="-ml-1.5 flex w-fit max-w-full cursor-pointer disabled:cursor-default items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary group/row"
+                className={`-ml-1.5 flex w-fit max-w-full cursor-pointer disabled:cursor-default items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary max-md:leading-5 group/row ${PHONE_TOUCH_TARGET_CLASS}`}
             >
                 {awaiting ? (
                     <WaitingGlyph kind={waitingKind(steps)} />
@@ -488,7 +489,7 @@ export const ActivityTimeline = ({
                     <CaretRight
                         size={10}
                         weight="bold"
-                        className={`shrink-0 text-colorTextDisabled opacity-50 transition-transform ${
+                        className={`shrink-0 text-colorTextSecondary transition-transform ${
                             open ? "rotate-90" : ""
                         }`}
                     />

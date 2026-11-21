@@ -43,12 +43,10 @@ const TARGET = {provider: "composio", integration: "github"}
 function DrawerHost({
     permissions,
     connectionSlug = GITHUB_WORK.slug ?? "",
-    agentPolicy,
     disabled,
 }: {
     permissions: Parameters<typeof IntegrationPermissionDrawer>[0]["permissions"]
     connectionSlug?: string
-    agentPolicy?: Parameters<typeof IntegrationPermissionDrawer>[0]["agentPolicy"]
     disabled?: boolean
 }) {
     const [open, setOpen] = useState(true)
@@ -65,7 +63,6 @@ function DrawerHost({
                 permissions={permissions}
                 onChangePermissions={noop}
                 onChangeToolPermission={noop}
-                agentPolicy={agentPolicy}
                 disabled={disabled}
             />
         </div>
@@ -133,14 +130,6 @@ export const StaleToolKey: Story = {
                 tools: {GITHUB_MERGE_PR: "deny", GITHUB_RETIRED_ACTION: "allow"},
             }}
         />
-    ),
-}
-
-/** With an agent-wide policy to name, the note under the select says what `inherit` resolves to. */
-export const WithAgentPolicy: Story = {
-    parameters: seeded(),
-    render: () => (
-        <DrawerHost permissions={{default: "inherit", tools: {}}} agentPolicy="allow_reads" />
     ),
 }
 

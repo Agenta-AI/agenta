@@ -15,8 +15,6 @@
     "chatgpt": "Abonnement ChatGPT",
     "chatgptHint": "Exécutez des Agents avec votre forfait Plus ou Pro.",
     "chatgptReadyHint": "Les Agents peuvent s'exécuter avec votre forfait ChatGPT.",
-    "chatgptDialogTitle": "Connecter ChatGPT",
-    "chatgptDialogBody": "Connectez-vous avec votre abonnement ChatGPT. Votre Agent s'exécute dessus via le harness Codex.",
     "chatgptConnected": "ChatGPT connecté. Votre Agent s'exécutera dessus.",
     "claude": "Abonnement Claude",
     "claudeHint": "Exécutez des Agents avec votre forfait Pro ou Max.",

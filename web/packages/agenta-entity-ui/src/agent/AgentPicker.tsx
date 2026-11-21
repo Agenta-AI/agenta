@@ -3,7 +3,15 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {createT, useT} from "@agenta/i18n"
 import agentPickerCatalog from "@agenta/i18n/catalogs/entityUi.agentPicker"
-import {cn, Popover, PopoverContent, PopoverTrigger, SkeletonBlock, Spinner} from "@agenta/ui/ui"
+import {
+    cn,
+    PHONE_TOUCH_TARGET_CLASS,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    SkeletonBlock,
+    Spinner,
+} from "@agenta/ui/ui"
 import {Check, MagnifyingGlass, Plus, Robot} from "@phosphor-icons/react"
 import {CaretDown} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -509,6 +517,7 @@ export const AgentPicker = ({
                     "disabled:cursor-default disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:hover:border-border",
                     // The same error treatment the app's own Select trigger wears.
                     "aria-[invalid=true]:border-error aria-[invalid=true]:focus:shadow-[0_0_0_2px_var(--ag-errorOutline)]",
+                    PHONE_TOUCH_TARGET_CLASS,
                     triggerClassName,
                 )}
             >

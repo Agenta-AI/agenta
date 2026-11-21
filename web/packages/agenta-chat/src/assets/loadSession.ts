@@ -75,11 +75,19 @@ const sequenceCursorForRecords = (records: {sequence?: number | null}[]): number
 }
 
 /**
+ * On a session open, interaction rows read this recently are joined as they are. One open reads the
+ * log up to three times (the open, its background refresh, the watch stream's first `ready`).
+ */
+const OPEN_INTERACTION_ROWS_FRESH_MS = 2_000
+
+/**
  * One read of the record log: the transcript the cache answers with, plus the revalidation
- * flight when that answer was stale (disk-restored or past its window).
+ * flight when that answer was stale (disk-restored or past its window). `rowsFreshMs` lets recent
+ * interaction rows stand; without it they are always read again.
  */
 const readSessionTranscript = async (
     sessionId: string,
+    rowsFreshMs?: number,
 ): Promise<{
     transcript: SessionTranscript | null
     refreshed?: Promise<SessionTranscript | null>
@@ -87,9 +95,9 @@ const readSessionTranscript = async (
     failed?: boolean
 }> => {
     const store = getDefaultStore()
-    await Promise.resolve(store.set(revalidateSessionInteractionsAtom, sessionId)).catch(
-        () => undefined,
-    )
+    await Promise.resolve(
+        store.set(revalidateSessionInteractionsAtom, sessionId, {olderThanMs: rowsFreshMs}),
+    ).catch(() => undefined)
     // The best-effort lifecycle join must never gate transcript loading.
     const [{records, refreshed, failed}, interactionRowStates] = await Promise.all([
         store.set(fetchSessionRecordsAtom, sessionId),
@@ -117,7 +125,9 @@ const readSessionTranscript = async (
             ? refreshed.then(async (fresh) => {
                   if (!fresh || fresh.length === 0) return null
                   await Promise.resolve(
-                      store.set(revalidateSessionInteractionsAtom, sessionId),
+                      store.set(revalidateSessionInteractionsAtom, sessionId, {
+                          olderThanMs: rowsFreshMs,
+                      }),
                   ).catch(() => undefined)
                   const freshRowStates = await store.set(
                       fetchSessionInteractionStatesAtom,
@@ -141,7 +151,10 @@ export const loadSessionMessages = async (
     // (the documented "request failed" contract) so the caller shows the history-unavailable
     // notice instead of leaking an unhandled rejection.
     try {
-        const {transcript, refreshed, failed} = await readSessionTranscript(sessionId)
+        const {transcript, refreshed, failed} = await readSessionTranscript(
+            sessionId,
+            OPEN_INTERACTION_ROWS_FRESH_MS,
+        )
         if (failed) onReadFailed?.()
         if (refreshed && onRefreshed) {
             void refreshed

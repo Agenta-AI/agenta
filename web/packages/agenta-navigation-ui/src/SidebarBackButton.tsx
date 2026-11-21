@@ -1,7 +1,11 @@
+import {useContext} from "react"
+
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {ArrowLeft} from "@phosphor-icons/react"
+import {CaretLeft} from "@phosphor-icons/react"
 import clsx from "clsx"
+
+import {SidebarLayoutContext} from "./sidebarLayout"
 
 export interface SidebarBackButtonProps {
     collapsed: boolean
@@ -13,23 +17,29 @@ export interface SidebarBackButtonProps {
 /** The scope header's way out (settings, workflow scopes). */
 export const SidebarBackButton = ({collapsed, onBack, className}: SidebarBackButtonProps) => {
     const t = useT(commonCatalog)
+    const phone = useContext(SidebarLayoutContext) === "phone"
     return (
         <button
             type="button"
             aria-label={t("common.back")}
             onClick={onBack}
             className={clsx(
-                // text-sm / colorText, not xs / secondary: the rail has always drawn this row at
-                // the same weight as the nav rows beside it, not as a dimmed caption.
+                // A white chip on the rail, as the design draws it, 13 px in the label's ink. The
+                // phone sheet draws no ground: 15 px in the secondary ink (M02).
                 // [font-family:inherit] is load-bearing — preflight is off, so a bare <button>
                 // falls back to Arial while every <div> row beside it renders Inter.
-                "flex cursor-pointer items-center justify-center gap-2 rounded-md border-0 bg-transparent [font-family:inherit] text-colorText",
-                "hover:bg-colorFillTertiary",
-                collapsed ? "size-8" : "ml-2 h-7 px-2 text-sm",
+                "flex cursor-pointer items-center justify-center rounded-sm border-0 [font-family:inherit]",
+                collapsed
+                    ? "size-8 bg-transparent text-colorText hover:bg-colorFillTertiary"
+                    : "gap-1.5 hover:bg-colorSplit",
+                !collapsed &&
+                    (phone
+                        ? "h-11 bg-transparent px-[9px] text-[15px] leading-5 text-colorTextSecondary"
+                        : "h-7 bg-colorBgContainer pl-1 pr-2 text-[13px] text-colorText"),
                 className,
             )}
         >
-            <ArrowLeft size={14} />
+            <CaretLeft size={14} />
             {!collapsed && t("common.back")}
         </button>
     )

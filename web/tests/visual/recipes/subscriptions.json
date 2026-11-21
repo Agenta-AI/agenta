@@ -1,0 +1,56 @@
+[
+    {
+        "id": "subscriptions-chatgpt-signing-in-light",
+        "story": "builderlayout-subscriptions-subscriptions--chatgpt-signing-in",
+        "width": 600,
+        "height": 800,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=KXRT-9P4M"
+    },
+    {
+        "id": "subscriptions-chatgpt-signing-in-dark",
+        "story": "builderlayout-subscriptions-subscriptions--chatgpt-signing-in",
+        "width": 600,
+        "height": 800,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=KXRT-9P4M"
+    },
+    {
+        "id": "subscriptions-chatgpt-after-copy-light",
+        "story": "builderlayout-subscriptions-subscriptions--chatgpt-after-copy",
+        "width": 600,
+        "height": 800,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Waiting for ChatGPT to confirm"
+    },
+    {
+        "id": "subscriptions-chatgpt-after-copy-dark",
+        "story": "builderlayout-subscriptions-subscriptions--chatgpt-after-copy",
+        "width": 600,
+        "height": 800,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Waiting for ChatGPT to confirm"
+    },
+    {
+        "id": "subscriptions-claude-token-light",
+        "story": "builderlayout-subscriptions-subscriptions--claude-token",
+        "width": 600,
+        "height": 800,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Paste the token the command prints"
+    },
+    {
+        "id": "subscriptions-claude-token-dark",
+        "story": "builderlayout-subscriptions-subscriptions--claude-token",
+        "width": 600,
+        "height": 800,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Paste the token the command prints"
+    }
+]

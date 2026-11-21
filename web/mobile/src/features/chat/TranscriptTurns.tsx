@@ -33,7 +33,7 @@ export const TranscriptTurns = ({
     onClientToolOutput?: ClientToolOutputHandler
     onRewind?: (turn: TurnViewModel) => void
 }) => {
-    const start = useTranscriptWindow(turns.length, scrollerRef)
+    const start = useTranscriptWindow(turns.length, scrollerRef, sessionId)
     return (
         <>
             {turns.slice(start).map((turn, offset) => (
