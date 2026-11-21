@@ -99,6 +99,7 @@ export const useTriggerSubscription = (subscriptionId?: string) => {
         // Unlike isLoading, stays true while a refetch serves stale cache — edit forms need it.
         isFetching: subscriptionId ? query.isFetching : false,
         error: query.error,
+        refetch: query.refetch,
         isMutating,
         create,
         edit,

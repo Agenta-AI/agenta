@@ -5,7 +5,6 @@
     "staticSkill": "Static skill",
     "staticSkillHint": "Provided by Agenta. This skill cannot be edited or removed.",
     "skillTemplate": "Skill template",
-    "couldNotRead": "Couldn't read that — drop a skill folder, a .zip, or a .skill file.",
     "dragHint": "Drag a skill folder, <mono>.zip</mono>, or <mono>.skill</mono> here",
     "browseFiles": "Browse files"
 }

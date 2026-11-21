@@ -1,0 +1,101 @@
+[
+    {
+        "id": "mcp-subagents-add-light",
+        "story": "builderlayout-mcp-subagents-subagents--add-subagents",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Lead finder"
+    },
+    {
+        "id": "mcp-subagents-subagent-light",
+        "story": "builderlayout-mcp-subagents-subagents--subagent",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Show full instructions"
+    },
+    {
+        "id": "mcp-subagents-subagent-full-instructions-light",
+        "story": "builderlayout-mcp-subagents-subagents--subagent-full-instructions",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Hide instructions"
+    },
+    {
+        "id": "mcp-subagents-subagent-load-error-light",
+        "story": "builderlayout-mcp-subagents-subagents--subagent-config-load-error",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Try again"
+    },
+    {
+        "id": "mcp-subagents-add-mcp-light",
+        "story": "builderlayout-mcp-subagents-mcp-servers--add-mcp-server",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=docs-search"
+    },
+    {
+        "id": "mcp-subagents-connect-light",
+        "story": "builderlayout-mcp-subagents-mcp-servers--connect-server",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Server URL"
+    },
+    {
+        "id": "mcp-subagents-server-light",
+        "story": "builderlayout-mcp-subagents-mcp-servers--server",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Default permission"
+    },
+    {
+        "id": "mcp-subagents-server-expired-light",
+        "story": "builderlayout-mcp-subagents-mcp-servers--server-sign-in-expired",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Reconnect"
+    },
+    {
+        "id": "mcp-subagents-server-each-person-light",
+        "story": "builderlayout-mcp-subagents-mcp-servers--server-each-persons-own",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Not signed in yet"
+    },
+    {
+        "id": "mcp-subagents-server-signin-name-light",
+        "story": "builderlayout-mcp-subagents-mcp-servers--server-your-sign-in-with-name",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Your sign-in: Lena at Acme"
+    },
+    {
+        "id": "mcp-subagents-server-signin-noname-light",
+        "story": "builderlayout-mcp-subagents-mcp-servers--server-your-sign-in-no-name",
+        "width": 600,
+        "height": 820,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Signed in"
+    }
+]

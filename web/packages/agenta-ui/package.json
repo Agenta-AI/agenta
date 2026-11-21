@@ -58,8 +58,10 @@
         "./type-chip": "./src/type-chip/index.ts",
         "./ui": "./src/components/ui/index.ts",
         "./utils": "./src/utils/index.ts",
+        "./view-stack": "./src/view-stack/index.ts",
         "./agent-icon": "./src/agent-icon/index.ts",
         "./page-title": "./src/page-title/index.tsx",
+        "./phone": "./src/phone/index.ts",
         "./github-mark": "./src/github-mark.tsx",
         "./config-accordion": "./src/components/presentational/section/ConfigAccordionSection.tsx"
     },

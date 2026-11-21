@@ -79,6 +79,8 @@ export {
     agentModelSelectionMode,
     agentVaultProviderFamily,
     buildAgentModelCandidates,
+    buildModelProviderList,
+    builtinModelsOf,
     connectionModelIds,
     effectiveHarnesses,
     firstAgentModelForConnection,
@@ -173,6 +175,7 @@ export {
     probeFailureMessage,
     probeRequestFor,
     storedCredentialFields,
+    storesAwsAccessKeys,
     maskSecret,
     nextConnectionName,
     providerModelCatalog,
@@ -240,6 +243,7 @@ export {
     loginAttemptOutcome,
     loginAttemptPollInterval,
     loginAttemptQueryAtomFamily,
+    refreshSignedInAtom,
     refreshVaultSecretsAtom,
     setSubscriptionTokenAtom,
     startSubscriptionLoginAtom,
@@ -266,6 +270,7 @@ export {
 // ============================================================================
 
 export type {BuildConnectionModelGroupsArgs, PromptModelGroup, PromptModelOption} from "./core"
+export type {BuiltinModelsRow, ModelProviderList, SubscriptionRow} from "./core"
 export {
     CURRENT_SELECTION_GROUP_CAPTION,
     CURRENT_SELECTION_GROUP_KEY,

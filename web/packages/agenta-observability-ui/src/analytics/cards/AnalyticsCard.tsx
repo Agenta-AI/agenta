@@ -2,7 +2,7 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
-import {Button, SkeletonBlock, cn} from "@agenta/ui/ui"
+import {Button, PHONE_TOUCH_TARGET_CLASS, SkeletonBlock, cn} from "@agenta/ui/ui"
 import {CaretRight, ChartBar, WarningCircle} from "@phosphor-icons/react"
 
 export interface AnalyticsCardProps {
@@ -47,14 +47,14 @@ export const AnalyticsCard = ({
         >
             <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-                    <span className="text-sm text-muted-foreground">{title}</span>
+                    <span className="text-[13px] leading-5 text-muted-foreground">{title}</span>
                     {controls}
                 </div>
                 {onExplore ? (
                     <Button
                         variant="ghost"
                         size="xs"
-                        className="-mr-2 text-muted-foreground"
+                        className={cn("-mr-2 text-muted-foreground", PHONE_TOUCH_TARGET_CLASS)}
                         onClick={onExplore}
                     >
                         {t("observabilityUi.analytics.explore")}
@@ -73,7 +73,7 @@ export const AnalyticsCard = ({
                             </span>
                         ) : null}
                         {caption ? (
-                            <span className="truncate text-xs text-muted-foreground">
+                            <span className="truncate text-[12px] leading-4 text-muted-foreground">
                                 {caption}
                             </span>
                         ) : null}
@@ -82,7 +82,8 @@ export const AnalyticsCard = ({
             </div>
             <div
                 className={cn(
-                    "relative mt-3",
+                    // Axis labels in the secondary ink, as the canvas draws them (A09).
+                    "relative mt-3 [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground",
                     !chartHeight && (loading || error || empty) && "h-36",
                 )}
                 style={chartHeight ? {height: chartHeight} : undefined}
@@ -147,7 +148,7 @@ export const ChartLegendRow = ({
                 disabled={!onToggle}
                 onClick={() => onToggle?.(item.key)}
                 className={cn(
-                    "inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-muted-foreground",
+                    "inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-muted-foreground max-md:min-h-11 max-md:min-w-11",
                     onToggle && "cursor-pointer hover:text-foreground",
                     item.hidden && "line-through opacity-40",
                 )}

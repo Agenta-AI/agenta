@@ -15,7 +15,6 @@ import {
     NewSkillMenuButton,
     SkillCreateDrawer,
     SkillDetailDrawer,
-    SkillImportDrawer,
     useSkillCreateEntry,
     type SkillListItem,
 } from "@agenta/skills-ui"
@@ -23,7 +22,9 @@ import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
+import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -138,12 +139,29 @@ export const SkillListScreen = ({
         setDetailOpen(true)
     }, [])
     const closeDetail = useCallback(() => setDetailOpen(false), [])
+    // `?skill=<workflow slug>` opens that skill: the "skill registry" link of an agent's skill view.
+    const router = useRouter()
+    const linkedSkill = typeof router.query.skill === "string" ? router.query.skill : ""
+    const [openedLink, setOpenedLink] = useState("")
+    useEffect(() => {
+        if (!linkedSkill || linkedSkill === openedLink) return
+        setOpenedLink(linkedSkill)
+        // The drawer resolves the skill by its workflow slug, archived skills included, so a
+        // skill this list leaves out (archived, or not on this page) still opens.
+        setDetailSkill({
+            id: linkedSkill,
+            slug: linkedSkill,
+            workflowSlug: linkedSkill,
+            name: linkedSkill,
+            origin: "project",
+        })
+        setDetailOpen(true)
+    }, [linkedSkill, openedLink])
     // The drawer's Used-by names lead to the agent.
     const agentHref = useCallback((agentId: string) => agentEntryHref(base, agentId), [base])
-    const [importOpen, setImportOpen] = useState(false)
-    const openImport = useCallback(() => setImportOpen(true), [])
-    const closeImport = useCallback(() => setImportOpen(false), [])
-    const {createOpen, upload, onWrite, onUpload, closeCreate} = useSkillCreateEntry()
+    // Each way of the New skill menu opens the one new skill view on that step.
+    const {createOpen, upload, start, onWrite, onUpload, onImport, closeCreate} =
+        useSkillCreateEntry()
 
     // The search narrows the query, so with no term an empty registry means the project has none.
     const projectEmpty =
@@ -194,8 +212,9 @@ export const SkillListScreen = ({
                                 <NewSkillMenuButton
                                     onWrite={onWrite}
                                     onUpload={onUpload}
-                                    onImport={openImport}
-                                    className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
+                                    onImport={onImport}
+                                    // A 44 px tap area on a phone.
+                                    className={`h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md ${PHONE_TOUCH_TARGET_CLASS}`}
                                 />
                             </div>
                         </div>
@@ -207,7 +226,7 @@ export const SkillListScreen = ({
                                 <SkillCreateOptions
                                     onWrite={onWrite}
                                     onUpload={onUpload}
-                                    onImport={openImport}
+                                    onImport={onImport}
                                 />
                             </FeatureOnboarding>
                         ) : (
@@ -248,12 +267,12 @@ export const SkillListScreen = ({
                 skill={detailSkill}
                 agentHref={agentHref}
             />
-            <SkillImportDrawer open={importOpen} onClose={closeImport} projectId={projectId} />
             <SkillCreateDrawer
                 open={createOpen}
                 onClose={closeCreate}
                 projectId={projectId}
                 upload={upload}
+                start={start}
             />
         </>
     )

@@ -121,3 +121,37 @@ export const AgentIdentity = ({
         </div>
     )
 }
+
+/**
+ * The agent's kind badge in a session header: a 24 px bordered box with the agent's glyph (14 px)
+ * drawn bare, so the box stays neutral and a picked colour tints only the glyph. Editable: a click
+ * opens the icon picker, as on `AgentIdentity`.
+ */
+export const AgentKindBadge = ({
+    workflowId,
+    editable = true,
+}: {
+    workflowId: string | null | undefined
+    editable?: boolean
+}) => {
+    // A picked icon brings its own glyph colour; never both colour classes (equal specificity).
+    const chrome = useAgentIconChrome(workflowId, {
+        size: 14,
+        fallbackGlyph: <RobotIcon size={14} />,
+        bare: true,
+    })
+    const badge = (
+        <span
+            data-testid="agent-kind-badge"
+            className={`box-border flex size-6 shrink-0 items-center justify-center rounded-[6px] border border-solid border-colorBorderSecondary bg-muted ${chrome.customised ? chrome.className : "text-zinc-8"}`}
+            style={chrome.style}
+        >
+            {chrome.glyph}
+        </span>
+    )
+    return editable && workflowId ? (
+        <AgentIconPopover workflowId={workflowId}>{badge}</AgentIconPopover>
+    ) : (
+        badge
+    )
+}
