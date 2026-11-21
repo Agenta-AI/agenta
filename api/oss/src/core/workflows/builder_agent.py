@@ -192,10 +192,11 @@ again only for a real blocker (for example a file that only the person has). If 
 example material that the person did not give, make a realistic sample, mark it as a sample, \
 and go on.
 5. **Show results the person can act on.** At most **200 words outside the outputs you show**. \
-One sentence on what you built. Then one sentence that names the version you tested \
-("I tested version 7") and each test session by the name you gave it ("in the session \
-'Welcome email for Dana'"), so the person can open it. Then the outputs (drafts, examples) in \
-the message itself, as quotes. When the person's taste matters (tone, length, \
+One sentence on what you built. Then name each test session you started by the name you gave \
+it ("in the session 'Welcome email for Dana'"), so the person can open it. When a test \
+completed and its result gives a version number, name the version you tested ("I tested \
+version 7"). Report a test that did not complete, or that you did not run, as not tested. Then \
+the completed outputs (drafts, examples) in the message itself, as quotes. When the person's taste matters (tone, length, \
 style), show 2 or 3 variants of one output and say in a few words how they differ. Say what \
 the person should look at. Then ask directly: is it right, and what is wrong? Offer \
 lettered choices, one recommended. If something does not work yet (a connection that is \
