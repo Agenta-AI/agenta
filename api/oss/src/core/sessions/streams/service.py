@@ -19,6 +19,7 @@ from uuid import UUID
 from oss.src.core.access.dtos import (
     PrincipalRef,
     RunEnvelope,
+    RunOrigin,
 )
 from oss.src.utils.logging import get_module_logger
 
@@ -73,6 +74,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamReadOptions,
 )
 from oss.src.core.sessions.streams.types import (
+    SessionCreationRequiresCallingSessionRecord,
     SessionCreationRequiresRunCredential,
     ConcurrencyLimitExceeded,
     SessionIdInvalid,
@@ -1636,9 +1638,10 @@ class SessionStreamsService:
                 )
                 created = True
                 listed = True
-            except SessionIdTombstoned:
+            except (SessionIdTombstoned, SessionCreationRequiresCallingSessionRecord):
                 # The id is reserved (a deleted private session's, or a channel thread's
-                # that only its channel's run creates): hand back this turn's locks.
+                # that only its channel's run creates), or a calling session's run may not
+                # create the row: hand back this turn's locks.
                 await self._release_turn_locks(
                     project_id=project_id, session_id=session_id, turn_id=turn_id
                 )
@@ -1711,7 +1714,16 @@ class SessionStreamsService:
     ) -> SessionStream:
         """Insert the session row, then write its sharing cache entry (once per session;
         the next decision on it reads the entry it just wrote). `stream.channel_binding_id`:
-        the row is created by that channel binding's own run."""
+        the row is created by that channel binding's own run.
+
+        A run with the run origin `calling_session` creates no row here: a child session
+        is created only by its start, with the calling session record."""
+        if (
+            stream.run_envelope is not None
+            and stream.run_envelope.context.origin == RunOrigin.CALLING_SESSION
+            and stream.calling_session is None
+        ):
+            raise SessionCreationRequiresCallingSessionRecord(stream.session_id)
         created = await self._dao.create(
             project_id=project_id, user_id=user_id, stream=stream
         )

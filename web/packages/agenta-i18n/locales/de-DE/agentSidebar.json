@@ -1,0 +1,21 @@
+{
+    "agent": "Agent",
+    "analytics": "Analytics",
+    "backToMainSidebar": "Zurück zur Hauptseitenleiste",
+    "channels": "Kanäle",
+    "configuration": "Konfiguration",
+    "earlier": "Früher",
+    "loadError": "Sitzungen konnten nicht geladen werden",
+    "loading": "Wird geladen",
+    "newSession": "Neue Sitzung",
+    "noSessionsMatch": "Keine Sitzungen entsprechen diesen Filtern",
+    "retry": "Erneut versuchen",
+    "searchAgents": "Agents suchen",
+    "seeAllSessions": "Alle Sitzungen ansehen",
+    "sessions": "Sitzungen",
+    "showOlderSessionsShort": "Ältere Sitzungen anzeigen",
+    "showOlderSessions_one": "{{count}} ältere Sitzung anzeigen",
+    "showOlderSessions_other": "{{count}} ältere Sitzungen anzeigen",
+    "today": "Heute",
+    "yesterday": "Gestern"
+}

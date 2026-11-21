@@ -70,6 +70,14 @@ class MCPOAuthRefresherInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def has_personal_sign_ins(
+        self, *, organization_id: UUID, slugs: List[str]
+    ) -> bool:
+        """Whether a person in the organization holds their own sign-in at these slugs.
+        The caller holds the connection's OAuth lock."""
+        raise NotImplementedError
+
+    @abstractmethod
     async def delete_sign_ins(
         self, *, organization_id: UUID, project_id: UUID, slugs: List[str]
     ) -> int:

@@ -8,8 +8,10 @@ import {Stop} from "@phosphor-icons/react"
 
 import {Button} from "../../components/ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../components/ui/tooltip"
+import {PHONE_TOUCH_TARGET_CLASS} from "../../components/ui/touch-target"
 import {$isBlankMessage, submitEditorAsMarkdown, type SubmitHandler} from "../assets/submit"
 import {ComposerSendButton} from "../ComposerSendButton"
+import type {ComposerSurface} from "../RichChatInput"
 
 interface SendButtonProps {
     onSubmit: SubmitHandler
@@ -27,6 +29,8 @@ interface SendButtonProps {
     busyActions?: {label: string; onSubmit: SubmitHandler}[]
     /** The send is in flight; see ComposerSendButton. */
     sending?: boolean
+    /** The composer's look; `canvas` draws the round 28 px buttons. */
+    surface?: ComposerSurface
 }
 
 /** Circular send button. Mirrors the Cmd/Ctrl+Enter path via the shared submit helper.
@@ -41,6 +45,7 @@ export function SendButton({
     onStop,
     busyActions,
     sending,
+    surface,
 }: SendButtonProps) {
     const t = useT(uiChatInputCatalog)
     const [editor] = useLexicalComposerContext()
@@ -95,7 +100,10 @@ export function SendButton({
                         <Button
                             size="icon"
                             variant="ghost"
-                            className="rounded-control-round"
+                            // A phone: 36 px drawn and a 44 px area, as Send.
+                            className={`rounded-control-round max-md:size-9 ${
+                                surface === "canvas" ? "size-7" : ""
+                            } ${PHONE_TOUCH_TARGET_CLASS}`}
                             aria-label={
                                 stopping ? t("ui.chatInput.stopping") : t("ui.chatInput.stop")
                             }
@@ -116,6 +124,7 @@ export function SendButton({
                         onClick={handleClick}
                         disabled={disabled}
                         sending={sending}
+                        surface={surface}
                     />
                 ) : null}
             </span>
@@ -124,7 +133,12 @@ export function SendButton({
 
     const sendDisabled = disabled || (empty && !forceEnabled)
     const button = (
-        <ComposerSendButton onClick={handleClick} disabled={sendDisabled} sending={sending} />
+        <ComposerSendButton
+            onClick={handleClick}
+            disabled={sendDisabled}
+            sending={sending}
+            surface={surface}
+        />
     )
     if (!sendDisabled || !disabledReason) return button
 

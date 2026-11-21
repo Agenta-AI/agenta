@@ -9,6 +9,7 @@ sign-in serves every agent of the project, so nothing here names an agent.
 from typing import Optional
 
 from oss.src.core.gateways.mcps.dtos import MCPAuthScheme, MCPEndpoint
+from oss.src.core.gateways.mcps.oauth.dtos import MCPUserSignIn
 from oss.src.core.gateways.mcps.oauth.storage import grant_slug, token_slug
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.enums import SecretKind
@@ -51,3 +52,15 @@ def is_sign_in_ready(row: SecretResponseDTO, *, now: float) -> bool:
         return False
     expired = grant.expires_at is not None and grant.expires_at <= now
     return not expired or bool(grant.refresh_token)
+
+
+def user_sign_in(row: SecretResponseDTO, *, now: float) -> MCPUserSignIn:
+    """A person's stored sign-in row as they read it: ready or not, and the account name
+    their grant recorded."""
+    grant = (
+        getattr(row.data, "grant", None) if row.kind == SecretKind.OAUTH_GRANT else None
+    )
+    return MCPUserSignIn(
+        is_ready=is_sign_in_ready(row, now=now),
+        account_name=grant.account_name if grant is not None else None,
+    )

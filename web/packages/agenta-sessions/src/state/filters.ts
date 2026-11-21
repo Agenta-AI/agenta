@@ -1,3 +1,5 @@
+import {createContext, useContext} from "react"
+
 import {atom} from "jotai"
 
 /**
@@ -14,46 +16,82 @@ import {atom} from "jotai"
  */
 export type SessionStatusFilter = "all" | "live" | "running" | "waiting" | "idle"
 
-export const sessionSearchAtom = atom("")
-/** Agent workflow id, matched against the turns' references. */
-export const sessionAgentFilterAtom = atom<string | null>(null)
-export const sessionStatusFilterAtom = atom<SessionStatusFilter>("all")
-export const sessionShowArchivedAtom = atom(false)
 /**
- * The archive INSTEAD of the list, where `sessionShowArchivedAtom` shows it alongside.
- *
- * Two atoms rather than a tri-state, because the two surfaces ask different questions: the
- * desktop toolbar has a switch that widens the set, and the mobile list has a Type choice that
- * replaces it. Server-side `archived_only` wins over `include_archived`, so setting both is not
- * ambiguous.
+ * One set of session list filters. The sessions pages share one set (the exports below). A page
+ * that must not change them, such as the Sessions page locked to one agent, makes its own set
+ * with `createSessionFilterAtoms` and provides it with `SessionFilterAtomsContext`.
  */
-export const sessionArchivedOnlyAtom = atom(false)
-/** Automation runs are sessions too, so without this they sit in the list indistinguishable from
- * your own work. Hidden by default; the chip opts back in. */
-export const sessionShowTriggeredAtom = atom(false)
+export const createSessionFilterAtoms = () => {
+    const search = atom("")
+    /** Agent workflow id, matched against the turns' references. */
+    const agent = atom<string | null>(null)
+    const status = atom<SessionStatusFilter>("all")
+    const showArchived = atom(false)
+    /**
+     * The archive INSTEAD of the list, where `showArchived` shows it alongside.
+     *
+     * Two atoms rather than a tri-state, because the two surfaces ask different questions: the
+     * desktop toolbar has a switch that widens the set, and the mobile list has a Type choice
+     * that replaces it. Server-side `archived_only` wins over `include_archived`, so setting both
+     * is not ambiguous.
+     */
+    const archivedOnly = atom(false)
+    /** Automation runs are sessions too, so without this they sit in the list indistinguishable
+     * from your own work. Hidden by default; the chip opts back in. */
+    const showTriggered = atom(false)
 
-/** Everything the agent-scoped page can still narrow by — its agent comes from the route. */
-export const sessionFiltersActiveExceptAgentAtom = atom(
-    (get) =>
-        Boolean(get(sessionSearchAtom).trim()) ||
-        get(sessionStatusFilterAtom) !== "all" ||
-        get(sessionShowArchivedAtom) ||
-        get(sessionArchivedOnlyAtom) ||
-        get(sessionShowTriggeredAtom),
-)
+    /** Everything the agent-scoped page can still narrow by — its agent comes from the route. */
+    const activeExceptAgent = atom(
+        (get) =>
+            Boolean(get(search).trim()) ||
+            get(status) !== "all" ||
+            get(showArchived) ||
+            get(archivedOnly) ||
+            get(showTriggered),
+    )
+    const active = atom((get) => get(activeExceptAgent) || Boolean(get(agent)))
 
-export const sessionFiltersActiveAtom = atom(
-    (get) => get(sessionFiltersActiveExceptAgentAtom) || Boolean(get(sessionAgentFilterAtom)),
-)
+    const reset = atom(null, (_get, set) => {
+        set(search, "")
+        set(agent, null)
+        set(status, "all")
+        set(showArchived, false)
+        set(archivedOnly, false)
+        set(showTriggered, false)
+    })
 
-export const resetSessionFiltersAtom = atom(null, (_get, set) => {
-    set(sessionSearchAtom, "")
-    set(sessionAgentFilterAtom, null)
-    set(sessionStatusFilterAtom, "all")
-    set(sessionShowArchivedAtom, false)
-    set(sessionArchivedOnlyAtom, false)
-    set(sessionShowTriggeredAtom, false)
-})
+    return {
+        search,
+        agent,
+        status,
+        showArchived,
+        archivedOnly,
+        showTriggered,
+        activeExceptAgent,
+        active,
+        reset,
+    }
+}
+
+export type SessionFilterAtoms = ReturnType<typeof createSessionFilterAtoms>
+
+/** The filters every all-sessions page shares. */
+export const sharedSessionFilterAtoms: SessionFilterAtoms = createSessionFilterAtoms()
+
+/** The set the hooks below a provider read; the shared set when there is no provider. */
+export const SessionFilterAtomsContext = createContext<SessionFilterAtoms>(sharedSessionFilterAtoms)
+
+export const useSessionFilterAtoms = (): SessionFilterAtoms => useContext(SessionFilterAtomsContext)
+
+export const sessionSearchAtom = sharedSessionFilterAtoms.search
+export const sessionAgentFilterAtom = sharedSessionFilterAtoms.agent
+export const sessionStatusFilterAtom = sharedSessionFilterAtoms.status
+export const sessionShowArchivedAtom = sharedSessionFilterAtoms.showArchived
+export const sessionArchivedOnlyAtom = sharedSessionFilterAtoms.archivedOnly
+export const sessionShowTriggeredAtom = sharedSessionFilterAtoms.showTriggered
+export const sessionFiltersActiveExceptAgentAtom = sharedSessionFilterAtoms.activeExceptAgent
+export const sessionFiltersActiveAtom = sharedSessionFilterAtoms.active
+export const resetSessionFiltersAtom = sharedSessionFilterAtoms.reset
 
 export interface SessionScope {
     agentId?: string | null

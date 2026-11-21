@@ -12,8 +12,8 @@ import {
   ApprovalResponder,
   ApprovedExecutionGrants,
   ConversationDecisions,
-  extractApprovalDecisions,
 } from "../../src/responder.ts";
+import { answeredDecisions } from "../utils/answered-decisions.ts";
 import type { ExecutableToolGateRequest } from "../../src/tools/executable-tool-gate.ts";
 import type { PermissionPlan } from "../../src/permission-plan.ts";
 import {
@@ -89,7 +89,7 @@ function seam(
   const responder = new ApprovalResponder(
     permissionPlan,
     new ConversationDecisions(
-      history ? extractApprovalDecisions(history) : new Map(),
+      history ? answeredDecisions(history) : new Map(),
     ),
   );
   const gate = buildExecutableToolGate({
@@ -337,6 +337,95 @@ describe("buildExecutableToolGate with a harness-gate execution grant", () => {
       grants.consume("publish", input),
       true,
       "the grant is untouched because the policy allow decided the call",
+    );
+  });
+});
+
+describe("buildExecutableToolGate when a sibling call pauses the turn during the change preview", () => {
+  // The real runner closes every open call that is not marked paused when the turn pauses
+  // (`settleOpenToolCalls`); this fake does the same, and resolves the pause signal.
+  function racingSeam() {
+    const events: AgentEvent[] = [];
+    const paused = new Set<string>();
+    const settled = new Set<string>();
+    let nonParkable = 0;
+    let resolvePreview: (value: Record<string, unknown>) => void = () => {};
+    let resolvePauseSignal: () => void = () => {};
+    const pauseSignal = new Promise<void>((resolve) => {
+      resolvePauseSignal = resolve;
+    });
+    const permissionPlan: PermissionPlan = {
+      default: "allow_reads",
+      rules: [],
+    };
+    const gate = buildExecutableToolGate({
+      responder: new ApprovalResponder(
+        permissionPlan,
+        new ConversationDecisions(new Map()),
+      ),
+      run: {
+        emitEvent: (event) => events.push(event),
+        wasForceSettled: (id) => settled.has(id),
+      },
+      pause: {
+        markPausedToolCall: (id) => paused.add(id),
+        pause: () => {},
+      },
+      recordPendingInteraction: () => {},
+      onNonParkablePause: () => {
+        nonParkable += 1;
+      },
+      permissionPlan,
+      resolveChangePreview: () =>
+        new Promise((resolve) => {
+          resolvePreview = resolve;
+        }),
+      pauseSignal,
+    });
+    const siblingPausesTurn = () => {
+      if (!paused.has(request.toolCallId)) settled.add(request.toolCallId);
+      resolvePauseSignal();
+    };
+    return {
+      gate,
+      events,
+      siblingPausesTurn,
+      resolvePreview: (value: Record<string, unknown>) => resolvePreview(value),
+      nonParkable: () => nonParkable,
+    };
+  }
+
+  it("still raises the approval card", async () => {
+    const s = racingSeam();
+    const verdict = s.gate.onExecutableTool(request);
+    await new Promise((resolve) => setImmediate(resolve));
+    s.siblingPausesTurn();
+    s.resolvePreview({ changes: [] });
+
+    assert.deepEqual(await verdict, { kind: "pendingApproval" });
+    assert.equal(s.events.length, 1, "the approval card is emitted");
+    assert.equal(s.nonParkable(), 0, "the turn can still park");
+  });
+
+  it("stops waiting for the preview once the turn pauses", async () => {
+    const s = racingSeam();
+    const verdict = s.gate.onExecutableTool(request);
+    await new Promise((resolve) => setImmediate(resolve));
+    s.siblingPausesTurn();
+
+    const timedOut = Symbol("timed out");
+    const outcome = await Promise.race([
+      verdict,
+      new Promise((resolve) => setTimeout(() => resolve(timedOut), 1_000)),
+    ]);
+    assert.deepEqual(outcome, { kind: "pendingApproval" });
+    assert.equal(s.events.length, 1);
+    const payload = (s.events[0] as { payload: Record<string, unknown> })
+      .payload;
+    assert.equal(
+      "preview" in payload,
+      false,
+      "the card opens without a preview",
     );
   });
 });

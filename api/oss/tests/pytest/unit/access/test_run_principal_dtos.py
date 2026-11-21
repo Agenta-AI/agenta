@@ -16,6 +16,7 @@ from oss.src.core.access.dtos import (
     PrincipalRecord,
     PrincipalRef,
     RequestAccess,
+    RequestCredentialKind,
     RunApproval,
     RunAuthority,
     RunContext,
@@ -24,6 +25,7 @@ from oss.src.core.access.dtos import (
 )
 from oss.src.core.access.principals import (
     access_denied_error,
+    approval_from_request,
     child_envelope,
     envelope_from_claims,
     envelope_from_json,
@@ -248,3 +250,64 @@ def test_resource_denied_reason_round_trips():
         decision=decision, principal_kind=PrincipalKind.HUMAN, project_id=P
     )
     assert err.details["reason"] == "resource_denied"
+
+
+@pytest.mark.parametrize(
+    "kind, credential_kind, is_run_credential",
+    [
+        ("human", RequestCredentialKind.BEARER_SESSION, False),
+        ("human", RequestCredentialKind.API_KEY, False),
+        ("human", RequestCredentialKind.RUN_CREDENTIAL, True),
+        ("installation", RequestCredentialKind.RUN_CREDENTIAL, True),
+        # A channel answer has no request credential.
+        ("installation", None, False),
+        # Any other answer without a known credential counts as a run credential.
+        ("human", None, True),
+        ("api_key", None, True),
+    ],
+)
+def test_approval_from_request_sets_is_run_credential(
+    kind, credential_kind, is_run_credential
+):
+    approval = approval_from_request(
+        principal=PrincipalRef(kind=kind, id=U),
+        credential_kind=credential_kind,
+        user_id=U,
+    )
+    assert approval.is_run_credential is is_run_credential
+    assert approval.principal == PrincipalRef(kind=kind, id=U)
+    assert approval.user_id == U
+
+
+def test_is_run_credential_is_serialized_only_when_true():
+    person = RunApproval(principal=PrincipalRef(kind="human", id=U), user_id=U)
+    agent = RunApproval(
+        principal=PrincipalRef(kind="human", id=U), user_id=U, is_run_credential=True
+    )
+    assert "is_run_credential" not in person.model_dump(mode="json")
+    assert agent.model_dump(mode="json")["is_run_credential"] is True
+    # The stored envelope of a person's answer carries no new key, so an older pod,
+    # which refuses unknown keys, still reads it.
+    stored = envelope_to_json(
+        envelope=resumed_envelope(
+            asked=make_envelope(), run_id="r2", approved_by=person
+        )
+    )
+    assert stored["approved_by"] == {
+        "principal": {"kind": "human", "id": str(U)},
+        "user_id": str(U),
+        "external_key": None,
+    }
+
+
+def test_an_envelope_stored_before_the_field_reads_as_not_a_run_credential():
+    """An approval answered before the deploy, delivered after it."""
+    stored = envelope_to_json(envelope=make_envelope(kind="human", principal_id=U))
+    stored["approved_by"] = {
+        "principal": {"kind": "installation", "id": str(B)},
+        "user_id": str(U),
+        "external_key": "slack:U1",
+    }
+    envelope = envelope_from_json(data=stored)
+    assert envelope.approved_by.is_run_credential is False
+    assert envelope.approved_by.external_key == "slack:U1"

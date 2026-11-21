@@ -74,6 +74,24 @@ describe("commitWorkflowRevisionAtom cache invalidation", () => {
         expect(invalidatedKeys().join("|")).toContain(`["workflows","revisions","${VARIANT}"`)
     })
 
+    it("busts the builder's revision id only for a static workflow", async () => {
+        await store.set(commitWorkflowRevisionAtom, {revisionId: SOURCE})
+        expect(invalidatedKeys().join("|")).not.toContain("builder-agent-revision")
+
+        store.set(workflowLocalServerDataAtomFamily(SOURCE), {
+            id: SOURCE,
+            workflow_id: WORKFLOW,
+            workflow_variant_id: VARIANT,
+            flags: {is_static: true},
+            data: {parameters: {agent: {instructions: "server"}}},
+        } as never)
+        store.set(updateWorkflowDraftAtom, SOURCE, {
+            data: {parameters: {agent: {llm: {model: "picked"}}}},
+        } as never)
+        await store.set(commitWorkflowRevisionAtom, {revisionId: SOURCE})
+        expect(invalidatedKeys().join("|")).toContain(`["workflows","builder-agent-revision"]`)
+    })
+
     it("still busts the by-WORKFLOW list", async () => {
         await store.set(commitWorkflowRevisionAtom, {revisionId: SOURCE})
         expect(invalidatedKeys().join("|")).toContain(

@@ -52,13 +52,16 @@ vi.mock("@agenta/entities/gatewayTool", async () => {
 vi.mock("@agenta/entity-ui/gatewayTool", () => ({
     useDirectToolConnect: () => ({connect: tools.connect, connectingKey: null}),
 }))
-vi.mock("@agenta/shared/api/env", () => ({isToolsEnabled: () => true}))
+vi.mock("@agenta/shared/api/env", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/shared/api/env")>()),
+    isToolsEnabled: () => true,
+}))
 vi.mock("@agenta/entity-ui/secretProvider", () => ({
     KEY_PROVIDERS: [],
     ProviderDrawer: () => null,
     providerIconFor: () => () => null,
-    SubscriptionConnectionCard: () => null,
-    SubscriptionSignInDialog: () => null,
+    subscriptionSignInView: {},
+    subscriptionTokenView: {},
 }))
 // The composer as a textarea: the real one is a lazy Lexical editor.
 vi.mock("@agenta/home-ui", async () => {

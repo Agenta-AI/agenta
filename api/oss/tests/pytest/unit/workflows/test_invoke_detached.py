@@ -389,6 +389,90 @@ async def test_invoke_workflow_detached_enables_explicit_strict_start():
     assert captured["strict_first_record"] is True
 
 
+def _capturing_service(captured: dict) -> WorkflowsService:
+    svc = _service()
+    svc._prepare_invoke = AsyncMock(return_value=("Secret tok", "http://svc"))
+
+    async def _fake_stream(*, url, credentials, payload, run_id, strict_first_record):
+        captured["payload"] = payload
+        from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
+
+        return WorkflowServiceDetachedResponse(run_id=run_id, accepted=True)
+
+    svc._stream_service_started = _fake_stream
+    return svc
+
+
+async def test_invoke_workflow_detached_keep_session_warm_sets_the_detached_flag():
+    """The runner reads `flags.detached` to treat the close after the first record as planned.
+
+    Without it, the close reads as a lost client and the session's sandbox is destroyed.
+    """
+    captured = {}
+    svc = _capturing_service(captured)
+
+    from agenta.sdk.decorators.running import WorkflowServiceRequest
+
+    await svc.invoke_workflow_detached(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        request=WorkflowServiceRequest(session_id="session-1", flags={"stream": True}),
+        run_id="run-warm",
+        keep_session_warm=True,
+        envelope=make_envelope(),
+    )
+
+    assert captured["payload"]["flags"] == {"stream": True, "detached": True}
+
+
+async def test_invoke_workflow_detached_leaves_flags_unchanged_by_default():
+    captured = {}
+    svc = _capturing_service(captured)
+
+    from agenta.sdk.decorators.running import WorkflowServiceRequest
+
+    await svc.invoke_workflow_detached(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        request=WorkflowServiceRequest(session_id="session-1", flags={"stream": True}),
+        run_id="run-default",
+        envelope=make_envelope(),
+    )
+
+    assert captured["payload"]["flags"] == {"stream": True}
+
+
+# The first record of a detached runner turn: the runner emits a transient `session-accepted`
+# data event (`emitSessionAccepted`, `services/runner/src/server.ts`), and the workflow service
+# re-frames it as an agenta `{"type", "data"}` event.
+_SESSION_ACCEPTED = (
+    '{"type": "data", "data": {"type": "data", "name": "session-accepted", '
+    '"data": {"sessionId": "session-1", "turnId": "run-warm", '
+    '"executionId": "run-warm"}, "transient": true}}'
+)
+
+
+@pytest.mark.parametrize("strict_first_record", [False, True])
+async def test_stream_service_started_accepts_the_session_accepted_record_as_the_start(
+    strict_first_record,
+):
+    response = _FakeStreamResponse(
+        lines=[_SESSION_ACCEPTED, '{"type": "message", "data": {}}']
+    )
+    with patch("httpx.AsyncClient", return_value=_FakeAsyncClient(response)):
+        result = await _service()._stream_service_started(
+            url="http://svc/invoke",
+            credentials="Secret tok",
+            payload={},
+            run_id="run-warm",
+            strict_first_record=strict_first_record,
+        )
+
+    assert result.accepted is True
+    assert result.run_id == "run-warm"
+    assert response.consumed == 1
+
+
 async def test_invoke_workflow_detached_raises_when_no_service_url():
     svc = _service()
     svc._prepare_invoke = AsyncMock(return_value=("Secret tok", None))

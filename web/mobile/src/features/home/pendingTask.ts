@@ -8,6 +8,8 @@ export interface PendingTask {
     /** The agent to run it with — the session has no turns yet, so nothing else can name it. */
     agentId: string
     text: string
+    /** The text the model reads, when it differs from `text` (the builder chat's context line). */
+    executionText?: string
     parts?: FileUIPart[]
     delivery?: "sending" | "failed"
     /** The refusal's own sentence, when the send was refused with one. */

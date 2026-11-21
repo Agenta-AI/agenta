@@ -38,7 +38,10 @@ from oss.src.core.gateways.mcps.oauth.types import (
 )
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.service import MCPGatewayService
-from oss.src.core.gateways.mcps.types import MCPConnectionBusyError
+from oss.src.core.gateways.mcps.types import (
+    MCPConnectionBusyError,
+    MCPConnectionChangedError,
+)
 from oss.src.core.gateways.policy.dtos import GatewayPlane
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
@@ -902,6 +905,53 @@ async def test_deleting_a_server_deletes_every_persons_sign_in_and_nothing_else(
         (elsewhere, cyd, grant_slug(endpoint.id)),
         (organization_id, ana, grant_slug(other_endpoint.id)),
     }
+
+
+@pytest.mark.asyncio
+async def test_a_sheet_leaving_a_pending_server_a_person_signed_in_to_keeps_it(
+    services, project, local_mcp_oauth_provider
+):
+    """Only me: the person's own grant binds nothing to the pending row, and the sheet
+    may leave before it hears that the sign-in finished. Its pending delete is refused,
+    and the server and the grant stay. Another organization's grant at the same slug
+    does not count."""
+    connect, gateway, endpoints = services
+    endpoint = await _connection(
+        endpoints, project, local_mcp_oauth_provider, "pg-person-pending"
+    )
+    organization_id = project["organization_id"]
+    elsewhere, cyd = await _person()
+    await _put_sign_in(
+        connect.vault_service,
+        organization_id=elsewhere,
+        user_id=cyd,
+        slug=grant_slug(endpoint.id),
+        kind=SecretKind.OAUTH_GRANT,
+    )
+    assert not await connect.has_personal_sign_ins(
+        organization_id=organization_id, slugs=[grant_slug(endpoint.id)]
+    )
+
+    _, ana = await _person(organization_id)
+    await _put_sign_in(
+        connect.vault_service,
+        organization_id=organization_id,
+        user_id=ana,
+        slug=grant_slug(endpoint.id),
+        kind=SecretKind.OAUTH_GRANT,
+    )
+
+    with pytest.raises(MCPConnectionChangedError):
+        await gateway.delete_endpoint(
+            organization_id=organization_id,
+            project_id=project["project_id"],
+            endpoint_id=endpoint.id,
+            pending_auth_mode=MCPAuthScheme.OAUTH,
+        )
+
+    assert (organization_id, ana, grant_slug(endpoint.id)) in await _person_rows(
+        grant_slug(endpoint.id)
+    )
 
 
 @pytest.mark.asyncio

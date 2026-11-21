@@ -86,6 +86,15 @@ class SessionExecutionsDAOInterface(ABC):
         `defer_to_stop` leaves an execution a Stop is settling (`stopping`) to that Stop.
         """
 
+    async def query_session_executions(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: Sequence[str],
+    ) -> List[SessionExecutionSettlement]:
+        """Every execution of these sessions, settled or not, in one read."""
+        raise NotImplementedError
+
     @abstractmethod
     async def query_settled(
         self,
