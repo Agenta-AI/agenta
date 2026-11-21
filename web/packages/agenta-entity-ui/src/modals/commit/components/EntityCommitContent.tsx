@@ -107,6 +107,10 @@ export function EntityCommitContent({
     const commitEntity = useAtomValue(commitModalEntityAtom)
     // App/artifact name (e.g. "sunday-agent") — clearer than the variant name in the agent title.
     const appName = useAtomValue(workflowMolecule.selectors.artifactName(commitEntity?.id ?? ""))
+    // The variant the commit starts from: a new variant leaves it, a new version extends it.
+    const variantName =
+        useAtomValue(workflowMolecule.selectors.variantLabel(commitEntity?.id ?? "")) ||
+        originalEntityName
     const slugEditing = useAtomValue(commitModalSlugEditingAtom)
     const slugFieldError = useAtomValue(commitModalSlugFieldErrorAtom)
     const setMessage = useSetAtom(setCommitMessageAtom)
@@ -442,7 +446,7 @@ export function EntityCommitContent({
                                     >
                                         {richText(
                                             t("entityUi.commitModal.variantNote", {
-                                                name: appName || originalEntityName,
+                                                name: variantName,
                                                 version: context.versionInfo.currentVersion,
                                             }),
                                             {
@@ -466,7 +470,9 @@ export function EntityCommitContent({
                                 >
                                     {richText(
                                         t("entityUi.commitModal.versionNote", {
-                                            name: appName || originalEntityName,
+                                            name: hasVariantMode
+                                                ? variantName
+                                                : appName || originalEntityName,
                                             version: context.versionInfo.targetVersion,
                                         }),
                                         {

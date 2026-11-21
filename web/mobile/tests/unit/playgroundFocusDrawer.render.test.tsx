@@ -182,15 +182,15 @@ describe("The focus drawer", () => {
         await seedRows()
         const [first, second] = rowIds()
         await openRow(first)
-        expect(button(dialog()!, "Previous testcase")!.disabled).toBe(true)
+        expect(button(dialog()!, "Previous test case")!.disabled).toBe(true)
 
-        await act(async () => button(dialog()!, "Next testcase")!.click())
+        await act(async () => button(dialog()!, "Next test case")!.click())
         await settle()
 
         expect(store.get(playgroundFocusDrawerAtom).rowId).toBe(second)
-        expect(button(dialog()!, "Next testcase")!.disabled).toBe(true)
+        expect(button(dialog()!, "Next test case")!.disabled).toBe(true)
 
-        await act(async () => button(dialog()!, "Previous testcase")!.click())
+        await act(async () => button(dialog()!, "Previous test case")!.click())
         await settle()
 
         expect(store.get(playgroundFocusDrawerAtom).rowId).toBe(first)
@@ -316,7 +316,7 @@ describe("The focus drawer", () => {
         await switchToJson()
         await typeInto(dialog()!.querySelector<HTMLTextAreaElement>('[data-testid="editor"]')!, "{")
 
-        await act(async () => button(dialog()!, "Next testcase")!.click())
+        await act(async () => button(dialog()!, "Next test case")!.click())
         await settle()
 
         const editor = dialog()!.querySelector<HTMLTextAreaElement>('[data-testid="editor"]')!

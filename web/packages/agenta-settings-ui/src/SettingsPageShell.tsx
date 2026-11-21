@@ -14,7 +14,7 @@ export interface SettingsPageShellProps {
     docs?: {label: string; href: string}
     /** A walkthrough video beside the primary action; absent until the tab has one. */
     video?: {label: string; onOpen: () => void}
-    /** `table` is the centered 1040px column; `full` drops the cap (Audit Log). */
+    /** `table` is the centered 1040px column; `full` drops the cap. */
     variant?: "full" | "table"
     /** The body's scroll box, for a host that watches its scroll position. */
     scrollRef?: Ref<HTMLDivElement>

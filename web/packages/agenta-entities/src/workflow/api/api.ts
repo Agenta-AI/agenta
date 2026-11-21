@@ -749,6 +749,8 @@ export interface CreateWorkflowPayload {
     flags?: WorkflowRoleFlags
     tags?: Workflow["tags"]
     meta?: Record<string, unknown> | null
+    /** The folder the workflow is created in. */
+    folderId?: string | null
     /** Commit message for the initial revision */
     message?: string | null
     data?: WorkflowData | null
@@ -807,6 +809,7 @@ export async function createWorkflow(
                 flags: payload.flags,
                 tags: payload.tags,
                 meta: payload.meta,
+                ...(payload.folderId ? {folder_id: payload.folderId} : {}),
                 ...(payload.visibility ? {visibility: payload.visibility} : {}),
             },
         },

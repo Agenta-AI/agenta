@@ -108,3 +108,16 @@ export function truncateScenarioId(id: string): string {
     if (id.length <= 14) return id
     return `${id.slice(0, 5)}...${id.slice(-5)}`
 }
+
+/** A queue row's status: null until items load, "pending" when empty, else the derived one. */
+export function displayQueueStatus({
+    derived,
+    progress,
+}: {
+    derived: string | null | undefined
+    progress: {completed: number; total: number} | null | undefined
+}): string | null {
+    if (!progress) return null
+    if (progress.total === 0) return "pending"
+    return derived ?? "pending"
+}

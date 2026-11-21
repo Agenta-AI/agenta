@@ -244,7 +244,7 @@ describe("run details page", () => {
         await mount()
         await flush()
 
-        expect(host.textContent).toContain("Evaluator Scores Overview")
+        expect(host.textContent).toContain("Run summary")
         expect(http.patch).not.toHaveBeenCalled()
         expect(http.put).not.toHaveBeenCalled()
         expect(http.delete).not.toHaveBeenCalled()

@@ -1,4 +1,4 @@
-import {useState, type FormEvent} from "react"
+import {useEffect, useState, type FormEvent} from "react"
 
 import {
     Field,
@@ -36,6 +36,7 @@ export const CreateQueueForm = ({
     isSubmitting,
     onSubmit,
     onCancel,
+    onDirtyChange,
     initial,
 }: {
     defaultKind: QueueKind
@@ -43,6 +44,8 @@ export const CreateQueueForm = ({
     isSubmitting: boolean
     onSubmit: (values: CreateQueueValues) => void
     onCancel: () => void
+    /** Told whether the reader has typed or picked anything, so the sheet can guard it. */
+    onDirtyChange?: (dirty: boolean) => void
     /** Starting values, for a story or a test. The sheet passes none. */
     initial?: {
         name?: string
@@ -62,6 +65,12 @@ export const CreateQueueForm = ({
     const values: CreateQueueValues = {name, kind: effectiveKind, description, evaluators}
     const errors = submitted ? validateCreateQueue(values) : {}
 
+    const dirty = name.trim() !== "" || description.trim() !== "" || evaluators.length > 0
+    useEffect(() => {
+        onDirtyChange?.(dirty)
+    }, [dirty, onDirtyChange])
+    useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
+
     const handleSubmit = (event: FormEvent) => {
         event.preventDefault()
         if (isSubmitting) return
@@ -80,7 +89,7 @@ export const CreateQueueForm = ({
             <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
                 <section className="flex flex-col gap-4">
                     <SectionTitle>Basic details</SectionTitle>
-                    <Field label="Annotation name" required error={errors.name}>
+                    <Field label="Queue name" required error={errors.name}>
                         <Input
                             value={name}
                             placeholder="Enter name"

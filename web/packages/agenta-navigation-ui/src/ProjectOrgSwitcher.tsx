@@ -88,7 +88,13 @@ const Row = ({
 )
 
 /** Theme picker as a hover fly-out row; the Preferences tab offers the same choices. */
-const ThemeFlyout = ({theme}: {theme: SwitcherThemeControl}) => {
+const ThemeFlyout = ({
+    theme,
+    container,
+}: {
+    theme: SwitcherThemeControl
+    container?: HTMLElement | null
+}) => {
     const t = useT(navigationCatalog)
     const current = theme.options.find(({mode}) => mode === theme.mode) ?? theme.options[0]
     if (!current) return null
@@ -102,7 +108,14 @@ const ThemeFlyout = ({theme}: {theme: SwitcherThemeControl}) => {
                     <CaretRight size={14} className="shrink-0 text-colorTextSecondary" />
                 </button>
             </PopoverTrigger>
-            <PopoverContent side="right" align="end" className="w-[190px] p-1">
+            {/* Same portal as the switcher: a body portal sits outside a drawer's focus trap,
+                so the keyboard could not reach the options. */}
+            <PopoverContent
+                container={container}
+                side="right"
+                align="end"
+                className="w-[190px] p-1"
+            >
                 {theme.options.map(({mode, label, icon}) => (
                     <Row key={mode} className={ITEM_ROW_CLASS} onClick={() => theme.onSelect(mode)}>
                         {icon}
@@ -200,7 +213,7 @@ export const ProjectOrgSwitcherView = ({
                         <span className="flex-1">{t("navigation.projectMenu.newProject")}</span>
                     </Row>
                 )}
-                {theme && <ThemeFlyout theme={theme} />}
+                {theme && <ThemeFlyout theme={theme} container={panelContainer} />}
                 {onLogout && (
                     <Row
                         className="!text-colorError"
@@ -215,7 +228,7 @@ export const ProjectOrgSwitcherView = ({
                 )}
             </div>
         ),
-        [close, onCreateProject, onLogout, orgLabel, projects, t, theme],
+        [close, onCreateProject, onLogout, orgLabel, panelContainer, projects, t, theme],
     )
 
     const orgPanel = useMemo(
@@ -268,7 +281,7 @@ export const ProjectOrgSwitcherView = ({
                         </span>
                     </Row>
                 )}
-                {theme && <ThemeFlyout theme={theme} />}
+                {theme && <ThemeFlyout theme={theme} container={panelContainer} />}
                 {onLogout && (
                     <Row
                         className="!text-colorError"
@@ -283,7 +296,7 @@ export const ProjectOrgSwitcherView = ({
                 )}
             </div>
         ),
-        [close, onCreateOrg, onLogout, onOrgSettings, orgs, t, theme],
+        [close, onCreateOrg, onLogout, onOrgSettings, orgs, panelContainer, t, theme],
     )
 
     return (

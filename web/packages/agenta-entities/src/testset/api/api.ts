@@ -176,13 +176,7 @@ export async function fetchLatestRevision({
     return normalizeRevision(validated.testset_revisions[0])
 }
 
-/**
- * Batch fetch latest revisions for multiple testsets
- * Returns a Map of testsetId -> latest Revision
- *
- * Uses per-ref limit feature (ReferenceWithLimit) to get exactly 1 revision per testset.
- * The API uses SQL window functions to partition by testset and return top N per partition.
- */
+/** Latest revision per testset; the API may ignore the per-ref limit, so the highest version wins. */
 export async function fetchLatestRevisionsBatch(
     projectId: string,
     testsetIds: string[],
@@ -208,10 +202,12 @@ export async function fetchLatestRevisionsBatch(
     )
     if (!validated) return results
 
-    // Map revisions by testset_id
+    // The API can return every revision, unordered: keep the highest version per testset.
     for (const raw of validated.testset_revisions) {
         try {
             const revision = normalizeRevision(raw)
+            const current = results.get(revision.testset_id)
+            if (current && (current.version ?? 0) >= (revision.version ?? 0)) continue
             results.set(revision.testset_id, revision)
         } catch (e) {
             console.error("[fetchLatestRevisionsBatch] Failed to normalize revision:", e, raw)

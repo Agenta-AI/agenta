@@ -35,8 +35,13 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         () => ({nameLabel: t("playground.commit.evaluatorName")}),
         [t],
     )
-    const APP_CREATE_FIELDS = useMemo<CommitCreateFieldsConfig>(
-        () => ({nameLabel: t("playground.commit.appName")}),
+    const AGENT_CREATE_FIELDS = useMemo<CommitCreateFieldsConfig>(
+        () => ({nameLabel: t("playground.commit.agentName")}),
+        [t],
+    )
+    // The template's type ("Chat") is not a name: the user names a new prompt.
+    const PROMPT_CREATE_FIELDS = useMemo<CommitCreateFieldsConfig>(
+        () => ({nameLabel: t("playground.commit.promptName"), defaultName: ""}),
         [t],
     )
     const VARIANT_CREATE_FIELDS = useMemo<CommitCreateFieldsConfig>(
@@ -277,13 +282,15 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
     // For ephemeral entities, render a simplified "Create" modal with editable name.
     // Branch the labels on the entity's type flag — evaluator-create flows show
-    // "Evaluator name", app-create flows show "App name", everything else
+    // "Evaluator name", prompt and agent creates name their kind, everything else
     // (variant-from-base) keeps the evaluator default for backward compat.
     if (isEphemeral) {
         const createFields = isEvaluator
             ? EVALUATOR_CREATE_FIELDS
             : isApplication
-              ? APP_CREATE_FIELDS
+              ? runnableData?.flags?.is_agent
+                  ? AGENT_CREATE_FIELDS
+                  : PROMPT_CREATE_FIELDS
               : EVALUATOR_CREATE_FIELDS
         // The drawer wrapper (`useDrawerCreateCommitCallback`) toasts
         // "App created successfully" / "Evaluator created successfully"

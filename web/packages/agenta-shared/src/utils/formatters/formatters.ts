@@ -196,24 +196,12 @@ export const formatCurrency = (value: number | undefined | null): string => {
  */
 export const formatLatency = (value: number | undefined | null): string => {
     return withFallback(value, (v) => {
-        const MS_LIMIT = 1000
-        const S_LIMIT = MS_LIMIT * 1000
-        const S_TO_US = S_LIMIT
-
-        let resultValue = v * S_TO_US
-        let unit = "μs"
-
-        if (MS_LIMIT < resultValue && resultValue < S_LIMIT) {
-            resultValue = Math.round(resultValue / MS_LIMIT)
-            unit = "ms"
-        } else if (S_LIMIT <= resultValue) {
-            resultValue = Math.round((resultValue / S_LIMIT) * 100) / 100
-            unit = "s"
-        } else {
-            resultValue = Math.round(resultValue)
-        }
-
-        return `${resultValue}${unit}`
+        // Pick the unit from the ROUNDED value, so 999.6μs reads "1ms", not "1000μs".
+        const us = Math.round(v * 1_000_000)
+        if (Math.abs(us) < 1000) return `${us}μs`
+        const ms = Math.round(v * 1000)
+        if (Math.abs(ms) < 1000) return `${ms}ms`
+        return `${Math.round(v * 100) / 100}s`
     })
 }
 

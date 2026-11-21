@@ -44,18 +44,27 @@ export const useEvaluationRunsList = ({
     projectId,
     kind,
     appId,
+    evaluatorId = null,
+    scopePending = false,
     search,
     panel,
 }: {
     projectId: string
     kind: EvaluationKindTab
     appId: string | null
+    /** An evaluator's own list: the runs that graded with it. */
+    evaluatorId?: string | null
+    /** The scope of the path is still loading, so the list waits. */
+    scopePending?: boolean
     search: string
     panel: RunFilterValues
 }) => {
     const queryClient = useQueryClient()
     const name = search.trim() || undefined
-    const references = runReferences(panel.references)
+    const references = [
+        ...(evaluatorId ? [{evaluator: {id: evaluatorId}}] : []),
+        ...runReferences(panel.references),
+    ]
     const kinds = kind === "all" ? panel.types : [kind]
     // Resolved once per pick, so the window and the query key stay put while the list polls.
     const createdAfter = useMemo(
@@ -86,7 +95,7 @@ export const useEvaluationRunsList = ({
             return page
         },
         getNextPageParam: (last) => last.nextCursor ?? undefined,
-        enabled: Boolean(projectId),
+        enabled: Boolean(projectId) && !scopePending,
         refetchInterval: (current) =>
             current.state.data?.pages.some((page) => page.runs.some(isRunInProgress))
                 ? EVALUATION_RUNS_POLL_MS
