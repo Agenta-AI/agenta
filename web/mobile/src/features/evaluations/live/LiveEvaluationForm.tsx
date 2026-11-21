@@ -2,6 +2,8 @@ import type {FormEvent} from "react"
 
 import {parseWorkflowKeyFromUri} from "@agenta/entities/workflow"
 import {WorkflowTypeTag} from "@agenta/entity-ui/workflow"
+import {useT} from "@agenta/i18n"
+import evaluationScreensCatalog from "@agenta/i18n/catalogs/evaluations.screens"
 import {
     Button,
     Field,
@@ -57,6 +59,7 @@ export const LiveEvaluationForm = ({
     /** Starting values over the empty form, for a story or a test. The sheet passes none. */
     initial?: Partial<LiveEvaluationDraft>
 }) => {
+    const t = useT(evaluationScreensCatalog)
     const {draft, update, pickEvaluator, validate, errors} = useLiveEvaluationForm(initial)
     const evaluators = useLiveEvaluators()
     const picked = evaluators.evaluators.find((e) => e.id === draft.evaluatorRevisionId)
@@ -91,7 +94,7 @@ export const LiveEvaluationForm = ({
                             autoFocus
                             name="name"
                             value={draft.name}
-                            placeholder="Enter a name"
+                            placeholder={t("evaluations.screens.namePlaceholder")}
                             disabled={isCreating}
                             aria-invalid={Boolean(errors.name)}
                             onChange={(event) => update({name: event.target.value})}

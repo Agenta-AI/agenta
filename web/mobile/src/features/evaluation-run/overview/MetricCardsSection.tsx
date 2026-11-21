@@ -1,5 +1,8 @@
 import {useEffect} from "react"
 
+import {useT} from "@agenta/i18n"
+import evaluationScreensCatalog from "@agenta/i18n/catalogs/evaluations.screens"
+import annotateCatalog from "@agenta/i18n/catalogs/observability.annotate"
 import {Alert, Button} from "@agenta/ui/ui"
 
 import {ChartSkeleton} from "../states/ChartSkeleton"
@@ -37,6 +40,7 @@ export const MetricCardsSection = ({
     error: Error | null
     onRetry?: () => void
 }) => {
+    const t = useT(evaluationScreensCatalog, annotateCatalog)
     const cards = metrics.filter((metric) => metric.kind === "evaluator")
 
     useEffect(() => {
@@ -80,8 +84,8 @@ export const MetricCardsSection = ({
         if (human && hasEvaluators) {
             return (
                 <OverviewEmpty
-                    title="No annotations yet"
-                    description="Annotate the scenarios of this run to see each evaluator's scores here."
+                    title={t("observability.annotate.noAnnotations")}
+                    description={t("evaluations.screens.annotateToSeeScores")}
                 />
             )
         }

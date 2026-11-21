@@ -129,6 +129,13 @@
         "renameFailed": "c0d75b9d740e",
         "retry": "942087cc2d41"
     },
+    "annotation.queueScreens": {
+        "listTitle": "b2daa1573d63",
+        "queueName": "5cb729307082",
+        "emptyTitle": "d92e800ef9b4",
+        "testcaseUnavailable": "2f7a3ff69c0c",
+        "testcaseNoData": "f1cc83cc3b78"
+    },
     "annotation.queues": {
         "untitled": "f59ab8d1331b",
         "addedTraces_one": "d9be18714f86",
@@ -174,6 +181,10 @@
         "feedback": "aac77df34720",
         "createDrawerTitle": "1b554e8d2870",
         "create": "4759498ac2a7"
+    },
+    "archivedApps.screen": {
+        "title": "e282ce130414",
+        "loadFailed": "091692c6e358"
     },
     "auth.emailFirstForm": {
         "addEmail": "ba64602a256b",
@@ -4568,6 +4579,11 @@
         "evaluator": "f2a57bad3d4b",
         "app": "0d04bfeb7d64"
     },
+    "evaluations.screens": {
+        "annotateToSeeScores": "ad54e94606d6",
+        "missingInputsHint": "7485618534bf",
+        "namePlaceholder": "c13b0e0858d5"
+    },
     "home.agentActivity": {
         "untitledSession": "3d9b66fd4938"
     },
@@ -7076,6 +7092,11 @@
         "updateFailed_many": "7a4351856d67",
         "updateFailed_other": "7a4351856d67"
     },
+    "testsets.screens": {
+        "createTestset": "ebfd1c956a5a",
+        "testsetActions": "8b8519fd8be6",
+        "addToQueue": "34b25c1b963f"
+    },
     "ui.agentIcon": {
         "agentIcon": "a53704ec75e2",
         "backToPalette": "5942b3cacd61",
@@ -7453,6 +7474,11 @@
         "toggleColumns": "e546a97c6074",
         "totalItems": "4b718c56439f",
         "visibility": "7448611d5f93"
+    },
+    "variants.compareRevisions": {
+        "title": "7b2bd7f97f3a",
+        "originalVersion": "46dd9599c881",
+        "modifiedVersion": "0f515bef294d"
     },
     "wallet.card": {
         "balance": "d05e07b7c14e",

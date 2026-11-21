@@ -1,4 +1,6 @@
 import {annotationSessionController, categorizeTestcaseFields} from "@agenta/annotation"
+import {useT} from "@agenta/i18n"
+import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
@@ -7,6 +9,7 @@ import {ScenarioMessage} from "./ScenarioMessage"
 
 /** A test case item: inputs, then expected outputs, then outputs, one card per field. */
 export const TestcaseScenarioContent = ({testcaseId}: {testcaseId: string}) => {
+    const t = useT(queueScreensCatalog)
     const query = useAtomValue(annotationSessionController.selectors.testcaseData(testcaseId))
 
     if (testcaseId && query.isPending) {
@@ -23,7 +26,7 @@ export const TestcaseScenarioContent = ({testcaseId}: {testcaseId: string}) => {
     }
     const testcase = query.data
     if (!testcaseId || query.isError || !testcase) {
-        return <ScenarioMessage title="Test case data not available" />
+        return <ScenarioMessage title={t("annotation.queueScreens.testcaseUnavailable")} />
     }
     const {inputs, expectedOutputs, outputs} = categorizeTestcaseFields(testcase.data)
     const groups = [
@@ -31,7 +34,8 @@ export const TestcaseScenarioContent = ({testcaseId}: {testcaseId: string}) => {
         {key: "expected", fields: expectedOutputs},
         {key: "outputs", fields: outputs},
     ].filter((group) => group.fields.length > 0)
-    if (groups.length === 0) return <ScenarioMessage title="No data available for this test case" />
+    if (groups.length === 0)
+        return <ScenarioMessage title={t("annotation.queueScreens.testcaseNoData")} />
 
     return (
         <div className="flex flex-col gap-2 p-3">

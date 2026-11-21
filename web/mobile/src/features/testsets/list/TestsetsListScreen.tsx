@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import testsetScreensCatalog from "@agenta/i18n/catalogs/testsets.screens"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar, type ListTableSelection} from "@agenta/ui/list-table"
@@ -70,6 +72,7 @@ export const TestsetsListScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const t = useT(testsetScreensCatalog)
     const PAGE_FRAME = useDeveloperPageFrame()
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
@@ -231,18 +234,20 @@ export const TestsetsListScreen = ({
                                 </Button>
                                 {createHandler && developerMode ? (
                                     <Button
-                                        aria-label="Create test set"
+                                        aria-label={t("testsets.screens.createTestset")}
                                         // Square icon button on a phone, where the label is hidden.
                                         className="max-sm:size-8 max-sm:px-0"
                                         onClick={createHandler}
                                     >
                                         <Plus aria-hidden data-icon="inline-start" />
-                                        <span className="hidden sm:inline">Create test set</span>
+                                        <span className="hidden sm:inline">
+                                            {t("testsets.screens.createTestset")}
+                                        </span>
                                     </Button>
                                 ) : null}
                                 {createHandler && !developerMode ? (
                                     <Button size="sm" onClick={createHandler}>
-                                        Create test set
+                                        {t("testsets.screens.createTestset")}
                                     </Button>
                                 ) : null}
                             </div>

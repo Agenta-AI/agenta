@@ -1,6 +1,8 @@
 import {useEffect, useState} from "react"
 
 import type {ChangesSummary, CommitPreview} from "@agenta/entities/testset"
+import {useT} from "@agenta/i18n"
+import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
 import {CommitMessageInput} from "@agenta/ui/components/presentational"
 import {
     Button,
@@ -76,6 +78,7 @@ export const CommitTestsetDialog = ({
     onClose: () => void
     onCommit: (commitMessage: string) => void
 }) => {
+    const t = useT(commitModalCatalog)
     const [commitMessage, setCommitMessage] = useState("")
     useEffect(() => {
         if (open) setCommitMessage("")
@@ -89,7 +92,7 @@ export const CommitTestsetDialog = ({
                 className={`max-h-[90vh] overflow-y-auto ${preview ? "sm:max-w-4xl" : "sm:max-w-xl"}`}
             >
                 <DialogHeader>
-                    <DialogTitle>Commit changes</DialogTitle>
+                    <DialogTitle>{t("entityUi.commitModal.commitChanges")}</DialogTitle>
                     <DialogDescription>
                         This will create a new revision of your test set.
                     </DialogDescription>

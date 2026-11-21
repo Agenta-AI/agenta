@@ -1,5 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import archivedAppsCatalog from "@agenta/i18n/catalogs/archivedApps.screen"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
@@ -52,6 +54,7 @@ export const ArchivedAppsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const t = useT(archivedAppsCatalog)
     const PAGE_FRAME = useDeveloperPageFrame()
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
@@ -123,7 +126,7 @@ export const ArchivedAppsScreen = ({
 
     return (
         <>
-            <PageTitle title="Archived prompts" />
+            <PageTitle title={t("archivedApps.screen.title")} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
@@ -144,7 +147,7 @@ export const ArchivedAppsScreen = ({
                                     </Link>
                                 </Button>
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
-                                    Archived prompts
+                                    {t("archivedApps.screen.title")}
                                 </h1>
                             </div>
                         </div>
@@ -167,7 +170,7 @@ export const ArchivedAppsScreen = ({
                             // A failed fetch must not read as "No archived prompts".
                             <LoadError
                                 framed
-                                title="Could not load archived prompts"
+                                title={t("archivedApps.screen.loadFailed")}
                                 onRetry={() => void archived.refetch()}
                             />
                         ) : (
