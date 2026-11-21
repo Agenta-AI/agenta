@@ -37,5 +37,14 @@
     "browserOpens": "A browser window opens. Sign in with your Pro or Max account and approve access.",
     "pasteTokenPrints": "Paste the token the command prints",
     "tokenWorksOneYear": "The token works for one year. Agenta stores it encrypted and never shows it again.",
-    "connectedStatus": "Connected"
+    "connectedStatus": "Connected",
+    "signInNeeded": "Sign in needed",
+    "notSignedIn": "Not signed in",
+    "signInNoLongerValid": "Sign in needed. The {{product}} sign-in is no longer valid.",
+    "signInNeedsRenewal": "Sign in needed. The {{product}} sign-in needs to be renewed.",
+    "attemptLost": "Agenta lost track of that sign-in. Start it again.",
+    "attemptInvalidLogin": "{{product}} returned a sign-in Agenta cannot use. Try again.",
+    "attemptDeclined": "The {{product}} sign-in was declined.",
+    "attemptIncomplete": "The sign-in did not complete. Try again.",
+    "startedWithoutCode": "The sign-in started without a code. Try again."
 }

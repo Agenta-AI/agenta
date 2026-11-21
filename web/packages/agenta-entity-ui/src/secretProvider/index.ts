@@ -79,3 +79,7 @@ export {
     newProviderKeyDraft,
     useSaveProviderKey,
 } from "./useSaveProviderKey"
+
+/** Provider and subscription text in the active language, for the Settings rows. */
+export {credentialSummaryText} from "./providerCardText"
+export {subscriptionStatusLine} from "./subscriptionText"

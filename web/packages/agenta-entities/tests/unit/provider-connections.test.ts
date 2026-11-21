@@ -281,12 +281,13 @@ describe("credentialValuesFor", () => {
 
 describe("credentialSummary", () => {
     it("masks a key and falls back to the endpoint host when there is none", () => {
-        expect(credentialSummary(connection({source: {key: "sk-000000000000xyz"}}))).toBe(
-            "sk-••••xyz",
-        )
+        expect(
+            credentialSummary(connection({source: {key: "sk-000000000000xyz"}}), "Key configured"),
+        ).toBe("sk-••••xyz")
         expect(
             credentialSummary(
                 connection({source: {apiBaseUrl: "https://models.internal.test/v1"}}),
+                "Key configured",
             ),
         ).toBe("models.internal.test")
     })
@@ -704,7 +705,7 @@ describe("doneState", () => {
     it("saves a tested credential with nothing to explain", () => {
         expect(doneState({credentialFilled: true, status: "valid"})).toEqual({
             enabled: true,
-            note: "",
+            note: null,
         })
     })
 
@@ -712,27 +713,27 @@ describe("doneState", () => {
         const state = doneState({credentialFilled: true, status: "unknown"})
 
         expect(state.enabled).toBe(true)
-        expect(state.note).toMatch(/untested/)
+        expect(state.note).toBe("savedUntested")
     })
 
     it("asks a newly typed credential to be tested first", () => {
         const state = doneState({credentialFilled: true, status: null})
 
         expect(state.enabled).toBe(false)
-        expect(state.note).toMatch(/Test this credential/)
+        expect(state.note).toBe("testFirst")
     })
 
     it("lets a saved connection be reopened and re-saved without a fresh test", () => {
         expect(
             doneState({credentialFilled: true, status: null, storedCredentialUnchanged: true}),
-        ).toEqual({enabled: true, note: ""})
+        ).toEqual({enabled: true, note: null})
     })
 
     it("says nothing about testing when the test itself never reached the provider", () => {
         const state = doneState({credentialFilled: true, status: null, transportFailed: true})
 
         expect(state.enabled).toBe(false)
-        expect(state.note).toBe("")
+        expect(state.note).toBeNull()
     })
 })
 
@@ -769,23 +770,30 @@ describe("connectionPolicyForSave", () => {
     })
 })
 
+const MODELS_TEXT = {
+    defaults: "Defaults",
+    active: (active: number, total: number) => `${active} of ${total} active`,
+}
+
 describe("activeModelsSummary", () => {
     const capabilities: HarnessCapabilityMap = {
         pi_core: {providers: ["openai"], models: {openai: ["gpt-5.5", "gpt-5.2", "gpt-4o"]}},
     }
 
     it("says Defaults when the connection saved no list", () => {
-        expect(activeModelsSummary(connection(), capabilities)).toBe("Defaults")
+        expect(activeModelsSummary(connection(), capabilities, MODELS_TEXT)).toBe("Defaults")
     })
 
     it("counts a saved list against what the provider family offers", () => {
-        expect(activeModelsSummary(connection({models: ["gpt-5.5"]}), capabilities)).toBe(
-            "1 of 3 active",
-        )
+        expect(
+            activeModelsSummary(connection({models: ["gpt-5.5"]}), capabilities, MODELS_TEXT),
+        ).toBe("1 of 3 active")
     })
 
     it("counts an empty saved list rather than reading it as defaults", () => {
-        expect(activeModelsSummary(connection({models: []}), capabilities)).toBe("0 of 3 active")
+        expect(activeModelsSummary(connection({models: []}), capabilities, MODELS_TEXT)).toBe(
+            "0 of 3 active",
+        )
     })
 })
 
@@ -804,7 +812,7 @@ describe("one effective model set across all three surfaces", () => {
 
     it("agrees on the defaults: table, drawer count, and picker rows", () => {
         expect(defaultModelsFor(noSavedList, capabilities)).toEqual(["gpt-5.6-sol", "gpt-5.6-luna"])
-        expect(activeModelsSummary(noSavedList, capabilities)).toBe("Defaults")
+        expect(activeModelsSummary(noSavedList, capabilities, MODELS_TEXT)).toBe("Defaults")
         expect(connectionModelCount(noSavedList, capabilities)).toBe(2)
         expect(
             buildConnectionModelGroups({
@@ -820,7 +828,7 @@ describe("one effective model set across all three surfaces", () => {
         const saved = connection({models: ["gpt-4o"]})
 
         expect(connectionModelCount(saved, capabilities)).toBe(1)
-        expect(activeModelsSummary(saved, capabilities)).toBe("1 of 4 active")
+        expect(activeModelsSummary(saved, capabilities, MODELS_TEXT)).toBe("1 of 4 active")
         expect(
             buildConnectionModelGroups({connections: [saved], capabilities})[0].options.map(
                 (option) => option.value,
@@ -1101,13 +1109,13 @@ describe("write-only records", () => {
     it("shows the server's preview as the credential summary", () => {
         const [connected] = toProviderConnections([writeOnlyRow])
 
-        expect(credentialSummary(connected)).toBe("sk-****9Qa")
+        expect(credentialSummary(connected, "Key configured")).toBe("sk-****9Qa")
     })
 
     it("says a value exists when the record has one but no preview to show", () => {
         const [connected] = toProviderConnections([{...writeOnlyRow, keyPreview: undefined}])
 
-        expect(credentialSummary(connected)).toBe("Key configured")
+        expect(credentialSummary(connected, "Key configured")).toBe("Key configured")
     })
 
     it("exempts only the SECRET fields of a record that holds a credential", () => {
@@ -1192,36 +1200,36 @@ describe("Test on a write-only connection: the enable rule and the request shape
             body: detail ? {detail} : undefined,
         })
 
+        const PROBE_TEXT = {gone: "gone", unreachable: "unreachable"}
+
         it("says the connection is gone on a 404, not that the provider is unreachable", () => {
-            expect(probeFailureMessage(httpError(404), "OpenAI")).toContain("no longer exists")
+            expect(probeFailureMessage(httpError(404), PROBE_TEXT)).toBe(PROBE_TEXT.gone)
         })
 
         it("speaks the server's own words for a 4xx that carried a message", () => {
             expect(
                 probeFailureMessage(
                     httpError(422, "Stored key is for another provider."),
-                    "OpenAI",
+                    PROBE_TEXT,
                 ),
             ).toBe("Stored key is for another provider.")
             expect(
                 probeFailureMessage(
                     fernError(422, "Stored key is for another provider."),
-                    "OpenAI",
+                    PROBE_TEXT,
                 ),
             ).toBe("Stored key is for another provider.")
         })
 
         it("recognizes Fern 404 errors as missing stored connections", () => {
-            expect(probeFailureMessage(fernError(404), "OpenAI")).toContain("no longer exists")
+            expect(probeFailureMessage(fernError(404), PROBE_TEXT)).toBe(PROBE_TEXT.gone)
         })
 
         it("falls back to the reach-the-provider line for a transport failure or a 5xx", () => {
-            expect(probeFailureMessage(new Error("network down"), "OpenAI")).toBe(
-                "Agenta could not reach OpenAI to test this credential.",
+            expect(probeFailureMessage(new Error("network down"), PROBE_TEXT)).toBe(
+                PROBE_TEXT.unreachable,
             )
-            expect(probeFailureMessage(httpError(500), "OpenAI")).toBe(
-                "Agenta could not reach OpenAI to test this credential.",
-            )
+            expect(probeFailureMessage(httpError(500), PROBE_TEXT)).toBe(PROBE_TEXT.unreachable)
         })
     })
 

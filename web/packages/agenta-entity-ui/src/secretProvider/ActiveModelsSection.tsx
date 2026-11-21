@@ -1,18 +1,14 @@
 /** A connection's model list, with one field that searches it and adds IDs it lacks. */
 import {useMemo, useState} from "react"
 
-import {
-    activeModelsCount,
-    modelListView,
-    relativeFetchTime,
-    type ModelOption,
-} from "@agenta/entities/secret"
+import {modelListView, type ModelOption} from "@agenta/entities/secret"
 import {richText, useT} from "@agenta/i18n"
 import providerConnectionCatalog from "@agenta/i18n/catalogs/entityUi.providerConnection"
 import {Tag} from "@agenta/ui"
 import {Button, Checkbox, InputAffix} from "@agenta/ui/ui"
 import {ArrowClockwise, MagnifyingGlass, Plus} from "@phosphor-icons/react"
 
+import {activeModelsCount, relativeFetchTime} from "./providerCardText"
 import ScrollScrim from "./ScrollScrim"
 
 export interface ActiveModelsSectionProps {
