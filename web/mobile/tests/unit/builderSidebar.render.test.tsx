@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The builder sidebar: the switcher on "Builder" and the search in the "Chats" heading.
+ * The builder sidebar: the switcher on "Builder", the chats grouped by day and the search in the
+ * "Chats" heading.
  */
 import type {ReactNode} from "react"
 
@@ -146,6 +147,31 @@ describe("the sidebar switcher", () => {
         expect(onPickBuilder).toHaveBeenCalledOnce()
         // The agent sidebar keeps its agent search above 8 agents.
         expect(screen.getByRole("textbox")).toBeTruthy()
+    })
+})
+
+describe("the builder chats", () => {
+    const scope = createBuilderSidebarScope("w1", "p1", () => undefined)
+    const Sidebar = () => {
+        const sections = scope.useSections()
+        return <NavMenu items={sections[0].items} collapsed={false} />
+    }
+
+    it("groups the chats under Today, Yesterday and Earlier, as the agent sidebar does", () => {
+        const now = new Date()
+        const daysAgo = (days: number) =>
+            new Date(now.getFullYear(), now.getMonth(), now.getDate() - days, 12).toISOString()
+        chatRows = [
+            {session_id: "s1", name: "Refund policy", updated_at: now.toISOString()},
+            {session_id: "s2", name: "Lead scoring", updated_at: daysAgo(1)},
+            {session_id: "s3", name: "Old chat", updated_at: daysAgo(9)},
+        ]
+        const {container} = render(<Sidebar />)
+        const text = container.textContent ?? ""
+        const order = ["Today", "Refund policy", "Yesterday", "Lead scoring", "Earlier", "Old chat"]
+        const positions = order.map((word) => text.indexOf(word))
+        expect(positions.every((position) => position >= 0)).toBe(true)
+        expect([...positions].sort((a, b) => a - b)).toEqual(positions)
     })
 })
 

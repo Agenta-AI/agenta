@@ -1,6 +1,7 @@
 import {createElement, useMemo} from "react"
 
 import {useT} from "@agenta/i18n"
+import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import type {
     SidebarScope,
@@ -16,21 +17,21 @@ import {useRouter} from "next/router"
 import {AgentSidebarHeader} from "../agent-sidebar/AgentSidebarHeader"
 import {sessionBullet} from "../agent-sidebar/agentSidebarItems"
 import {ConnectedAgentSwitcher} from "../agent-sidebar/ConnectedAgentSwitcher"
+import {dayGroupedRows} from "../agent-sidebar/dayGroups"
 import {SidebarNewButton} from "../agent-sidebar/SidebarNewButton"
 import {builderChatHref} from "../builder/builderChatHref"
 import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
 import {useMobileBottomNavItems} from "../nav/useMobileNavItems"
 
 import {BuilderChatSearch} from "./BuilderChatSearch"
-import {chatDayLabel} from "./chatDayLabel"
 import {useBuilderChats} from "./useBuilderChats"
 
 export const builderChatRowKey = (sessionId: string) => `builder-chat-${sessionId}`
 
 /**
  * The builder sidebar (B01): Back, the switcher on "Builder", "New chat" and "Chats", the
- * person's builder chats newest first with the day of their last message. "Back" shows the main
- * sidebar and leaves the page as it is. The search button next to "Chats" opens the search
+ * person's builder chats newest first under Today, Yesterday and Earlier, as the agent sidebar
+ * groups its sessions. "Back" shows the main sidebar and leaves the page as it is. The search button next to "Chats" opens the search
  * window over the builder chats.
  */
 export const createBuilderSidebarScope = (
@@ -50,29 +51,27 @@ export const createBuilderSidebarScope = (
     }
 
     const useSections = (): SidebarSection[] => {
-        const t = useT(builderPageCatalog)
+        const t = useT(builderPageCatalog, agentSidebarCatalog)
         const bottomItems = useMobileBottomNavItems(projectURL)
         const chats = useBuilderChats()
         return useMemo(() => {
-            const now = new Date()
-            const words = {today: t("builder.page.today"), yesterday: t("builder.page.yesterday")}
-            const rows = chats.rows.map((row) => {
-                const title = row.name?.trim() || t("builder.page.untitledChat")
-                return {
-                    key: builderChatRowKey(row.session_id),
-                    title,
-                    tooltip: title,
-                    icon: row.flags?.is_running
-                        ? createElement(Spinner, {className: "size-3"})
-                        : sessionBullet("idle"),
-                    suffix: createElement(
-                        "span",
-                        {className: "text-[12px] leading-4 text-colorTextTertiary"},
-                        chatDayLabel(row.updated_at, now, words),
-                    ),
-                    link: builderChatHref({workspaceId, projectId, sessionId: row.session_id}),
-                    prefetch: false,
-                }
+            const rows = dayGroupedRows(chats.rows, {
+                activityAt: (row) => row.updated_at ?? null,
+                keyPrefix: "builder-chats-day",
+                label: (key) => t(`agentSidebar.${key}`),
+                toRow: (row) => {
+                    const title = row.name?.trim() || t("builder.page.untitledChat")
+                    return {
+                        key: builderChatRowKey(row.session_id),
+                        title,
+                        tooltip: title,
+                        icon: row.flags?.is_running
+                            ? createElement(Spinner, {className: "size-3"})
+                            : sessionBullet("idle"),
+                        link: builderChatHref({workspaceId, projectId, sessionId: row.session_id}),
+                        prefetch: false,
+                    }
+                },
             })
             const states =
                 chats.rows.length > 0

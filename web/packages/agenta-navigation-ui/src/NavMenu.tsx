@@ -26,7 +26,7 @@ import {
     TooltipTrigger,
     cn,
 } from "@agenta/ui/ui"
-import {ArrowLineRight, CaretRight, Plus} from "@phosphor-icons/react"
+import {CaretRight, Plus} from "@phosphor-icons/react"
 import clsx from "clsx"
 import Link from "next/link"
 
@@ -342,7 +342,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                     // Enter on the button is its own activation; the heading must not also toggle.
                     onKeyDown={(event) => event.stopPropagation()}
                 >
-                    <ArrowLineRight size={12} />
+                    {item.groupEnter.icon}
                 </button>
             ) : null}
         </div>
