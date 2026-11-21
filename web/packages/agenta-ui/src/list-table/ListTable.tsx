@@ -8,6 +8,7 @@ import {ChevronDown} from "lucide-react"
 import {Checkbox} from "../components/ui/checkbox"
 import {CollapseCaret} from "../components/ui/collapse-caret"
 import {SkeletonBlock} from "../components/ui/skeleton"
+import {PHONE_TOUCH_TARGET_CLASS} from "../components/ui/touch-target"
 import {cn} from "../components/ui/utils"
 
 import {ListTableSelectionBar} from "./ListTableSelectionBar"
@@ -135,7 +136,8 @@ export const ListTable = <Row,>({
     // `min(100%, …)`, so a container narrower than one card still gets one card, not a scroller.
     const cardGrid = `repeat(auto-fill, minmax(min(100%, ${cardMinWidth}px), 1fr))`
     // One value for the rows AND their skeleton, so loading holds the rhythm the rows arrive in.
-    const rowPad = density === "compact" ? "py-2" : "py-[13px]"
+    // A compact one-line row is 40px; a phone row is a tap target, so it is at least 44px there.
+    const rowPad = density === "compact" ? "py-2 max-md:min-h-11" : "py-[13px]"
     const isEmpty = groups.every((group) => group.rows.length === 0)
     // A grid has no column header, so a stuck heading sits at the scroller's own top.
     // Selection lives in the header row (select all, the bulk bar), so it keeps the header.
@@ -359,6 +361,7 @@ export const ListTable = <Row,>({
                                                     "border-0 bg-transparent p-0 text-left font-[inherit]",
                                                     "text-[13px] text-muted-foreground hover:text-foreground",
                                                     FOCUS_RING,
+                                                    PHONE_TOUCH_TARGET_CLASS,
                                                 )}
                                             >
                                                 {/* A heading names a run, it does not wrap: a

@@ -6,7 +6,7 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
-import {cn} from "@agenta/ui/ui"
+import {cn, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 
 import {categoryLabel, type CategorySelection} from "./integrationCatalogFilters"
 
@@ -16,6 +16,7 @@ const CHIP =
 const chipClass = (on: boolean) =>
     cn(
         CHIP,
+        PHONE_TOUCH_TARGET_CLASS,
         on
             ? // The ring is the fill's own color, so a selected chip rings in the page color.
               "bg-foreground text-background focus-visible:ring-background"
@@ -69,7 +70,9 @@ export function CategoryChips({
             role="toolbar"
             aria-label={t("entityUi.integrationDrawer.category")}
             // Flush with the content edge; the row clips, so chips draw their focus ring inside.
-            className="ag-scroll-fade-x flex gap-1.5 overflow-x-auto pt-2 [scrollbar-width:none]"
+            // On a phone the row pads out (and margins back) by the reach of each chip's 44px tap
+            // area, so the scroller does not clip it; nothing moves.
+            className="ag-scroll-fade-x flex gap-1.5 overflow-x-auto pt-2 [scrollbar-width:none] max-md:-mx-[5px] max-md:-mb-2.5 max-md:-mt-0.5 max-md:px-[5px] max-md:pb-2.5 max-md:pt-2.5"
         >
             <Chip on={value === null} onClick={() => onChange(null)}>
                 {t("common.all")}

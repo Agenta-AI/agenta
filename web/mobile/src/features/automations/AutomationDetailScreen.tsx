@@ -9,6 +9,7 @@ import {
 } from "@agenta/automation-ui"
 import {useT} from "@agenta/i18n"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
+import {useIsPhone} from "@agenta/ui/phone"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -50,6 +51,7 @@ export const AutomationDetailScreen = ({
 }) => {
     useBindProjectContext(projectId)
     const t = useT(automationsScreensCatalog)
+    const phone = useIsPhone()
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
 
@@ -163,6 +165,7 @@ export const AutomationDetailScreen = ({
                             }
                             renderConversation={renderConversation}
                             initialRunId={openRunId}
+                            phone={phone}
                             runNow={
                                 automation ? (
                                     <AutomationRunNowButton

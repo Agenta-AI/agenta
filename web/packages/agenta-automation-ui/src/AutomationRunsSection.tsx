@@ -43,8 +43,9 @@ const RunsRow = ({
             ) : null}
         </>
     )
+    // At least 44px high on a phone, where a row is a tap target.
     const frame =
-        "flex w-full items-center gap-2.5 border-0 border-t border-solid border-colorSplit bg-transparent px-3 py-2.5 text-left first:border-t-0"
+        "flex w-full items-center gap-2.5 border-0 border-t border-solid border-colorSplit bg-transparent px-3 py-2.5 text-left first:border-t-0 max-md:min-h-11"
     return onClick ? (
         <button
             type="button"

@@ -1,6 +1,6 @@
 import {createContext, useContext, useState, type ReactNode, type Ref} from "react"
 
-import {Button} from "@agenta/ui/ui"
+import {Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {ArrowSquareOut, PlayCircle} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {createPortal} from "react-dom"
@@ -98,7 +98,7 @@ const SettingsPageShell = ({
                                 href={docs.href}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 whitespace-nowrap text-inherit no-underline underline-offset-4 hover:text-colorText hover:underline"
+                                className={`inline-flex items-center gap-1 whitespace-nowrap text-inherit no-underline underline-offset-4 hover:text-colorText hover:underline ${PHONE_TOUCH_TARGET_CLASS}`}
                             >
                                 {docs.label}
                                 <ArrowSquareOut size={12} />

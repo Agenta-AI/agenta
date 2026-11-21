@@ -46,6 +46,7 @@ import {
     EmptyTitle,
     RadioGroup,
     RadioGroupItem,
+    PHONE_TOUCH_TARGET_CLASS,
     SearchInput,
     cn,
 } from "@agenta/ui/ui"
@@ -564,6 +565,7 @@ function CatalogRow({
                         name: integration.name,
                     })}
                     title={t("entityUi.integrationDrawer.connect")}
+                    className={canvas ? undefined : PHONE_TOUCH_TARGET_CLASS}
                     onClick={onConnect}
                 >
                     {canvas ? <Plus className="size-3.5 max-md:size-5" /> : <Plus size={16} />}

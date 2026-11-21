@@ -453,8 +453,12 @@ const TurnRowInner = ({
                               // The canvas bubble: radius 12 with a 2 px corner, 10 / 14 padding (M01, X-8).
                               "rounded-[12px] rounded-br-[2px] bg-muted px-3.5 py-2.5 text-xs",
                           )
-                        : "min-w-0 max-w-full overflow-hidden text-xs",
-                    body: "min-w-0 max-w-full overflow-hidden",
+                        : // The clip starts 6px above the text on a phone, so the turn's first
+                          // control ("Worked for") keeps its 44px tap area. Nothing moves.
+                          "min-w-0 max-w-full overflow-hidden text-xs max-md:-mt-1.5 max-md:pt-1.5",
+                    body: turn.isUser
+                        ? "min-w-0 max-w-full overflow-hidden"
+                        : "min-w-0 max-w-full overflow-hidden max-md:-mt-1.5 max-md:pt-1.5",
                 }}
                 // A refused file-only send has no words to paint, but its failure still has to be
                 // said, or the cards sit there looking like an upload that worked.

@@ -231,6 +231,7 @@ const ModelPickerList = ({
                                 variant="outline"
                                 size="sm"
                                 disabled={disabled}
+                                className={PHONE_TOUCH_TARGET_CLASS}
                                 onClick={() => disabledGroupAction.onClick(group)}
                             >
                                 {disabledGroupAction.label}

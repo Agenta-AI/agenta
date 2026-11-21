@@ -26,7 +26,8 @@ const AdvancedViewBody = ({target, nav}: ViewProps<AdvancedViewParams>) => {
                         data-testid={`advanced-part-${row.key}`}
                         disabled={!nav.push}
                         onClick={() => void nav.push?.(row.view, {}, target)}
-                        className="flex w-full cursor-pointer items-center gap-2.5 border-0 border-t border-solid border-colorSplit bg-transparent py-2.5 pl-3 pr-4 text-left font-[inherit] transition-colors first:border-t-0 hover:bg-colorFillQuaternary"
+                        // A row with no summary is 41px; a phone row is at least 44px.
+                        className="flex w-full cursor-pointer items-center gap-2.5 border-0 border-t border-solid border-colorSplit bg-transparent py-2.5 pl-3 pr-4 text-left font-[inherit] transition-colors first:border-t-0 hover:bg-colorFillQuaternary max-md:min-h-11"
                     >
                         <span className="flex shrink-0 text-colorTextSecondary [&_svg]:size-3.5">
                             {row.icon}
