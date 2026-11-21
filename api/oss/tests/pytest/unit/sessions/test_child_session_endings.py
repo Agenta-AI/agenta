@@ -374,3 +374,126 @@ async def test_start_once_passes_the_calling_turn_id_to_the_first_input():
         inputs.claim_for_execution.await_args.kwargs["calling_turn_id"]
         == "calling-turn-1"
     )
+
+
+# --- QA D6: the deprecated Stop records the durable cancel command --------------------
+
+
+class _StopStreamsService(_StreamsService):
+    def __init__(self, *, running, order):
+        super().__init__(running=running)
+        self.order = order
+
+    async def clock_ms(self):
+        return 0
+
+    async def command(self, **_kwargs):
+        self.order.append("stop")
+        return SimpleNamespace(
+            session_id=SESSION_ID,
+            cancelled_turn_ids=[EXECUTION_ID] if self.running else [],
+        )
+
+
+async def _stop_route(monkeypatch, *, running: bool):
+    from oss.src.apis.fastapi.sessions import router as router_module
+    from oss.src.core.sessions.streams.dtos import SessionStreamCommandRequest
+
+    order: list = []
+    commands = AsyncMock()
+    commands.request_cancel.side_effect = lambda **_kwargs: order.append("command")
+    streams = _StopStreamsService(running=running, order=order)
+    route = router_module.SessionStreamsRouter(
+        service=streams,
+        interactions_service=AsyncMock(),
+        run_admission=AsyncMock(),
+        commands_service=commands,
+    )
+    request = SimpleNamespace(
+        state=SimpleNamespace(project_id=str(PROJECT_ID), user_id=str(uuid4()))
+    )
+    monkeypatch.setattr(router_module, "allow_resource", AsyncMock(return_value=True))
+    monkeypatch.setattr(
+        router_module,
+        "session_recheck",
+        lambda *a, **k: SimpleNamespace(checked=True),
+    )
+    monkeypatch.setattr(router_module, "session_was_missing", lambda **_k: False)
+    monkeypatch.setattr(router_module, "policy_for_request", lambda *a, **k: None)
+    monkeypatch.setattr(router_module, "request_run_envelope", lambda *a, **k: None)
+    payload = SessionStreamCommandRequest(session_id=SESSION_ID)
+    return route, request, payload, commands, order
+
+
+@pytest.mark.asyncio
+async def test_a_stop_of_a_running_turn_records_the_durable_cancel_first(monkeypatch):
+    # With the command, the abandoned-command sweep settles the turn when the runner is
+    # gone, and the sweep writes the missing `done`; before, this Stop left no trace.
+    route, request, payload, commands, order = await _stop_route(
+        monkeypatch, running=True
+    )
+
+    await route.set_session_stream(request, payload=payload)
+
+    assert order == ["command", "stop"]
+    kwargs = commands.request_cancel.await_args.kwargs
+    assert kwargs["project_id"] == PROJECT_ID
+    assert kwargs["session_id"] == SESSION_ID
+    assert kwargs["expected_execution_id"] == EXECUTION_ID
+
+
+@pytest.mark.asyncio
+async def test_a_stop_of_an_idle_session_records_no_command(monkeypatch):
+    route, request, payload, commands, order = await _stop_route(
+        monkeypatch, running=False
+    )
+
+    await route.set_session_stream(request, payload=payload)
+
+    assert order == ["stop"]
+    commands.request_cancel.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_stop_after_the_turn_ended_still_stops(monkeypatch):
+    from oss.src.core.sessions.commands.types import ExecutionExpectationFailed
+
+    route, request, payload, commands, order = await _stop_route(
+        monkeypatch, running=True
+    )
+    commands.request_cancel.side_effect = ExecutionExpectationFailed(
+        expected=EXECUTION_ID, current=None
+    )
+
+    await route.set_session_stream(request, payload=payload)
+
+    assert order == ["stop"]
+
+
+# --- QA D3: the producer resolves a static calling agent ------------------------------
+
+
+@pytest.mark.asyncio
+async def test_the_producer_workflows_service_resolves_a_static_agent(monkeypatch):
+    # The Builder is a static workflow with no row. Without the static catalog, the run
+    # admission of every child update to a Builder session raised
+    # `AgentReferenceUnresolved`, and no update was written.
+    from entrypoints import session_child_updates as composition
+    from oss.src.core.sessions.types import SessionReference
+    from oss.src.core.workflows.build_kit import BUILD_KIT_WORKFLOW_SLUG
+    from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
+
+    monkeypatch.setattr(composition, "get_lock_engine", lambda: AsyncMock())
+    workflows_service, _ = composition._workflows_service(
+        transactions_engine=AsyncMock(), mounts_store=AsyncMock()
+    )
+    workflows_service.workflows_dao = AsyncMock()
+
+    artifact_id = await workflows_service.resolve_agent_artifact_id(
+        project_id=PROJECT_ID,
+        references=[SessionReference(key="workflow", slug=BUILD_KIT_WORKFLOW_SLUG)],
+    )
+
+    static = StaticWorkflowCatalog().retrieve_revision(slug=BUILD_KIT_WORKFLOW_SLUG)
+    assert artifact_id == (static.artifact_id or static.workflow_id)
+    assert workflows_service.workflows_dao.method_calls == []

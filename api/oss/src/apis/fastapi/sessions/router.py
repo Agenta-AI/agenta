@@ -745,6 +745,12 @@ class SessionStreamsRouter:
             action=Permission.RUN_SESSIONS,
             session_id=payload.session_id,
         )
+        if mode == CommandMode.cancel:
+            await self._record_running_turn_stop(
+                project_id=UUID(str(project_id)),
+                user_id=UUID(str(user_id)) if user_id else None,
+                session_id=payload.session_id,
+            )
         try:
             response = await self._service.command(
                 arrived_at_ms=arrived_at_ms,
@@ -792,6 +798,35 @@ class SessionStreamsRouter:
                 )
 
         return response
+
+    async def _record_running_turn_stop(
+        self, *, project_id: UUID, user_id: Optional[UUID], session_id: str
+    ) -> None:
+        """Record this Stop as the durable cancel command of `POST
+        /sessions/{session_id}/cancel`, for the turn that runs now.
+
+        The stop below clears the live flags in the database, so the orphan sweep no
+        longer sees the turn, and nothing wrote an ending when the runner was gone. With
+        the command, a runner that is alive settles the turn as it does for the cancel
+        route, and when no runner answers, the abandoned-command sweep settles it and the
+        sweep writes the missing `done`. Only a running turn: this stop never ends a
+        paused one unless the caller names it. Before the stop, so a failed write leaves
+        the turn running for a retry."""
+        if self._commands_service is None:
+            return
+        stream = await self._service.fetch(project_id=project_id, session_id=session_id)
+        if stream is None or not stream.flags.is_running or not stream.turn_id:
+            return
+        try:
+            await self._commands_service.request_cancel(
+                project_id=project_id,
+                user_id=user_id,
+                session_id=session_id,
+                expected_execution_id=str(stream.turn_id),
+            )
+        except ExecutionExpectationFailed:
+            # The turn ended or another one runs now; the stop below gives the answer.
+            pass
 
     @intercept_exceptions()
     @_handle_session_exceptions()
