@@ -68,6 +68,19 @@ class _MemoryLock:
         return 1
 
 
+READS = []
+
+
+def _record_read(reader, transaction):
+    """Record which transaction and task a read of the hold rule ran on."""
+    READS.append((reader, transaction, asyncio.current_task()))
+
+
+@pytest.fixture(autouse=True)
+def _clear_reads():
+    READS.clear()
+
+
 class _InputsDAO(MemoryInputsDAO):
     def __init__(self):
         super().__init__()
@@ -124,7 +137,10 @@ class _InputsDAO(MemoryInputsDAO):
             for item in self.items
         )
 
-    async def fetch_by_execution_id(self, *, project_id, session_id, execution_id):
+    async def fetch_by_execution_id(
+        self, *, project_id, session_id, execution_id, transaction=None
+    ):
+        _record_read("inputs.fetch_by_execution_id", transaction)
         return next(
             (
                 item
@@ -157,13 +173,14 @@ class _StreamsDAO:
         self.deleted = deleted
         self.missing = False
         self.turn_id = None
-        self.read_in_task = None
 
     async def get_by_session_id(self, **_kwargs):
         return None
 
-    async def get_by_session_id_including_archived(self, **_kwargs):
-        self.read_in_task = asyncio.current_task()
+    async def get_by_session_id_including_archived(
+        self, *, transaction=None, **_kwargs
+    ):
+        _record_read("streams.get_by_session_id_including_archived", transaction)
         if self.missing:
             return None
         return SimpleNamespace(
@@ -198,7 +215,10 @@ class _Executions:
             terminal_outcome=outcome,
         )
 
-    async def fetch_execution(self, *, project_id, session_id, execution_id, **_):
+    async def fetch_execution(
+        self, *, project_id, session_id, execution_id, transaction=None
+    ):
+        _record_read("executions.fetch_execution", transaction)
         if project_id != PROJECT_ID:
             return None
         return self.rows.get((session_id, execution_id))
@@ -221,7 +241,8 @@ class _Turns:
             ),
         )
 
-    async def query_turns(self, *, project_id, query, windowing):
+    async def query_turns(self, *, project_id, query, windowing, transaction=None):
+        _record_read("turns.query_turns", transaction)
         rows = [
             row
             for row in self.rows
@@ -229,7 +250,8 @@ class _Turns:
         ]
         return rows[: windowing.limit]
 
-    async def find_turn(self, *, project_id, session_id, turn_id):
+    async def find_turn(self, *, project_id, session_id, turn_id, transaction=None):
+        _record_read("turns.find_turn", transaction)
         return next(
             (
                 row
@@ -1023,12 +1045,12 @@ async def _queue(harness, kind, key):
     )
 
 
-async def _turn_end(service, parent):
+async def _turn_end(service, parent, transaction=None):
     return await service._promote_next_input(
         project_id=PROJECT_ID,
         session_id=SESSION_ID,
         parent_execution_id=parent,
-        transaction=None,
+        transaction=transaction,
     )
 
 
@@ -1060,10 +1082,41 @@ async def test_a_turn_end_holds_a_server_input_in_an_ended_session():
 
     assert await _turn_end(service, str(uuid4())) is None
     assert update.state == PendingInputState.pending
-    # The rule reads in its own task, so its sessions never touch the turn end's
-    # task-scoped transaction.
-    assert harness.streams_dao.read_in_task is not None
-    assert harness.streams_dao.read_in_task is not asyncio.current_task()
+
+
+@pytest.mark.asyncio
+async def test_a_turn_end_reads_the_hold_rule_on_its_own_transaction():
+    """The turn end holds one pooled connection. A read of the rule on another
+    connection waits for a second one, which never comes when the pool is full, so
+    every read runs on the turn end's transaction, in its own task."""
+    harness = _Harness()
+    harness.executions = _ContinuationExecutions()
+    # A Steer stopped the latest execution, so the rule goes on to read every turn.
+    service = _commands_service(harness, steer=True)
+    previous = None
+    for execution_id in _ids(20):
+        harness.turns.add(execution_id, RunOrigin.SCHEDULE)
+        harness.executions.add(execution_id, outcome="completed")
+        previous = execution_id
+    harness.executions.add(previous, outcome="stopped")
+    harness.streams_dao.turn_id = previous
+    await _queue(harness, PendingInputKind.child_update, "ag:child_update:c:1")
+    transaction = object()
+    READS.clear()
+
+    await _turn_end(service, previous, transaction=transaction)
+
+    readers = {reader for reader, _, _ in READS}
+    assert readers == {
+        "streams.get_by_session_id_including_archived",
+        "executions.fetch_execution",
+        "turns.query_turns",
+        "turns.find_turn",
+        "inputs.fetch_by_execution_id",
+    }
+    task = asyncio.current_task()
+    assert all(read == transaction and on == task for _, read, on in READS)
+    assert service.cancelled_by_steer.await_args.kwargs["transaction"] is transaction
 
 
 @pytest.mark.asyncio

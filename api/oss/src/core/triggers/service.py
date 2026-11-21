@@ -2,13 +2,16 @@ import asyncio
 import base64
 import hashlib
 import hmac
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 from uuid import UUID
 
 from croniter import croniter
 
-from oss.src.core.access.dtos import PrincipalRef, RunEnvelope, RunOrigin
+from agenta.sdk.decorators.running import WorkflowServiceRequest
+
+from oss.src.core.access.dtos import PrincipalRef, RunContext, RunEnvelope, RunOrigin
 from oss.src.core.account_choices.items import run_person_id
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.principals import stored_work_envelope
@@ -51,7 +54,9 @@ from oss.src.core.triggers.dtos import (
     TriggerScheduleCreate,
     TriggerScheduleData,
     TriggerScheduleEdit,
+    TriggerScheduleFlags,
     TriggerScheduleQuery,
+    TriggerScheduleSessionInput,
     TriggerSubscription,
     TriggerSubscriptionCreate,
     TriggerSubscriptionEdit,
@@ -67,9 +72,14 @@ from oss.src.core.triggers.exceptions import (
 )
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
-from oss.src.core.triggers.utils import WebhookSecretResolver
+from oss.src.core.triggers.utils import (
+    WebhookSecretResolver,
+    purge_hidden_schedule,
+    log_hidden_schedule_purged,
+)
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
+from oss.src.core.workflows.dtos import AGENT_REFERENCE_KEYS
 from oss.src.core.workflows.service import WorkflowsService
 
 
@@ -81,6 +91,12 @@ _ENQUEUE_TIMEOUT_SECONDS = 5.0
 # to the second. `TriggersDAO.fetch_due_one_time_schedules` renders the same text in
 # SQL to find fired schedules, so the two formats must stay equal.
 _ONE_TIME_RUN_AT_FORMAT = "%Y-%m-%dT%H:%M:%S+00:00"
+
+
+# A hidden schedule whose first fire attempt is older than this is removed with its
+# deliveries. It caps the retries of a fire that keeps failing with a retryable error,
+# and removes a schedule whose fire enqueued its input but stopped before the delete.
+_HIDDEN_SCHEDULE_FIRE_WINDOW = timedelta(hours=1)
 
 
 def _one_time_run_at_text(run_at: datetime) -> str:
@@ -1949,6 +1965,86 @@ class TriggersService:
             schedule_id=schedule_id,
         )
 
+    async def create_session_schedule(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        schedule_id: UUID,
+        event_key: str,
+        run_at: datetime,
+        session_id: str,
+        session_input: TriggerScheduleSessionInput,
+        run_envelope: RunEnvelope,
+    ) -> TriggerSchedule:
+        """Create a hidden one-time schedule that sends `session_input` into the
+        existing session `session_id` at `run_at` (rounded up to the minute), with the
+        given id. Server code only: no route reaches it.
+
+        It runs with `run_envelope`: its authority and sender, with origin `schedule`,
+        `origin_id` = the schedule id, and no `parent_run_id`, `run_id` or
+        `approved_by`. `principal_kind` and `principal_id` come from its authority. A
+        repeat with the same id creates nothing and returns the first schedule.
+
+        `session_input.content` is the turn's invoke request on `session_id`, and its
+        references must name the agent, so the fire checks `RUN_WORKFLOWS` on it."""
+        if run_envelope.authority.project_id != project_id:
+            raise ValueError("The run envelope belongs to another project.")
+        request = WorkflowServiceRequest.model_validate(deepcopy(session_input.content))
+        if request.session_id != session_id:
+            raise ValueError("The session input's request names another session.")
+        if not AGENT_REFERENCE_KEYS.intersection(request.references or {}):
+            raise ValueError("The session input's request must name its agent.")
+        if request.on_busy is not None:
+            raise ValueError("The session input's request must not carry on_busy.")
+
+        envelope = run_envelope.model_copy(
+            update={
+                "context": RunContext(
+                    origin=RunOrigin.SCHEDULE, origin_id=str(schedule_id)
+                ),
+                "approved_by": None,
+            }
+        )
+        data = TriggerScheduleData(
+            event_key=event_key,
+            run_at=run_at,
+            session_id=session_id,
+            session_input=session_input,
+        )
+        self._normalize_timing(data)
+
+        schedule = await self.dao.create_hidden_schedule(
+            project_id=project_id,
+            user_id=user_id,
+            schedule_id=schedule_id,
+            schedule=TriggerScheduleCreate(
+                data=data,
+                flags=TriggerScheduleFlags(is_active=True, is_hidden=True),
+            ),
+            principal=envelope.authority.principal,
+            run_envelope=envelope,
+        )
+        if schedule is None:
+            raise ValueError("The schedule id names a schedule that is not hidden.")
+        return schedule
+
+    async def purge_session_schedule(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule_id: UUID,
+    ) -> bool:
+        """Remove a hidden schedule and its deliveries from the table, by id. A
+        schedule that is gone is left as it is (False)."""
+        return await purge_hidden_schedule(
+            dao=self.dao,
+            project_id=project_id,
+            schedule_id=schedule_id,
+        )
+
     async def set_schedule_active(
         self,
         *,
@@ -2132,16 +2228,38 @@ class TriggersService:
         schedule still waiting in the task queue has no delivery yet, so a later tick
         queues it again; if two tasks carry the same event id, the dispatcher's
         delivery claim lets one fire.
+
+        First it removes the hidden schedules whose first fire attempt is older than
+        `_HIDDEN_SCHEDULE_FIRE_WINDOW`: a fire that keeps failing with a retryable
+        error stops, and a fire that stopped after its enqueue and before its delete
+        leaves no row behind. A hidden schedule that never fired stays.
         """
         due_by = min(
             self._align_to_minute_utc(timestamp),
             self._align_to_minute_utc(datetime.now(timezone.utc)),
         )
 
+        limit = env.triggers.one_time_schedules_max_per_tick
+        failures = 0
+        try:
+            stale = await self.dao.purge_stale_hidden_schedules(
+                first_fired_before=datetime.now(timezone.utc)
+                - _HIDDEN_SCHEDULE_FIRE_WINDOW,
+                limit=limit,
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            failures += 1
+            stale = []
+            log.error(
+                f"[SCHEDULE] Error removing stale hidden schedules: {e}", exc_info=True
+            )
+        for project_id, schedule in stale:
+            log_hidden_schedule_purged(project_id=project_id, schedule=schedule)
+
         try:
             schedules = await self.dao.fetch_due_one_time_schedules(
                 due_by=due_by,
-                limit=env.triggers.one_time_schedules_max_per_tick,
+                limit=limit,
             )
         except Exception as e:  # pylint: disable=broad-exception-caught
             log.error(
@@ -2149,7 +2267,6 @@ class TriggersService:
             )
             return False
 
-        failures = 0
         for project_id, schedule in schedules:
             try:
                 run_at = _one_time_run_at_text(schedule.data.run_at)
