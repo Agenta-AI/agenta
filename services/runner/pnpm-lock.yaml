@@ -42,7 +42,7 @@ patchedDependencies:
     hash: f9deb01a2d67a755607fe78552ef0dbfe7242e93d3c8e30bdc7b6fb0140d37f0
     path: patches/pi-acp@0.0.29.patch
   sandbox-agent@0.4.2:
-    hash: 91ccdae91dc68390329197a105ecd8cf394f680dd3be2a26731ebe1c2bd58c3f
+    hash: d3cc0038c7135da4ef4727555cc298739143d0c219dd437963b8cc3284ff43db
     path: patches/sandbox-agent@0.4.2.patch
 
 importers:
@@ -108,7 +108,7 @@ importers:
         version: 4.1.2
       sandbox-agent:
         specifier: 0.4.2
-        version: 0.4.2(patch_hash=91ccdae91dc68390329197a105ecd8cf394f680dd3be2a26731ebe1c2bd58c3f)(@daytona/sdk@0.198.0(ws@8.21.0))(zod@4.6.6)
+        version: 0.4.2(patch_hash=d3cc0038c7135da4ef4727555cc298739143d0c219dd437963b8cc3284ff43db)(@daytona/sdk@0.198.0(ws@8.21.0))(zod@4.6.6)
       tar:
         specifier: 7.5.21
         version: 7.5.21
@@ -5340,7 +5340,7 @@ snapshots:
 
   safer-buffer@2.1.2: {}
 
-  sandbox-agent@0.4.2(patch_hash=91ccdae91dc68390329197a105ecd8cf394f680dd3be2a26731ebe1c2bd58c3f)(@daytona/sdk@0.198.0(ws@8.21.0))(zod@4.6.6):
+  sandbox-agent@0.4.2(patch_hash=d3cc0038c7135da4ef4727555cc298739143d0c219dd437963b8cc3284ff43db)(@daytona/sdk@0.198.0(ws@8.21.0))(zod@4.6.6):
     dependencies:
       '@sandbox-agent/cli-shared': 0.4.2
       acp-http-client: 0.4.2(patch_hash=34818932c2fc408b62731b05e3c783b033081fa467c46bfd9ace046f2fda65d6)(zod@4.6.6)

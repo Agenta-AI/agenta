@@ -1,24 +1,18 @@
 import assert from "node:assert/strict";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, it, vi } from "vitest";
 import { DEFAULT_DAYTONA_SNAPSHOT } from "../../src/config/runner-config.ts";
 import {
   DaytonaReconnectTerminalError,
+  daemonStartCommand,
   daytonaWithLifecycle,
 } from "../../src/engines/sandbox_agent/daytona-provider.ts";
 import {
   resetCreatedSandboxIds,
   sandboxSnapshotOf,
 } from "../../src/engines/sandbox_agent/created-sandboxes.ts";
-
-function fakeProvider() {
-  return {
-    name: "daytona",
-    create: async () => "created",
-    destroy: async () => {},
-    getUrl: async () => "http://sandbox.local",
-    ensureServer: async () => {},
-  };
-}
 
 function buildProvider(sandbox: Record<string, any>, getError?: unknown) {
   return daytonaWithLifecycle({}, {
@@ -28,11 +22,55 @@ function buildProvider(sandbox: Record<string, any>, getError?: unknown) {
         return sandbox as any;
       },
     } as any,
-    buildBaseProvider: fakeProvider,
   });
 }
 
+/** A fake Daytona sandbox that records its daemon starts and preview link fetches. */
+function fakeSandbox(id: string, overrides: Record<string, any> = {}) {
+  const calls: string[] = [];
+  let links = 0;
+  const sandbox = {
+    id,
+    state: "started",
+    calls,
+    process: {
+      executeCommand: async (command: string) => {
+        calls.push(`exec:${command}`);
+      },
+    },
+    getPreviewLink: async (port: number) => {
+      links += 1;
+      calls.push(`link:${port}`);
+      return { url: `https://${port}-${id}.proxy.test`, token: `token-${links}` };
+    },
+    delete: async () => {
+      calls.push("delete");
+    },
+    ...overrides,
+  };
+  return sandbox;
+}
+
+/** A fake client whose `create` returns `sandbox` and whose `get` counts calls. */
+function fakeClient(sandbox: Record<string, any>) {
+  const client = {
+    gets: 0,
+    created: [] as unknown[],
+    get: async () => {
+      client.gets += 1;
+      return sandbox as any;
+    },
+    create: async (params: unknown) => {
+      client.created.push(params);
+      return sandbox as any;
+    },
+  };
+  return client;
+}
+
 describe("Daytona provider create", () => {
+  afterEach(() => resetCreatedSandboxIds());
+
   it("reports the snapshot and build command when the snapshot is missing", async () => {
     const provider = daytonaWithLifecycle(
       {
@@ -41,14 +79,12 @@ describe("Daytona provider create", () => {
         } as any,
       },
       {
-        client: {} as any,
-        target: "eu",
-        buildBaseProvider: () => ({
-          ...fakeProvider(),
+        client: {
           create: async () => {
             throw { statusCode: 404 };
           },
-        }),
+        } as any,
+        target: "eu",
       },
     );
 
@@ -60,6 +96,127 @@ describe("Daytona provider create", () => {
       ),
     );
   });
+
+  it("creates with the run's fields, then starts the daemon and fetches the preview link", async () => {
+    const sandbox = fakeSandbox("sb-new");
+    const client = fakeClient(sandbox);
+    const provider = daytonaWithLifecycle(
+      {
+        agentPort: 3000,
+        create: { snapshot: "agenta-agent-sandbox-v9", image: undefined, autoStopInterval: 15 } as any,
+      },
+      { client: client as any },
+    );
+
+    assert.equal(await provider.create(), "sb-new");
+
+    assert.deepEqual(client.created, [
+      { autoStopInterval: 15, snapshot: "agenta-agent-sandbox-v9", image: undefined },
+    ]);
+    assert.deepEqual(sandbox.calls.sort(), [`exec:${daemonStartCommand(3000)}`, "link:3000"]);
+  });
+
+  it("hands out the preview link it fetched at create without another Daytona get", async () => {
+    const sandbox = fakeSandbox("sb-new");
+    const client = fakeClient(sandbox);
+    const provider = daytonaWithLifecycle({}, { client: client as any });
+    await provider.create();
+
+    assert.equal(await provider.getUrl("sb-new"), "https://3000-sb-new.proxy.test");
+    assert.equal(client.gets, 0);
+    assert.equal(provider.previewToken("3000-sb-new.proxy.test")?.value, "token-1");
+
+    // The issued URL is handed out once; a later call fetches a new link.
+    assert.equal(await provider.getUrl("sb-new"), "https://3000-sb-new.proxy.test");
+    assert.equal(client.gets, 1);
+    assert.equal(provider.previewToken("3000-sb-new.proxy.test")?.value, "token-2");
+  });
+
+  it("returns the sandbox id when the preview link fails, and fails the getUrl instead", async () => {
+    // The SDK deletes a sandbox whose `getUrl` fails, but it never learns the id of a failed create.
+    const sandbox = fakeSandbox("sb-new", {
+      getPreviewLink: async () => {
+        throw new Error("preview link down");
+      },
+    });
+    const client = fakeClient(sandbox);
+    const provider = daytonaWithLifecycle({}, { client: client as any });
+
+    assert.equal(await provider.create(), "sb-new");
+    await assert.rejects(() => provider.getUrl("sb-new"), /preview link down/);
+    assert.deepEqual(sandbox.calls, [`exec:${daemonStartCommand(3000)}`]);
+  });
+
+  it("keeps the daemon start command equal to sandbox-agent's own", async () => {
+    // sandbox-agent does not export `buildServerStartCommand`, so load it from its dist chunk.
+    const dist = join(import.meta.dirname, "../../node_modules/sandbox-agent/dist");
+    let found: ((port: number) => string) | undefined;
+    for (const file of readdirSync(dist).filter((name) => /^chunk-.*\.js$/.test(name))) {
+      const chunk = await import(pathToFileURL(join(dist, file)).href);
+      if (typeof chunk.buildServerStartCommand === "function") {
+        found = chunk.buildServerStartCommand;
+      }
+    }
+    assert.ok(found, "sandbox-agent still has buildServerStartCommand");
+    assert.equal(daemonStartCommand(3000), found(3000));
+    assert.equal(daemonStartCommand(4123), found(4123));
+  });
+
+  it("reports the same name and cwd as sandbox-agent's own Daytona provider", async () => {
+    const key = process.env.DAYTONA_API_KEY;
+    process.env.DAYTONA_API_KEY = "test-only";
+    try {
+      const { daytona } = await import("sandbox-agent/daytona");
+      const vendored = daytona({});
+      const ours = daytonaWithLifecycle({}, { client: {} as any });
+      assert.equal(ours.name, vendored.name);
+      assert.equal(ours.defaultCwd, vendored.defaultCwd);
+    } finally {
+      if (key === undefined) delete process.env.DAYTONA_API_KEY;
+      else process.env.DAYTONA_API_KEY = key;
+    }
+  });
+});
+
+describe("Daytona provider preview token", () => {
+  it("shares one fetch between concurrent refreshes of the same stale token", async () => {
+    const sandbox = fakeSandbox("sb-1");
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let fetches = 0;
+    const provider = daytonaWithLifecycle({}, { client: fakeClient(sandbox) as any });
+    await provider.getUrl("sb-1");
+    sandbox.getPreviewLink = async () => {
+      fetches += 1;
+      await gate;
+      return { url: "https://3000-sb-1.proxy.test", token: "fresh" };
+    };
+    const token = provider.previewToken("3000-sb-1.proxy.test")!;
+
+    const refreshes = [token.refresh("token-1"), token.refresh("token-1"), token.refresh("token-1")];
+    release();
+
+    assert.deepEqual(await Promise.all(refreshes), ["fresh", "fresh", "fresh"]);
+    assert.equal(fetches, 1);
+    // A late 401 for the replaced token gets the new one without another fetch.
+    assert.equal(await token.refresh("token-1"), "fresh");
+    assert.equal(fetches, 1);
+    assert.equal(token.value, "fresh");
+  });
+
+  it("forgets the tokens of a destroyed sandbox and deletes it with the injected client", async () => {
+    const sandbox = fakeSandbox("sb-1");
+    const client = fakeClient(sandbox);
+    const provider = daytonaWithLifecycle({}, { client: client as any });
+    await provider.getUrl("sb-1");
+
+    await provider.destroy("sb-1");
+
+    assert.ok(sandbox.calls.includes("delete"));
+    assert.equal(provider.previewToken("3000-sb-1.proxy.test"), undefined);
+  });
 });
 
 describe("Daytona provider snapshot record (capability probe key)", () => {
@@ -68,7 +225,7 @@ describe("Daytona provider snapshot record (capability probe key)", () => {
   it("records the configured snapshot for a sandbox this process created", async () => {
     const provider = daytonaWithLifecycle(
       { create: { snapshot: "agenta-agent-sandbox-v9" } as any },
-      { client: {} as any, buildBaseProvider: () => ({ ...fakeProvider(), create: async () => "daytona/sb-new" }) },
+      { client: fakeClient(fakeSandbox("sb-new")) as any },
     );
     await provider.create();
     assert.equal(sandboxSnapshotOf("daytona/sb-new"), "agenta-agent-sandbox-v9");
@@ -78,7 +235,7 @@ describe("Daytona provider snapshot record (capability probe key)", () => {
   it("records nothing for an image build", async () => {
     const provider = daytonaWithLifecycle(
       { create: {} as any },
-      { client: {} as any, buildBaseProvider: () => ({ ...fakeProvider(), create: async () => "sb-image" }) },
+      { client: fakeClient(fakeSandbox("sb-image")) as any },
     );
     await provider.create();
     assert.equal(sandboxSnapshotOf("sb-image"), undefined);
@@ -89,7 +246,6 @@ describe("Daytona provider snapshot record (capability probe key)", () => {
       { create: { snapshot: "agenta-agent-sandbox-v9" } as any },
       {
         client: { get: async () => ({ state: "started", snapshot: "agenta-agent-sandbox-v8" }) } as any,
-        buildBaseProvider: fakeProvider,
       },
     );
     await provider.reconnect("sb-parked");
@@ -99,7 +255,7 @@ describe("Daytona provider snapshot record (capability probe key)", () => {
   it("forgets a stale record when the reconnected sandbox reports no snapshot", async () => {
     const created = daytonaWithLifecycle(
       { create: { snapshot: "agenta-agent-sandbox-v9" } as any },
-      { client: {} as any, buildBaseProvider: () => ({ ...fakeProvider(), create: async () => "sb-1" }) },
+      { client: fakeClient(fakeSandbox("sb-1")) as any },
     );
     await created.create();
     const reconnected = buildProvider({ state: "started" });
@@ -109,6 +265,17 @@ describe("Daytona provider snapshot record (capability probe key)", () => {
 });
 
 describe("Daytona provider pause", () => {
+  it("forgets the preview token of the sandbox it stops", async () => {
+    const sandbox = fakeSandbox("sb-1", { stop: async () => {} });
+    const provider = daytonaWithLifecycle({}, { client: fakeClient(sandbox) as any });
+    await provider.getUrl("sb-1");
+    assert.ok(provider.previewToken("3000-sb-1.proxy.test"));
+
+    await provider.pause("sb-1");
+
+    assert.equal(provider.previewToken("3000-sb-1.proxy.test"), undefined);
+  });
+
   afterEach(() => vi.useRealTimers());
 
   it("stops a running sandbox", async () => {
@@ -256,6 +423,35 @@ describe("Daytona provider reconnect", () => {
   });
 });
 
+describe("Daytona provider reconnect handoff", () => {
+  it("uses the one Daytona get of the reconnect for the daemon start and the preview link", async () => {
+    for (const state of ["started", "stopped"]) {
+      const sandbox = fakeSandbox("sb-1", { state, start: async () => {} });
+      const client = fakeClient(sandbox);
+      const provider = daytonaWithLifecycle({}, { client: client as any });
+
+      await provider.reconnect("sb-1");
+      await provider.ensureServer("sb-1");
+      assert.equal(await provider.getUrl("sb-1"), "https://3000-sb-1.proxy.test");
+
+      assert.equal(client.gets, 1, `${state}: only the reconnect fetches the sandbox`);
+      assert.equal(provider.previewToken("3000-sb-1.proxy.test")?.value, "token-1");
+    }
+  });
+
+  it("fetches the sandbox again for a later daemon start", async () => {
+    const sandbox = fakeSandbox("sb-1");
+    const client = fakeClient(sandbox);
+    const provider = daytonaWithLifecycle({}, { client: client as any });
+
+    await provider.reconnect("sb-1");
+    await provider.ensureServer("sb-1");
+    await provider.ensureServer("sb-1");
+
+    assert.equal(client.gets, 2);
+  });
+});
+
 describe("Daytona provider delete", () => {
   it("deletes an existing sandbox and treats not found as success", async () => {
     let deletes = 0;
@@ -285,7 +481,6 @@ describe("Daytona provider activity refresh", () => {
           } as any;
         },
       } as any,
-      buildBaseProvider: fakeProvider,
     });
 
     await provider.refreshActivity("daytona/sandbox-1");
@@ -328,7 +523,6 @@ describe("Daytona provider reconnect network policy sync", () => {
           return sandbox as any;
         },
       } as any,
-      buildBaseProvider: fakeProvider,
     });
   }
 
@@ -423,25 +617,5 @@ describe("Daytona provider reconnect network policy sync", () => {
     const provider = providerWithPolicy({ networkBlockAll: true }, sandbox);
 
     await assert.doesNotReject(() => provider.reconnect("sandbox-1"));
-  });
-
-  it("compares against the fetched fields when refreshData fails", async () => {
-    const calls: any[] = [];
-    const sandbox = {
-      state: "started",
-      networkBlockAll: true,
-      async refreshData() {
-        throw new Error("stale handle");
-      },
-      async updateNetworkSettings(settings: any) {
-        calls.push(settings);
-      },
-    };
-    // Live is block-all, plan is open, so reconnect must still converge to open.
-    const provider = providerWithPolicy({}, sandbox);
-
-    await provider.reconnect("sandbox-1");
-
-    assert.deepEqual(calls, [{ networkBlockAll: false }]);
   });
 });

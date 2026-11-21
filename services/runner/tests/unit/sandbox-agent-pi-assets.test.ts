@@ -1697,11 +1697,13 @@ describe("prepareLocalPiAssets (per-session prompts on a shared connection dir)"
 });
 
 describe("sandbox uploads", () => {
-  it("recursively uploads files into sandbox fs", async () => {
+  it("makes the deepest folders first, then writes every file of the tree", async () => {
     const root = tempDir("agenta-pi-upload-test-");
-    mkdirSync(join(root, "nested"));
+    mkdirSync(join(root, "nested", "deep"), { recursive: true });
+    mkdirSync(join(root, "empty"));
     writeFileSync(join(root, "top.txt"), "top", "utf-8");
     writeFileSync(join(root, "nested", "child.txt"), "child", "utf-8");
+    writeFileSync(join(root, "nested", "deep", "leaf.txt"), "leaf", "utf-8");
     const calls: Array<{ op: "mkdir" | "write"; path: string; body?: string }> =
       [];
     const sandbox = {
@@ -1713,16 +1715,93 @@ describe("sandbox uploads", () => {
 
     await uploadDirToSandbox(sandbox, root, "/agent/skills/custom");
 
-    assert.deepEqual(calls, [
-      { op: "mkdir", path: "/agent/skills/custom" },
-      { op: "mkdir", path: "/agent/skills/custom/nested" },
-      {
-        op: "write",
-        path: "/agent/skills/custom/nested/child.txt",
-        body: "child",
-      },
-      { op: "write", path: "/agent/skills/custom/top.txt", body: "top" },
+    const mkdirs = calls.filter((c) => c.op === "mkdir").map((c) => c.path);
+    const writes = calls.filter((c) => c.op === "write");
+    // The daemon's mkdir makes the parents, so only the deepest folders are sent.
+    assert.deepEqual(mkdirs.sort(), [
+      "/agent/skills/custom/empty",
+      "/agent/skills/custom/nested/deep",
     ]);
+    assert.deepEqual(
+      writes.map((c) => [c.path, c.body]).sort(),
+      [
+        ["/agent/skills/custom/nested/child.txt", "child"],
+        ["/agent/skills/custom/nested/deep/leaf.txt", "leaf"],
+        ["/agent/skills/custom/top.txt", "top"],
+      ],
+    );
+    // Every folder exists before the first file is written.
+    const firstWrite = calls.findIndex((c) => c.op === "write");
+    assert.ok(calls.slice(firstWrite).every((c) => c.op === "write"));
+  });
+
+  it("keeps at most 8 requests in flight", async () => {
+    const root = tempDir("agenta-pi-upload-test-");
+    for (let i = 0; i < 20; i += 1) {
+      writeFileSync(join(root, `f${i}.txt`), String(i), "utf-8");
+    }
+    let inFlight = 0;
+    let maxInFlight = 0;
+    let written = 0;
+    const sandbox = {
+      mkdirFs: async () => {},
+      writeFsFile: async () => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        inFlight -= 1;
+        written += 1;
+      },
+    };
+
+    await uploadDirToSandbox(sandbox, root, "/agent/skills/many");
+
+    assert.equal(written, 20);
+    assert.equal(maxInFlight, 8);
+  });
+
+  it("starts no new write after the first failure, then rejects with it", async () => {
+    const root = tempDir("agenta-pi-upload-test-");
+    for (let i = 0; i < 20; i += 1) {
+      writeFileSync(join(root, `f${i}.txt`), String(i), "utf-8");
+    }
+    let started = 0;
+    const sandbox = {
+      mkdirFs: async () => {},
+      writeFsFile: async () => {
+        started += 1;
+        if (started === 1) throw new Error("disk full");
+        await new Promise((resolve) => setTimeout(resolve, 1));
+      },
+    };
+
+    await assert.rejects(
+      () => uploadDirToSandbox(sandbox, root, "/agent/skills/many"),
+      /disk full/,
+    );
+    // The 8 writes already in flight finish; none of the other 12 starts.
+    assert.equal(started, 8);
+  });
+
+  it("writes no file when a folder cannot be made", async () => {
+    const root = tempDir("agenta-pi-upload-test-");
+    mkdirSync(join(root, "nested"));
+    writeFileSync(join(root, "nested", "child.txt"), "child", "utf-8");
+    let writes = 0;
+    const sandbox = {
+      mkdirFs: async () => {
+        throw new Error("mkdir refused");
+      },
+      writeFsFile: async () => {
+        writes += 1;
+      },
+    };
+
+    await assert.rejects(
+      () => uploadDirToSandbox(sandbox, root, "/agent/skills/custom"),
+      /mkdir refused/,
+    );
+    assert.equal(writes, 0);
   });
 
   /**

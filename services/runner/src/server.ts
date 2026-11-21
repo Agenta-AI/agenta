@@ -107,7 +107,6 @@ import {
   sandboxProviderTraits,
   runnerConfigSummary,
 } from "./config/runner-config.ts";
-import { applyDaytonaSdkEnv } from "./engines/sandbox_agent/daytona-provider.ts";
 import { seedPinnedAgentProcesses } from "./engines/sandbox_agent/adapter-seed.ts";
 import { flushPendingDaytonaSecretCleanups } from "./engines/sandbox_agent/daytona-secret-provider.ts";
 import { isEntrypoint } from "./entry.ts";
@@ -2150,9 +2149,6 @@ if (isEntrypoint(import.meta.url)) {
   process.stderr.write(
     `[sandbox-agent] ${runnerConfigSummary(runnerConfig)}\n`,
   );
-  if (runnerConfig.providers.enabled.includes("daytona")) {
-    applyDaytonaSdkEnv(runnerConfig.daytona);
-  }
   // ChatGPT logins no run used for a week leave the runner's state dir (the API keeps the login
   // of record); a login a session holds stays.
   startSubscriptionHomeSweeper(join(runnerStateDir(), "subscriptions"), (message) => process.stderr.write(`${message}\n`));

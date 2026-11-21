@@ -5,6 +5,7 @@ import {
   withSandboxGoneReport,
   type AcpFetchOptions,
 } from "./acp-fetch.ts";
+import { PREVIEW_TOKEN_HEADER, type PreviewTokenSource } from "./daytona-provider.ts";
 import {
   resolvePiToolSpecsDelivery,
   uploadRunnerPiSettingsToSandbox,
@@ -443,53 +444,47 @@ export async function prepareDaytonaPiAssets({
 }
 
 /**
- * A `fetch` that persists cookies per host. Daytona's preview proxy authenticates with a
- * `daytona-sandbox-auth-*` cookie set on the first response; Node's fetch keeps no cookie
- * jar, so without this the proxy rejects later ACP requests with "Authentication
- * required" / 502. The sandbox-agent SDK accepts a custom fetch, so we hand it this one.
+ * The `fetch` for all daemon traffic of a Daytona sandbox. It sends the sandbox's preview token in
+ * {@link PREVIEW_TOKEN_HEADER}, and on a 401 gets a new token once and sends the request again: a
+ * start of the sandbox issues a new token, and the old one is refused.
  *
  * It layers on {@link createAcpFetch} (the long-timeout ACP dispatcher) so a paused HITL turn
  * over Daytona is not reaped by undici's default `headersTimeout` either, and so `options` (the
  * sandbox-gone report) reaches the one place that inspects every ACP response. Daytona is the
  * provider whose proxy answers for a deleted sandbox, so this is the path that needs it most.
  */
-export function createCookieFetch(
+export function createDaytonaFetch(
   inner?: typeof fetch,
   options: AcpFetchOptions = {},
+  previewToken: PreviewTokenSource = () => undefined,
 ): typeof fetch {
   const base = inner
     ? withSandboxGoneReport(inner, options)
     : createAcpFetch(undefined, options);
-  const jar = new Map<string, Map<string, string>>(); // host -> (name -> "name=value")
   return async (input: any, init?: any) => {
     const url = new URL(typeof input === "string" ? input : input.url);
-    const host = url.host;
-    const cookies = jar.get(host);
     const headers = new Headers(
       init?.headers ?? (typeof input !== "string" ? input.headers : undefined),
     );
-    if (cookies && cookies.size > 0) {
-      const existing = headers.get("cookie");
-      const merged = [...cookies.values()];
-      if (existing) merged.unshift(existing);
-      headers.set("cookie", merged.join("; "));
+    const token = previewToken(url.host);
+    const sent = token?.value;
+    if (sent) headers.set(PREVIEW_TOKEN_HEADER, sent);
+    // A redirect would carry the token header to wherever it points, so a request with a token
+    // follows none.
+    const request = { ...init, headers, ...(sent ? { redirect: "error" as const } : {}) };
+    const response = await base(input, request);
+    // Only a string or empty body can be sent twice; every daemon request of the SDK has one.
+    const body = init?.body;
+    if (
+      response.status !== 401 ||
+      !token ||
+      !sent ||
+      (body !== undefined && typeof body !== "string")
+    ) {
+      return response;
     }
-    const response = await base(input, { ...init, headers });
-    const setCookies =
-      typeof (response.headers as any).getSetCookie === "function"
-        ? (response.headers as any).getSetCookie()
-        : response.headers.get("set-cookie")
-          ? [response.headers.get("set-cookie")]
-          : [];
-    if (setCookies.length) {
-      const store = jar.get(host) ?? new Map<string, string>();
-      for (const sc of setCookies) {
-        const pair = String(sc).split(";")[0];
-        const name = pair.split("=")[0];
-        if (name) store.set(name, pair);
-      }
-      jar.set(host, store);
-    }
-    return response;
+    await response.body?.cancel().catch(() => {});
+    headers.set(PREVIEW_TOKEN_HEADER, await token.refresh(sent));
+    return base(input, request);
   };
 }

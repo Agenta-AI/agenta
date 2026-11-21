@@ -29,7 +29,7 @@ import { probeCapabilities } from "./capabilities.ts";
 import { awaitCredentialSubstitution } from "./credential-preflight.ts";
 import { createToolCallCorrelationIndex } from "./client-tools.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
-import { createCookieFetch, prepareDaytonaPiAssets } from "./daytona.ts";
+import { createDaytonaFetch, prepareDaytonaPiAssets } from "./daytona.ts";
 import { applyCodexMode } from "./codex-mode.ts";
 import { applyModel } from "./model.ts";
 import {
@@ -140,7 +140,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   buildDaemonEnv?: typeof buildDaemonEnv;
   resolveDaemonBinary?: typeof resolveDaemonBinary;
   buildSandboxProvider?: typeof buildSandboxProvider;
-  createCookieFetch?: typeof createCookieFetch;
+  createDaytonaFetch?: typeof createDaytonaFetch;
   createAcpFetch?: typeof createAcpFetch;
   prepareWorkspace?: typeof prepareWorkspace;
   prepareDaytonaPiAssets?: typeof prepareDaytonaPiAssets;

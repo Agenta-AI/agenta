@@ -92,35 +92,49 @@ export async function prepareWorkspace({
           log(`telemetry dir mkdir skipped: ${err.message}`);
         });
     }
+    // The files below do not depend on each other, so they are written at the same time.
+    const writes: Array<Promise<unknown>> = [];
     if (plan.prompt.agentsMd) {
-      await sandbox.writeFsFile(
-        { path: `${plan.workspace.cwd}/${instructionsFile}` },
-        plan.prompt.agentsMd,
+      writes.push(
+        sandbox.writeFsFile(
+          { path: `${plan.workspace.cwd}/${instructionsFile}` },
+          plan.prompt.agentsMd,
+        ),
       );
     }
     for (const file of harnessFiles) {
       const path = `${plan.workspace.cwd}/${file.path}`;
-      const parent = dirname(path);
-      await sandbox.mkdirFs({ path: parent }).catch((err: Error) => {
-        log(`harness file dir mkdir skipped: ${err.message}`);
-      });
-      await sandbox.writeFsFile({ path }, file.content);
+      writes.push(
+        sandbox
+          .mkdirFs({ path: dirname(path) })
+          .catch((err: Error) => {
+            log(`harness file dir mkdir skipped: ${err.message}`);
+          })
+          .then(() => sandbox.writeFsFile({ path }, file.content)),
+      );
     }
     if (piSkillSnapshot) {
-      await materializeDaytonaPiSkillSnapshot(sandbox, piSkillSnapshot);
+      writes.push(materializeDaytonaPiSkillSnapshot(sandbox, piSkillSnapshot));
     }
     if (projectSkillRoot) {
       for (const skill of plan.workspace.skillDirs) {
-        await uploadDirToSandbox(
-          sandbox,
-          skill.dir,
-          `${plan.workspace.cwd}/${projectSkillRoot}/${skill.name}`,
-        ).catch((err: Error) => {
-          log(
-            `skill workspace upload skipped for ${skill.name}: ${err.message}`,
-          );
-        });
+        writes.push(
+          uploadDirToSandbox(
+            sandbox,
+            skill.dir,
+            `${plan.workspace.cwd}/${projectSkillRoot}/${skill.name}`,
+          ).catch((err: Error) => {
+            log(
+              `skill workspace upload skipped for ${skill.name}: ${err.message}`,
+            );
+          }),
+        );
       }
+    }
+    // Wait for every write before the first error is raised, so no write still runs after it.
+    const results = await Promise.allSettled(writes);
+    for (const result of results) {
+      if (result.status === "rejected") throw result.reason;
     }
     return { cleanup: async () => {} };
   }

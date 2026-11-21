@@ -633,4 +633,87 @@ describe("prepareWorkspace", () => {
       "SKILL.md is uploaded to Claude's project-local skill tree",
     );
   });
+
+  it("skips only the skill whose upload fails and writes the others", async () => {
+    const goodDir = tempDir();
+    writeFileSync(join(goodDir, "SKILL.md"), "good", "utf-8");
+    const badDir = tempDir();
+    writeFileSync(join(badDir, "SKILL.md"), "bad", "utf-8");
+    const writes: string[] = [];
+    const logs: string[] = [];
+    const sandbox = {
+      mkdirFs: async () => {},
+      writeFsFile: async ({ path }: { path: string }) => {
+        if (path.includes("/broken/")) throw new Error("write refused");
+        writes.push(path);
+      },
+    };
+
+    await prepareWorkspace({
+      sandbox,
+      log: (message) => logs.push(message),
+      plan: {
+        isDaytona: true,
+        acpAgent: "claude",
+        isPi: false,
+        workspace: {
+          cwd: "/home/sandbox/agenta-fixed",
+          relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+          telemetryDir: "/tmp/agenta-telemetry-test",
+          skillDirs: [
+            { name: "broken", dir: badDir },
+            { name: "release-notes", dir: goodDir },
+          ],
+        },
+        tools: { useToolRelay: false },
+        prompt: { agentsMd: "instructions" },
+      },
+    });
+
+    assert.deepEqual(writes.sort(), [
+      "/home/sandbox/agenta-fixed/.claude/skills/release-notes/SKILL.md",
+      "/home/sandbox/agenta-fixed/CLAUDE.md",
+    ]);
+    assert.ok(
+      logs.some((line) => line.includes("skill workspace upload skipped for broken")),
+    );
+  });
+
+  it("waits for every write before it raises the first write error", async () => {
+    let settled = 0;
+    const sandbox = {
+      mkdirFs: async () => {},
+      writeFsFile: async ({ path }: { path: string }) => {
+        if (path.endsWith("CLAUDE.md")) throw new Error("instructions refused");
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        settled += 1;
+      },
+    };
+
+    await assert.rejects(
+      () =>
+        prepareWorkspace({
+          sandbox,
+          plan: {
+            isDaytona: true,
+            acpAgent: "claude",
+            isPi: false,
+            workspace: {
+              cwd: "/home/sandbox/agenta-fixed",
+              relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+              telemetryDir: "/tmp/agenta-telemetry-test",
+              harnessFiles: [
+                { path: ".claude/settings.json", content: "{}" },
+                { path: ".claude/other.json", content: "{}" },
+              ],
+              skillDirs: [],
+            },
+            tools: { useToolRelay: false },
+            prompt: { agentsMd: "instructions" },
+          },
+        }),
+      /instructions refused/,
+    );
+    assert.equal(settled, 2);
+  });
 });

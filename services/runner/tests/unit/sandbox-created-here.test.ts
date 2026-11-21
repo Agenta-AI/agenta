@@ -40,56 +40,51 @@ function fakeDaytonaAccount() {
     deletes: [] as string[],
   };
   let count = 0;
+  const handle = (id: string, record: { state: string }) => ({
+    id,
+    get state() {
+      return record.state;
+    },
+    async refreshData() {},
+    async start() {
+      calls.starts.push(id);
+      record.state = "started";
+    },
+    async stop() {
+      calls.stops.push(id);
+      record.state = "stopped";
+    },
+    async delete() {
+      calls.deletes.push(id);
+      sandboxes.delete(id);
+    },
+    async updateNetworkSettings() {},
+    process: { async executeCommand() {} },
+    async getPreviewLink() {
+      return { url: "http://sandbox.local", token: "token" };
+    },
+  });
   const client = {
     async get(id: string) {
       calls.gets.push(id);
       const record = sandboxes.get(id);
       if (!record) throw { statusCode: 404 };
-      return {
-        id,
-        get state() {
-          return record.state;
-        },
-        async refreshData() {},
-        async start() {
-          calls.starts.push(id);
-          record.state = "started";
-        },
-        async stop() {
-          calls.stops.push(id);
-          record.state = "stopped";
-        },
-        async delete() {
-          calls.deletes.push(id);
-          sandboxes.delete(id);
-        },
-        async updateNetworkSettings() {},
-      };
+      return handle(id, record);
     },
-  };
-  const baseProvider = () => ({
-    name: "daytona",
     async create() {
       count += 1;
       const id = `sbx-${count}`;
-      sandboxes.set(id, { state: "started" });
+      const record = { state: "started" };
+      sandboxes.set(id, record);
       calls.creates.push(id);
-      return id;
+      return handle(id, record);
     },
-    async destroy(id: string) {
-      calls.deletes.push(id);
-      sandboxes.delete(id);
-    },
-    async getUrl() {
-      return "http://sandbox.local";
-    },
-    async ensureServer() {},
-  });
+  };
   /** A sandbox another pod created: it exists on Daytona, but not in this process's set. */
   const seedForeign = (id: string, state: string) => {
     sandboxes.set(id, { state });
   };
-  return { sandboxes, calls, client, baseProvider, seedForeign };
+  return { sandboxes, calls, client, seedForeign };
 }
 
 type Account = ReturnType<typeof fakeDaytonaAccount>;
@@ -119,7 +114,7 @@ function buildProvider(
   const buildDaytona = () =>
     daytonaWithLifecycle(
       {},
-      { client: account.client as any, buildBaseProvider: account.baseProvider as any },
+      { client: account.client as any },
     ) as unknown as DaytonaProviderLike;
   if (!opaqueSecrets) return buildDaytona();
   return daytonaWithProcessLocalSecrets(

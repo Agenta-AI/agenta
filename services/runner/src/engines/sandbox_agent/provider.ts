@@ -14,7 +14,6 @@ import {
 } from "../../config/runner-config.ts";
 import { daytonaEnvVars } from "./daytona.ts";
 import {
-  applyDaytonaSdkEnv,
   buildDaytonaClient,
   daytonaWithLifecycle,
 } from "./daytona-provider.ts";
@@ -87,10 +86,10 @@ export function daytonaNetworkFields(
 /**
  * Build the Daytona `create` object from the typed runner config + the resolved run inputs.
  *
- * Pulled out as a pure function because the vendored `daytona()` provider closes over this object
- * and constructs a Daytona client, so the create fields cannot be inspected through
- * `buildSandboxProvider`. Testing this directly is the only way to pin that the create object
- * carries the auto-stop leak backstop (and `ephemeral`).
+ * Pulled out as a pure function because the provider closes over this object, so the create
+ * fields cannot be inspected through `buildSandboxProvider`, and the sandbox fingerprint hashes it.
+ * Testing this directly is the only way to pin that the create object carries the auto-stop leak
+ * backstop (and `ephemeral`).
  *
  * The artifact is the configured snapshot, else the configured image (applied at the top-level
  * provider option, so no snapshot rides the create), else the runner's pinned default snapshot.
@@ -109,9 +108,8 @@ export function buildDaytonaCreate(
     : (daytona.snapshot ?? DEFAULT_DAYTONA_SNAPSHOT);
   const target = daytona.target;
   return {
-    // The sandbox-agent provider always sets a default `image`, which Daytona turns into a
-    // build entry that conflicts with `snapshot`. Spreading image:undefined last
-    // suppresses that so the snapshot is used as-is.
+    // A snapshot create carries no image. `image: undefined` is a leftover of the vendored
+    // provider's default image; it changes nothing (the fingerprint drops undefined fields).
     ...(snapshot ? { snapshot, image: undefined } : {}),
     ...(target ? { target } : {}),
     ...daytonaNetworkFields(sandboxPermission),
@@ -217,9 +215,6 @@ export function buildSandboxProvider(
   }
 
   if (sandboxId === "daytona") {
-    // Bridge the typed credential into the ambient names the vendored provider's own
-    // `new Daytona()` reads during creation; hand the lifecycle wrapper an explicit client.
-    applyDaytonaSdkEnv(config.daytona);
     const image = config.daytona.image;
     const createFields = buildDaytonaCreate(
       config.daytona,

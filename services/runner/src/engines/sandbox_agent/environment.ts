@@ -61,9 +61,12 @@ import {
   assertRequiredCapabilities,
   probeCapabilities,
 } from "./capabilities.ts";
-import { DaytonaReconnectTerminalError } from "./daytona-provider.ts";
 import {
-  createCookieFetch,
+  DaytonaReconnectTerminalError,
+  type PreviewTokenSource,
+} from "./daytona-provider.ts";
+import {
+  createDaytonaFetch,
   DAYTONA_PI_DIR,
   prepareDaytonaPiAssets,
 } from "./daytona.ts";
@@ -882,11 +885,14 @@ async function acquireEnvironmentOnce(
       // in-flight run aborts instead of finishing unobserved. `destroy` still disposes.
       ...(signal ? { signal } : {}),
       // Long-timeout undici dispatcher so a paused HITL turn is not reaped by undici's default
-      // headersTimeout; Daytona additionally carries the per-sandbox auth cookie.
+      // headersTimeout; Daytona additionally carries the sandbox's preview token. The token is
+      // looked up on each request: the Secrets wrapper builds its provider only at create.
       fetch: plan.isDaytona
-        ? (deps.createCookieFetch ?? createCookieFetch)(
+        ? (deps.createDaytonaFetch ?? createDaytonaFetch)(
             undefined,
             acpFetchOptions,
+            (host) =>
+              (sandboxProvider as { previewToken?: PreviewTokenSource }).previewToken?.(host),
           )
         : (deps.createAcpFetch ?? createAcpFetch)(undefined, acpFetchOptions),
     };

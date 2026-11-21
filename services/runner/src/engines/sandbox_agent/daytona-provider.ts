@@ -1,5 +1,5 @@
 import { Daytona, DaytonaNotFoundError, type Sandbox } from "@daytonaio/sdk";
-import { daytona, type DaytonaProviderOptions } from "sandbox-agent/daytona";
+import type { DaytonaProviderOptions } from "sandbox-agent/daytona";
 
 import {
   DEFAULT_DAYTONA_SNAPSHOT,
@@ -12,6 +12,7 @@ import {
 } from "./created-sandboxes.ts";
 
 type DaytonaClient = Pick<Daytona, "get">;
+type DaytonaLifecycleClient = Pick<Daytona, "get" | "create">;
 type DaytonaCreateObjectWithSnapshot = {
   snapshot?: string;
 };
@@ -27,8 +28,8 @@ function getConfiguredSnapshot(
 }
 /**
  * Build a Daytona SDK client explicitly from the typed runner config, instead of relying on the
- * SDK reading ambient `DAYTONA_*` values (interface.md section 2). This client drives the
- * lifecycle operations the vendored provider does not implement (get/pause/reconnect/delete).
+ * SDK reading ambient `DAYTONA_*` values (interface.md section 2). Every Daytona call of the
+ * runner runs on a client built here.
  */
 export function buildDaytonaClient(config: RunnerDaytonaConfig): Daytona {
   return new Daytona({
@@ -38,25 +39,43 @@ export function buildDaytonaClient(config: RunnerDaytonaConfig): Daytona {
   });
 }
 
+/** The header Daytona's preview link reads the sandbox's preview token from. */
+export const PREVIEW_TOKEN_HEADER = "x-daytona-preview-token";
+
 /**
- * Bridge the typed Daytona config into the ambient `DAYTONA_*` variables the VENDORED
- * `sandbox-agent/daytona` provider constructs its own client from (it calls `new Daytona()` with
- * no arguments during sandbox creation, so it cannot be handed an explicit client). The operator
- * only ever sets `AGENTA_RUNNER_DAYTONA_*`; the runner derives the SDK's expected names from its
- * own typed config here. The daemon force-blanks these before any harness runs (`daemon.ts`
- * KNOWN_SANDBOX_ENV_VARS), so the bridged credential never reaches user code.
+ * The preview token of one daemon host. The runner reaches the daemon through the sandbox's
+ * preview link with this token in a request header, not through the signed preview URL, whose
+ * proxy adds about 95 ms to every request. The token stays in the runner: Daytona's proxy does
+ * not forward the header into the sandbox.
  */
-export function applyDaytonaSdkEnv(config: RunnerDaytonaConfig): void {
-  if (config.apiKey) process.env.DAYTONA_API_KEY = config.apiKey;
-  if (config.apiUrl) process.env.DAYTONA_API_URL = config.apiUrl;
-  if (config.target) process.env.DAYTONA_TARGET = config.target;
+export interface PreviewToken {
+  readonly value: string;
+  /**
+   * A new token after `stale` was refused (a start issues a new one). Concurrent calls share one
+   * fetch, and a call whose token was already replaced gets the new one without a fetch.
+   */
+  refresh(stale: string): Promise<string>;
 }
-type BaseProvider = ReturnType<typeof daytona>;
+
+/** The preview token for a daemon URL host, or undefined when the provider issued none. */
+export type PreviewTokenSource = (host: string) => PreviewToken | undefined;
 
 interface DaytonaLifecycleDependencies {
-  client?: DaytonaClient;
+  client: DaytonaLifecycleClient;
   target?: string;
-  buildBaseProvider?: (options: DaytonaProviderOptions) => BaseProvider;
+}
+
+/** The daemon port inside the sandbox, as the vendored provider defaults it. */
+const DEFAULT_AGENT_PORT = 3000;
+/** The cwd the vendored provider reports for a Daytona sandbox. */
+const DEFAULT_CWD = "/home/sandbox";
+
+/**
+ * The daemon start command. A copy of sandbox-agent's `buildServerStartCommand`, which the package
+ * does not export; `daytona-provider.test.ts` pins this copy to the package's own function.
+ */
+export function daemonStartCommand(port: number): string {
+  return `nohup sandbox-agent server --no-token --host 0.0.0.0 --port ${port} >/tmp/sandbox-agent.log 2>&1 &`;
 }
 
 const RECONNECT_POLL_INTERVAL_MILLISECONDS = 250;
@@ -188,19 +207,102 @@ async function wait(milliseconds: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-/** Add lifecycle operations that the vendored Daytona provider does not implement. */
+/**
+ * The Daytona sandbox provider: create, daemon URL and start, reconnect, and delete, all on one
+ * injected client. It replaces the vendored `sandbox-agent/daytona` provider and keeps its option
+ * type.
+ */
 export function daytonaWithLifecycle(
   options: DaytonaProviderOptions = {},
-  dependencies: DaytonaLifecycleDependencies = {},
+  dependencies: DaytonaLifecycleDependencies,
 ) {
-  const client = dependencies.client ?? new Daytona();
-  const baseProvider = (dependencies.buildBaseProvider ?? daytona)(options);
+  const { client } = dependencies;
+  const agentPort = options.agentPort ?? DEFAULT_AGENT_PORT;
+  const startDaemon = daemonStartCommand(agentPort);
   // The egress policy this run wants. `create` is always a resolved object on our call path
   // (buildSandboxProvider); the lazy-function form the vendored type allows is not used here, so
   // a function create degrades to "open" and skips convergence rather than guessing.
   const desiredPolicy = policyFromCreate(
     typeof options.create === "function" ? undefined : options.create,
   );
+
+  // The preview token of each daemon host this provider handed out, with its sandbox.
+  const previewTokens = new Map<string, { sandboxId: string; token: PreviewToken }>();
+  // The preview URL of a sandbox this provider just created or started; `getUrl` hands it out once.
+  const issuedUrls = new Map<string, Promise<string>>();
+  // The sandbox object the reconnect just fetched, so the daemon start does not fetch it again.
+  const reconnected = new Map<string, Sandbox>();
+
+  /** Fetch the sandbox's preview link and record its token; returns the daemon base URL. */
+  const issuePreviewLink = async (sandboxId: string, sandbox: Sandbox): Promise<string> => {
+    const link = await sandbox.getPreviewLink(agentPort);
+    let value = link.token;
+    let pending: Promise<string> | undefined;
+    const token: PreviewToken = {
+      get value() {
+        return value;
+      },
+      refresh(stale) {
+        if (stale !== value) return Promise.resolve(value);
+        pending ??= sandbox
+          .getPreviewLink(agentPort)
+          .then((fresh) => (value = fresh.token))
+          .finally(() => {
+            pending = undefined;
+          });
+        return pending;
+      },
+    };
+    previewTokens.set(new URL(link.url).host, { sandboxId, token });
+    return link.url;
+  };
+
+  const forget = (sandboxId: string): void => {
+    issuedUrls.delete(sandboxId);
+    reconnected.delete(sandboxId);
+    for (const [host, entry] of previewTokens) {
+      if (entry.sandboxId === sandboxId) previewTokens.delete(host);
+    }
+  };
+
+  /** Delete the sandbox and drop what this provider kept for it. A gone sandbox is success. */
+  const remove = (sandboxId: string): Promise<void> => {
+    forget(sandboxId);
+    return deleteDaytonaSandbox(client, sandboxId);
+  };
+
+  /**
+   * Start fetching the preview link for the next `getUrl`. A failed fetch surfaces there, after
+   * the SDK has the sandbox id, so its cleanup still deletes the sandbox.
+   */
+  const startPreviewLink = (sandboxId: string, sandbox: Sandbox): void => {
+    const url = issuePreviewLink(sandboxId, sandbox);
+    url.catch(() => {});
+    issuedUrls.set(sandboxId, url);
+  };
+
+  /**
+   * Create the sandbox, then start the daemon while the preview link is fetched. The options
+   * merge as the vendored provider's `create` did, without its default image: an image build
+   * passes `options.image`, and a snapshot create passes no image.
+   */
+  const createSandbox = async (): Promise<string> => {
+    const createOpts =
+      typeof options.create === "function" ? await options.create() : options.create;
+    const sandbox = await client.create({
+      ...(options.image ? { image: options.image } : {}),
+      autoStopInterval: 0,
+      ...createOpts,
+    } as Parameters<Daytona["create"]>[0]);
+    startPreviewLink(sandbox.id, sandbox);
+    try {
+      await sandbox.process.executeCommand(startDaemon);
+    } catch (error) {
+      forget(sandbox.id);
+      throw error;
+    }
+    return sandbox.id;
+  };
 
   /**
    * Converge a reconnected sandbox to the run's current network policy. Daytona's
@@ -209,11 +311,7 @@ export function daytonaWithLifecycle(
    * prior policy and logs, rather than aborting the reconnect.
    */
   const syncNetworkPolicy = async (sandbox: Sandbox, sandboxId: string): Promise<void> => {
-    try {
-      await sandbox.refreshData();
-    } catch {
-      // A stale handle still carries the fields fetched by `get`; compare against those.
-    }
+    // `sandbox` was just fetched (`get`) or started, and both leave its fields current.
     const live = policyFromSandbox(sandbox);
     if (policiesMatch(live, desiredPolicy)) return;
     try {
@@ -233,12 +331,17 @@ export function daytonaWithLifecycle(
   };
 
   return {
-    ...baseProvider,
+    name: "daytona",
+    defaultCwd: options.cwd ?? DEFAULT_CWD,
+    /** The token source for the daemon fetch (`createDaytonaFetch`). */
+    previewToken(host: string): PreviewToken | undefined {
+      return previewTokens.get(host)?.token;
+    },
     async create(): Promise<string> {
       try {
         // Every Daytona-path create passes through here, with or without the Secrets wrapper,
         // so this is where the process learns which sandboxes it may reconnect to and delete.
-        const sandboxId = await baseProvider.create();
+        const sandboxId = await createSandbox();
         markSandboxCreated(sandboxId);
         // A fresh create is built from the configured snapshot (undefined for an image build).
         recordSandboxSnapshot(sandboxId, getConfiguredSnapshot(options.create));
@@ -265,6 +368,21 @@ export function daytonaWithLifecycle(
         );
       }
     },
+    /** The daemon base URL: the preview link, whose token the daemon fetch sends. */
+    async getUrl(sandboxId: string): Promise<string> {
+      const issued = issuedUrls.get(sandboxId);
+      if (issued) {
+        issuedUrls.delete(sandboxId);
+        return issued;
+      }
+      return issuePreviewLink(sandboxId, await client.get(sandboxId));
+    },
+    /** Start the daemon; after a reconnect, on the sandbox object the reconnect fetched. */
+    async ensureServer(sandboxId: string): Promise<void> {
+      const sandbox = reconnected.get(sandboxId) ?? (await client.get(sandboxId));
+      reconnected.delete(sandboxId);
+      await sandbox.process.executeCommand(startDaemon);
+    },
     async refreshActivity(sandboxId: string): Promise<void> {
       const id = rawSandboxId(sandboxId);
 
@@ -280,6 +398,8 @@ export function daytonaWithLifecycle(
       }
     },
     async pause(sandboxId: string): Promise<void> {
+      // A stop voids the preview token, and the next reconnect fetches the sandbox again.
+      forget(sandboxId);
       let sandbox: Sandbox;
       try {
         sandbox = await client.get(sandboxId);
@@ -313,13 +433,20 @@ export function daytonaWithLifecycle(
       // Daytona reports, which this `get` already returned.
       recordSandboxSnapshot(sandboxId, sandbox.snapshot);
       const state = await waitForStableState(sandbox, sandboxId, "reconnect");
-      if (RUNNING_STATES.has(state)) {
+      // Running or just started: keep the object for the daemon start, and fetch the preview link
+      // (a start issues a new token) while the daemon starts.
+      const ready = async (): Promise<void> => {
+        reconnected.set(sandboxId, sandbox);
+        startPreviewLink(sandboxId, sandbox);
         await syncNetworkPolicy(sandbox, sandboxId);
+      };
+      if (RUNNING_STATES.has(state)) {
+        await ready();
         return;
       }
       if (STOPPED_STATES.has(state)) {
         await sandbox.start();
-        await syncNetworkPolicy(sandbox, sandboxId);
+        await ready();
         return;
       }
       if (FAILED_STATES.has(state)) {
@@ -327,8 +454,8 @@ export function daytonaWithLifecycle(
       }
       throw new DaytonaReconnectTerminalError(sandboxId, state);
     },
-    deleteSandbox: (sandboxId: string): Promise<void> =>
-      deleteDaytonaSandbox(client, sandboxId),
+    destroy: remove,
+    deleteSandbox: remove,
   };
 }
 
