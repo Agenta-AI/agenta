@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Catalog in Settings
-In Settings > MCPs of the app at `/m`, the "Connect MCP" button SHALL always open a catalog view, and the app SHALL fetch nothing for the catalog before the click. The view SHALL show one row for each entry, with the logo (or the default mark), the title, the description and the entry's state. A row SHALL open the connect step as the second level of the view stack. The code SHALL be in `web/mobile` and `web/packages` only.
+In Settings > MCPs of the app at `/m`, the "Connect MCP" button SHALL always open a catalog view, and the app SHALL NOT request the catalog list before the click. Before the click the page MAY read single entries by key, one for each distinct key among its servers that have a catalog reference, for the address notice; with no such server it SHALL make no catalog request. The view SHALL show one row for each entry, with the logo (or the default mark), the title, the description and the entry's state. A row SHALL open the connect step as the second level of the view stack. The code SHALL be in `web/mobile` and `web/packages` only.
 
 #### Scenario: Open from settings
 - **WHEN** a project editor presses "Connect MCP" in Settings > MCPs

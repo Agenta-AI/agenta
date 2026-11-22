@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: An agent lists the catalog with the project's state
-The system SHALL add the route `POST /gateways/mcps/catalog/discover` with the operation id `discover_mcp_catalog_entries`. The route SHALL need `VIEW_MCP_ENDPOINTS` and SHALL be off when the MCP gateway is off. The answer SHALL be `{count, can_connect, entries}`. Each entry SHALL hold `key`, `title`, `description`, `categories`, `needs_own_oauth_app` and `servers`. `description` SHALL be the reviewed description of the domain entry, as plain text of at most 500 characters, and no other text. `needs_own_oauth_app` SHALL be true only when the entry's `oauth` option has `needs_own_app` true. `servers` SHALL be sorted by `slug` and SHALL hold, for each active `custom` row of the project whose `catalog_entry_key` is the entry's key, the row's `slug`, `name` and `state`. `state` SHALL be a gateway connection state: `ready`, `needs_auth` or `needs_input`. One pure function SHALL decide whether a `custom` row is ready, and the gateway's own state, the agent requirements check and this answer SHALL all call it. A row that is not ready SHALL be `needs_auth` for the mode `oauth` and `needs_input` for the mode `api_key`. `can_connect` SHALL be true only when the caller has `EDIT_MCP_ENDPOINTS`. The answer SHALL NOT hold a `logo_url`, a server URL, an auth mode, a credential binding, a help link, a secret id or a secret. The entries SHALL be sorted by `title`. The answer SHALL be built from the domain entries only, so that it is the same for an `internal` entry and a `registry` entry. The system SHALL add the platform op `discover_mcp_catalog`, read-only, with no input, as a direct call to this route. The system SHALL NOT add catalog entries to the answer of `discover_tools`.
+The system SHALL add the route `POST /gateways/mcps/catalog/discover` with the operation id `discover_mcp_catalog_entries`. The route SHALL need `VIEW_MCP_ENDPOINTS` and SHALL be off when the MCP gateway is off. The answer SHALL be `{count, can_connect, entries}`. Each entry SHALL hold `key`, `title`, `description`, `categories`, `needs_own_oauth_app` and `servers`. `description` SHALL be the reviewed description of the domain entry, as plain text of at most 500 characters, and no other text. `needs_own_oauth_app` SHALL be true only when the entry's `oauth` option has `needs_own_app` true. `servers` SHALL be sorted by `slug` and SHALL hold, for each active `custom` row of the project whose `catalog_entry_key` is the entry's key, the row's `slug`, `name` and `state`. `state` SHALL be the gateway's own state for the row: `ready` or `needs_auth`. The answer SHALL add no state of its own, and the system SHALL change no state that the gateway gives today. One pure function SHALL decide whether a `custom` row is ready, and the gateway's own state, the agent requirements check and this answer SHALL all call it. Every row that is not ready SHALL be `needs_auth`. `can_connect` SHALL be true only when the caller has `EDIT_MCP_ENDPOINTS`. The answer SHALL NOT hold a `logo_url`, a server URL, an auth mode, a credential binding, a help link, a secret id or a secret. The entries SHALL be sorted by `title`. The answer SHALL be built from the domain entries only, so that it is the same for an `internal` entry and a `registry` entry. The system SHALL add the platform op `discover_mcp_catalog`, read-only, with no input, as a direct call to this route. The system SHALL NOT add catalog entries to the answer of `discover_tools`.
 
 #### Scenario: An entry with no server
 - **WHEN** the project has no row with the key `linear` and an agent calls `discover_mcp_catalog`
@@ -17,7 +17,7 @@ The system SHALL add the route `POST /gateways/mcps/catalog/discover` with the o
 
 #### Scenario: An API key row with no key
 - **WHEN** the project has an `api_key` row with the key `linear` and no secret
-- **THEN** the `linear` entry SHALL list that row with the state `needs_input`
+- **THEN** the `linear` entry SHALL list that row with the state `needs_auth`, as the gateway gives it today
 
 #### Scenario: A row with no auth
 - **WHEN** the project has a row with the key of an entry and the mode `none`
@@ -56,7 +56,7 @@ The system SHALL add the route `POST /gateways/mcps/catalog/discover` with the o
 - **THEN** the route SHALL NOT answer, as the other routes of the plane
 
 ### Requirement: An agent asks for a catalog server with the request-connection tool
-The client tool `request_connection` SHALL accept an optional `catalog_entry_key` in `target`. The system SHALL add no new client tool, no new tool URI and no new render kind. In the input schema, `target.required` SHALL be `["plane"]`, `target.additionalProperties` SHALL stay false, and the schema SHALL hold no `oneOf`, `anyOf` or `allOf`. The descriptions SHALL say that, on the MCP plane, `target` holds `name` (the slug of a server that exists) or `catalog_entry_key` (a key from `discover_mcp_catalog`), and that the result of a catalog request holds the new server's `slug`. One pure function SHALL put every `request_connection` call in one of three kinds, and the transcript and the dock SHALL both read it: `catalog_entry` when the call has a `target` object whose `plane` is `mcp` and that holds a `catalog_entry_key`; `named_target` for every other call that has a `target` object; `integration` for a call with no `target` object. A call that has a `target` object SHALL never be an `integration` call. The runner's prompt hint for `request_connection` SHALL say that a catalog request holds `catalog_entry_key` and no `name`. The system SHALL change no field of the `/run` wire contract.
+The client tool `request_connection` SHALL accept an optional `catalog_entry_key` in `target`. The system SHALL add no new client tool, no new tool URI and no new render kind. In the input schema, `target.required` SHALL be `["plane"]`, `target.additionalProperties` SHALL stay false, and the schema SHALL hold no `oneOf`, `anyOf` or `allOf`. The descriptions SHALL say that, on the MCP plane, `target` holds `name` (the slug of a server that exists) or `catalog_entry_key` (a key from `discover_mcp_catalog`), and that the result of a catalog request holds the new server's `slug`. One pure function SHALL put every `request_connection` call in one of three kinds, and the transcript and the dock SHALL both read it: `catalog_entry` when the call has a `target` object whose `plane` is `mcp` and that holds a `catalog_entry_key`; `named_target` for every other call that has a `target` object; `integration` for a call with no `target` object. A call that has a `target` object SHALL never be an `integration` call. A `named_target` call with no usable `name` (no `name`, an empty `name`, or a `plane` that is not `llm` or `mcp`) SHALL get a card and a row with "Not now" only, on the LLM plane and on the MCP plane, and SHALL open no connect surface. The runner's prompt hint for `request_connection` SHALL say that a catalog request holds `catalog_entry_key` and no `name`. The system SHALL change no field of the `/run` wire contract.
 
 #### Scenario: A catalog request
 - **WHEN** an agent calls `request_connection` with `{"target": {"plane": "mcp", "catalog_entry_key": "linear"}}`
@@ -74,9 +74,17 @@ The client tool `request_connection` SHALL accept an optional `catalog_entry_key
 - **WHEN** `target.plane` is `mcp` and `catalog_entry_key` is `../x`
 - **THEN** the call SHALL be a `catalog_entry` call, the web SHALL NOT call the catalog fetch route with that value, and the card SHALL say that the server is not in the catalog
 
-#### Scenario: A target with no name and no key
+#### Scenario: An MCP target with no name and no key
 - **WHEN** a call holds `{"target": {"plane": "mcp"}}`
 - **THEN** the call SHALL be a `named_target` call, its card SHALL offer "Not now" only, and the web SHALL NOT show an integration card for it
+
+#### Scenario: An LLM target with no name
+- **WHEN** a call holds `{"target": {"plane": "llm"}}`
+- **THEN** the call SHALL be a `named_target` call, its card SHALL offer "Not now" only, and the web SHALL NOT open the provider drawer
+
+#### Scenario: An LLM target with a catalog key and no name
+- **WHEN** a call holds `{"target": {"plane": "llm", "catalog_entry_key": "linear"}}`
+- **THEN** the call SHALL be a `named_target` call, and its card SHALL offer "Not now" only
 
 #### Scenario: A server that exists
 - **WHEN** a call holds `{"target": {"plane": "mcp", "name": "acme-notion"}}`
@@ -214,7 +222,7 @@ A settled catalog request SHALL resume the run by the rules that exist for a cli
 - **THEN** the run SHALL resume and the agent SHALL get the declined result
 
 ### Requirement: The builder adds the server to the agent it builds
-The builder agent SHALL have the op `discover_mcp_catalog` with the permission `allow`. A connected app and an MCP server are different things: its instructions SHALL tell it to never mix them and to never use one in place of the other. The builder SHALL use the MCP catalog only when the person asks for an MCP server; in every other case the integration path SHALL stay as it is today. Its instructions SHALL tell it to read `discover_mcp_catalog` before it asks for an MCP server, and to act on the entry's servers: to add a server in the state `ready` with no request; to ask for a server in any other state by its slug, with `target.name`; and to ask for an entry with no server by its key, with `target.catalog_entry_key`. Its instructions SHALL also tell it to ask one time, to build without the server when the result is not connected, to not ask when `can_connect` is false, and to never name a tool to the person. For each MCP server that the built agent uses, the builder SHALL add one item to that agent's `mcps`: `{"name": <slug>, "connection": {"type": "gateway", "namespace": "custom", "slug": <slug>}}`, with the `slug` from the tool result or from `discover_mcp_catalog`. It SHALL NOT invent a slug and SHALL NOT write a URL, a header or a secret in the item. The builder's field reference SHALL give this item shape in its preface and in its `mcps` section, and the two SHALL agree. The SDK that the agent service runs SHALL hold the op before the builder's tool list names it. The builder SHALL read the configuration back and confirm that the item is there. In version 1 no other agent gets `discover_mcp_catalog` by default.
+The builder agent SHALL have the op `discover_mcp_catalog` with the permission `allow`. A connected app and an MCP server are different things: its instructions SHALL tell it to never mix them and to never use one in place of the other. The builder SHALL use the MCP catalog only when the person asks for an MCP server; in every other case the integration path SHALL stay as it is today. Its instructions SHALL tell it to read `discover_mcp_catalog` before it asks for an MCP server, and to act on the entry's servers in this order: first, when at least one server is `ready`, to add the first ready server by `slug` with no request, also when another server of the entry is not ready; second, only when the entry has servers and none is `ready`, to ask for the first server by its slug, with `target.name`; third, only when the entry has no server, to ask for the entry by its key, with `target.catalog_entry_key`. Its instructions SHALL also tell it to ask one time, to build without the server when the result is not connected, to not ask when `can_connect` is false, and to never name a tool to the person. For each MCP server that the built agent uses, the builder SHALL add one item to that agent's `mcps`: `{"name": <slug>, "connection": {"type": "gateway", "namespace": "custom", "slug": <slug>}}`, with the `slug` from the tool result or from `discover_mcp_catalog`. It SHALL NOT invent a slug and SHALL NOT write a URL, a header or a secret in the item. The builder's field reference SHALL give this item shape in its preface and in its `mcps` section, and the two SHALL agree. The SDK that the agent service runs SHALL hold the op before the builder's tool list names it. The builder SHALL read the configuration back and confirm that the item is there. In version 1 no other agent gets `discover_mcp_catalog` by default.
 
 #### Scenario: The person asks for an MCP server
 - **WHEN** the person asks for the Linear MCP server
@@ -240,9 +248,17 @@ The builder agent SHALL have the op `discover_mcp_catalog` with the permission `
 - **WHEN** `discover_mcp_catalog` lists a `ready` server for the entry the agent needs
 - **THEN** the builder SHALL add that server's slug to the agent's `mcps` and SHALL NOT call `request_connection` for it
 
+#### Scenario: A ready server and a server that needs a sign-in
+- **WHEN** the entry has one server in the state `ready` and one in the state `needs_auth`
+- **THEN** the builder SHALL add the ready server's slug to the agent's `mcps`, and SHALL NOT call `request_connection` for the entry
+
+#### Scenario: Two ready servers
+- **WHEN** the entry has two servers in the state `ready`
+- **THEN** the builder SHALL add the first of the two by `slug`
+
 #### Scenario: The server needs a sign-in or a key
-- **WHEN** the entry's only server has the state `needs_auth` or `needs_input`
-- **THEN** the builder SHALL call `request_connection` with `{"target": {"plane": "mcp", "name": <that server's slug>}}`, and SHALL NOT send a `catalog_entry_key`
+- **WHEN** the entry has servers and none has the state `ready`
+- **THEN** the builder SHALL call `request_connection` with `{"target": {"plane": "mcp", "name": <the first server's slug>}}`, and SHALL NOT send a `catalog_entry_key`
 
 #### Scenario: The entry has no server
 - **WHEN** the entry's `servers` is empty and `can_connect` is true
