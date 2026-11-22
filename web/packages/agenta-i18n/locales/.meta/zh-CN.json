@@ -129,6 +129,13 @@
         "renameFailed": "c0d75b9d740e",
         "retry": "942087cc2d41"
     },
+    "annotation.queueScreens": {
+        "listTitle": "b2daa1573d63",
+        "queueName": "5cb729307082",
+        "emptyTitle": "d92e800ef9b4",
+        "testcaseUnavailable": "2f7a3ff69c0c",
+        "testcaseNoData": "f1cc83cc3b78"
+    },
     "annotation.queues": {
         "untitled": "f59ab8d1331b",
         "addedTraces_other": "4487811c6bcf",
@@ -170,6 +177,10 @@
         "feedback": "aac77df34720",
         "createDrawerTitle": "1b554e8d2870",
         "create": "4759498ac2a7"
+    },
+    "archivedApps.screen": {
+        "title": "e282ce130414",
+        "loadFailed": "091692c6e358"
     },
     "auth.emailFirstForm": {
         "addEmail": "ba64602a256b",
@@ -1708,7 +1719,20 @@
         "writeDone": "4271706273b6",
         "writeFileDone": "bd7b4f2aa077",
         "writeFileRunning": "8820b22786d9",
-        "writeRunning": "a8bfae3eee94"
+        "writeRunning": "a8bfae3eee94",
+        "forSearchQuery": "40912452b2f0",
+        "termTrace": "f58ff82e405e",
+        "termSchedule": "efe5bc15ef40",
+        "termSchedules": "6e9a1ab2a01b",
+        "termTool": "38af692dd9d8",
+        "termTools": "f9d35d43770d",
+        "termToolsSearch": "f9d35d43770d",
+        "termTriggers": "51936fd380f6",
+        "termConnections": "1e5fac867454",
+        "termDeliveries": "f69b1725bd4a",
+        "termChannelDestinations": "c9d9b1b0ebdc",
+        "termChannelMessages": "da18ea0f2de9",
+        "termChannelMessage": "9c298a0fa3e1"
     },
     "chat.turnActivity": {
         "waiting": "9f760ab20739",
@@ -3475,7 +3499,19 @@
         "showAll": "8b5e93d49d93",
         "fetched": "a897f546da1d",
         "refetch": "b2cf9c137f5a",
-        "apiKeyPlaceholder": "fad7ae6b940a"
+        "apiKeyPlaceholder": "fad7ae6b940a",
+        "testNoteKey": "83b6c80e3208",
+        "testNoteEndpoint": "54077ae459c1",
+        "addModelIdApi": "55461a8d6ca4",
+        "addModelIdEndpoint": "534cec6b3e7f",
+        "modelsFetched_other": "98b2c4f1127f",
+        "activeModelsCount": "e4cfc6cf67fb",
+        "connectionGone": "2c0ef865c20c",
+        "couldNotReach": "244f58010e97",
+        "keyConfiguredLabel": "2ff5cb51f5de",
+        "modelCount_other": "b8da2febc493",
+        "savedUntested": "6b1a7a916978",
+        "testBeforeSaving": "aef3492f92a5"
     },
     "entityUi.providerCredentials": {
         "openaiCompatible": "be400a6edf75",
@@ -3590,7 +3626,9 @@
         "timeUtc": "da59e0e45c51",
         "runTimeAria": "3bf5c1ba3b9d",
         "removeTime": "bc06853c0e12",
-        "add": "9fd728c66c9a"
+        "add": "9fd728c66c9a",
+        "hoursChip": "31a27385799a",
+        "cronPlaceholder": "49942efdb7b4"
     },
     "entityUi.scheduleText": {
         "atTimesUtc": "ec2ecb49ead0",
@@ -3963,7 +4001,16 @@
         "browserOpens": "5f49fc72b4af",
         "pasteTokenPrints": "9b103c3ef87c",
         "tokenWorksOneYear": "5bcaf232c1e8",
-        "connectedStatus": "22965568d22a"
+        "connectedStatus": "22965568d22a",
+        "signInNeeded": "ead5a0c8624a",
+        "notSignedIn": "491fc91cd76e",
+        "signInNoLongerValid": "a0e77a3d3254",
+        "signInNeedsRenewal": "0a3933388a0d",
+        "attemptLost": "e7963b22a9df",
+        "attemptInvalidLogin": "ab2dc286feaa",
+        "attemptDeclined": "4fd8789f9154",
+        "attemptIncomplete": "a14f2fb7660d",
+        "startedWithoutCode": "ecf323f27e72"
     },
     "entityUi.templateFormat": {
         "promptSyntax": "95fbf38278b0"
@@ -4309,6 +4356,11 @@
     "entityUi.workflowTag": {
         "evaluator": "f2a57bad3d4b",
         "app": "0d04bfeb7d64"
+    },
+    "evaluations.screens": {
+        "annotateToSeeScores": "ad54e94606d6",
+        "missingInputsHint": "7485618534bf",
+        "namePlaceholder": "c13b0e0858d5"
     },
     "home.agentActivity": {
         "untitledSession": "3d9b66fd4938"
@@ -6094,34 +6146,6 @@
         "workflowsRevisionsQueried": "4da50a221a17",
         "workflowsRevisionsRetrieved": "7ead9f7abaa2"
     },
-    "settings.developerViews": {
-        "annotationQueues": "b2daa1573d63",
-        "annotationQueuesDescription": "ee3a3f63de5e",
-        "appOverview": "e600335cac24",
-        "appOverviewDescription": "c04f96ee7210",
-        "archivedApps": "cebd22163dc1",
-        "archivedAppsDescription": "7f7a45851ddd",
-        "endpoints": "fce7fec2a58c",
-        "endpointsDescription": "45d557464b5d",
-        "evaluations": "b25cc6989b4f",
-        "evaluationsDescription": "ea105c596297",
-        "evaluatorPlayground": "8437154d99ea",
-        "evaluatorPlaygroundDescription": "acce5a3a8ecd",
-        "evaluators": "8cc37fd10d05",
-        "evaluatorsDescription": "ce3528298902",
-        "observabilityActions": "9a57cc7ce319",
-        "observabilityActionsDescription": "762bfc4b596b",
-        "observabilityAppFilter": "f7511bfb014d",
-        "observabilityAppFilterDescription": "13db35632d6d",
-        "playground": "a6273fb551f2",
-        "playgroundDescription": "94f585dfcc1e",
-        "prompts": "5f2e66e65397",
-        "promptsDescription": "4e4b203d7c8c",
-        "testsets": "5c17e4651d9d",
-        "testsetsDescription": "bc11c8e8e9b9",
-        "variants": "63d2643b059e",
-        "variantsDescription": "f3d4797c3de4"
-    },
     "settings.domainDnsInstructions": {
         "copyValue": "c019c0f81132",
         "hint": "bcf5eb15af9c",
@@ -6344,7 +6368,9 @@
         "orgLoadFailed": "ba9628293a74",
         "removeFailed": "655599d649c0",
         "signInAgain": "51fbe1dc8a73",
-        "vertexFields": "e863b6c19e06"
+        "vertexFields": "e863b6c19e06",
+        "modelsDefaults": "610b7468ce69",
+        "modelsActive": "dd382a8d56d2"
     },
     "settings.resetPasswordLinkDialog": {
         "emailed": "70f29e943735",
@@ -6782,6 +6808,11 @@
         "skillsUpdated_other": "91342ec9c60a",
         "updateFailed_other": "7a4351856d67"
     },
+    "testsets.screens": {
+        "createTestset": "ebfd1c956a5a",
+        "testsetActions": "8b8519fd8be6",
+        "addToQueue": "34b25c1b963f"
+    },
     "ui.agentIcon": {
         "agentIcon": "a53704ec75e2",
         "backToPalette": "5942b3cacd61",
@@ -7149,6 +7180,11 @@
         "toggleColumns": "e546a97c6074",
         "totalItems": "4b718c56439f",
         "visibility": "7448611d5f93"
+    },
+    "variants.compareRevisions": {
+        "title": "7b2bd7f97f3a",
+        "originalVersion": "46dd9599c881",
+        "modifiedVersion": "0f515bef294d"
     },
     "wallet.card": {
         "balance": "d05e07b7c14e",

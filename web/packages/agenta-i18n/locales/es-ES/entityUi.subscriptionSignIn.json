@@ -37,5 +37,14 @@
     "browserOpens": "Se abre una ventana del navegador. Inicia sesión con tu cuenta Pro o Max y aprueba el acceso.",
     "pasteTokenPrints": "Pega el token que muestra el comando",
     "tokenWorksOneYear": "El token funciona durante un año. Agenta lo guarda cifrado y no vuelve a mostrarlo nunca.",
-    "connectedStatus": "Conectado"
+    "connectedStatus": "Conectado",
+    "signInNeeded": "Requiere iniciar sesión",
+    "notSignedIn": "Sin sesión iniciada",
+    "signInNoLongerValid": "Requiere iniciar sesión. El inicio de sesión de {{product}} ya no es válido.",
+    "signInNeedsRenewal": "Requiere iniciar sesión. Hay que renovar el inicio de sesión de {{product}}.",
+    "attemptLost": "Agenta ha perdido el seguimiento de ese inicio de sesión. Vuelve a empezar.",
+    "attemptInvalidLogin": "{{product}} ha devuelto un inicio de sesión que Agenta no puede usar. Vuelve a intentarlo.",
+    "attemptDeclined": "Se ha rechazado el inicio de sesión de {{product}}.",
+    "attemptIncomplete": "El inicio de sesión no se ha completado. Vuelve a intentarlo.",
+    "startedWithoutCode": "El inicio de sesión ha empezado sin código. Vuelve a intentarlo."
 }

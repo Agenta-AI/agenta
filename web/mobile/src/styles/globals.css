@@ -145,6 +145,15 @@
     --color-zinc-10: var(--zinc-10);
     --color-chip: var(--colorFillChip);
     --color-error-bg: var(--colorErrorBg);
+    /* The Badge tones (success, warning, info, processing, draft) outside the playground. */
+    --color-success-bg: var(--colorSuccessBg);
+    --color-warning: var(--colorWarningText);
+    --color-warning-bg: var(--colorWarningBg);
+    --color-info: var(--colorInfo);
+    --color-info-bg: var(--colorInfoBg);
+    --color-draft: var(--ag-draft-text);
+    --color-draft-bg: var(--ag-draft-bg);
+    --color-draft-border: var(--ag-draft-border);
     --color-controlItemBgHover: var(--controlItemBgHover);
     --color-controlItemBgActive: var(--controlItemBgActive);
     --color-colorPrimary: var(--colorPrimary);

@@ -19,11 +19,11 @@ import {useTestsetLatestRevisions} from "./useTestsetLatestRevisions"
 
 const PICK: ListTableColumn = {key: "pick", label: "Select", srOnly: true, width: "20px"}
 const NAME: ListTableColumn = {key: "name", label: "Name", width: "minmax(160px,2fr)"}
-const CREATED: ListTableColumn = {key: "created", label: "Date Created", width: "minmax(150px,1fr)"}
+const CREATED: ListTableColumn = {key: "created", label: "Date created", width: "minmax(150px,1fr)"}
 const WIDE_COLUMNS = [
     PICK,
     NAME,
-    {key: "commit", label: "Commit Message", width: "minmax(140px,2fr)"},
+    {key: "commit", label: "Commit message", width: "minmax(140px,2fr)"},
     CREATED,
     {key: "author", label: "Created by", width: "minmax(120px,1fr)"},
 ]

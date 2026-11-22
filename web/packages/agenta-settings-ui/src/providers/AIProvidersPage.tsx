@@ -2,7 +2,6 @@ import {type ReactNode, useCallback, useMemo} from "react"
 
 import {
     activeModelsSummary,
-    credentialSummary,
     deleteSecretAtom,
     isSubscriptionConnection,
     SecretManagementPolicy,
@@ -14,11 +13,14 @@ import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {
     type OrganizationProjectChoice,
     type ProviderOwnerChoice,
+    credentialSummaryText,
 } from "@agenta/entity-ui/secretProvider"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import {useAtomValue, useSetAtom} from "jotai"
+
+import {LoadFailed} from "../shared/LoadFailed"
 
 import {
     ProvidersPanel,
@@ -65,7 +67,7 @@ export interface AIProvidersPageProps {
 /** The project's own connections: one row per connection, every provider stays connectable. */
 const useProjectProvidersSource = (): ProvidersSource => {
     const t = useT(settingsProvidersCatalog, commonCatalog)
-    const {loading, mutate} = useVaultSecret()
+    const {loading, loadFailed, mutate} = useVaultSecret()
     const connections = useAtomValue(providerConnectionsAtom)
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
     const deleteSecret = useSetAtom(deleteSecretAtom)
@@ -87,8 +89,12 @@ const useProjectProvidersSource = (): ProvidersSource => {
                     connection.title !== connection.name
                         ? providerTitle(connection.kind, connection.title, t)
                         : null,
-                    credentialSummary(connection),
-                    activeModelsSummary(connection, capabilities),
+                    credentialSummaryText(connection),
+                    activeModelsSummary(connection, capabilities, {
+                        defaults: t("settings.providers.modelsDefaults"),
+                        active: (active, total) =>
+                            t("settings.providers.modelsActive", {active, total}),
+                    }),
                 ]
                     .filter(Boolean)
                     .join(" · "),
@@ -100,8 +106,14 @@ const useProjectProvidersSource = (): ProvidersSource => {
             removeFailed: (_failure: unknown, connection: ProviderConnection) =>
                 t("settings.providers.removeFailed", {name: connection.name}),
             onSaved: mutate,
+            failure: loadFailed ? (
+                <LoadFailed
+                    message={t("settings.providers.projectConnectionsLoadFailed")}
+                    onRetry={() => void mutate()}
+                />
+            ) : undefined,
         }
-    }, [connections, loading, capabilities, deleteSecret, mutate, t])
+    }, [connections, loading, loadFailed, capabilities, deleteSecret, mutate, t])
 }
 
 /**

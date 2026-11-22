@@ -16,7 +16,8 @@ import {secretKindForProviderKind} from "./providerCatalog"
 import {SecretKind} from "./types"
 
 /**
- * "2 of 38 active", or "Defaults" when the connection saved no list.
+ * "2 of 38 active", or "Defaults" when the connection saved no list. The UI passes the words in
+ * the active language.
  *
  * Only standard providers can be counted against a catalog: a credential-set connection carries
  * whatever its endpoint serves, so its saved list is counted against itself.
@@ -24,15 +25,16 @@ import {SecretKind} from "./types"
 export const activeModelsSummary = (
     connection: ProviderConnection,
     capabilities: HarnessCapabilityMap | null | undefined,
+    text: {defaults: string; active: (active: number, total: number) => string},
 ): string => {
-    if (!connection.models) return "Defaults"
+    if (!connection.models) return text.defaults
 
     const isStandard = secretKindForProviderKind(connection.kind) === SecretKind.ProviderKey
     const total = isStandard
         ? providerModelCatalog(capabilities, connection.kind).models.length
         : connection.models.length
 
-    return `${connection.models.length} of ${Math.max(total, connection.models.length)} active`
+    return text.active(connection.models.length, Math.max(total, connection.models.length))
 }
 
 /**
@@ -50,27 +52,3 @@ export const connectionModelCount = (
     connection.models
         ? connection.models.filter(Boolean).length
         : defaultModelsFor(connection, capabilities).length
-
-/**
- * The connected row's ONE subtitle: `sk-••••AAA · 3 models · Pi, Claude Code`.
- *
- * Everything the row knows folds into this line — the credential, the model count, the harnesses —
- * so the row needs no pills and no second status text beside its dot. A part with nothing to say
- * (no credential, no harness policy) drops out rather than rendering an empty segment.
- */
-export const connectedRowSubtitle = ({
-    credential,
-    modelCount,
-    harnessLabels,
-}: {
-    credential: string
-    modelCount: number
-    harnessLabels: string[]
-}): string =>
-    [
-        credential && credential !== "—" ? credential : "",
-        `${modelCount} ${modelCount === 1 ? "model" : "models"}`,
-        harnessLabels.join(", "),
-    ]
-        .filter(Boolean)
-        .join(" · ")

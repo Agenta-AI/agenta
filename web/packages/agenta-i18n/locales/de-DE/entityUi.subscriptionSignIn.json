@@ -37,5 +37,14 @@
     "browserOpens": "Ein Browserfenster wird geöffnet. Melden Sie sich mit Ihrem Pro- oder Max-Konto an und genehmigen Sie den Zugriff.",
     "pasteTokenPrints": "Fügen Sie das Token ein, das der Befehl ausgibt",
     "tokenWorksOneYear": "Das Token ist ein Jahr lang gültig. Agenta speichert es verschlüsselt und zeigt es nie wieder an.",
-    "connectedStatus": "Verbunden"
+    "connectedStatus": "Verbunden",
+    "signInNeeded": "Anmeldung erforderlich",
+    "notSignedIn": "Nicht angemeldet",
+    "signInNoLongerValid": "Anmeldung erforderlich. Die {{product}}-Anmeldung ist nicht mehr gültig.",
+    "signInNeedsRenewal": "Anmeldung erforderlich. Die {{product}}-Anmeldung muss erneuert werden.",
+    "attemptLost": "Agenta hat diese Anmeldung aus den Augen verloren. Starten Sie sie erneut.",
+    "attemptInvalidLogin": "{{product}} hat eine Anmeldung zurückgegeben, die Agenta nicht verwenden kann. Versuchen Sie es erneut.",
+    "attemptDeclined": "Die {{product}}-Anmeldung wurde abgelehnt.",
+    "attemptIncomplete": "Die Anmeldung wurde nicht abgeschlossen. Versuchen Sie es erneut.",
+    "startedWithoutCode": "Die Anmeldung wurde ohne Code gestartet. Versuchen Sie es erneut."
 }

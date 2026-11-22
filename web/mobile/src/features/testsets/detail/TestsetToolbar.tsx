@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useState} from "react"
 
 import {commitPreviewAtom} from "@agenta/entities/testset"
+import {useT} from "@agenta/i18n"
+import testsetScreensCatalog from "@agenta/i18n/catalogs/testsets.screens"
 import {message} from "@agenta/ui/app-message"
 import {Button, SimpleTooltip, Spinner} from "@agenta/ui/ui"
 import {ArrowCounterClockwise, Plus, UploadSimple} from "@phosphor-icons/react"
@@ -59,13 +61,14 @@ export const TestsetToolbar = ({
     onImport?: () => void
     onRowAdded?: (rowId: string) => void
     /**
-     * The saved test cases "Add annotation queue" sends: the selected ones, or every one the
+     * The saved test cases "Add to queue" sends: the selected ones, or every one the
      * grid shows. Empty turns the button off.
      */
     queueItemIds?: string[]
     commitOpen: boolean
     onCommitOpenChange: (open: boolean) => void
 }) => {
+    const t = useT(testsetScreensCatalog)
     const {isNew, hasUnsavedChanges, isSaving} = editor
     const [discardOpen, setDiscardOpen] = useState(false)
 
@@ -139,7 +142,7 @@ export const TestsetToolbar = ({
                         Add row
                     </Button>
                     <TestcaseQueueButton
-                        label="Add annotation queue"
+                        label={t("testsets.screens.addToQueue")}
                         itemIds={queueItemIds}
                         disabled={isNew || isSaving}
                     />

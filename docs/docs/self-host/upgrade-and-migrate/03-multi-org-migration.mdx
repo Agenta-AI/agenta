@@ -39,7 +39,7 @@ The schema migrations run as part of the normal [upgrade process](/self-host/upg
 - Users in your organization see an organization switcher and a "New organization" entry in the sidebar. Whether new organizations can actually be created depends on `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS`.
 - Organization owners can rename, transfer, and delete organizations from the sidebar.
 - Inviting users works as before. Accepted invitations now create explicit membership records.
-- Role-based access control, SSO, and domain verification remain EE features. OSS roles stay coarse (owner and member).
+- Role-based access control, SSO providers per organization, SSO enforcement, and domain verification remain EE features. SSO login that you configure with environment variables works on OSS too. See [Configure SSO](/self-host/guides/configure-sso). OSS roles stay coarse (owner and member).
 
 ## Rollback
 

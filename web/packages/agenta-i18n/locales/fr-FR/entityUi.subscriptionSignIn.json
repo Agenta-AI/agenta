@@ -37,5 +37,14 @@
     "browserOpens": "Une fenêtre du navigateur s’ouvre. Connectez-vous avec votre compte Pro ou Max et approuvez l’accès.",
     "pasteTokenPrints": "Collez le jeton affiché par la commande",
     "tokenWorksOneYear": "Le jeton est valable un an. Agenta le stocke chiffré et ne l’affiche plus jamais.",
-    "connectedStatus": "Connecté"
+    "connectedStatus": "Connecté",
+    "signInNeeded": "Connexion requise",
+    "notSignedIn": "Non connecté",
+    "signInNoLongerValid": "Connexion requise. La connexion à {{product}} n’est plus valide.",
+    "signInNeedsRenewal": "Connexion requise. La connexion à {{product}} doit être renouvelée.",
+    "attemptLost": "Agenta a perdu la trace de cette connexion. Recommencez.",
+    "attemptInvalidLogin": "{{product}} a renvoyé une connexion qu’Agenta ne peut pas utiliser. Réessayez.",
+    "attemptDeclined": "La connexion à {{product}} a été refusée.",
+    "attemptIncomplete": "La connexion n’a pas abouti. Réessayez.",
+    "startedWithoutCode": "La connexion a démarré sans code. Réessayez."
 }

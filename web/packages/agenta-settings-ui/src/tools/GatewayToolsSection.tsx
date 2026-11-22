@@ -555,6 +555,7 @@ export default function GatewayToolsSection({
                             name={finishing.name}
                         />
                     }
+                    apiKey={finishing.connection.data?.auth_scheme === "api_key"}
                     onAuthorize={() => onRefresh(finishing.connection)}
                     onDelete={confirm ? () => confirmDelete(finishing.connection) : undefined}
                     onClose={() => setFinishing(null)}

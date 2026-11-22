@@ -1,0 +1,50 @@
+diff --git a/dist/core/model-runtime.d.ts b/dist/core/model-runtime.d.ts
+index f0c364a..a4f8a1c 100644
+--- a/dist/core/model-runtime.d.ts
++++ b/dist/core/model-runtime.d.ts
+@@ -1,4 +1,4 @@
+-import { type AnyModel, type Api, type AssistantImages, type AssistantMessage, type AssistantMessageEventStream, type AuthCheck, type AuthInteraction, type AuthOperationOptions, type AuthResult, type AuthType, type ClassifierApi, type ClassifierContext, type ClassifierModel, type ClassifierResult, type Context, type Credential, type CredentialInfo, type CredentialStore, type DeferredHandle, type ImageApi, type ImageModel, type ImagesContext, type LoginOptions, type Message, type Model, type Models, type ModelsApiStreamOptions, type ModelsClassifierOptions, type ModelsDeferredCancelOptions, type ModelsDeferredFetchOptions, type ModelsImagesOptions, type ModelsRefreshOptions, type ModelsRefreshResult, type ModelsSimpleStreamOptions, type ModelsStore, type ModelThinkingLevel, type ModelType, type ModelTypeMap, type Provider } from "@earendil-works/pi-ai";
++import { type AnyModel, type Api, type AssistantImages, type AssistantMessage, type AssistantMessageEventStream, type AuthCheck, type AuthContext, type AuthInteraction, type AuthOperationOptions, type AuthResult, type AuthType, type ClassifierApi, type ClassifierContext, type ClassifierModel, type ClassifierResult, type Context, type Credential, type CredentialInfo, type CredentialStore, type DeferredHandle, type ImageApi, type ImageModel, type ImagesContext, type LoginOptions, type Message, type Model, type Models, type ModelsApiStreamOptions, type ModelsClassifierOptions, type ModelsDeferredCancelOptions, type ModelsDeferredFetchOptions, type ModelsImagesOptions, type ModelsRefreshOptions, type ModelsRefreshResult, type ModelsSimpleStreamOptions, type ModelsStore, type ModelThinkingLevel, type ModelType, type ModelTypeMap, type Provider } from "@earendil-works/pi-ai";
+ import { type AuthStatus, type CompatibilityRequestConfig, type ProviderConfigInput } from "./provider-composer.ts";
+ import { type ModelRoute, type ModelRouteReason, type VirtualModelDefinition } from "./virtual-models.ts";
+ export interface CreateModelRuntimeOptions {
+@@ -17,6 +17,8 @@ export interface CreateModelRuntimeOptions {
+     signal?: AbortSignal;
+     /** Skip initial catalog and availability refresh. Static models remain available. */
+     refreshOnCreate?: boolean;
++    /** Environment and file access for auth resolution. Defaults to process.env and node:fs. */
++    authContext?: AuthContext;
+ }
+ export interface ModelRuntimeAuthOverrides extends AuthOperationOptions {
+     apiKey?: string;
+diff --git a/dist/core/model-runtime.js b/dist/core/model-runtime.js
+index 112c95e..770100f 100644
+--- a/dist/core/model-runtime.js
++++ b/dist/core/model-runtime.js
+@@ -65,7 +65,7 @@ export class ModelRuntime {
+     providerAvailabilitySeq = new Map();
+     availabilityError;
+     credentialOperations = new Map();
+-    constructor(credentials, config, modelsPath, modelsStore, providers, modelNetworkEnabled) {
++    constructor(credentials, config, modelsPath, modelsStore, providers, modelNetworkEnabled, authContext) {
+         this.credentials = credentials;
+         this.config = config;
+         this.modelsPath = modelsPath;
+@@ -73,7 +73,7 @@ export class ModelRuntime {
+         this.defaultBuiltins = new Map(providers.map((provider) => [provider.id, provider]));
+         for (const [providerId, provider] of this.defaultBuiltins)
+             this.builtins.set(providerId, provider);
+-        this.models = createModels({ credentials, modelsStore });
++        this.models = createModels({ credentials, modelsStore, authContext });
+         this.rebuildProviders();
+     }
+     static async create(options = {}) {
+@@ -94,7 +94,7 @@ export class ModelRuntime {
+             }
+             return withRemoteCatalog(provider, options.catalogBaseUrl, builtinModelDataGeneratedAt);
+         });
+-        const runtime = new ModelRuntime(credentials, config, modelsPath, modelsStore, providers, process.env.PI_OFFLINE === undefined);
++        const runtime = new ModelRuntime(credentials, config, modelsPath, modelsStore, providers, process.env.PI_OFFLINE === undefined, options.authContext);
+         runtime.configureRadiusProviders();
+         runtime.rebuildProviders();
+         const refreshFromNetwork = runtime.modelNetworkEnabled && options.allowModelNetwork === true;

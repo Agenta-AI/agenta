@@ -14,6 +14,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    subscriptionPairModelRows,
     subscriptionPairModels,
     subscriptionPairModelsAtom,
     type SubscriptionPair,
@@ -74,11 +75,12 @@ const SubscriptionPairCard = ({
     const [checked, setChecked] = useState<string[] | null>(savedByPair[pair.key] ?? null)
     const effective = checked ?? preselected
 
-    // Recommended first, then the rest in the order the harness published them.
+    // Recommended first, then the rest, then saved ids the plan no longer runs, so they can be
+    // unticked. The saved list, not `effective`: an unticked row stays until Done.
+    const saved = savedByPair[pair.key]
     const ordered = useMemo(
-        () =>
-            [...models].sort((a, b) => Number(defaults.includes(b)) - Number(defaults.includes(a))),
-        [models, defaults],
+        () => subscriptionPairModelRows({models, defaults, saved}),
+        [models, defaults, saved],
     )
 
     // The drawer draws the footer, so the card hands it a stable submit. The ref keeps `submit`

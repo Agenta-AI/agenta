@@ -23,7 +23,6 @@ import {
     buildModelOptions,
     connectionPolicyForSave,
     credentialFieldsForKind,
-    credentialStatusLine,
     credentialValuesFor,
     DEFAULT_ENDPOINT_PROTOCOL,
     defaultNamePreview,
@@ -32,17 +31,14 @@ import {
     harnessSupportsProviderKind,
     hasRequiredCredential,
     initialEndpointProtocol,
-    manualModelPlaceholderForKind,
     modelDisplayOrder,
     nextConnectionName,
     probeProviderMutationAtom,
-    probeFailureMessage,
     probeRequestFor,
     providerModelCatalog,
     providerTitleForKind,
     saveProviderConnectionAtom,
     secretKindForProviderKind,
-    secretNoteForKind,
     SecretKind,
     storedCredentialFields,
     type CredentialValues,
@@ -80,6 +76,12 @@ import HarnessesSection, {type HarnessChoice} from "./HarnessesSection"
 import OrganizationProjectsSection, {
     type OrganizationConnectionScope,
 } from "./OrganizationProjectsSection"
+import {
+    credentialStatusLine,
+    manualModelPlaceholder,
+    probeFailureText,
+    testNote,
+} from "./providerCardText"
 import {
     providerDisplayTitle,
     translateProtocolField,
@@ -210,7 +212,10 @@ const ProviderConnectionCard = ({
     const [credential, setCredential] = useState<CredentialValues>(storedCredential)
     const [name, setName] = useState(connection?.name ?? "")
     const [probe, setProbe] = useState<ProbeProviderResponse | null>(null)
-    const [probeFailure, setProbeFailure] = useState<string | null>(null)
+    // Kept as data and turned into words while rendering, so a language change updates the line.
+    const [probeFailure, setProbeFailure] = useState<
+        {kind: "error"; error: unknown} | {kind: "unread"} | null
+    >(null)
     const [saveError, setSaveError] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
     const [manualModels, setManualModels] = useState<string[]>([])
@@ -415,15 +420,12 @@ const ProviderConnectionCard = ({
                 ...(readsOrganizationSecret ? {secretScope: "organization" as const} : {}),
             })
             setProbe(result)
-            if (!result)
-                setProbeFailure(
-                    tNow("entityUi.providerConnection.couldNotRead", {provider: displayTitle}),
-                )
+            if (!result) setProbeFailure({kind: "unread"})
         } catch (error) {
             setProbe(null)
-            setProbeFailure(probeFailureMessage(error, title))
+            setProbeFailure({kind: "error", error})
         }
-    }, [projectId, probeMutation, probeRequest, readsOrganizationSecret, title, displayTitle])
+    }, [projectId, probeMutation, probeRequest, readsOrganizationSecret])
 
     const setField = (key: string, value: string) => {
         setCredential((previous) => ({...previous, [key]: value}))
@@ -515,7 +517,12 @@ const ProviderConnectionCard = ({
         onSaveStateChange?.({canSave: done.enabled, saving, error: saveError, submit})
     }, [onSaveStateChange, done.enabled, saving, saveError, submit])
 
-    const credentialMessage = probeFailure ?? probe?.credential.message ?? null
+    const probeFailureLine = probeFailure
+        ? probeFailure.kind === "error"
+            ? probeFailureText(probeFailure.error, displayTitle)
+            : tNow("entityUi.providerConnection.couldNotRead", {provider: displayTitle})
+        : null
+    const credentialMessage = probeFailureLine ?? probe?.credential.message ?? null
     const credentialFailed = credentialStatus === "invalid" || !!probeFailure
 
     // The provider's own verdict plus what the same call fetched. Required-ness is carried by
@@ -545,9 +552,7 @@ const ProviderConnectionCard = ({
                         </LoadingButton>
                     </span>
                 </TooltipTrigger>
-                <TooltipContent className="max-w-64">
-                    {secretNoteForKind(kind, title)}
-                </TooltipContent>
+                <TooltipContent className="max-w-64">{testNote(kind, displayTitle)}</TooltipContent>
             </Tooltip>
         </TooltipProvider>
     )
@@ -701,7 +706,11 @@ const ProviderConnectionCard = ({
                 {/* Why the footer's Done is disabled (or what saving now would mean), stated where
                     the credential that decides it is. */}
                 {done.note && !readOnly ? (
-                    <span className="text-[11px] text-colorTextTertiary">{done.note}</span>
+                    <span className="text-[11px] text-colorTextTertiary">
+                        {done.note === "savedUntested"
+                            ? t("entityUi.providerConnection.savedUntested")
+                            : t("entityUi.providerConnection.testBeforeSaving")}
+                    </span>
                 ) : null}
             </section>
 
@@ -758,7 +767,7 @@ const ProviderConnectionCard = ({
                 <ActiveModelsSection
                     readOnly={readOnly}
                     options={modelOptions}
-                    manualPlaceholder={manualModelPlaceholderForKind(kind)}
+                    manualPlaceholder={manualModelPlaceholder(kind)}
                     onToggle={toggleModel}
                     onSelectAll={() => setCheckedModels(modelOptions.map((option) => option.id))}
                     onClear={() => setCheckedModels([])}

@@ -166,7 +166,7 @@ export const TestsetDetailScreen = ({
     ) : !ready ? (
         <TestsetDetailSkeleton />
     ) : (
-        <div className="flex min-w-0 flex-col gap-3">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
             {archivedTestset.isArchived ? (
                 <ArchivedTestsetNotice
                     projectId={projectId}
@@ -199,7 +199,9 @@ export const TestsetDetailScreen = ({
         <>
             <PageTitle title="Test sets" context={header?.testsetName || undefined} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
+                {/* The grid sizes itself from its parent, so the parent must have a definite height. */}
                 <ScreenScaffold
+                    fill
                     header={
                         <div className={`box-border shrink-0 px-4 pt-3 ${headerTop} ${PAGE_FRAME}`}>
                             <div className="flex min-w-0 items-start gap-2">
@@ -229,7 +231,13 @@ export const TestsetDetailScreen = ({
                         </div>
                     }
                 >
-                    <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>{body}</div>
+                    <div
+                        className={`flex min-h-0 min-w-0 flex-1 flex-col px-4 pb-4 pt-3 ${
+                            ready ? "overflow-hidden" : "overflow-y-auto"
+                        } ${PAGE_FRAME}`}
+                    >
+                        {body}
+                    </div>
                 </ScreenScaffold>
             </AppShell>
             {archive.modal}

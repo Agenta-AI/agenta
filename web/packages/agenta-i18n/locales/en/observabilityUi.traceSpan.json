@@ -8,7 +8,7 @@
     "error": "Error",
     "copySpanId": "Copy span id",
     "playground": "Playground",
-    "addToTestset": "Add to testset",
+    "addToTestset": "Add to test set",
     "annotate": "Annotate",
     "viewDecodedJson": "Decoded JSON",
     "viewPrettyJson": "Pretty JSON",

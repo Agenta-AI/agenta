@@ -37,5 +37,14 @@
     "browserOpens": "ブラウザーのウィンドウが開きます。Pro または Max のアカウントでサインインし、アクセスを承認してください。",
     "pasteTokenPrints": "コマンドが出力したトークンを貼り付けます",
     "tokenWorksOneYear": "トークンの有効期間は 1 年です。Agenta は暗号化して保存し、二度と表示しません。",
-    "connectedStatus": "接続済み"
+    "connectedStatus": "接続済み",
+    "signInNeeded": "サインインが必要",
+    "notSignedIn": "未サインイン",
+    "signInNoLongerValid": "サインインが必要です。{{product}} のサインインは無効になりました。",
+    "signInNeedsRenewal": "サインインが必要です。{{product}} のサインインを更新してください。",
+    "attemptLost": "Agenta はそのサインインを追跡できなくなりました。もう一度開始してください。",
+    "attemptInvalidLogin": "{{product}} から Agenta が使用できないサインインが返されました。もう一度お試しください。",
+    "attemptDeclined": "{{product}} のサインインは拒否されました。",
+    "attemptIncomplete": "サインインが完了しませんでした。もう一度お試しください。",
+    "startedWithoutCode": "サインインがコードなしで開始されました。もう一度お試しください。"
 }
