@@ -1,8 +1,13 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
+import {
+    agentWorkflowsListQueryStateAtom,
+    builderAgentWorkflowIdAtom,
+} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
+import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import sessionsMobileListCatalog from "@agenta/i18n/catalogs/sessions.mobileList"
+import {agentDisplayNameAtomFamily} from "@agenta/navigation"
 import {
     applySessionScopeAtom,
     createSessionFilterAtoms,
@@ -42,6 +47,7 @@ import {
     activityFloorIso,
     LOCKED_AGENT_SESSION_LIST_VIEW,
     DEFAULT_SESSION_LIST_VIEW,
+    sessionAgentRoster,
     type SessionListView,
 } from "./sessionListView"
 import {sessionScopeFromRoute} from "./sessionRouteScope"
@@ -95,6 +101,7 @@ const SessionListBody = ({
     lockedAgentId?: string
 }) => {
     const t = useT(sessionsMobileListCatalog)
+    const tBuilder = useT(builderPageCatalog)
     const phone = useIsPhone()
     const filterAtoms = useSessionFilterAtoms()
     const defaultView = lockedAgentId ? LOCKED_AGENT_SESSION_LIST_VIEW : DEFAULT_SESSION_LIST_VIEW
@@ -199,19 +206,21 @@ const SessionListBody = ({
     )
 
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
+    const builderId = useAtomValue(builderAgentWorkflowIdAtom)
+    const builderName =
+        useAtomValue(agentDisplayNameAtomFamily(builderId ?? "")) ||
+        tBuilder("builder.page.builder")
     // The menu's Agent row offers this roster; the group headings label from it.
     const agents = useMemo(
         () =>
-            (agentsQuery.data ?? [])
-                .map((agent: Workflow) => ({
-                    id: agent.id,
-                    name: (agent.name || agent.slug || "").trim(),
-                }))
-                .filter((agent: {id: string; name: string}) => agent.id && agent.name),
-        [agentsQuery.data],
+            sessionAgentRoster(
+                agentsQuery.data ?? [],
+                builderId ? {id: builderId, name: builderName} : null,
+            ),
+        [agentsQuery.data, builderId, builderName],
     )
     const agentNames = useMemo(
-        () => new Map(agents.map((agent: {id: string; name: string}) => [agent.id, agent.name])),
+        () => new Map(agents.map((agent) => [agent.id, agent.name])),
         [agents],
     )
     const lockedAgent = useMemo(
