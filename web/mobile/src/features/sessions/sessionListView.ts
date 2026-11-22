@@ -67,6 +67,29 @@ export const activityFloorIso = (
     return new Date(Math.floor(now / HOUR_MS) * HOUR_MS - hours * HOUR_MS).toISOString()
 }
 
+/** An agent the Sessions page names: in a group heading and in the filter menu's Agent row. */
+export interface SessionAgentOption {
+    id: string
+    name: string
+}
+
+/**
+ * The agents the Sessions page names: each catalog agent by its name or else its slug, plus the
+ * builder. The builder lives in code, not in the agent catalog, so without it every builder chat
+ * groups under "Unknown agent".
+ */
+export const sessionAgentRoster = (
+    catalog: readonly {id: string; name?: string | null; slug?: string | null}[],
+    builder: SessionAgentOption | null,
+): SessionAgentOption[] => {
+    const agents = catalog
+        .map((agent) => ({id: agent.id, name: (agent.name || agent.slug || "").trim()}))
+        .filter((agent) => agent.id && agent.name)
+    return builder && !agents.some((agent) => agent.id === builder.id)
+        ? [...agents, builder]
+        : agents
+}
+
 export interface SessionListGroup {
     key: string
     /** `null` under `group: "none"` — the table draws no heading at all. */
