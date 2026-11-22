@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * The new chat of the builder page (B01, B03): the quick actions sit above the composer, in the
- * slot that shows only while the chat is new, and "What do you want to build?" is the placeholder
- * of a new chat only, not of a chat that loads its messages.
+ * slot that shows only while the chat is new, and "Describe the job, or pick a start below" is
+ * the placeholder of a new chat only, not of a chat that loads its messages.
  */
 import {act, type ReactNode} from "react"
 
@@ -37,7 +37,7 @@ vi.mock("@/features/builder-page/AgentPicker", () => ({
     AgentPicker: ({trigger}: {trigger: ReactNode}) => trigger,
 }))
 vi.mock("@/features/builder-page/NewBuilderChat", () => ({NewBuilderChat: () => null}))
-vi.mock("@/features/builder-page/BrowseIdeasDialog", () => ({BrowseIdeasDialog: () => null}))
+vi.mock("@/features/builder-page/MoreIdeasDialog", () => ({MoreIdeasDialog: () => null}))
 
 import {BuilderPageChat} from "@/features/builder-page/BuilderPageChat"
 import {queryClient} from "@/lib/queryClient"
@@ -100,14 +100,14 @@ describe("BuilderPageChat", () => {
         )
         expect(seen.props?.belowComposer).toBeUndefined()
         expect(byId("composer")?.getAttribute("data-placeholder")).toBe(
-            "What do you want to build?",
+            "Describe the job, or pick a start below",
         )
     })
 
     it("does not ask what to build in a chat opened from the address", async () => {
         await render(false)
         expect(byId("composer")?.getAttribute("data-placeholder")).not.toBe(
-            "What do you want to build?",
+            "Describe the job, or pick a start below",
         )
         expect(byId("above")?.childElementCount).toBe(0)
     })

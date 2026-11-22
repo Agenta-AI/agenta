@@ -146,19 +146,22 @@ describe("filterIdeas", () => {
     const ideas = [
         {
             category: "support" as const,
-            title: "Triage support tickets",
+            title: "Draft support replies",
+            line: "Sorts the inbox.",
             prompt: "Build an agent that reads tickets.",
         },
         {
             category: "sales" as const,
-            title: "Write first emails",
+            title: "Follow up open quotes",
+            line: "A short personal message.",
             prompt: "Build an agent that writes emails.",
         },
     ]
-    it("filters by category and by search in title or prompt", () => {
+    it("filters by category and by search in title, line or prompt", () => {
         expect(filterIdeas(ideas, "all", "")).toHaveLength(2)
         expect(filterIdeas(ideas, "sales", "")).toEqual([ideas[1]])
         expect(filterIdeas(ideas, "all", "TICKETS")).toEqual([ideas[0]])
+        expect(filterIdeas(ideas, "all", "inbox")).toEqual([ideas[0]])
         expect(filterIdeas(ideas, "support", "emails")).toEqual([])
     })
 })

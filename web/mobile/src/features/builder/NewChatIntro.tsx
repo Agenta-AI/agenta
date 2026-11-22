@@ -32,7 +32,7 @@ export const NewChatIntro = ({agentName, phone = false}: {agentName: string; pho
                     phone ? "text-[22px] leading-7" : "text-xl leading-[26px]",
                 )}
             >
-                {t("builder.panel.question")}
+                {t("builder.panel.question", {agent: agentName})}
             </h2>
             <p
                 className={cn(
@@ -40,7 +40,7 @@ export const NewChatIntro = ({agentName, phone = false}: {agentName: string; pho
                     phone ? "text-sm" : "text-[13px] leading-5",
                 )}
             >
-                {t("builder.panel.intro", {agent: agentName})}
+                {t("builder.panel.intro")}
             </p>
         </div>
     )

@@ -206,7 +206,7 @@ export const BuilderChat = ({
                     isUnlinked ? (
                         <div className="px-4">
                             <QuickActions
-                                sessionId={builderSessionId}
+                                agentName={agentName}
                                 onPick={fillComposer}
                                 phone={phone}
                             />

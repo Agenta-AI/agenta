@@ -23,8 +23,8 @@ import {useSessionHeader} from "../chat/useSessionHeader"
 import {viewFormDirtyAtom} from "../chat/viewFormDirty"
 import {useLivenessPoll} from "../sessions/useLivenessPoll"
 
-import {BrowseIdeasDialog} from "./BrowseIdeasDialog"
 import type {HeroState} from "./hero/BuilderHero"
+import {MoreIdeasDialog} from "./MoreIdeasDialog"
 import {NewBuilderChat} from "./NewBuilderChat"
 import {PageQuickActions} from "./PageQuickActions"
 import type {AgentRef} from "./paneAgent"
@@ -36,8 +36,8 @@ const sentContextChip = (message: UIMessage) => {
 
 /**
  * The conversation of one builder chat on the builder page. A new chat shows the hero, the
- * quick actions and "Browse ideas" (B01, B02). Every message carries the agent of the chip as
- * page context (design D13): the agent picked with "Improve an agent", else the agent of the
+ * quick actions and "More ideas" (B01, B02). Every message carries the agent of the chip as
+ * page context (design D13): the agent picked with "Optimize an agent", else the agent of the
  * pane. A removed chip sends no agent.
  */
 export const BuilderPageChat = ({
@@ -67,7 +67,7 @@ export const BuilderPageChat = ({
     /** The first message of a new chat left the composer. */
     onFirstSend: (agent: AgentRef | null) => void
     onMessagesChanged: (messages: UIMessage[]) => void
-    /** Where "Browse ideas" opens: the page beside the sidebar (B02). */
+    /** Where "More ideas" opens: the page beside the sidebar (B02). */
     dialogContainer: HTMLElement | null
 }) => {
     const t = useT(builderPageCatalog, builderContextCatalog)
@@ -194,7 +194,7 @@ export const BuilderPageChat = ({
                                             setPickedAgent(agent)
                                             setChipRemoved(false)
                                         }}
-                                        onBrowseIdeas={() => setIdeasOpen(true)}
+                                        onMoreIdeas={() => setIdeasOpen(true)}
                                     />
                                 </div>
                             ) : null
@@ -202,7 +202,7 @@ export const BuilderPageChat = ({
                         userMessageAccessory={sentContextChip}
                         onMessagesChanged={handleMessages}
                     />
-                    <BrowseIdeasDialog
+                    <MoreIdeasDialog
                         container={dialogContainer}
                         open={ideasOpen}
                         onOpenChange={setIdeasOpen}
