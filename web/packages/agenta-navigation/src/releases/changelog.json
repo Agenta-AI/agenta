@@ -1,19 +1,5 @@
 [
     {
-        "id": "v0.129.0",
-        "date": "2026-11-18",
-        "features": [
-            {
-                "id": "v0-129-0-discord-teams-drives-languages",
-                "title": "Agents in Discord and Microsoft Teams, shared drives and 7 languages",
-                "body": "Agents can now answer in Discord and in Microsoft Teams. You connect your own bot to the agent, and people talk to it in direct messages or by mentioning it in a channel. Agents can also share folders, called drives, and the app now comes in 7 languages.",
-                "link": "https://agenta.ai/docs/changelog/v0-129-0-discord-teams-drives-languages"
-            }
-        ],
-        "improvements": [],
-        "fixes": []
-    },
-    {
         "id": "v0.128.14",
         "date": "2026-11-18",
         "features": [
@@ -197,6 +183,34 @@
             {
                 "area": "Runs",
                 "text": "Long turns are no longer cut short by the output budget"
+            }
+        ]
+    },
+    {
+        "id": "v0.124.1",
+        "date": "2026-10-25",
+        "features": [
+            {
+                "id": "project-provider-keys-only",
+                "title": "Projects use only their own provider keys",
+                "body": "Prompts and evaluators now run on the provider keys saved in the project. A project without a key for a provider gets the error \"No API key found for model\". Add the key in **Settings > Providers & Models**.\n\nCustom providers need their own API key, except Bedrock, SageMaker and Vertex. Self-hosted Enterprise deployments can opt in to keys set on the services container.",
+                "link": "https://agenta.ai/docs/changelog/project-provider-keys-only"
+            }
+        ],
+        "improvements": [
+            {
+                "area": "Models",
+                "text": "Built-in Gemini uses gemini-3.8-flash with low thinking by default"
+            }
+        ],
+        "fixes": [
+            {
+                "area": "Models",
+                "text": "Built-in Gemini turns no longer hang when a Vertex call stalls"
+            },
+            {
+                "area": "Sign-up",
+                "text": "Gmail addresses with dots or a +tag count as one address at sign-up"
             }
         ]
     }
