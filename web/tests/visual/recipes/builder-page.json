@@ -6,7 +6,7 @@
         "height": 860,
         "theme": "light",
         "selector": "[data-testid=\"builder-page-story\"]",
-        "ready": "text=Browse ideas"
+        "ready": "text=More ideas"
     },
     {
         "id": "builder-page-b01-new-chat-dark",
@@ -15,11 +15,11 @@
         "height": 860,
         "theme": "dark",
         "selector": "[data-testid=\"builder-page-story\"]",
-        "ready": "text=Browse ideas"
+        "ready": "text=More ideas"
     },
     {
-        "id": "builder-page-b02-browse-ideas-light",
-        "story": "builderlayout-builder-page-builder-page--browse-ideas",
+        "id": "builder-page-b02-more-ideas-light",
+        "story": "builderlayout-builder-page-builder-page--more-ideas",
         "width": 1000,
         "height": 860,
         "theme": "light",

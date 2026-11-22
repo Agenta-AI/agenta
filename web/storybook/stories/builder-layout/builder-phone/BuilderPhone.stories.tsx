@@ -24,7 +24,7 @@ const noop = () => undefined
 
 /**
  * The builder full screen on a phone, at 390 x 844: M04 new chat, M05 change card, M06 chat
- * history. The header, the new chat, the chip, the quick actions, the recent chats, the history
+ * history. The header, the new chat, the chip, the ready requests, the recent chats, the history
  * and the change card are the production components with `phone` on; the composer frame stands in
  * for the production composer, which needs a live conversation.
  */
@@ -93,7 +93,7 @@ const BuilderPhoneFrame = ({
                 <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-3">
                     <NewChatIntro agentName={BUILDER_PANEL_AGENT} />
                     {composer}
-                    <QuickActions sessionId="story-phone-new-chat" onPick={noop} phone />
+                    <QuickActions agentName={BUILDER_PANEL_AGENT} onPick={noop} phone />
                     <RecentChats
                         rows={BUILDER_CHATS}
                         failed={false}
@@ -127,7 +127,7 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-/** M04: the new chat with the chip, the five quick actions and three recent chats. */
+/** M04: the new chat with the chip, the four ready requests and three recent chats. */
 export const NewChat: Story = {}
 
 /** M04 in the dark theme. */

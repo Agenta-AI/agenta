@@ -8,7 +8,7 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {readBuilderChats, rememberBuilderChat} from "@/features/builder/builderChatLink"
 import {chatAge, sessionToOpen} from "@/features/builder/openRule"
-import {QUICK_ACTION_LABELS, READY_REQUESTS} from "@/features/builder/quickActions"
+import {READY_REQUESTS} from "@/features/builder/quickActions"
 import type {BuilderChatRow} from "@/features/builder/useBuilderChatList"
 
 const NOW = Date.parse("2026-11-20T12:00:00Z")
@@ -80,19 +80,15 @@ describe("the chat link", () => {
     })
 })
 
-describe("the quick actions", () => {
-    it("have a label, and three ready requests with a line each, in the catalog", () => {
-        const keys = new Set(
-            Object.keys(builderPanelCatalog.en).map((key) => `builder.panel.${key}`),
-        )
-        for (const [action, label] of Object.entries(QUICK_ACTION_LABELS)) {
-            expect(keys.has(label)).toBe(true)
-            const requests = READY_REQUESTS[action as keyof typeof READY_REQUESTS]
-            expect(requests).toHaveLength(3)
-            for (const {request, line} of requests) {
-                expect(keys.has(request)).toBe(true)
-                expect(keys.has(line)).toBe(true)
-            }
+describe("the ready requests of the panel", () => {
+    it("are four, each with a title, a line and a request that names the agent", () => {
+        const en = builderPanelCatalog.en as Record<string, string>
+        const text = (key: string) => en[key.replace("builder.panel.", "")]
+        expect(READY_REQUESTS).toHaveLength(4)
+        for (const {title, line, request} of READY_REQUESTS) {
+            expect(text(title)).toBeTruthy()
+            expect(text(line)).toBeTruthy()
+            expect(text(request)).toContain("{{agent}}")
         }
     })
 })

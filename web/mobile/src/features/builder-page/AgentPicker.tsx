@@ -20,7 +20,7 @@ import {useAtomValue} from "jotai"
 import type {AgentRef} from "./paneAgent"
 
 /**
- * The agent list behind "Improve an agent": the project's agents with a search. A pick names the
+ * The agent list behind "Optimize an agent": the project's agents with a search. A pick names the
  * agent; the caller puts its chip in the composer.
  */
 export const AgentPicker = ({

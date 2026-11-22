@@ -10,7 +10,7 @@ const BuilderHero = dynamic(() => import("./hero/BuilderHero").then((m) => m.Bui
     loading: () => <div className="size-[180px]" />,
 })
 
-/** The top of a new chat on the builder page (B01): the hero, "Builder" and what it does. */
+/** The top of a new chat on the builder page (B01): the hero, the question and what it does. */
 export const NewBuilderChat = ({heroState}: {heroState: HeroState}) => {
     const t = useT(builderPageCatalog)
     return (
@@ -20,7 +20,7 @@ export const NewBuilderChat = ({heroState}: {heroState: HeroState}) => {
                 <BuilderHero state={heroState} className="size-[180px]" />
             </div>
             <h1 className="m-0 mt-1.5 text-[28px] leading-[34px] font-semibold tracking-tight text-colorText">
-                {t("builder.page.builder")}
+                {t("builder.page.heroTitle")}
             </h1>
             <p className="m-0 mt-1 max-w-[420px] text-sm text-colorTextSecondary">
                 {t("builder.page.heroLine")}

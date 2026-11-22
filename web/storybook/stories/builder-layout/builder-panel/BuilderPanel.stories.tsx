@@ -9,10 +9,6 @@ import {ChatHistoryList} from "../../../../mobile/src/features/builder/ChatHisto
 import {ContextChip} from "../../../../mobile/src/features/builder/ContextChip"
 import {NewChatIntro} from "../../../../mobile/src/features/builder/NewChatIntro"
 import {QuickActions} from "../../../../mobile/src/features/builder/QuickActions"
-import {
-    writeOpenQuickAction,
-    type QuickAction,
-} from "../../../../mobile/src/features/builder/quickActions"
 import {RecentChats} from "../../../../mobile/src/features/builder/RecentChats"
 import {pageSessionIdAtom} from "../../../../mobile/src/features/chat/pageSessionId"
 import type {StoryScope} from "../../../.storybook/decorators/withAgentaData"
@@ -26,22 +22,11 @@ const noop = () => undefined
 
 /**
  * The builder panel of S07, S08 and S09 at its 440 px width. The header, the new chat, the chip,
- * the quick actions, the recent chats and the history are the panel's own components; the
+ * the ready requests, the recent chats and the history are the panel's own components; the
  * composer frame stands in for the production composer, which needs a live conversation.
  */
-const BuilderPanelFrame = ({
-    projectId,
-    view,
-    openAction,
-}: {
-    projectId: string
-    view: "new" | "history"
-    openAction?: QuickAction
-}) => {
+const BuilderPanelFrame = ({projectId, view}: {projectId: string; view: "new" | "history"}) => {
     const t = useT(builderPanelCatalog)
-    const sessionId = `story-new-chat-${openAction ?? "none"}`
-    // Before the first render: the quick actions read it when they mount.
-    useState(() => writeOpenQuickAction(sessionId, openAction ?? null))
     const [search, setSearch] = useState("")
     const rows = BUILDER_CHATS.filter((row) =>
         row.name?.toLowerCase().includes(search.trim().toLowerCase()),
@@ -81,7 +66,7 @@ const BuilderPanelFrame = ({
                             {t("builder.panel.placeholder")}
                         </span>
                     </div>
-                    <QuickActions sessionId={sessionId} onPick={noop} />
+                    <QuickActions agentName={BUILDER_PANEL_AGENT} onPick={noop} />
                     <RecentChats
                         rows={BUILDER_CHATS}
                         failed={false}
@@ -114,11 +99,8 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-/** S07: a new chat with the chip, the five quick actions and three recent chats. */
+/** S07: a new chat with the chip, the four ready requests and three recent chats. */
 export const NewChat: Story = {}
-
-/** S08: "Test" open with its three ready requests. */
-export const QuickActionOpen: Story = {args: {openAction: "test"}}
 
 /** S09: the chat history with its search. */
 export const ChatHistory: Story = {args: {view: "history"}}

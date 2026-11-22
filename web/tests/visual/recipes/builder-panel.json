@@ -11,15 +11,6 @@
             "themes": ["light", "dark"]
         },
         {
-            "frame": "S08",
-            "name": "Builder panel, the quick action Test open",
-            "kind": "story",
-            "story": "builderlayout-builder-panel-builder-panel--quick-action-open",
-            "crop": "[data-testid=\"builder-panel-story\"]",
-            "design": "boards/session__S08-builder-panel-quick.png",
-            "themes": ["light"]
-        },
-        {
             "frame": "S09",
             "name": "Builder panel, chat history",
             "kind": "story",
@@ -37,17 +28,6 @@
             "capture": "page",
             "viewport": [1440, 900],
             "design": "boards/session__S07-builder-panel-empty.png",
-            "themes": ["light"]
-        },
-        {
-            "frame": "S08",
-            "name": "Builder panel on a session, Test open",
-            "kind": "screen",
-            "route": "/m/w/{workspace}/p/{project}/sessions/{s_charged}",
-            "steps": ["Click the header button \"Builder\"", "Click the quick action \"Test\""],
-            "capture": "page",
-            "viewport": [1440, 900],
-            "design": "boards/session__S08-builder-panel-quick.png",
             "themes": ["light"]
         },
         {

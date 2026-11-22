@@ -237,7 +237,7 @@ describe("BuilderPanel: which chat opens", () => {
         expect(seen.props?.entityId).toBe("builder-rev")
         expect(seen.role).toBe("embedded")
         expect(seen.props?.hideSlashCommands).toBe(true)
-        expect(seen.props?.composerPlaceholder).toBe("Ask the builder about this agent")
+        expect(seen.props?.composerPlaceholder).toBe("Ask for a change, a test or an explanation")
     })
 
     it("opens the newest stored chat when it ran in the last 2 days", async () => {
@@ -251,7 +251,7 @@ describe("BuilderPanel: which chat opens", () => {
         expect(seen.props?.sessionId).toBe("recent-chat")
         expect(byTestId("builder-chat-title")?.textContent).toBe("Urgency")
         // A chat with messages shows no quick actions.
-        expect(byTestId("builder-quick-actions")).toBeNull()
+        expect(byTestId("builder-ready-requests")).toBeNull()
     })
 
     it("opens a new chat when the newest chat is 3 days old, and lists it under Recent chats", async () => {
@@ -332,25 +332,28 @@ describe("BuilderPanel: which chat opens", () => {
 describe("BuilderPanel: new chat", () => {
     it("shows the question and the line with the agent name", async () => {
         await render()
-        expect(container.textContent).toContain("What should we change?")
-        expect(container.textContent).toContain("I can change, test and explain Support triage.")
+        expect(container.textContent).toContain("What should we change in Support triage?")
+        expect(container.textContent).toContain(
+            "I can change it, test it and explain how it works.",
+        )
     })
 
-    it("opens one quick action at a time, and a ready request fills the composer without sending", async () => {
+    it("lists four ready requests, and one fills the composer with the agent name without sending", async () => {
         await render()
-        await click(button("Test"))
         const ready = byTestId("builder-ready-requests")!
-        expect(ready.textContent).toContain("Test with 5 sample requests")
-        expect(ready.textContent).toContain("I write the requests and check the answers")
-        await click(button("Skills"))
-        expect(byTestId("builder-ready-requests")!.textContent).toContain("Suggest a skill")
-        await click(button("Skills"))
-        expect(byTestId("builder-ready-requests")).toBeNull()
-        await click(button("Explain"))
-        await click(
-            [...container.querySelectorAll("[data-testid=builder-ready-requests] button")][0],
-        )
-        expect(seen.filled).toEqual(["Explain what this agent does"])
+        const rows = [...ready.querySelectorAll("button")]
+        expect(rows.map((row) => row.firstElementChild?.textContent)).toEqual([
+            "Suggest improvements",
+            "Check for problems",
+            "Optimize",
+            "Explain how it works",
+        ])
+        expect(ready.textContent).toContain("I test it and try a cheaper model")
+        expect(ready.querySelector("svg")).toBeNull()
+        await click(rows[3])
+        expect(seen.filled).toEqual([
+            "Explain what Support triage does, which tools and automations it uses, and where it can go wrong.",
+        ])
         expect(readBuilderChats(user(), "p1", "agent-1")).toEqual([])
     })
 
@@ -508,14 +511,13 @@ describe("BuilderPanel: page context", () => {
 })
 
 describe("BuilderPanel: same-agent switch", () => {
-    it("keeps the chat, its quick action and the conversation; only the chip renders", async () => {
+    it("keeps the chat, its ready requests and the conversation; only the chip renders", async () => {
         rememberBuilderChat(user(), "p1", "agent-1", "old-chat")
         list.rows = [{session_id: "old-chat", name: "Old", updated_at: hoursAgo(100)}]
         store.set(pageSessionIdAtom, "s1")
         headers.rows.s1 = {name: "Charged twice for March"}
         headers.rows.s2 = {name: "Login fails on Safari"}
         await render()
-        await click(button("Test"))
         const sessionId = seen.props!.sessionId
         const renders = seen.renders
         const mounts = seen.mounts
@@ -533,15 +535,14 @@ describe("BuilderPanel: same-agent switch", () => {
         expect(byTestId("builder-ready-requests")).not.toBeNull()
     })
 
-    it("restores the same chat and its open quick action after a remount (a page file change)", async () => {
+    it("restores the same chat and its ready requests after a remount (a page file change)", async () => {
         await render()
-        await click(button("Automate"))
         const sessionId = seen.props!.sessionId
         act(() => root.unmount())
         root = createRoot(container)
         await render()
         expect(seen.props?.sessionId).toBe(sessionId)
-        expect(byTestId("builder-ready-requests")?.textContent).toContain("Run it every morning")
+        expect(byTestId("builder-ready-requests")?.textContent).toContain("Check for problems")
     })
 })
 
@@ -569,13 +570,12 @@ describe("BuilderPanel: on a phone (M04, M06)", () => {
         expect(container.querySelector('[aria-label="Back to Session"]')).toBeNull()
     })
 
-    it("shows the quick actions with their icons and 44 px recent chats", async () => {
+    it("shows 44 px ready requests and 44 px recent chats", async () => {
         rememberBuilderChat(user(), "p1", "agent-1", "old-chat")
         list.rows = [{session_id: "old-chat", name: "Daily summary", updated_at: hoursAgo(100)}]
         await render()
-        const test = button("Test")
-        expect(test?.querySelector("svg")).not.toBeNull()
-        expect(test?.className).toContain("h-10")
+        const row = byTestId("builder-ready-requests")?.querySelector("button")
+        expect(row?.className).toContain("min-h-11")
         expect(byTestId("builder-chat-row")?.className).toContain("h-11")
         // M04: the intro, composer and quick actions at the top, Recent chats at the bottom.
         expect(byTestId("new-chat-footer")?.getAttribute("data-layout")).toBe("top")

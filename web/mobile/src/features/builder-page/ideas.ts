@@ -1,74 +1,126 @@
-import type {ComponentType} from "react"
-
 import type {CatalogKey} from "@agenta/i18n"
 import type builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 
 export type PageKey = CatalogKey<typeof builderPageCatalog>
 
-/** A glyph of an idea, a category or a quick action: a Phosphor icon or the Builder mark. */
-export type Glyph = ComponentType<{size?: number; className?: string}>
-
-/** The categories of "Browse ideas" (B02), after "All". */
+/** The categories of "More ideas", after "All", in the order of the ideas. */
 export const IDEA_CATEGORIES = [
     "gettingStarted",
-    "support",
+    "forClients",
     "sales",
     "operations",
-    "engineering",
-    "improve",
-    "test",
-    "automations",
+    "marketing",
+    "forAgency",
+    "support",
 ] as const
 export type IdeaCategory = (typeof IDEA_CATEGORIES)[number]
 
 export const CATEGORY_LABELS: Record<IdeaCategory | "all", PageKey> = {
     all: "builder.page.catAll",
     gettingStarted: "builder.page.catGettingStarted",
-    support: "builder.page.catSupport",
+    forClients: "builder.page.catForClients",
     sales: "builder.page.catSales",
     operations: "builder.page.catOperations",
-    engineering: "builder.page.catEngineering",
-    improve: "builder.page.catImprove",
-    test: "builder.page.catTest",
-    automations: "builder.page.catAutomations",
+    marketing: "builder.page.catMarketing",
+    forAgency: "builder.page.catForAgency",
+    support: "builder.page.catSupport",
 }
 
-/** One ready prompt: its title and the request it puts in the composer. */
+/** One ready prompt: its title, the short line under it and the request it puts in the composer. */
 export interface Idea {
     category: IdeaCategory
     title: PageKey
+    line: PageKey
     prompt: PageKey
 }
 
-const idea = (category: IdeaCategory, title: PageKey, prompt: PageKey): Idea => ({
+const idea = (category: IdeaCategory, title: PageKey, line: PageKey, prompt: PageKey): Idea => ({
     category,
     title,
+    line,
     prompt,
 })
 
-/** The ready prompts, in the order of the prototype (BEHAVIOR 6). */
+/** The ready prompts, from the agency use cases. */
 export const IDEAS: readonly Idea[] = [
-    idea("gettingStarted", "builder.page.ideaFirstAgent", "builder.page.ideaFirstAgentPrompt"),
-    idea("gettingStarted", "builder.page.ideaWhatCan", "builder.page.ideaWhatCanPrompt"),
-    idea("gettingStarted", "builder.page.ideaTemplate", "builder.page.ideaTemplatePrompt"),
-    idea("support", "builder.page.ideaTriage", "builder.page.ideaTriagePrompt"),
-    idea("support", "builder.page.ideaHelpCenter", "builder.page.ideaHelpCenterPrompt"),
-    idea("sales", "builder.page.ideaLeads", "builder.page.ideaLeadsPrompt"),
-    idea("sales", "builder.page.ideaFirstEmails", "builder.page.ideaFirstEmailsPrompt"),
-    idea("operations", "builder.page.ideaWeeklyReport", "builder.page.ideaWeeklyReportPrompt"),
-    idea("operations", "builder.page.ideaInvoices", "builder.page.ideaInvoicesPrompt"),
-    idea("engineering", "builder.page.ideaGithub", "builder.page.ideaGithubPrompt"),
-    idea("engineering", "builder.page.ideaFailedRuns", "builder.page.ideaFailedRunsPrompt"),
-    idea("improve", "builder.page.ideaShorter", "builder.page.ideaShorterPrompt"),
-    idea("improve", "builder.page.ideaFixSession", "builder.page.ideaFixSessionPrompt"),
-    idea("test", "builder.page.ideaRealExamples", "builder.page.ideaRealExamplesPrompt"),
-    idea("test", "builder.page.ideaCompare", "builder.page.ideaComparePrompt"),
-    idea("automations", "builder.page.ideaSchedule", "builder.page.ideaSchedulePrompt"),
-    idea("automations", "builder.page.ideaAppEvent", "builder.page.ideaAppEventPrompt"),
+    idea(
+        "gettingStarted",
+        "builder.page.ideaFirstAgent",
+        "builder.page.ideaFirstAgentLine",
+        "builder.page.ideaFirstAgentPrompt",
+    ),
+    idea(
+        "gettingStarted",
+        "builder.page.ideaTemplate",
+        "builder.page.ideaTemplateLine",
+        "builder.page.ideaTemplatePrompt",
+    ),
+    idea(
+        "forClients",
+        "builder.page.ideaQuotes",
+        "builder.page.ideaQuotesLine",
+        "builder.page.ideaQuotesPrompt",
+    ),
+    idea(
+        "forClients",
+        "builder.page.ideaCustomerQuestions",
+        "builder.page.ideaCustomerQuestionsLine",
+        "builder.page.ideaCustomerQuestionsPrompt",
+    ),
+    idea(
+        "sales",
+        "builder.page.ideaLeadReplies",
+        "builder.page.ideaLeadRepliesLine",
+        "builder.page.ideaLeadRepliesPrompt",
+    ),
+    idea(
+        "operations",
+        "builder.page.ideaInvoicesForms",
+        "builder.page.ideaInvoicesFormsLine",
+        "builder.page.ideaInvoicesFormsPrompt",
+    ),
+    idea(
+        "marketing",
+        "builder.page.ideaSocialPosts",
+        "builder.page.ideaSocialPostsLine",
+        "builder.page.ideaSocialPostsPrompt",
+    ),
+    idea(
+        "forAgency",
+        "builder.page.ideaClientReport",
+        "builder.page.ideaClientReportLine",
+        "builder.page.ideaClientReportPrompt",
+    ),
+    idea(
+        "forAgency",
+        "builder.page.ideaProposals",
+        "builder.page.ideaProposalsLine",
+        "builder.page.ideaProposalsPrompt",
+    ),
+    idea(
+        "support",
+        "builder.page.ideaSupportReplies",
+        "builder.page.ideaSupportRepliesLine",
+        "builder.page.ideaSupportRepliesPrompt",
+    ),
+    idea(
+        "sales",
+        "builder.page.ideaProspectList",
+        "builder.page.ideaProspectListLine",
+        "builder.page.ideaProspectListPrompt",
+    ),
+    idea(
+        "sales",
+        "builder.page.ideaFollowUp",
+        "builder.page.ideaFollowUpLine",
+        "builder.page.ideaFollowUpPrompt",
+    ),
 ]
 
-/** The ideas of `category` whose title or prompt holds `search`, ignoring case. */
-export const filterIdeas = <T extends {category: IdeaCategory; title: string; prompt: string}>(
+/** The ideas of `category` whose title, line or prompt holds `search`, ignoring case. */
+export const filterIdeas = <
+    T extends {category: IdeaCategory; title: string; line: string; prompt: string},
+>(
     ideas: readonly T[],
     category: IdeaCategory | "all",
     search: string,
@@ -79,6 +131,7 @@ export const filterIdeas = <T extends {category: IdeaCategory; title: string; pr
             (category === "all" || entry.category === category) &&
             (!query ||
                 entry.title.toLowerCase().includes(query) ||
+                entry.line.toLowerCase().includes(query) ||
                 entry.prompt.toLowerCase().includes(query)),
     )
 }
