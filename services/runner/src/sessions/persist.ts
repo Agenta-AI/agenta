@@ -442,6 +442,23 @@ const OPEN_TOOL_TTL_MS = envTimerMs("AGENTA_RECORD_TOOL_TTL_MS", 3_000, {
  *    drains. The record carries a turn-scoped stable uuid5 id so retries upsert within
  *    one execution without overwriting the same tool call from another execution.
  */
+/**
+ * A failure record carries the model that ran, so the API can report the failure with it.
+ * The run's config can differ from the session's revision (a lab or playground override), and
+ * the trace lands too late to read at failure time, so only the runner knows this for sure.
+ */
+function withFailureModel(
+  event: AgentEvent,
+  model?: string,
+): AgentEvent & { model?: string } {
+  if (!model) return event;
+  const failed =
+    event.type === "error" ||
+    event.type === "mcp_server_failed" ||
+    (event.type === "tool_result" && event.isError && !event.denied);
+  return failed ? { ...event, model } : event;
+}
+
 export function buildPersistingEmitter(
   sessionId: string,
   auth: () => string,
@@ -449,6 +466,7 @@ export function buildPersistingEmitter(
   redactor?: Redactor,
   turnId?: string,
   spanId?: string,
+  model?: string,
 ): {
   emit: (event: AgentEvent) => void;
   /** Persist an out-of-band record (e.g. the inbound user turn) through the same
@@ -491,10 +509,11 @@ export function buildPersistingEmitter(
     );
   };
 
-  const emit = (event: AgentEvent): void => {
+  const emit = (liveEvent: AgentEvent): void => {
     // Always forward to the live stream (if any).
-    liveEmit?.(event);
-    liveFrames?.emit(event);
+    liveEmit?.(liveEvent);
+    liveFrames?.emit(liveEvent);
+    const event = withFailureModel(liveEvent, model);
 
     // Transient data describes the current live turn. It must not become transcript history.
     if (event.type === "data" && event.transient) return;
@@ -626,7 +645,7 @@ export function buildPersistingEmitter(
     persistEvent(
       sessionId,
       auth,
-      event,
+      withFailureModel(event, model),
       eventIndex++,
       sender,
       undefined,

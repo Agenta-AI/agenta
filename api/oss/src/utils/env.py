@@ -2027,6 +2027,11 @@ class PostHogConfig(BaseModel):
     # true in every checkout — and a consumer that must tell "this operator runs
     # PostHog" from "this is a stock local stack" needs the difference.
     api_key_configured: bool = bool(os.getenv("POSTHOG_API_KEY"))
+    # Allows prompt and error text in `agent_failure` events. Off by default, because that
+    # text is customer content.
+    agent_failure_details: bool = _parse_bool_env(
+        "POSTHOG_AGENT_FAILURE_DETAILS", False
+    )
 
     model_config = ConfigDict(extra="ignore")
 
