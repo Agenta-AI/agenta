@@ -22,7 +22,7 @@ export const EmbedHeader = ({
 }) => (
     <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
         <EmbedAvatar appearance={appearance} />
-        <h1 className="m-0 min-w-0 grow truncate text-sm font-medium text-foreground">
+        <h1 className="m-0 min-w-0 grow truncate text-label text-foreground">
             {appearance.name}
         </h1>
         {hasHistory ? (

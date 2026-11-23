@@ -37,10 +37,10 @@ export const RecentChats = ({
         <div className="flex flex-col gap-px" data-testid="builder-recent-chats">
             <div
                 className={cn(
-                    "flex items-center text-colorTextSecondary",
+                    "flex items-center text-muted-foreground",
                     // The 44 px hit area of "View all" reaches 14 px below the line: the gap
                     // keeps it off the first row.
-                    phone ? "px-1 pb-3.5 text-[13px]" : "px-2 pb-1 text-[12px] leading-5",
+                    phone ? "px-1 pb-3.5 text-label" : "px-2 pb-1 text-meta leading-5",
                 )}
             >
                 <span className="flex-1">{t("builder.panel.recentChats")}</span>
@@ -49,10 +49,10 @@ export const RecentChats = ({
                         type="button"
                         onClick={onViewAll}
                         className={cn(
-                            "cursor-pointer border-0 bg-transparent font-medium text-colorText underline underline-offset-2",
+                            "cursor-pointer border-0 bg-transparent font-medium text-foreground underline underline-offset-2",
                             phone
-                                ? "relative p-0 text-[13px] after:absolute after:-inset-x-1 after:-inset-y-3.5 after:content-['']"
-                                : "-mr-1.5 rounded-[6px] px-1.5 py-0.5 text-[12px] leading-5 hover:bg-accent",
+                                ? "relative p-0 text-label after:absolute after:-inset-x-1 after:-inset-y-3.5 after:content-['']"
+                                : "-mr-1.5 rounded-[6px] px-1.5 py-0.5 text-meta leading-5 hover:bg-accent",
                         )}
                     >
                         {t("builder.panel.viewAll")}

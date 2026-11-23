@@ -35,7 +35,6 @@ export const PromptsCreateMenu = ({
                 <Button
                     size="sm"
                     disabled={newPrompt?.pending}
-                    className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
                 >
                     <PlusIcon size={14} />
                     {promptsCopy.createNew}

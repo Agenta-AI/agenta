@@ -8,11 +8,10 @@ import {
     BreadcrumbList,
     BreadcrumbPage,
     BreadcrumbSeparator,
-    PHONE_TOUCH_TARGET_CLASS,
 } from "@agenta/ui/ui"
 import Link from "next/link"
 
-const CRUMB_LINK = `block min-w-0 cursor-pointer rounded-md border-0 bg-transparent px-1.5 py-[3px] text-[13px] leading-5 text-muted-foreground no-underline hover:bg-accent hover:text-foreground ${PHONE_TOUCH_TARGET_CLASS}`
+const CRUMB_LINK = `block min-w-0 cursor-pointer rounded-md border-0 bg-transparent px-1.5 py-1 text-label leading-5 text-muted-foreground no-underline hover:bg-accent hover:text-foreground focus-ring`
 
 /**
  * "Automations › <name> › Run history": the run history page names where it sits, as the panel
@@ -30,7 +29,7 @@ export const AutomationRunHistoryCrumb = ({
     const t = useT(automationsScreensCatalog, automationsEditorCatalog)
     return (
         <Breadcrumb className="-ml-1.5 min-w-0">
-            <BreadcrumbList className="flex-nowrap items-center gap-0.5 text-[13px] sm:gap-0.5">
+            <BreadcrumbList className="flex-nowrap items-center gap-0.5 text-label">
                 <BreadcrumbItem className="shrink-0">
                     <BreadcrumbLink asChild>
                         <Link href={listHref} className={CRUMB_LINK}>
@@ -40,7 +39,7 @@ export const AutomationRunHistoryCrumb = ({
                         </Link>
                     </BreadcrumbLink>
                 </BreadcrumbItem>
-                <BreadcrumbSeparator className="mx-0.5 h-auto text-colorTextTertiary">
+                <BreadcrumbSeparator className="mx-0.5 h-auto text-muted-foreground">
                     ›
                 </BreadcrumbSeparator>
                 <BreadcrumbItem className="min-w-0">
@@ -50,11 +49,11 @@ export const AutomationRunHistoryCrumb = ({
                         </button>
                     </BreadcrumbLink>
                 </BreadcrumbItem>
-                <BreadcrumbSeparator className="mx-0.5 h-auto text-colorTextTertiary">
+                <BreadcrumbSeparator className="mx-0.5 h-auto text-muted-foreground">
                     ›
                 </BreadcrumbSeparator>
                 <BreadcrumbItem className="shrink-0">
-                    <BreadcrumbPage className="px-1.5 py-[3px] text-[13px] font-semibold leading-5 text-foreground">
+                    <BreadcrumbPage className="px-1.5 py-1 text-label leading-5 text-foreground">
                         {t("automations.editor.runHistory")}
                     </BreadcrumbPage>
                 </BreadcrumbItem>

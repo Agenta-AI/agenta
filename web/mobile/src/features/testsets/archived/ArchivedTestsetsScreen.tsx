@@ -72,11 +72,11 @@ export const ArchivedTestsetsScreen = ({
                                         <ArrowLeft aria-hidden />
                                     </Link>
                                 </Button>
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                                     Archived test sets
                                 </h1>
                             </div>
-                            <p className="m-0 mt-1 text-[13px] text-muted-foreground">
+                            <p className="m-0 mt-1 text-label text-muted-foreground">
                                 Archived test sets are hidden from your workspace but can be
                                 restored at any time.
                             </p>

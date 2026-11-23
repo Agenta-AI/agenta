@@ -46,8 +46,8 @@ export interface SavedKey {
 }
 
 const providerMark = (kind: string) => (
-    <span className="bg-background ring-border flex size-5 shrink-0 items-center justify-center rounded-[5px] ring-1 ring-inset">
-        {createElement(providerIconFor(kind), {className: "size-[15px]"})}
+    <span className="bg-background ring-border flex size-5 shrink-0 items-center justify-center rounded-sm ring-1 ring-inset">
+        {createElement(providerIconFor(kind), {className: "size-3"})}
     </span>
 )
 
@@ -134,25 +134,25 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
     // The line under the key: the check that runs, or what it answered.
     const checkLine =
         checkState.phase === "checking" ? (
-            <span role="status" className="text-muted-foreground flex items-center gap-1.5 text-xs">
+            <span role="status" className="text-muted-foreground flex items-center gap-1.5 text-meta">
                 <Spinner size="small" />
                 {t("entityUi.providerKeyForm.checking", {provider: providerName})}
                 <Button
                     type="button"
                     variant="link"
                     size="sm"
-                    className="h-auto px-0 text-xs"
+                    className="h-auto px-0 text-meta"
                     onClick={() => keyCheck.stop()}
                 >
                     {t("entityUi.providerKeyForm.stop")}
                 </Button>
             </span>
         ) : status === "invalid" ? (
-            <span role="alert" className="text-destructive text-xs leading-4">
+            <span role="alert" className="text-destructive text-meta">
                 {t("entityUi.providerKeyForm.keyRejected", {provider: providerName})}
             </span>
         ) : status === "valid" ? (
-            <span role="status" className="text-success text-xs leading-4">
+            <span role="status" className="text-success text-meta">
                 {checkState.phase === "done" && checkState.result.discovery.status === "fetched"
                     ? t("entityUi.providerKeyForm.keyWorks", {
                           count: checkState.result.discovery.models?.length ?? 0,
@@ -160,11 +160,11 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
                     : t("entityUi.providerKeyForm.keyWorksNoList")}
             </span>
         ) : status === "unknown" ? (
-            <span role="status" className="text-muted-foreground text-xs leading-4">
+            <span role="status" className="text-muted-foreground text-meta">
                 {t("entityUi.providerKeyForm.noFreeCheck")}
             </span>
         ) : checkState.phase === "failed" ? (
-            <span role="alert" className="text-destructive text-xs leading-4">
+            <span role="alert" className="text-destructive text-meta">
                 {t("entityUi.providerKeyForm.checkFailed")}
             </span>
         ) : null
@@ -184,11 +184,11 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
                         variant="outline"
                         role="combobox"
                         aria-label={t("onboarding.keyForm.provider")}
-                        className="h-8 w-full justify-start gap-2 pl-1.5 pr-2 font-medium"
+                        className="w-full justify-start gap-2 pl-1.5 pr-2"
                     >
                         {providerMark(provider.kind)}
                         <span className="min-w-0 flex-1 truncate text-left">{provider.title}</span>
-                        <span className="text-muted-foreground text-xs font-normal">
+                        <span className="text-muted-foreground text-meta">
                             {t("onboarding.keyForm.providerCount", {total: KEY_PROVIDERS.length})}
                         </span>
                         <CaretUpDown size={12} className="text-muted-foreground" />
@@ -205,7 +205,7 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
                 >
                     <Command filter={matchProvider}>
                         <CommandInput placeholder={t("onboarding.keyForm.search")} />
-                        <CommandList className="max-h-[212px]">
+                        <CommandList className="max-h-53">
                             <CommandEmpty>{t("onboarding.keyForm.noMatch")}</CommandEmpty>
                             <CommandGroup>
                                 {KEY_PROVIDERS.map((entry) => (
@@ -256,13 +256,13 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
                     type="submit"
                     loading={phase === "saving"}
                     disabled={status === "invalid"}
-                    className="max-sm:h-11 max-sm:w-full"
+                    className="max-sm:w-full"
                 >
                     {t("onboarding.keyForm.save")}
                 </LoadingButton>
             </div>
             {error ? (
-                <span role="alert" className="text-destructive text-xs leading-4">
+                <span role="alert" className="text-destructive text-meta">
                     {error}
                 </span>
             ) : (

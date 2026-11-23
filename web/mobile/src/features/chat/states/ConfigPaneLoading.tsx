@@ -27,7 +27,7 @@ export const ConfigPaneLoading = () => {
             aria-label={t("chat.mobileConfig.loadingConfiguration")}
         >
             <div className={CONFIG_REGION_BAR}>
-                <span className="text-[13px] font-semibold text-foreground">
+                <span className="text-label font-semibold text-foreground">
                     {t("chat.mobileConfig.configuration")}
                 </span>
                 <SkeletonBlock active className="h-7 w-7" />
@@ -37,7 +37,7 @@ export const ConfigPaneLoading = () => {
                     <div
                         key={i}
                         className={
-                            "flex min-h-[44px] items-center gap-2 py-3" +
+                            "flex min-h-11 items-center gap-2 py-3" +
                             (i < ROWS.length - 1
                                 ? " border-0 border-b border-solid border-border"
                                 : "")

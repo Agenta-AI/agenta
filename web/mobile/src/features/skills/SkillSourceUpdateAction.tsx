@@ -28,9 +28,8 @@ export const SkillSourceUpdateAction = ({ids}: {ids: string[]}) => {
     if (pending.length)
         return (
             <Button
-                size="sm"
+                size="xs"
                 variant="outline"
-                className="h-6 px-2 text-[11.5px] font-normal"
                 onClick={() => void apply(pending)}
             >
                 {t("skills.list.updateSkills", {count: pending.length})}
@@ -39,9 +38,9 @@ export const SkillSourceUpdateAction = ({ids}: {ids: string[]}) => {
 
     return (
         <Button
-            size="sm"
+            size="xs"
             variant="ghost"
-            className="h-6 gap-1 px-1.5 text-[11.5px] font-normal text-muted-foreground"
+            className="text-muted-foreground"
             onClick={() => void check(ids)}
         >
             <ArrowsClockwise aria-hidden size={12} />

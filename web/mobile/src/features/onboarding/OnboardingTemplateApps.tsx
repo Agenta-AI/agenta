@@ -35,18 +35,18 @@ export const OnboardingTemplateApps = ({template}: {template: AgentStarterTempla
             </span>
             <ul className="m-0 flex list-none flex-col p-0 max-sm:gap-2">
                 {apps.map((app) => (
-                    <li key={app.key} className="flex min-h-10 items-center gap-2.5">
+                    <li key={app.key} className="flex min-h-10 items-center gap-2">
                         <AppTile
                             app={{slug: app.key, name: app.name, logo: app.logo}}
                             size="sm"
                             decorative
                         />
-                        <span className="min-w-0 flex-1 truncate text-sm leading-5">
+                        <span className="min-w-0 flex-1 truncate text-label">
                             {app.name}
                         </span>
                         {connected.has(app.key) ? (
-                            <span className="text-muted-foreground inline-flex items-center gap-1 text-[13px] leading-5">
-                                <Check size={13} weight="bold" />
+                            <span className="text-muted-foreground inline-flex items-center gap-1 text-label leading-5">
+                                <Check size={13} />
                                 {t("onboarding.gallery.connected")}
                             </span>
                         ) : toolsEnabled ? (
@@ -65,7 +65,6 @@ export const OnboardingTemplateApps = ({template}: {template: AgentStarterTempla
                                         ).length,
                                     })
                                 }
-                                className="h-8 max-sm:h-10"
                             >
                                 {connectingKey === app.key ? <Spinner size="small" /> : null}
                                 {t("onboarding.gallery.connect")}

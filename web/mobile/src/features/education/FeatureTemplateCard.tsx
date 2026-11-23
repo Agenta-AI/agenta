@@ -31,9 +31,9 @@ export const FeatureTemplateCard = ({
             type="button"
             disabled={disabled}
             onClick={() => onSelect(template)}
-            className="box-border flex min-w-0 cursor-pointer flex-col disabled:cursor-wait disabled:opacity-60 rounded-xl border border-solid border-colorBorderSecondary bg-background px-4 pb-0 pt-4 text-left transition-[border-color,box-shadow] hover:border-border hover:shadow-[0_2px_8px_-2px_color-mix(in_srgb,var(--ag-colorText)_12%,transparent)]"
+            className="box-border flex min-w-0 cursor-pointer flex-col disabled:cursor-wait disabled:opacity-60 rounded-lg border border-solid border-border-muted bg-background px-4 pb-0 pt-4 text-left transition-colors hover:bg-[image:linear-gradient(var(--accent),var(--accent))] focus-ring"
         >
-            <span className="flex h-[30px] items-center">
+            <span className="flex h-8 items-center">
                 {shown.map((slug, index) => {
                     const provider = PROVIDERS[slug]
                     return (
@@ -42,7 +42,7 @@ export const FeatureTemplateCard = ({
                             title={provider?.label ?? slug}
                             className={cn(
                                 // Brand logos are drawn for a light ground: keep the tile white.
-                                "box-border inline-flex size-[30px] shrink-0 items-center justify-center rounded-[9px] border border-solid border-colorBorderSecondary bg-colorWhite",
+                                "box-border inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-solid border-border-muted bg-white",
                                 index > 0 && "-ml-1.5",
                             )}
                         >
@@ -50,10 +50,10 @@ export const FeatureTemplateCard = ({
                                 <img
                                     src={provider.logo}
                                     alt={provider.label}
-                                    className="size-[15px]"
+                                    className="size-4"
                                 />
                             ) : (
-                                <span className="text-xs font-medium text-black">
+                                <span className="text-label text-black">
                                     {slug.slice(0, 1).toUpperCase()}
                                 </span>
                             )}
@@ -61,18 +61,18 @@ export const FeatureTemplateCard = ({
                     )
                 })}
                 {more > 0 ? (
-                    <span className="ml-1.5 text-[13px] text-muted-foreground">+{more}</span>
+                    <span className="ml-1.5 text-label text-muted-foreground">+{more}</span>
                 ) : null}
             </span>
-            <span className="mt-3.5 text-[15px] font-medium text-foreground">{template.name}</span>
-            <span className="mt-1.5 line-clamp-2 min-h-10 text-[13.5px] leading-[1.5] text-muted-foreground">
+            <span className="mt-3 text-title text-foreground">{template.name}</span>
+            <span className="mt-1.5 line-clamp-2 min-h-11 text-body text-muted-foreground">
                 {template.description}
             </span>
-            <span className="mt-3 flex h-10 items-center justify-between gap-3 border-0 border-t border-solid border-colorBorderSecondary text-[12.5px] text-colorTextTertiary">
+            <span className="mt-3 flex h-10 items-center justify-between gap-3 border-0 border-t border-solid border-border-muted text-label text-muted-foreground">
                 <span className="flex min-w-0 items-center gap-1.5">
                     <TriggerIcon
                         weight="fill"
-                        className="size-[13px] shrink-0 text-colorTextQuaternary"
+                        className="size-3.5 shrink-0 text-muted-foreground"
                         aria-hidden
                     />
                     <span className="truncate">{template.trigger}</span>

@@ -36,13 +36,13 @@ const Message = ({message}: {message: TurnMessage}) => (
         <span
             className={
                 message.role === "exception"
-                    ? "text-xs font-medium capitalize text-destructive"
-                    : "text-xs font-medium capitalize text-muted-foreground"
+                    ? "text-meta capitalize text-destructive"
+                    : "text-meta capitalize text-muted-foreground"
             }
         >
             {message.role}
         </span>
-        <p className="m-0 whitespace-pre-wrap break-words text-sm text-foreground">
+        <p className="m-0 whitespace-pre-wrap break-words text-body text-foreground">
             {message.content}
         </p>
     </div>
@@ -86,7 +86,7 @@ export const SessionTurnPanel = ({
             <Accordion type="multiple" defaultValue={["trace"]}>
                 <AccordionItem value="trace">
                     <AccordionTrigger>
-                        <span className="text-sm font-medium">
+                        <span className="text-label">
                             {t("observability.sessionDrawer.traceN", {number: index + 1})}
                         </span>
                     </AccordionTrigger>
@@ -177,7 +177,7 @@ export const SessionTurnPanel = ({
                                 <div
                                     className={
                                         annotationsBeside
-                                            ? "w-[300px] shrink-0 border-0 border-l border-solid border-border p-4"
+                                            ? "w-75 shrink-0 border-0 border-l border-solid border-border p-4"
                                             : "border-0 border-t border-solid border-border p-4"
                                     }
                                 >

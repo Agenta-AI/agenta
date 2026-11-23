@@ -8,9 +8,9 @@ import {SessionListLoadMore, type SessionMenuEntry} from "@agenta/sessions-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn, type ListTableGroup} from "@agenta/ui/list-table"
-import {Button, PHONE_TOUCH_TARGET_CLASS, SimpleTooltip} from "@agenta/ui/ui"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
-import {Plus} from "lucide-react"
+import {PlusIcon} from "@phosphor-icons/react"
 
 import {deriveSessionGroups, type SessionGrouping} from "./sessionListView"
 import {SessionRowCells} from "./SessionRowCells"
@@ -211,10 +211,10 @@ export const SessionListTable = ({
                         aria-label={t("sessions.mobileList.newSessionWith", {
                             agent: run.label ?? "",
                         })}
-                        className={`size-6 text-muted-foreground hover:text-foreground ${PHONE_TOUCH_TARGET_CLASS}`}
+                        className={`size-6 text-muted-foreground hover:text-foreground`}
                         onClick={() => onNewSession(agentId)}
                     >
-                        <Plus className="size-3.5" />
+                        <PlusIcon className="size-3.5" />
                     </Button>
                 </SimpleTooltip>
             )
@@ -256,7 +256,6 @@ export const SessionListTable = ({
                     // Compact for the same reason it is sticky: this is the long list.
                     density="compact"
                     // On a phone a row is a 44 px tap target (compact rows are 40 px).
-                    rowClassName="max-md:min-h-11"
                     // The page of one agent draws the light chevron on its headings (A02).
                     groupCaret={lockedAgentId ? "chevron" : "fill"}
                     loading={list.isPending}
@@ -265,7 +264,7 @@ export const SessionListTable = ({
                     onOpenRow={verbs.open}
                     collapsedKeys={collapsed}
                     onToggleGroup={toggleGroup}
-                    className="max-md:[&_button[aria-expanded]:not([aria-haspopup])]:min-h-11"
+                    className="pointer-coarse:[&_button[aria-expanded]:not([aria-haspopup])]:min-h-11"
                     groupActions={groupActions}
                     empty={
                         // Nothing while unsettled. An empty project gets the onboarding from the

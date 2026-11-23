@@ -91,7 +91,7 @@ export function useRevisionArchive({
             description="Are you sure you want to archive the following?"
             body={
                 <div className="flex flex-col gap-0.5">
-                    <span className="text-xs text-muted-foreground">Revisions only</span>
+                    <span className="text-meta text-muted-foreground">Revisions only</span>
                     <span className="font-medium">
                         {name} v{version ?? "#"}
                     </span>

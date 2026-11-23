@@ -42,7 +42,7 @@ export const TestsetRowCells = ({
     onToggleExpand?: () => void
 }) => {
     const author = (
-        <span className="block min-w-0 truncate text-[13px] text-muted-foreground">
+        <span className="block min-w-0 truncate text-label text-muted-foreground">
             <UserAuthorLabel userId={row.created_by_id} showAvatar fallback="—" />
         </span>
     )
@@ -68,7 +68,7 @@ export const TestsetRowCells = ({
                     </Button>
                 ) : null}
                 <span
-                    className="block truncate text-[14px] font-medium leading-[18px] text-foreground"
+                    className="block truncate text-label text-foreground"
                     title={row.name}
                 >
                     {row.name}
@@ -76,8 +76,8 @@ export const TestsetRowCells = ({
             </span>
             {narrow ? null : (
                 <span
-                    className={`block truncate text-[13px] ${
-                        commitMessage ? "text-muted-foreground" : "text-placeholder"
+                    className={`block truncate text-label ${
+                        commitMessage ? "text-muted-foreground" : "text-muted-foreground"
                     }`}
                     title={commitMessage ?? undefined}
                 >
@@ -85,7 +85,7 @@ export const TestsetRowCells = ({
                 </span>
             )}
             {narrow || developerMode ? null : author}
-            <span className="block truncate text-[13px] text-placeholder">
+            <span className="block truncate text-label text-muted-foreground">
                 {developerMode
                     ? formatListDateTime(row.created_at)
                     : formatTestsetDate(row.created_at)}

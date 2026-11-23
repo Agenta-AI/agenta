@@ -218,7 +218,7 @@ export const BuilderPage = ({
     const [dragWidth, setDragWidth] = useState<number | null>(null)
     const chatColumn = (
         <section aria-label={title} className="flex h-full min-h-0 min-w-0 flex-col">
-            <header className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3 md:pl-4">
+            <header className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted px-3 md:pl-4">
                 <NavDrawer
                     workspaceId={workspaceId}
                     projectId={projectId}
@@ -234,7 +234,7 @@ export const BuilderPage = ({
                         userId={userId}
                     />
                 ) : (
-                    <span className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 text-colorText">
+                    <span className="min-w-0 flex-1 truncate text-title text-foreground">
                         {title}
                     </span>
                 )}
@@ -280,9 +280,9 @@ export const BuilderPage = ({
     const pane = activeTab ? (
         <section
             aria-label={t("builder.page.openItems")}
-            className="flex h-full min-h-0 min-w-0 flex-col border-0 border-l border-solid border-colorBorderSecondary bg-colorBgContainer"
+            className="flex h-full min-h-0 min-w-0 flex-col border-0 border-l border-solid border-border-muted bg-background"
         >
-            <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3">
+            <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted px-3">
                 <BuilderTabStrip
                     tabs={tabs.state.tabs}
                     active={tabs.state.active}
@@ -305,7 +305,7 @@ export const BuilderPage = ({
                 />
                 {phone ? null : (
                     <>
-                        <span aria-hidden className="h-4 w-px shrink-0 bg-colorBorderSecondary" />
+                        <span aria-hidden className="h-4 w-px shrink-0 bg-border-muted" />
                         <SimpleTooltip title={t("builder.page.fullScreen")}>
                             <Button
                                 variant="ghost"

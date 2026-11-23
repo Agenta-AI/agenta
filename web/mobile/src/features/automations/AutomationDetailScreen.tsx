@@ -213,7 +213,7 @@ export const AutomationDetailScreen = ({
                     ) : loading ? (
                         <AutomationDetailSkeleton />
                     ) : missing ? (
-                        <p className="m-0 px-8 py-16 text-center text-[13px] text-muted-foreground">
+                        <p className="m-0 px-8 py-16 text-center text-label text-muted-foreground">
                             {t("automations.screens.noLongerExists")}
                         </p>
                     ) : null}

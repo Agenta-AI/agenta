@@ -50,26 +50,26 @@ export const ArchivedTestsetRowCells = ({
     return (
         <>
             <span
-                className="block truncate text-[14px] font-medium leading-[18px] text-foreground"
+                className="block truncate text-label text-foreground"
                 title={row.name}
             >
                 {row.name}
             </span>
             {narrow ? null : (
-                <span className="block truncate text-[13px] text-placeholder">
+                <span className="block truncate text-label text-muted-foreground">
                     {formatTestsetDate(row.created_at)}
                 </span>
             )}
             {narrow ? null : (
-                <span className="block min-w-0 truncate text-[13px] text-muted-foreground">
+                <span className="block min-w-0 truncate text-label text-muted-foreground">
                     <UserAuthorLabel userId={row.created_by_id} showAvatar fallback="—" />
                 </span>
             )}
-            <span className="block truncate text-[13px] text-placeholder">
+            <span className="block truncate text-label text-muted-foreground">
                 {formatTestsetDate(row.deleted_at)}
             </span>
             {narrow ? null : (
-                <span className="block min-w-0 truncate text-[13px] text-muted-foreground">
+                <span className="block min-w-0 truncate text-label text-muted-foreground">
                     <UserAuthorLabel
                         userId={row.deleted_by_id}
                         showYouLabel
@@ -95,12 +95,11 @@ export const ArchivedTestsetRowCells = ({
                                 size="icon-xs"
                                 variant="ghost"
                                 aria-label="Test set actions"
-                                className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
                             >
-                                <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
+                                <DotsThreeVertical aria-hidden className="size-3.5" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-[200px]">
+                        <DropdownMenuContent align="end" className="w-60">
                             <DropdownMenuItem onSelect={onOpen}>
                                 <Eye aria-hidden size={14} />
                                 View details

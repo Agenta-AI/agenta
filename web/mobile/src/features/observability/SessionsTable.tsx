@@ -25,7 +25,7 @@ export const SessionsTable = ({onOpenSession}: {onOpenSession: (sessionId: strin
                     onRow: (record) => ({
                         tabIndex: 0,
                         className:
-                            "cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring",
+                            "cursor-pointer focus-ring focus-visible:-outline-offset-2",
                         onKeyDown: openOnKey(() => onOpenSession(record.session_id)),
                     }),
                 }}

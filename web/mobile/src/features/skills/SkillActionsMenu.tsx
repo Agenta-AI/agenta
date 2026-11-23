@@ -4,7 +4,6 @@ import {createT, useT} from "@agenta/i18n"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {projectIdAtom} from "@agenta/shared/state"
 import {SkillAgentPicker} from "@agenta/skills-ui"
-import {cn} from "@agenta/ui/styles"
 import {
     Button,
     DropdownMenu,
@@ -15,14 +14,13 @@ import {
     Popover,
     PopoverAnchor,
     PopoverContent,
-    touchTargetExpansion,
 } from "@agenta/ui/ui"
 import {
     Archive,
     ArrowsClockwise,
     ArrowSquareOut,
     ArrowUUpLeft,
-    DotsThreeVertical,
+    DotsThree,
     DownloadSimple,
     Plus,
 } from "@phosphor-icons/react"
@@ -84,17 +82,12 @@ export const SkillActionsMenu = ({
                                 size="icon-xs"
                                 variant="ghost"
                                 aria-label={t("skills.list.skillActions")}
-                                // Drawn at 24 px; the hit area reaches 44 px for a finger.
-                                className={cn(
-                                    "hover:bg-foreground/10 dark:hover:bg-foreground/15",
-                                    touchTargetExpansion({height: 24, width: 24}),
-                                )}
                             >
-                                <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
+                                <DotsThree aria-hidden className="size-3.5" weight="bold" />
                             </Button>
                         </DropdownMenuTrigger>
                     </PopoverAnchor>
-                    <DropdownMenuContent align="end" className="w-[200px]">
+                    <DropdownMenuContent align="end" className="w-popover-sm">
                         <DropdownMenuItem onSelect={() => onOpen(row)}>
                             <ArrowSquareOut aria-hidden size={14} />
                             {t("skills.list.openSkill")}
@@ -139,7 +132,7 @@ export const SkillActionsMenu = ({
                     align="end"
                     sideOffset={6}
                     aria-label={t("skills.list.addToAgent")}
-                    className="flex w-[280px] flex-col gap-0 p-0"
+                    className="flex w-80 flex-col gap-0 p-0"
                     onOpenAutoFocus={(event) => event.preventDefault()}
                     onFocusOutside={(event) => event.preventDefault()}
                     // The row underneath opens the drawer on click; the picker's clicks are its own.

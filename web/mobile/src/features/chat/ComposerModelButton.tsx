@@ -48,7 +48,7 @@ export const ComposerModelButton = ({
             aria-label={t("chat.mobileComposer.modelButton", {model: label})}
             title={label}
             data-state={open ? "open" : "closed"}
-            className="text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground relative inline-flex h-7 max-w-[220px] min-w-0 shrink cursor-pointer items-center gap-1.5 rounded-[8px] border-0 bg-transparent pr-1.5 pl-2 text-[13px] disabled:cursor-not-allowed disabled:opacity-60 max-md:before:absolute max-md:before:inset-x-0 max-md:before:-inset-y-2 max-md:before:content-['']"
+            className="text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground relative inline-flex h-control-sm max-w-55 min-w-0 shrink cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent pr-1.5 pl-2 text-label focus-ring disabled:cursor-not-allowed disabled:opacity-50"
         >
             {Logo ? (
                 <span className="text-foreground inline-flex size-3.5 shrink-0" aria-hidden>
@@ -56,7 +56,7 @@ export const ComposerModelButton = ({
                 </span>
             ) : null}
             <span className="min-w-0 flex-1 truncate">{label}</span>
-            <CaretDown size={12} className="text-colorTextTertiary shrink-0" aria-hidden />
+            <CaretDown size={12} className="text-muted-foreground shrink-0" aria-hidden />
         </button>
     )
 }

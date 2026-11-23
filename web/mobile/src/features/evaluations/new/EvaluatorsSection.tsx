@@ -202,13 +202,13 @@ export const EvaluatorsSection = ({
                         />
                     ) : null}
                     <span
-                        className="truncate text-[14px] font-medium leading-[18px] text-foreground"
+                        className="truncate text-label text-foreground"
                         title={name}
                     >
                         {name}
                     </span>
                     {row.version != null ? (
-                        <span className="shrink-0 rounded-sm bg-muted px-1.5 text-[12px] leading-5 text-muted-foreground">
+                        <span className="shrink-0 rounded-sm bg-muted px-1.5 text-meta leading-5 text-muted-foreground">
                             v{row.version}
                         </span>
                     ) : null}

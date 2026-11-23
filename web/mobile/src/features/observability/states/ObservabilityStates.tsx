@@ -10,7 +10,7 @@ import {
     EmptyTitle,
     SkeletonBlock,
 } from "@agenta/ui/ui"
-import {Activity} from "lucide-react"
+import {PulseIcon} from "@phosphor-icons/react"
 
 /**
  * Designed states for the observability lists.
@@ -23,7 +23,7 @@ export const ObservabilityListSkeleton = ({rows = 6}: {rows?: number}) => (
     <div className="flex flex-col divide-y divide-border" aria-hidden>
         {Array.from({length: rows}, (_, i) => (
             <div key={i} className="flex items-start gap-3 px-4 py-3">
-                <SkeletonBlock className="h-5 w-5 shrink-0 rounded-full" />
+                <SkeletonBlock className="h-5 w-5 shrink-0 rounded-sm" />
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                     <SkeletonBlock className="h-3.5 w-1/2" />
                     <SkeletonBlock className="h-3 w-3/4" />
@@ -40,7 +40,7 @@ export const ObservabilityEmpty = ({title, hint}: {title?: string; hint?: string
         <Empty className="py-16">
             <EmptyHeader>
                 <EmptyMedia variant="icon">
-                    <Activity />
+                    <PulseIcon />
                 </EmptyMedia>
                 <EmptyTitle>{title ?? t("observability.screen.noTracesTitle")}</EmptyTitle>
                 <EmptyDescription>
@@ -57,7 +57,7 @@ export const ObservabilityFiltered = ({onClear}: {onClear: () => void}) => {
         <Empty className="py-16">
             <EmptyHeader>
                 <EmptyMedia variant="icon">
-                    <Activity />
+                    <PulseIcon />
                 </EmptyMedia>
                 <EmptyTitle>{t("observability.screen.nothingMatchesTitle")}</EmptyTitle>
                 <EmptyDescription>{t("observability.screen.nothingMatchesHint")}</EmptyDescription>

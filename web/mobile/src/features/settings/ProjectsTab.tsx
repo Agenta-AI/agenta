@@ -88,7 +88,7 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                                 {t("common.thisCannotBeUndone")}
                             </AlertDialogDescription>
                         </AlertDialogHeader>
-                        <p className="m-0 text-sm">
+                        <p className="m-0 text-body">
                             {t("settings.projectsTab.deleteBody", {
                                 name: project?.project_name ?? "",
                             })}

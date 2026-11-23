@@ -20,16 +20,16 @@ export const QueueDeleteCard = ({
     })
     return (
         <>
-            <div className="flex flex-col gap-4 rounded-lg border border-solid border-error/30 bg-error-bg/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-4 rounded-lg border border-solid border-destructive/30 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-col gap-1">
-                    <span className="text-sm font-semibold text-error">Delete queue</span>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-label text-destructive">Delete queue</span>
+                    <span className="text-body text-muted-foreground">
                         Permanently remove this annotation queue and return to the queue list.
                     </span>
                 </div>
                 <Button
                     type="button"
-                    variant="destructive"
+                    variant="destructive-ghost"
                     onClick={() => remove.requestDelete({id: queueId, name: queueName})}
                 >
                     Delete queue

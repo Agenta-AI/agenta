@@ -28,7 +28,7 @@ export const ScenarioTableRow = ({
     onRetry: () => void
 }) => (
     <>
-        <span className="text-sm tabular-nums text-muted-foreground">{row.index}</span>
+        <span className="text-body tabular-nums text-muted-foreground">{row.index}</span>
         {run}
         <span className="flex min-w-0 flex-col items-start gap-1">
             <RunStatusTag status={row.scenario.status ?? null} />

@@ -54,7 +54,7 @@ export const AgentRowCells = ({
                     ) : (
                         <span className="flex min-w-0 items-center gap-1.5">
                             <span
-                                className="truncate text-[14px] font-medium leading-[18px] text-foreground"
+                                className="truncate text-label text-foreground"
                                 title={row.name}
                                 onDoubleClick={(event) => {
                                     event.stopPropagation()
@@ -69,7 +69,7 @@ export const AgentRowCells = ({
                             {row.waiting > 0 ? (
                                 <span
                                     title={t("agents.list.waitingOnYou", {n: row.waiting})}
-                                    className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-[11px] leading-none text-colorWarningText"
+                                    className="shrink-0 rounded-sm bg-warning/10 px-1.5 py-0.5 text-caption leading-none text-warning"
                                 >
                                     {t("agents.list.waitingBadge", {n: row.waiting})}
                                 </span>
@@ -79,9 +79,7 @@ export const AgentRowCells = ({
                     {/* A described agent and an undescribed one have to be the same shape, or a
                         column of rows jumps height by height as you read down it. */}
                     <span
-                        className={`truncate text-[13px] leading-[16px] ${
-                            row.description ? "text-muted-foreground" : "text-placeholder"
-                        }`}
+                        className="truncate text-meta text-muted-foreground"
                         title={row.description || undefined}
                     >
                         {row.description || t("agents.list.noDescription")}
@@ -90,12 +88,12 @@ export const AgentRowCells = ({
             </span>
 
             {narrow ? null : (
-                <span className="block truncate text-[13px] text-muted-foreground">
+                <span className="block truncate text-body-sm text-muted-foreground">
                     {row.ownerName || "—"}
                 </span>
             )}
 
-            <span className="block truncate text-[13px] text-placeholder">
+            <span className="block truncate text-meta tabular-nums text-muted-foreground">
                 {lastActiveLabel(row.updatedAt)}
             </span>
 
@@ -110,7 +108,7 @@ export const AgentRowCells = ({
                     agent={{id: row.id, name: row.name}}
                     align="end"
                     // The row's 24 px kebab (canvas A03), as the sessions table draws it.
-                    className="md:size-6"
+                    className="size-6"
                     onOpen={() => onOpen(row)}
                     onRename={startFromMenu}
                     onCloseAutoFocus={handleCloseAutoFocus}

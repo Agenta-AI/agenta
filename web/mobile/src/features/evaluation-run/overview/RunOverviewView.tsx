@@ -58,11 +58,11 @@ export const RunOverviewView = ({
                 <header>
                     <h2
                         id="run-overview-title"
-                        className="m-0 text-base font-semibold text-foreground"
+                        className="m-0 text-title text-foreground"
                     >
                         Run summary
                     </h2>
-                    <p className="m-0 text-sm text-muted-foreground">
+                    <p className="m-0 text-body text-muted-foreground">
                         What this run tested and its average results
                     </p>
                 </header>

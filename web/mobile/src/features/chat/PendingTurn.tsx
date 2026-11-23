@@ -18,7 +18,7 @@ export const PendingTurn = ({
                 placement="start"
                 variant="borderless"
                 className="min-w-0 max-w-full sm:max-w-[85%]"
-                classNames={{content: "min-w-0 max-w-full overflow-hidden text-xs"}}
+                classNames={{content: "min-w-0 max-w-full overflow-hidden text-body"}}
                 content={
                     <ActivityTimeline
                         messageId={runId ?? `pending:${sessionId}`}

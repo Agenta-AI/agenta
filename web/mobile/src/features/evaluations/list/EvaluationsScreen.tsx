@@ -4,8 +4,7 @@ import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableColumnsMenu, ListTableToolbar} from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
-import {Spinner} from "@phosphor-icons/react"
+import {Button, Spinner} from "@agenta/ui/ui"
 import dynamic from "next/dynamic"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -132,7 +131,7 @@ export const EvaluationsScreen = ({
                         >
                             <div className="flex min-w-0 flex-wrap items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px]">
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                                     Evaluations
                                 </h1>
                                 {filters.appFromPath ? null : (
@@ -232,7 +231,7 @@ export const EvaluationsScreen = ({
                                                           <Button
                                                               type="button"
                                                               size="sm"
-                                                              variant="destructive"
+                                                              variant="destructive-ghost"
                                                               disabled={bulkBusy}
                                                               onClick={() =>
                                                                   actions.removeRuns(
@@ -266,7 +265,7 @@ export const EvaluationsScreen = ({
                                             onClick={() => void loadMore()}
                                         >
                                             {list.isFetchingNextPage ? (
-                                                <Spinner aria-hidden className="animate-spin" />
+                                                <Spinner aria-hidden />
                                             ) : null}
                                             Load more
                                         </Button>

@@ -69,7 +69,7 @@ export const QueueListContent = (props: QueueListContentProps) => {
                             )
                         }
                     >
-                        <SelectTrigger size="sm" aria-label="Type" className="w-[140px]">
+                        <SelectTrigger size="sm" aria-label="Type" className="w-35">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

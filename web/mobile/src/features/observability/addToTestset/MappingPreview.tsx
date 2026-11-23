@@ -18,22 +18,22 @@ export const MappingPreview = ({
     return (
         <section className="flex flex-col gap-2">
             <div>
-                <h3 className="m-0 text-sm font-medium">
+                <h3 className="m-0 text-label">
                     {spanCount > 1
                         ? t("observability.addToTestset.previewTestCases")
                         : t("observability.addToTestset.previewTestCase")}
                 </h3>
-                <p className="text-muted-foreground m-0 text-xs">
+                <p className="text-muted-foreground m-0 text-meta">
                     {t("observability.addToTestset.previewSubtitle")}
                 </p>
             </div>
             {columns.length === 0 ? (
-                <p className="text-muted-foreground m-0 text-sm">
+                <p className="text-muted-foreground m-0 text-body">
                     {t("observability.addToTestset.previewEmpty")}
                 </p>
             ) : (
                 <div className="border-border overflow-x-auto rounded-md border border-solid">
-                    <table className="w-full border-collapse text-left text-xs">
+                    <table className="w-full border-collapse text-left text-meta">
                         <thead className="bg-muted/50">
                             <tr>
                                 {columns.map((column) => (

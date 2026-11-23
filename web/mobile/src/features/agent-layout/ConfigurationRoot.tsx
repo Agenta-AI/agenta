@@ -93,10 +93,10 @@ export const ConfigurationRoot = ({
                     className={cn(
                         "relative flex shrink-0 items-center truncate rounded-none",
                         // Canvas `.ltabs button`: 2 px on each side, on a phone too (M07).
-                        panel.phone ? "h-11 min-w-11 px-0.5 text-sm" : "px-0.5 text-[13px]",
+                        "px-0.5 text-label",
                         configTab === tab.key
-                            ? "font-medium text-colorText after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-[1px] after:bg-colorText after:content-['']"
-                            : "text-colorTextSecondary hover:text-colorText",
+                            ? "font-medium text-foreground after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-foreground after:content-['']"
+                            : "text-muted-foreground hover:text-foreground",
                     )}
                     onClick={() => selectTab(tab.key)}
                 >
@@ -135,7 +135,7 @@ export const ConfigurationRoot = ({
                         />
                         {/* The tabs, and on the Agent tab the version status at the end of the
                             row (M07; version control is only on the Agent tab, M10). */}
-                        <div className="flex shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary pl-4 pr-1">
+                        <div className="box-border flex h-10 shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted pl-4 pr-4">
                             {tabList}
                             {configTab === "agent" ? (
                                 <AgentRevisionStatus
@@ -152,7 +152,7 @@ export const ConfigurationRoot = ({
                     </>
                 )
             ) : (
-                <div className="flex h-12 shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary pl-1 pr-1.5">
+                <div className="flex h-12 shrink-0 items-center border-0 border-b border-solid border-border-muted pl-1 pr-1.5">
                     {tabList}
                     <PanelCloseButton />
                 </div>
@@ -170,7 +170,7 @@ export const ConfigurationRoot = ({
                         </div>
                         {panel.phone ? null : (
                             // Save status and version in the footer (S02, configuration-draft).
-                            <div className="flex shrink-0 justify-end border-0 border-t border-solid border-colorBorderSecondary p-3">
+                            <div className="flex shrink-0 justify-end border-0 border-t border-solid border-border-muted p-3">
                                 <AgentRevisionStatus
                                     revisionId={revisionId}
                                     historyWorkflowId={agentId}

@@ -69,10 +69,10 @@ export const AppActionsMenu = ({
                         variant="ghost"
                         aria-label={evaluator ? "Evaluator actions" : "Prompt actions"}
                     >
-                        <DotsThreeVertical aria-hidden className="size-4" weight="bold" />
+                        <DotsThreeVertical aria-hidden className="size-4" />
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[200px]">
+                <DropdownMenuContent align="end" className="w-60">
                     {canEdit ? (
                         <DropdownMenuItem onSelect={() => setRenameOpen(true)}>
                             <PencilSimple aria-hidden size={14} />

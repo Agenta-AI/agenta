@@ -5,7 +5,7 @@ import {SkeletonBlock} from "@agenta/ui/ui"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {cn} from "@/lib/utils"
 
-import {SESSIONS_PAGE_FRAME} from "../pageFrame"
+import {LIST_PAGE_BODY, LIST_PAGE_HEADER} from "../pageFrame"
 
 import {PageHeaderSkeleton} from "./PageHeaderSkeleton"
 
@@ -26,16 +26,16 @@ const TITLE_WIDTHS = ["w-4/5", "w-3/5", "w-11/12"]
 export const SessionsPageSkeleton = () => {
     const t = useT(sessionsMobileListCatalog)
     return (
-        <ScreenScaffold header={<PageHeaderSkeleton />}>
+        <ScreenScaffold header={<PageHeaderSkeleton frame={LIST_PAGE_HEADER} />}>
             <div
-                className={`min-w-0 px-4 pb-12 pt-3 ${SESSIONS_PAGE_FRAME}`}
+                className={LIST_PAGE_BODY}
                 aria-busy="true"
                 aria-label={t("sessions.mobileList.loadingSessions")}
             >
                 {/* The toolbar's own two controls, at their real sizes, so the search field does not
                 jump when it arrives. */}
                 <div className="mb-3 flex items-center gap-2">
-                    <SkeletonBlock active className="h-8 w-full max-w-[340px] rounded-md" />
+                    <SkeletonBlock active className="h-8 w-full max-w-85 rounded-md" />
                     <SkeletonBlock active className="size-8 shrink-0 rounded-md" />
                 </div>
                 {/* The column rule, so the table's header lands on a line that is already there. */}
@@ -52,10 +52,10 @@ export const SessionsPageSkeleton = () => {
                     >
                         <SkeletonBlock
                             active
-                            className={cn("h-5 rounded", TITLE_WIDTHS[row % 3])}
+                            className={cn("h-5 rounded-sm", TITLE_WIDTHS[row % 3])}
                         />
-                        <SkeletonBlock active className="hidden h-5 rounded sm:block" />
-                        <SkeletonBlock active className="h-5 rounded" />
+                        <SkeletonBlock active className="hidden h-5 rounded-sm sm:block" />
+                        <SkeletonBlock active className="h-5 rounded-sm" />
                     </div>
                 ))}
             </div>

@@ -44,12 +44,11 @@ export const VariantRowMenu = ({
                 size="icon-xs"
                 variant="ghost"
                 aria-label="Revision actions"
-                className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
             >
-                <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
+                <DotsThreeVertical aria-hidden className="size-3.5" />
             </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-[200px]">
+        <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuItem onSelect={() => onOpen(row)}>
                 <Eye aria-hidden size={14} />
                 View details

@@ -29,7 +29,7 @@ const ICON = 14
 
 /** The Status options get the dot a row paints, so the filter and the badge read alike. */
 const StatusDot = ({className}: {className: string}) => (
-    <span aria-hidden className={`size-1.5 rounded-full ${className}`} />
+    <span aria-hidden className={`size-1.5 rounded-xs ${className}`} />
 )
 
 /**
@@ -96,7 +96,7 @@ export const AgentFilterMenu = ({
                     {
                         value: "waiting",
                         label: t("agents.list.filterWaiting"),
-                        icon: <StatusDot className="bg-colorWarning" />,
+                        icon: <StatusDot className="bg-warning" />,
                     },
                     {
                         value: "idle",
@@ -153,9 +153,10 @@ export const AgentFilterMenu = ({
         <FilterMenu
             sections={sections}
             align="start"
-            // A text button, sliders and "Filter", as drawn (A03). The default label is "Filter".
+            // Icon alone, as on every list page's toolbar.
+            label={null}
             triggerAriaLabel={t("agents.list.filterTriggerLabel")}
-            size="compact"
+            size="default"
             active={!isDefaultAgentListView(view)}
             // The mode survives a reset: it is how the reader chose to read the list, not what
             // they narrowed it to.

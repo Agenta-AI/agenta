@@ -88,7 +88,7 @@ export const ArchivedEvaluatorsScreen = ({
                                         <ArrowLeft aria-hidden />
                                     </Link>
                                 </Button>
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                                     Archived Evaluators
                                 </h1>
                             </div>

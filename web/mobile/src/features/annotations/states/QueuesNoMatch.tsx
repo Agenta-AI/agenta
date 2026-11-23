@@ -7,13 +7,13 @@ import {
     EmptyMedia,
     EmptyTitle,
 } from "@agenta/ui/ui"
-import {Filter, Search} from "lucide-react"
+import {FunnelIcon, MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 /** Queues exist, but the search or the type filter hid them; offers the way back. */
 export const QueuesNoMatch = ({term, onClear}: {term?: string; onClear: () => void}) => (
     <Empty className="py-14">
         <EmptyHeader>
-            <EmptyMedia variant="icon">{term ? <Search /> : <Filter />}</EmptyMedia>
+            <EmptyMedia variant="icon">{term ? <MagnifyingGlassIcon /> : <FunnelIcon />}</EmptyMedia>
             <EmptyTitle>
                 {term ? "No queues match your search" : "No queues match your filters"}
             </EmptyTitle>

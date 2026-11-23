@@ -10,7 +10,11 @@ import {AppShell} from "../nav/AppShell"
 import {SESSIONS_PAGE_FRAME} from "../sessions/pageFrame"
 
 import {AgentChannels} from "./AgentChannels"
-import {AGENT_CHANNELS_PAGE_COLUMN, AgentListPageHeader} from "./AgentListPageHeader"
+import {
+    AGENT_CHANNELS_PAGE_COLUMN,
+    AGENT_CHANNELS_PAGE_EDGE,
+    AgentListPageHeader,
+} from "./AgentListPageHeader"
 
 /** The Channels page of one agent. */
 export const AgentChannelsScreen = ({
@@ -35,6 +39,7 @@ export const AgentChannelsScreen = ({
                             title={t("agentSidebar.channels")}
                             workspaceId={workspaceId}
                             projectId={projectId}
+                            column={AGENT_CHANNELS_PAGE_EDGE}
                         />
                     }
                 >

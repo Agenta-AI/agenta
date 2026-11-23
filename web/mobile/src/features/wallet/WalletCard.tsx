@@ -10,7 +10,6 @@ import {useMotionPresets} from "@/lib/motion/presets"
 import {useCountUp} from "@/lib/motion/useCountUp"
 import {cn} from "@/lib/utils"
 
-import {useCardTilt} from "./useCardTilt"
 import {formatUsd, MUSD_PER_CREDIT} from "./walletFormat"
 import {withSlots} from "./withSlots"
 
@@ -23,7 +22,7 @@ const BRAND = "Agenta"
 
 const STATUS_DOT = {
     success: "bg-success",
-    warning: "bg-colorWarning",
+    warning: "bg-warning",
     error: "bg-destructive",
 } as const
 
@@ -38,11 +37,11 @@ export interface WalletCardProps {
     statusTone?: "success" | "warning" | "error"
     /** Count the balance up from zero on mount. */
     countUp?: boolean
-    /** Tilt in and sweep a shine on mount. */
+    /** Fade in on mount. */
     entrance?: boolean
-    /** Tilt toward the pointer with a glare. */
+    /** Kept for callers; the card is calm and no longer follows the pointer (LOUD-01). */
     interactive?: boolean
-    /** Soft glow under the card. */
+    /** Kept for callers; the card has no glow (LOUD-01). */
     glow?: boolean
     /** `compact` drops the card ratio for a 140px row and tightens the type; nothing is hidden. */
     size?: "default" | "compact"
@@ -57,8 +56,6 @@ export const WalletCard = ({
     statusTone = "success",
     countUp = false,
     entrance = false,
-    interactive = false,
-    glow = false,
     size = "default",
     className,
 }: WalletCardProps) => {
@@ -69,7 +66,6 @@ export const WalletCard = ({
     const usage = (usd: ReactNode) => withSlots((values) => t("wallet.card.usage", values), {usd})
     const presets = useMotionPresets()
     const moves = !presets.reduced
-    const {tilt, onPointerMove, onPointerLeave} = useCardTilt(interactive && moves)
     const credits = useCountUp(
         (balanceMusd ?? 0) / MUSD_PER_CREDIT,
         countUp && moves ? presets.countUpMs : 0,
@@ -77,87 +73,49 @@ export const WalletCard = ({
     // A count-up already moves every frame; otherwise changed digits flip in.
     const figure = (text: string) => (countUp ? text : <AnimatedNumber value={text} />)
 
+    // A calm card (LOUD-01, SURF-03): the neutral surface with one edge, no fill, glow or shadow.
+    // Color stays on one small thing, the status dot.
     return (
         <div className={cn("relative", className)}>
-            {glow ? (
-                <motion.div
-                    aria-hidden
-                    animate={{x: -tilt.ry * 0.9}}
-                    transition={presets.tiltSettle}
-                    className="bg-hero-action-hover/40 absolute inset-x-[8%] -bottom-[18px] h-10 rounded-full blur-[24px]"
-                />
-            ) : null}
             <motion.div
-                onPointerMove={onPointerMove}
-                onPointerLeave={onPointerLeave}
-                initial={entrance && moves ? {opacity: 0, rotateX: 24, rotateY: -12} : false}
-                animate={{
-                    opacity: 1,
-                    rotateX: tilt.rx,
-                    rotateY: tilt.ry,
-                    scale: tilt.hover ? 1.03 : 1,
-                }}
-                transition={tilt.hover ? presets.tiltFollow : presets.tiltSettle}
-                style={{transformPerspective: 900}}
+                initial={entrance && moves ? {opacity: 0} : false}
+                animate={{opacity: 1}}
+                transition={presets.crossfadeTransition}
                 className={cn(
-                    "bg-hero-action text-hero-action-foreground ring-hero-action-foreground/10 relative box-border flex flex-col justify-between overflow-hidden rounded-2xl px-[18px] shadow-sm ring-1 ring-inset will-change-transform",
-                    compact ? "h-[140px] py-3.5" : "aspect-[1.586] py-4",
+                    "bg-card text-card-foreground relative box-border flex flex-col justify-between overflow-hidden rounded-xl border border-solid border-border px-4",
+                    compact ? "h-35 py-3.5" : "aspect-[1.586] py-4",
                 )}
             >
-                {interactive ? (
-                    <span
-                        aria-hidden
-                        className="pointer-events-none absolute inset-0 z-[2] rounded-2xl transition-opacity duration-300 motion-reduce:transition-none"
-                        style={{
-                            opacity: tilt.hover ? 1 : 0,
-                            background: `radial-gradient(circle at ${tilt.gx}% ${tilt.gy}%, color-mix(in srgb, var(--color-white) 60%, transparent) 0%, color-mix(in srgb, var(--color-white) 18%, transparent) 28%, transparent 60%)`,
-                        }}
-                    />
-                ) : null}
                 <svg
                     aria-hidden
                     viewBox="0 0 171 140"
-                    className="absolute -bottom-[30%] -right-[18%] h-auto w-[78%] opacity-[0.08]"
+                    className="absolute -bottom-[30%] -right-[18%] h-auto w-[78%] opacity-[0.04]"
                 >
                     <path fill="currentColor" d={MARK} />
                 </svg>
-                {entrance && moves ? (
-                    <motion.span
-                        aria-hidden
-                        initial={{x: "-120%", skewX: -18}}
-                        animate={{x: "320%", skewX: -18}}
-                        transition={presets.shineSweep}
-                        className="absolute inset-y-0 left-0 w-[28%] bg-gradient-to-r from-transparent via-white/50 to-transparent"
-                    />
-                ) : null}
                 <div className="relative flex items-center justify-between">
                     <span className="flex items-center gap-2">
                         <svg aria-hidden viewBox="0 0 171 140" width="20" height="16">
                             <path fill="currentColor" d={MARK} />
                         </svg>
-                        <span className="text-[13px] font-semibold leading-[18px]">{BRAND}</span>
+                        <span className="text-label">{BRAND}</span>
                     </span>
-                    <span className="text-[11px] font-medium uppercase leading-4 tracking-[0.04em] opacity-75">
+                    <span className="text-caption text-muted-foreground">
                         {t("wallet.card.label")}
                     </span>
                 </div>
                 {balanceMusd === null ? (
-                    <span className="relative text-[13px] leading-[18px] opacity-75">
+                    <span className="relative text-label text-muted-foreground">
                         {emptyHint}
                     </span>
                 ) : (
                     <div className={cn("relative flex flex-col", !compact && "gap-0.5")}>
-                        <span className="text-[11px] font-medium uppercase leading-4 tracking-[0.04em] opacity-75">
+                        <span className="text-caption text-muted-foreground">
                             {t("wallet.card.balance")}
                         </span>
                         <span className="flex min-w-0 items-baseline gap-2">
                             <span
-                                className={cn(
-                                    "font-semibold tabular-nums",
-                                    compact
-                                        ? "text-[30px] leading-9 tracking-[-0.02em]"
-                                        : "text-[40px] leading-[44px] tracking-[-0.035em]",
-                                )}
+                                className="text-heading tabular-nums"
                             >
                                 {figure(formatNumber(Math.round(credits)))}
                             </span>
@@ -165,20 +123,20 @@ export const WalletCard = ({
                                 className={cn(
                                     "font-medium",
                                     compact
-                                        ? "text-[13px] leading-[18px]"
-                                        : "text-[15px] leading-5",
+                                        ? "text-label"
+                                        : "text-body leading-5",
                                 )}
                             >
                                 {t("wallet.card.unit")}
                             </span>
                             {compact ? (
-                                <span className="truncate text-xs tabular-nums leading-4 opacity-75">
+                                <span className="truncate text-meta tabular-nums text-muted-foreground">
                                     {usage(figure(formatUsd(credits * MUSD_PER_CREDIT)))}
                                 </span>
                             ) : null}
                         </span>
                         {compact ? null : (
-                            <span className="text-[13px] tabular-nums leading-[18px] opacity-75">
+                            <span className="text-label tabular-nums text-muted-foreground">
                                 {usage(figure(formatUsd(credits * MUSD_PER_CREDIT)))}
                             </span>
                         )}
@@ -186,16 +144,16 @@ export const WalletCard = ({
                 )}
                 <div
                     className={cn(
-                        "relative flex items-center justify-between border-0 border-t border-solid border-current/15",
+                        "relative flex items-center justify-between border-0 border-t border-solid border-border-muted",
                         compact ? "pt-2" : "pt-3",
                     )}
                 >
-                    <span className="text-xs leading-4 opacity-75">
+                    <span className="text-meta text-muted-foreground">
                         {t("wallet.card.rate", {usd: formatUsd(MUSD_PER_CREDIT)})}
                     </span>
                     {statusNode === null ? null : (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-medium leading-4">
-                            <span className={cn("size-1.5 rounded-full", STATUS_DOT[statusTone])} />
+                        <span className="inline-flex items-center gap-1.5 text-meta font-medium">
+                            <span className={cn("size-1.5 rounded-xs", STATUS_DOT[statusTone])} />
                             {statusNode}
                         </span>
                     )}

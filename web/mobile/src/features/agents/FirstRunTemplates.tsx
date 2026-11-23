@@ -13,7 +13,7 @@ import {useT} from "@agenta/i18n"
 import agentsFirstRun from "@agenta/i18n/catalogs/agents.firstRun"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
-import {ChevronLeft, ChevronRight, EyeOff} from "lucide-react"
+import {CaretLeftIcon, CaretRightIcon, EyeSlashIcon} from "@phosphor-icons/react"
 
 import {FirstRunTemplatesSkeleton} from "./states/FirstRunTemplatesSkeleton"
 import {TemplatePagerButton} from "./TemplatePagerButton"
@@ -67,12 +67,12 @@ export const FirstRunTemplates = ({
     // Dismissed: one line that says where they went and takes them back, same as the desktop.
     if (hidden) {
         return (
-            <div className="text-muted-foreground text-xs">
+            <div className="text-muted-foreground text-meta">
                 {t("agents.firstRun.templatesHidden")} ·{" "}
                 <button
                     type="button"
                     onClick={() => setHidden(false)}
-                    className="text-foreground cursor-pointer border-0 bg-transparent p-0 text-xs underline underline-offset-[3px]"
+                    className="text-foreground cursor-pointer border-0 bg-transparent p-0 text-meta underline underline-offset-[3px]"
                 >
                     {t("agents.firstRun.showAgain")}
                 </button>
@@ -90,7 +90,7 @@ export const FirstRunTemplates = ({
              */}
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
                 <div className="flex items-baseline justify-between gap-3 lg:contents">
-                    <span className="text-sm font-medium lg:order-1 lg:shrink-0">
+                    <span className="text-label lg:order-1 lg:shrink-0">
                         {t("agents.firstRun.templates")}
                     </span>
                     <div className="flex items-center gap-3 lg:order-3 lg:ml-auto lg:shrink-0">
@@ -100,7 +100,7 @@ export const FirstRunTemplates = ({
                          * window the user is not in.
                          */}
                         <div className={`hidden items-center gap-1.5 ${loaded ? "lg:flex" : ""}`}>
-                            <span className="text-muted-foreground mr-0.5 text-xs">
+                            <span className="text-muted-foreground mr-0.5 text-meta tabular-nums">
                                 {t("agents.firstRun.templateCounter", {
                                     from: pageStart + 1,
                                     to: pageEnd,
@@ -112,20 +112,20 @@ export const FirstRunTemplates = ({
                                 disabled={atStart}
                                 onClick={() => setPage(safePage - 1)}
                             >
-                                <ChevronLeft size={14} />
+                                <CaretLeftIcon size={14} />
                             </TemplatePagerButton>
                             <TemplatePagerButton
                                 label={t("agents.firstRun.nextTemplates")}
                                 disabled={atEnd}
                                 onClick={() => setPage(safePage + 1)}
                             >
-                                <ChevronRight size={14} />
+                                <CaretRightIcon size={14} />
                             </TemplatePagerButton>
                         </div>
                         <button
                             type="button"
                             onClick={onBrowseAll}
-                            className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent p-0 text-xs underline-offset-2 hover:underline"
+                            className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent p-0 text-label underline-offset-2 hover:underline"
                         >
                             {loaded
                                 ? t("agents.firstRun.browseAll", {total: templates.length})
@@ -140,7 +140,7 @@ export const FirstRunTemplates = ({
                             title={t("agents.firstRun.hideTemplates")}
                             className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center border-0 bg-transparent p-0"
                         >
-                            <EyeOff size={14} />
+                            <EyeSlashIcon size={14} />
                         </button>
                     </div>
                 </div>
@@ -159,9 +159,9 @@ export const FirstRunTemplates = ({
                                 setPage(0)
                             }}
                             aria-pressed={entry === category}
-                            className={`box-border shrink-0 cursor-pointer rounded-full border border-solid px-3 py-1 text-xs transition-colors ${
+                            className={`box-border shrink-0 cursor-pointer rounded-md border border-solid px-3 py-1 text-label transition-colors focus-ring ${
                                 entry === category
-                                    ? "border-foreground bg-foreground text-background"
+                                    ? "border-transparent bg-selected text-foreground"
                                     : "border-border text-muted-foreground hover:text-foreground bg-transparent"
                             }`}
                         >

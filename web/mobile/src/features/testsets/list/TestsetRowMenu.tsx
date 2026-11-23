@@ -51,12 +51,11 @@ export const TestsetRowMenu = ({
                     size="icon-xs"
                     variant="ghost"
                     aria-label={t("testsets.screens.testsetActions")}
-                    className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
                 >
-                    <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
+                    <DotsThreeVertical aria-hidden className="size-3.5" />
                 </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[200px]">
+            <DropdownMenuContent align="end" className="w-60">
                 <DropdownMenuItem onSelect={onOpen}>
                     <Eye aria-hidden size={14} />
                     View details

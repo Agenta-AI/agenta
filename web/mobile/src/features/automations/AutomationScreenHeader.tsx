@@ -31,7 +31,7 @@ export const AutomationScreenHeader = ({
     <div
         className={
             className ??
-            "mx-auto w-full max-w-[760px] shrink-0 px-8 pb-4 pt-3 max-md:pb-3 lg:pb-2.5 lg:pt-[30px]"
+            "mx-auto w-full max-w-content-md shrink-0 px-8 pb-4 pt-3 max-md:pb-3 lg:pb-2.5 lg:pt-8"
         }
     >
         {/* -ml-1.5: the glyph sits 6px inside its button, and the column edge is the glyph's. */}
@@ -39,7 +39,7 @@ export const AutomationScreenHeader = ({
             <NavDrawer workspaceId={workspaceId} projectId={projectId} />
             {/* Not an h1: the body below already carries the page's heading (the editable name,
                 or "Run history"), and a second h1 gave the page two roots. */}
-            <p className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground md:text-[20px] md:leading-[1.4]">
+            <p className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                 {title}
             </p>
         </div>

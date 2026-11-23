@@ -131,65 +131,81 @@ export const AgentPanelFrame = ({
     }
 
     return (
-        <div
-            ref={frameRef}
-            className={cn(
-                "min-h-0",
-                !open && "hidden",
-                // Beside the page it gives way to the page's minimum column, down to its own
-                // minimum width; over the page it keeps its width.
-                mode === "push" ? "relative h-full shrink" : "shrink-0",
-                mode === "overlay" &&
-                    cn("absolute bottom-0 right-0 z-20 shadow-overlay", overlayTop ?? "top-0"),
-                mode === "full" && "absolute inset-0 z-30",
-                mode !== "full" && "border-0 border-l border-solid border-colorBorderSecondary",
-            )}
-            style={
-                mode === "full"
-                    ? undefined
-                    : {
-                          width,
-                          minWidth:
-                              mode === "push" ? Math.min(width, resize?.min ?? width) : undefined,
-                          // Over the page it never runs past the room the page leaves, so the
-                          // resize edge and the start of the content stay in view.
-                          maxWidth: mode === "overlay" ? "100%" : undefined,
-                      }
-            }
-            onKeyDown={(event) => {
-                // A view goes back first (the view stack handles it); a menu or dialog closes itself.
-                // What is left closes the panel, also from the resize edge.
-                if (event.key !== "Escape" || event.defaultPrevented) return
-                const layer = (event.target as HTMLElement).closest?.(
-                    '[role="dialog"],[role="alertdialog"],[role="menu"],[role="listbox"]',
-                )
-                if (layer && layer !== event.currentTarget) return
-                event.preventDefault()
-                onClose()
-            }}
-        >
-            {mode !== "full" && resize ? (
+        <>
+            {/* Over the page the panel dims what it covers; a click there closes it (LAYOUT-04). */}
+            {open && mode === "overlay" ? (
                 <div
-                    role="separator"
-                    aria-orientation="vertical"
-                    aria-valuemin={resize.min}
-                    aria-valuemax={resize.max}
-                    aria-valuenow={shownWidth}
-                    aria-label={tControls("ui.controls.resizePanes")}
-                    tabIndex={0}
-                    className="absolute inset-y-0 -left-1 z-30 w-2 cursor-col-resize touch-none"
-                    onPointerDown={startDrag}
-                    onKeyDown={keyResize}
+                    aria-hidden
+                    data-testid="agent-panel-scrim"
+                    className={cn(
+                        "absolute inset-x-0 bottom-0 z-20 bg-overlay",
+                        overlayTop ?? "top-0",
+                    )}
+                    onClick={onClose}
                 />
             ) : null}
             <div
-                ref={panelRef}
-                tabIndex={-1}
-                data-testid="agent-panel"
-                className="ag-panel-raised flex h-full min-h-0 w-full flex-col outline-none"
+                ref={frameRef}
+                className={cn(
+                    "min-h-0",
+                    !open && "hidden",
+                    // Beside the page it gives way to the page's minimum column, down to its own
+                    // minimum width; over the page it keeps its width.
+                    mode === "push" ? "relative h-full shrink" : "shrink-0",
+                    mode === "overlay" &&
+                        cn("absolute bottom-0 right-0 z-20 shadow-overlay", overlayTop ?? "top-0"),
+                    mode === "full" && "absolute inset-0 z-30",
+                    mode !== "full" && "border-0 border-l border-solid border-border-muted",
+                )}
+                style={
+                    mode === "full"
+                        ? undefined
+                        : {
+                              width,
+                              minWidth:
+                                  mode === "push"
+                                      ? Math.min(width, resize?.min ?? width)
+                                      : undefined,
+                              // Over the page it never runs past the room the page leaves, so the
+                              // resize edge and the start of the content stay in view.
+                              maxWidth: mode === "overlay" ? "100%" : undefined,
+                          }
+                }
+                onKeyDown={(event) => {
+                    // A view goes back first (the view stack handles it); a menu or dialog closes itself.
+                    // What is left closes the panel, also from the resize edge.
+                    if (event.key !== "Escape" || event.defaultPrevented) return
+                    const layer = (event.target as HTMLElement).closest?.(
+                        '[role="dialog"],[role="alertdialog"],[role="menu"],[role="listbox"]',
+                    )
+                    if (layer && layer !== event.currentTarget) return
+                    event.preventDefault()
+                    onClose()
+                }}
             >
-                {children}
+                {mode !== "full" && resize ? (
+                    <div
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-valuemin={resize.min}
+                        aria-valuemax={resize.max}
+                        aria-valuenow={shownWidth}
+                        aria-label={tControls("ui.controls.resizePanes")}
+                        tabIndex={0}
+                        className="absolute inset-y-0 -left-1 z-30 w-2 cursor-col-resize touch-none"
+                        onPointerDown={startDrag}
+                        onKeyDown={keyResize}
+                    />
+                ) : null}
+                <div
+                    ref={panelRef}
+                    tabIndex={-1}
+                    data-testid="agent-panel"
+                    className="ag-panel-raised flex h-full min-h-0 w-full flex-col outline-none"
+                >
+                    {children}
+                </div>
             </div>
-        </div>
+        </>
     )
 }

@@ -17,7 +17,6 @@ import {
 import {AgentChip} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {useMediaQuery} from "@agenta/ui/hooks"
@@ -27,7 +26,7 @@ import {
     ListTableViewToggle,
     type ListTableColumn,
 } from "@agenta/ui/list-table"
-import {Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
@@ -39,6 +38,7 @@ import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
+import {LIST_PAGE_BODY, LIST_PAGE_HEADER, LIST_PAGE_HEADER_ROW} from "../sessions/pageFrame"
 
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
 import {AutomationAgentStarters} from "./AutomationAgentStarters"
@@ -50,26 +50,20 @@ import {AutomationStatusMark} from "./AutomationStatusMark"
 /**
  * The four columns, shared by the header row and every body row so the two can never drift.
  *
- * Identity takes twice the share of the other three, which split the rest equally — status held
- * a fixed 118 before, so the gap after it grew while the others' did not and the three read as
- * unevenly spaced. The last column is the row's kebab, fixed at the button's own width so the
- * reading columns keep their proportions. The minima plus gaps sum to 572 — the width below
+ * Identity takes the largest share; Runs when and Agent get room for their usual text. The last
+ * column is the row's kebab, fixed at the button's own width so the reading columns keep their
+ * proportions. The minima plus gaps sum to 572 — the width below
  * which the table scrolls sideways rather than crushing five columns into a phone.
  */
-/**
- * The page column, shared with the sessions page: same max width, same gutters, so a reader
- * moving between the two nav entries sees one page frame rather than two.
- */
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
 type ScreenText = ReturnType<typeof useT<[typeof automationsScreensCatalog]>>
 
 const wideColumns = (t: ScreenText): ListTableColumn[] => [
     nameColumn(t),
     {key: "status", label: t("automations.screens.columnStatus"), width: "minmax(100px,0.8fr)"},
-    {key: "runsWhen", label: t("automations.screens.columnRunsWhen"), width: "minmax(130px,1fr)"},
+    {key: "runsWhen", label: t("automations.screens.columnRunsWhen"), width: "minmax(160px,1.2fr)"},
     lastRunColumn(t),
-    {key: "agent", label: t("automations.screens.columnAgent"), width: "minmax(120px,1fr)"},
+    {key: "agent", label: t("automations.screens.columnAgent"), width: "minmax(140px,1.2fr)"},
     actionsColumn(t),
 ]
 // A phone keeps the name and whether it is doing anything; the kind tile already says schedule
@@ -82,7 +76,7 @@ const narrowColumns = (t: ScreenText): ListTableColumn[] => [
 const nameColumn = (t: ScreenText): ListTableColumn => ({
     key: "name",
     label: t("automations.screens.columnAutomation"),
-    width: "minmax(140px,2fr)",
+    width: "minmax(140px,1.4fr)",
 })
 const lastRunColumn = (t: ScreenText): ListTableColumn => ({
     key: "lastRun",
@@ -247,7 +241,7 @@ export const AutomationListScreen = ({
                             <span className="flex min-w-0 items-center gap-2">
                                 <AutomationKindMark kind={automation.kind} />
                                 <span
-                                    className="truncate text-[14px] text-foreground"
+                                    className="truncate text-label text-foreground"
                                     title={automation.name}
                                 >
                                     {automation.name}
@@ -258,7 +252,7 @@ export const AutomationListScreen = ({
 
                             {narrow ? null : (
                                 <span
-                                    className="block truncate text-[13px] text-muted-foreground"
+                                    className="block truncate text-body-sm text-muted-foreground"
                                     title={runsWhen}
                                 >
                                     {runsWhen}
@@ -279,14 +273,14 @@ export const AutomationListScreen = ({
                                         glyph={13}
                                     />
                                     <span
-                                        className="truncate text-[13px] text-foreground"
+                                        className="truncate text-body-sm text-foreground"
                                         title={name}
                                     >
                                         {name}
                                     </span>
                                 </span>
                             ) : (
-                                <span className="text-[13px] text-muted-foreground">—</span>
+                                <span className="text-body-sm text-muted-foreground">—</span>
                             )}
 
                             {/* The menu's own clicks are not the row's: without this every menu
@@ -315,15 +309,11 @@ export const AutomationListScreen = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        // The same frame the sessions bar uses, so the two pages line up at every
-                        // width: page column, 16px gutters on a phone, 64px and a deeper top
-                        // from `lg`.
-                        <div
-                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
-                        >
-                            <div className="flex min-w-0 items-center gap-2">
+                        // The list-page frame every nav entry shares.
+                        <div className={LIST_PAGE_HEADER}>
+                            <div className={LIST_PAGE_HEADER_ROW}>
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                                     {t("automations.screens.pageTitle")}
                                 </h1>
                                 {/* Hidden on a phone, where the title needs the width. */}
@@ -334,23 +324,16 @@ export const AutomationListScreen = ({
                                     />
                                 )}
                                 <Button
-                                    aria-label={t("automations.screens.newAutomation")}
-                                    // Square icon button on a phone, where the label is hidden.
-                                    className={`max-sm:size-8 max-sm:px-0 ${PHONE_TOUCH_TARGET_CLASS}`}
                                     onClick={() => void router.push(`${base}/automations/new`)}
                                 >
                                     <Plus />
-                                    {/* The label costs more than it earns at phone width: it
-                                        pushed the page's own title into an ellipsis. */}
-                                    <span className="hidden sm:inline">
-                                        {t("automations.screens.newAutomation")}
-                                    </span>
+                                    {t("automations.screens.newAutomation")}
                                 </Button>
                             </div>
                         </div>
                     }
                 >
-                    <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
+                    <div className={LIST_PAGE_BODY}>
                         {projectEmpty ? (
                             <FeatureOnboarding guideKey="automations" base={base}>
                                 <AutomationAgentStarters base={base} />

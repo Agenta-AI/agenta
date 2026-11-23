@@ -105,14 +105,14 @@ export const ImportRevisionDialog = ({
                     {missing.length > 0 ? (
                         <p
                             data-testid="import-missing-columns"
-                            className="m-0 text-xs text-muted-foreground"
+                            className="m-0 text-meta text-muted-foreground"
                         >
                             These columns are not in the file and will not be in the new revision:{" "}
                             {missing.join(", ")}
                         </p>
                     ) : null}
                     {file && problem ? (
-                        <p role="alert" className="m-0 text-xs text-destructive">
+                        <p role="alert" className="m-0 text-meta text-destructive">
                             {problem}
                         </p>
                     ) : null}

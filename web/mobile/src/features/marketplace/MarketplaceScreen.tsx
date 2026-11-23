@@ -10,7 +10,6 @@ import {
 } from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTable} from "@agenta/ui/list-table"
 import {Kbd, SearchInput} from "@agenta/ui/ui"
@@ -25,6 +24,7 @@ import {useNewAgentAction} from "../agents/useNewAgentAction"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
+import {LIST_PAGE_BODY, LIST_PAGE_HEADER, LIST_PAGE_HEADER_ROW} from "../sessions/pageFrame"
 
 import {FeaturedTemplate} from "./FeaturedTemplate"
 import {
@@ -45,10 +45,9 @@ import {TemplateFilterRail} from "./TemplateFilterRail"
 import {TemplatePreviewSheet} from "./TemplatePreviewSheet"
 import {TemplateSortMenu} from "./TemplateSortMenu"
 
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 const templateKey = (template: AgentStarterTemplate) => template.key
 
-/** The Agent Marketplace: a featured template, then the catalog with its filters. */
+/** The Templates page: a featured template, then the catalog with its filters. */
 export const MarketplaceScreen = ({
     workspaceId,
     projectId,
@@ -166,22 +165,20 @@ export const MarketplaceScreen = ({
                     onScroll={fade.onScroll}
                     scrollStyle={fade.style}
                     header={
-                        <div
-                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
-                        >
-                            <div className="flex min-w-0 items-center gap-2">
+                        <div className={LIST_PAGE_HEADER}>
+                            <div className={LIST_PAGE_HEADER_ROW}>
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                                     {t("marketplace.page.title")}
                                 </h1>
                             </div>
-                            <p className="text-muted-foreground m-0 mt-1 text-[13px]">
+                            <p className="text-muted-foreground m-0 mt-1 text-body">
                                 {t("marketplace.page.subtitle")}
                             </p>
                         </div>
                     }
                 >
-                    <div className={`flex min-w-0 flex-col gap-8 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
+                    <div className={`flex flex-col gap-8 ${LIST_PAGE_BODY}`}>
                         {status === "pending" ? (
                             <FeaturedTemplateSkeleton />
                         ) : featured.length ? (
@@ -223,7 +220,7 @@ export const MarketplaceScreen = ({
                                     />
                                 </div>
                                 <div className="flex min-h-8 items-center justify-between gap-3">
-                                    <h2 className="m-0 text-sm font-semibold text-foreground">
+                                    <h2 className="m-0 text-title text-foreground">
                                         {categoryLabel}
                                         {loaded ? ` · ${view.templates.length}` : null}
                                     </h2>

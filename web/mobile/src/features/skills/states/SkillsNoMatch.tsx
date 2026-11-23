@@ -9,7 +9,7 @@ import {
     EmptyMedia,
     EmptyTitle,
 } from "@agenta/ui/ui"
-import {Filter, Search} from "lucide-react"
+import {FunnelIcon, MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 /** The project has skills, but the search or filters hid them; offers the way back. */
 export const SkillsNoMatch = ({
@@ -24,7 +24,7 @@ export const SkillsNoMatch = ({
     return (
         <Empty className="py-14">
             <EmptyHeader>
-                <EmptyMedia variant="icon">{term ? <Search /> : <Filter />}</EmptyMedia>
+                <EmptyMedia variant="icon">{term ? <MagnifyingGlassIcon /> : <FunnelIcon />}</EmptyMedia>
                 <EmptyTitle>
                     {term ? t("skills.list.noMatchTerm", {term}) : t("skills.list.noMatchFilters")}
                 </EmptyTitle>

@@ -117,7 +117,7 @@ export const DeleteSelectionDialog = ({
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 {all.isError ? (
-                    <p className="m-0 text-sm text-destructive">
+                    <p className="m-0 text-body text-destructive">
                         Couldn't check this app's revisions.{" "}
                         <button
                             type="button"
@@ -128,7 +128,7 @@ export const DeleteSelectionDialog = ({
                         </button>
                     </p>
                 ) : everything ? null : (
-                    <p className="m-0 text-sm text-muted-foreground">
+                    <p className="m-0 text-body text-muted-foreground">
                         This action cannot be undone.
                     </p>
                 )}

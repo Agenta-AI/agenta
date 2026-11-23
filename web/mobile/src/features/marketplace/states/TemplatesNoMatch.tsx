@@ -9,7 +9,7 @@ import {
     EmptyMedia,
     EmptyTitle,
 } from "@agenta/ui/ui"
-import {Filter, Search} from "lucide-react"
+import {FunnelIcon, MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 /** The catalog has templates, but none match the search or the filters. */
 export const TemplatesNoMatch = ({term, onClear}: {term?: string; onClear: () => void}) => {
@@ -17,7 +17,7 @@ export const TemplatesNoMatch = ({term, onClear}: {term?: string; onClear: () =>
     return (
         <Empty className="py-14">
             <EmptyHeader>
-                <EmptyMedia variant="icon">{term ? <Search /> : <Filter />}</EmptyMedia>
+                <EmptyMedia variant="icon">{term ? <MagnifyingGlassIcon /> : <FunnelIcon />}</EmptyMedia>
                 <EmptyTitle>
                     {term
                         ? t("marketplace.page.noMatchTerm", {term})

@@ -202,29 +202,26 @@ describe("the session header", () => {
 })
 
 describe("the session header on a phone", () => {
-    const rows = () => screen.getByTestId("session-header").children
+    const openMore = async () => {
+        fireEvent.click(screen.getByRole("button", {name: "More actions"}))
+        return screen.findByTestId("bottom-sheet-menu")
+    }
 
-    it("has two rows: the agent with Configuration and Builder, then the session with Files", () => {
+    it("is one bar: the session as the title, then More; Files, Configuration and Builder are in More", async () => {
         renderHeader(panel({phone: true}), {builder: true})
         const header = screen.getByTestId("session-header")
-        const [agentRow, sessionRow] = [...rows()].filter((row) => row.tagName === "DIV")
-        expect(agentRow.textContent).toContain("Agent")
-        expect(
-            within(agentRow as HTMLElement).getByRole("button", {name: "Configuration"}),
-        ).toBeTruthy()
-        expect(within(agentRow as HTMLElement).getByRole("button", {name: "Builder"})).toBeTruthy()
-        expect(sessionRow.textContent).toContain("Charged twice for March")
-        expect(within(sessionRow as HTMLElement).getByRole("button", {name: "Files"})).toBeTruthy()
-        // The icons have a 44 px hit area on a phone.
-        expect(header.querySelector("#agent-panel-icon-files")?.className).toContain(
-            "max-md:size-11",
-        )
+        expect(header.className).toContain("h-11")
+        expect(header.textContent).toContain("Charged twice for March")
+        expect(screen.queryByRole("button", {name: "Configuration"})).toBeNull()
+        const sheet = await openMore()
+        for (const item of ["Files", "Configuration", "Builder"]) {
+            expect(within(sheet).getByRole("menuitem", {name: item})).toBeTruthy()
+        }
     })
 
-    it("opens the agent menu as a bottom sheet with Cancel", async () => {
+    it("opens the agent menu entries from More as a bottom sheet with Cancel", async () => {
         renderHeader(panel({phone: true}))
-        fireEvent.click(screen.getByRole("button", {name: /Agent/}))
-        const sheet = await screen.findByTestId("bottom-sheet-menu")
+        const sheet = await openMore()
         for (const item of ["History", "Rename", "Export agent", "Archive agent"]) {
             expect(within(sheet).getByRole("menuitem", {name: item})).toBeTruthy()
         }
@@ -243,7 +240,7 @@ describe("the session header on a phone", () => {
     })
 
     // jsdom applies no Tailwind styles, so the shown or hidden state is read from the class.
-    it("keeps the version status mounted but hidden in row 2, and shows it while a save failed", () => {
+    it("keeps the version status mounted but hidden in the bar, and shows it while a save failed", () => {
         renderHeader(panel({phone: true}))
         const hidden = screen.getByTestId("session-header-save-status")
         // Mounted while hidden: it drives session follow.
@@ -257,10 +254,11 @@ describe("the session header on a phone", () => {
         expect(shown.className).toContain("flex")
     })
 
-    it("shows no Configuration and no Builder for a private agent the reader cannot see", () => {
+    it("shows no Configuration and no Builder for a private agent the reader cannot see", async () => {
         renderHeader(panel({phone: true}), {hidden: true, builder: true})
-        expect(screen.queryByRole("button", {name: "Configuration"})).toBeNull()
-        expect(screen.queryByRole("button", {name: "Builder"})).toBeNull()
-        expect(screen.getByRole("button", {name: "Files"})).toBeTruthy()
+        const sheet = await openMore()
+        expect(within(sheet).queryByRole("menuitem", {name: "Configuration"})).toBeNull()
+        expect(within(sheet).queryByRole("menuitem", {name: "Builder"})).toBeNull()
+        expect(within(sheet).getByRole("menuitem", {name: "Files"})).toBeTruthy()
     })
 })

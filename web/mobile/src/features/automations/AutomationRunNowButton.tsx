@@ -1,7 +1,7 @@
 import type {Automation} from "@agenta/automation-ui"
 import {useT} from "@agenta/i18n"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
-import {Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {Play} from "@phosphor-icons/react"
 
 import {useAutomationRunNow} from "./useAutomationRunNow"
@@ -24,14 +24,13 @@ export const AutomationRunNowButton = ({
     automation,
     base,
     dirty,
-    phone = false,
 }: {
     automation: Automation
     /** `/w/:workspace/p/:project` */
     base: string
     /** Unsaved config edits — a test run would exercise a version that does not exist yet. */
     dirty: boolean
-    /** Phone: the button is 44 px high. */
+    /** Unused: the kit sizes the button on a phone. */
     phone?: boolean
 }) => {
     const t = useT(automationsScreensCatalog)
@@ -45,10 +44,7 @@ export const AutomationRunNowButton = ({
                 type="button"
                 size="compact"
                 variant="outline"
-                // A screen that does not say it is a phone still gets the 44 px tap area below md.
-                className={
-                    phone ? "h-11 text-sm font-normal" : `font-normal ${PHONE_TOUCH_TARGET_CLASS}`
-                }
+
                 disabled={blocked !== null || starting}
                 title={blockedText ?? t("automations.screens.runNowTitle")}
                 onClick={() => void run()}

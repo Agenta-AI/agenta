@@ -42,7 +42,7 @@ export const RegistryRowCells = ({
     const Toggle = expanded ? MinusCircle : PlusCircle
     return (
         <>
-            <span className="flex min-w-0 items-center gap-1.5 text-[14px] font-medium text-foreground">
+            <span className="flex min-w-0 items-center gap-1.5 text-body font-medium text-foreground">
                 {row.kind === "variant" ? (
                     row.olderCount > 0 ? (
                         <button
@@ -78,11 +78,11 @@ export const RegistryRowCells = ({
                 </span>
             </span>
             {narrow ? null : (
-                <span className="block break-all text-[13px] text-foreground">
+                <span className="block break-all text-label text-foreground">
                     {revision.model || "—"}
                 </span>
             )}
-            <span className="block truncate text-[13px] text-foreground">
+            <span className="block truncate text-label text-foreground">
                 <FormattedDate
                     date={revision.createdAt}
                     format={narrow ? "MMM D, YYYY" : "MMM D, YYYY, h:mm A"}
@@ -90,7 +90,7 @@ export const RegistryRowCells = ({
                 />
             </span>
             {narrow ? null : (
-                <span className="block truncate text-[13px] text-muted-foreground">
+                <span className="block truncate text-label text-muted-foreground">
                     <UserAuthorLabel
                         userId={revision.createdById}
                         showYouLabel
@@ -101,7 +101,7 @@ export const RegistryRowCells = ({
             )}
             {narrow ? null : (
                 <span
-                    className="block truncate text-[13px] text-muted-foreground"
+                    className="block truncate text-label text-muted-foreground"
                     title={revision.message ?? undefined}
                 >
                     {revision.message || "—"}

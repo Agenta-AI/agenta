@@ -216,7 +216,7 @@ export const AgentPane = ({
             {/* The tab row holds only the tabs (B07, B08); they scroll in a narrow pane. */}
             <div
                 role="tablist"
-                className="ag-scroll-quiet flex h-12 shrink-0 items-center gap-4 overflow-x-auto border-0 border-b border-solid border-colorBorderSecondary px-4 max-md:gap-[9px] max-md:px-3"
+                className="ag-scroll-quiet flex h-12 shrink-0 items-center gap-4 overflow-x-auto border-0 border-b border-solid border-border-muted px-4 max-md:gap-2 max-md:px-3"
             >
                 {PANE_TABS.map((key) => (
                     <button
@@ -226,10 +226,10 @@ export const AgentPane = ({
                         aria-selected={tab === key}
                         onClick={() => void openTab(key)}
                         className={cn(
-                            "flex h-12 shrink-0 cursor-pointer items-center gap-1 border-0 border-b-2 border-solid bg-transparent px-0 text-[13px] max-md:text-[14px]",
+                            "flex h-12 shrink-0 cursor-pointer items-center gap-1 border-0 border-b-2 border-solid bg-transparent px-0 text-label focus-ring",
                             tab === key
-                                ? "border-colorText font-medium text-colorText"
-                                : "border-transparent text-colorTextSecondary hover:text-colorText",
+                                ? "border-foreground text-foreground"
+                                : "border-transparent text-muted-foreground hover:text-foreground",
                         )}
                     >
                         {label(key)}
@@ -238,11 +238,11 @@ export const AgentPane = ({
                                 data-testid="pane-tab-dot"
                                 role="img"
                                 aria-label={t("builder.page.changedByBuilder")}
-                                className="size-1.5 shrink-0 rounded-full bg-colorPrimary"
+                                className="size-1.5 shrink-0 bg-primary"
                             />
                         ) : null}
                         {key === "sessions" && sessionCount > 0 ? (
-                            <span className="text-[12px] font-normal leading-5 text-colorTextTertiary">
+                            <span className="text-meta tabular-nums text-muted-foreground">
                                 {formatNumber(sessionCount)}
                             </span>
                         ) : null}

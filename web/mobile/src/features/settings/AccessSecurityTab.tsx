@@ -240,7 +240,7 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
             {entitlements.hasDomains ? (
                 <div className="flex flex-col gap-2">
                     {domainError ? (
-                        <p role="alert" className="text-destructive m-0 text-xs">
+                        <p role="alert" className="text-destructive m-0 text-meta">
                             {domainError}
                         </p>
                     ) : null}
@@ -275,12 +275,12 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
             {entitlements.hasSSO ? (
                 <div className="flex flex-col gap-2">
                     {providerError ? (
-                        <p role="alert" className="text-destructive m-0 text-xs">
+                        <p role="alert" className="text-destructive m-0 text-meta">
                             {providerError}
                         </p>
                     ) : null}
                     {providerNotice ? (
-                        <p role="status" className="m-0 text-xs text-muted-foreground">
+                        <p role="status" className="m-0 text-meta text-muted-foreground">
                             {providerNotice}
                         </p>
                     ) : null}
@@ -348,7 +348,7 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
                                         </Button>
                                     </div>
                                 ) : null}
-                                <p className="m-0 text-xs text-muted-foreground">
+                                <p className="m-0 text-meta text-muted-foreground">
                                     {t("settings.accessSecurityTab.setSlugHint")}
                                 </p>
                             </div>

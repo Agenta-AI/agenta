@@ -18,7 +18,7 @@ const ICON = 14
 
 /** The status filters get the dot a row paints, so the filter and the row read alike. */
 const StatusDot = ({className}: {className: string}) => (
-    <span aria-hidden className={`size-1.5 rounded-full ${className}`} />
+    <span aria-hidden className={`size-1.5 rounded-xs ${className}`} />
 )
 
 /**
@@ -60,17 +60,17 @@ export const AgentActivityFilterMenu = ({
                         label: waitingCount
                             ? t("agents.activity.filterWaitingCount", {n: waitingCount})
                             : t("agents.activity.filterWaiting"),
-                        icon: <StatusDot className="bg-[var(--ag-run-status-warning)]" />,
+                        icon: <StatusDot className="bg-warning" />,
                     },
                     {
                         value: "running",
                         label: t("agents.activity.filterRunning"),
-                        icon: <StatusDot className="bg-[var(--ag-run-status-success)]" />,
+                        icon: <StatusDot className="bg-success" />,
                     },
                     {
                         value: "idle",
                         label: t("agents.activity.filterIdle"),
-                        icon: <StatusDot className="bg-[var(--ag-run-status-default)]" />,
+                        icon: <StatusDot className="bg-muted-foreground" />,
                     },
                 ],
                 onChange: (value) => setStatus(value as SessionStatusFilter),

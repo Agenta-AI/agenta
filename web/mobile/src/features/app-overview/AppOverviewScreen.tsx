@@ -91,7 +91,7 @@ export const AppOverviewScreen = ({
                                     </div>
                                 ) : (
                                     <h1
-                                        className={`m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] ${beta ? "" : "flex-1"}`}
+                                        className={`m-0 min-w-0 truncate text-heading text-foreground ${beta ? "" : "flex-1"}`}
                                     >
                                         {title}
                                     </h1>

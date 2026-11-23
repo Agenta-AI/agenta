@@ -33,7 +33,7 @@ export const ConfigPane = ({
 
     const panel = (
         <AgentBuildPanel
-            className={column ? "mx-auto w-full max-w-[760px]" : undefined}
+            className={column ? "mx-auto w-full max-w-content-md" : undefined}
             revisionId={entityId}
             disabled={readOnly}
             // Automations and files have their own places in the panel.

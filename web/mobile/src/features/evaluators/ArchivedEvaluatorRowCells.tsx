@@ -41,13 +41,13 @@ export const ArchivedEvaluatorRowCells = ({
         <>
             <span className="flex min-w-0 items-center gap-2">
                 <span
-                    className="truncate text-[14px] font-medium leading-[18px] text-foreground"
+                    className="truncate text-label text-foreground"
                     title={name}
                 >
                     {name}
                 </span>
                 {row.version != null ? (
-                    <span className="shrink-0 rounded-sm bg-muted px-1.5 text-[12px] leading-5 text-muted-foreground">
+                    <span className="shrink-0 rounded-sm bg-muted px-1.5 text-meta leading-5 text-muted-foreground">
                         v{row.version}
                     </span>
                 ) : null}
@@ -62,11 +62,11 @@ export const ArchivedEvaluatorRowCells = ({
             ) : (
                 <EvaluatorKeyTags names={row.feedbackKeys} />
             )}
-            <span className="block min-w-0 truncate text-[13px] text-muted-foreground">
+            <span className="block min-w-0 truncate text-label text-muted-foreground">
                 {formatDay(row.archivedAt)}
             </span>
             {narrow ? null : (
-                <span className="block min-w-0 truncate text-[13px] text-muted-foreground">
+                <span className="block min-w-0 truncate text-label text-muted-foreground">
                     <UserAuthorLabel
                         userId={row.archivedById}
                         showYouLabel
@@ -76,7 +76,7 @@ export const ArchivedEvaluatorRowCells = ({
                 </span>
             )}
             {narrow || !automatic ? null : (
-                <span className="block min-w-0 truncate text-[13px] text-muted-foreground">
+                <span className="block min-w-0 truncate text-label text-muted-foreground">
                     {row.message ?? "—"}
                 </span>
             )}

@@ -332,7 +332,7 @@ const TurnRowInner = ({
                 <div {...quoteProps} className="flex min-w-0 flex-col gap-3">
                     {/* The builder signs its answers (S03, M05): 12 px, secondary, above the text. */}
                     {builderChat ? (
-                        <div className="-mb-2 flex items-center gap-1.5 text-[12px] leading-4 text-colorTextSecondary">
+                        <div className="-mb-2 flex items-center gap-1.5 text-meta text-muted-foreground">
                             <BuilderIcon size={12} aria-hidden />
                             {t("builder.page.builder")}
                         </div>
@@ -359,13 +359,13 @@ const TurnRowInner = ({
             {runFailure ? (
                 <TurnRunFailure failure={runFailure} renderFooter={renderMetaLine} />
             ) : answerless && !traceSummary.isPending ? (
-                <span className="text-xs italic text-colorTextSecondary">
+                <span className="text-meta italic text-muted-foreground">
                     {t("chat.mobileTurn.noResponse")}
                 </span>
             ) : turn.status.stopped && !answered && !live ? (
                 // Keyed on the answer the row shows, not on `hasAnswer`: a stop interrupts the
                 // running call, the fold hides that failed call, and the turn would read empty.
-                <span className="text-xs italic text-colorTextSecondary">
+                <span className="text-meta italic text-muted-foreground">
                     {t("chat.mobileTurn.stopped")}
                 </span>
             ) : null}
@@ -425,7 +425,7 @@ const TurnRowInner = ({
         <div
             data-pending-send-failed="true"
             role="status"
-            className="mt-1 text-[11px] leading-4 opacity-80"
+            className="mt-1 text-meta opacity-80"
         >
             {PENDING_SEND_FAILED_NOTE}
         </div>
@@ -473,10 +473,9 @@ const TurnRowInner = ({
                     content: turn.isUser
                         ? cn(
                               userBubbleContentClass,
-                              // The canvas bubble: radius 12 with a 2 px corner, 10 / 14 padding (M01, X-8).
-                              "rounded-[12px] rounded-br-[2px] bg-muted px-3.5 py-2.5 text-xs",
+                              "rounded-lg rounded-br-xs bg-secondary px-3.5 py-2.5 text-body",
                           )
-                        : cn("min-w-0 max-w-full overflow-hidden text-xs", ASSISTANT_CLIP_ROOM),
+                        : cn("min-w-0 max-w-full overflow-hidden text-body", ASSISTANT_CLIP_ROOM),
                     body: cn(
                         "min-w-0 max-w-full overflow-hidden",
                         !turn.isUser && ASSISTANT_CLIP_ROOM,

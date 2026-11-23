@@ -75,14 +75,14 @@ export const WhatsNewDialog = () => {
             <DialogContent
                 showCloseButton={false}
                 aria-describedby={undefined}
-                className="gap-0 rounded-2xl p-0 shadow-dialog max-md:max-h-[85dvh] md:grid md:h-[min(720px,85dvh)] md:max-w-[1040px] md:grid-cols-[272px_1fr] md:grid-rows-[minmax(0,1fr)] md:overflow-hidden"
+                className="gap-0 rounded-xl p-0 shadow-modal max-md:max-h-[85dvh] md:grid md:h-[min(720px,85dvh)] md:max-w-content-lg md:grid-cols-[272px_1fr] md:grid-rows-[minmax(0,1fr)] md:overflow-hidden"
             >
-                <div className="flex flex-col border-0 border-solid border-colorBorderSecondary bg-muted px-3 pb-3 pt-5 max-md:border-t md:min-h-0 md:overflow-y-auto md:border-r">
+                <div className="flex flex-col border-0 border-solid border-border-muted bg-muted px-3 pb-3 pt-5 max-md:border-t md:min-h-0 md:overflow-y-auto md:border-r">
                     <div className="flex flex-col gap-1 px-2 pb-3">
-                        <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                        <span className="text-meta text-muted-foreground">
                             {t("education.whatsNew.kicker")}
                         </span>
-                        <DialogTitle className="m-0 text-[18px] font-medium tracking-[-0.015em] text-foreground">
+                        <DialogTitle className="m-0 text-title text-foreground">
                             {t("education.whatsNew.title")}
                         </DialogTitle>
                     </div>
@@ -96,48 +96,49 @@ export const WhatsNewDialog = () => {
                                         key={release.id}
                                         type="button"
                                         onClick={() => select(release.id)}
-                                        className="group relative grid cursor-pointer grid-cols-[15px_1fr] items-start gap-1.5 border-0 bg-transparent p-0 text-left"
+                                        className="focus-ring group relative grid cursor-pointer grid-cols-[15px_1fr] items-start gap-1.5 rounded-lg border-0 bg-transparent p-0 text-left"
                                     >
                                         <span aria-hidden className="relative self-stretch">
                                             {/* One segment per row, so the thread fits any row height. */}
                                             <span
                                                 className={cn(
                                                     "absolute left-1/2 w-px -translate-x-1/2 bg-border",
-                                                    index === 0 ? "top-[17px]" : "top-0",
+                                                    index === 0 ? "top-[15px]" : "top-0",
                                                     index === RAIL_RELEASES.length - 1
-                                                        ? "h-[17px]"
+                                                        ? "h-[15px]"
                                                         : "-bottom-2",
                                                 )}
                                             />
                                             <span
                                                 className={cn(
-                                                    "absolute left-1/2 top-[14px] size-[7px] -translate-x-1/2 rounded-full ring-[3px] ring-muted transition-colors",
+                                                    "absolute left-1/2 top-[11px] size-2 -translate-x-1/2 rounded-xs ring-[3px] ring-muted transition-colors",
                                                     active
                                                         ? "bg-foreground"
-                                                        : "bg-colorTextQuaternary group-hover:bg-colorTextTertiary",
+                                                        : "bg-border-strong group-hover:bg-muted-foreground",
                                                 )}
                                             />
                                         </span>
                                         <span
                                             className={cn(
-                                                "flex min-w-0 flex-col gap-0.5 rounded-lg px-2.5 py-2 transition-colors",
+                                                // row-double: 48 tall, the two lines centered (SPACE-02).
+                                                "box-border flex h-row-double min-w-0 flex-col justify-center gap-0.5 rounded-lg px-2 transition-colors",
                                                 active
-                                                    ? "bg-background"
-                                                    : "group-hover:bg-background/60",
+                                                    ? "bg-selected"
+                                                    : "group-hover:bg-accent",
                                             )}
                                         >
-                                            <span className="flex items-center justify-between gap-2 text-[11.5px] text-colorTextTertiary">
+                                            <span className="flex items-center justify-between gap-2 text-caption text-muted-foreground">
                                                 <span className="flex items-center gap-1.5">
                                                     {release.id}
                                                     {index === 0 ? (
-                                                        <span className="rounded bg-colorSuccessBg px-1.5 text-[10.5px] font-medium leading-4 text-colorSuccessText">
+                                                        <span className="rounded-sm bg-success/10 px-1.5 text-caption text-success">
                                                             {t("education.whatsNew.latest")}
                                                         </span>
                                                     ) : null}
                                                 </span>
                                                 <span>{formatReleaseDate(release)}</span>
                                             </span>
-                                            <span className="truncate text-[13.5px] leading-5 text-foreground">
+                                            <span className="truncate text-label text-foreground">
                                                 {release.features[0]?.title}
                                             </span>
                                         </span>
@@ -151,10 +152,10 @@ export const WhatsNewDialog = () => {
                         href={ALL_RELEASES_LINK}
                         target="_blank"
                         rel="noreferrer"
-                        className="mt-auto flex items-center gap-1 px-2 pt-4 text-[13px] text-muted-foreground no-underline hover:text-foreground"
+                        className="mt-auto flex items-center gap-1 px-2 pt-4 text-label text-muted-foreground no-underline hover:text-foreground"
                     >
                         {t("education.whatsNew.viewAll")}
-                        <ArrowUpRight size={11} aria-hidden />
+                        <ArrowUpRight size={12} aria-hidden />
                     </a>
                 </div>
 
@@ -164,7 +165,7 @@ export const WhatsNewDialog = () => {
                             variant="ghost"
                             size="icon-sm"
                             aria-label={t("common.close")}
-                            className="absolute right-2 top-2 z-10 bg-background/80 text-muted-foreground backdrop-blur-sm hover:bg-background md:right-3 md:top-3"
+                            className="absolute right-2 top-2 z-10 bg-background/80 text-muted-foreground backdrop-blur-sm hover:bg-[image:linear-gradient(var(--accent),var(--accent))] md:right-3 md:top-3"
                         >
                             <X />
                         </Button>
@@ -187,7 +188,7 @@ export const WhatsNewDialog = () => {
                                 ) : feature.cover ? (
                                     <ReleaseCover cover={feature.cover} />
                                 ) : null}
-                                <h2 className="m-0 pr-10 text-[17px] font-semibold tracking-[-0.015em] text-foreground md:text-[20px]">
+                                <h2 className="m-0 pr-10 text-heading text-foreground">
                                     {feature.title}
                                 </h2>
                                 <ChatMarkdown
@@ -214,10 +215,10 @@ export const WhatsNewDialog = () => {
                         ) : null}
                     </FadingScrollBody>
 
-                    <div className="flex items-center justify-between gap-3 border-0 border-t border-solid border-colorBorderSecondary px-4 py-2.5 md:px-6">
+                    <div className="flex items-center justify-between gap-3 border-0 border-t border-solid border-border-muted px-4 py-2 md:px-6">
                         <label
                             htmlFor={optOutId}
-                            className="flex cursor-pointer items-center gap-2 whitespace-nowrap text-[13px] text-muted-foreground"
+                            className="flex cursor-pointer items-center gap-2 whitespace-nowrap text-label text-muted-foreground"
                         >
                             <Checkbox
                                 id={optOutId}
@@ -229,7 +230,6 @@ export const WhatsNewDialog = () => {
                         <Button
                             asChild
                             variant="ghost"
-                            className="rounded-[10px] px-3 text-[13.5px] font-normal hover:bg-muted"
                         >
                             <a
                                 href={selected.features[0]?.link ?? ALL_RELEASES_LINK}

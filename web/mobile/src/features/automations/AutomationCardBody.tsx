@@ -38,7 +38,7 @@ export const AutomationCardBody = ({
             <span className="flex min-w-0 items-center gap-2">
                 <AutomationKindMark kind={automation.kind} />
                 <span
-                    className="min-w-0 flex-1 truncate text-[14px] font-medium text-foreground"
+                    className="min-w-0 flex-1 truncate text-body font-medium text-foreground"
                     title={automation.name}
                 >
                     {automation.name}
@@ -55,7 +55,7 @@ export const AutomationCardBody = ({
             </span>
             <span className="flex min-w-0 flex-col gap-1">
                 <AutomationStatusMark status={status} />
-                <span className="truncate text-[12.5px] text-muted-foreground" title={runsWhen}>
+                <span className="truncate text-label text-muted-foreground" title={runsWhen}>
                     {runsWhen}
                 </span>
             </span>
@@ -65,12 +65,12 @@ export const AutomationCardBody = ({
                 {agentName ? (
                     <span className="flex min-w-0 items-center gap-1.5">
                         <AgentChip workflowId={automation.agentId} box="size-5" glyph={13} />
-                        <span className="truncate text-[12.5px] text-foreground" title={agentName}>
+                        <span className="truncate text-label text-foreground" title={agentName}>
                             {agentName}
                         </span>
                     </span>
                 ) : (
-                    <span className="text-[12.5px] text-muted-foreground">—</span>
+                    <span className="text-label text-muted-foreground">—</span>
                 )}
                 <span className="ml-auto shrink-0 text-right">
                     <AutomationLastRunCell automation={automation} />

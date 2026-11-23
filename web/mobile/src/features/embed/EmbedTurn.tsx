@@ -75,7 +75,7 @@ const EmbedTurnInner = ({
                     variant={texts.length ? "filled" : "borderless"}
                     className="min-w-0 max-w-[85%]"
                     classNames={{
-                        content: cn(userBubbleContentClass, "rounded-md text-xs"),
+                        content: cn(userBubbleContentClass, "rounded-md text-body"),
                         body: "min-w-0 max-w-full overflow-hidden",
                     }}
                     header={fileList}
@@ -107,7 +107,7 @@ const EmbedTurnInner = ({
                 variant="borderless"
                 className="min-w-0 max-w-full"
                 classNames={{
-                    content: "min-w-0 max-w-full overflow-hidden text-xs",
+                    content: "min-w-0 max-w-full overflow-hidden text-body",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
                 header={fileList}
@@ -130,7 +130,7 @@ const EmbedTurnInner = ({
                             />
                         ))}
                         {errorText ? (
-                            <p role="alert" className="m-0 text-xs text-destructive">
+                            <p role="alert" className="m-0 text-meta text-destructive">
                                 {errorText}
                             </p>
                         ) : null}

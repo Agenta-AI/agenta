@@ -26,9 +26,7 @@ const tNow = createT(automationsScreensCatalog)
 const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParams>) => {
     const t = useT(automationsScreensCatalog)
     const tEditor = useT(automationsEditorCatalog)
-    // A phone keeps 44 px tap targets in the footer.
     const phone = useIsPhone()
-    const footerButton = phone ? "h-11 px-4 text-[15px]" : ""
     const editor = useAutomationEditor(params.automationId)
     const {remove} = useAutomation(params.automationId, params.kind)
     const base = `/w/${params.workspaceId}/p/${params.projectId}`
@@ -81,7 +79,7 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
     if (editor.loading) return <AutomationDetailSkeleton />
     if (!editor.automation || !editor.preview)
         return (
-            <p className="m-0 px-6 py-16 text-center text-[13px] text-muted-foreground">
+            <p className="m-0 px-6 py-16 text-center text-label text-muted-foreground">
                 {t("automations.screens.noLongerExists")}
             </p>
         )
@@ -121,13 +119,13 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
             {/* The view's footer (F05 f5): Delete at the left; Discard and Save, which belong to
                 "Settings", at the right. */}
             <div
-                className={`flex shrink-0 items-center justify-between gap-2 border-0 border-t border-solid border-colorBorderSecondary ${phone ? "px-4 pb-6 pt-3" : "p-3"}`}
+                className={`flex shrink-0 items-center justify-between gap-2 border-0 border-t border-solid border-border-muted ${phone ? "px-4 pb-6 pt-3" : "p-3"}`}
             >
                 <Button
                     type="button"
                     variant="ghost"
                     size="compact"
-                    className={`font-normal text-destructive hover:text-destructive ${footerButton}`}
+                    className="text-destructive hover:text-destructive"
                     onClick={() => setConfirmDelete(true)}
                 >
                     <Trash aria-hidden className="size-3.5" />
@@ -138,7 +136,6 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
                         type="button"
                         variant="outline"
                         size="compact"
-                        className={`font-normal ${footerButton}`}
                         disabled={editor.saving || !editor.dirty}
                         onClick={editor.discard}
                     >
@@ -147,7 +144,6 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
                     <Button
                         type="button"
                         size="compact"
-                        className={`font-normal ${footerButton}`}
                         disabled={editor.saving || !editor.dirty}
                         onClick={() => void editor.save()}
                     >

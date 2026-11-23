@@ -5,7 +5,7 @@ import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 export const SkillArchivedTag = () => {
     const t = useT(skillsListCatalog)
     return (
-        <span className="shrink-0 rounded bg-muted px-1.5 py-px text-[10.5px] leading-4 text-muted-foreground">
+        <span className="shrink-0 rounded-sm bg-secondary px-1.5 py-px text-caption text-muted-foreground">
             {t("skills.list.archivedTag")}
         </span>
     )

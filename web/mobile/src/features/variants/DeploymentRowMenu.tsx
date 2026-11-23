@@ -43,12 +43,11 @@ export const DeploymentRowMenu = ({
                 size="icon-xs"
                 variant="ghost"
                 aria-label="Deployment actions"
-                className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
             >
-                <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
+                <DotsThreeVertical aria-hidden className="size-3.5" />
             </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-[220px]">
+        <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuItem onSelect={onOpen}>
                 <Eye aria-hidden size={14} />
                 Open details
@@ -79,7 +78,7 @@ export const DeploymentRowMenu = ({
                     <span className="flex min-w-0 flex-col">
                         Revert
                         {extras.revertReason ? (
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-meta text-muted-foreground">
                                 {extras.revertReason}
                             </span>
                         ) : null}

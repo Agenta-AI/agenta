@@ -21,7 +21,7 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
     const watch = () => video && openGuide({title, headline, docsUrl: guide.docsUrl, video})
 
     return (
-        <section className="relative grid items-center gap-5 overflow-hidden rounded-[14px] border border-solid border-colorBorderSecondary bg-muted px-7 py-6 @xl:grid-cols-2 @xl:gap-6 @3xl:grid-cols-[1fr_420px] @3xl:gap-10">
+        <section className="relative grid items-center gap-5 overflow-hidden rounded-lg border border-solid border-border-muted bg-muted px-6 py-6 @xl:grid-cols-2 @xl:gap-6 @3xl:grid-cols-[1fr_420px] @3xl:gap-10">
             {/* Sized by the container, not the viewport: the sidebar takes its share first. */}
             {video ? (
                 <>
@@ -46,18 +46,18 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
 
             <div className="relative z-[1] flex min-w-0 flex-col gap-5">
                 {video ? (
-                    <span className="box-border inline-flex h-6 w-fit items-center gap-1.5 whitespace-nowrap rounded-md border border-solid border-colorBorderSecondary bg-background pl-1 pr-2.5 text-[12px] text-zinc-8">
-                        <span className="inline-flex size-4 items-center justify-center rounded bg-hero-action text-hero-action-foreground">
+                    <span className="box-border inline-flex h-6 w-fit items-center gap-1.5 whitespace-nowrap rounded-md border border-solid border-border-muted bg-background pl-1 pr-2 text-meta text-muted-foreground">
+                        <span className="inline-flex size-4 items-center justify-center rounded-sm bg-secondary text-muted-foreground">
                             <Play size={7} weight="fill" aria-hidden />
                         </span>
                         {t("education.guides.walkthrough", {title})}
                     </span>
                 ) : null}
-                <div className="flex flex-col gap-2.5">
-                    <h2 className="m-0 text-balance text-[20px] font-semibold @xl:text-[22px] @3xl:text-[24px] leading-[1.1] tracking-[-0.03em] text-foreground">
+                <div className="flex flex-col gap-2">
+                    <h2 className="m-0 text-balance text-heading text-foreground">
                         {headline}
                     </h2>
-                    <p className="m-0 max-w-[46ch] text-[14px] leading-[1.6] @3xl:text-[14.5px] text-muted-foreground">
+                    <p className="m-0 max-w-[46ch] text-body text-muted-foreground">
                         {t(guide.body)}
                     </p>
                 </div>
@@ -72,7 +72,6 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
                         asChild
                         size="sm"
                         variant="outline"
-                        className="border-colorBorderSecondary hover:border-colorTextQuaternary hover:bg-background"
                     >
                         <a href={guide.docsUrl} target="_blank" rel="noopener noreferrer">
                             {t("education.guides.readDocs")}
@@ -87,29 +86,29 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
                     <div className="relative order-first pl-3.5 pt-3.5 @xl:order-none @3xl:hidden">
                         <div
                             aria-hidden
-                            className="absolute bottom-7 left-0 right-7 top-0 -rotate-[2.5deg] rounded-[14px] border border-solid border-colorBorderSecondary bg-background opacity-70"
+                            className="absolute bottom-7 left-0 right-7 top-0 -rotate-[2.5deg] rounded-lg border border-solid border-border-muted bg-background opacity-70"
                         />
                         <div
                             aria-hidden
-                            className="absolute bottom-3.5 left-[7px] right-3.5 top-[7px] -rotate-[1.2deg] rounded-[14px] border border-solid border-colorBorderSecondary bg-background"
+                            className="absolute bottom-3.5 left-[7px] right-3.5 top-[7px] -rotate-[1.2deg] rounded-lg border border-solid border-border-muted bg-background"
                         />
                         <button
                             type="button"
                             onClick={watch}
                             aria-label={t("education.guides.watch", {title: video.title})}
-                            className="relative block aspect-[16/10] w-full cursor-pointer overflow-hidden rounded-[14px] border-0 bg-black p-0 shadow-overlay outline outline-4 outline-background"
+                            className="relative block aspect-[16/10] w-full cursor-pointer overflow-hidden rounded-lg border-0 bg-black p-0 shadow-overlay outline outline-4 outline-background"
                         >
                             <img
                                 src={guideThumbnailUrl(video)}
                                 alt=""
                                 className="block size-full object-cover"
                             />
-                            <span className="absolute left-1/2 top-1/2 inline-flex size-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-black shadow-overlay ring-[6px] ring-white/20">
+                            <span className="absolute left-1/2 top-1/2 inline-flex size-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md bg-background text-foreground shadow-overlay">
                                 <Play size={14} weight="fill" className="ml-0.5" aria-hidden />
                             </span>
                         </button>
                     </div>
-                    <div aria-hidden className="hidden h-[240px] @3xl:block" />
+                    <div aria-hidden className="hidden h-60 @3xl:block" />
                 </>
             ) : (
                 <FeatureIllustration guideKey={guideKey} />

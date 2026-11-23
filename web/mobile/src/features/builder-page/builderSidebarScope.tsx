@@ -99,7 +99,14 @@ export const createBuilderSidebarScope = (
                                   isLoading: true,
                               },
                           ]
-                        : []
+                        : [
+                              {
+                                  key: "builder-chats-empty",
+                                  title: t("builder.page.noChatsYet"),
+                                  disabled: true,
+                                  isPlaceholder: true,
+                              },
+                          ]
             return [
                 {
                     key: "builder",

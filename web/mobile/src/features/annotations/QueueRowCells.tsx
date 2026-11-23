@@ -29,7 +29,7 @@ const ReviewedCell = ({queueId}: {queueId: string}) => {
     const progress = useAtomValue(simpleQueueMolecule.selectors.scenarioProgress(queueId))
     if (!progress) return <SkeletonBlock active className="h-4 w-16 rounded" />
     return (
-        <span className="block truncate text-[13px] text-muted-foreground">
+        <span className="block truncate text-label text-muted-foreground">
             {formatQueueReviewed(progress)}
         </span>
     )
@@ -47,16 +47,16 @@ const LiveStatus = ({queueId}: {queueId: string}) => {
 
 const TypeBadge = ({kind}: {kind: string | null | undefined}) => {
     const label = queueKindLabel(kind)
-    if (!label) return <span className="text-[13px] text-placeholder">{NO_VALUE}</span>
+    if (!label) return <span className="text-label text-muted-foreground">{NO_VALUE}</span>
     // The tone names are badge colors (blue, green, purple, orange) or "default".
     return <Badge variant={queueKindTone(kind) as BadgeProps["variant"]}>{label}</Badge>
 }
 
 const CreatedBy = ({userId}: {userId: string | null | undefined}) =>
     userId ? (
-        <UserAuthorLabel userId={userId} showAvatar className="text-[13px] text-muted-foreground" />
+        <UserAuthorLabel userId={userId} showAvatar className="text-label text-muted-foreground" />
     ) : (
-        <span className="text-[13px] text-muted-foreground">{NO_VALUE}</span>
+        <span className="text-label text-muted-foreground">{NO_VALUE}</span>
     )
 
 /**
@@ -90,13 +90,13 @@ export const QueueRowCells = ({
         <>
             <span ref={ref} className="flex min-w-0 flex-col gap-1">
                 <span
-                    className="truncate text-[14px] font-medium leading-[18px] text-foreground"
+                    className="truncate text-label text-foreground"
                     title={name}
                 >
                     {name}
                 </span>
                 {narrow ? (
-                    <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted-foreground">
+                    <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-meta text-muted-foreground">
                         <TypeBadge kind={row.data?.kind} />
                         <span>{dateLabel(row.updated_at)}</span>
                         <CreatedBy userId={row.created_by_id} />
@@ -134,19 +134,19 @@ export const QueueRowCells = ({
             {narrow ? null : (
                 <>
                     <span
-                        className="block truncate text-[13px] text-muted-foreground"
+                        className="block truncate text-label text-muted-foreground"
                         title={description || undefined}
                     >
                         {description || NO_VALUE}
                     </span>
                     <span
-                        className="block truncate text-[13px] text-muted-foreground"
+                        className="block truncate text-label text-muted-foreground"
                         title={fullDate(row.updated_at)}
                     >
                         {dateLabel(row.updated_at)}
                     </span>
                     <span
-                        className="block truncate text-[13px] text-muted-foreground"
+                        className="block truncate text-label text-muted-foreground"
                         title={fullDate(row.created_at)}
                     >
                         {dateLabel(row.created_at)}

@@ -150,7 +150,7 @@ export const BuilderPageChat = ({
                     setPickedAgent(null)
                     setChipRemoved(true)
                 }}
-                className="flex size-[18px] shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary hover:bg-colorFillSecondary hover:text-colorText"
+                className="focus-ring flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-muted-foreground hover:bg-accent hover:text-foreground"
             >
                 <X aria-hidden size={12} />
             </button>

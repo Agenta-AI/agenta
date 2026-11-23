@@ -34,7 +34,7 @@ const ALL_AGENTS = "all"
 
 /** The status filters get the dot a row paints, so the filter and the row read alike. */
 const StatusDot = ({className}: {className: string}) => (
-    <span aria-hidden className={`size-1.5 rounded-full ${className}`} />
+    <span aria-hidden className={`size-1.5 rounded-xs ${className}`} />
 )
 
 /**
@@ -136,17 +136,17 @@ export const SessionFilterMenu = ({
                         label: waitingCount
                             ? t("sessions.mobileList.waitingCount", {count: waitingCount})
                             : t("sessions.mobileList.waiting"),
-                        icon: <StatusDot className="bg-[var(--ag-run-status-warning)]" />,
+                        icon: <StatusDot className="bg-warning" />,
                     },
                     {
                         value: "running",
                         label: t("sessions.mobileList.running"),
-                        icon: <StatusDot className="bg-[var(--ag-run-status-success)]" />,
+                        icon: <StatusDot className="bg-success" />,
                     },
                     {
                         value: "idle",
                         label: t("sessions.mobileList.idle"),
-                        icon: <StatusDot className="bg-[var(--ag-run-status-default)]" />,
+                        icon: <StatusDot className="bg-muted-foreground" />,
                     },
                 ],
                 onChange: (value) => setStatus(value as SessionStatusFilter),
@@ -315,8 +315,6 @@ export const SessionFilterMenu = ({
             label={null}
             triggerAriaLabel={t("sessions.mobileList.filterAndGroup")}
             size="default"
-            // The square icon size is 28; the search field is 32.
-            triggerClassName="size-8 max-md:size-11"
             // A page locked to one agent is narrowed to it, so the dot shows there too (A02).
             active={changed || Boolean(lockedAgent)}
             onReset={onReset}

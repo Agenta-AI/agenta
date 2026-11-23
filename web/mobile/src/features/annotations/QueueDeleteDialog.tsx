@@ -21,7 +21,7 @@ export const QueueDeleteDialog = ({
         description="This action cannot be undone."
         body={
             <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">Annotation queue</span>
+                <span className="text-meta text-muted-foreground">Annotation queue</span>
                 <span className="font-medium">{target?.name || "Untitled queue"}</span>
             </div>
         }

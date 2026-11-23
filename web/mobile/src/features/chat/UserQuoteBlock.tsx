@@ -38,14 +38,14 @@ export const UserQuoteBlock = ({quote}: {quote: QuotedExcerpt}) => {
             title={excerpt}
             className="flex min-w-0 flex-col gap-0.5 border-0 border-l-2 border-solid border-border pl-3"
         >
-            <span className="truncate text-[11.5px] text-muted-foreground/80">
+            <span className="truncate text-meta text-muted-foreground">
                 {quote.origin === AGENT_REPLY ? (
                     t("chat.mobileTurn.agentReply")
                 ) : (
                     <span className="font-mono">{quote.origin.split("/").pop()}</span>
                 )}
             </span>
-            <span className="line-clamp-2 text-xs text-muted-foreground sm:text-[13px]">
+            <span className="line-clamp-2 text-label text-muted-foreground">
                 {excerpt}
             </span>
         </div>

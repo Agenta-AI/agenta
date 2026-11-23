@@ -16,15 +16,15 @@ describe("sidebar layout", () => {
         expect(rowOf("Configuration")?.className).toContain("h-7")
     })
 
-    it("draws 44 px rows in the phone sheet", () => {
+    it("draws the rail's 28 px rows in the phone sheet: small screens never get bigger rows", () => {
         render(
             <SidebarLayoutContext.Provider value="phone">
                 <NavMenu items={items} collapsed={false} />
             </SidebarLayoutContext.Provider>,
         )
         const row = rowOf("Configuration")
-        expect(row?.className).toContain("h-11")
-        expect(row?.className).not.toContain("h-7")
+        expect(row?.className).toContain("h-7")
+        expect(row?.className).not.toContain("h-11")
         // Edge to edge, as the phone design draws the sheet's rows.
         expect(row?.className).toContain("mb-0")
     })

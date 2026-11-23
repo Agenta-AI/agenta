@@ -107,10 +107,10 @@ export const ConfigurationSectionNav = ({
                     type="button"
                     aria-current={current === section.key ? "location" : undefined}
                     className={cn(
-                        "h-8 truncate rounded-[8px] border-0 bg-transparent px-2.5 text-left text-[13px] [font-family:inherit]",
+                        "h-8 truncate rounded-md border-0 bg-transparent px-2.5 text-left text-label [font-family:inherit] focus-ring",
                         current === section.key
-                            ? "bg-accent font-medium text-foreground"
-                            : "cursor-pointer text-muted-foreground hover:text-foreground",
+                            ? "bg-selected text-foreground"
+                            : "cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground",
                     )}
                     onClick={() => {
                         const root = contentRef.current

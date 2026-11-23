@@ -37,16 +37,15 @@ export const SkillUpdateCell = ({
                 variant="ghost"
                 aria-label={t("skills.list.updateToLatest")}
                 title={t("skills.list.updateToLatest")}
-                className="text-primary hover:bg-foreground/10 dark:hover:bg-foreground/15"
+                className="text-primary"
                 onClick={() => void apply([workflowId])}
             >
                 <ArrowCircleUp aria-hidden className="size-4" weight="fill" />
             </Button>
         ) : (
             <Button
-                size="sm"
+                size="xs"
                 variant="outline"
-                className="h-6 px-2 text-[11.5px] font-normal"
                 onClick={() => void apply([workflowId])}
             >
                 {t("skills.list.update")}
@@ -61,7 +60,7 @@ export const SkillUpdateCell = ({
                 <CheckCircle aria-label={t("skills.list.updated")} className="size-4" />
             </span>
         ) : (
-            <span className="text-[12px] text-muted-foreground">{t("skills.list.updated")}</span>
+            <span className="text-meta text-muted-foreground">{t("skills.list.updated")}</span>
         )
     return null
 }

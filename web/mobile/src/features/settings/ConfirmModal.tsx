@@ -66,8 +66,8 @@ export const ConfirmModal = ({
                     here whenever there is no separate line. */}
                     <AlertDialogDescription>{description ?? body ?? ""}</AlertDialogDescription>
                 </AlertDialogHeader>
-                {description && body ? <div className="text-sm">{body}</div> : null}
-                {error ? <p className="m-0 text-sm text-destructive">{error}</p> : null}
+                {description && body ? <div className="text-body">{body}</div> : null}
+                {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
                 <AlertDialogFooter>
                     <AlertDialogCancel asChild>
                         <Button variant="outline" onClick={onClose} disabled={pending}>
@@ -82,7 +82,7 @@ export const ConfirmModal = ({
                             className={
                                 // White text in both themes, as the /w danger buttons have.
                                 destructive && solid
-                                    ? "bg-destructive text-white hover:bg-destructive/90"
+                                    ? "bg-destructive text-background hover:bg-destructive/90"
                                     : undefined
                             }
                             disabled={pending}

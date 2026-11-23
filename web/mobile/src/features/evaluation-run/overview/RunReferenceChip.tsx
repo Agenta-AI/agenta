@@ -4,7 +4,7 @@ import {VersionBadge} from "@agenta/ui/components/presentational"
 import Link from "next/link"
 
 const CHIP =
-    "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border border-solid border-border bg-muted/40 px-2 py-0.5 text-sm text-foreground no-underline"
+    "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border border-solid border-border bg-secondary px-2 py-0.5 text-label text-foreground no-underline"
 
 /**
  * A test set, application or variant in the run summary: an icon, the name, the version when
@@ -33,7 +33,7 @@ export const RunReferenceChip = ({
         </>
     )
     return href ? (
-        <Link href={href} prefetch={false} className={`${CHIP} hover:bg-muted`}>
+        <Link href={href} prefetch={false} className={`${CHIP} hover:bg-accent`}>
             {body}
         </Link>
     ) : (

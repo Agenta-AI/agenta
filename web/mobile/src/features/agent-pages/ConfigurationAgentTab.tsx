@@ -29,7 +29,7 @@ export const ConfigurationAgentTab = ({
             ref={scrollRef}
             // The size container lets a phone section screen fill this column (its primary action
             // at the bottom).
-            className="ag-scroll-no-bar min-h-0 flex-1 overflow-y-auto bg-[var(--ag-surface-raised)] max-md:bg-background max-md:[container-type:size]"
+            className="ag-scroll-no-bar min-h-0 flex-1 overflow-y-auto bg-muted max-md:bg-background max-md:[container-type:size]"
         >
             <div
                 className={`${CONFIGURATION_PAGE_COLUMN} grid grid-cols-[168px_minmax(0,1fr)] items-start gap-10 pb-10 pt-7 max-md:block max-md:max-w-none max-md:p-0`}

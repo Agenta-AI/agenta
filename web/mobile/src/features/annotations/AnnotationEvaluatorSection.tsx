@@ -19,7 +19,7 @@ export const AnnotationEvaluatorSection = ({
     const entries = Object.entries(fields)
     if (entries.length === 0) {
         return (
-            <p className="m-0 py-1 text-sm text-muted-foreground">No annotation fields available</p>
+            <p className="m-0 py-1 text-body text-muted-foreground">No annotation fields available</p>
         )
     }
     return (
@@ -33,7 +33,7 @@ export const AnnotationEvaluatorSection = ({
                         onChange={(value) => onChange(slug, fieldKey, value)}
                     />
                     {errors?.[fieldKey] ? (
-                        <p role="alert" className="m-0 text-xs text-destructive">
+                        <p role="alert" className="m-0 text-meta text-destructive">
                             {errors[fieldKey]}
                         </p>
                     ) : null}

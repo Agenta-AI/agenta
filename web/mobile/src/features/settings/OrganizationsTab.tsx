@@ -260,12 +260,12 @@ const TransferDialog = ({
                         </SelectContent>
                     </Select>
                 ) : (
-                    <p className="m-0 text-sm text-muted-foreground">
+                    <p className="m-0 text-body text-muted-foreground">
                         {t("settings.organizationsTab.inviteFirst")}
                     </p>
                 )}
                 {error ? (
-                    <p role="alert" className="text-destructive m-0 text-xs">
+                    <p role="alert" className="text-destructive m-0 text-meta">
                         {error}
                     </p>
                 ) : null}

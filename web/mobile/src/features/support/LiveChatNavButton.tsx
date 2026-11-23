@@ -53,11 +53,11 @@ export const LiveChatNavButton = () => {
                         aria-label={unread ? `Live chat, ${unread} unread` : "Live chat"}
                         aria-pressed={open}
                         onClick={toggleLiveChat}
-                        className="text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText aria-pressed:bg-colorFillTertiary aria-pressed:text-colorText relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent [font-family:inherit]"
+                        className="text-muted-foreground hover:bg-accent hover:text-foreground aria-pressed:bg-secondary aria-pressed:text-foreground relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent [font-family:inherit]"
                     >
                         <ChatCircleIcon size={16} />
                         {unread ? (
-                            <span className="bg-error ring-background absolute top-1 right-1 size-1.5 rounded-full ring-2" />
+                            <span className="bg-error ring-background absolute top-1 right-1 size-1.5 rounded-sm ring-2" />
                         ) : null}
                     </button>
                 </TooltipTrigger>

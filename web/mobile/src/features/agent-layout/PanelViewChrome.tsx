@@ -44,12 +44,12 @@ export const PanelViewChrome = ({
             {phone ? (
                 <PhoneViewHeader crumbs={crumbs} onBack={onBack} />
             ) : (
-                <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary pl-2 pr-1.5">
+                <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted pl-2 pr-1.5">
                     {/* Parent crumbs 13 px fg2, "›" between, the open view 13 px / 600. When the
                         row is short, the parent crumbs give up their width first (down to 48 px
                         each; shrink 1000 against 1), so the open view keeps its full name while it
                         fits (F05-06). */}
-                    <nav className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px]">
+                    <nav className="flex min-w-0 flex-1 items-center gap-1.5 text-label">
                         {crumbs.map((crumb, index) => {
                             const last = index === crumbs.length - 1
                             return (
@@ -63,7 +63,7 @@ export const PanelViewChrome = ({
                                     {index > 0 ? (
                                         <span
                                             aria-hidden
-                                            className="text-sm text-colorTextTertiary"
+                                            className="text-label text-muted-foreground"
                                         >
                                             ›
                                         </span>
@@ -72,7 +72,7 @@ export const PanelViewChrome = ({
                                         <button
                                             type="button"
                                             title={crumb.title}
-                                            className="h-7 min-w-0 truncate rounded-md px-1.5 text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
+                                            className="h-7 min-w-0 truncate rounded-md px-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
                                             onClick={crumb.onSelect}
                                         >
                                             {crumb.title}
@@ -83,8 +83,8 @@ export const PanelViewChrome = ({
                                             className={cn(
                                                 "truncate",
                                                 last
-                                                    ? "font-semibold text-colorText"
-                                                    : "px-1.5 text-colorTextSecondary",
+                                                    ? "font-semibold text-foreground"
+                                                    : "px-1.5 text-muted-foreground",
                                             )}
                                         >
                                             {crumb.title}
@@ -115,7 +115,7 @@ export const PanelViewChrome = ({
             {hideActionRow ? null : (
                 <div
                     className={cn(
-                        "shrink-0 border-0 border-t border-solid border-colorBorderSecondary px-4",
+                        "shrink-0 border-0 border-t border-solid border-border-muted px-4",
                         phone ? "pb-6 pt-3" : "py-3",
                     )}
                 >

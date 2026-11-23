@@ -43,7 +43,7 @@ export const SkillRowCells = ({
                 <span className="flex min-w-0 flex-1 flex-col gap-px">
                     <span className="flex min-w-0 items-center gap-1.5">
                         <span
-                            className="truncate text-[13px] leading-[18px] text-foreground"
+                            className="truncate text-label text-foreground"
                             title={row.title}
                         >
                             {row.title}
@@ -53,9 +53,7 @@ export const SkillRowCells = ({
                     {/* A described skill and an undescribed one have to be the same shape, or a
                     column of rows jumps height by height as you read down it. */}
                     <span
-                        className={`truncate text-[13px] leading-[16px] ${
-                            row.description ? "text-muted-foreground" : "text-placeholder"
-                        }`}
+                        className="truncate text-meta text-muted-foreground"
                         title={row.description || undefined}
                     >
                         {row.description || noDescriptionLabel()}
@@ -65,7 +63,7 @@ export const SkillRowCells = ({
 
             {narrow ? null : (
                 <span
-                    className="block truncate text-[13px] text-muted-foreground"
+                    className="block truncate text-label text-muted-foreground"
                     title={provenanceLabel(row, group)}
                 >
                     {provenanceLabel(row, group)}
@@ -74,15 +72,13 @@ export const SkillRowCells = ({
 
             {narrow ? null : (
                 <span
-                    className={`block truncate text-[13px] ${
-                        row.usedByCount ? "text-muted-foreground" : "text-placeholder"
-                    }`}
+                    className="block truncate text-label text-muted-foreground"
                 >
                     {usedByLabel(row.usedByCount)}
                 </span>
             )}
 
-            <span className="block truncate text-[13px] text-placeholder">
+            <span className="block truncate text-label text-muted-foreground">
                 {lastUpdatedLabel(row.age)}
             </span>
 

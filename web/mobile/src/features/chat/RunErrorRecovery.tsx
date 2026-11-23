@@ -67,16 +67,16 @@ export const RunErrorRecovery = ({actions}: {actions: RunErrorRecoveryAction[]})
                     return (
                         <div
                             key={title}
-                            className="flex min-w-0 items-center gap-2.5 rounded-lg border border-border bg-card p-2"
+                            className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-card p-2"
                         >
-                            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
+                            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
                                 <Glyph size={16} />
                             </span>
                             <div className="flex min-w-0 flex-1 flex-col">
-                                <span className="truncate text-xs font-medium text-foreground">
+                                <span className="truncate text-label text-foreground">
                                     {title}
                                 </span>
-                                <span className="truncate text-xs text-muted-foreground">
+                                <span className="truncate text-meta text-muted-foreground">
                                     {description}
                                 </span>
                             </div>

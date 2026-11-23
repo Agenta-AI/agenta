@@ -7,7 +7,7 @@ import {useT} from "@agenta/i18n"
 import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
 import {Button} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
-import {Plus} from "lucide-react"
+import {PlusIcon} from "@phosphor-icons/react"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -61,15 +61,15 @@ export const QueueListScreen = ({
                         >
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                                     Queues
                                 </h1>
                                 {canEdit ? (
                                     <Button
-                                        className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
+                                        size="sm"
                                         onClick={openCreate}
                                     >
-                                        <Plus aria-hidden />
+                                        <PlusIcon aria-hidden />
                                         New queue
                                     </Button>
                                 ) : null}

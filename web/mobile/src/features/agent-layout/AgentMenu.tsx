@@ -27,7 +27,7 @@ import {pendingTasksAtom, stashPendingTaskAtom} from "../home/pendingTask"
 
 import {LeaveWhenArchived} from "./LeaveWhenArchived"
 
-interface AgentMenuEntry {
+export interface AgentMenuEntry {
     key: string
     label: ReactNode
     /** Each menu sizes it: 16 px in the desktop menu, 18 px in the phone sheet. */
@@ -49,6 +49,8 @@ export const AgentMenu = ({
     projectId,
     base,
     phone = false,
+    phoneTrigger,
+    leadingEntries = [],
 }: {
     agentId: string
     name: string
@@ -58,6 +60,10 @@ export const AgentMenu = ({
     /** The project URL: an archived agent leaves for its Agents list. */
     base: string
     phone?: boolean
+    /** Replaces the phone trigger (the name), so the sheet can open from a More button. */
+    phoneTrigger?: ReactNode
+    /** Entries before the agent's own ones in the phone sheet. */
+    leadingEntries?: AgentMenuEntry[]
 }) => {
     const t = useT(agentLayoutHeaderCatalog)
     const canEdit = useProjectPermission(projectId, "edit_workflows")
@@ -132,29 +138,29 @@ export const AgentMenu = ({
                     open={sheetOpen}
                     onOpenChange={setSheetOpen}
                     title={name}
-                    items={entries}
+                    items={[...leadingEntries, ...entries]}
                     trigger={
-                        <div
-                            role="button"
-                            tabIndex={0}
-                            aria-haspopup="dialog"
-                            className="ml-0.5 box-border flex h-11 min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-colorText outline-none active:bg-colorFillTertiary focus-visible:bg-colorFillTertiary"
-                            onKeyDown={(event) => {
-                                if (event.key !== "Enter" && event.key !== " ") return
-                                event.preventDefault()
-                                setSheetOpen(true)
-                            }}
-                        >
-                            <AgentKindBadge workflowId={agentId} editable={false} />
-                            <span className="min-w-0 truncate text-base font-semibold leading-5">
-                                {name}
-                            </span>
-                            <CaretDown
-                                size={14}
-                                aria-hidden
-                                className="shrink-0 text-colorTextTertiary"
-                            />
-                        </div>
+                        phoneTrigger ?? (
+                            <div
+                                role="button"
+                                tabIndex={0}
+                                aria-haspopup="dialog"
+                                className=" ml-0.5 box-border flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-foreground outline-none active:bg-secondary focus-visible:bg-secondary"
+                                onKeyDown={(event) => {
+                                    if (event.key !== "Enter" && event.key !== " ") return
+                                    event.preventDefault()
+                                    setSheetOpen(true)
+                                }}
+                            >
+                                <AgentKindBadge workflowId={agentId} editable={false} />
+                                <span className="min-w-0 truncate text-title">{name}</span>
+                                <CaretDown
+                                    size={14}
+                                    aria-hidden
+                                    className="shrink-0 text-muted-foreground"
+                                />
+                            </div>
+                        )
                     }
                 />
             </>
@@ -169,12 +175,13 @@ export const AgentMenu = ({
                 <DropdownMenuTrigger asChild>
                     <Button
                         variant="ghost"
-                        className="h-[30px] min-w-0 shrink gap-2 rounded-[6px] px-2 text-[15px] font-semibold text-colorText"
+                        size="sm"
+                        className="min-w-0 shrink gap-2 px-2 text-foreground"
                     >
                         <span className="truncate">{name}</span>
                         <CaretDown
                             aria-hidden
-                            className="size-3.5 shrink-0 text-colorTextTertiary"
+                            className="size-3.5 shrink-0 text-muted-foreground"
                         />
                     </Button>
                 </DropdownMenuTrigger>

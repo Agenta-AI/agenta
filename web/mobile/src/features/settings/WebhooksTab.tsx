@@ -92,11 +92,11 @@ export const WebhooksTab = () => {
                                 {t("settings.webhooksTab.secretDescription")}
                             </DialogDescription>
                         </DialogHeader>
-                        <p className="m-0 break-all rounded-md border border-solid border-border bg-muted px-3 py-2 font-mono text-xs">
+                        <p className="m-0 break-all rounded-md border border-solid border-border bg-muted px-3 py-2 text-code-sm">
                             {createdSecret}
                         </p>
                         {copyError ? (
-                            <p role="alert" className="text-destructive m-0 text-xs">
+                            <p role="alert" className="text-destructive m-0 text-meta">
                                 {copyError}
                             </p>
                         ) : null}

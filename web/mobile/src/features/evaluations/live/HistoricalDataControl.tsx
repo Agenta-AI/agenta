@@ -7,7 +7,7 @@ import {Input, SimpleTooltip, Switch} from "@agenta/ui/ui"
 export const HistoricalDataControl = () => (
     <div className="flex flex-wrap items-center justify-between gap-3">
         <SimpleTooltip title="Not available yet">
-            <span className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="flex items-center gap-2 text-body text-muted-foreground">
                 <Switch aria-label="Run on historical data" checked={false} disabled />
                 Run on historical data
             </span>
@@ -17,7 +17,7 @@ export const HistoricalDataControl = () => (
                 aria-label="Start date"
                 placeholder="Start date"
                 disabled
-                className="h-8 w-[110px]"
+                className="w-28"
             />
             <span aria-hidden className="text-muted-foreground">
                 →
@@ -26,7 +26,7 @@ export const HistoricalDataControl = () => (
                 aria-label="End date"
                 placeholder="End date"
                 disabled
-                className="h-8 w-[110px]"
+                className="w-28"
             />
         </span>
     </div>

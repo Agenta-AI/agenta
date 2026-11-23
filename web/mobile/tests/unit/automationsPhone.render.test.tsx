@@ -207,6 +207,7 @@ describe("Run history on a phone", () => {
                 }),
             ),
         )
-        expect(container.querySelector("button")?.className).toContain("min-h-11")
+        // The same row height on a phone as on the desktop.
+        expect(container.querySelector("button")?.className).not.toContain("min-h-11")
     })
 })

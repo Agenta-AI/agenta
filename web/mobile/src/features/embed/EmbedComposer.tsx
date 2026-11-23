@@ -47,7 +47,7 @@ export const EmbedComposer = ({
                     {files.map((file, index) => (
                         <li
                             key={`${file.name}-${index}`}
-                            className="flex max-w-full items-center gap-1 rounded-md bg-muted py-0.5 pr-0.5 pl-2 text-xs text-foreground"
+                            className="flex max-w-full items-center gap-1 rounded-sm bg-secondary py-0.5 pr-0.5 pl-2 text-label text-foreground"
                         >
                             <span className="truncate">{file.name}</span>
                             <Button
@@ -91,7 +91,7 @@ export const EmbedComposer = ({
                     aria-label="Message"
                     autoSize={{minRows: 1, maxRows: 6}}
                     disabled={disabled}
-                    className="grow resize-none text-base sm:text-sm"
+                    className="grow resize-none text-body"
                 />
                 <Button
                     size="icon"
@@ -103,7 +103,7 @@ export const EmbedComposer = ({
                 </Button>
             </div>
             {files.length ? (
-                <p className="m-0 mt-1.5 text-xs text-muted-foreground">
+                <p className="m-0 mt-1.5 text-meta text-muted-foreground">
                     Up to 10 files, 5 MB each.
                 </p>
             ) : null}

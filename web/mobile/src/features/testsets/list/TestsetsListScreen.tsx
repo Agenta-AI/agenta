@@ -144,7 +144,7 @@ export const TestsetsListScreen = ({
                               <Button
                                   type="button"
                                   size="xs"
-                                  variant="destructive-outline"
+                                  variant="destructive-ghost"
                                   onClick={() => setArchiveTargets(selectedRows)}
                               >
                                   <Archive aria-hidden data-icon="inline-start" />
@@ -221,7 +221,7 @@ export const TestsetsListScreen = ({
                         >
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                                     Test sets
                                 </h1>
                                 <Button asChild variant="ghost" size="sm">
@@ -236,7 +236,7 @@ export const TestsetsListScreen = ({
                                     <Button
                                         aria-label={t("testsets.screens.createTestset")}
                                         // Square icon button on a phone, where the label is hidden.
-                                        className="max-sm:size-8 max-sm:px-0"
+                                        className="max-sm:size-control max-sm:px-0"
                                         onClick={createHandler}
                                     >
                                         <Plus aria-hidden data-icon="inline-start" />

@@ -1,5 +1,5 @@
 import {Button, SearchInput} from "@agenta/ui/ui"
-import {Plus} from "lucide-react"
+import {PlusIcon} from "@phosphor-icons/react"
 
 import {AddToQueuePickerEmpty} from "./states/AddToQueuePickerEmpty"
 import {AddToQueuePickerError} from "./states/AddToQueuePickerError"
@@ -41,10 +41,10 @@ export const AddToQueuePickerPanel = ({
     <div className="flex flex-col">
         <div className="flex flex-col gap-2 p-3">
             <div className="flex items-center justify-between gap-2">
-                <p className="m-0 text-sm font-medium">Select annotation queue</p>
+                <p className="m-0 text-label">Select annotation queue</p>
                 {onNew ? (
                     <Button type="button" size="sm" onClick={onNew}>
-                        <Plus aria-hidden />
+                        <PlusIcon aria-hidden />
                         New
                     </Button>
                 ) : null}
@@ -73,18 +73,12 @@ export const AddToQueuePickerPanel = ({
                                 type="button"
                                 disabled={submittingId !== null}
                                 onClick={() => onSelect(queue.id)}
-                                className="flex w-full min-h-11 cursor-pointer flex-col items-start justify-center border-0 bg-transparent px-3 py-2 text-left hover:bg-accent focus-visible:bg-accent focus-visible:outline-none disabled:cursor-wait disabled:opacity-50"
+                                className="flex w-full min-h-12 cursor-pointer flex-col items-start justify-center border-0 bg-transparent px-3 py-2 text-left hover:bg-accent focus-visible:bg-accent focus-visible:outline-none disabled:cursor-wait disabled:opacity-50"
                             >
-                                <span
-                                    className={
-                                        submittingId === queue.id
-                                            ? "w-full truncate text-sm font-semibold"
-                                            : "w-full truncate text-sm"
-                                    }
-                                >
+                                <span className="w-full truncate text-label">
                                     {queue.name}
                                 </span>
-                                <span className="text-xs text-muted-foreground">
+                                <span className="text-meta text-muted-foreground">
                                     {queue.updated}
                                 </span>
                             </button>

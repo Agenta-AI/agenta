@@ -22,8 +22,8 @@ export const AgentAnalyticsPageSkeleton = () => {
             >
                 <div className="flex flex-col gap-4 pb-10">
                     <div className="flex items-center gap-2">
-                        <SkeletonBlock active className="h-8 w-[230px] rounded-md max-md:h-11" />
-                        <SkeletonBlock active className="h-8 w-24 rounded-md max-md:h-11" />
+                        <SkeletonBlock active className="h-8 w-56 rounded-md" />
+                        <SkeletonBlock active className="h-8 w-24 rounded-md" />
                     </div>
                     <AnalyticsCardSkeleton />
                     <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,420px),1fr))] gap-4">

@@ -137,7 +137,6 @@ export const SkillFilterMenu = ({
             triggerAriaLabel={t("skills.list.filterAria")}
             size="default"
             // The view toggle beside it is 32; a 28px funnel between them read as a mistake.
-            triggerClassName="size-8"
             active={!isDefaultSkillFilters(view)}
             onReset={() =>
                 onChange({...DEFAULT_SKILL_LIST_VIEW, group: view.group, mode: view.mode})

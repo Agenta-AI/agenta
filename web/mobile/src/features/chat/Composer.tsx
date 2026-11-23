@@ -387,6 +387,9 @@ export const Composer = ({
                 builderChat && "px-4",
                 // B01: the ideas sit 10 px over the box, and 24 px stay under it.
                 pageNewChat && "md:pb-6 md:pt-0",
+                // A parked card holds the one primary action: Send goes quiet (ACT-01).
+                waitingOnUser &&
+                    "[--ag-composer-send-bg:var(--secondary)] [--ag-composer-send-fg:var(--foreground)] [--ag-composer-send-hover-bg:var(--accent)]",
                 className,
             )}
         >
@@ -437,7 +440,8 @@ export const Composer = ({
                                     initial="initial"
                                     animate="animate"
                                     exit="exit"
-                                    className="absolute inset-x-0 bottom-full z-50 mb-2"
+                                    // A normal popover over the model button, not the composer's width.
+                                    className="absolute bottom-full right-0 z-50 mb-2 w-popover-lg max-w-full"
                                 >
                                     {/* A pick writes the agent config; auto-save commits it. */}
                                     <ComposerModelPanel
@@ -465,7 +469,7 @@ export const Composer = ({
                             // panel, 34 px plus its 36 px chip row.
                             minHeightClassName={
                                 pageNewChat
-                                    ? "min-h-[60px]"
+                                    ? "min-h-15"
                                     : besideBuilder
                                       ? "min-h-[70px]"
                                       : undefined

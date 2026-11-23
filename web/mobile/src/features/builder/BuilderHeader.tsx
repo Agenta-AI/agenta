@@ -24,7 +24,7 @@ import {useChatAgeLabel} from "./useChatAgeLabel"
 export const TITLE_MENU_CHATS = 5
 
 const headerClass =
-    "flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary pr-2"
+    "flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted pr-2"
 
 /**
  * The builder panel header: the chat title as a menu of the latest chats about this agent and
@@ -84,7 +84,7 @@ export const BuilderHeader = ({
                     type="button"
                     data-testid="builder-chat-title"
                     className={cn(
-                        "flex min-w-0 max-w-full cursor-pointer items-center gap-2 border-0 bg-transparent font-semibold text-colorText hover:bg-accent",
+                        "flex min-w-0 max-w-full cursor-pointer items-center gap-2 border-0 bg-transparent font-semibold text-foreground hover:bg-accent",
                         phone
                             ? "h-11 rounded-lg px-2 text-base leading-5"
                             : "h-[30px] rounded-[6px] px-2 text-sm",
@@ -94,7 +94,7 @@ export const BuilderHeader = ({
                     <span className="min-w-0 truncate" title={title}>
                         {title}
                     </span>
-                    <CaretDown aria-hidden size={12} className="shrink-0 text-colorTextTertiary" />
+                    <CaretDown aria-hidden size={12} className="shrink-0 text-muted-foreground" />
                 </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-[280px]">
@@ -107,7 +107,7 @@ export const BuilderHeader = ({
                         <span className="min-w-0 flex-1 truncate">
                             {row.name?.trim() || t("builder.panel.untitledChat")}
                         </span>
-                        <span className="shrink-0 text-xs text-colorTextTertiary">
+                        <span className="shrink-0 text-xs text-muted-foreground">
                             {age(row.updated_at, now)}
                         </span>
                     </DropdownMenuItem>

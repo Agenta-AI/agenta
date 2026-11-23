@@ -67,6 +67,7 @@ import {ChatBubble} from "@agenta/ui/components/presentational"
 import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
+import {cn} from "@agenta/ui/styles"
 import {Button} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import type {FileUIPart, UIMessage} from "ai"
@@ -1059,7 +1060,7 @@ export const LiveConversation = ({
                                 variant="filled"
                                 className="min-w-0 max-w-[85%]"
                                 classNames={{
-                                    content: "min-w-0 max-w-full overflow-hidden text-xs",
+                                    content: "min-w-0 max-w-full overflow-hidden text-body",
                                     body: "min-w-0 max-w-full overflow-hidden",
                                 }}
                                 content={
@@ -1081,7 +1082,7 @@ export const LiveConversation = ({
                             {emptyState ?? <AgentIntroCard entityId={entityId} />}
                             {conversation.historyReadFailed ? (
                                 <div className="mt-3 flex flex-col items-center gap-2">
-                                    <p className="text-muted-foreground m-0 text-center text-xs">
+                                    <p className="text-muted-foreground m-0 text-center text-meta">
                                         {t("chat.mobileLive.couldNotLoadEarlier")}
                                     </p>
                                     <Button
@@ -1093,7 +1094,7 @@ export const LiveConversation = ({
                                     </Button>
                                 </div>
                             ) : conversation.historyUnavailable ? (
-                                <p className="text-muted-foreground mt-3 text-center text-xs">
+                                <p className="text-muted-foreground mt-3 text-center text-meta">
                                     {t("chat.mobileLive.noMessagesSaved")}
                                 </p>
                             ) : null}
@@ -1184,6 +1185,8 @@ export const LiveConversation = ({
                                 actions={approvalActions}
                                 entityId={entityId}
                                 bottomMost={false}
+                                // On a phone the card owns the bottom edge while it waits (PHONE-01).
+                                phoneBottomMost={!locked && !hideComposer && !readOnly}
                                 readOnly={locked}
                                 readOnlyNote={readOnly?.approvalNote}
                                 privateSession={privateSession}
@@ -1332,9 +1335,11 @@ export const LiveConversation = ({
                             <Composer
                                 // A new chat's group: 16 px under the intro, and the quick actions
                                 // 12 px under the box (S07), 14 px on a phone (M04).
-                                className={
-                                    groupLayout && belowComposer ? "pt-0 pb-3.5 md:pb-3" : undefined
-                                }
+                                className={cn(
+                                    groupLayout && Boolean(belowComposer) && "pt-0 pb-3.5 md:pb-3",
+                                    // Kept mounted (the draft stays); the approval card has the edge.
+                                    approvalsOpen && !locked && "max-sm:hidden",
+                                )}
                                 entityId={entityId}
                                 sessionId={sessionId}
                                 agentName={builderChat ? undefined : agentName}
@@ -1422,7 +1427,7 @@ export const LiveConversation = ({
     // Marks this conversation for the focus rule of its shortcuts and its approval card. Every rail
     // inside takes the canvas column: 720 px in a session, 780 px on the builder page.
     const rootedScaffold = (
-        <ContentRailCapContext.Provider value={builderChat ? "max-w-[780px]" : "max-w-[720px]"}>
+        <ContentRailCapContext.Provider value="max-w-content-md">
             <ConversationRoot>{scaffold}</ConversationRoot>
         </ContentRailCapContext.Provider>
     )

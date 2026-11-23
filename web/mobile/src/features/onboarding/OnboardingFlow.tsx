@@ -69,12 +69,12 @@ export interface OnboardingFlowProps {
     onSkip: () => void
 }
 
-const QUESTION_WIDTH = "max-w-[680px]"
+const QUESTION_WIDTH = "max-w-170"
 
 /** Each fixed step's column width, as the design sets it. */
 const WIDTH = {
-    credits: "max-w-[880px]",
-    templates: "max-w-[1040px] max-md:self-start",
+    credits: "max-w-220",
+    templates: "max-w-content-lg max-md:self-start",
 } as const
 
 const TEMPLATES: OnboardingRoute = {step: "templates", focus: null}
@@ -245,7 +245,7 @@ export const OnboardingFlow = ({
                     // The gallery is pinned to the top and fills the height, so its title, chips
                     // and Use template never move with a longer list or a longer template.
                     // Below this the whole page scrolls instead of squeezing the panel under the dots.
-                    step === "templates" && "md:min-h-[520px] md:items-stretch md:pb-0",
+                    step === "templates" && "md:min-h-130 md:items-stretch md:pb-0",
                 )}
             >
                 <motion.section

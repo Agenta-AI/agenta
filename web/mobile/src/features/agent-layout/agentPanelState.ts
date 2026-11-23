@@ -16,7 +16,7 @@ export interface AgentPanelState {
 
 export const PANEL_MIN = 360
 export const PANEL_MAX = 640
-export const PANEL_DEFAULT = 440
+export const PANEL_DEFAULT = 360
 export const PANEL_WIDE = 760
 /** Below this window width the panel lies over the conversation instead of pushing it. */
 export const OVERLAY_BELOW = 1100

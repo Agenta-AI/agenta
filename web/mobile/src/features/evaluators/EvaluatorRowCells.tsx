@@ -22,7 +22,7 @@ const TemplateTags = ({evaluatorKey}: {evaluatorKey: string | null}) => {
 }
 
 const Muted = ({children}: {children: React.ReactNode}) => (
-    <span className="block min-w-0 truncate text-[13px] text-muted-foreground">{children}</span>
+    <span className="block min-w-0 truncate text-label text-muted-foreground">{children}</span>
 )
 
 /** One row's cells, in column order: an evaluator, or an older revision under it. */
@@ -72,7 +72,7 @@ export const EvaluatorRowCells = ({
                             onToggleExpand()
                         }}
                         onKeyDown={(event) => event.stopPropagation()}
-                        className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-muted-foreground hover:bg-colorFillTertiary hover:text-foreground"
+                        className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-muted-foreground hover:bg-accent hover:text-foreground"
                     >
                         {loadingOlder ? (
                             <Spinner size="small" />
@@ -89,15 +89,15 @@ export const EvaluatorRowCells = ({
                 ) : null}
                 <span
                     className={cn(
-                        "truncate text-[14px] leading-[18px]",
-                        older ? "text-muted-foreground" : "font-medium text-foreground",
+                        "truncate text-label",
+                        older ? "text-muted-foreground" : "text-foreground",
                     )}
                     title={name}
                 >
                     {name}
                 </span>
                 {row.version != null ? (
-                    <span className="shrink-0 rounded-sm bg-muted px-1.5 text-[12px] leading-5 text-muted-foreground">
+                    <span className="shrink-0 rounded-sm bg-muted px-1.5 text-meta leading-5 text-muted-foreground">
                         v{row.version}
                     </span>
                 ) : null}

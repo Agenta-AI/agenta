@@ -39,7 +39,7 @@ import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
-import {SESSIONS_PAGE_FRAME} from "./pageFrame"
+import {LIST_PAGE_BODY, LIST_PAGE_HEADER, LIST_PAGE_HEADER_ROW} from "./pageFrame"
 import {SessionAutomationDrawers} from "./SessionAutomationDrawers"
 import {SessionFilterMenu} from "./SessionFilterMenu"
 import {SessionListTable} from "./SessionListTable"
@@ -244,15 +244,11 @@ const SessionListBody = ({
                                 projectId={projectId}
                             />
                         ) : (
-                            // The same frame the automations header uses, so the two pages line up at
-                            // every width: page column, 16px gutters on a phone, 64px and a deeper
-                            // top from `lg`.
-                            <div
-                                className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${SESSIONS_PAGE_FRAME}`}
-                            >
-                                <div className="flex min-w-0 items-center gap-2">
+                            // The list-page frame every nav entry shares.
+                            <div className={LIST_PAGE_HEADER}>
+                                <div className={LIST_PAGE_HEADER_ROW}>
                                     <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                    <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                    <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                                         {t("sessions.mobileList.sessions")}
                                     </h1>
                                     {projectEmpty ? null : (
@@ -279,7 +275,7 @@ const SessionListBody = ({
                         className={
                             lockedAgentId && !phone
                                 ? AGENT_SESSIONS_PAGE_COLUMN
-                                : `min-w-0 px-4 pb-12 pt-3 ${SESSIONS_PAGE_FRAME}`
+                                : LIST_PAGE_BODY
                         }
                     >
                         {projectEmpty ? (
@@ -292,7 +288,6 @@ const SessionListBody = ({
                                     status, agent and grouping are rows inside it, so the bar stays
                                     a search bar. */}
                                 <ListTableToolbar
-                                    className="max-md:[&_[data-slot=input-group]]:h-11 max-md:[&_input]:h-11"
                                     search={search.value}
                                     onSearchChange={search.onChange}
                                     searchPlaceholder={t("sessions.mobileList.searchSessions")}

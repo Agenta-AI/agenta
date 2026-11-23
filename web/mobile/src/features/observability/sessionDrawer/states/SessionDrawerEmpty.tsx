@@ -1,7 +1,7 @@
 import {useT} from "@agenta/i18n"
 import sessionCatalog from "@agenta/i18n/catalogs/observability.sessionDrawer"
 import {Empty, EmptyHeader, EmptyMedia, EmptyTitle} from "@agenta/ui/ui"
-import {Activity} from "lucide-react"
+import {PulseIcon} from "@phosphor-icons/react"
 
 /** A session id the project has no traces for: an old or wrong link. */
 export const SessionDrawerEmpty = () => {
@@ -10,7 +10,7 @@ export const SessionDrawerEmpty = () => {
         <Empty className="py-16">
             <EmptyHeader>
                 <EmptyMedia variant="icon">
-                    <Activity />
+                    <PulseIcon />
                 </EmptyMedia>
                 <EmptyTitle>{t("observability.sessionDrawer.noTraces")}</EmptyTitle>
             </EmptyHeader>

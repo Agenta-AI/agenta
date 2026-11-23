@@ -48,7 +48,7 @@ const RowActionButton = ({
         aria-label={label}
         onClick={onClick}
         // 20px box (icon-xs is 24) so the row keeps its height; the ::after is the hit extender.
-        className="relative size-5 rounded text-colorTextTertiary after:absolute after:inset-[-10px] after:content-[''] hover:text-colorText [@media(hover:hover)]:after:inset-[-4px] [&_svg:not([class*='size-'])]:size-3.5"
+        className="relative size-5 rounded-sm text-muted-foreground after:absolute after:inset-[-10px] after:content-[''] hover:text-foreground [@media(hover:hover)]:after:inset-[-4px] [&_svg:not([class*='size-'])]:size-3.5"
     >
         {children}
     </Button>
@@ -61,8 +61,8 @@ const StatusDot = ({status}: {status: SessionRowStatusMeta}) => {
         <span
             aria-hidden
             className={cn(
-                "box-border size-[7px] shrink-0 rounded-full border-[1.5px] border-solid",
-                live ? `${status.dotClassName} border-transparent` : "border-colorBorder",
+                "box-border size-2 shrink-0 rounded-xs border border-solid",
+                live ? `${status.dotClassName} border-transparent` : "border-border",
             )}
         />
     )
@@ -92,7 +92,7 @@ const KindIcon = ({vm}: {vm: SessionRowVm}) => {
             <span
                 aria-hidden
                 className={cn(
-                    "absolute -right-0.5 -top-0.5 size-[7px] rounded-full",
+                    "absolute -right-0.5 -top-0.5 size-2 rounded-xs",
                     vm.status.dotClassName,
                     vm.status.pulse && "motion-safe:animate-pulse",
                 )}
@@ -162,13 +162,13 @@ export const SessionRowCells = ({
                             `focus-visible`: the editor is focused the moment it mounts. */}
                         <InlineRenameInput
                             rename={rename}
-                            className="h-6 w-full min-w-0 rounded-md border border-solid border-input bg-background px-2 text-[14px] leading-none text-foreground shadow-xs outline-none transition-[color,box-shadow] [font-family:inherit] selection:bg-primary selection:text-primary-foreground focus:border-ring focus:ring-[3px] focus:ring-ring/50 dark:bg-input/30"
+                            className="h-6 w-full min-w-0 rounded-md border border-solid border-border bg-background px-2 text-body leading-none text-foreground outline-none transition-colors [font-family:inherit] selection:bg-primary selection:text-primary-foreground focus-ring-field"
                         />
                     </span>
                 ) : (
                     <>
                         <span
-                            className="min-w-0 truncate text-[14px] text-foreground"
+                            className="min-w-0 truncate text-label text-foreground"
                             title={vm.title}
                         >
                             {vm.title}
@@ -222,9 +222,9 @@ export const SessionRowCells = ({
             {narrow ? null : (
                 // A dot and a coloured word, never a pill: the column is read down, and a stack
                 // of pills reads as a stack of buttons. Same shape the automations table uses.
-                <span className={cn("flex min-w-0 items-center gap-[7px]", archived && FADED)}>
+                <span className={cn("flex min-w-0 items-center gap-1.5", archived && FADED)}>
                     <StatusDot status={vm.status} />
-                    <span className={cn("truncate text-[13px]", vm.status.textClassName)}>
+                    <span className={cn("truncate text-body-sm", vm.status.textClassName)}>
                         {vm.status.label}
                     </span>
                 </span>
@@ -243,7 +243,7 @@ export const SessionRowCells = ({
 
             <span
                 className={cn(
-                    "truncate text-right text-[13px] text-muted-foreground",
+                    "truncate text-right text-meta tabular-nums text-muted-foreground",
                     archived && FADED,
                 )}
             >

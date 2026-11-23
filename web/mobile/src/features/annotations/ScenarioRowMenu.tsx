@@ -22,12 +22,11 @@ export const ScenarioRowMenu = ({
                 size="icon-xs"
                 variant="ghost"
                 aria-label="Item actions"
-                className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
             >
-                <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
+                <DotsThreeVertical aria-hidden className="size-3.5" />
             </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-[180px]">
+        <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuItem onSelect={onAnnotate}>
                 <NotePencil aria-hidden size={14} />
                 Annotate

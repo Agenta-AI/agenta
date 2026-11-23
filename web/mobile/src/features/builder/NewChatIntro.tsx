@@ -20,24 +20,23 @@ export const NewChatIntro = ({agentName, phone = false}: {agentName: string; pho
             <div
                 className={cn(
                     "flex items-center justify-center",
-                    phone ? "h-[104px]" : "h-[125px]",
+                    phone ? "h-26" : "h-[125px]",
                 )}
             >
                 <BuilderHero state="idle" className="size-40" />
             </div>
             <h2
                 className={cn(
-                    "m-0 font-semibold tracking-tight text-colorText",
+                    "m-0 text-heading text-foreground",
                     phone && "mt-1.5",
-                    phone ? "text-[22px] leading-7" : "text-xl leading-[26px]",
                 )}
             >
                 {t("builder.panel.question", {agent: agentName})}
             </h2>
             <p
                 className={cn(
-                    "m-0 mt-1 max-w-[320px] text-colorTextSecondary",
-                    phone ? "text-sm" : "text-[13px] leading-5",
+                    "m-0 mt-1 max-w-[320px] text-muted-foreground",
+                    phone ? "text-sm" : "text-label leading-5",
                 )}
             >
                 {t("builder.panel.intro")}

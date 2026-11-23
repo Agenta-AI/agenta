@@ -61,20 +61,20 @@ export const PromptRowCells = ({
                     <AppTypeIcon appType={appType} />
                 )}
                 <span
-                    className="truncate text-[14px] font-medium leading-[18px] text-foreground"
+                    className="truncate text-label text-foreground"
                     title={name}
                 >
                     {name}
                 </span>
             </span>
             {narrow ? null : (
-                <span className="block truncate text-[13px] text-muted-foreground">
+                <span className="block truncate text-label text-muted-foreground">
                     {modifiedLabel(row)}
                 </span>
             )}
             <span className="flex min-w-0">
                 {row.kind === "folder" ? (
-                    <Badge variant="outlined">{promptsCopy.folderTag}</Badge>
+                    <Badge variant="default">{promptsCopy.folderTag}</Badge>
                 ) : (
                     <WorkflowTypeTag isEvaluator={false} workflowType={appType} />
                 )}

@@ -165,7 +165,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
                     header={
                         <div className="border-border flex shrink-0 items-center gap-2 border-b px-4 pb-3 pt-2 lg:hidden">
                             <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                            <h1 className="m-0 text-sm font-semibold">
+                            <h1 className="m-0 text-title">
                                 {project?.project_name ?? t("home.screen.title")}
                             </h1>
                         </div>

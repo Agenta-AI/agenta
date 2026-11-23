@@ -149,7 +149,11 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
                 if (!next && !saving) close()
             }}
         >
-            <SheetContent side="responsive" className="gap-4 overflow-y-auto">
+            <SheetContent
+                side="responsive"
+                // The width every Settings drawer opens at (the view-stack drawers are 580).
+                className="gap-4 overflow-y-auto [--ag-sheet-responsive-width:580px]"
+            >
                 <SheetHeader>
                     <SheetTitle>
                         {isEdit
@@ -199,7 +203,7 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
                             </SelectContent>
                         </Select>
                         {eventTypes.length > 1 ? (
-                            <p className="m-0 pt-1 text-xs text-muted-foreground">
+                            <p className="m-0 pt-1 text-meta text-muted-foreground">
                                 {t("settings.webhookFormSheet.alsoSubscribed", {
                                     count: eventTypes.length - 1,
                                 })}
@@ -253,7 +257,7 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
                         </Field>
                     ) : null}
 
-                    {error ? <p className="m-0 text-sm text-colorError">{error}</p> : null}
+                    {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
                 </div>
 
                 <SheetFooter className="sm:flex-row-reverse sm:justify-start">

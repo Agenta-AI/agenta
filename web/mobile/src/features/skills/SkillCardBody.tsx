@@ -33,7 +33,7 @@ export const SkillCardBody = ({
         <>
             <span className={`flex min-w-0 items-center gap-2 ${row.archived ? "opacity-60" : ""}`}>
                 <SkillMark />
-                <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
+                <span className="min-w-0 flex-1 truncate text-label font-medium text-foreground">
                     {row.title}
                 </span>
                 <span
@@ -46,15 +46,13 @@ export const SkillCardBody = ({
                 </span>
             </span>
             <span
-                className={`line-clamp-3 min-h-[3.75rem] text-[12.5px] leading-5 ${
-                    row.description ? "text-muted-foreground" : "text-placeholder"
-                }`}
+                className="line-clamp-3 min-h-[3.75rem] text-label leading-5 text-muted-foreground"
             >
                 {row.description || noDescriptionLabel()}
             </span>
             {/* Source on the left, date on the right — the card's two corners, the way the row's
             columns read. */}
-            <span className="mt-auto flex min-w-0 items-center gap-2 pt-1 text-[11.5px] text-placeholder">
+            <span className="mt-auto flex min-w-0 items-center gap-2 pt-1 text-meta text-muted-foreground">
                 <span className="min-w-0 truncate">{provenanceLabel(row, group)}</span>
                 {row.archived ? <SkillArchivedTag /> : null}
                 <span className="ml-auto shrink-0">{lastUpdatedLabel(row.age)}</span>

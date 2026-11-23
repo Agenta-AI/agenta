@@ -44,7 +44,7 @@ const metricSummary = (labels: string[]) =>
 const RevisionName = ({revisionId}: {revisionId: string}) => {
     const name = useAtomValue(workflowMolecule.selectors.artifactName(revisionId))
     return (
-        <span className="max-w-[180px] truncate" title={name ?? undefined}>
+        <span className="max-w-45 truncate" title={name ?? undefined}>
             {name ?? "Unnamed"}
         </span>
     )
@@ -61,7 +61,7 @@ const renderRevisionLabel = (entity: unknown) => {
                 <VersionBadge version={revision.version ?? 0} variant="chip" size="small" />
             </div>
             {labels.length > 0 ? (
-                <span className="truncate text-xs text-muted-foreground" title={labels.join(", ")}>
+                <span className="truncate text-meta text-muted-foreground" title={labels.join(", ")}>
                     {metricSummary(labels)}
                 </span>
             ) : null}

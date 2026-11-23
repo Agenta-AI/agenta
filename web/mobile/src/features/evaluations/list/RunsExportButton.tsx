@@ -2,8 +2,8 @@ import {useState} from "react"
 
 import type {EvaluationRun, RunListColumns} from "@agenta/entities/evaluationRun"
 import {message} from "@agenta/ui/app-message"
-import {Button} from "@agenta/ui/ui"
-import {DownloadSimple, Spinner} from "@phosphor-icons/react"
+import {Button, Spinner} from "@agenta/ui/ui"
+import {DownloadSimple} from "@phosphor-icons/react"
 import {useStore} from "jotai"
 
 /**
@@ -47,7 +47,7 @@ export const RunsExportButton = ({
             onClick={() => void onExport()}
         >
             {exporting ? (
-                <Spinner aria-hidden className="animate-spin" />
+                <Spinner aria-hidden />
             ) : (
                 <DownloadSimple aria-hidden />
             )}

@@ -19,15 +19,15 @@ export const MetricCard = ({metric, runId}: {metric: OverviewMetric; runId: stri
             className="box-border flex min-w-0 flex-col gap-3 rounded-lg border border-solid border-border bg-card p-4"
         >
             <header className="flex min-w-0 flex-col">
-                <span className="truncate text-xs text-muted-foreground">
+                <span className="truncate text-meta text-muted-foreground">
                     {metric.evaluatorName ?? "--"}
                 </span>
-                <h3 className="m-0 truncate text-sm font-semibold text-foreground">
+                <h3 className="m-0 truncate text-title text-foreground">
                     {metric.label}
                 </h3>
             </header>
             {summary ? (
-                <p className="m-0 text-xl font-semibold tabular-nums text-foreground">
+                <p className="m-0 text-heading tabular-nums text-foreground">
                     {summary.formatted}
                 </p>
             ) : null}

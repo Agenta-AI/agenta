@@ -18,7 +18,7 @@ export const QuickActions = ({
     const t = useT(builderPanelCatalog)
     return (
         <div
-            className="flex flex-col overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgContainer"
+            className="flex flex-col overflow-hidden rounded-[10px] border border-solid border-border-muted bg-background"
             data-testid="builder-ready-requests"
         >
             {READY_REQUESTS.map((entry) => (
@@ -27,15 +27,15 @@ export const QuickActions = ({
                     type="button"
                     onClick={() => onPick(t(entry.request, {agent: agentName}))}
                     className={cn(
-                        "flex w-full cursor-pointer flex-col border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-3 text-left last:border-b-0 hover:bg-muted",
+                        "flex w-full cursor-pointer flex-col border-0 border-b border-solid border-border-muted bg-transparent px-3 text-left last:border-b-0 hover:bg-muted",
                         // A phone row is at least 44 px high.
                         phone ? "min-h-11 py-2.5" : "py-2",
                     )}
                 >
-                    <span className="text-[13px] font-medium leading-5 text-colorText">
+                    <span className="text-label font-medium leading-5 text-foreground">
                         {t(entry.title)}
                     </span>
-                    <span className="text-[12px] leading-4 text-colorTextSecondary">
+                    <span className="text-meta text-muted-foreground">
                         {t(entry.line)}
                     </span>
                 </button>

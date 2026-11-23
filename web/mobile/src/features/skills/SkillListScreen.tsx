@@ -18,11 +18,9 @@ import {
     useSkillCreateEntry,
     type SkillListItem,
 } from "@agenta/skills-ui"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
-import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -36,6 +34,7 @@ import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
+import {LIST_PAGE_BODY, LIST_PAGE_HEADER, LIST_PAGE_HEADER_ROW} from "../sessions/pageFrame"
 
 import {SkillCreateOptions} from "./SkillCreateOptions"
 import {SkillFilterMenu} from "./SkillFilterMenu"
@@ -50,9 +49,6 @@ import {
     type SkillListView,
 } from "./skillListView"
 import {SkillsNoMatch} from "./states/SkillsNoMatch"
-
-/** The page column, shared with agents and automations, so the nav entries line up. */
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
 /**
  * The skill registry — where the nav's Skills entry lands.
@@ -196,14 +192,10 @@ export const SkillListScreen = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        <div
-                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
-                        >
-                            <div className="flex min-w-0 items-center gap-2">
+                        <div className={LIST_PAGE_HEADER}>
+                            <div className={LIST_PAGE_HEADER_ROW}>
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                {/* From `sm`, 24px is the desktop page-title rung; on a phone it
-                                    eats the row, so the title drops to the 16px body ramp. */}
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                                     {t("skills.list.pageTitle")}
                                 </h1>
                                 {projectEmpty ? null : (
@@ -213,14 +205,12 @@ export const SkillListScreen = ({
                                     onWrite={onWrite}
                                     onUpload={onUpload}
                                     onImport={onImport}
-                                    // A 44 px tap area on a phone.
-                                    className={`h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md ${PHONE_TOUCH_TARGET_CLASS}`}
                                 />
                             </div>
                         </div>
                     }
                 >
-                    <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
+                    <div className={LIST_PAGE_BODY}>
                         {projectEmpty ? (
                             <FeatureOnboarding guideKey="skills" base={base}>
                                 <SkillCreateOptions

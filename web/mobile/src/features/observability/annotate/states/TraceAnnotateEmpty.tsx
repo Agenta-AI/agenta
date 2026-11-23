@@ -9,10 +9,10 @@ export const TraceAnnotateEmpty = ({onAddEvaluator}: {onAddEvaluator: () => void
     return (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-10 text-center">
             <div className="flex flex-col gap-1">
-                <p className="m-0 text-sm font-medium text-foreground">
+                <p className="m-0 text-label text-foreground">
                     {t("observability.annotate.noAnnotations")}
                 </p>
-                <p className="m-0 text-sm text-muted-foreground">
+                <p className="m-0 text-body text-muted-foreground">
                     {t("observability.annotate.noAnnotationsHint")}
                 </p>
             </div>

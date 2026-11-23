@@ -94,11 +94,11 @@ export const AgentOverviewTitle = ({
                     <InlineRenameInput
                         rename={rename}
                         ariaLabel={t("agents.overview.agentName")}
-                        className="h-7 w-full min-w-0 rounded-md border border-solid border-input bg-background px-2 text-[16px] font-semibold leading-none text-foreground shadow-xs outline-none transition-[color,box-shadow] [font-family:inherit] selection:bg-primary selection:text-primary-foreground focus:border-ring focus:ring-[3px] focus:ring-ring/50 dark:bg-input/30"
+                        className="h-7 w-full min-w-0 rounded-md border border-solid border-border bg-background px-2 text-title text-foreground outline-none transition-colors [font-family:inherit] selection:bg-primary selection:text-primary-foreground focus-ring-field"
                     />
                 ) : (
                     <h1
-                        className="m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[18px] sm:leading-[1.3]"
+                        className="m-0 min-w-0 truncate text-title text-foreground"
                         title={name}
                         onDoubleClick={rename.start}
                     >
@@ -112,7 +112,7 @@ export const AgentOverviewTitle = ({
                     <InlineRenameInput
                         rename={describe}
                         ariaLabel={t("agents.overview.agentDescription")}
-                        className="h-6 w-full min-w-0 rounded-md border border-solid border-input bg-background px-2 text-[13px] leading-none text-foreground shadow-xs outline-none transition-[color,box-shadow] [font-family:inherit] selection:bg-primary selection:text-primary-foreground focus:border-ring focus:ring-[3px] focus:ring-ring/50 dark:bg-input/30 lg:max-w-[calc(66.667%-40px)]"
+                        className="h-6 w-full min-w-0 rounded-md border border-solid border-border bg-background px-2 text-label leading-none text-foreground outline-none transition-colors [font-family:inherit] selection:bg-primary selection:text-primary-foreground focus-ring-field lg:max-w-[calc(66.667%-40px)]"
                     />
                 ) : (
                     // A button either way: the text is its own edit affordance, and an agent
@@ -123,9 +123,9 @@ export const AgentOverviewTitle = ({
                         onClick={describe.start}
                         title={description ?? t("agents.overview.addDescription")}
                         className={cn(
-                            "m-0 min-w-0 cursor-text truncate border-0 bg-transparent p-0 text-left font-[inherit] text-[13px] leading-snug outline-none sm:text-[14px] lg:max-w-[calc(66.667%-40px)]",
+                            "m-0 min-w-0 cursor-text truncate border-0 bg-transparent p-0 text-left font-[inherit] text-label leading-snug outline-none lg:max-w-[calc(66.667%-40px)]",
                             FOCUS_RING,
-                            description ? "text-muted-foreground" : "text-placeholder",
+                            "text-muted-foreground",
                         )}
                     >
                         {description ?? t("agents.overview.addDescription")}

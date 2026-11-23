@@ -89,10 +89,10 @@ export const TestsetTargetField = ({
     return (
         <section className="flex flex-col gap-2">
             <div>
-                <h3 className="m-0 text-sm font-medium">
+                <h3 className="m-0 text-label">
                     {t("observability.addToTestset.step1Title")}
                 </h3>
-                <p className="text-muted-foreground m-0 text-xs">
+                <p className="text-muted-foreground m-0 text-meta">
                     {t("observability.addToTestset.step1Hint")}
                 </p>
             </div>

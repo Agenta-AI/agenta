@@ -10,5 +10,7 @@ export const CONFIGURATION_TABS: readonly ConfigurationTab[] = ["agent", "automa
 export const isConfigurationTab = (value: unknown): value is ConfigurationTab =>
     CONFIGURATION_TABS.includes(value as ConfigurationTab)
 
+/** The column of an agent page on a desktop: the title, the tab row and the content share its edge. */
+export const AGENT_PAGE_COLUMN = "mx-auto box-border w-full max-w-content-lg px-6"
 /** The page column of the Configuration page on a desktop: the tab row and the Agent tab share it. */
-export const CONFIGURATION_PAGE_COLUMN = "mx-auto box-border w-full max-w-[920px] px-6"
+export const CONFIGURATION_PAGE_COLUMN = AGENT_PAGE_COLUMN

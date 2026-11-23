@@ -168,6 +168,23 @@ describe("the session screen on the agent layout", () => {
         expect(panel.className).toContain("top-12")
     })
 
+    it("dims the page under the overlay with a scrim that closes the panel (LAYOUT-04)", async () => {
+        openConfiguration()
+        media.width = 1000
+        await render(createStore())
+        const scrim = q("agent-panel-scrim")[0] as HTMLElement
+        expect(scrim.className).toContain("bg-overlay")
+        expect(scrim.className).toContain("top-12")
+        await act(async () => scrim.click())
+        expect(q("agent-panel-scrim")).toHaveLength(0)
+    })
+
+    it("draws no scrim beside the page", async () => {
+        openConfiguration()
+        await render(createStore())
+        expect(q("agent-panel-scrim")).toHaveLength(0)
+    })
+
     it("never mounts the configuration of a hidden agent", async () => {
         openConfiguration()
         await render(createStore(), true)

@@ -11,6 +11,7 @@ import {AnalyticsTab} from "../settings/AnalyticsTab"
 
 import {AgentListPageHeader} from "./AgentListPageHeader"
 import {agentAnalyticsColumnClass} from "./analyticsColumn"
+import {AGENT_PAGE_COLUMN} from "./configurationTabs"
 
 /** The Analytics page of one agent (A09): today's Analytics page, locked to the agent. */
 export const AgentAnalyticsScreen = ({
@@ -35,6 +36,7 @@ export const AgentAnalyticsScreen = ({
                             title={t("agentSidebar.analytics")}
                             workspaceId={workspaceId}
                             projectId={projectId}
+                            column={AGENT_PAGE_COLUMN}
                         />
                     }
                 >

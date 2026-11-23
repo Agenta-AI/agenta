@@ -35,12 +35,14 @@ import {AgentPagesHeader} from "./AgentPagesHeader"
 import {ConfigurationAgentTab} from "./ConfigurationAgentTab"
 import {ConfigurationEditorProvider} from "./ConfigurationEditorProvider"
 import {
+    AGENT_PAGE_COLUMN,
     CONFIGURATION_PAGE_COLUMN,
     CONFIGURATION_TABS,
     isConfigurationTab,
     type ConfigurationTab,
 } from "./configurationTabs"
 import {PageViewStackGuard, type PageViewStackGuardApi} from "./PageViewStackGuard"
+import {ConfigurationAgentTabSkeleton} from "./states/ConfigurationAgentTabSkeleton"
 import {useConfigurationRevision} from "./useConfigurationRevision"
 
 /**
@@ -118,28 +120,33 @@ export const AgentConfigurationScreen = ({
             <SkeletonBlock active className="h-24 w-full" />
         </div>
     )
-    // On a desktop every tab but a loaded Agent tab sits in a 760 px centered column; the Agent
-    // tab draws its own, wider column.
+    // On a desktop every tab but a loaded Agent tab sits at most 760 px wide on the page column's
+    // edge; the Agent tab draws its own grid in the same column.
     // `inset` is false for a body that pads its own rows (the automations list).
     const column = (node: ReactNode, inset = true) =>
         phone ? (
             node
         ) : (
+            // On the page column's edge, capped at content-md (ALIGN-01).
             <div
-                className={cn(
-                    "mx-auto box-border flex min-h-0 w-full max-w-[760px] flex-1 flex-col",
-                    // A body that pads its own rows also pads its own top.
-                    inset && "px-4 pt-3.5",
-                )}
+                className={cn(AGENT_PAGE_COLUMN, "flex min-h-0 flex-1 flex-col", inset && "pt-3.5")}
             >
-                {node}
+                {/* A body that pads its own rows hangs out by that padding (ALIGN-01). */}
+                <div
+                    className={cn(
+                        "flex min-h-0 max-w-content-md flex-1 flex-col",
+                        inset ? "w-full" : "-mx-4",
+                    )}
+                >
+                    {node}
+                </div>
             </div>
         )
     // Access needs no revision; the other tabs wait for one.
     const body =
         tab === "access" ? (
             phone ? (
-                <div className="max-w-[560px]">
+                <div className="max-w-content-sm">
                     <AccessTab agentId={agentId} workspaceId={workspaceId} projectId={projectId} />
                 </div>
             ) : (
@@ -161,7 +168,11 @@ export const AgentConfigurationScreen = ({
                 />,
             )
         ) : !revisionId ? (
-            column(loading)
+            tab === "agent" ? (
+                <ConfigurationAgentTabSkeleton />
+            ) : (
+                column(loading)
+            )
         ) : tab === "agent" ? (
             <PhoneSectionsContext.Provider value={sectionScreen.api}>
                 <ConfigurationAgentTab revisionId={revisionId} readOnly={readOnly} />
@@ -218,7 +229,7 @@ export const AgentConfigurationScreen = ({
                                             workspaceId={workspaceId}
                                             projectId={projectId}
                                         />
-                                        <h1 className="m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                        <h1 className="m-0 min-w-0 truncate text-heading text-foreground">
                                             {t("agentSidebar.configuration")}
                                         </h1>
                                     </div>
@@ -228,7 +239,7 @@ export const AgentConfigurationScreen = ({
                                                 <TabsTrigger
                                                     key={key}
                                                     value={key}
-                                                    className="min-h-11 shrink-0"
+                                                    className="shrink-0"
                                                 >
                                                     {t(`agentLayout.panel.${key}`)}
                                                 </TabsTrigger>
@@ -244,9 +255,10 @@ export const AgentConfigurationScreen = ({
                                         workspaceId={workspaceId}
                                         projectId={projectId}
                                         actions={revisionStatus}
+                                        column={CONFIGURATION_PAGE_COLUMN}
                                     />
                                     {/* The tab row sits in the page column, on its own strip. */}
-                                    <div className="box-border h-10 shrink-0 border-0 border-b border-solid border-colorBorderSecondary bg-background">
+                                    <div className="box-border h-10 shrink-0 border-0 border-b border-solid border-border-muted bg-background">
                                         <div className={`flex h-full ${CONFIGURATION_PAGE_COLUMN}`}>
                                             {/* Canvas `.ltabs`: 16 px between tabs, 2 px inside each (A04). */}
                                             <TabsList className="h-full gap-4 p-0">
@@ -254,7 +266,7 @@ export const AgentConfigurationScreen = ({
                                                     <TabsTrigger
                                                         key={key}
                                                         value={key}
-                                                        className="h-full flex-none rounded-none px-0.5 py-0 text-[13px] font-normal text-muted-foreground after:-bottom-px data-[state=active]:font-medium"
+                                                        className="h-full flex-none rounded-none px-0.5 py-0 text-label text-muted-foreground after:-bottom-px"
                                                     >
                                                         {t(`agentLayout.panel.${key}`)}
                                                     </TabsTrigger>

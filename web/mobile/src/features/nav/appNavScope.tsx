@@ -174,7 +174,7 @@ export const createMobileAppNavScope = (
         )
         const toggle = <SidebarToggleButton onDismiss={onDismiss} />
         const row =
-            "flex w-full shrink-0 items-center border-0 border-b border-solid border-[var(--ag-shell-line)]"
+            "flex w-full shrink-0 items-center border-0 border-b border-solid border-border-muted"
         return (
             <>
                 {/* Collapsed, the toggle keeps the spot every collapsed rail gives it, and Back

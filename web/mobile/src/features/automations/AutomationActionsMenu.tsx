@@ -7,15 +7,13 @@ import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens
 import {message} from "@agenta/ui/app-message"
 import {
     Button,
-    cn,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    PHONE_TOUCH_TARGET_CLASS,
 } from "@agenta/ui/ui"
-import {ClockCounterClockwise, DotsThreeVertical, Pause, Play, Trash} from "@phosphor-icons/react"
+import {ClockCounterClockwise, DotsThree, Pause, Play, Trash} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
 import {useAutomationRunNow} from "./useAutomationRunNow"
@@ -98,22 +96,18 @@ export const AutomationActionsMenu = ({
                         size={surface === "list" ? "icon-xs" : "icon-sm"}
                         variant="ghost"
                         aria-label={t("automations.screens.actionsAria")}
-                        className={cn(
-                            "hover:bg-foreground/10 dark:hover:bg-foreground/15",
-                            PHONE_TOUCH_TARGET_CLASS,
-                        )}
                     >
                         {/* Bigger than the box would give it: three small dots read smaller than
                             a glyph that fills its box, so matching by measurement mismatches by
                             eye. */}
-                        <DotsThreeVertical
+                        <DotsThree
                             aria-hidden
                             className={surface === "list" ? "size-3.5" : "size-4"}
                             weight="bold"
                         />
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[220px]">
+                <DropdownMenuContent align="end" className="w-popover-sm">
                     {surface === "list" ? (
                         <>
                             <DropdownMenuItem onSelect={() => void onRunNow()}>
