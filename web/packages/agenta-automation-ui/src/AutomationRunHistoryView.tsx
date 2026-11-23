@@ -140,7 +140,7 @@ export const AutomationRunHistoryView = ({
                 // line like every other screen — and the back link centres with it, on the same
                 // 30px as the heading below. The split layout stays full-bleed: its rule divides
                 // the window, not a column.
-                frame === "page" && !showPane && "mx-auto max-w-[760px]",
+                frame === "page" && !showPane && "mx-auto max-w-content-md",
                 frame !== "page" && "pt-3",
             )}
         >
@@ -163,11 +163,11 @@ export const AutomationRunHistoryView = ({
                             // The heading's own 10px inset makes up the rest: 30px on a page's
                             // grid, the panel's own gutter in a panel.
                             frame === "page" ? "pl-5" : "pl-1.5",
-                            frame === "page" && !showPane && "max-w-[760px]",
+                            frame === "page" && !showPane && "max-w-content-md",
                         )}
                     >
                         <div className="flex shrink-0 items-center gap-2 pl-2.5">
-                            <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold text-foreground">
+                            <h1 className="m-0 min-w-0 flex-1 truncate text-title text-foreground">
                                 {t("automations.editor.runHistory")}
                             </h1>
                             {showFilters ? (
@@ -181,7 +181,7 @@ export const AutomationRunHistoryView = ({
                                     title={t("automations.runHistory.openInNewTab")}
                                     className={cn(
                                         "flex shrink-0 items-center justify-center p-1 text-muted-foreground",
-                                        phone && "size-11",
+                                        "",
                                         ICON_LINK,
                                     )}
                                 >
@@ -193,7 +193,7 @@ export const AutomationRunHistoryView = ({
                             rather than claiming "0 runs" off a query that has not run. The line
                             keeps its height so the list does not jump. */}
                         {panelEmpty ? null : (
-                            <p className="m-0 mb-2.5 mt-1 min-h-[18px] pl-2.5 text-[13px] text-muted-foreground">
+                            <p className="m-0 mb-2.5 mt-1 min-h-4.5 pl-2.5 text-label text-muted-foreground">
                                 {caption}
                             </p>
                         )}

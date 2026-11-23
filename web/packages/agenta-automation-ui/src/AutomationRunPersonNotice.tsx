@@ -75,17 +75,17 @@ export const AutomationRunPersonNotice = ({
     return (
         <div
             role="status"
-            className="mt-[30px] flex flex-col gap-1.5 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] p-3"
+            className="mt-8 flex flex-col gap-1.5 rounded-lg border border-solid border-border-muted p-3"
         >
-            <span className="text-xs font-medium text-[var(--ag-colorText)]">
+            <span className="text-label text-foreground">
                 {t("automations.editor.personTitle")}
             </span>
-            <span className="text-xs text-[var(--ag-colorTextSecondary)]">
+            <span className="text-meta text-muted-foreground">
                 {t("automations.editor.personBody")}
             </span>
             {items.length > 0 && workflowId ? (
                 <>
-                    <span className="pt-1 text-xs text-[var(--ag-colorTextSecondary)]">
+                    <span className="pt-1 text-meta text-muted-foreground">
                         {t("automations.editor.personMissing")}
                     </span>
                     <PersonalAccountsCard

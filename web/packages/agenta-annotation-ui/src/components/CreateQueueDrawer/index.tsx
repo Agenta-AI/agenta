@@ -16,9 +16,11 @@ import {
     useEnsureEvaluatorEnrichment,
 } from "@agenta/entity-ui/selection"
 import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import queuesCatalog from "@agenta/i18n/catalogs/annotation.queues"
 import {projectIdAtom} from "@agenta/shared/state"
-import {ModalContent, ModalFooter, message} from "@agenta/ui"
+import {message} from "@agenta/ui"
+import {Button, LoadingButton} from "@agenta/ui/ui"
 import {Divider, Drawer, Form, Input, Select, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
@@ -88,7 +90,7 @@ function FieldLabel({
         <div className="flex flex-col">
             <Typography.Text strong>{children}</Typography.Text>
             {description ? (
-                <Typography.Text type="secondary" className="!text-xs !leading-5">
+                <Typography.Text type="secondary" className="!text-label font-normal !leading-5">
                     {description}
                 </Typography.Text>
             ) : null}
@@ -324,7 +326,7 @@ function CreateQueueDrawerContent({
             disabled={isSubmitting}
             requiredMark={false}
         >
-            <ModalContent className="flex flex-col">
+            <div className="flex flex-col">
                 {/* ── Basic details ── */}
                 <div className="flex flex-col gap-4 px-6 py-3">
                     <SectionTitle>{t("annotation.queues.basicDetails")}</SectionTitle>
@@ -438,7 +440,7 @@ function CreateQueueDrawerContent({
                     </Form.Item>
                 </div>
                 {/* Collaborator settings intentionally hidden for now. */}
-            </ModalContent>
+            </div>
         </Form>
     )
 }
@@ -455,6 +457,7 @@ const CreateQueueDrawer = ({
     feedbackCreateLabel,
 }: CreateQueueDrawerProps) => {
     const t = useT(queuesCatalog)
+    const tCommon = useT(commonCatalog)
     const [open, setOpen] = useAtom(createQueueDrawerOpenAtom)
     const defaultKind = useAtomValue(createQueueDrawerDefaultKindAtom)
     const [selection, setSelection] = useAtom(createQueueDrawerSelectionAtom)
@@ -511,12 +514,14 @@ const CreateQueueDrawer = ({
             }}
             footer={
                 shouldRenderContent ? (
-                    <ModalFooter
-                        onCancel={handleClose}
-                        onConfirm={handleSubmit}
-                        confirmLabel={t("annotation.queues.create")}
-                        isLoading={isSubmitting}
-                    />
+                    <div className="flex w-full items-center justify-end gap-2">
+                        <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
+                            {tCommon("common.cancel")}
+                        </Button>
+                        <LoadingButton loading={isSubmitting} onClick={handleSubmit}>
+                            {t("annotation.queues.create")}
+                        </LoadingButton>
+                    </div>
                 ) : null
             }
         >

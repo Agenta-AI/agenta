@@ -106,7 +106,7 @@ const DownstreamNodeCard = ({
                 : "Error"
         return (
             <NodeResultCard name={nodeName} status={rawStatus}>
-                <span className="text-[var(--ant-color-error)] text-xs leading-5">{errorMsg}</span>
+                <span className="text-destructive text-label font-normal leading-5">{errorMsg}</span>
             </NodeResultCard>
         )
     }
@@ -119,7 +119,7 @@ const DownstreamNodeCard = ({
                 : "Skipped"
         return (
             <NodeResultCard name={nodeName} status={rawStatus}>
-                <span className="text-[var(--ant-color-text-tertiary)] text-xs leading-5 italic">
+                <span className="text-muted-foreground text-meta leading-5 italic">
                     {skipMsg}
                 </span>
             </NodeResultCard>
@@ -131,7 +131,7 @@ const DownstreamNodeCard = ({
     if (!entries || entries.length === 0) {
         return (
             <NodeResultCard name={nodeName} status={rawStatus}>
-                <span className="text-xs leading-5">—</span>
+                <span className="text-label font-normal leading-5">—</span>
             </NodeResultCard>
         )
     }
@@ -139,12 +139,12 @@ const DownstreamNodeCard = ({
     return (
         <NodeResultCard name={nodeName} status={rawStatus}>
             <div
-                className="grid items-baseline text-xs leading-5"
+                className="grid items-baseline text-label font-normal leading-5"
                 style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 6}}
             >
                 {entries.map(([key, value]) => (
                     <React.Fragment key={key}>
-                        <span className="text-[var(--ant-color-text-tertiary)] whitespace-nowrap leading-5">
+                        <span className="text-muted-foreground whitespace-nowrap leading-5">
                             {formatFieldLabel(key)}:
                         </span>
                         <span className="break-words min-w-0 leading-5">
@@ -163,7 +163,7 @@ const DownstreamNodeCard = ({
                                 return (
                                     <Tag
                                         color={verdictBoolean ? "success" : "error"}
-                                        className="!m-0 text-xs rounded-md px-2 py-0 leading-5"
+                                        className="!m-0 text-label font-normal rounded-md px-2 py-0 leading-5"
                                     >
                                         {verdictBoolean ? "true" : "false"}
                                     </Tag>
@@ -294,24 +294,24 @@ const GenerationComparisonCompletionOutput = ({
                 {variantIndex === 0 ? (
                     <div
                         className={clsx([
-                            "border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FFFFFF)] sticky left-0 z-[99] !w-[400px]",
+                            "border-0 border-b border-solid border-border-muted bg-background sticky left-0 z-[99] !w-[400px]",
                             {"border-r": variantIndex === 0},
                             "shrink-0",
                         ])}
                     >
                         <div className="p-3">
-                            <div className="h-12 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
+                            <div className="h-12 rounded bg-secondary animate-pulse" />
                         </div>
                     </div>
                 ) : null}
                 <div
                     className={clsx([
-                        "!min-w-[400px] flex-1 shrink-0 bg-[var(--ag-c-FFFFFF)] z-[1]",
-                        "border-0 border-r border-b border-solid border-[var(--ag-rgba-051729-06)]",
+                        "!min-w-[400px] flex-1 shrink-0 bg-background z-[1]",
+                        "border-0 border-r border-b border-solid border-border-muted",
                     ])}
                 >
                     <div className="p-3">
-                        <div className="h-20 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
+                        <div className="h-20 rounded bg-secondary animate-pulse" />
                     </div>
                 </div>
             </>
@@ -323,7 +323,7 @@ const GenerationComparisonCompletionOutput = ({
             {variantIndex === 0 ? (
                 <div
                     className={clsx([
-                        "border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FFFFFF)] sticky left-0 z-[99] !w-[400px]",
+                        "border-0 border-b border-solid border-border-muted bg-background sticky left-0 z-[99] !w-[400px]",
                         {"border-r": variantIndex === 0},
                         "shrink-0",
                     ])}
@@ -336,8 +336,8 @@ const GenerationComparisonCompletionOutput = ({
 
             <div
                 className={clsx([
-                    "!min-w-[400px] flex-1 shrink-0 bg-[var(--ag-c-FFFFFF)] z-[1]",
-                    "border-0 border-r border-b border-solid border-[var(--ag-rgba-051729-06)]",
+                    "!min-w-[400px] flex-1 shrink-0 bg-background z-[1]",
+                    "border-0 border-r border-b border-solid border-border-muted",
                 ])}
             >
                 <div className="!w-full shrink-0 sticky top-9 z-[1] flex flex-col gap-3 px-3 py-2">

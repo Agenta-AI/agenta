@@ -5,8 +5,7 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {getEvaluatorVerdictFromOutput} from "@agenta/playground/utils"
 import type {DropdownButtonOption, DropdownButtonOptionStatus} from "@agenta/ui/components"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
-import {Button} from "@agenta/ui/ui"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {
     ArrowsOutLineHorizontalIcon,
     CopySimpleIcon,
@@ -58,13 +57,15 @@ const CopyVariableButton = ({rowId, variableKey}: {rowId: string; variableKey: s
     ) as string
 
     return (
-        <EnhancedButton
-            size="small"
-            type="text"
-            icon={<CopySimpleIcon size={14} />}
-            onClick={() => navigator.clipboard.writeText(value)}
-            tooltipProps={{title: "Copy"}}
-        />
+        <SimpleTooltip title="Copy">
+            <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigator.clipboard.writeText(value)}
+            >
+                <CopySimpleIcon size={14} />
+            </Button>
+        </SimpleTooltip>
     )
 }
 
@@ -308,28 +309,32 @@ const ComparisonLayout = ({
                                  *  above the shared inputs body. */}
                                 {!inputOnly && (
                                     <div className="flex items-center justify-end gap-1 px-2 pt-2">
-                                        <EnhancedButton
-                                            size="small"
-                                            type="text"
-                                            icon={<ArrowsOutLineHorizontalIcon size={14} />}
-                                            onClick={() =>
-                                                openFocusDrawer({
-                                                    rowId,
-                                                    entityId:
-                                                        structuralRootNode?.entityId ?? entityId,
-                                                })
-                                            }
-                                            disabled={!(structuralRootNode?.entityId ?? entityId)}
-                                            tooltipProps={{title: "Open details"}}
-                                        />
-                                        <EnhancedButton
-                                            size="small"
-                                            type="text"
-                                            icon={<MinusCircleIcon size={14} />}
-                                            onClick={() => deleteRow(rowId)}
-                                            disabled={rowCount <= 1}
-                                            tooltipProps={{title: "Remove"}}
-                                        />
+                                        <SimpleTooltip title="Open details">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() =>
+                                                    openFocusDrawer({
+                                                        rowId,
+                                                        entityId:
+                                                            structuralRootNode?.entityId ?? entityId,
+                                                    })
+                                                }
+                                                disabled={!(structuralRootNode?.entityId ?? entityId)}
+                                            >
+                                                <ArrowsOutLineHorizontalIcon size={14} />
+                                            </Button>
+                                        </SimpleTooltip>
+                                        <SimpleTooltip title="Remove">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => deleteRow(rowId)}
+                                                disabled={rowCount <= 1}
+                                            >
+                                                <MinusCircleIcon size={14} />
+                                            </Button>
+                                        </SimpleTooltip>
                                     </div>
                                 )}
                                 {/* Same inset as the toolbar above and the run controls below. */}
@@ -349,7 +354,7 @@ const ComparisonLayout = ({
                                     className={clsx([
                                         "relative group/item",
                                         {
-                                            "border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]":
+                                            "border-0 border-b border-solid border-border-muted":
                                                 isChat && viewType === "comparison",
                                         },
                                     ])}
@@ -378,56 +383,56 @@ const ComparisonLayout = ({
                                                         variableKey={variableId}
                                                     />
                                                     {index === 0 ? (
-                                                        <EnhancedButton
-                                                            size="small"
-                                                            type="text"
-                                                            icon={
+                                                        <SimpleTooltip title="Open details">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() =>
+                                                                    openFocusDrawer({
+                                                                        rowId,
+                                                                        entityId:
+                                                                            structuralRootNode?.entityId ??
+                                                                            entityId,
+                                                                    })
+                                                                }
+                                                                disabled={
+                                                                    !(
+                                                                        structuralRootNode?.entityId ??
+                                                                        entityId
+                                                                    )
+                                                                }
+                                                            >
                                                                 <ArrowsOutLineHorizontalIcon
                                                                     size={14}
                                                                 />
-                                                            }
-                                                            onClick={() =>
+                                                            </Button>
+                                                        </SimpleTooltip>
+                                                    ) : null}
+                                                    <SimpleTooltip title="Open details">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
                                                                 openFocusDrawer({
                                                                     rowId,
                                                                     entityId:
                                                                         structuralRootNode?.entityId ??
                                                                         entityId,
                                                                 })
-                                                            }
+                                                            }}
                                                             disabled={
                                                                 !(
                                                                     structuralRootNode?.entityId ??
                                                                     entityId
                                                                 )
                                                             }
-                                                            tooltipProps={{title: "Open details"}}
-                                                        />
-                                                    ) : null}
-                                                    <EnhancedButton
-                                                        size="small"
-                                                        type="text"
-                                                        icon={
+                                                        >
                                                             <ArrowsOutLineHorizontalIcon
                                                                 size={14}
                                                             />
-                                                        }
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            openFocusDrawer({
-                                                                rowId,
-                                                                entityId:
-                                                                    structuralRootNode?.entityId ??
-                                                                    entityId,
-                                                            })
-                                                        }}
-                                                        disabled={
-                                                            !(
-                                                                structuralRootNode?.entityId ??
-                                                                entityId
-                                                            )
-                                                        }
-                                                        tooltipProps={{title: "Open details"}}
-                                                    />
+                                                        </Button>
+                                                    </SimpleTooltip>
                                                 </>
                                             ) : undefined
                                         }
@@ -440,7 +445,7 @@ const ComparisonLayout = ({
             </div>
 
             {!inputOnly ? (
-                <div className={clsx("h-[48px] flex items-center gap-2 px-2")}>
+                <div className={clsx("h-12 flex items-center gap-2 px-2")}>
                     <ExecutionRowRunControl
                         showDropdown={hasDownstreamNodes}
                         stepOptions={stepOptions}

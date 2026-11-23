@@ -73,7 +73,7 @@ export function SourceRefreshButton({skillIds}: {skillIds: string[]}) {
     return (
         <span className="flex items-center gap-1.5">
             {summary ? (
-                <span className="text-[10px] text-[var(--ag-colorTextTertiary)]">{summary}</span>
+                <span className="text-caption text-muted-foreground">{summary}</span>
             ) : null}
             {pending.length > 0 && !busy ? (
                 <Button
@@ -81,7 +81,7 @@ export function SourceRefreshButton({skillIds}: {skillIds: string[]}) {
                     size="sm"
                     onClick={() => void apply()}
                     aria-label={t("skills.gallery.applyAria")}
-                    className="h-6 px-1.5 text-[11px] font-medium text-[var(--ag-colorPrimary)]"
+                    className="h-6 px-1.5 text-caption font-medium text-primary"
                 >
                     {t("skills.gallery.apply")}
                 </Button>
@@ -92,7 +92,7 @@ export function SourceRefreshButton({skillIds}: {skillIds: string[]}) {
                 onClick={() => void check()}
                 disabled={busy}
                 aria-label={t("skills.gallery.checkAria")}
-                className="h-6 gap-1 px-1.5 text-[11px] text-[var(--ag-colorTextSecondary)]"
+                className="h-6 gap-1 px-1.5 text-caption text-muted-foreground"
             >
                 {busy ? <Spinner size="small" /> : <ArrowsClockwise size={12} />}
                 {t("skills.gallery.checkUpdates")}

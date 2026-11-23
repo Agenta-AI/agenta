@@ -100,7 +100,7 @@ export const PickerOverlay = ({
                 className="w-full gap-0 overflow-hidden p-0 sm:max-w-[640px]"
             >
                 {/* The sheet primitives' own header: the same height and type as the
-                    automation drawer (EnhancedDrawer), which this opens beside. */}
+                    automation drawer, which this opens beside. */}
                 <SheetHeader className="shrink-0">
                     <SheetTitle>{title}</SheetTitle>
                 </SheetHeader>

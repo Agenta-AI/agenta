@@ -48,24 +48,25 @@ export const AutomationRunRow = ({
                     : t("automations.editor.runRowAria", {label, outcome})
             }
             className={cn(
-                "flex w-full items-center gap-[9px] rounded-md border-0 bg-transparent px-2.5 py-1.5 text-left",
-                phone && "min-h-11",
+                "box-border flex min-h-row-dense w-full items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-1 text-left",
                 "cursor-pointer transition-colors",
-                selected ? "bg-accent" : "hover:bg-accent/60 active:bg-accent/60",
+                selected ? "bg-selected" : "hover:bg-accent active:bg-accent",
                 FOCUS_RING,
             )}
         >
             <span
                 aria-hidden
-                className={cn("size-2 shrink-0 rounded-full", runDotClass(delivery))}
+                className={cn("size-2 shrink-0 rounded-xs", runDotClass(delivery))}
             />
             <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[13px] text-foreground">{label}</span>
+                <span className="truncate text-label text-foreground">{label}</span>
                 {skipped ? (
-                    <span className="truncate text-xs text-muted-foreground">{outcome}</span>
+                    <span className="truncate text-meta text-muted-foreground">{outcome}</span>
                 ) : null}
             </span>
-            {time ? <span className="shrink-0 text-xs text-muted-foreground">{time}</span> : null}
+            {time ? (
+                <span className="shrink-0 text-meta tabular-nums text-muted-foreground">{time}</span>
+            ) : null}
         </button>
     )
 }

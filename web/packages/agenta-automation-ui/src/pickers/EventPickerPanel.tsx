@@ -239,7 +239,7 @@ export const EventPickerPanel = ({
             {/* Each pane scrolls on its own: a long rail and a long event list are two lists,
                 and one scroller over both dragged the app you were browsing off-screen. */}
             <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden p-2.5">
-                <div className="flex min-h-0 flex-1 items-stretch gap-[10px]">
+                <div className="flex min-h-0 flex-1 items-stretch gap-2">
                     {/* Wide, the rail never goes away: the search belongs to the app selected in
                         it, so hiding it would take away the one control that changes the scope.
                         Narrow, it is the first step and leaves once an app is picked. */}
@@ -266,7 +266,7 @@ export const EventPickerPanel = ({
                                 <button
                                     type="button"
                                     onClick={() => setBrowsing(true)}
-                                    className="flex w-fit cursor-pointer items-center gap-[5px] border-0 bg-transparent p-0 text-left text-[12px] text-muted-foreground hover:text-foreground"
+                                    className="flex w-fit cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-meta text-muted-foreground hover:text-foreground"
                                 >
                                     <ArrowLeft aria-hidden size={13} className="shrink-0" />
                                     <span className="min-w-0 truncate">
@@ -277,7 +277,7 @@ export const EventPickerPanel = ({
                                             : t("automations.editor.allConnectedEvents")}
                                     </span>
                                 </button>
-                                <span className="min-w-0 truncate text-[13px] font-medium text-foreground">
+                                <span className="min-w-0 truncate text-label font-medium text-foreground">
                                     {eventLabel(event?.name, eventKey)}
                                 </span>
                             </div>
@@ -303,7 +303,7 @@ export const EventPickerPanel = ({
                                     onValuesChange={setValues}
                                 />
                             ) : (
-                                <p className="m-0 py-2 text-xs text-muted-foreground">
+                                <p className="m-0 py-2 text-meta text-muted-foreground">
                                     {t("automations.editor.noFilters")}
                                 </p>
                             )}
@@ -317,7 +317,7 @@ export const EventPickerPanel = ({
                                 <button
                                     type="button"
                                     onClick={() => setOnApps(true)}
-                                    className="flex w-fit cursor-pointer items-center gap-[5px] border-0 bg-transparent p-0 text-left text-[12px] text-muted-foreground hover:text-foreground"
+                                    className="flex w-fit cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-meta text-muted-foreground hover:text-foreground"
                                 >
                                     <ArrowLeft aria-hidden size={13} className="shrink-0" />
                                     <span className="min-w-0 truncate">
@@ -510,7 +510,7 @@ export const EventInlineCard = ({
     if (!connectionsLoading && apps.length === 0)
         return <EventPickerNoApps onConnect={() => openCatalogDrawer(true)} />
 
-    const label = "text-[12px] font-medium text-muted-foreground"
+    const label = "text-meta font-medium text-muted-foreground"
     return (
         <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1">
@@ -518,7 +518,7 @@ export const EventInlineCard = ({
                 <Select value={app?.connectionId ?? ""} onValueChange={selectApp}>
                     <SelectTrigger
                         size="compact"
-                        className="h-auto min-h-11 py-[3px]"
+                        className="h-auto min-h-11 py-1"
                         aria-label={t("automations.editor.app")}
                     >
                         <SelectValue />
@@ -528,12 +528,11 @@ export const EventInlineCard = ({
                             <SelectItem
                                 key={candidate.connectionId}
                                 value={candidate.connectionId}
-                                size="compact"
                             >
                                 <span className="flex min-w-0 flex-col text-left">
                                     <span className="truncate">{candidate.label}</span>
                                     {accountOf(candidate.connectionId) ? (
-                                        <span className="truncate text-[12px] font-normal leading-4 text-colorTextTertiary">
+                                        <span className="truncate text-meta font-normal text-muted-foreground">
                                             {accountOf(candidate.connectionId)}
                                         </span>
                                     ) : null}
@@ -552,14 +551,14 @@ export const EventInlineCard = ({
                 >
                     <SelectTrigger
                         size="compact"
-                        className="max-md:h-11"
+                        className=""
                         aria-label={t("automations.editor.event")}
                     >
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                         {events.map((candidate) => (
-                            <SelectItem key={candidate.key} value={candidate.key} size="compact">
+                            <SelectItem key={candidate.key} value={candidate.key}>
                                 {eventLabel(candidate.name, candidate.key)}
                             </SelectItem>
                         ))}

@@ -19,7 +19,7 @@ import type {SkillListItem} from "./types"
 /** Canvas F04 f2: rows on the search field's edge, 8 px above and below, 60 px apart; the hover
  *  fill bleeds 8 px past the column. */
 const ROW =
-    "box-border flex w-full cursor-pointer appearance-none items-center gap-2.5 rounded-[10px] border-0 bg-transparent px-2 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
+    "box-border flex w-full cursor-pointer appearance-none items-center gap-2.5 rounded-md border-0 bg-transparent px-2 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
 
 function SkillRow({option, onToggle}: {option: SkillListItem; onToggle: () => void}) {
     const t = useT(skillsGalleryCatalog, skillNewCatalog)
@@ -38,17 +38,17 @@ function SkillRow({option, onToggle}: {option: SkillListItem; onToggle: () => vo
             )}
             className={ROW}
         >
-            <SkillMark size={28} />
+            <SkillMark size={24} />
             <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[13px] font-medium leading-5 text-colorText">
+                <span className="truncate text-label font-medium leading-5 text-foreground">
                     {title}
                 </span>
-                <span className="truncate text-[12px] leading-4 text-colorTextSecondary">
+                <span className="truncate text-meta text-muted-foreground">
                     {option.source ? `${description} · ${option.source.label}` : description}
                 </span>
             </span>
             {option.added ? (
-                <span className="flex shrink-0 items-center gap-1 pl-2 text-[12px] leading-4 text-colorTextSecondary">
+                <span className="flex shrink-0 items-center gap-1 pl-2 text-meta text-muted-foreground">
                     <Check aria-hidden size={14} />
                     {t("entityUi.skillNew.added")}
                 </span>
@@ -109,7 +109,7 @@ export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkil
             <div className="flex items-center gap-2">
                 <SearchInput
                     size="compact-search"
-                    className="border-colorBorderSecondary max-md:h-11"
+                    className="border-border-muted"
                     placeholder={t("skills.gallery.searchPlaceholder")}
                     aria-label={t("skills.gallery.searchAria")}
                     value={search}
@@ -126,8 +126,8 @@ export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkil
                 <EmptyState
                     image="simple"
                     description={
-                        <span className="flex flex-col gap-1 text-xs">
-                            <span className="font-medium text-colorText">
+                        <span className="flex flex-col gap-1 text-label font-normal">
+                            <span className="font-medium text-foreground">
                                 {searching
                                     ? t("skills.gallery.noMatchTitle")
                                     : t("skills.gallery.noSkillsTitle")}

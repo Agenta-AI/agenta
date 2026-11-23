@@ -66,11 +66,11 @@ export const AutomationCreateBody = ({
                 {/* The panel form puts "On" before the switch, at every width (F05 f3). */}
                 <span
                     className={`shrink-0 items-center ${
-                        fixedKind ? "flex gap-2" : "hidden gap-[9px] lg:flex"
+                        fixedKind ? "flex gap-2" : "hidden gap-2 lg:flex"
                     }`}
                 >
                     {fixedKind ? (
-                        <span className="text-[12px] text-muted-foreground">
+                        <span className="text-meta text-muted-foreground">
                             {draft.isActive
                                 ? t("automations.editor.on")
                                 : t("automations.editor.off")}
@@ -85,7 +85,7 @@ export const AutomationCreateBody = ({
                         aria-label={t("automations.editor.createSwitchedOnAria")}
                     />
                     {fixedKind ? null : (
-                        <span className="text-[14px] text-foreground">
+                        <span className="text-body text-foreground">
                             {draft.isActive
                                 ? t("automations.editor.on")
                                 : t("automations.editor.off")}
@@ -94,7 +94,7 @@ export const AutomationCreateBody = ({
                 </span>
             </div>
 
-            <div className={`flex flex-col ${fixedKind ? "mt-3 gap-3" : "mt-[26px] gap-[22px]"}`}>
+            <div className={`flex flex-col ${fixedKind ? "mt-3 gap-3" : "mt-6 gap-6"}`}>
                 {showAgentField ? (
                     <AutomationAgentField
                         agentId={draft.agentId}

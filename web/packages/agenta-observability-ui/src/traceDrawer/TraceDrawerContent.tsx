@@ -1,6 +1,7 @@
 import {useCallback, useEffect, type SetStateAction} from "react"
 
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import {useObservability} from "@agenta/observability"
 import {useTraceDrawer} from "@agenta/observability/traceDrawer"
@@ -10,12 +11,10 @@ import {
     setTraceDrawerTraceAtom,
     traceDrawerActiveSpanIdAtom,
 } from "@agenta/observability/traceDrawer"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
+import {Button, SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
 import {ArrowsIn, ArrowsOut, X} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
-
-import {SkeletonBlock} from "../primitives/SkeletonBlock"
 
 const TraceContent = dynamic(() => import("./TraceContent"))
 const TraceHeader = dynamic(() => import("./TraceHeader"))
@@ -47,7 +46,7 @@ const TraceDrawerContent = ({
         setSelectedTraceId: setGlobalSelectedTraceId,
         setSelectedNode: setGlobalSelectedNode,
     } = useObservability()
-    const t = useT(drawerCatalog)
+    const t = useT(drawerCatalog, commonCatalog)
     const rawActiveSpanId = useAtomValue(traceDrawerActiveSpanIdAtom)
     const setActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
     const setTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)
@@ -85,14 +84,21 @@ const TraceDrawerContent = ({
 
     return (
         <div className="h-full w-full flex flex-col" data-tour="trace-drawer">
-            <div className="flex items-center gap-3 px-4 py-3 border-0 border-b border-solid border-colorSplit">
+            <div className="flex items-center gap-3 px-4 py-3 border-0 border-b border-solid border-border-muted">
                 {/* The panel is already as wide as the screen when stacked; widening does nothing. */}
                 {stacked ? null : (
-                    <EnhancedButton
-                        onClick={onToggleWidth}
-                        type="text"
-                        icon={isExpanded ? <ArrowsIn size={14} /> : <ArrowsOut size={14} />}
-                    />
+                    <SimpleTooltip
+                        title={isExpanded ? t("common.collapse") : t("common.expand")}
+                    >
+                        <Button
+                            onClick={onToggleWidth}
+                            variant="ghost"
+                            size="icon"
+                            aria-label={isExpanded ? t("common.collapse") : t("common.expand")}
+                        >
+                            {isExpanded ? <ArrowsIn size={14} /> : <ArrowsOut size={14} />}
+                        </Button>
+                    </SimpleTooltip>
                 )}
                 <div className="flex-1 min-w-0">
                     <TraceHeader
@@ -114,18 +120,22 @@ const TraceDrawerContent = ({
                     />
                 </div>
                 {/* Close sits last, at the right edge, where the shared SheetHeader puts it. */}
-                <EnhancedButton
-                    onClick={onClose}
-                    type="text"
-                    icon={<X size={14} />}
-                    aria-label={t("observabilityUi.traceDrawer.close")}
-                    data-tour="trace-drawer-close"
-                />
+                <SimpleTooltip title={t("observabilityUi.traceDrawer.close")}>
+                    <Button
+                        onClick={onClose}
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t("observabilityUi.traceDrawer.close")}
+                        data-tour="trace-drawer-close"
+                    >
+                        <X size={14} />
+                    </Button>
+                </SimpleTooltip>
             </div>
             {/* antd `Spin` wrapped the body and dimmed it; the tree/content render their own
                 skeletons, so a loading pass just shows a block above them. */}
             <div className="flex-1 min-h-0">
-                {isLoading ? <SkeletonBlock className="m-3" /> : null}
+                {isLoading ? <SkeletonBlock className="m-3 max-w-[160px]" /> : null}
                 <div className="h-full">
                     {/* antd Splitter: a 320px tree column beside the content. Stacked, the tree
                         takes the top of the panel and the content the rest, both full width. */}
@@ -133,8 +143,8 @@ const TraceDrawerContent = ({
                         <div
                             className={
                                 stacked
-                                    ? "h-[35%] w-full shrink-0 border-0 border-b border-solid border-colorSplit"
-                                    : "w-[320px] min-w-[320px] shrink-0 border-0 border-r border-solid border-colorSplit"
+                                    ? "h-[35%] w-full shrink-0 border-0 border-b border-solid border-border-muted"
+                                    : "w-[320px] min-w-[320px] shrink-0 border-0 border-r border-solid border-border-muted"
                             }
                         >
                             <TraceTree

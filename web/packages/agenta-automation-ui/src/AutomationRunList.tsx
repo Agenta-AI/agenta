@@ -7,7 +7,6 @@ import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 import {Button} from "@agenta/ui/ui"
 
 import {AutomationRunRow} from "./AutomationRunRow"
-import {cn} from "./lib/utils"
 import {runGroups, type RunGrouping} from "./runListView"
 import {
     AutomationRunHistoryEmpty,
@@ -105,7 +104,7 @@ export const AutomationRunList = ({
                 groups.map((group) => (
                     <section key={group.key} className="mb-1 last:mb-0">
                         {group.label ? (
-                            <h2 className="m-0 flex items-center gap-1.5 pb-1 pl-2.5 pt-3 text-[12px] font-medium capitalize text-muted-foreground">
+                            <h2 className="m-0 flex items-center gap-1.5 pb-1 pl-2.5 pt-3 text-meta font-medium capitalize text-muted-foreground">
                                 {group.label}
                             </h2>
                         ) : null}
@@ -124,10 +123,10 @@ export const AutomationRunList = ({
                 ))
             ) : plainEmpty && !filtered ? (
                 <div className="flex flex-col items-center gap-1.5 px-6 py-20 text-center">
-                    <p className="m-0 text-sm font-medium text-foreground">
+                    <p className="m-0 text-label text-foreground">
                         {t("automations.editor.noRuns")}
                     </p>
-                    <p className="m-0 text-[13px] leading-snug text-muted-foreground">
+                    <p className="m-0 text-label leading-snug text-muted-foreground">
                         {t("automations.editor.noRunsBody")}
                     </p>
                     {emptyAction ? <div className="mt-2">{emptyAction}</div> : null}
@@ -140,12 +139,12 @@ export const AutomationRunList = ({
             )}
             {/* A next page or a refresh failed: the loaded runs stay, with a retry under them. */}
             {error && groups.length ? (
-                <div className="flex items-center gap-2 px-2.5 py-3 text-[13px] text-muted-foreground">
+                <div className="flex items-center gap-2 px-2.5 py-3 text-label text-muted-foreground">
                     <span className="min-w-0 flex-1">{t("automations.editor.loadRunsFailed")}</span>
                     <Button
                         variant="outline"
                         size="sm"
-                        className={cn("text-xs font-normal", phone && "h-11")}
+                        className="text-label"
                         onClick={onRetry}
                     >
                         {t("automations.editor.tryAgain")}

@@ -32,10 +32,10 @@ const SKELETON_ROWS = [
 const Pulse = ({width, tone}: {width: string; tone: "strong" | "faint"}) => (
     <div
         className={cn(
-            "h-3 animate-pulse rounded-[3px]",
+            "h-3 animate-pulse rounded-sm",
             tone === "strong"
-                ? "bg-[var(--ag-colorFillSecondary)]"
-                : "h-2.5 bg-[var(--ag-colorFillTertiary)]",
+                ? "bg-secondary"
+                : "h-2.5 bg-secondary",
         )}
         style={{width}}
     />
@@ -43,8 +43,8 @@ const Pulse = ({width, tone}: {width: string; tone: "strong" | "faint"}) => (
 
 const Notice = ({title, body, action}: {title: string; body: string; action?: React.ReactNode}) => (
     <div className="px-3 py-6 text-center">
-        <div className="mb-1 text-xs font-semibold text-colorText">{title}</div>
-        <p className={cn("mb-3 text-[11.5px] leading-relaxed", textColors.tertiary)}>{body}</p>
+        <div className="mb-1 text-label font-semibold text-foreground">{title}</div>
+        <p className={cn("mb-3 text-caption leading-relaxed", textColors.tertiary)}>{body}</p>
         {action}
     </div>
 )
@@ -103,8 +103,8 @@ export const VersionList = ({
                         className={cn(
                             "mb-px flex items-center gap-1 rounded-md",
                             row.id === selectedId
-                                ? "bg-[var(--ag-colorFillSecondary)]"
-                                : "hover:bg-[var(--ag-colorFillQuaternary)]",
+                                ? "bg-secondary"
+                                : "hover:bg-accent",
                         )}
                     >
                         <button
@@ -118,18 +118,18 @@ export const VersionList = ({
                             )}
                         >
                             <span className="flex items-center gap-1.5">
-                                <span className="text-[12px] font-medium text-colorText">
+                                <span className="text-meta font-medium text-foreground">
                                     v{row.version}
                                 </span>
                                 {/* One tag, one meaning: the newest revision. */}
                                 {row.isLatest ? (
-                                    <span className="rounded bg-[var(--ag-colorInfoBg)] px-1.5 py-px text-[10px] font-medium text-[var(--ag-tag-latest-text)]">
+                                    <span className="rounded bg-info/10 px-1.5 py-px text-caption font-medium text-info">
                                         {t("playground.versionHistory.latest")}
                                     </span>
                                 ) : null}
                                 <span
                                     className={cn(
-                                        "ml-auto whitespace-nowrap text-[10.5px]",
+                                        "ml-auto whitespace-nowrap text-caption",
                                         textColors.tertiary,
                                     )}
                                 >
@@ -138,7 +138,7 @@ export const VersionList = ({
                             </span>
                             <span
                                 className={cn(
-                                    "line-clamp-2 text-[12px] leading-4",
+                                    "line-clamp-2 text-meta",
                                     textColors.secondary,
                                 )}
                             >

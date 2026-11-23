@@ -108,7 +108,7 @@ export const AutomationDetailBody = ({
     const grouped = Boolean(onOpenRunHistory)
     const titleRun = grouped ? null : runNow
     const fields = (
-        <div className={`flex flex-col ${panel ? "gap-3" : "gap-[22px]"}`}>
+        <div className={`flex flex-col ${panel ? "gap-3" : "gap-6"}`}>
             {panel ? null : (
                 <AutomationAgentField
                     agentId={preview.agentId}
@@ -147,7 +147,7 @@ export const AutomationDetailBody = ({
                 </div>
                 {titleRun}
                 {actions}
-                <span aria-hidden className="text-[12px] text-muted-foreground">
+                <span aria-hidden className="text-meta text-muted-foreground">
                     {automation.isActive
                         ? tEditor("automations.editor.on")
                         : tEditor("automations.editor.off")}
@@ -197,13 +197,13 @@ export const AutomationDetailBody = ({
                 // On a phone 8px of top room (the header gives back 4px) keeps the name and the
                 // actions menu, the first row, from losing their 44px tap areas to the scroll clip.
                 className ??
-                "mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px] pt-1 max-md:pt-2"
+                "mx-auto flex w-full max-w-content-md flex-col px-8 pb-16 pt-1 max-md:pt-2"
             }
         >
             {header}
             {onOpenRunHistory ? (
                 <div
-                    className={`flex flex-col ${panel ? "mt-[18px] gap-[18px]" : "mt-[26px] gap-[26px]"}`}
+                    className={`flex flex-col ${panel ? "mt-4 gap-4" : "mt-6 gap-6"}`}
                 >
                     <AutomationRunsSection
                         automation={automation}
@@ -217,7 +217,7 @@ export const AutomationDetailBody = ({
             ) : (
                 <>
                     <AutomationFailureBanner reason={failureReason} />
-                    <div className="mt-[26px]">{fields}</div>
+                    <div className="mt-6">{fields}</div>
                 </>
             )}
             {/* Next to the save it is about: right above the bar, or last in a drawer whose

@@ -4,7 +4,7 @@ import {createT, useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {useInlineRename} from "@agenta/sessions-ui"
 import {message} from "@agenta/ui/app-message"
-import {Input, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
+import {Input} from "@agenta/ui/ui"
 import {PencilSimple} from "@phosphor-icons/react"
 
 const tNow = createT(automationsEditorCatalog)
@@ -85,8 +85,8 @@ export const AutomationTitle = ({
                     // hint reads as a name already typed.
                     className={
                         compact
-                            ? "h-auto border-transparent bg-transparent px-0 py-0.5 text-[16px] font-semibold shadow-none placeholder:font-semibold placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0 md:text-[16px]"
-                            : "text-[16px] font-semibold placeholder:font-medium placeholder:text-muted-foreground focus-visible:border-input focus-visible:ring-0 max-md:h-11 md:text-[16px]"
+                            ? "h-auto border-transparent bg-transparent px-0 py-0.5 text-title shadow-none placeholder:font-semibold placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0"
+                            : "text-heading placeholder:font-medium placeholder:text-muted-foreground focus-visible:border-input focus-visible:ring-0"
                     }
                 />
             ) : (
@@ -98,14 +98,10 @@ export const AutomationTitle = ({
                     // the softer ring still glowed around the title. Hover carries the affordance.
                     className={`group flex min-w-0 cursor-pointer items-center rounded-lg border-0 bg-transparent text-left text-foreground outline-none hover:bg-accent focus-visible:bg-accent ${
                         compact ? "-mx-1 px-1 py-0.5" : "-ml-2 px-2 py-1"
-                    } ${PHONE_TOUCH_TARGET_CLASS}`}
+                    }`}
                 >
                     <h1
-                        className={`m-0 min-w-0 truncate font-semibold ${
-                            compact
-                                ? "text-[16px] leading-6"
-                                : "text-[18px] leading-[1.25] tracking-[-0.02em]"
-                        } ${name ? "" : "text-muted-foreground"}`}
+                        className={`m-0 min-w-0 truncate ${compact ? "text-title" : "text-heading"} ${name ? "" : "text-muted-foreground"}`}
                     >
                         {name || fallback || placeholder}
                     </h1>
@@ -114,12 +110,12 @@ export const AutomationTitle = ({
                     <PencilSimple
                         aria-hidden
                         size={14}
-                        className="ml-2 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                        className="ml-2 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100"
                     />
                 </button>
             )}
             {description ? (
-                <p className="m-0 mt-1.5 text-[14px] leading-snug text-muted-foreground">
+                <p className="m-0 mt-1.5 text-body leading-snug text-muted-foreground">
                     {description}
                 </p>
             ) : null}

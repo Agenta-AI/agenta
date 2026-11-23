@@ -1,7 +1,7 @@
 import type {Visibility} from "@agenta/entities/sharing"
 import type {CommitDeployOption} from "@agenta/entity-ui/modals"
 import type {EnhancedModalProps as ModalProps} from "@agenta/ui"
-import type {EnhancedButtonProps as ButtonProps} from "@agenta/ui/components/presentational"
+import type {ButtonProps} from "@agenta/ui/ui"
 
 /** Host side effects a commit triggers that this package has no business knowing about. */
 export interface CommitHostAdapter {
@@ -39,7 +39,8 @@ export interface CommitVariantChangesModalProps extends ModalProps, CommitHostAd
     onSuccess?: (props: {revisionId?: string; variantId?: string}) => void
 }
 
-export interface CommitVariantChangesButtonProps extends ButtonProps, CommitHostAdapter {
+export interface CommitVariantChangesButtonProps
+    extends Omit<ButtonProps, "children">, CommitHostAdapter {
     variantId: string
     label?: React.ReactNode
     icon?: boolean

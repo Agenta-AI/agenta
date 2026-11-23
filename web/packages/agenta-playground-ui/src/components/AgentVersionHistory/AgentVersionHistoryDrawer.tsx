@@ -21,10 +21,9 @@ import {commitDiffTextNow} from "@agenta/entity-ui/changes"
 import {textVersionAtom, useT} from "@agenta/i18n"
 import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import {buildVersionRows, revertAgentRevisionAtom} from "@agenta/playground/state"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {cn, textColors} from "@agenta/ui/styles"
-import {SheetTitle} from "@agenta/ui/ui"
+import {Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -199,23 +198,18 @@ export const AgentVersionHistoryDrawer = ({
           : undefined
 
     return (
-        <EnhancedDrawer
+        <Sheet
             open={open}
-            onClose={handleClose}
-            title={
-                phone ? undefined : (
-                    <span className="text-[13px] font-normal">
-                        {t("playground.versionHistory.title")}
-                    </span>
-                )
-            }
-            closable={!phone}
-            width={780}
-            // On a phone the history is the whole screen, edge to edge.
-            styles={
-                phone
-                    ? {
-                          content: {
+            onOpenChange={(next) => {
+                if (!next) handleClose()
+            }}
+        >
+            <SheetContent
+                side="right"
+                // Phone: the whole screen. Desktop: flush to the right edge (canvas S06).
+                style={
+                    phone
+                        ? {
                               inset: 0,
                               width: "100%",
                               maxWidth: "100%",
@@ -223,123 +217,131 @@ export const AgentVersionHistoryDrawer = ({
                               // Clear of the notch and the home bar, as the Channels connect layer.
                               paddingTop: "env(safe-area-inset-top)",
                               paddingBottom: "env(safe-area-inset-bottom)",
-                          },
-                      }
-                    : // Flush to the right edge, full height, square, with the right drawer's
-                      // shadow at its left edge (canvas S06).
-                      {
-                          content: {
+                          }
+                        : {
+                              width: 780,
+                              maxWidth: "calc(100% - 1rem)",
                               top: 0,
                               right: 0,
                               bottom: 0,
                               height: "100%",
                               borderRadius: 0,
                               boxShadow: "var(--shadow-drawer-right)",
-                          },
-                          header: {paddingLeft: 24},
-                      }
-            }
-            // px-3 so the buttons' outer edge lands on the same line as the section bands.
-            classNames={{
-                // Title and Close 1 px higher, Close radius 6 (canvas S06); the header keeps its
-                // height, so the body does not move.
-                header: phone
-                    ? undefined
-                    : "pt-[15px] pb-[17px] [&_[data-slot=sheet-close]]:rounded-[6px]",
-                body: phone ? "!p-0 flex flex-col" : "!p-0",
-                footer: phone ? "px-3 [&_button]:min-h-11" : "px-3",
-            }}
-            footer={
-                <RevertFooter
-                    phase={phase}
-                    selectedVersion={selectedRow?.version ?? null}
-                    latestVersion={latestRow?.version ?? null}
-                    disabled={!selectedRow || diffLoading || matchesLatest}
-                    onRequestConfirm={() => setPhase("confirm")}
-                    onCancel={() => setPhase("idle")}
-                    onConfirm={handleConfirm}
-                    onClose={handleClose}
-                    onUpdate={
-                        onUpdate &&
-                        selectedRow &&
-                        currentVersion != null &&
-                        Number(selectedRow.version) > Number(currentVersion)
-                            ? () => {
-                                  onUpdate(selectedRow.id)
-                                  handleClose()
-                              }
-                            : undefined
-                    }
-                />
-            }
-        >
-            <RevertConfirmDialog
-                open={phase === "confirm"}
-                selectedVersion={selectedRow?.version ?? null}
-                latestVersion={latestRow?.version ?? null}
-                onCancel={() => setPhase("idle")}
-                onConfirm={handleConfirm}
-            />
-            {phone ? (
-                <>
-                    {/* The drawer has no header on a phone; this names the dialog. */}
-                    <SheetTitle className="sr-only">
-                        {t("playground.versionHistory.title")}
-                    </SheetTitle>
-                    <PhoneScreenHeader
-                        title={t("playground.versionHistory.title")}
-                        backTitle={backTitle}
-                        onBack={handleClose}
-                    />
-                </>
-            ) : null}
-            <div className={cn("flex min-h-0", phone ? "flex-1" : "h-full")}>
-                <div
-                    className={cn(
-                        "flex min-h-0 flex-col py-3 pl-3 pr-2 sm:w-[250px] sm:shrink-0",
-                        mobileView === "list" ? "w-full" : "hidden sm:flex",
-                    )}
-                >
-                    <VersionList
-                        rows={rows}
-                        selectedId={selectedId}
-                        isLoading={listLoading}
-                        isError={isError}
-                        onRetry={() => void query.refetch()}
-                        onSelect={handleSelect}
-                        disabled={phase === "reverting"}
-                    />
-                </div>
-
-                <div
-                    className={cn(
-                        "flex min-w-0 flex-1 flex-col sm:border-0 sm:border-l sm:border-solid sm:border-[var(--ag-colorBorderSecondary)]",
-                        mobileView === "diff" ? "flex" : "hidden sm:flex",
-                    )}
-                >
-                    <button
-                        type="button"
-                        onClick={() => setMobileView("list")}
-                        className={cn(
-                            "flex cursor-pointer items-center gap-1.5 border-0 bg-transparent px-5 text-xs sm:hidden",
-                            phone ? "min-h-11" : "pt-3.5",
-                            textColors.secondary,
-                        )}
+                          }
+                }
+            >
+                {phone ? null : (
+                    // Title and Close 1 px higher, Close radius 6 (canvas S06).
+                    <SheetHeader
+                        className="pt-[15px] pb-[17px] [&_[data-slot=sheet-close]]:rounded-md"
+                        style={{paddingLeft: 24}}
                     >
-                        <ArrowLeft />
-                        {t("playground.versionHistory.versions")}
-                    </button>
-                    <ChangesPane
-                        sections={sections}
-                        version={selectedRow?.version ?? null}
-                        message={selectedRow?.message}
-                        isLoading={diffLoading}
-                        placeholder={placeholder}
-                        emptyText={emptyText}
+                        <SheetTitle className="min-w-0">
+                            <span className="text-label font-normal">
+                                {t("playground.versionHistory.title")}
+                            </span>
+                        </SheetTitle>
+                    </SheetHeader>
+                )}
+                <div
+                    className={cn(
+                        "min-h-0 flex-1 overflow-y-auto p-0 text-field-md text-foreground",
+                        phone && "flex flex-col rounded-t-[inherit]",
+                    )}
+                >
+                    <RevertConfirmDialog
+                        open={phase === "confirm"}
+                        selectedVersion={selectedRow?.version ?? null}
+                        latestVersion={latestRow?.version ?? null}
+                        onCancel={() => setPhase("idle")}
+                        onConfirm={handleConfirm}
                     />
+                    {phone ? (
+                        <>
+                            {/* The drawer has no header on a phone; this names the dialog. */}
+                            <SheetTitle className="sr-only">
+                                {t("playground.versionHistory.title")}
+                            </SheetTitle>
+                            <PhoneScreenHeader
+                                title={t("playground.versionHistory.title")}
+                                backTitle={backTitle}
+                                onBack={handleClose}
+                            />
+                        </>
+                    ) : null}
+                    <div className={cn("flex min-h-0", phone ? "flex-1" : "h-full")}>
+                        <div
+                            className={cn(
+                                "flex min-h-0 flex-col py-3 pl-3 pr-2 sm:w-[250px] sm:shrink-0",
+                                mobileView === "list" ? "w-full" : "hidden sm:flex",
+                            )}
+                        >
+                            <VersionList
+                                rows={rows}
+                                selectedId={selectedId}
+                                isLoading={listLoading}
+                                isError={isError}
+                                onRetry={() => void query.refetch()}
+                                onSelect={handleSelect}
+                                disabled={phase === "reverting"}
+                            />
+                        </div>
+
+                        <div
+                            className={cn(
+                                "flex min-w-0 flex-1 flex-col sm:border-0 sm:border-l sm:border-solid sm:border-border-muted",
+                                mobileView === "diff" ? "flex" : "hidden sm:flex",
+                            )}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => setMobileView("list")}
+                                className={cn(
+                                    "flex cursor-pointer items-center gap-1.5 border-0 bg-transparent px-5 text-label font-normal sm:hidden",
+                                    "pt-3.5",
+                                    textColors.secondary,
+                                )}
+                            >
+                                <ArrowLeft />
+                                {t("playground.versionHistory.versions")}
+                            </button>
+                            <ChangesPane
+                                sections={sections}
+                                version={selectedRow?.version ?? null}
+                                message={selectedRow?.message}
+                                isLoading={diffLoading}
+                                placeholder={placeholder}
+                                emptyText={emptyText}
+                            />
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </EnhancedDrawer>
+                {/* px-3 so the buttons' outer edge lands on the same line as the section bands. */}
+                <SheetFooter className="px-3">
+                    <RevertFooter
+                        phase={phase}
+                        selectedVersion={selectedRow?.version ?? null}
+                        latestVersion={latestRow?.version ?? null}
+                        disabled={!selectedRow || diffLoading || matchesLatest}
+                        onRequestConfirm={() => setPhase("confirm")}
+                        onCancel={() => setPhase("idle")}
+                        onConfirm={handleConfirm}
+                        onClose={handleClose}
+                        onUpdate={
+                            onUpdate &&
+                            selectedRow &&
+                            currentVersion != null &&
+                            Number(selectedRow.version) > Number(currentVersion)
+                                ? () => {
+                                      onUpdate(selectedRow.id)
+                                      handleClose()
+                                  }
+                                : undefined
+                        }
+                    />
+                </SheetFooter>
+            </SheetContent>
+        </Sheet>
     )
 }
 

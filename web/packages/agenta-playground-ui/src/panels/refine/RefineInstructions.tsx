@@ -13,7 +13,7 @@ const OPTIMIZE_PROMPT = "Optimize the prompt using best practices"
 const Bubble = ({text, mine, failed}: {text: string; mine?: boolean; failed?: boolean}) => (
     <p
         className={clsx(
-            "m-0 max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 text-xs",
+            "m-0 max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 text-label font-normal",
             mine
                 ? "self-end bg-muted text-foreground"
                 : "self-start border border-solid border-border",
@@ -57,8 +57,8 @@ export const RefineInstructions = ({
             <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-4">
                 {rounds.length === 0 && !busy ? (
                     <div className="flex h-full flex-col items-center justify-center gap-1 text-center text-muted-foreground">
-                        <p className="m-0 text-xs">{t("playground.refine.describeRefine")}</p>
-                        <p className="m-0 text-xs">{t("playground.refine.orPickSuggestion")}</p>
+                        <p className="m-0 text-label font-normal">{t("playground.refine.describeRefine")}</p>
+                        <p className="m-0 text-label font-normal">{t("playground.refine.orPickSuggestion")}</p>
                     </div>
                 ) : (
                     <div className="flex flex-col gap-3">
@@ -71,7 +71,7 @@ export const RefineInstructions = ({
                         {busy ? (
                             <>
                                 <Bubble text={pending} mine />
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <div className="flex items-center gap-2 text-meta text-muted-foreground">
                                     <Spinner size="small" />
                                     {t("playground.refine.refining")}
                                 </div>
@@ -84,7 +84,7 @@ export const RefineInstructions = ({
                 <Button
                     variant="outline"
                     size="sm"
-                    className="self-start text-xs"
+                    className="self-start text-label font-normal"
                     disabled={busy}
                     onClick={() => onSend(OPTIMIZE_PROMPT)}
                 >
@@ -106,7 +106,7 @@ export const RefineInstructions = ({
                         placeholder={t("playground.refine.describePlaceholder")}
                         disabled={busy}
                         rows={2}
-                        className="min-h-0 flex-1 resize-none text-xs"
+                        className="min-h-0 flex-1 resize-none text-label font-normal"
                     />
                     <Button
                         size="icon-sm"

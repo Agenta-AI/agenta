@@ -1,6 +1,6 @@
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
-import {Button, SkeletonBlock} from "@agenta/ui/ui"
+import {Button, IconTile, SkeletonBlock} from "@agenta/ui/ui"
 import {Funnel, MagnifyingGlass} from "@phosphor-icons/react"
 
 /**
@@ -24,19 +24,19 @@ export const AutomationListNoMatch = ({
     const t = useT(automationsEditorCatalog)
     return (
         <div className="flex flex-col items-center justify-center gap-2.5 px-8 py-14 text-center">
-            <span className="inline-flex size-10 items-center justify-center rounded-[10px] bg-muted text-muted-foreground">
+            <IconTile size={40}>
                 {term ? (
-                    <MagnifyingGlass size={19} aria-hidden />
+                    <MagnifyingGlass aria-hidden />
                 ) : (
-                    <Funnel size={19} aria-hidden />
+                    <Funnel aria-hidden />
                 )}
-            </span>
-            <p className="m-0 text-[14px] font-medium text-foreground">
+            </IconTile>
+            <p className="m-0 text-body font-medium text-foreground">
                 {term
                     ? t("automations.editor.noMatchTerm", {term})
                     : t("automations.editor.noMatchFilters")}
             </p>
-            <p className="m-0 max-w-[42ch] text-[13px] leading-snug text-muted-foreground">
+            <p className="m-0 max-w-[42ch] text-label leading-snug text-muted-foreground">
                 {term
                     ? t("automations.editor.noMatchTermBody")
                     : t("automations.editor.noMatchFiltersBody")}
@@ -45,7 +45,7 @@ export const AutomationListNoMatch = ({
                 <Button
                     size="sm"
                     variant="outline"
-                    className="mt-1 text-xs font-normal"
+                    className="mt-1 text-label"
                     onClick={onClear}
                 >
                     {term
@@ -60,22 +60,22 @@ export const AutomationListNoMatch = ({
 /** Mirrors the detail body's own rhythm — identity, meta row, field stack — at its measurements. */
 export const AutomationDetailSkeleton = () => (
     // max-md:pt-1 takes back the 4px the phone header gives up, as the loaded body does.
-    <div className="mx-auto w-full max-w-[760px] px-8 pb-[70px] max-md:pt-1" aria-hidden>
+    <div className="mx-auto w-full max-w-content-md px-8 pb-16 max-md:pt-1" aria-hidden>
         {/* Identity: name, then the description under it. */}
-        <SkeletonBlock active className="h-[30px] w-1/2" />
+        <SkeletonBlock active className="h-7 w-1/2" />
         <SkeletonBlock active className="mt-1.5 h-4 w-2/3" />
         {/* The toggle / agent / edited facts row. */}
         <div className="mb-1 mt-4 flex items-center gap-3.5">
-            <SkeletonBlock active className="h-5 w-9 rounded-full" />
+            <SkeletonBlock active className="h-5 w-9 rounded-sm" />
             <SkeletonBlock active className="h-4 w-24" />
             <SkeletonBlock active className="h-4 w-28" />
         </div>
         {/* The three fields below them. */}
-        <div className="mt-[26px] flex flex-col gap-[22px]">
+        <div className="mt-6 flex flex-col gap-6">
             {Array.from({length: 3}, (_, i) => (
-                <div key={i} className="flex flex-col gap-[7px]">
+                <div key={i} className="flex flex-col gap-2">
                     <SkeletonBlock active className="h-3.5 w-20" />
-                    <SkeletonBlock active className="h-[38px] w-full rounded-[9px]" />
+                    <SkeletonBlock active className="h-control w-full rounded-md" />
                     <SkeletonBlock active className="h-3 w-2/5" />
                 </div>
             ))}

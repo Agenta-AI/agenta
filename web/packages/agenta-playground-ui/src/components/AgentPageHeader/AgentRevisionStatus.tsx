@@ -213,7 +213,7 @@ export const AgentRevisionStatus = ({
 
     const dot = failed
         ? {
-              tone: "bg-colorError",
+              tone: "bg-destructive",
               label: t("playground.agentHeader.notSaved"),
               tip: t("playground.agentHeader.tipFailed", {
                   error: autoCommitError ?? t("playground.agentHeader.couldNotSave"),
@@ -221,18 +221,18 @@ export const AgentRevisionStatus = ({
           }
         : saving
           ? {
-                tone: "bg-colorTextTertiary",
+                tone: "bg-muted-foreground",
                 label: t("playground.agentHeader.saving"),
                 tip: t("playground.agentHeader.tipSaving"),
             }
           : isDirty
             ? {
-                  tone: "bg-colorWarning",
+                  tone: "bg-warning",
                   label: t("playground.agentHeader.draft"),
                   tip: t("playground.agentHeader.tipDraft"),
               }
             : {
-                  tone: "bg-colorSuccess",
+                  tone: "bg-success",
                   label: t("playground.agentHeader.saved"),
                   tip: t("playground.agentHeader.saved"),
               }
@@ -245,9 +245,9 @@ export const AgentRevisionStatus = ({
     const statusBody = (
         <>
             {failed ? (
-                <WarningCircle size={12} className="shrink-0 text-colorError" />
+                <WarningCircle size={12} className="shrink-0 text-destructive" />
             ) : (
-                <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${dot.tone}`} />
+                <span className={`h-[6px] w-[6px] shrink-0 rounded-sm ${dot.tone}`} />
             )}
             {/* Words only for states that need attention; hidden on a narrow bar, except on a
                 phone, where the icon alone does not say that a save failed. */}
@@ -269,18 +269,14 @@ export const AgentRevisionStatus = ({
             />
         ) : null
 
-    // "Update to vN": a newer version saved elsewhere. On a phone the pill keeps its size and gets
-    // a 44 px high hit area.
+    // "Update to vN": a newer version saved elsewhere. On touch the pill keeps its size and gets
+    // a 44 px hit area.
     const updatePill =
         newer && !autoUpdateId ? (
             <button
                 type="button"
                 onClick={() => onUpdate?.(newer.id)}
-                className={cn(
-                    "shrink-0 cursor-pointer whitespace-nowrap rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]",
-                    phone &&
-                        "relative after:absolute after:inset-x-0 after:-inset-y-3 after:content-['']",
-                )}
+                className=" shrink-0 cursor-pointer whitespace-nowrap rounded border-0 bg-selected px-1.5 py-0.5 text-label text-primary hover:bg-accent"
             >
                 {t("playground.agentHeader.updateAvailable", {version: newer.version})}
             </button>
@@ -299,7 +295,7 @@ export const AgentRevisionStatus = ({
                     onClick={failed ? () => void retrySave({revisionId}) : undefined}
                     className={cn(
                         "disabled:opacity-100",
-                        failed ? "text-colorError" : "text-colorTextSecondary",
+                        failed ? "text-destructive" : "text-muted-foreground",
                     )}
                 >
                     {settled ? t("playground.revisionStatus.savedAs", {version}) : dot.label}
@@ -337,9 +333,9 @@ export const AgentRevisionStatus = ({
                             onClick={() => openHistory(historyWorkflowId)}
                         >
                             <ClockCounterClockwise className="size-3.5" />
-                            <span className="font-mono text-[12px]">v{version}</span>
+                            <span className="font-mono text-meta">v{version}</span>
                             {savedAt ? (
-                                <span className="text-colorTextTertiary">· {savedAt}</span>
+                                <span className="text-muted-foreground">· {savedAt}</span>
                             ) : null}
                         </Button>
                     </SimpleTooltip>
@@ -365,10 +361,10 @@ export const AgentRevisionStatus = ({
                         })}
                         onClick={() => openHistory(historyWorkflowId)}
                         className={cn(
-                            "flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillSecondary hover:text-colorText",
+                            "flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
                             phone
-                                ? "min-h-11 whitespace-nowrap pl-2 pr-0.5 text-[14px] leading-5"
-                                : "px-1.5 py-0.5 text-xs",
+                                ? " whitespace-nowrap py-0.5 pl-2 pr-0.5 text-label font-normal"
+                                : "px-1.5 py-0.5 text-label font-normal",
                         )}
                     >
                         {/* One chip: the save state is a fact about this version. */}
@@ -384,7 +380,7 @@ export const AgentRevisionStatus = ({
                                     {/* Save state as a badge on the icon, so it never trails the
                                         text. */}
                                     <span
-                                        className={`absolute -right-[2px] -top-[2px] h-[5px] w-[5px] rounded-full ring-[1.5px] ring-[var(--ag-surface-raised)] ${dot.tone}`}
+                                        className={`absolute -right-[2px] -top-[2px] size-1.5 rounded-xs ring-1 ring-muted ${dot.tone}`}
                                     />
                                 </span>
                             )}
@@ -408,7 +404,7 @@ export const AgentRevisionStatus = ({
                             type="button"
                             aria-label={t("playground.agentHeader.openVersionHistory")}
                             onClick={() => openHistory(historyWorkflowId)}
-                            className="flex cursor-pointer items-center gap-1 rounded border-0 bg-colorFillSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
+                            className="flex cursor-pointer items-center gap-1 rounded border-0 bg-secondary px-1.5 py-0.5 text-meta text-muted-foreground hover:bg-accent hover:text-foreground"
                         >
                             <ClockCounterClockwise size={11} className="shrink-0" />v{version}
                         </button>
@@ -419,21 +415,21 @@ export const AgentRevisionStatus = ({
                         title={
                             commitMessage ? (
                                 <div className="flex flex-col gap-1">
-                                    <span className="text-[12px] font-medium uppercase tracking-wide opacity-65">
+                                    <span className="text-meta font-medium opacity-65">
                                         {t("playground.agentHeader.commitMessage")}
                                     </span>
-                                    <div className="max-h-[240px] overflow-y-auto overscroll-contain whitespace-pre-wrap break-words text-xs leading-relaxed">
+                                    <div className="max-h-60 overflow-y-auto overscroll-contain whitespace-pre-wrap break-words text-label font-normal leading-relaxed">
                                         {commitMessage}
                                     </div>
                                 </div>
                             ) : (
-                                <span className="text-xs italic">
+                                <span className="text-label font-normal italic">
                                     {t("playground.agentHeader.noCommitMessage")}
                                 </span>
                             )
                         }
                     >
-                        <span className="cursor-default rounded bg-colorFillSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary">
+                        <span className="cursor-default rounded bg-secondary px-1.5 py-0.5 text-meta text-muted-foreground">
                             v{version}
                         </span>
                     </SimpleTooltip>
@@ -462,9 +458,9 @@ export const AgentRevisionStatus = ({
                                 : undefined
                         }
                         className={cn(
-                            "flex items-center gap-1.5 text-xs text-colorTextTertiary",
+                            "flex items-center gap-1.5 text-meta text-muted-foreground",
                             failed && "cursor-pointer",
-                            failed && phone && "min-h-11 min-w-11 justify-center",
+                            failed && "",
                         )}
                     >
                         {statusBody}

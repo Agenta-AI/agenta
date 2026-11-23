@@ -78,7 +78,7 @@ export const InputVariableCardHeader = ({
     return (
         <div className="flex min-w-0 items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-                <span className="truncate font-mono text-xs font-medium text-[var(--ag-c-1677FF)]">
+                <span className="truncate text-code font-medium text-info">
                     {name}
                 </span>
                 <TypeChip variant={chipVariantFor(value, expectedType)} value={value} />
@@ -93,7 +93,7 @@ export const InputVariableCardHeader = ({
                 ) : null}
                 {isDraft ? (
                     <SimpleTooltip title={t("playground.inputs.draftHint")} side="top">
-                        <Badge variant="outlined" className="font-mono">
+                        <Badge variant="default" className="font-mono">
                             {t("playground.inputs.draft")}
                         </Badge>
                     </SimpleTooltip>

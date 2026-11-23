@@ -2,9 +2,8 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
-import {Button, SkeletonBlock} from "@agenta/ui/ui"
-import {ChatCircleDots, ClockCounterClockwise} from "@phosphor-icons/react"
-import {RefreshCw, TriangleAlert} from "lucide-react"
+import {Button, IconTile, SkeletonBlock} from "@agenta/ui/ui"
+import {ArrowClockwiseIcon, ChatCircleDots, ClockCounterClockwise, WarningIcon} from "@phosphor-icons/react"
 
 /**
  * Designed states for the run history and the session pane beside it.
@@ -29,8 +28,8 @@ export const AutomationRunListSkeleton = ({
                     <SkeletonBlock active className="h-2.5 w-20" />
                 </div>
                 {Array.from({length: rows}, (_, row) => (
-                    <div key={row} className="flex items-center gap-[9px] px-2.5 py-[9px]">
-                        <SkeletonBlock active className="size-2 shrink-0 rounded-full" />
+                    <div key={row} className="flex items-center gap-2 px-2.5 py-2">
+                        <SkeletonBlock active className="size-2 shrink-0 rounded-xs" />
                         <SkeletonBlock active className="h-3.5 flex-1" />
                         <SkeletonBlock active className="h-3 w-10 shrink-0" />
                     </div>
@@ -60,16 +59,16 @@ export const AutomationRunHistoryEmpty = ({
         // the space this speaks for, and a message pinned to the top of an empty page reads as a
         // row that failed to render.
         <div className="flex h-full flex-col items-center justify-center gap-2.5 px-8 py-14 text-center">
-            <span className="inline-flex size-10 items-center justify-center rounded-[10px] bg-muted">
-                <ClockCounterClockwise aria-hidden size={19} className="text-muted-foreground" />
-            </span>
+            <IconTile size={40}>
+                <ClockCounterClockwise aria-hidden className="text-muted-foreground" />
+            </IconTile>
             {/* An automation that has never run and one whose runs are hidden behind a filter are
             different facts, and telling a reader "no runs yet" while a filter is on sends them
             looking for a fault in the automation. */}
-            <p className="m-0 text-[14px] font-medium text-foreground">
+            <p className="m-0 text-body font-medium text-foreground">
                 {filtered ? t("automations.editor.noRunsFiltered") : t("automations.editor.noRuns")}
             </p>
-            <p className="m-0 max-w-[38ch] text-[13px] leading-snug text-muted-foreground">
+            <p className="m-0 max-w-[38ch] text-label leading-snug text-muted-foreground">
                 {filtered
                     ? t("automations.editor.noRunsFilteredBody")
                     : t("automations.editor.noRunsBody")}
@@ -82,28 +81,27 @@ export const AutomationRunHistoryEmpty = ({
 export const AutomationRunHistoryError = ({
     message,
     onRetry,
-    phone = false,
 }: {
     message?: string
     onRetry?: () => void
-    /** Phone: "Try again" is 44 px high. */
+    /** Unused: the kit sizes "Try again" on a phone. */
     phone?: boolean
 }) => {
     const t = useT(automationsEditorCatalog)
     return (
         <div className="flex h-full flex-col items-center justify-center gap-3 px-8 py-14 text-center">
-            <TriangleAlert className="size-6 text-destructive" />
-            <p className="m-0 text-[14px] font-medium text-foreground">
+            <WarningIcon className="size-6 text-destructive" />
+            <p className="m-0 text-body font-medium text-foreground">
                 {message ?? t("automations.editor.loadRunsFailed")}
             </p>
             {onRetry ? (
                 <Button
                     variant="outline"
                     size="sm"
-                    className={phone ? "h-11 text-sm font-normal" : "text-xs font-normal"}
+                    className="text-label"
                     onClick={onRetry}
                 >
-                    <RefreshCw className="size-3" />
+                    <ArrowClockwiseIcon className="size-3" />
                     {t("automations.editor.tryAgain")}
                 </Button>
             ) : null}
@@ -123,17 +121,17 @@ export const AutomationRunNoConversation = ({reason}: {reason?: string | null}) 
     const t = useT(automationsEditorCatalog)
     return (
         <div className="flex h-full flex-col items-center justify-center gap-2.5 px-8 py-12 text-center">
-            <span className="inline-flex size-10 items-center justify-center rounded-[10px] bg-muted">
-                <ChatCircleDots aria-hidden size={19} className="text-muted-foreground" />
-            </span>
-            <p className="m-0 text-[14px] font-medium text-foreground">
+            <IconTile size={40}>
+                <ChatCircleDots aria-hidden className="text-muted-foreground" />
+            </IconTile>
+            <p className="m-0 text-body font-medium text-foreground">
                 {t("automations.editor.noConversation")}
             </p>
-            <p className="m-0 max-w-[40ch] text-[13px] leading-snug text-muted-foreground">
+            <p className="m-0 max-w-[40ch] text-label leading-snug text-muted-foreground">
                 {t("automations.editor.noConversationBody")}
             </p>
             {reason ? (
-                <p className="m-0 max-w-[52ch] break-words rounded-[9px] border border-solid border-destructive/40 bg-destructive/10 px-3 py-2 text-left text-[12.5px] leading-snug text-muted-foreground">
+                <p className="m-0 max-w-[52ch] break-words rounded-md border border-solid border-destructive/30 bg-destructive/10 px-3 py-2 text-left text-label leading-snug text-muted-foreground">
                     {reason}
                 </p>
             ) : null}
@@ -151,11 +149,11 @@ export const AutomationRunConversationUnavailable = () => {
     const t = useT(automationsEditorCatalog)
     return (
         <div className="flex h-full flex-col items-center justify-center gap-2.5 px-8 py-12 text-center">
-            <TriangleAlert className="size-5 text-muted-foreground" />
-            <p className="m-0 text-[14px] font-medium text-foreground">
+            <WarningIcon className="size-5 text-muted-foreground" />
+            <p className="m-0 text-body font-medium text-foreground">
                 {t("automations.editor.conversationUnavailable")}
             </p>
-            <p className="m-0 max-w-[42ch] text-[13px] leading-snug text-muted-foreground">
+            <p className="m-0 max-w-[42ch] text-label leading-snug text-muted-foreground">
                 {t("automations.editor.conversationUnavailableBody")}
             </p>
         </div>

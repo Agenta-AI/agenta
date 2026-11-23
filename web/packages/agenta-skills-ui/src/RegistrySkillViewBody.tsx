@@ -47,7 +47,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
-    PHONE_TOUCH_TARGET_CLASS,
     Popover,
     PopoverAnchor,
     PopoverContent,
@@ -161,8 +160,8 @@ const LoadFailed = ({onRetry}: {onRetry: () => void}) => {
     const t = useT(skillsGalleryCatalog)
     return (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-            <WarningCircle size={20} className="text-[var(--ag-colorError)]" />
-            <span className="text-sm">{t("skills.gallery.loadFailed")}</span>
+            <WarningCircle size={20} className="text-destructive" />
+            <span className="text-body">{t("skills.gallery.loadFailed")}</span>
             <Button variant="outline" size="sm" onClick={onRetry}>
                 {t("skills.gallery.tryAgain")}
             </Button>
@@ -382,7 +381,6 @@ const RegistrySkillEditor = ({
                         rel="noreferrer"
                         className={cn(
                             "text-inherit underline underline-offset-2",
-                            PHONE_TOUCH_TARGET_CLASS,
                         )}
                     >
                         {text}
@@ -403,7 +401,7 @@ const RegistrySkillEditor = ({
                     <button
                         type="button"
                         aria-label={t("skills.gallery.provenanceAria")}
-                        className="box-border inline-flex shrink-0 cursor-help items-center border-0 bg-transparent p-0 font-[inherit] text-[var(--ag-colorTextTertiary)] hover:text-[var(--ag-colorText)]"
+                        className="box-border inline-flex shrink-0 cursor-help items-center border-0 bg-transparent p-0 font-[inherit] text-muted-foreground hover:text-foreground"
                     >
                         <Info size={14} aria-hidden />
                     </button>
@@ -479,11 +477,11 @@ const RegistrySkillEditor = ({
             ) : null}
             <div className="flex min-h-0 flex-1 flex-col">
                 {isBuiltin ? (
-                    <div className="mx-4 flex flex-col gap-2 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] p-4 text-xs">
-                        <span className="text-[var(--ag-colorTextSecondary)]">
+                    <div className="mx-4 flex flex-col gap-2 rounded-md border border-solid border-border-muted bg-secondary p-4 text-label font-normal">
+                        <span className="text-muted-foreground">
                             {skill.description || t("skills.gallery.noDescriptionDot")}
                         </span>
-                        <span className="text-[var(--ag-colorTextTertiary)]">
+                        <span className="text-muted-foreground">
                             {t("skills.gallery.builtinNote")}
                         </span>
                     </div>
@@ -528,7 +526,7 @@ const RegistrySkillEditor = ({
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     {usedBy.length ? (
-                        <div className="flex items-start gap-1.5 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-xs text-[var(--ag-colorWarningText)]">
+                        <div className="flex items-start gap-1.5 rounded-md border border-solid border-warning/30 bg-warning/10 px-3 py-2 text-label font-normal text-warning">
                             <WarningCircle size={14} className="mt-px shrink-0" />
                             <span>
                                 {t("skills.gallery.agentsReference", {count: usedBy.length})}
@@ -536,7 +534,7 @@ const RegistrySkillEditor = ({
                         </div>
                     ) : null}
                     {archiveError ? (
-                        <p className="m-0 text-xs text-[var(--ag-colorError)]">{archiveError}</p>
+                        <p className="m-0 text-label font-normal text-destructive">{archiveError}</p>
                     ) : null}
                     <AlertDialogFooter>
                         <AlertDialogCancel asChild>
@@ -596,7 +594,7 @@ const UsedBy = ({
                     onClick={show}
                     onMouseEnter={show}
                     onMouseLeave={scheduleHide}
-                    className="box-border inline-flex shrink-0 cursor-default items-center border-0 bg-transparent p-0 font-[inherit] text-[12px] font-normal text-[var(--ag-colorTextTertiary)] hover:text-[var(--ag-colorTextSecondary)]"
+                    className="box-border inline-flex shrink-0 cursor-default items-center border-0 bg-transparent p-0 font-[inherit] text-meta font-normal text-muted-foreground hover:text-muted-foreground"
                 >
                     {t("skills.gallery.usedBy", {count: usedBy.length})}
                 </button>
@@ -619,7 +617,7 @@ const UsedBy = ({
                             <span className="min-w-0 flex-1 truncate">
                                 {agent.name || t("skills.gallery.unknownAgent")}
                             </span>
-                            <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                            <span className="shrink-0 text-caption text-muted-foreground">
                                 {agent.mode === "pinned"
                                     ? t("skills.gallery.pinned", {
                                           version: agent.pinnedVersion ?? "",

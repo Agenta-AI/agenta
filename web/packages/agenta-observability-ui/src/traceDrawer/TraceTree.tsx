@@ -5,8 +5,14 @@ import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import {filterKeySpans, filterTree} from "@agenta/observability"
 import type {TraceSpanNode} from "@agenta/observability"
 import {useTraceDrawer} from "@agenta/observability/traceDrawer"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
-import {Input, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {
+    Button,
+    Input,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    SimpleTooltip,
+} from "@agenta/ui/ui"
 import {Info, MagnifyingGlass, SlidersHorizontal} from "@phosphor-icons/react"
 import {useLocalStorage} from "usehooks-ts"
 
@@ -82,7 +88,7 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
 
     const renderTraceLabel = useCallback(
         (node: TraceSpanNode) => (
-            <TraceRow span={node} metrics={traceTreeSettings} className="text-xs" />
+            <TraceRow span={node} metrics={traceTreeSettings} className="text-label font-normal" />
         ),
         [traceTreeSettings],
     )
@@ -95,11 +101,11 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
         <div data-testid="trace-tree" className={"h-full overflow-hidden flex flex-col"}>
             {/* Same height and bottom border as the span header beside it (TraceTypeHeader), so
                 the two rows read as one. */}
-            <div className="box-border h-10 pl-4 pr-2 flex shrink-0 items-center justify-between gap-2 border-0 border-b border-solid border-colorSplit">
+            <div className="box-border h-10 pl-4 pr-2 flex shrink-0 items-center justify-between gap-2 border-0 border-b border-solid border-border-muted">
                 {/* antd's borderless Input with a prefix icon; the kit Input has no prefix
                     slot, so the icon sits beside it in a shared row. */}
                 <div className="flex items-center gap-2 w-full">
-                    <MagnifyingGlass size={14} className="text-gray-500 shrink-0" />
+                    <MagnifyingGlass size={14} className="text-muted-foreground shrink-0" />
                     <Input
                         placeholder={t("observabilityUi.traceDrawer.searchInTree")}
                         className="w-full border-0 bg-transparent shadow-none focus-visible:ring-0"
@@ -111,15 +117,18 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                 <Popover>
                     <PopoverTrigger asChild>
                         <span className="inline-flex">
-                            <EnhancedButton
-                                icon={<SlidersHorizontal size={14} />}
-                                type="text"
-                                size="small"
-                            />
+                            <SimpleTooltip title={t("observabilityUi.traceDrawer.display")}>
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label={t("observabilityUi.traceDrawer.display")}
+                                >
+                                    <SlidersHorizontal size={14} />
+                                </Button>
+                            </SimpleTooltip>
                         </span>
                     </PopoverTrigger>
-                    {/* antd sized the body 240px and stripped its padding. */}
-                    <PopoverContent side="bottom" align="end" className="!p-0 w-[240px]">
+                    <PopoverContent side="bottom" align="end" className="!p-0 w-popover-sm">
                         <TraceTreeSettings
                             settings={traceTreeSettings}
                             setSettings={setTraceTreeSettings}
@@ -141,24 +150,24 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                 />
 
                 {hiddenCount > 0 && (
-                    <div className="flex items-center gap-2 mx-2 mb-2 px-3 py-2 rounded-md bg-colorFillTertiary border border-solid border-colorBorderSecondary">
-                        <Info size={14} className="shrink-0 text-colorTextTertiary" />
-                        <span className="text-[12px] text-colorTextSecondary">
+                    <div className="flex items-center gap-2 mx-2 mb-2 px-3 py-2 rounded-md bg-secondary border border-solid border-border-muted">
+                        <Info size={14} className="shrink-0 text-muted-foreground" />
+                        <span className="text-meta text-muted-foreground">
                             {richText(
                                 t("observabilityUi.traceDrawer.hiddenByKeySpans", {
                                     count: hiddenCount,
                                 }),
                                 {
                                     count: (text) => (
-                                        <span className="font-medium text-colorText">{text}</span>
+                                        <span className="font-medium text-foreground">{text}</span>
                                     ),
                                 },
                             )}
                         </span>
-                        <EnhancedButton
-                            type="link"
-                            size="small"
-                            className="ml-auto !px-0 !h-auto text-[12px]"
+                        <Button
+                            variant="link"
+                            size="sm"
+                            className="ml-auto !px-0 !h-auto text-meta"
                             onClick={() =>
                                 setTraceTreeSettings((prev: TraceTreeSettingsState) => ({
                                     ...prev,
@@ -167,7 +176,7 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                             }
                         >
                             {t("observabilityUi.traceDrawer.showAll")}
-                        </EnhancedButton>
+                        </Button>
                     </div>
                 )}
             </div>

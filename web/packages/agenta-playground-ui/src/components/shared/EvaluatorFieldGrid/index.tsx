@@ -34,7 +34,7 @@ function getSkeletonWidth(port: RunnablePort): string {
 const FieldSkeleton = memo(({port}: {port: RunnablePort}) => (
     <div
         className={clsx(
-            "h-4 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse",
+            "h-4 rounded bg-secondary animate-pulse",
             getSkeletonWidth(port),
         )}
     />
@@ -107,19 +107,19 @@ const EvaluatorFieldGrid = memo(function EvaluatorFieldGrid({
         if (outputPorts.length === 0) {
             return (
                 <div className={clsx("flex items-center gap-2", className)}>
-                    <div className="h-4 w-24 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
+                    <div className="h-4 w-24 rounded bg-secondary animate-pulse" />
                 </div>
             )
         }
 
         return (
             <div
-                className={clsx("grid items-baseline text-xs leading-5", className)}
+                className={clsx("grid items-baseline text-label font-normal leading-5", className)}
                 style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 4}}
             >
                 {outputPorts.map((port) => (
                     <React.Fragment key={port.key}>
-                        <span className="text-[var(--ant-color-text-tertiary)] whitespace-nowrap leading-5">
+                        <span className="text-muted-foreground whitespace-nowrap leading-5">
                             {formatFieldLabel(port.key)}:
                         </span>
                         <FieldSkeleton port={port} />
@@ -133,15 +133,15 @@ const EvaluatorFieldGrid = memo(function EvaluatorFieldGrid({
     if (idle && outputPorts.length > 0) {
         return (
             <div
-                className={clsx("grid items-baseline text-xs leading-5", className)}
+                className={clsx("grid items-baseline text-label font-normal leading-5", className)}
                 style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 4}}
             >
                 {outputPorts.map((port) => (
                     <React.Fragment key={port.key}>
-                        <span className="text-[var(--ant-color-text-tertiary)] whitespace-nowrap leading-5">
+                        <span className="text-muted-foreground whitespace-nowrap leading-5">
                             {formatFieldLabel(port.key)}:
                         </span>
-                        <span className="text-[var(--ant-color-text-quaternary)] leading-5">—</span>
+                        <span className="text-muted-foreground leading-5">—</span>
                     </React.Fragment>
                 ))}
             </div>
@@ -153,12 +153,12 @@ const EvaluatorFieldGrid = memo(function EvaluatorFieldGrid({
 
     return (
         <div
-            className={clsx("grid items-baseline text-xs leading-5", className)}
+            className={clsx("grid items-baseline text-label font-normal leading-5", className)}
             style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 4}}
         >
             {entries.map(([key, value]) => (
                 <React.Fragment key={key}>
-                    <span className="text-[var(--ant-color-text-tertiary)] whitespace-nowrap leading-5">
+                    <span className="text-muted-foreground whitespace-nowrap leading-5">
                         {formatFieldLabel(key)}:
                     </span>
                     <span className="break-words min-w-0 leading-5">
@@ -172,7 +172,7 @@ const EvaluatorFieldGrid = memo(function EvaluatorFieldGrid({
                             return (
                                 <Tag
                                     color={verdictBoolean ? "success" : "error"}
-                                    className="!m-0 text-xs rounded-md px-2 py-0 leading-5"
+                                    className="!m-0 text-label font-normal rounded-md px-2 py-0 leading-5"
                                 >
                                     {verdictBoolean ? "true" : "false"}
                                 </Tag>

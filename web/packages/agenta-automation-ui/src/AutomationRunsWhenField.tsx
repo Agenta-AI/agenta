@@ -5,8 +5,7 @@ import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 import {Button, selectTriggerVariants} from "@agenta/ui/ui"
-import {CalendarBlank, CaretUpDown, Lightning} from "@phosphor-icons/react"
-import {ChevronRight} from "lucide-react"
+import {CalendarBlank, CaretRightIcon, CaretUpDown, Lightning} from "@phosphor-icons/react"
 
 import {AutomationField} from "./AutomationField"
 import {runsWhenLabel, type Automation, type AutomationKind} from "./automationModel"
@@ -75,15 +74,14 @@ export const AutomationRunsWhenField = ({
 
     const isSchedule = automation.kind === "schedule"
 
-    // The schedule panel prints its own "Next run …" line, so a running schedule needs no helper
-    // here — repeating it just stacks the same sentence twice. Paused is the one thing the builder
-    // can't know, and an event subscription has no next run to compute. An unusable expression
-    // outranks both: the drawer's own `Field` says so and this line is the only place left to.
+    // The schedule panel prints its own "Next run …" line, so a running schedule needs no help.
     const helper = useMemo(() => {
-        if (isSchedule && !schedule.validation.valid) return schedule.validation.error
         if (!automation.isActive) return t("automations.editor.helperPaused")
         return isSchedule ? "" : t("automations.editor.helperEvent")
-    }, [automation.isActive, isSchedule, schedule.validation, t])
+    }, [automation.isActive, isSchedule, t])
+    // An unusable expression is an error, so it shows under the field, not behind the "?".
+    const fieldError =
+        error ?? (isSchedule && !schedule.validation.valid ? schedule.validation.error : undefined)
 
     if (inline) {
         return (
@@ -91,10 +89,9 @@ export const AutomationRunsWhenField = ({
                 label={
                     isSchedule ? t("automations.editor.schedule") : t("automations.editor.event")
                 }
-                helper={isSchedule && !schedule.validation.valid ? schedule.validation.error : ""}
-                error={error}
+                error={fieldError}
             >
-                <div className="flex flex-col rounded-lg border border-solid border-colorBorderSecondary bg-[var(--ag-colorBgContainer)] p-3">
+                <div className="flex flex-col rounded-lg border border-solid border-border-muted bg-background p-3">
                     {isSchedule ? (
                         <ScheduleBuilderPanel value={automation.cron ?? ""} controls={schedule} />
                     ) : (
@@ -110,18 +107,25 @@ export const AutomationRunsWhenField = ({
     const label = isSchedule ? schedule.summary : runsWhenLabel(automation)
 
     return (
-        <AutomationField label={t("automations.editor.runsWhen")} helper={helper} error={error}>
+        <AutomationField
+            label={t("automations.editor.runsWhen")}
+            helper={helper}
+            error={fieldError}
+        >
             <PickerOverlay
                 open={open}
                 onOpenChange={setOpen}
                 title={t("automations.editor.runsWhen")}
+                // A schedule is a picker, so popover-md; the event panes sit side by side and keep
+                // the field's width.
+                contentClassName={isSchedule ? "w-[var(--popover-md)]" : undefined}
                 trigger={
                     // The same geometry `AutomationAgentField`'s SelectTrigger has, so the two
                     // controls read as one stack rather than two sizes of field.
                     <button
                         type="button"
                         aria-invalid={error ? true : undefined}
-                        className={cn(selectTriggerVariants({size: "compact"}), "max-md:h-11")}
+                        className={cn(selectTriggerVariants({size: "compact"}), "")}
                     >
                         <span className="min-w-0 flex-1 truncate text-left">{label}</span>
                         {/* Up and down for a popover that drops from the field; right for the
@@ -130,10 +134,10 @@ export const AutomationRunsWhenField = ({
                             <CaretUpDown
                                 aria-hidden
                                 size={14}
-                                className="shrink-0 text-colorTextTertiary"
+                                className="shrink-0 text-muted-foreground"
                             />
                         ) : (
-                            <ChevronRight className="text-placeholder size-3 shrink-0" />
+                            <CaretRightIcon className="text-placeholder size-3 shrink-0" />
                         )}
                     </button>
                 }
@@ -150,14 +154,14 @@ export const AutomationRunsWhenField = ({
                                     <Button
                                         key={value}
                                         type="button"
-                                        size="sm"
-                                        variant={active ? "default" : "outline"}
+                                        variant="outline"
                                         aria-pressed={active}
                                         onClick={() => onChangeKind(value)}
-                                        // The two modes are the picker's first choice, not a
-                                        // toolbar's: a taller target reads as a decision rather
-                                        // than a control tucked above the panel.
-                                        className="h-8 min-w-0 flex-1 font-normal"
+                                        // Selection is a tone, not a primary fill (LOUD-05).
+                                        className={cn(
+                                            "min-w-0 flex-1",
+                                            active && "bg-selected hover:bg-selected",
+                                        )}
                                     >
                                         <KindIcon aria-hidden size={14} />
                                         <span className="min-w-0 truncate">

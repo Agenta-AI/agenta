@@ -260,10 +260,10 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                     </div>
                 ) : null}
                 <div className="flex min-w-0 flex-1 items-baseline gap-2">
-                    <SheetTitle className="shrink-0 text-lg font-semibold">
+                    <SheetTitle className="shrink-0 text-title">
                         {focus && bucket === null ? focusName : title}
                     </SheetTitle>
-                    <SheetDescription className="truncate text-xs text-muted-foreground">
+                    <SheetDescription className="truncate text-meta text-muted-foreground">
                         {sub}
                     </SheetDescription>
                 </div>
@@ -284,13 +284,13 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                             {pageChips.map((chip) => (
                                 <span
                                     key={chip}
-                                    className="inline-flex h-6 items-center rounded-md bg-muted px-2 text-xs"
+                                    className="inline-flex h-6 items-center rounded-sm bg-secondary px-2 text-meta"
                                 >
                                     {chip}
                                 </span>
                             ))}
                             {focusLabel ? (
-                                <span className="inline-flex h-6 items-center gap-1 rounded-md bg-accent pl-2 pr-1 text-xs">
+                                <span className="inline-flex h-6 items-center gap-1 rounded-sm bg-accent pl-2 pr-1 text-meta">
                                     {focusLabel}
                                     <button
                                         type="button"
@@ -302,7 +302,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                                                 dim: focus?.dim === "model" ? "model" : "agent",
                                             })
                                         }
-                                        className="grid size-4 cursor-pointer place-items-center rounded border-0 bg-transparent text-muted-foreground hover:text-foreground"
+                                        className="grid size-4 cursor-pointer place-items-center rounded-sm border-0 bg-transparent text-muted-foreground hover:text-foreground focus-ring"
                                     >
                                         <X size={10} />
                                     </button>
@@ -316,7 +316,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                                         setFilters({...readerFilters, [focus.dim]: [focus.key]})
                                         setState(null)
                                     }}
-                                    className="h-6 cursor-pointer border-0 bg-transparent px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                                    className="h-6 cursor-pointer border-0 bg-transparent px-1 text-meta text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
                                 >
                                     {t("observabilityUi.analytics.applyAsFilter")}
                                 </button>
@@ -326,7 +326,7 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
 
                     <div
                         className={cn(
-                            "grid grid-cols-3 gap-1 rounded-xl bg-muted p-1",
+                            "grid grid-cols-3 gap-1 rounded-lg bg-muted p-1",
                             narrowed ? "sm:grid-cols-5" : "sm:grid-cols-6",
                         )}
                     >
@@ -337,18 +337,19 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                                 type="button"
                                 onClick={() => setState({...state, metric: m})}
                                 className={cn(
-                                    "flex min-w-0 cursor-pointer flex-col gap-1 rounded-lg border-0 px-3 py-2.5 text-left disabled:cursor-default disabled:opacity-50",
-                                    m === metric ? "bg-background shadow-sm" : "bg-transparent",
+                                    // A control: row-double tall, its value at the label weight (TYPE-05).
+                                    "box-border flex h-row-double min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-md border-0 px-3 text-left disabled:cursor-default disabled:opacity-50",
+                                    m === metric ? "bg-background shadow-raised" : "bg-transparent hover:bg-accent",
                                 )}
                             >
-                                <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                                <span className="flex min-w-0 items-center gap-1.5 text-meta text-muted-foreground">
                                     <span
-                                        className="size-1.5 shrink-0 rounded-full"
+                                        className="size-1.5 shrink-0 rounded-xs"
                                         style={{background: analyticsColor(m)}}
                                     />
                                     <span className="truncate">{t(TILE_LABEL[m])}</span>
                                 </span>
-                                <span className="truncate text-base font-semibold tabular-nums">
+                                <span className="truncate text-label tabular-nums">
                                     {m === "tools"
                                         ? formatCount(totalTools)
                                         : formatMetric(m, tileValue(m))}
@@ -359,13 +360,13 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
 
                     <section className="rounded-xl bg-muted px-4 py-3">
                         <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-medium">
+                            <span className="text-label">
                                 {t("observabilityUi.analytics.chartTitle", {
                                     metric: t(METRIC_LABEL[metric]),
                                     unit: unitLabel(unit),
                                 })}
                             </span>
-                            <span className="text-[11px] text-muted-foreground">
+                            <span className="text-caption text-muted-foreground">
                                 {bucket === null
                                     ? t("observabilityUi.analytics.clickToZoom")
                                     : t("observabilityUi.analytics.hoverForDetails")}

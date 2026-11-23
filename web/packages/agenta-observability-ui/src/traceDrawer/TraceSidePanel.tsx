@@ -5,16 +5,20 @@ import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import type {TraceSpanNode} from "@agenta/observability"
 import type {TracesWithAnnotations} from "@agenta/observability/dto"
 import {useTraceDrawer} from "@agenta/observability/traceDrawer"
-import {Accordion, AccordionContent, AccordionItem, AccordionTrigger} from "@agenta/ui/ui"
-
-import {SkeletonBlock} from "../primitives/SkeletonBlock"
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+    SkeletonBlock,
+} from "@agenta/ui/ui"
 
 import TraceAnnotations from "./TraceAnnotations"
 import TraceDetails from "./TraceDetails"
 import TraceLinkedSpans from "./TraceLinkedSpans"
 import TraceReferences from "./TraceReferences"
 
-const collapseItemLabelClass = "text-xs font-medium leading-[1.6666666666666667]"
+const collapseItemLabelClass = "text-label"
 
 const TraceSidePanel = ({
     activeTrace,
@@ -36,7 +40,7 @@ const TraceSidePanel = ({
             <div className="flex flex-col gap-2">
                 {/* antd `Skeleton paragraph={{rows: 4}}` */}
                 {[0, 1, 2, 3].map((row) => (
-                    <SkeletonBlock key={row} />
+                    <SkeletonBlock key={row} className="max-w-[160px]" />
                 ))}
             </div>
         </div>
@@ -44,7 +48,7 @@ const TraceSidePanel = ({
 
     const emptyState = (message: string) => (
         <div className="px-3 py-4">
-            <span className="text-colorTextSecondary text-sm">{message}</span>
+            <span className="text-muted-foreground text-body">{message}</span>
         </div>
     )
 
@@ -132,11 +136,13 @@ const TraceSidePanel = ({
                 <AccordionItem
                     key={item.key}
                     value={item.key}
-                    className="border-[var(--ag-colorSplit)]"
+                    className="border-border-muted"
                 >
-                    {/* antd's header padding was 10.5px; the panel body was 12px. */}
-                    <AccordionTrigger className="!py-[10.5px]">{item.label}</AccordionTrigger>
-                    <AccordionContent className="p-3 border-[var(--ag-colorSplit)]">
+                    {/* Section headers on the row scale: row-single (SPACE-02). */}
+                    <AccordionTrigger className="box-border h-row-single !items-center !py-0">
+                        {item.label}
+                    </AccordionTrigger>
+                    <AccordionContent className="p-3 border-border-muted">
                         {item.children}
                     </AccordionContent>
                 </AccordionItem>

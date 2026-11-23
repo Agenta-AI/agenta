@@ -29,7 +29,7 @@ interface MetadataSidebarProps {
 function MetadataField({label, children}: {label: string; children: React.ReactNode}) {
     return (
         <div className="flex flex-col gap-1.5">
-            <span className={cn("text-xs font-medium", textColors.muted)}>{label}</span>
+            <span className={cn("text-label", textColors.muted)}>{label}</span>
             <div>{children}</div>
         </div>
     )
@@ -68,7 +68,7 @@ const MetadataSidebar = memo(({revisionId, context, isCompact}: MetadataSidebarP
         >
             {/* Header */}
             <div className="px-4 pt-4 pb-3">
-                <Text className={cn("text-sm font-semibold", textColors.secondary)}>Details</Text>
+                <Text className={cn("text-label font-semibold", textColors.secondary)}>Details</Text>
             </div>
 
             {/* Metadata fields */}

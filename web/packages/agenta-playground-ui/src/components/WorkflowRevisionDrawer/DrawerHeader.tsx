@@ -188,7 +188,7 @@ const AppCreateNameInput = memo(({entityId}: {entityId: string}) => {
             onKeyDown={handleKeyDown}
             size="small"
             placeholder="Untitled App"
-            className="!w-[260px] !text-sm !font-medium"
+            className="!w-[260px] !text-label"
             data-testid="app-create-name-input"
             variant="borderless"
         />
@@ -219,7 +219,7 @@ const DrawerHeader = () => {
 
     return (
         <div
-            className="flex items-center justify-between px-4 py-4 border-0 border-b border-solid border-[var(--ag-c-0517290F)] shrink-0"
+            className="flex items-center justify-between px-4 py-4 border-0 border-b border-solid border-border-muted shrink-0"
             data-testid="workflow-revision-drawer-header"
         >
             {/* Left: close + title + nav */}
@@ -236,7 +236,7 @@ const DrawerHeader = () => {
                     {isAppCreate && entityId ? (
                         <AppCreateNameInput entityId={entityId} />
                     ) : (
-                        <Text className="text-sm font-medium">{title}</Text>
+                        <Text className="text-label">{title}</Text>
                     )}
                     {entityId && !isCreate && <NavControls entityId={entityId} />}
                 </div>

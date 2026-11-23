@@ -18,7 +18,7 @@ const tNow = createT(automationsEditorCatalog)
 
 const GroupTitle = ({title, action}: {title: string; action?: ReactNode}) => (
     <div className="flex min-h-7 items-center gap-2">
-        <h2 className="m-0 flex-1 text-[13px] font-semibold text-foreground">{title}</h2>
+        <h2 className="m-0 flex-1 text-label font-semibold text-foreground">{title}</h2>
         {action}
     </div>
 )
@@ -37,18 +37,18 @@ const RunsRow = ({
 }) => {
     const body = (
         <>
-            <span className="w-[72px] shrink-0 text-[12px] text-muted-foreground">{label}</span>
-            <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px] text-foreground">
+            <span className="w-[72px] shrink-0 text-meta text-muted-foreground">{label}</span>
+            <span className="flex min-w-0 flex-1 items-center gap-1.5 text-label text-foreground">
                 {children}
             </span>
             {onClick ? (
-                <CaretRight aria-hidden size={12} className="shrink-0 text-colorTextTertiary" />
+                <CaretRight aria-hidden size={12} className="shrink-0 text-muted-foreground" />
             ) : null}
         </>
     )
-    // At least 44px high on a phone, where a row is a tap target.
+    // One row height for the card (SPACE-02); the divider sits inside it.
     const frame =
-        "flex w-full items-center gap-2.5 border-0 border-t border-solid border-colorSplit bg-transparent px-3 py-2.5 text-left first:border-t-0 max-md:min-h-11"
+        "box-border flex h-row-single w-full items-center gap-2.5 border-0 border-t border-solid border-border-muted bg-transparent px-3 py-0 text-left first:border-t-0"
     return onClick ? (
         <button
             type="button"
@@ -144,7 +144,7 @@ export const AutomationRunsSection = ({
                     >
                         <span
                             aria-hidden
-                            className={cn("size-2 shrink-0 rounded-full", runDotClass(newest))}
+                            className={cn("size-2 shrink-0 rounded-xs", runDotClass(newest))}
                         />
                         <span className="min-w-0 truncate">
                             {[

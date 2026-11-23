@@ -67,9 +67,9 @@ function formatQueueStatus(queueId: string, fallbackStatus: string | null | unde
 function AnnotationQueuesEmptyState({onCreate}: {onCreate: () => void}) {
     return (
         <div className="px-4 py-6">
-            <div className="mx-auto flex min-h-[300px] max-w-3xl items-center justify-center">
+            <div className="mx-auto flex min-h-75 max-w-3xl items-center justify-center">
                 <div className="flex max-w-xl flex-col items-center text-center gap-3">
-                    <Typography.Text className="text-lg font-semibold">
+                    <Typography.Text className="text-title">
                         Create your first annotation queue
                     </Typography.Text>
                     <Typography.Text>
@@ -102,15 +102,15 @@ function AnnotationQueuesSearchEmptyState({
 }) {
     return (
         <div className="px-4 py-6">
-            <div className="mx-auto flex min-h-[220px] max-w-2xl items-center justify-center rounded-[24px] border border-dashed border-zinc-200 bg-zinc-50/70 dark:border-[var(--ag-rgba-051729-06)] dark:bg-[var(--ag-rgba-051729-04)] px-6 py-8">
+            <div className="mx-auto flex min-h-55 max-w-2xl items-center justify-center rounded-xl border border-dashed border-border bg-muted px-6 py-8">
                 <div className="flex max-w-lg flex-col items-center text-center">
                     <Typography.Title
                         level={4}
-                        className="!mb-2 !text-xl !font-semibold !text-zinc-900 md:!text-2xl"
+                        className="!mb-2 !text-title !text-foreground"
                     >
                         No queues match your search
                     </Typography.Title>
-                    <Typography.Paragraph className="!mb-5 !text-sm !leading-6 !text-zinc-500 md:!text-base">
+                    <Typography.Paragraph className="!mb-5 !text-body !text-muted-foreground">
                         No annotation queues matched "{searchTerm}". Try a different name or clear
                         the search.
                     </Typography.Paragraph>
@@ -150,7 +150,7 @@ const QueuesFiltersContent = ({onClose}: {onClose: () => void}) => {
     return (
         <div className="flex flex-col gap-4 min-w-[240px]">
             <div className="flex flex-col gap-2">
-                <Typography.Text strong className="text-gray-700">
+                <Typography.Text className="font-medium text-foreground">
                     Type
                 </Typography.Text>
                 <Select

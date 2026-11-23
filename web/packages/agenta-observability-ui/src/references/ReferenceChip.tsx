@@ -80,8 +80,8 @@ const CopyIconButton = ({value, title}: {value: string; title: string}) => {
             className={clsx(
                 "flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0",
                 copied
-                    ? "text-colorSuccess"
-                    : "text-colorTextTertiary hover:bg-colorFillSecondary hover:text-colorText",
+                    ? "text-success"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
             )}
             onClick={(event) => {
                 event.stopPropagation()
@@ -98,7 +98,7 @@ const CopyIconButton = ({value, title}: {value: string; title: string}) => {
 }
 
 /** The loading stand-in for a chip, the same height as the chip. */
-export const ReferenceChipSkeleton = () => <SkeletonBlock className="h-[22px] w-[140px]" />
+export const ReferenceChipSkeleton = () => <SkeletonBlock className="h-6 w-[140px]" />
 
 /**
  * A linked reference: tone, entity icon, name, version and a link arrow. Hovering it shows the
@@ -161,7 +161,7 @@ export const ReferenceChip = ({
             <Icon size={12} className="shrink-0" />
             <span className={clsx("min-w-0 truncate", deleted && "line-through")}>{label}</span>
             {version != null ? (
-                <span className="shrink-0 rounded-sm bg-colorBgContainer px-1 text-[11px] leading-4">
+                <span className="shrink-0 rounded-sm bg-background px-1 text-caption">
                     {/* A version tag ("v3"), the same in every language. */}
                     {`v${version}`}
                 </span>
@@ -170,8 +170,8 @@ export const ReferenceChip = ({
         </>
     )
     const chipClass = clsx(
-        "inline-flex h-[22px] max-w-[220px] items-center gap-1 rounded-md border border-solid px-1.5 text-xs no-underline",
-        deleted && "border-colorBorder bg-colorFillTertiary text-colorTextTertiary",
+        "inline-flex h-6 max-w-[220px] items-center gap-1 rounded-sm border border-solid px-1.5 text-meta no-underline",
+        deleted && "border-border bg-secondary text-muted-foreground",
         linked && "cursor-pointer hover:brightness-95",
     )
     const style = deleted ? undefined : toneStyle(kind)
@@ -199,7 +199,7 @@ export const ReferenceChip = ({
         <HoverCard openDelay={300} closeDelay={100}>
             <HoverCardTrigger asChild>{chip}</HoverCardTrigger>
             <HoverCardContent align="end" className="w-[300px] p-0">
-                <div className="flex items-start gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3 py-2.5">
+                <div className="flex items-start gap-2 border-0 border-b border-solid border-border-muted px-3 py-2.5">
                     <span
                         className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-solid"
                         style={toneStyle(kind)}
@@ -207,10 +207,10 @@ export const ReferenceChip = ({
                         <Icon size={13} />
                     </span>
                     <div className="min-w-0 flex-1">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-colorTextTertiary">
+                        <div className="text-meta font-medium text-muted-foreground">
                             {kindLabel}
                         </div>
-                        <div className="break-words text-xs font-medium text-colorText">
+                        <div className="break-words text-label text-foreground">
                             {label}
                         </div>
                     </div>
@@ -222,12 +222,12 @@ export const ReferenceChip = ({
                 <div className="flex flex-col px-3 pb-2 pt-1.5">
                     {rows.map((row) => (
                         <div key={row.id} className="flex min-h-6 items-center gap-2 py-1">
-                            <span className="w-[76px] shrink-0 text-xs text-colorTextTertiary">
+                            <span className="w-[76px] shrink-0 text-meta text-muted-foreground">
                                 {row.name}
                             </span>
                             <span
                                 title={row.copy}
-                                className="min-w-0 flex-1 truncate font-mono text-xs text-colorTextSecondary"
+                                className="min-w-0 flex-1 truncate text-code-sm text-muted-foreground"
                             >
                                 {row.value}
                             </span>

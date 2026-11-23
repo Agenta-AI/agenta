@@ -1,6 +1,6 @@
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
-import {Button, SkeletonBlock} from "@agenta/ui/ui"
+import {Button, IconTile, SkeletonBlock} from "@agenta/ui/ui"
 import {Lightning, MagnifyingGlass, Plug} from "@phosphor-icons/react"
 
 /**
@@ -27,11 +27,11 @@ const EventPickerEmptyFrame = ({
     action?: React.ReactNode
 }) => (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-2.5 px-8 py-12 text-center">
-        <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-muted">
+        <IconTile size={40}>
             {icon}
-        </span>
-        <p className="m-0 text-[14px] font-medium text-foreground">{title}</p>
-        <p className="m-0 max-w-[38ch] text-[13px] leading-snug text-muted-foreground">{body}</p>
+        </IconTile>
+        <p className="m-0 text-body font-medium text-foreground">{title}</p>
+        <p className="m-0 max-w-[38ch] text-label leading-snug text-muted-foreground">{body}</p>
         {action}
     </div>
 )
@@ -56,12 +56,12 @@ export const EventListEmpty = ({
                         src={logo}
                         alt=""
                         aria-hidden
-                        className="size-5 rounded-[4px] object-contain"
+                        className="size-5 rounded-sm object-contain"
                     />
                 ) : logoLoading ? (
-                    <SkeletonBlock active className="size-5 rounded-[4px]" />
+                    <SkeletonBlock active className="size-5 rounded-sm" />
                 ) : (
-                    <Lightning aria-hidden size={19} className="text-muted-foreground" />
+                    <Lightning aria-hidden className="text-muted-foreground" />
                 )
             }
             title={t("automations.editor.noEventsTitle")}
@@ -90,7 +90,7 @@ export const EventSearchEmpty = ({
     const t = useT(automationsEditorCatalog)
     return (
         <EventPickerEmptyFrame
-            icon={<MagnifyingGlass aria-hidden size={19} className="text-muted-foreground" />}
+            icon={<MagnifyingGlass aria-hidden className="text-muted-foreground" />}
             title={
                 hasMore
                     ? t("automations.editor.nothingYetFor", {query})
@@ -107,7 +107,7 @@ export const EventSearchEmpty = ({
                         <Button
                             type="button"
                             size="sm"
-                            className="text-xs font-normal"
+                            className="text-label"
                             disabled={loadingMore}
                             onClick={onLoadMore}
                         >
@@ -120,7 +120,7 @@ export const EventSearchEmpty = ({
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="text-xs font-normal"
+                        className="text-label"
                         onClick={onClear}
                     >
                         {t("automations.editor.clearSearch")}
@@ -136,7 +136,7 @@ export const EventPickerNoApps = ({onConnect}: {onConnect: () => void}) => {
     const t = useT(automationsEditorCatalog)
     return (
         <EventPickerEmptyFrame
-            icon={<Plug aria-hidden size={19} className="text-muted-foreground" />}
+            icon={<Plug aria-hidden className="text-muted-foreground" />}
             title={t("automations.editor.noAppsConnected")}
             body={t("automations.editor.noAppsConnectedBody")}
             action={
@@ -144,7 +144,7 @@ export const EventPickerNoApps = ({onConnect}: {onConnect: () => void}) => {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="mt-1 text-xs font-normal"
+                    className="mt-1 text-label"
                     onClick={onConnect}
                 >
                     {t("automations.editor.connectApp")}

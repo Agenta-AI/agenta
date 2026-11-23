@@ -3,7 +3,7 @@ import {cloneElement, isValidElement, useCallback, useState} from "react"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import commitCatalog from "@agenta/i18n/catalogs/playground.commit"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
+import {Button} from "@agenta/ui/ui"
 import {FloppyDiskBack, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -59,15 +59,16 @@ const CommitVariantChangesButton = ({
                     },
                 )
             ) : (
-                <EnhancedButton
-                    type="text"
-                    icon={icon && resolvedIcon}
+                <Button
+                    variant="ghost"
+                    size="default"
                     onClick={() => setIsDeployModalOpen(true)}
                     disabled={disabled}
                     {...props}
                 >
+                    {icon && resolvedIcon}
                     {resolvedLabel}
-                </EnhancedButton>
+                </Button>
             )}
 
             <CommitVariantChangesModal

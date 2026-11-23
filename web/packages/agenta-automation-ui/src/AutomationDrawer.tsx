@@ -7,8 +7,16 @@ import {
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, LoadingButton} from "@agenta/ui/ui"
+import {
+    Button,
+    cn,
+    LoadingButton,
+    Sheet,
+    SheetContent,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
+} from "@agenta/ui/ui"
 import {useAtom, useAtomValue} from "jotai"
 
 import {AutomationCreateBody} from "./AutomationCreateBody"
@@ -112,37 +120,55 @@ const AutomationDrawerShell = ({
     )
 
     return (
-        <EnhancedDrawer
-            rootClassName="ag-drawer-elevated"
+        <Sheet
             open={open}
-            onClose={onClose}
-            afterOpenChange={onAfterOpenChange}
-            title={
-                <span className="flex min-w-0 items-baseline gap-1.5">
-                    <span>{title}</span>
-                    {boundAgentName ? (
-                        <>
-                            <span className="text-[var(--ag-colorTextQuaternary)]">·</span>
-                            <span className="min-w-0 truncate text-sm font-normal text-[var(--ag-colorTextDescription)]">
-                                {boundAgentName}
-                            </span>
-                        </>
-                    ) : null}
-                </span>
-            }
-            width={640}
-            footer={footer}
-            styles={{
-                body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
+            onOpenChange={(next) => {
+                if (!next) onClose()
             }}
         >
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">{children}</div>
-            {/* The event picker's "Connect another app" opens the catalog by atom, so the
-                catalog has to be mounted wherever this drawer is. The screens mount their own and
-                this shell renders nothing when closed; the panel's Automations tab drops its copy
-                while a drawer atom is set. */}
-            <AutomationTriggerDrawers />
-        </EnhancedDrawer>
+            <SheetContent
+                side="right"
+                className="ag-drawer-elevated"
+                style={{width: 640, maxWidth: "calc(100% - 1rem)"}}
+                onOpenAutoFocus={(e) => {
+                    if ((e.currentTarget as HTMLElement | null)?.contains(document.activeElement))
+                        e.preventDefault()
+                }}
+                onCloseAutoFocus={() => onAfterOpenChange(false)}
+            >
+                <SheetHeader>
+                    <SheetTitle className="min-w-0">
+                        <span className="flex min-w-0 items-baseline gap-1.5">
+                            <span>{title}</span>
+                            {boundAgentName ? (
+                                <>
+                                    <span className="text-muted-foreground">·</span>
+                                    <span className="min-w-0 truncate text-body text-muted-foreground">
+                                        {boundAgentName}
+                                    </span>
+                                </>
+                            ) : null}
+                        </span>
+                    </SheetTitle>
+                </SheetHeader>
+                <div
+                    className={cn(
+                        "flex min-h-0 flex-1 flex-col overflow-hidden text-field-md text-foreground",
+                        footer == null && "rounded-b-[inherit]",
+                    )}
+                >
+                    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">
+                        {children}
+                    </div>
+                    {/* The event picker's "Connect another app" opens the catalog by atom, so the
+                        catalog has to be mounted wherever this drawer is. The screens mount their
+                        own and this shell renders nothing when closed; the panel's Automations tab
+                        drops its copy while a drawer atom is set. */}
+                    <AutomationTriggerDrawers />
+                </div>
+                {footer != null ? <SheetFooter>{footer}</SheetFooter> : null}
+            </SheetContent>
+        </Sheet>
     )
 }
 
@@ -185,7 +211,7 @@ const AutomationEditDrawer = ({
             {editor.loading ? (
                 <AutomationDetailSkeleton />
             ) : !editor.automation || !editor.preview ? (
-                <p className="m-0 py-16 text-center text-[13px] text-muted-foreground">
+                <p className="m-0 py-16 text-center text-label text-muted-foreground">
                     {t("automations.editor.noLongerExists")}
                 </p>
             ) : (
@@ -262,7 +288,6 @@ const AutomationCreateDrawer = ({
                     <Button
                         type="button"
                         variant="outline"
-                        className="font-normal"
                         onClick={onClose}
                     >
                         {t("automations.editor.cancel")}
@@ -271,7 +296,6 @@ const AutomationCreateDrawer = ({
                         turns the missing fields red, which is how the reader learns what to do. */}
                     <LoadingButton
                         type="button"
-                        className="font-normal"
                         loading={state.saving}
                         onClick={() => void state.create().then((made) => made && onClose())}
                     >

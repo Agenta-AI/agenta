@@ -81,21 +81,21 @@ const DataSection = memo(function DataSection({
 
     return (
         <div className="flex flex-col gap-2">
-            <Typography.Text type="secondary" className="text-xs uppercase tracking-wide">
+            <Typography.Text type="secondary" className="text-meta font-medium">
                 {title}
             </Typography.Text>
             <div className="flex flex-col gap-3">
                 {entries.map(([key, value]) => (
                     <div key={key} className="flex flex-col gap-1">
-                        <Typography.Text className="text-xs font-medium text-[var(--ag-c-758391)]">
+                        <Typography.Text className="text-label text-muted-foreground">
                             {key}
                         </Typography.Text>
                         {isComplexScenarioValue(value) ? (
-                            <pre className="text-xs m-0 whitespace-pre-wrap break-all max-h-80 overflow-auto p-2 rounded bg-[var(--ant-color-fill-quaternary)]">
+                            <pre className="text-code m-0 whitespace-pre-wrap break-all max-h-80 overflow-auto p-2 rounded bg-muted">
                                 {formatScenarioValue(value)}
                             </pre>
                         ) : (
-                            <Typography.Text className="text-sm">
+                            <Typography.Text className="text-body">
                                 {formatScenarioValue(value)}
                             </Typography.Text>
                         )}
@@ -186,14 +186,14 @@ const TraceScenarioContent = memo(function TraceScenarioContent({traceId}: {trac
             {/* Trace / span info */}
             {rootSpan.span_name && (
                 <div className="flex items-center gap-2">
-                    <Typography.Text type="secondary" className="text-xs">
+                    <Typography.Text type="secondary" className="text-label font-normal">
                         Trace:
                     </Typography.Text>
-                    <Typography.Text className="text-xs font-medium">
+                    <Typography.Text className="text-label">
                         {rootSpan.span_name}
                     </Typography.Text>
                     {rootSpan.span_type && (
-                        <Typography.Text type="secondary" className="text-xs px-1.5 py-0.5 rounded">
+                        <Typography.Text type="secondary" className="text-label font-normal px-1.5 py-0.5 rounded">
                             {rootSpan.span_type}
                         </Typography.Text>
                     )}

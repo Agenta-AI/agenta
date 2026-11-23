@@ -74,7 +74,7 @@ const ChatMode = ({entityId, renderLastTurnFooter, renderControlsBar}: ChatModeP
                             ))}
                         {configMessages.length > 0 && (
                             <div className="px-4 pb-2">
-                                <div className="rounded-md border border-solid border-colorBorderSecondary mt-4">
+                                <div className="rounded-md border border-solid border-border-muted mt-4">
                                     <ChatMessageList
                                         messages={configMessages}
                                         onChange={noop}

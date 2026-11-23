@@ -31,7 +31,7 @@ export const UnusedColumnsToggle = ({rowId, columns}: UnusedColumnsToggleProps) 
                 type="button"
                 aria-expanded={open}
                 onClick={() => setOpen((previous) => !previous)}
-                className="flex items-center gap-1 self-start border-0 bg-transparent p-0 text-left text-xs text-muted-foreground"
+                className="flex items-center gap-1 self-start border-0 bg-transparent p-0 text-left text-meta text-muted-foreground"
             >
                 {open ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 {summary}

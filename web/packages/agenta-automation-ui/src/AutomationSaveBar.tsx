@@ -31,13 +31,12 @@ export const AutomationSaveBar = ({
             className={
                 bare
                     ? "flex items-center justify-end gap-2.5"
-                    : "mt-[30px] flex items-center justify-end gap-2.5 border-0 border-t border-solid border-border pt-5"
+                    : "mt-8 flex items-center justify-end gap-2.5 border-0 border-t border-solid border-border pt-5"
             }
         >
             <Button
                 type="button"
                 variant="outline"
-                className="font-normal"
                 disabled={saving || !dirty}
                 onClick={onDiscard}
             >
@@ -45,7 +44,6 @@ export const AutomationSaveBar = ({
             </Button>
             <Button
                 type="button"
-                className="font-normal"
                 disabled={saving || !dirty}
                 onClick={onSave}
             >
