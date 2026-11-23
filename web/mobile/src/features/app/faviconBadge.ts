@@ -8,10 +8,10 @@ const DOT_Y = 10
 const DOT_RADIUS = 10
 
 const BADGE_COLOR_TOKEN: Record<Badge, string> = {
-    running: "--ag-run-status-processing",
-    awaiting: "--ag-run-status-warning",
-    completed: "--ag-run-status-success",
-    error: "--ag-run-status-error",
+    running: "--info",
+    awaiting: "--warning",
+    completed: "--success",
+    error: "--destructive",
 }
 
 interface LinkOriginal {

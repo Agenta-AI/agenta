@@ -2,7 +2,7 @@ import {useState} from "react"
 
 import {GroupMenu} from "@agenta/ui/filter-menu"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {Bot, Minus, Zap} from "lucide-react"
+import {LightningIcon, MinusIcon, RobotIcon} from "@phosphor-icons/react"
 
 /**
  * The smaller sibling of `FilterMenu`, for a surface that wants a standalone group control rather
@@ -27,9 +27,9 @@ type Story = StoryObj<typeof GroupMenu>
 const ICON = 14
 
 const OPTIONS = [
-    {value: "none", label: "None", icon: <Minus size={ICON} />},
-    {value: "type", label: "Type", icon: <Zap size={ICON} />},
-    {value: "agent", label: "Agent", icon: <Bot size={ICON} />},
+    {value: "none", label: "None", icon: <MinusIcon size={ICON} />},
+    {value: "type", label: "Type", icon: <LightningIcon size={ICON} />},
+    {value: "agent", label: "Agent", icon: <RobotIcon size={ICON} />},
 ]
 
 const Harness = (props: Partial<React.ComponentProps<typeof GroupMenu>>) => {

@@ -13,7 +13,7 @@ import {
     CommandShortcut,
 } from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {Calculator, Calendar, CreditCard, Settings, Smile, User} from "lucide-react"
+import {CalculatorIcon, CalendarBlankIcon, CreditCardIcon, GearIcon, SmileyIcon, UserIcon} from "@phosphor-icons/react"
 
 const meta = {
     title: "@agenta/ui/Primitives/Overlays/Command",
@@ -46,32 +46,32 @@ function Items() {
             <CommandEmpty>No results found.</CommandEmpty>
             <CommandGroup heading="Suggestions">
                 <CommandItem>
-                    <Calendar />
+                    <CalendarBlankIcon />
                     <span>Calendar</span>
                 </CommandItem>
                 <CommandItem>
-                    <Smile />
+                    <SmileyIcon />
                     <span>Search Emoji</span>
                 </CommandItem>
                 <CommandItem disabled>
-                    <Calculator />
+                    <CalculatorIcon />
                     <span>Calculator</span>
                 </CommandItem>
             </CommandGroup>
             <CommandSeparator />
             <CommandGroup heading="Settings">
                 <CommandItem>
-                    <User />
+                    <UserIcon />
                     <span>Profile</span>
                     <CommandShortcut>⌘P</CommandShortcut>
                 </CommandItem>
                 <CommandItem>
-                    <CreditCard />
+                    <CreditCardIcon />
                     <span>Billing</span>
                     <CommandShortcut>⌘B</CommandShortcut>
                 </CommandItem>
                 <CommandItem>
-                    <Settings />
+                    <GearIcon />
                     <span>Settings</span>
                     <CommandShortcut>⌘S</CommandShortcut>
                 </CommandItem>

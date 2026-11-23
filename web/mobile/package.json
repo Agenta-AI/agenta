@@ -60,7 +60,6 @@
         "jotai": "^2.16.1",
         "jotai-family": "^1.0.1",
         "jotai-tanstack-query": "^0.11.0",
-        "lucide-react": "^0.479.0",
         "motion": "^12.0.0",
         "next": "16.4.5",
         "posthog-js": "^1.223.3",

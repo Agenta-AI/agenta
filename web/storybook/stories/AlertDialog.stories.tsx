@@ -14,7 +14,7 @@ import {
     Button as ShadButton,
 } from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {Trash2} from "lucide-react"
+import {TrashIcon} from "@phosphor-icons/react"
 
 const meta = {
     title: "@agenta/ui/Primitives/Overlays/AlertDialog",
@@ -75,7 +75,7 @@ export const OpenState: Story = {
                                 <AlertDialogAction
                                     className={buttonVariants({variant: "destructive"})}
                                 >
-                                    <Trash2 className="size-3.5" />
+                                    <TrashIcon className="size-3.5" />
                                     Delete
                                 </AlertDialogAction>
                             </AlertDialogFooter>
@@ -103,7 +103,7 @@ export const Variants: Story = {
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction className={buttonVariants({variant: "destructive"})}>
-                            <Trash2 className="size-3.5" />
+                            <TrashIcon className="size-3.5" />
                             Delete
                         </AlertDialogAction>
                     </AlertDialogFooter>

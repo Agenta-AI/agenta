@@ -8,6 +8,7 @@ import {useVisualViewportHeight} from "@agenta/ui/hooks"
 import type {AppProps} from "next/app"
 import Head from "next/head"
 
+import {AppFonts} from "@/features/app/AppFonts"
 import {AppProviders} from "@/features/app/AppProviders"
 import {BareProviders} from "@/features/app/BareProviders"
 import {GlobalDrawers} from "@/features/app/GlobalDrawers"
@@ -40,6 +41,7 @@ export default function App({Component, pageProps, router}: AppProps) {
     if (isEmbedPath(router.pathname)) {
         return (
             <BareProviders>
+                <AppFonts />
                 <Component {...pageProps} />
             </BareProviders>
         )
@@ -47,6 +49,7 @@ export default function App({Component, pageProps, router}: AppProps) {
 
     return (
         <>
+            <AppFonts />
             <Head>
                 {/* `interactive-widget=resizes-content` makes the on-screen keyboard shrink
                     the LAYOUT viewport, so every `dvh` frame below stops hiding its bottom edge —

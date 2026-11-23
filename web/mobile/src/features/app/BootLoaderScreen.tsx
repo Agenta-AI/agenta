@@ -92,7 +92,7 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
             <div className="flex w-full max-w-[600px] flex-col gap-10">
                 <div className="flex items-center gap-3" role="status" aria-live="polite">
                     <motion.span animate={presets.breathe} className="inline-flex flex-none">
-                        <AgentaMark className="h-[18px] w-auto" markClassName="fill-foreground" />
+                        <AgentaMark className="h-4.5 w-auto" markClassName="fill-foreground" />
                     </motion.span>
                     <AnimatePresence mode="wait" initial={false}>
                         <motion.span
@@ -101,7 +101,7 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
                             initial="initial"
                             animate="animate"
                             exit="exit"
-                            className="text-muted-foreground text-sm"
+                            className="text-muted-foreground text-body"
                         >
                             {status}
                         </motion.span>
@@ -123,7 +123,7 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
                 </div>
                 <div className="flex flex-col gap-3">
                     <div
-                        className="bg-border h-0.5 w-full overflow-hidden rounded-full"
+                        className="bg-border h-0.5 w-full overflow-hidden rounded-sm"
                         role="progressbar"
                         aria-label={status}
                         aria-valuemin={0}
@@ -131,12 +131,12 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
                         aria-valuenow={progress}
                     >
                         <div
-                            className="bg-foreground h-full w-full origin-left rounded-full motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-linear"
+                            className="bg-foreground h-full w-full origin-left rounded-md motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-linear"
                             style={{transform: `scaleX(${progress / 100})`}}
                         />
                     </div>
-                    <div className="text-muted-foreground flex justify-between text-xs tabular-nums">
-                        <span className="font-medium tracking-[0.03em] uppercase">
+                    <div className="text-muted-foreground flex justify-between text-meta tabular-nums">
+                        <span>
                             {t("shell.bootLoader.didYouKnow")}
                         </span>
                         <span>{progress}%</span>
