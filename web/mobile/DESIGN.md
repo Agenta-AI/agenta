@@ -241,6 +241,33 @@ There are 23 UI colors: 12 neutrals, 7 brand colors and 4 statuses. A separate g
 - Live activity has one look: a spinning `CircleNotch` icon, or a 1.5s opacity pulse on a status dot. No ping, no scaling, no spinning rings and no moving gradients (`MOTION-02`).
 - Every animation has a `prefers-reduced-motion` fallback.
 
+## Microinteractions
+
+A microinteraction is the small answer a control gives when a person acts on it: a caret turns, an icon swaps, a panel unfolds from what was clicked. They make the app feel alive and tell the person that the click landed, without a word.
+
+The rule: **the control answers in its own place, at once, with one small change of state.**
+
+- With the icons the kit uses: Phosphor `CaretDown` (regular) on a trigger, Phosphor `CaretRight` (regular) on an expanding row, `Check` for done, `Stop` for running. Never a filled triangle, a chevron from another set or a hand-drawn arrow (`ICON-01`).
+- In its own place. The thing that was clicked changes, not a toast or a banner somewhere else.
+- At once. It starts on the press and takes `duration-fast` (120ms); an overlay takes `duration-base` (200ms). The result never waits for the animation.
+- One small change. One property moves: a rotation, an icon, a fill, an opacity. No new color, no size change that pushes the layout, no bounce (`MOTION-02`).
+- With reduced motion, the new state still shows; only the movement goes.
+
+The guide's Microinteractions page has a live Do and Avoid for each rule (`MICRO-01` to `MICRO-06`).
+
+Use one when a control has a state the person should see change: open and closed, done and not done, on and off, running and idle. Skip it when nothing changed, and on actions used many times an hour from the keyboard (the command palette, shortcuts): those open at once.
+
+| Moment | The answer | In the kit |
+| --- | --- | --- |
+| A trigger with a caret opens a menu, select or popover | The caret turns 180° while the panel is open and turns back when it closes. Add `ag-caret` to the caret | `Select`, `Combobox`; any trigger with `ag-caret` |
+| A row or section expands | Its right caret turns 90° to point down at the content | `CollapseCaret` |
+| A menu, popover or tooltip opens | It unfolds from the trigger's edge (Radix's transform origin) and fades in; a dialog stays centered | `Popover`, `DropdownMenu`, `HoverCard` (`ag-overlay-motion`) |
+| Copy | The Copy icon becomes a Check for 1.5s, then goes back. No toast | `CopyButton` (`@agenta/ui`) |
+| A toggle | The switch thumb slides; a checkbox mark appears | `Switch`, `Checkbox` |
+| Send and run | The send arrow becomes Stop while the agent runs | `Composer` |
+| A number changes | The number counts to its new value | `useCountUp` in `src/lib/motion` |
+| A save or a toggle that calls the server | The control shows the new state at once; it goes back only if the call fails | Optimistic update in the hook |
+
 ## Icons
 
 - Phosphor (`@phosphor-icons/react`), regular weight, is the only icon library. `lucide-react` is removed and banned by lint: its heavier square strokes look like a second product next to Phosphor (`ICON-01`).
@@ -573,6 +600,12 @@ Review checks every other rule.
 | --- | --- | --- |
 | `MOTION-01` | An instant swap of one view for another | A 120–200ms fade and slide preset |
 | `MOTION-02` | Bounce, overshoot, shaking; a ping, a scaling dot, a spinning ring or gradient for live activity | 120, 200 or 320ms with `ease-out` or `ease-in-out`; still at rest; live activity is a spinning `CircleNotch` or a 1.5s opacity pulse on a status dot |
+| `MICRO-01` | A caret that points the same way whether its menu is open or closed | The caret turns 180° while open (`ag-caret`) |
+| `MICRO-02` | A menu or popover that grows from its center or appears from nowhere | It unfolds from the trigger's edge (`ag-overlay-motion`); only dialogs open from the center |
+| `MICRO-03` | Feedback away from the control: a toast for Copy, a banner for a toggle | The control itself changes: Copy becomes Check for 1.5s, the switch slides |
+| `MICRO-04` | An animated open for something used many times an hour from the keyboard (the command palette, a shortcut) | It opens at once |
+| `MICRO-05` | A toggle that waits for the server before it moves (a spinner, then the switch) | The switch and its label change on the click; they go back only if the call fails |
+| `MICRO-06` | An expanding row whose caret does not change, open or closed | Its right caret turns 90° to point at the content (`CollapseCaret`) |
 
 ### Layout
 

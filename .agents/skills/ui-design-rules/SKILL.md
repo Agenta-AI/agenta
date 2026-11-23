@@ -113,6 +113,20 @@ In `web/mobile`, use the shared presets in `src/lib/motion`; never hardcode a du
 an easing. The `mobile-motion-patterns` skill has the presets and the reduced-motion
 rules. Package code cannot import those `web/mobile` presets.
 
+**Microinteractions** (`MICRO-01`–`06`). When a control has a state the person should see
+change (open, done, on, running), the control answers in its own place, at once, with one
+small change. Add one when it fits; skip it when nothing changed. Examples:
+
+- A caret on a trigger turns 180° while its panel is open: add `ag-caret` to the caret.
+  `Select` and `Combobox` do it already. A row that expands uses `CollapseCaret` (90°, `MICRO-06`).
+- Menus and popovers unfold from the trigger (`ag-overlay-motion`, in the kit). Dialogs
+  open from the center.
+- Copy becomes Check for 1.5s; no toast. Send becomes Stop while running.
+- A toggle shows its new state on the click and goes back only if the call fails (`MICRO-05`).
+- The command palette and shortcuts open at once, with no animation.
+
+The table in `web/mobile/DESIGN.md` (Microinteractions) lists every moment.
+
 ## 8. View states
 
 **Design every state of a view.** Each view needs:
