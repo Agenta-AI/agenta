@@ -76,6 +76,10 @@ export const ITEM_ROW_CLASS = "shrink-0"
 
 export const CAPTION_CLASS = "px-2 pt-1.5 pb-1 text-xs font-medium text-colorTextTertiary truncate"
 
+/** The switcher panel's surface; the agent switcher wears it too. */
+export const PANEL_CLASS =
+    "z-[2000] w-[220px] overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
+
 const Row = ({
     onClick,
     className,
@@ -406,7 +410,7 @@ export const ProjectOrgSwitcherView = ({
                     align="start"
                     sideOffset={side === "bottom" ? 4 : undefined}
                     style={compact && !collapsed ? {width: headerWidth} : undefined}
-                    className="z-[2000] w-[220px] overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
+                    className={PANEL_CLASS}
                 >
                     {panel === "projects" ? projectPanel : orgPanel}
                 </PopoverContent>

@@ -25,6 +25,9 @@ vi.mock("@agenta/ui/ui", async (importOriginal) => {
     const Pass = ({children}: {children?: ReactNode}) => <div>{children}</div>
     return {
         ...actual,
+        Popover: Pass,
+        PopoverTrigger: Pass,
+        PopoverContent: Pass,
         DropdownMenu: Pass,
         DropdownMenuTrigger: Pass,
         DropdownMenuContent: Pass,
@@ -98,6 +101,12 @@ afterEach(cleanup)
 
 const agents = Array.from({length: 10}, (_, index) => ({id: `a${index}`, name: `Agent ${index}`}))
 
+/** The switcher panel's rows: every button but the trigger. */
+const panelRows = () =>
+    screen
+        .getAllByRole("button")
+        .filter((button) => button.dataset.testid !== "agent-sidebar-switcher")
+
 describe("the sidebar switcher", () => {
     it("in the builder sidebar: Builder first and checked, then every agent, no search", () => {
         const onPick = vi.fn()
@@ -112,7 +121,7 @@ describe("the sidebar switcher", () => {
                 onNewAgent={vi.fn()}
             />,
         )
-        const items = screen.getAllByRole("menuitem")
+        const items = panelRows()
         expect(items.map((item) => item.textContent)).toEqual([
             "Builder",
             ...agents.map((agent) => agent.name),
@@ -145,7 +154,7 @@ describe("the sidebar switcher", () => {
         )
         expect(screen.queryByTestId("agent-sidebar-switcher-builder")).toBeNull()
         expect(screen.getByText("Agents in Production")).toBeTruthy()
-        const items = screen.getAllByRole("menuitem")
+        const items = panelRows()
         const current = items.find((item) => item.textContent === "Agent 1")!
         expect(current.getAttribute("aria-current")).toBe("true")
         fireEvent.click(current)

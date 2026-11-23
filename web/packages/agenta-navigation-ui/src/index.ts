@@ -21,7 +21,11 @@ export {SidebarBackButton, type SidebarBackButtonProps} from "./SidebarBackButto
 export {SidebarLayoutContext, type SidebarLayout} from "./sidebarLayout"
 export {NamePromptModal, type NamePromptModalProps} from "./NamePromptModal"
 export {
+    CAPTION_CLASS as SWITCHER_CAPTION_CLASS,
+    ITEM_ROW_CLASS as SWITCHER_ITEM_ROW_CLASS,
+    PANEL_CLASS as SWITCHER_PANEL_CLASS,
     ProjectOrgSwitcherView,
+    ROW_CLASS as SWITCHER_ROW_CLASS,
     type ProjectOrgSwitcherViewProps,
     type SwitcherEntry,
     type SwitcherThemeControl,
