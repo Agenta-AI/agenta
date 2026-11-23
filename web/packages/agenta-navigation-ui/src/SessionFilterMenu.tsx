@@ -265,7 +265,7 @@ export const SessionFilterMenu = ({
                 // The rail's own control geometry, not the toolbar button's: a 24 px square, radius
                 // 6, on a 28 px group row. Square, so its hover fill reads as one hit area rather
                 // than a wide slab behind a small glyph.
-                triggerClassName="size-6 rounded-[6px] p-0 text-colorTextSecondary hover:text-colorText"
+                triggerClassName="size-[22px] rounded-[6px] p-0 text-colorTextSecondary hover:text-colorText"
                 // No applied-dot here, unlike the automations toolbar: this trigger is 24 px on a
                 // 28px group row beside the search glyph, and a dot in its corner read as a
                 // status on the Sessions row rather than as a state of the control.

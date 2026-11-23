@@ -237,7 +237,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                 className={clsx(
                     // Sentence case, as the design writes the day labels ("Today", "Yesterday").
                     "m-0 w-full shrink-0 pb-1 pl-5 pr-5 text-[12px] leading-5 select-none",
-                    phone ? "pt-1 text-colorTextTertiary" : "pt-1.5 text-colorTextQuaternary",
+                    phone ? "pt-1 text-colorTextTertiary" : "pt-1.5 text-colorTextSecondary",
                     STICKY_HEADING,
                 )}
             >
@@ -300,7 +300,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                     aria-label={item.groupAdd.label}
                     title={item.groupAdd.label}
                     className={clsx(
-                        "ml-auto flex size-[22px] shrink-0 items-center justify-center rounded-md !text-colorTextTertiary no-underline hover:bg-colorFillTertiary hover:!text-colorText",
+                        "ml-auto flex size-[22px] shrink-0 items-center justify-center rounded-[6px] !text-colorTextTertiary no-underline hover:bg-colorFillTertiary hover:!text-colorText",
                         item.groupEnter ? HEADING_HOVER_ACTION : "mr-1",
                     )}
                     onClick={(event) => {
@@ -321,7 +321,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                     aria-label={item.groupEnter.label}
                     title={item.groupEnter.label}
                     className={clsx(
-                        "mr-1 flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-colorTextTertiary [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText",
+                        "mr-1 flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 text-colorTextTertiary [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText",
                         !item.groupAdd && "ml-auto",
                         HEADING_HOVER_ACTION,
                     )}
@@ -386,7 +386,7 @@ const SectionHeading = ({
     return (
         <div
             className={cn(
-                "mx-auto flex w-[calc(100%-16px)] shrink-0 items-center gap-1 px-3 pb-1 pt-3.5 text-[12px] leading-4 text-colorTextTertiary select-none",
+                "mx-auto flex w-[calc(100%-16px)] shrink-0 items-center gap-1 px-3 pb-1 pt-3.5 text-[12px] leading-4 text-colorTextSecondary select-none",
                 item.rowClassName,
             )}
         >

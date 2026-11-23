@@ -397,7 +397,7 @@ export const ArrangeablePages = ({
                             type="button"
                             aria-label={t("navigation.arrange.more")}
                             className={cn(
-                                "relative mx-auto flex size-7 items-center justify-center rounded-md border-0 bg-transparent",
+                                "relative mx-auto flex size-7 items-center justify-center rounded-[6px] border-0 bg-transparent",
                                 ROW_INTERACTIVE,
                                 moreOpen && ROW_SELECTED,
                             )}

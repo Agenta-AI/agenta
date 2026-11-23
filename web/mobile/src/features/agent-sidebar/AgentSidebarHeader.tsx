@@ -25,7 +25,7 @@ export const AgentSidebarHeader = ({
             <SidebarTopRow collapsed={collapsed} back={back} toggle={toggle} />
             {collapsed ? (
                 <div className="flex w-full shrink-0 flex-col items-center gap-1 pb-1">
-                    <span aria-hidden className="my-1 h-px w-5 bg-[var(--ag-shell-line)]" />
+                    <span aria-hidden className="my-1 h-px w-full bg-[var(--ag-shell-line)]" />
                     {switcher}
                 </div>
             ) : (

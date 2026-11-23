@@ -18,7 +18,7 @@ export const SidebarTopRow = ({
     const phone = useContext(SidebarLayoutContext) === "phone"
     if (collapsed)
         return (
-            <div className="flex w-full shrink-0 flex-col items-center justify-center gap-1 py-1">
+            <div className="flex w-full shrink-0 flex-col items-center justify-center gap-1 pb-1 pt-2.5">
                 {toggle}
                 {back}
             </div>

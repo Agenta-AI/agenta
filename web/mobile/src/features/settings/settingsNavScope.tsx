@@ -96,10 +96,12 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
                     // The collapsed rail is 48px wide, too narrow for Back and the toggle side by
                     // side, so stack them instead of squeezing both into one row.
                     collapsed
-                        ? "flex-col justify-center gap-1 py-1"
-                        : "h-10 justify-between gap-0.5 px-2",
+                        ? "flex-col justify-center gap-1 pb-1 pt-2.5"
+                        : "h-12 justify-between gap-0.5 px-2",
                 ].join(" ")}
             >
+                {/* Collapsed, the toggle keeps the spot every collapsed rail gives it. */}
+                {collapsed && <SidebarToggleButton onDismiss={onDismiss} />}
                 <SidebarBackButton
                     collapsed={collapsed}
                     label={t("common.settings")}
@@ -113,7 +115,7 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
                         )
                     }
                 />
-                <SidebarToggleButton onDismiss={onDismiss} />
+                {!collapsed && <SidebarToggleButton onDismiss={onDismiss} />}
             </div>
         )
     }

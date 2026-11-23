@@ -40,7 +40,7 @@ export const SidebarBackButton = ({
                 "flex cursor-pointer items-center justify-center gap-2 border-0 bg-transparent [font-family:inherit] text-colorText",
                 "hover:bg-colorFillTertiary",
                 collapsed
-                    ? "size-8 rounded-[8px]"
+                    ? "size-7 rounded-[6px]"
                     : clsx(
                           "min-w-0 justify-start gap-[10px] rounded-[6px] px-3 font-medium",
                           phone ? "h-11 text-[15px]" : "h-7 text-sm",

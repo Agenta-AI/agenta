@@ -134,7 +134,7 @@ export const AgentSidebarSwitcher = ({
                         data-testid="agent-sidebar-switcher"
                         className={
                             collapsed
-                                ? "flex size-8 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 [font-family:inherit] hover:bg-colorFillTertiary"
+                                ? "flex size-7 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 [font-family:inherit] hover:bg-colorFillTertiary"
                                 : phone
                                   ? "flex h-[52px] min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-colorText [font-family:inherit] hover:bg-colorFillTertiary"
                                   : "flex h-8 w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-[6px] border border-solid border-colorBorderSecondary bg-transparent pl-2.5 pr-3 text-left text-colorText transition-colors [font-family:inherit] hover:bg-colorFillTertiary data-[state=open]:bg-colorFillTertiary"

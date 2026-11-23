@@ -31,39 +31,39 @@ const t = createT(navigationCatalog)
 export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {
     switch (key) {
         case "apiKeys":
-            return <Key size={14} />
+            return <Key size={16} />
         case "secrets":
-            return <Vault size={14} />
+            return <Vault size={16} />
         case "llms":
-            return <Sparkle size={14} />
+            return <Sparkle size={16} />
         case "analytics":
-            return <ChartLineUp size={14} />
+            return <ChartLineUp size={16} />
         case "tools":
-            return <Wrench size={14} />
+            return <Wrench size={16} />
         case "channels":
-            return <Broadcast size={14} />
+            return <Broadcast size={16} />
         case "webhooks":
-            return <Link size={14} />
+            return <Link size={16} />
         case "mcpEndpoints":
-            return <HardDrives size={14} />
+            return <HardDrives size={16} />
         case "workspace":
-            return <UsersThree size={14} />
+            return <UsersThree size={16} />
         case "organizationGeneral":
-            return <Buildings size={14} />
+            return <Buildings size={16} />
         case "organization":
-            return <ShieldCheck size={14} />
+            return <ShieldCheck size={16} />
         case "auditLog":
-            return <ClockCounterClockwise size={14} />
+            return <ClockCounterClockwise size={16} />
         case "billing":
-            return <Receipt size={14} />
+            return <Receipt size={16} />
         case "credits":
-            return <Coins size={14} />
+            return <Coins size={16} />
         case "account":
-            return <User size={14} />
+            return <User size={16} />
         case "preferences":
-            return <SlidersHorizontal size={14} />
+            return <SlidersHorizontal size={16} />
         case "projects":
-            return <FolderSimple size={14} />
+            return <FolderSimple size={16} />
         default: {
             const exhaustiveCheck: never = key
             return exhaustiveCheck
@@ -121,7 +121,7 @@ export const buildSettingsSidebarSections = (
                 // pl-5 = the rows' 8px inset + their 12px padding.
                 <div
                     className={[
-                        "pl-5 pr-3 pb-1 text-xs text-colorTextSecondary",
+                        "pl-5 pr-3 pb-1 text-[12px] leading-5 text-colorTextSecondary",
                         index === 0 ? "pt-1" : "pt-4",
                     ].join(" ")}
                 >

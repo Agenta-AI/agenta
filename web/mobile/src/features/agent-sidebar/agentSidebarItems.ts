@@ -6,11 +6,11 @@ import type {SessionRowTarget} from "@agenta/sessions-ui"
 import {
     ArrowClockwiseIcon,
     BroadcastIcon,
+    ChartLineUpIcon,
     ChatsIcon,
     PlusIcon,
     SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
-import {ChartColumn} from "lucide-react"
 
 import {
     RUNNING_TITLE,
@@ -228,11 +228,10 @@ export const agentSidebarItems = ({
                 t("agentSidebar.channels"),
                 createElement(BroadcastIcon, {size: 16}),
             ),
-            // The canvas draws Analytics as a bar chart with axes (Lucide); Phosphor has none.
             pageRow(
                 "analytics",
                 t("agentSidebar.analytics"),
-                createElement(ChartColumn, {size: 16}),
+                createElement(ChartLineUpIcon, {size: 16}),
             ),
         ],
         sessions: {
