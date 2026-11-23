@@ -170,7 +170,12 @@ const AgentPickerRow = ({
                     : "bg-transparent hover:bg-accent focus-visible:bg-accent",
             ].join(" ")}
         >
-            <AgentChip workflowId={String(agent.id)} />
+            {/* A one-line row takes a 24px tile; a two-line row keeps 28px. */}
+            {density === "relaxed" ? (
+                <AgentChip workflowId={String(agent.id)} />
+            ) : (
+                <AgentChip workflowId={String(agent.id)} box="size-6 !rounded-md" glyph={14} />
+            )}
             <span className="flex min-w-0 flex-1 flex-col">
                 {/* One weight down the column: bolding the bound agent made the list look like
                     it had a heading in the middle of it. The tint and the check say enough. */}
