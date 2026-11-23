@@ -145,7 +145,8 @@ describe("the sidebar credits meter", () => {
         )
 
         expect(shown).toContain("Credits")
-        expect(shown).toContain("1,234.5 of 5,000")
+        // The slim line rounds down below 10,000; the exact balance is in its tooltip.
+        expect(shown).toContain("1,234 of 5,000")
         expect(host!.querySelector("a")?.getAttribute("href")).toBe("/settings?tab=credits")
     })
 

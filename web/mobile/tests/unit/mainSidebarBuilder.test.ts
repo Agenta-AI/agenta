@@ -5,8 +5,8 @@
  */
 import {isValidElement} from "react"
 
+import {ArrowsOutLineVerticalIcon} from "@phosphor-icons/react"
 import {getDefaultStore} from "jotai"
-import {UnfoldVertical} from "lucide-react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 const builderIdAtom = vi.hoisted(() => ({current: null as unknown}))
@@ -72,8 +72,8 @@ describe("the builder in the main sidebar", () => {
         })
         const builderIcon = mobileSessionsEntity.groupEnter?.(builderGroup, P)?.icon
         expect(isValidElement(enter?.icon) && isValidElement(builderIcon)).toBe(true)
-        expect((enter?.icon as {type: unknown}).type).toBe(UnfoldVertical)
-        expect((builderIcon as {type: unknown}).type).toBe(UnfoldVertical)
+        expect((enter?.icon as {type: unknown}).type).toBe(ArrowsOutLineVerticalIcon)
+        expect((builderIcon as {type: unknown}).type).toBe(ArrowsOutLineVerticalIcon)
     })
 
     it("gives a heading with no agent no open button", () => {
