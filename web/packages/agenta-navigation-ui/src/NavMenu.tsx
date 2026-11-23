@@ -181,15 +181,9 @@ const RowLabel = memo(function RowLabel({
     // entity's tooltip where it has one, the full title otherwise. `Tip` is the collapsed rail's,
     // and both list groups hide their children there.
     const hover = item.tooltip ?? (typeof item.title === "string" ? item.title : undefined)
-    // The phone sheet cuts a long title with an ellipsis (M02); the rail fades it.
-    const phone = useContext(SidebarLayoutContext) === "phone"
-    // `flex-1` pins the fade to the label's right edge, so long rows fade at one line.
     const content = (
         <span className="flex w-full items-center">
-            <span
-                className={clsx(phone ? "truncate" : "ag-text-fade", "min-w-0 flex-1")}
-                title={hover}
-            >
+            <span className="min-w-0 flex-1 truncate" title={hover}>
                 {item.title} <TagChip tag={item.tag} />
             </span>
             {item.suffix ? <span className="ml-auto shrink-0 pl-2">{item.suffix}</span> : null}
