@@ -70,9 +70,12 @@ const KEBAB_CLASS =
 const SessionRowActions = ({
     session,
     chrome,
+    status,
     children,
 }: {
     session: SessionRowTarget
+    /** A quiet state mark on the right; with a fine pointer it gives way to the kebab on hover. */
+    status?: ReactNode
     /** The verbs, resolved once for the whole rail — see `useSessionRowChrome`. */
     chrome: SessionRowChrome
     children: ReactNode
@@ -257,7 +260,14 @@ const SessionRowActions = ({
                     contextMenuPressRef.current = false
                 }}
             >
-                <span className="min-w-0 flex-1 truncate">{link}</span>
+                <span className={`min-w-0 flex-1 truncate ${status ? "pointer-fine:pr-4" : ""}`}>
+                    {link}
+                </span>
+                {status ? (
+                    <span className="pointer-events-none flex w-4 shrink-0 items-center justify-center transition-opacity pointer-fine:absolute pointer-fine:right-1 pointer-fine:top-1/2 pointer-fine:w-6 pointer-fine:-translate-y-1/2 pointer-fine:group-hover/row:opacity-0 pointer-fine:group-has-[[data-open]]/row:opacity-0">
+                        {status}
+                    </span>
+                ) : null}
                 <span
                     // -mr-2 pulls the kebab out past ROW_BASE's px-3 so it sits at the row's
                     // right edge. Only session rows are wrapped, so no other nav row shifts.

@@ -3,16 +3,21 @@ import {createElement, type ReactElement, type ReactNode} from "react"
 import type {SidebarConfig} from "@agenta/navigation"
 import type {SessionRowStatus} from "@agenta/sessions/row"
 import type {SessionRowTarget} from "@agenta/sessions-ui"
-import {Spinner} from "@agenta/ui/ui"
 import {
     ArrowClockwiseIcon,
     BroadcastIcon,
     ChatsIcon,
-    LightningIcon,
     PlusIcon,
     SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
 import {ChartColumn} from "lucide-react"
+
+import {
+    RUNNING_TITLE,
+    sessionMarkOf,
+    sessionStatusMark,
+    withStatusMark,
+} from "../nav/sessionStatusMark"
 
 import {agentPageHref, isAgentPageView, type AgentPageView} from "./agentPages"
 import {dayGroupedRows} from "./dayGroups"
@@ -93,20 +98,6 @@ export const sessionBullet = (state: SessionBulletState) =>
         className: `mx-0.5 box-border block size-2 shrink-0 rounded-full border-[1.25px] border-solid ${BULLET_STATE[state]}`,
     })
 
-/** The run state as the main sidebar draws it: a spinner while running, amber while waiting. */
-const sessionIcon = (session: AgentSidebarSession) => {
-    if (session.status === "running") return createElement(Spinner, {className: "size-3"})
-    const live = session.status === "waiting" || session.status === "alive"
-    if (session.isAutomation)
-        return createElement(LightningIcon, {
-            size: 12,
-            weight: live ? "fill" : "regular",
-            className:
-                session.status === "waiting" ? "text-[var(--ag-run-status-warning)]" : undefined,
-        })
-    return sessionBullet(session.status === "waiting" ? "waiting" : live ? "live" : "idle")
-}
-
 /**
  * The rows of one agent's sidebar: `pages` is New session, Configuration, Channels and Analytics;
  * `sessions` is the "Sessions" row with its filter, the latest sessions grouped by day, and
@@ -142,7 +133,11 @@ export const agentSidebarItems = ({
     /** The phone sheet: "Show older sessions" without the count, as the phone design writes it. */
     phone?: boolean
     /** The row menu and inline rename, as the main sidebar has them. */
-    wrapSessionRow?: (session: SessionRowTarget, node: ReactNode) => ReactElement
+    wrapSessionRow?: (
+        session: SessionRowTarget,
+        node: ReactNode,
+        status?: ReactNode,
+    ) => ReactElement
     /** The control at the right of the "Sessions" row: the filter. */
     sessionsActions?: ReactNode
     /** The filter menu narrows the list: an empty list says so, and the "older" row, which
@@ -167,10 +162,22 @@ export const agentSidebarItems = ({
             key: agentSidebarSessionKey(session.sessionId),
             title: session.title,
             tooltip: session.title,
-            icon: sessionIcon(session),
+            rowClassName: session.status === "running" ? RUNNING_TITLE : undefined,
             link: `${projectURL}/sessions/${session.sessionId}`,
             prefetch: false,
-            wrapRow: wrapSessionRow ? (node) => wrapSessionRow(session, node) : undefined,
+            // The state shows as a quiet mark on the right, as on the main sidebar.
+            wrapRow: (node) => {
+                const status = sessionStatusMark(
+                    sessionMarkOf({
+                        running: session.status === "running",
+                        waiting: session.status === "waiting",
+                        alive: session.status === "alive",
+                    }),
+                )
+                return wrapSessionRow
+                    ? wrapSessionRow(session, node, status)
+                    : withStatusMark(node, status)
+            },
         }),
     })
     if (sessions.length === 0 && status === "loading")

@@ -1,4 +1,4 @@
-import {createElement, Fragment, useCallback, useEffect, useMemo, type ReactNode} from "react"
+import {createElement, useCallback, useEffect, useMemo, type ReactNode} from "react"
 
 import {promptWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {createT, useT} from "@agenta/i18n"
@@ -41,7 +41,6 @@ import {
 import {betaDeveloperModeActiveAtom, userAtom} from "@agenta/shared/state"
 import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
 import {useIsMacPlatform} from "@agenta/ui/shortcuts"
-import {Spinner} from "@agenta/ui/ui"
 import {
     ChatsIcon,
     GearIcon,
@@ -63,7 +62,6 @@ import {unwrap} from "jotai/utils"
 import {UnfoldVertical} from "lucide-react"
 import {useRouter} from "next/router"
 
-import {sessionBullet} from "@/features/agent-sidebar/agentSidebarItems"
 import {openAgentSidebar} from "@/features/agent-sidebar/selectedSidebar"
 import {agentEntryHref} from "@/features/agents/agentEntry"
 import {builderChatPath} from "@/features/builder/builderChatHref"
@@ -81,6 +79,7 @@ import {AgentsNavAction} from "./AgentsNavAction"
 import {AgentsQuickPanel} from "./AgentsQuickPanel"
 import {developerNavSlots, PROMPTS_ROW_KEY} from "./developerNavSlots"
 import {useSyncLocalSessionRefs} from "./localSessionRefs"
+import {RUNNING_TITLE, sessionMarkOf, sessionStatusMark, withStatusMark} from "./sessionStatusMark"
 import {SupportActions} from "./SupportActions"
 
 /** Outside React: the row-level labels the entity registry builds at call time. */
@@ -125,27 +124,12 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         // No "Show all" row: the group's own "Sessions" row already links to the full list, and
         // the headings make a trailing overflow link read as one more session.
         // No pin glyph: pinned rows sit under their own heading, which says it once.
-        // Amber for a session blocked on you. `--ag-run-status-warning` rather than
-        // `colorWarning`: the semantic token's light step is a muddy #8a6400 that reads as
-        // disabled at 8px, and this one is the palette's bright amber in BOTH themes.
-        getIcon: (session) => {
-            // State wins the glyph while a turn is live; otherwise the SHAPE says the type — a
-            // bolt for a trigger run, a dot for a chat — and the colour still carries the gate.
-            const amber = session.waiting ? "text-[var(--ag-run-status-warning)]" : undefined
-            const live = session.waiting || session.alive
-            if (session.running) return createElement(Spinner, {className: "size-3"})
-            if (session.isAutomation)
-                return createElement(LightningIcon, {
-                    size: 12,
-                    // Fill means LIVE on both glyphs; the bolt shape alone says automation.
-                    weight: live ? "fill" : "regular",
-                    className: amber,
-                })
-            return sessionBullet(session.waiting ? "waiting" : live ? "live" : "idle")
-        },
+        // No leading glyph: a row's state shows as a quiet mark on its right (sessionStatusMark).
+        getIcon: () => null,
         // Archived rows read as second-class: same row, dimmed. The archived view is the only
         // place they appear, so this says WHICH list you are looking at as much as which row.
-        getRowClassName: (session) => (session.archived ? "opacity-60" : undefined),
+        getRowClassName: (session) =>
+            session.archived ? "opacity-60" : session.running ? RUNNING_TITLE : undefined,
         // Grouped by owning agent, pins in their own heading on top (#6125).
         getGroupKey: sidebarSessionGroupKey,
         groupsAtom: sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
@@ -255,10 +239,11 @@ export const useRailSessionRowWrapper = (projectURL: string) => {
         }),
     )
     return useCallback(
-        (session: SessionRowTarget, node: ReactNode) =>
+        (session: SessionRowTarget, node: ReactNode, status?: ReactNode) =>
             createElement(SessionRowActions, {
                 session,
                 chrome,
+                status,
                 children: node,
             }),
         [chrome],
@@ -321,9 +306,10 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
         // leave on archive) know only the session page.
         (ref: SidebarEntityRef, node: ReactNode) => {
             const session = ref as SessionSidebarRef
+            const status = sessionStatusMark(sessionMarkOf(session))
             return isBuilderAgent(session.agentId)
-                ? createElement(Fragment, null, node)
-                : wrapSession(session, node)
+                ? withStatusMark(node, status)
+                : wrapSession(session, node, status)
         },
         [wrapSession],
     )
