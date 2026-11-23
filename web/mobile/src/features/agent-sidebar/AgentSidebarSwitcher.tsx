@@ -214,7 +214,7 @@ export const AgentSidebarSwitcher = ({
                                 className="mx-1 mb-1 h-8 w-[calc(100%-8px)] rounded-md border border-solid border-colorBorder bg-transparent px-2 text-sm text-colorText outline-none [font-family:inherit] focus:border-colorPrimary"
                             />
                         ) : null}
-                        <div className="ag-scroll-quiet flex max-h-56 flex-col overflow-y-auto">
+                        <div className="ag-scroll-quiet flex max-h-56 flex-col gap-0.5 overflow-y-auto">
                             {shown.map((agent) => (
                                 <PanelRow
                                     key={agent.id}
@@ -232,18 +232,20 @@ export const AgentSidebarSwitcher = ({
                             ))}
                         </div>
                         <div className="my-1 h-px bg-colorBorderSecondary" />
-                        <PanelRow onClick={run(onAllAgents)}>
-                            <span className="flex size-6 shrink-0 items-center justify-center">
-                                <RobotIcon aria-hidden size={14} />
-                            </span>
-                            <span className="flex-1">{t("agentSidebar.allAgents")}</span>
-                        </PanelRow>
-                        <PanelRow onClick={run(onNewAgent)}>
-                            <span className="flex size-6 shrink-0 items-center justify-center">
-                                <PlusIcon aria-hidden size={14} />
-                            </span>
-                            <span className="flex-1">{t("agentSidebar.newAgent")}</span>
-                        </PanelRow>
+                        <div className="flex flex-col gap-0.5">
+                            <PanelRow onClick={run(onAllAgents)}>
+                                <span className="flex size-6 shrink-0 items-center justify-center">
+                                    <RobotIcon aria-hidden size={14} />
+                                </span>
+                                <span className="flex-1">{t("agentSidebar.allAgents")}</span>
+                            </PanelRow>
+                            <PanelRow onClick={run(onNewAgent)}>
+                                <span className="flex size-6 shrink-0 items-center justify-center">
+                                    <PlusIcon aria-hidden size={14} />
+                                </span>
+                                <span className="flex-1">{t("agentSidebar.newAgent")}</span>
+                            </PanelRow>
+                        </div>
                     </div>
                 </PopoverContent>
             </Popover>
