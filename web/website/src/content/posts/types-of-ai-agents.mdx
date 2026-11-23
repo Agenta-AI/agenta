@@ -1,0 +1,275 @@
+---
+title: "Types of AI Agents: Taxonomy and Real Business Examples (2026)"
+slug: types-of-ai-agents
+date: 2026-04-20
+author: Mahmoud Mabrouk
+category: AI Agents
+description: "Explore the main types of AI agents, from the 6 classical computer science categories to modern interactive coworkers, scheduled agents, and event-driven systems."
+image: "/blog/types-of-ai-agents/hero.webp"
+---
+
+Search for the **types of AI agents**, and you will run into two completely different classifications.
+
+Most guides repeat the 1995 textbook taxonomy from Stuart Russell and Peter Norvig's _Artificial Intelligence: A Modern Approach_: simple reflex agents, model-based reflex agents, goal-based agents, utility-based agents, and learning agents. Those categories are useful for understanding how an intelligent system makes decisions, yet they are usually explained with home thermostats, sprinkler controllers, and robot vacuums.
+
+If you are building or deploying software for a team, a thermostat metaphor does not help you decide what kind of agent should triage support tickets, run a Monday morning analytics digest, or review pull requests. In day-to-day business and engineering work, teams classify AI agents by **how they are triggered**, **where they interact with people**, and **what recurring job they own**.
+
+This guide covers both taxonomies side by side:
+
+1. **By decision mechanism (the 6 classical AI agent types):** How the system processes state, goals, tradeoffs, and feedback, illustrated with modern software examples instead of household appliances.
+2. **By operating model and trigger (the 5 production agent types):** Whether the agent works as an interactive coworker in chat, a scheduled background job, an event-driven responder, an embedded website widget, or a multi-agent system.
+3. **By business function (6 real operational examples):** How marketing, support, sales, engineering, data, and operations teams scope and govern agents in practice.
+
+![Three ways to classify types of AI agents: by decision complexity, by operating trigger, and by coordination scope](/blog/types-of-ai-agents/agent-types-taxonomy-lenses.webp)
+
+## Quick Reference: The 3 Ways to Classify AI Agents
+
+Before diving into individual agent categories, it helps to see how the three classification lenses fit together. Any production AI agent sits at the intersection of all three: it uses a specific **decision mechanism**, starts from a specific **trigger and surface**, and owns a specific **business job**.
+
+| Classification Lens                                         | Categories Included                                                                                                 | Question It Answers                                                                                  | Who Uses This Lens                                                         |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| **1. By Decision Mechanism** _(Classical AI Taxonomy)_      | Simple reflex, Model-based reflex, Goal-based, Utility-based, Learning, Hierarchical / Multi-agent                  | How does the agent choose its next action, and does it plan across multiple steps or maintain state? | AI engineers, system architects, and technical evaluators                  |
+| **2. By Operating Model & Trigger** _(Production Taxonomy)_ | Interactive chat coworker, Scheduled background agent, Event-driven agent, Embedded web agent, Multi-agent workflow | What starts the agent, where does the conversation or run happen, and where does the output land?    | Product managers, team leads, ops owners, and platform engineers           |
+| **3. By Business Function** _(Role Taxonomy)_               | Marketing & SEO, Customer support, Sales & RevOps, Software engineering, Data analysis, Internal IT & ops           | Which recurring job, toolset, reference files, and approval rules belong together?                   | Founders, department heads, and non-technical teammates configuring agents |
+
+## Part 1: The 6 Classical Types of AI Agents (By Decision Mechanism)
+
+In computer science, AI agents are grouped by how sophisticated their internal decision loop is. Even though Russell and Norvig defined the first five categories decades before large language models existed, the hierarchy still maps cleanly to modern automation and LLM systems.
+
+Here is how the six classical types compare when applied to real software workflows:
+
+| Classical Agent Type                     | Internal Memory / State                     | Multi-Step Planning            | Adapts Over Time    | Modern Software Example                                                                                                        | Best Used When                                                                                     |
+| ---------------------------------------- | ------------------------------------------- | ------------------------------ | ------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| **1. Simple reflex agent**               | None (current input only)                   | No                             | No                  | Keyword auto-responder or webhook filter that routes any message containing `"urgent outage"` to an on-call channel            | Rules are deterministic, inputs are structured, and speed matters more than context                |
+| **2. Model-based reflex agent**          | Tracks current state and recent history     | No                             | No                  | Incident alert deduplicator that checks open tickets and deployment logs before paging an engineer                             | Decisions depend on what happened earlier in the session or system                                 |
+| **3. Goal-based agent**                  | Tracks state, tools, and target outcome     | Yes (iterative tool loop)      | Only within the run | An LLM coding or SEO coworker that searches sources, drafts a file, runs a validator, and fixes errors until checks pass       | The destination is clear, but the exact sequence of tool calls depends on what the agent discovers |
+| **4. Utility-based agent**               | Tracks state, goals, and a scoring function | Yes (compares competing paths) | Only within the run | A cloud cost optimizer or model router that balances latency, token cost, and accuracy across providers                        | Multiple valid paths exist and the system must optimize a measurable tradeoff                      |
+| **5. Learning agent**                    | Persistent knowledge, history, and feedback | Yes                            | Yes (across runs)   | An AI coworker whose instructions, reusable skills, and shared reference files are updated from team feedback and past results | The job repeats every week and quality should compound from human corrections                      |
+| **6. Hierarchical / Multi-agent system** | Shared or scoped per sub-agent              | Yes (across roles)             | Optional            | A supervisor agent that delegates research, code generation, and security review to separate specialist agents                 | Subtasks require strictly isolated tool permissions, separate sandboxes, or parallel execution     |
+
+### 1. Simple Reflex Agents
+
+A **simple reflex agent** acts solely on the current input using condition-action rules (`if condition X, then action Y`). It keeps no memory of earlier interactions and does not predict what will happen after its action.
+
+In classic textbooks, the standard example is a thermostat turning on a furnace when the room drops below 20°C. In modern software stacks, simple reflex agents show up as:
+
+- **Status-page auto-responders** that reply with a known incident link whenever an incoming ticket matches a specific error code.
+- **Webhook filters** that block form submissions from disposable email domains.
+- **Rate-limit circuit breakers** that switch an API gateway to a fallback endpoint when HTTP `429` responses spike.
+
+**Where simple reflex agents fall short:** As soon as a request requires conversation history, ambiguity resolution, or reading an external document to decide what to do next, a stateless condition-action rule breaks down.
+
+### 2. Model-Based Reflex Agents
+
+A **model-based reflex agent** still follows condition-action rules, but it maintains an internal representation of the environment's state. Because the agent rarely sees the entire state of a system in a single event payload, it combines the latest input with what it already knows about recent events.
+
+In a business stack, a model-based reflex agent looks like:
+
+- **An alert correlation bot** that tracks whether a database migration started five minutes ago before deciding whether a spike in query latency should page the on-call engineer.
+- **A customer onboarding router** that checks a user's current subscription tier, setup milestones completed, and previous support tickets before routing a question to billing or solutions engineering.
+
+Model-based reflex agents are more context-aware than simple reflex scripts, but they still follow fixed rules rather than planning a sequence of actions toward an open-ended goal.
+
+### 3. Goal-Based Agents
+
+A **goal-based agent** is given a target outcome rather than a fixed branch of `if/else` rules. It inspects the current state, chooses which tools to call, observes the results of those tool calls, and adjusts its plan until the goal is satisfied.
+
+Most modern LLM agents built on an [agent harness](https://agenta.ai/docs/concepts/harnesses-and-models) operate as goal-based agents. When you ask an agent to _"check why the checkout test failed on PR #412 and open a fix,"_ the model does not follow a single hardcoded script. Instead, the harness runs an iterative loop:
+
+1. The agent reads the pull request diff and CI failure logs.
+2. It searches the repository for the failing component and reads the relevant source files.
+3. It edits the code in an isolated sandbox and runs the test suite.
+4. If a test still fails, it reads the new traceback, revises the patch, and re-runs the test before opening a pull request.
+
+That ability to inspect intermediate tool outputs and recover from errors is what separates a goal-based AI agent from a fixed workflow pipeline.
+
+### 4. Utility-Based Agents
+
+A **utility-based agent** goes one step beyond asking _"Does this plan achieve the goal?"_ and asks _"Which plan achieves the goal with the best score across competing constraints?"_
+
+Reaching a goal is binary, whereas utility measures quality across tradeoffs such as cost, latency, risk, and customer impact. Software examples include:
+
+- **Inventory and fulfillment agents** that can satisfy an order from four different warehouses, scoring each option by shipping cost, delivery time, and stock buffer.
+- **Ad-bidding and dynamic pricing agents** that balance conversion probability against margin targets in real time.
+- **Evaluator-optimizer content or code loops** that generate candidate outputs, score them against an explicit rubric (factual accuracy, latency budget, or style compliance), and select or refine the highest-scoring candidate.
+
+### 5. Learning Agents
+
+A **learning agent** improves its performance over time based on feedback from its environment or human reviewers. Traditionally, Russell and Norvig described a learning agent through four components: a _performance element_ (which takes actions), a _critic_ (which evaluates outcomes against a standard), a _learning element_ (which updates the agent), and a _problem generator_ (which explores new approaches).
+
+In production LLM applications, teams rarely update model weights on the fly after every chat session. Instead, modern AI coworkers learn through **configuration and context evolution**:
+
+- **Instruction updates:** When an owner corrects how an agent formats a report or scopes a query, the agent records that standing preference in its versioned instructions so future sessions follow the rule automatically.
+- **Reusable skills:** When a team refines a multi-step procedure (such as running a pre-publish SEO check or auditing a vendor contract), they save that procedure as a reusable [skill](https://agenta.ai/docs/concepts/skills) that the agent loads whenever the task recurs.
+- **Persistent shared files:** Agents save verified research, decision logs, and past reports in a shared file drive so next week's run builds on last week's findings instead of starting from scratch.
+
+### 6. Hierarchical and Multi-Agent Systems
+
+In a **hierarchical or multi-agent system**, work is divided across multiple agents rather than handled by a single loop. Typically, a higher-level orchestrator (or supervisor) breaks a broad objective into subtasks and delegates them to specialist sub-agents, each with its own prompt, toolset, and permissions.
+
+For example, an enterprise release workflow might use:
+
+- An **orchestrator agent** that tracks release readiness across services.
+- A **QA agent** with access to browser testing tools and staging environments.
+- A **security review agent** restricted to dependency scanners and static analysis logs.
+- A **documentation agent** that reads merged pull requests and drafts changelog updates.
+
+While multi-agent architectures are popular in diagrams, every handoff between separate agents adds latency, token overhead, and context-loss risk. In practice, many teams find that a **single well-scoped agent equipped with modular skills** handles 80% of business workflows more reliably than a swarm of loosely coordinated sub-agents.
+
+## Part 2: Types of AI Agents by Operating Model (How They Start and Run)
+
+When engineering and business teams move from theory to implementation, the classical taxonomy is not how they organize their workspace. Instead, they classify agents by **how a run is triggered**, **how humans interact with the agent**, and **where the final output is delivered**.
+
+Across companies deploying AI agents in production, five operational types show up repeatedly:
+
+| Operating Agent Type                                     | How the Run Starts                                                                   | Human Interaction During Run                                                        | Where Output Is Delivered                                                 | Typical Example                                                                                                                            |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **1. Interactive conversational coworker**               | A teammate sends a message in Slack, Telegram, WhatsApp, Teams, Discord, or web chat | Multi-turn conversation; can ask clarifying questions and request tool approvals    | Directly in the chat thread plus linked workspace files                   | A product marketer collaborating with a content agent in Slack to research competitors and refine a launch brief                           |
+| **2. Scheduled background agent**                        | A cron schedule fires at a set time (hourly, daily, weekly)                          | Unattended run; relies on upfront instructions, skills, and files                   | Posted to a team channel, saved to shared files, or opened as a PR/ticket | A daily 6:00 AM SEO agent that picks the next backlog topic, writes the draft, opens a PR, and posts the preview link in `#team-marketing` |
+| **3. Event-driven reactive agent**                       | A webhook or connected app event fires (new issue, new CRM row, support alert)       | Unattended initial work, pausing only if a high-impact action hits an approval gate | Comment on the triggering issue/ticket, CRM update, or Slack alert        | A triage agent that starts when a GitHub issue is labeled `bug`, reproduces the error in a sandbox, and posts a root-cause summary         |
+| **4. Embedded website / portal agent**                   | A visitor or logged-in user opens a chat widget inside a web app or internal tool    | Live 1:1 chat scoped to the host page context and visitor identity                  | Inside the embedded iframe widget (`Publish > Embed`)                     | An embedded documentation or onboarding assistant inside a SaaS dashboard that receives the user's current page and plan tier              |
+| **5. Single-agent with skills vs. multi-agent pipeline** | Triggered via chat, schedule, or event                                               | Depends on surface; skills load dynamically inside one session or across sub-agents | Consolidated deliverable from the owning agent                            | One marketing agent loading separate skills for SERP research, brief writing, and cover generation within a single workspace               |
+
+### 1. Interactive Conversational Coworkers
+
+An **interactive conversational coworker** works alongside your team in the channels they already use every day, including Slack, Telegram, WhatsApp, Discord, Microsoft Teams, or a shared web workspace.
+
+Unlike an early Q&A chatbot that could only summarize static help articles, a conversational coworker has its own computer sandbox, web browser, persistent file storage, and authenticated integrations. You can ask it to inspect a live URL, run a Python script on a CSV upload, update a Notion page, or open a GitHub pull request.
+
+Interactive coworkers are the best starting point for any new workflow because:
+
+- **Ambiguity is cheap to resolve:** If a request is missing a date range or target repository, the coworker can ask a quick question in the thread before proceeding.
+- **Instructions improve through live feedback:** Teammates can tell the agent _"from now on, always include a pricing table and skip em dashes,"_ and the agent updates its own configuration immediately.
+- **High-impact actions stay supervised:** Permissions can be set so read-only lookups run automatically (`allow`), while sending an external email or publishing a post pauses for one-click human approval (`ask`).
+
+### 2. Scheduled Background Agents
+
+A **scheduled background agent** runs on a timer (a cron expression such as every weekday at 6:00 AM or every Monday at 8:30 AM) without waiting for a human to type a prompt.
+
+Because nobody is sitting in the chat window when a scheduled run starts, the agent needs a complete starting point and a defined destination:
+
+- **Standing context** lives in the agent's instructions, shared files, and reusable skills.
+- **The recurring task** is defined in the schedule's trigger message (for example, _"Summarize last week's campaign metrics, compare them with the prior week, save the full report to shared files, and post the highlights to `#growth`"_).
+- **The output destination** is wired through a connected channel or tool so the team sees the finished work where they already collaborate.
+
+### 3. Event-Driven Reactive Agents
+
+Some jobs should start the moment something changes in a connected system rather than waiting for a daily timer. An **event-driven reactive agent** subscribes to external app events, such as a new row added to a launch tracker, a support ticket created in Zendesk or Linear, or a GitHub issue receiving a specific label.
+
+When the event arrives, the platform passes both the automation's standing prompt and the structured event payload to the agent. The agent can then enrich the record, inspect related logs, draft a response, and notify the owning teammate in Slack with a link to review the session.
+
+### 4. Embedded Customer-Facing and Internal-Portal Agents
+
+An **embedded agent** brings an AI coworker directly into your own website, customer dashboard, or internal operations portal.
+
+In [Agenta](https://agenta.ai), for example, you can take any configured agent and publish it as an iframe widget (`Publish > Embed`) restricted to your allowed domains. When the host page loads, it can pass a cryptographic per-user `visitorKey`, the user's `displayName`, and live JSON page context (such as the current URL path or account plan) via `postMessage`. That lets the embedded agent answer with context about the exact screen the user is viewing while keeping each visitor's conversation history isolated.
+
+### Why These Operating Types Should Share One Configuration
+
+A common mistake when teams adopt AI agents is buying or building a separate point solution for each operating mode: one tool for Slack bots, another workflow builder for cron jobs, a third webhook script for event triage, and a fourth widget for website chat. That fragments your company context, duplicates credentials, and forces you to maintain four copies of your prompts.
+
+In an [open-source AI coworker platform](https://agenta.ai) like Agenta, **an automation or an embed is the exact same agent you already use in conversation, started a different way**:
+
+![How a single AI agent configuration runs across interactive chat, scheduled automations, app events, and website embeds](/blog/types-of-ai-agents/one-agent-four-operating-modes.webp)
+
+Under the hood, the agent keeps one unified configuration:
+
+- **[Instructions](https://agenta.ai/docs/concepts/instructions):** Plain-language role definition, company positioning, editorial rules, and durable memory.
+- **[Skills](https://agenta.ai/docs/concepts/skills):** Step-by-step playbooks that load on demand when a task matches their description.
+- **[Tools and integrations](https://agenta.ai/docs/concepts/tools-and-integrations):** Connected apps, APIs, and MCP servers.
+- **[Files and knowledge](https://agenta.ai/docs/concepts/files-and-knowledge):** Both a temporary session workspace and a persistent shared drive that survives across runs.
+- **[Permissions](https://agenta.ai/docs/concepts/permissions):** Per-tool rules (`allow`, `ask`, or `deny`) that govern what the agent can execute autonomously.
+- **[Harness and model](https://agenta.ai/docs/concepts/harnesses-and-models):** A decoupled runtime where you choose the agent harness ([Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://developers.openai.com/codex), or [Pi](https://shittycodingagent.ai/)), the language model, and the billing credential separately.
+
+Because the runtime and configuration are shared, a non-technical marketer or ops lead can build and refine an agent through normal conversation in the playground, test it with teammates in Slack, and then attach a schedule or event trigger to that exact same agent without rewriting a line of code.
+
+## Part 3: Types of AI Agents by Business Function (6 Real Examples)
+
+When you look inside a company's workspace, agents are almost always named and scoped around **a stable job**, not a single one-off prompt. If the same company context, reference files, connected tools, and approval rules apply across dozens of requests, they belong to one agent.
+
+Here are six concrete examples of how teams structure functional AI agents in production.
+
+### 1. Marketing and SEO Content Agents
+
+A marketing or SEO agent owns recurring research, brief creation, drafting, and quality checks across a company's content pipeline.
+
+- **How it starts:** Interactively when a marketer asks for competitor SERP research in chat, or on a daily schedule that picks the next priority topic from a shared backlog file.
+- **Context and skills used:** Reads product positioning notes, voice guidelines, and published URL inventories from persistent shared files; loads specialized skills for SERP analysis, content briefing, cover image generation, and pre-publish SEO checks.
+- **Tools and sandbox actions:** Searches live search results, generates custom diagrams in a headless browser sandbox, formats MDX files, opens a GitHub pull request, and waits for preview deployment checks to pass.
+- **Governance and handoff:** Never merges directly to production; posts a summary in `#team-marketing` with links to the brief, session log, pull request, and live preview URL for human sign-off.
+
+### 2. Customer Support and Technical Triage Agents
+
+Support teams use triage agents to bridge the gap between front-line ticket queues and engineering documentation.
+
+- **How it starts:** Triggered by an app event when a new ticket arrives or when a customer chats with an [embedded website agent](https://agenta.ai/docs/guides/embed-an-agent).
+- **Context and skills used:** Loads troubleshooting playbooks, known-issue logs, and product documentation.
+- **Tools and sandbox actions:** Queries account status, checks recent API error logs, and drafts a grounded response citing exact documentation sections.
+- **Governance and handoff:** Read-only lookups (`allow`) run immediately, while refund actions, account mutations, or external customer emails require agent confirmation (`ask`) from a support specialist.
+
+### 3. Sales and Revenue Operations (RevOps) Agents
+
+RevOps and account teams rely on agents to eliminate manual research before prospect calls and keep CRM records accurate.
+
+- **How it starts:** Event-triggered when a new qualified lead enters the CRM, or called directly in Slack before an executive discovery call (`"Prep a brief for Acme Corp"`).
+- **Context and skills used:** Reads ICP definitions, competitive battlecards, and case-study mappings from shared files.
+- **Tools and sandbox actions:** Scrapes public company announcements, job postings, and tech-stack signals; formats a concise pre-call brief; and proposes CRM field updates.
+- **Governance and handoff:** Posts the call prep brief in the deal channel and asks the account executive before sending any outbound follow-up email.
+
+### 4. Software Engineering and QA Agents
+
+Engineering teams run coding and QA agents to handle bug reproduction, test coverage, dependency upgrades, and documentation maintenance.
+
+- **How it starts:** Triggered when a GitHub issue is labeled, when a CI check fails, or when an engineer delegates a task in chat.
+- **Context and skills used:** Reads repository architecture notes, testing standards, and release checklists; runs on a coding-capable harness such as [Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://developers.openai.com/codex), or [Pi](https://shittycodingagent.ai/).
+- **Tools and sandbox actions:** Clones the repository into `/tmp` inside its own isolated computer, reproduces the failure, edits code, runs linters and unit tests, and pushes a feature branch to open a pull request.
+- **Governance and handoff:** Branch pushes and pull request creation are allowed on feature branches, while force-pushes to `main` and production deployments remain blocked.
+
+### 5. Data and Operations Research Analysts
+
+Operations and leadership teams often need recurring analysis that combines API pulls, SQL or Python data cleaning, and plain-English synthesis.
+
+- **How it starts:** On a weekly Monday schedule or via ad-hoc questions in a leadership Slack channel.
+- **Context and skills used:** Loads metric definitions (so "active account" or "net retention" is calculated identically every week) and previous weekly reports from shared files for week-over-week comparison.
+- **Tools and sandbox actions:** Pulls data from analytics tools or read-only databases, runs Python scripts (`pandas`, `matplotlib`) in its sandbox computer to verify numbers and generate charts, and saves the full Markdown report to shared files.
+- **Governance and handoff:** Database access is strictly read-only, and every claim in the summary links back to the underlying query or saved dataset.
+
+### 6. Internal IT, HR, and Knowledge Coworkers
+
+Internal operations agents give employees a single coworker in Slack or Microsoft Teams to answer policy questions and route internal requests.
+
+- **How it starts:** Interactive messages in `#ask-it` or `#ask-people-ops`, or DM conversations with the bot.
+- **Context and skills used:** Reads security policies, travel and expense rules, onboarding checklists, and vendor access procedures stored in shared files.
+- **Tools and sandbox actions:** Answers policy questions immediately with source links; when an employee requests software access, checks role eligibility and prepares an access ticket.
+- **Governance and handoff:** Creating a ticket or messaging an IT admin in an approval channel uses an `ask` gate so sensitive permissions are never granted silently.
+
+## How to Choose Which Type of AI Agent to Build First
+
+When teams try to design their first AI agent, the most common trap is starting at the most complex end of every taxonomy: building a multi-agent swarm that runs unattended on webhooks before a single human has validated the workflow in chat.
+
+A much more reliable progression follows four steps:
+
+1. **Start with a single goal-based interactive coworker for one recurring job.** Pick a repeatable workflow your team already does several times a week (such as drafting SEO briefs, triaging bug reports, or preparing weekly campaign recaps). Configure one agent with clear instructions, shared reference files, and the tools it needs, then work with it in chat or Slack.
+2. **Turn repeated procedures into modular skills before adding more agents.** When your agent needs to handle three related tasks (for example, keyword research, brief writing, and pre-publish QA), give that same agent three [skills](https://agenta.ai/docs/concepts/skills) rather than spinning up three separate agents. You avoid orchestration overhead while keeping each procedure clean and maintainable.
+3. **Keep external side effects behind `ask` approval gates.** Let your agent read files, search the web, and run checks in its sandbox freely, but require human approval before it sends messages to customers, modifies production records, or publishes live content.
+4. **Graduate proven workflows into scheduled or event-driven automations.** Once the interactive coworker consistently produces the result your team wants without heavy steering, attach a cron schedule or app-event trigger to that exact same agent and point its output at your team's Slack channel or pull-request queue.
+
+If you want to go deeper into how the internal layers of an agent work together, see our guides on [AI coworker platforms for business](https://agenta.ai/blog/ai-coworker-platforms-for-business), [open-source AI agent platforms](https://agenta.ai/blog/best-open-source-ai-agent-platforms), and [AI agent orchestration platforms](https://agenta.ai/blog/best-ai-agent-orchestration-platforms).
+
+## Frequently Asked Questions
+
+### What are the 5 main types of AI agents in computer science?
+
+In classic AI literature (Russell and Norvig), the five foundational types of AI agents are **simple reflex agents** (stateless condition-action rules), **model-based reflex agents** (rules combined with internal state tracking), **goal-based agents** (multi-step planning toward a target outcome), **utility-based agents** (scoring competing plans across tradeoffs like cost and speed), and **learning agents** (improving behavior over time from feedback). Most modern guides also include **hierarchical and multi-agent systems** as a sixth structural category.
+
+### How do modern LLM agents fit into the classical AI agent taxonomy?
+
+Most tool-using LLM agents operate as **goal-based agents** during a single session: they use an [agent harness](https://agenta.ai/docs/concepts/harnesses-and-models) (such as [Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://developers.openai.com/codex), or [Pi](https://shittycodingagent.ai/)) to call tools in a loop, inspect results, and adapt their plan until the user's goal is complete. Across sessions, they act as **learning agents** when teams update their versioned instructions, reusable skills, and persistent shared files based on real outcomes.
+
+### What is the difference between a conversational agent and a background automation agent?
+
+The difference is **what starts the run and where the output goes**, not the underlying intelligence. A conversational coworker is started by a human in chat (Slack, Telegram, web playground, or an embedded widget) and can ask questions mid-task. A background automation agent uses the same instructions, skills, tools, and files, but is started by a cron schedule or an external app event and delivers its finished result to a designated channel, file, or pull request.
+
+### When should you build a multi-agent system instead of a single agent?
+
+Use a single agent with modular skills whenever one role shares the same business context, files, and security boundary. Split into a multi-agent system only when subtasks require strictly isolated tool permissions (for example, separating a customer-facing support agent from an internal billing administration agent), independent execution sandboxes, or parallel workloads that would overflow a single conversation context.
