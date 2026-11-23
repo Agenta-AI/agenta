@@ -160,7 +160,7 @@ There are 23 UI colors: 12 neutrals, 7 brand colors and 4 statuses. A separate g
 | `spacing-3` | `12px` | List row side padding. Mark to text for 32–40px Marks. Gap between a label and its field group. |
 | `spacing-4` | `16px` | Page gutter on compact windows; card padding. |
 | `spacing-5` | `20px` | Dialog padding. |
-| `spacing-6` | `24px` | Gap between the page top band and the body; the right column's own margins; section gap on compact. |
+| `spacing-6` | `24px` | Gap between the page top band and the body; the right pane's own margins; section gap on compact. |
 | `spacing-8` | `32px` | Top of every page above the page top band; section gap on medium and expanded windows. |
 | `spacing-10` | `40px` | Space above an empty state. |
 | `spacing-12` | `48px` | Page top padding on expanded windows. |
@@ -197,7 +197,7 @@ There are 23 UI colors: 12 neutrals, 7 brand colors and 4 statuses. A separate g
 | `content-sm` | `560px` | Dialogs, forms, settings. |
 | `content-md` | `760px` | Chat column, documents. |
 | `content-lg` | `1040px` | Lists and tables. |
-| `panel-side` | `320px` | The right column on item pages: Activity, or the agent pane in the same slot. Its own 24px margins and alignment line. |
+| `panel-side` | `320px` | The right pane: a layout slot on every page that any feature can fill (details, activity, the agent chat, a preview). One thing at a time. Its own 24px margins and alignment line. |
 | `row-dense` | `28px` | Height of a tree row or a rail row. |
 | `row-single` | `36px` | Height of a one-line list row. |
 | `row-double` | `48px` | Height of a two-line list row (title + meta). |
@@ -305,11 +305,11 @@ A product term always has this icon: in the nav, list rows, page headers, picker
 ## Layout and windows
 
 - Three window classes: compact (under `breakpoint-sm`, 640px), medium (640–1023px) and expanded (from `breakpoint-lg`, 1024px). Do not add a third breakpoint.
-- On medium and expanded windows a screen has a sidebar (`sidebar-w`, on `muted`), the content column, and on item pages an optional right column (`panel-side`). There is no header bar. When the window is too narrow for the right column next to an 80px-margin content column, the right column opens as an overlay with the scrim. On a compact window the right column is a drill-in, whatever it holds (Activity or the agent pane): the item page shows an entry for it, and opening it pushes its own screen with Back, which returns to the item (`LAYOUT-04`).
+- On medium and expanded windows a screen has a sidebar (`sidebar-w`, on `muted`), the content column, and an optional right pane (`panel-side`). There is no header bar. When the window is too narrow for the right pane next to an 80px-margin content column, the right pane opens as an overlay with the scrim. On a compact window the right pane is a drill-in, whatever it holds: the page shows an entry for it, and opening it pushes its own screen with Back, which returns to the page (`LAYOUT-04`).
 - The page frame on medium and expanded windows:
-  - The sidebar is 240px (`sidebar-w`), or 48px when closed (`sidebar-w-closed`). Item pages may have a right column of 320px (Activity, or the agent pane in the same slot) with its own 24px margins and its own alignment line.
+  - The sidebar is 240px (`sidebar-w`), or 48px when closed (`sidebar-w-closed`). The right pane is part of the layout on every page, 320px wide, with its own 24px margins and its own alignment line. Any page or feature can put information in it: an item's details or activity, the agent chat, a preview, help. It holds one thing at a time; opening something else replaces it. Pages never draw a side panel of their own.
   - The content column sits between them with at least 80px on each side (`page-margin`). Its maximum width depends on the page: `content-lg` (1040) for lists, `content-md` (760) for item pages, sessions and Home, `content-sm` (560) for settings. Workbench pages (Builder, Playground, the trace view) use the full width.
-  - When there is more room, the column stays centered and both margins grow equally. At 1440px with the right column open, an item column is 720px.
+  - When there is more room, the column stays centered and both margins grow equally. When the right pane opens, the content column gives way first, then the margins down to 80px; at 1440px with the pane open, an item column is 720px.
   - From the top: a 32px gap (`spacing-8`), the page top band (`page-band`, 148px: the title and the page actions), a 24px gap (`spacing-6`), then the body. Every page uses this rhythm, so the title never moves.
   - There is no breadcrumb bar. The alignment line is the left edge of the content column, with padded boxes outdented (`ALIGN-01`).
   - Only the body scrolls.
@@ -401,8 +401,8 @@ Everything from the title down shares the title's left edge, the left edge of th
 
 A chat with the agent about the item that is open (an agent, a skill, an automation). It is a side panel that holds a conversation (`PANE-01`).
 
-- Expanded and medium windows: the right column, `panel-side` (320px) wide, on `muted`, in the same slot as Activity. Its header names the item ("Ask about Weekly report"). It holds the same Composer as a session.
-- Compact window: a drill-in, like the rest of the right column. The item page shows an entry ("Ask about Weekly report"); opening it pushes a screen with Back, the item named in the header and the same Composer. Back returns to the item, and the draft stays.
+- Expanded and medium windows: it opens in the right pane (`panel-side`, 320px) on `muted`. Its header names the item ("Ask about Weekly report"). It holds the same Composer as a session.
+- Compact window: a drill-in, like everything in the right pane. The item page shows an entry ("Ask about Weekly report"); opening it pushes a screen with Back, the item named in the header and the same Composer. Back returns to the item, and the draft stays.
 
 ### Marketing surfaces
 
@@ -581,8 +581,8 @@ Review checks every other rule.
 | `LAYOUT-01` | Nested scroll areas that scroll the same way | One scroll container per pane |
 | `LAYOUT-02` | Text and lists stretched across a wide window; a width of its own (880, 920, 960, 1120) | `content-sm`, `content-md` or `content-lg`, centered with at least `page-margin` on each side; full width only for workbench pages |
 | `LAYOUT-03` | A page with its own header height or top padding; a breadcrumb bar | 32px, the 148px page top band, 24px, then the body, on every page |
-| `LAYOUT-04` | A side panel squeezed into a medium or compact window; the right column stacked under the body on a phone | An overlay with the scrim on medium. On compact, a drill-in with Back, whatever it holds |
-| `PANE-01` | An agent chat that opens as a stacked route or a dialog, or that does not name the item | The 320px right column (`panel-side`); a drill-in with Back on compact; the item named in the header; the same Composer |
+| `LAYOUT-04` | A page's own side panel next to the right pane; a side panel squeezed into a medium or compact window; the right pane stacked under the body on a phone | The one right pane (`panel-side`), one thing at a time; an overlay with the scrim when there is no room; on compact, a drill-in with Back |
+| `PANE-01` | An agent chat that opens as a stacked route or a dialog, or that does not name the item | The right pane (`panel-side`); a drill-in with Back on compact; the item named in the header; the same Composer |
 | `PHONE-01` | Two things on the phone's bottom edge (a composer and a floating New); a bottom nav bar | One item on the bottom edge; a primary action goes in the header or the content |
 | `PHONE-02` | A tall phone header; 44px icon buttons; two titles | A 44px bar, the kit's compact icon buttons, one leading button, one title |
 | `PHONE-03` | Back and the menu button together in a phone header; the menu on a detail page | The menu on top-level pages; Back alone on detail pages and drill-ins |

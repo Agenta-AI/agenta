@@ -201,7 +201,7 @@ list that is not one of the kit menus.
 **Phone layout.** The header is one 44px bar: one leading button, one title, the kit's compact icon
 buttons (`PHONE-02`). The leading button is the menu on top-level pages and Back on detail pages
 (agent, automation, skill) and drill-ins, never both (`PHONE-03`). One item owns the bottom edge: the composer entry,
-or one primary action, never a nav bar; main navigation is the sidebar drawer from the header menu (`PHONE-01`). The right column (Activity or the agent pane) is a `panel-side` column on wide
+or one primary action, never a nav bar; main navigation is the sidebar drawer from the header menu (`PHONE-01`). The right pane is one layout slot on every page that any feature can fill, one thing at a time; it is a `panel-side` column on wide
 windows and a drill-in with Back on a phone, with the item named in its header
 (`LAYOUT-04`, `PANE-01`). The composer entry is the Composer's own collapsed state, never a plain input
 (`COMP-02`).
@@ -230,4 +230,4 @@ Before you call a UI change done, check each item:
 - [ ] No weight by state: tabs, segments, menu items and selected rows stay at 500 (`TYPE-05`).
 - [ ] Data colors only for data (categories, charts, avatars), never UI state; badges use status tones (`COLOR-05`, `BADGE-01`).
 - [ ] Content sits on the alignment line; padded boxes outdent by their padding (`ALIGN-01`).
-- [ ] Phone: one 44px header with the menu on top-level pages and Back alone on detail pages, one item on the bottom edge, the right column as a drill-in (`PHONE-01`…`03`, `LAYOUT-04`).
+- [ ] Phone: one 44px header with the menu on top-level pages and Back alone on detail pages, one item on the bottom edge, the right pane as a drill-in, and no page-owned side panels (`PHONE-01`…`03`, `LAYOUT-04`).
