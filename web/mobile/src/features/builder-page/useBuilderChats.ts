@@ -10,17 +10,15 @@ const NO_EXPANSIONS = [] as const
 
 /**
  * The person's builder chats, newest activity first: the sessions of the builder agent
- * (`__ag__builder`), from the existing session query. `search` narrows them by title on the
- * server, so it searches every chat, not only the loaded pages.
+ * (`__ag__builder`), from the existing session query.
  */
-export const useBuilderChats = (search = "") => {
+export const useBuilderChats = () => {
     const builder = useAtomValue(builderAgentRevisionIdQueryAtom)
     const builderWorkflowId =
         useAtomValue(workflowMolecule.selectors.workflowId(builder.data ?? "")) || null
     const list = useSessionList({
         agentId: builderWorkflowId,
         originPolicy: "all",
-        search,
         expansions: NO_EXPANSIONS,
         enabled: Boolean(builderWorkflowId),
     })
@@ -30,8 +28,6 @@ export const useBuilderChats = (search = "") => {
     return {
         rows,
         pending: !failed && (builder.isPending || !builderWorkflowId || list.isPending),
-        /** The rows are the previous search's, kept on screen while this one loads. */
-        stale: list.isPlaceholderData,
         failed,
         retry: () => void (builder.isError ? builder.refetch() : list.refetch()),
         loadMore: () => {

@@ -78,26 +78,6 @@ export const agentSidebarSelectedKey = (
     return agentSidebarSessionKey(query.session_id)
 }
 
-export type SessionBulletState = "idle" | "live" | "waiting"
-
-const BULLET_STATE: Record<SessionBulletState, string> = {
-    idle: "border-colorTextTertiary",
-    live: "border-colorText bg-colorText",
-    // `--ag-run-status-warning`: the palette's bright amber in both themes.
-    waiting: "border-[var(--ag-run-status-warning)] bg-[var(--ag-run-status-warning)]",
-}
-
-/**
- * The ring in front of a session or chat row: 8 px with a 1.25 px rim, 2 px clear of its
- * neighbours, so the title starts where the design puts it. Filled while the session is live,
- * amber while it waits for the person. The main, agent and builder sidebars all draw it.
- */
-export const sessionBullet = (state: SessionBulletState) =>
-    createElement("span", {
-        "aria-hidden": true,
-        className: `mx-0.5 box-border block size-2 shrink-0 rounded-full border-[1.25px] border-solid ${BULLET_STATE[state]}`,
-    })
-
 /**
  * The rows of one agent's sidebar: `pages` is New session, Configuration, Channels and Analytics;
  * `sessions` is the "Sessions" row with its filter, the latest sessions grouped by day, and

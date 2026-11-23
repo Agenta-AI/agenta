@@ -5,22 +5,19 @@ import {SidebarLayoutContext} from "@agenta/navigation-ui"
 import {SidebarTopRow} from "./SidebarTopRow"
 
 /**
- * The agent sidebar's top: Back and the collapse toggle, then the agent switcher. Collapsed, the
- * switcher is a tile under a short rule. `newSession` (the builder's "New chat") follows the
- * switcher; the agent sidebar lists "New session" as a page row instead.
+ * The agent and builder sidebars' top: Back and the collapse toggle, then the switcher.
+ * Collapsed, the switcher is a tile under a short rule.
  */
 export const AgentSidebarHeader = ({
     collapsed,
     back,
     toggle,
     switcher,
-    newSession,
 }: {
     collapsed: boolean
     back: ReactNode
     toggle: ReactNode
     switcher: ReactNode
-    newSession?: ReactNode
 }) => {
     const phone = useContext(SidebarLayoutContext) === "phone"
     return (
@@ -38,7 +35,6 @@ export const AgentSidebarHeader = ({
                     {switcher}
                 </div>
             )}
-            {newSession}
         </>
     )
 }

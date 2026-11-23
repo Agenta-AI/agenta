@@ -10,29 +10,27 @@ import type {
     SidebarSlotContext,
 } from "@agenta/navigation"
 import {SidebarBackButton, SidebarToggleButton} from "@agenta/navigation-ui"
-import {Spinner} from "@agenta/ui/ui"
-import {ArrowClockwiseIcon} from "@phosphor-icons/react"
+import {ArrowClockwiseIcon, ChatsIcon, PlusIcon} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
 import {AgentSidebarHeader} from "../agent-sidebar/AgentSidebarHeader"
-import {sessionBullet} from "../agent-sidebar/agentSidebarItems"
 import {ConnectedAgentSwitcher} from "../agent-sidebar/ConnectedAgentSwitcher"
 import {dayGroupedRows} from "../agent-sidebar/dayGroups"
-import {SidebarNewButton} from "../agent-sidebar/SidebarNewButton"
 import {builderChatHref} from "../builder/builderChatHref"
-import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
+import {RUNNING_TITLE, sessionStatusMark, withStatusMark} from "../nav/sessionStatusMark"
 import {useMobileBottomNavItems} from "../nav/useMobileNavItems"
+import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 
-import {BuilderChatSearch} from "./BuilderChatSearch"
 import {useBuilderChats} from "./useBuilderChats"
 
 export const builderChatRowKey = (sessionId: string) => `builder-chat-${sessionId}`
 
+const BUILDER_NEW_CHAT_KEY = "builder-new-chat"
+
 /**
- * The builder sidebar (B01): Back, the switcher on "Builder", "New chat" and "Chats", the
- * person's builder chats newest first under Today, Yesterday and Earlier, as the agent sidebar
- * groups its sessions. "Back" shows the main sidebar and leaves the page as it is. The search
- * button next to "Chats" opens the search window over the builder chats.
+ * The builder sidebar (B01), laid out as the agent sidebar: Back, the switcher on "Builder", a
+ * "New chat" row, then the "Chats" row and the person's builder chats newest first under Today, Yesterday and Earlier, as the agent sidebar
+ * groups its sessions. "Back" shows the main sidebar and leaves the page as it is.
  */
 export const createBuilderSidebarScope = (
     workspaceId: string,
@@ -45,8 +43,8 @@ export const createBuilderSidebarScope = (
         const router = useRouter()
         const chat = router.query.chat
         const sessionId = Array.isArray(chat) ? chat[0] : undefined
-        // A new chat marks no row: "New chat" is a button, not a place.
-        const selectedKeyOverride = sessionId ? builderChatRowKey(sessionId) : undefined
+        // No chat open: the page is a new chat, so "New chat" is the current row.
+        const selectedKeyOverride = sessionId ? builderChatRowKey(sessionId) : BUILDER_NEW_CHAT_KEY
         return useMemo(() => ({mode: "route", selectedKeyOverride}), [selectedKeyOverride])
     }
 
@@ -65,9 +63,13 @@ export const createBuilderSidebarScope = (
                         key: builderChatRowKey(row.session_id),
                         title,
                         tooltip: title,
-                        icon: row.flags?.is_running
-                            ? createElement(Spinner, {className: "size-3"})
-                            : sessionBullet("idle"),
+                        rowClassName: row.flags?.is_running ? RUNNING_TITLE : undefined,
+                        // The state shows as a quiet mark on the right, as on the agent sidebar.
+                        wrapRow: (node) =>
+                            withStatusMark(
+                                node,
+                                sessionStatusMark(row.flags?.is_running ? "running" : null),
+                            ),
                         link: builderChatHref({workspaceId, projectId, sessionId: row.session_id}),
                         prefetch: false,
                     }
@@ -106,19 +108,27 @@ export const createBuilderSidebarScope = (
                     key: "builder",
                     items: [
                         {
+                            key: BUILDER_NEW_CHAT_KEY,
+                            title: t("builder.page.newChat"),
+                            icon: createElement(PlusIcon, {size: 16}),
+                            link: `${projectURL}/builder`,
+                            matchLinks: [],
+                            prefetch: false,
+                        },
+                    ],
+                },
+                {
+                    key: "chats",
+                    dividerBefore: true,
+                    items: [
+                        {
                             key: "builder-chats",
                             title: t("builder.page.chats"),
-                            // Always open with no icon: the rail draws it as a small heading.
-                            rowClassName: "pt-2.5",
+                            icon: createElement(ChatsIcon, {size: 16}),
                             alwaysOpen: true,
                             scrollChildren: true,
                             hideChildrenWhenCollapsed: true,
                             onReachEnd: chats.loadMore,
-                            // The search window over every builder chat (B06). No filter.
-                            groupAction: createElement(BuilderChatSearch, {
-                                workspaceId,
-                                projectId,
-                            }),
                             submenu: [...rows, ...states],
                         },
                     ],
@@ -129,7 +139,6 @@ export const createBuilderSidebarScope = (
     }
 
     const Header = ({collapsed, onDismiss}: SidebarSlotContext) => {
-        const t = useT(builderPageCatalog)
         return (
             <AgentSidebarHeader
                 collapsed={collapsed}
@@ -143,21 +152,14 @@ export const createBuilderSidebarScope = (
                         collapsed={collapsed}
                     />
                 }
-                newSession={
-                    <SidebarNewButton
-                        label={t("builder.page.newChat")}
-                        href={`${projectURL}/builder`}
-                        collapsed={collapsed}
-                    />
-                }
             />
         )
     }
 
-    const AfterBottom = ({collapsed}: {collapsed: boolean}) => (
-        <DrawerProjectSwitcher
-            workspaceId={workspaceId}
+    const Footer = ({collapsed}: SidebarSlotContext) => (
+        <CreditsRemainingWidget
             projectId={projectId}
+            settingsURL={`${projectURL}/settings`}
             collapsed={collapsed}
         />
     )
@@ -167,6 +169,6 @@ export const createBuilderSidebarScope = (
         useSelection,
         useSections,
         header: Header,
-        afterBottom: AfterBottom,
+        footer: Footer,
     }
 }
