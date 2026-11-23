@@ -191,7 +191,7 @@ export const AgentSidebarSwitcher = ({
                                     onClick={run(onPickBuilder)}
                                     testId="agent-sidebar-switcher-builder"
                                 >
-                                    <BuilderTile size="row" />
+                                    <BuilderTile size="panel" />
                                     <span className="min-w-0 flex-1 truncate">
                                         {tBuilder("builder.page.builder")}
                                     </span>
@@ -224,7 +224,7 @@ export const AgentSidebarSwitcher = ({
                                         if (agent.id !== agentId) onPick(agent.id)
                                     })}
                                 >
-                                    <SwitcherTile agentId={agent.id} size="row" />
+                                    <SwitcherTile agentId={agent.id} size="panel" />
                                     <span className="min-w-0 flex-1 truncate">
                                         {agentName(agent)}
                                     </span>
@@ -233,11 +233,15 @@ export const AgentSidebarSwitcher = ({
                         </div>
                         <div className="my-1 h-px bg-colorBorderSecondary" />
                         <PanelRow onClick={run(onAllAgents)}>
-                            <RobotIcon aria-hidden size={14} className="shrink-0" />
+                            <span className="flex size-6 shrink-0 items-center justify-center">
+                                <RobotIcon aria-hidden size={14} />
+                            </span>
                             <span className="flex-1">{t("agentSidebar.allAgents")}</span>
                         </PanelRow>
                         <PanelRow onClick={run(onNewAgent)}>
-                            <PlusIcon aria-hidden size={14} className="shrink-0" />
+                            <span className="flex size-6 shrink-0 items-center justify-center">
+                                <PlusIcon aria-hidden size={14} />
+                            </span>
                             <span className="flex-1">{t("agentSidebar.newAgent")}</span>
                         </PanelRow>
                     </div>
