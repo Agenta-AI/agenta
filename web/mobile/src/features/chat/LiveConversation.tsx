@@ -1185,7 +1185,7 @@ export const LiveConversation = ({
                                 actions={approvalActions}
                                 entityId={entityId}
                                 bottomMost={false}
-                                // On a phone the card owns the bottom edge while it waits (PHONE-01).
+                                // On a phone the card owns the bottom edge while it waits (COMPACT-01).
                                 phoneBottomMost={!locked && !hideComposer && !readOnly}
                                 readOnly={locked}
                                 readOnlyNote={readOnly?.approvalNote}

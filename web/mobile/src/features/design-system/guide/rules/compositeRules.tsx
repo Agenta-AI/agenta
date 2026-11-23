@@ -25,7 +25,7 @@ import {
 } from "@phosphor-icons/react"
 
 import {ScrollFadeDemo} from "../ScrollFadeDemo"
-import type {GuideRule} from "../types"
+import type {RuleExample} from "../types"
 
 const toastBox = "flex w-72 items-start gap-2 rounded-lg bg-popover p-3 text-left text-label shadow-overlay"
 const th = "h-9 px-3 text-left text-meta text-muted-foreground"
@@ -35,11 +35,9 @@ const RUNS = [
     {name: "Triage inbox", status: "Failed", time: "1h ago", cost: "$0.11"},
 ]
 
-export const tabsRules: GuideRule[] = [
+export const tabsRules: RuleExample[] = [
     {
-        id: "TABS-01",
-        title: "Tabs switch views of one thing",
-        why: "Tabs show sibling views of the same object, such as the runs and the settings of an agent. A tab never starts an action. Use the line variant on pages and the pill variant only inside a small panel. Labels are short nouns, with no icon in every tab.",
+        id: "KIT-02",
         do: {
             example: (
                 <Tabs defaultValue="runs">
@@ -71,15 +69,12 @@ export const tabsRules: GuideRule[] = [
             ),
             caption: "Title Case, an icon in every tab, and an action as a tab.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const tooltipRules: GuideRule[] = [
+export const tooltipRules: RuleExample[] = [
     {
-        id: "TIP-01",
-        title: "Every icon-only button has a tooltip",
-        why: "An icon alone is a guess. The tooltip names the action in two or three words, with its shortcut when there is one. Touch users cannot hover, so the tooltip only repeats the aria-label; it never holds something the user needs.",
+        id: "KIT-03",
         do: {
             example: (
                 <div className="flex gap-1">
@@ -107,15 +102,12 @@ export const tooltipRules: GuideRule[] = [
             ),
             caption: "A paragraph in one tooltip, none on the other.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const toastRules: GuideRule[] = [
+export const toastRules: RuleExample[] = [
     {
-        id: "TOAST-01",
-        title: "A toast confirms; it does not ask",
-        why: "A toast closes on its own, so it never holds a decision or an error the user must fix. An error that needs action stays inline, next to its cause.",
+        id: "KIT-05",
         do: {
             example: (
                 <div className={toastBox}>
@@ -143,15 +135,12 @@ message.success("Connection removed")`,
             ),
             caption: "A question that closes itself before the user answers.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const tableRules: GuideRule[] = [
+export const tableRules: RuleExample[] = [
     {
-        id: "TABLE-01",
-        title: "Tables are rows, not a grid",
-        why: "Grid lines and zebra fills add ink without adding meaning. Rows are 36px with a 1px border-muted divider between them. Numbers align right in tabular figures. On a phone the table becomes a list of rows.",
+        id: "KIT-06",
         do: {
             example: (
                 <table className="w-72 border-collapse">
@@ -202,15 +191,12 @@ export const tableRules: GuideRule[] = [
             ),
             caption: "A dark header, a full grid and zebra rows.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const codeRules: GuideRule[] = [
+export const codeRules: RuleExample[] = [
     {
-        id: "CODE-01",
-        title: "Code blocks are quiet and copyable",
-        why: "Code is content, not decoration. A code block is a bordered box: a muted header with the label and one Copy button, then the code in text-code on background. No line numbers on short snippets, and never a dark block on a light page.",
+        id: "KIT-07",
         do: {
             example: (
                 <div className="w-72 overflow-hidden rounded-lg border border-border bg-background text-left">
@@ -234,15 +220,12 @@ export const codeRules: GuideRule[] = [
             ),
             caption: "A black slab with line numbers and no copy.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const commandRules: GuideRule[] = [
+export const commandRules: RuleExample[] = [
     {
-        id: "CMD-01",
-        title: "The command palette lists actions as verb + object",
-        why: "⌘K opens one palette for the whole app. Each item reads as an action, sits in a group named after its object, and shows its shortcut on the right. Destructive actions stay out: one wrong Enter must not delete anything.",
+        id: "KIT-08",
         do: {
             example: (
                 <Command className="w-72 rounded-lg shadow-overlay">
@@ -286,15 +269,12 @@ export const commandRules: GuideRule[] = [
             ),
             caption: "Bare nouns, no groups, a destructive item in the list.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const composerRules: GuideRule[] = [
+export const composerRules: RuleExample[] = [
     {
-        id: "COMP-01",
-        title: "The composer is one field with its actions inside",
-        why: "One box reads as one control. Attach sits on the left and send on the right, both inside the border of the field. Send is the only filled button, and it is disabled while the field is empty. The field grows with the text, then scrolls.",
+        id: "KIT-09",
         do: {
             example: (
                 <div className="w-72 rounded-xl bg-background p-2 text-left shadow-[inset_0_0_0_1px_var(--border)]">
@@ -320,15 +300,12 @@ export const composerRules: GuideRule[] = [
             ),
             caption: "Three loose controls and a loud pill button.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const chatRules: GuideRule[] = [
+export const chatRules: RuleExample[] = [
     {
-        id: "CHAT-01",
-        title: "The user's message is a bubble; the agent's reply is not",
-        why: "The user's message sits on the right, on bg-secondary. The agent's reply is plain text at full width, so long answers, code and tables read like a document. Actions sit under the reply.",
+        id: "KIT-11",
         do: {
             example: (
                 <div className="flex w-72 flex-col gap-3 text-left">
@@ -344,7 +321,7 @@ export const chatRules: GuideRule[] = [
                     </div>
                 </div>
             ),
-            caption: "A bubble for the user, plain text for the agent, no avatar.",
+            caption: "A bubble for the user, plain text for the agent, no Mark.",
         },
         avoid: {
             example: (
@@ -357,15 +334,12 @@ export const chatRules: GuideRule[] = [
             ),
             caption: "Two round, colored bubbles: a texting app, not a workspace.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const spacingRules: GuideRule[] = [
+export const spacingRules: RuleExample[] = [
     {
         id: "SPACE-01",
-        title: "Space from the 4px scale, with more space between groups than inside them",
-        why: "Use gap-1, 2, 3, 4, 6 or 8 (4 to 32px). Items in a group sit closer together than the groups do, so the eye finds the groups without lines.",
         do: {
             example: (
                 <div className="flex w-56 flex-col gap-6 text-left">
@@ -392,12 +366,9 @@ export const spacingRules: GuideRule[] = [
             ),
             caption: "An even 11px everywhere: which label owns which value?",
         },
-        checkedBy: ["review"],
     },
     {
-        id: "SPACE-02",
-        title: "Rows are 36 or 48px in lists, 32px in menus",
-        why: "Rows of one height make a list easy to scan. A one-line list row is 36px (row-single); a title with a meta line is 48px (row-double). Menu rows are 32px (MENU_ITEM, see ROW-01). Do not invent a 40px or 52px row for one screen.",
+        id: "ROW-01",
         do: {
             example: (
                 <div className="w-56 text-left">
@@ -418,15 +389,12 @@ export const spacingRules: GuideRule[] = [
             ),
             caption: "30, 44 and 38px rows in one list.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const scrollRules: GuideRule[] = [
+export const scrollRules: RuleExample[] = [
     {
-        id: "SCROLL-01",
-        title: "Fade only the edge that can scroll",
-        why: "A fade says there is more this way. At the top of a list there is nothing above, so there is no top fade. useScrollFadeEdges sets the edges from the scroll position.",
+        id: "LAYOUT-05",
         do: {
             example: <ScrollFadeDemo mode="edges" />,
             caption: "At the top only the bottom edge fades. Scroll down and the top edge fades too.",
@@ -436,6 +404,5 @@ useScrollFadeEdges(ref)
 <div ref={ref} className="ag-scroll-fade overflow-y-auto">…</div>`,
         },
         avoid: {example: <ScrollFadeDemo mode="always" />, caption: "Both edges always fade: the first row looks cut off."},
-        checkedBy: ["review"],
     },
 ]

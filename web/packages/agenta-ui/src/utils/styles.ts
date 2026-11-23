@@ -141,7 +141,7 @@ export const textColors = {
 
 /**
  * Background color classes. Fills inside rows are translucent (`secondary`) so they stay
- * visible on the row's `accent` hover (HOVER-02).
+ * visible on the row's `accent` hover (SURF-06).
  *
  * @example
  * <span className={bgColors.chip}>{badge}</span>
@@ -183,7 +183,7 @@ export const borderColors = {
 } as const
 
 /**
- * Interactive element styles. Hover is `accent` (HOVER-01).
+ * Interactive element styles. Hover is `accent` (SURF-05).
  *
  * @example
  * <span className={interactiveStyles.expandIcon}>...</span>

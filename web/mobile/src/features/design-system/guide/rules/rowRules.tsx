@@ -20,17 +20,15 @@ import {
     SlackLogoIcon,
 } from "@phosphor-icons/react"
 
-import type {GuideRule} from "../types"
+import type {RuleExample} from "../types"
 
 const panel = "w-52 rounded-lg bg-popover p-1 text-left shadow-overlay"
 const legacyRow = (height: number, padX: number, gap: number, fontSize: number) =>
     ({height, padding: `0 ${padX}px`, gap, fontSize, display: "flex", alignItems: "center"}) as const
 
-export const rowRules: GuideRule[] = [
+export const rowRules: RuleExample[] = [
     {
-        id: "ROW-01",
-        title: "Every menu row is the same row",
-        why: "A menu, a select and a combobox are the same thing to a user, so their rows match. Dropdown, context menu, select, combobox and command palette all render MENU_ITEM: 32px tall, 8px side padding, text-label, a 16px icon 8px from the text. List and table rows are 36px (SPACE-02).",
+        id: "ROW-02",
         do: {
             example: (
                 <div className="flex flex-wrap gap-3">
@@ -65,12 +63,9 @@ export const rowRules: GuideRule[] = [
             ),
             caption: "A 28px menu, 28 and 36px select rows, 6 and 12px padding, 14px text.",
         },
-        checkedBy: ["review"],
     },
     {
-        id: "MENU-02",
-        title: "A search popover has one shape",
-        why: "Users learn the layout once. Pickers, the combobox and the command palette share it: search on top, group headings, MENU_ITEM rows, then a divider and the create or connect action as one more row. The search icon, the row icons and the action icon sit on one vertical line.",
+        id: "ROW-03",
         do: {
             example: (
                 <Command className="w-64 rounded-lg shadow-overlay">
@@ -110,15 +105,12 @@ export const rowRules: GuideRule[] = [
             ),
             caption: "A tall search, rows on different edges, a big button as the action.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const gapRules: GuideRule[] = [
+export const gapRules: RuleExample[] = [
     {
-        id: "GAP-01",
-        title: "Icon to text: 4, 6 or 8px, by place",
-        why: "The gap follows the place of the icon, never the screen. 4px in badges and xs buttons. 6px in other controls (buttons, tabs, segmented controls, fields). 8px in rows (menus, lists, nav, table cells).",
+        id: "SPACE-03",
         do: {
             example: (
                 <div className="flex flex-col items-start gap-3">
@@ -142,12 +134,9 @@ row                gap-2    8px   (MENU_ITEM, list rows)`,
             ),
             caption: "1, 12 and 10px: three gaps picked by hand.",
         },
-        checkedBy: ["review"],
     },
     {
-        id: "GAP-02",
-        title: "Mark to text: 8px for small marks, 12px for large",
-        why: "A bigger Mark needs more room. A Mark (IconTile) of 16, 20 or 24px sits 8px from its text. A Mark of 32 or 40px, usually next to two lines, sits 12px away. The same Mark size always gets the same gap.",
+        id: "SPACE-04",
         do: {
             example: (
                 <div className="flex flex-col items-start gap-4 text-left">
@@ -184,17 +173,14 @@ row                gap-2    8px   (MENU_ITEM, list rows)`,
             ),
             caption: "3px: the Mark touches the text. 20px: the text floats away.",
         },
-        checkedBy: ["review"],
     },
 ]
 
 const hoverRow = "flex w-60 items-center gap-2 rounded-md px-2 py-1.5 text-left text-label"
 
-export const hoverRules: GuideRule[] = [
+export const hoverRules: RuleExample[] = [
     {
-        id: "HOVER-01",
-        title: "One hover fill, one step darker than the surface",
-        why: "Every hoverable row, menu item and ghost control uses bg-accent. It is ink at 5% (6% in dark), not a fixed gray, so it is the same step darker on the page, in the sidebar and in a popover. Do not pick muted, foreground/10 or a gray for one screen.",
+        id: "SURF-05",
         do: {
             example: (
                 <div className="flex flex-col gap-2">
@@ -223,12 +209,9 @@ export const hoverRules: GuideRule[] = [
             ),
             caption: "muted, black at 15% and a stock gray: three hovers.",
         },
-        checkedBy: ["ratchet", "review"],
     },
     {
-        id: "HOVER-02",
-        title: "Nothing inside a row has the row's hover color",
-        why: "A Mark, a chip or a quiet button inside a hoverable row must stay visible when the row is hovered. Fills inside rows are translucent (secondary is ink at 4%), so they stack on the hover and stay one step darker.",
+        id: "SURF-06",
         do: {
             example: (
                 <div className={`${hoverRow} bg-accent`}>
@@ -253,6 +236,5 @@ export const hoverRules: GuideRule[] = [
             ),
             caption: "Hovered: the fill of the Mark equals the hover, and the Mark disappears.",
         },
-        checkedBy: ["review"],
     },
 ]

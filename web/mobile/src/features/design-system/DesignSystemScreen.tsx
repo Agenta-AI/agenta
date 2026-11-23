@@ -12,7 +12,6 @@ import {GuidePagePicker} from "./guide/GuidePagePicker"
 import {guidePages} from "./guide/guidePages"
 import {PropsTable} from "./guide/PropsTable"
 import {RuleBlock} from "./guide/RuleBlock"
-import {touchGrowthAntiPattern} from "./guide/rules/patternRules"
 import {ThemeToggle} from "./ThemeToggle"
 
 export function DesignSystemScreen() {
@@ -47,12 +46,7 @@ export function DesignSystemScreen() {
                         <p className="m-0 mt-1 max-w-[68ch] text-body text-muted-foreground">{page.tagline}</p>
                     </header>
                     {page.id === "overview" ? <GuideOverview pages={pages} /> : null}
-                    {page.id === "anti-patterns" ? <>
-                            <AntiPatternsWall pages={pages} extra={[touchGrowthAntiPattern]} onOpen={open} />
-                            <div className="mt-10">
-                                <RuleBlock rule={touchGrowthAntiPattern} />
-                            </div>
-                        </> : null}
+                    {page.id === "anti-patterns" ? <AntiPatternsWall pages={pages} onOpen={open} /> : null}
                     {page.code || page.api ? (
                         <div className="mb-10 flex max-w-[68ch] flex-col gap-4">
                             {page.code ? <CodeSnippet code={page.code} /> : null}

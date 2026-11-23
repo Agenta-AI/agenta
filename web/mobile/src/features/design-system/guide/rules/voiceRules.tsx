@@ -2,15 +2,13 @@ import {Badge, Button} from "@agenta/ui/ui"
 import {CheckCircleIcon, CircleNotchIcon, LightningIcon, RobotIcon, WarningCircleIcon} from "@phosphor-icons/react"
 
 import {MotionSwapDemo} from "../MotionSwapDemo"
-import type {GuideRule} from "../types"
+import type {RuleExample} from "../types"
 
 const card = "w-full max-w-64 rounded-lg bg-background p-4 text-left shadow-[inset_0_0_0_1px_var(--border-muted)]"
 
-export const quietRules: GuideRule[] = [
+export const quietRules: RuleExample[] = [
     {
         id: "LOUD-01",
-        title: "No gradients, no large saturated fills",
-        why: "Color goes on small things: one button, a badge, an icon. A colored panel or a gradient pulls the eye away from the content.",
         do: {
             example: (
                 <div className={card}>
@@ -31,12 +29,9 @@ export const quietRules: GuideRule[] = [
             ),
             caption: "A purple-to-blue gradient and a yellow button: an ad, not a tool.",
         },
-        checkedBy: ["review"],
     },
     {
         id: "LOUD-02",
-        title: "Nothing is bigger than the page title",
-        why: "Size is the last tool for hierarchy. The page title (text-heading, 20px) is the largest text on a screen; text-display is only for Home, first-run hero screens, and auth and error pages. A number that is the point of a tile uses text-metric (20px). Banners do not get a size of their own.",
         do: {
             example: (
                 <div className={card}>
@@ -55,20 +50,14 @@ export const quietRules: GuideRule[] = [
             ),
             caption: "A 40px number and an all-caps label shout over the page.",
         },
-        checkedBy: ["ratchet", "review"],
     },
     {
         id: "LOUD-03",
-        title: "No all caps, no exclamation marks, no emoji",
-        why: "The product speaks plainly. Sentence case reads faster than capitals, and a result needs no exclamation mark.",
         do: {example: <div className="text-label">Agent published</div>, caption: "Sentence case, calm."},
         avoid: {example: <div style={{fontSize: 13, fontWeight: 700, letterSpacing: "0.06em"}}>🎉 AGENT PUBLISHED!</div>, caption: "Caps, emoji and an exclamation mark."},
-        checkedBy: ["review"],
     },
     {
         id: "LOUD-04",
-        title: "Icons take the text color",
-        why: "A colored icon competes with the text next to it. Only status icons use their status color.",
         do: {
             example: (
                 <div className="flex flex-col gap-2 text-label text-muted-foreground">
@@ -89,12 +78,9 @@ export const quietRules: GuideRule[] = [
             ),
             caption: "A color per icon: the status no longer stands out.",
         },
-        checkedBy: ["review"],
     },
     {
         id: "LOUD-05",
-        title: "One highlight color per screen",
-        why: "Brand yellow or a status color, used once, tells the user where to look. Several highlight colors at once cancel each other out.",
         do: {
             example: (
                 <div className="flex items-center gap-2">
@@ -116,12 +102,9 @@ export const quietRules: GuideRule[] = [
             ),
             caption: "Blue, red, green and yellow together.",
         },
-        checkedBy: ["review"],
     },
     {
         id: "LOUD-06",
-        title: "Thin lines, soft shadows",
-        why: "A heavy frame is louder than its content. Every line is 1px; only the focus ring, the active tab underline and a diff or recent-change gutter marker are 2px. Shadows are translucent and only on floating things.",
         do: {example: <div className={card}><div className="text-label">1px border-muted edge</div></div>, caption: "A 1px border-muted edge."},
         avoid: {
             example: (
@@ -131,23 +114,17 @@ export const quietRules: GuideRule[] = [
             ),
             caption: "A heavy frame: the card is louder than its content.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const contentRules: GuideRule[] = [
+export const contentRules: RuleExample[] = [
     {
         id: "COPY-01",
-        title: "Sentence case everywhere",
-        why: "Titles, buttons, menus and tabs use sentence case. In Title Case every word competes for attention.",
         do: {example: <div className="flex gap-1"><Button variant="outline">New agent</Button><Button variant="outline">Run history</Button></div>, caption: "New agent, Run history."},
         avoid: {example: <div className="flex gap-1"><Button variant="outline">New Agent</Button><Button variant="outline">Run History</Button></div>, caption: "New Agent, Run History."},
-        checkedBy: ["review"],
     },
     {
         id: "COPY-02",
-        title: "Toasts say what happened, in the past tense",
-        why: "A toast confirms a result. Offer Undo instead of a confirm dialog when the action can be reversed.",
         do: {
             example: (
                 <div className="flex w-72 items-start gap-2 rounded-lg bg-popover p-3 text-label shadow-overlay">
@@ -166,33 +143,23 @@ export const contentRules: GuideRule[] = [
             ),
             caption: "Success! of what?",
         },
-        checkedBy: ["review"],
     },
     {
         id: "COPY-03",
-        title: "Name things the way users see them",
-        why: "Users manage connections and runs, not integration configs and invocations.",
         do: {example: <div className="text-label">3 connections · 128 runs</div>, caption: "Product words."},
         avoid: {example: <div className="text-label">3 integration configs · 128 invocations</div>, caption: "System words."},
-        checkedBy: ["review"],
     },
 ]
 
-export const motionRules: GuideRule[] = [
+export const motionRules: RuleExample[] = [
     {
         id: "MOTION-01",
-        title: "Animate a view swap, briefly",
-        why: "When one view replaces another, a 120–200ms fade and a 4px slide show that something changed. Use the presets in src/lib/motion; they stop under reduced motion.",
         do: {example: <MotionSwapDemo animated />, caption: "Click Next step: a fade and a 4px slide."},
         avoid: {example: <MotionSwapDemo animated={false} />, caption: "Click Next step: the text just changes. Did anything happen?"},
-        checkedBy: ["review"],
     },
     {
         id: "MOTION-02",
-        title: "No bounce, no attention-seeking motion",
-        why: "Motion that repeats or overshoots keeps pulling the eye from the work. Durations are 120, 200 and 320ms with ease-out or ease-in-out. Live activity has one look: a spinning CircleNotch, or a 1.5s opacity pulse on a status dot. No ping, no scaling, no spinning rings or gradients, no shaking.",
         do: {example: <Badge variant="info" icon={<CircleNotchIcon className="animate-spin" />}>Running</Badge>, caption: "A still badge; the spinner inside is the only motion."},
         avoid: {example: <span className="animate-bounce"><Badge variant="info">Running</Badge></span>, caption: "A bouncing badge pulls the eye for as long as the run lasts."},
-        checkedBy: ["review"],
     },
 ]

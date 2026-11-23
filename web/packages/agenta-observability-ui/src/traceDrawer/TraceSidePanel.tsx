@@ -138,7 +138,7 @@ const TraceSidePanel = ({
                     value={item.key}
                     className="border-border-muted"
                 >
-                    {/* Section headers on the row scale: row-single (SPACE-02). */}
+                    {/* Section headers on the row scale: row-single (ROW-01). */}
                     <AccordionTrigger className="box-border h-row-single !items-center !py-0">
                         {item.label}
                     </AccordionTrigger>

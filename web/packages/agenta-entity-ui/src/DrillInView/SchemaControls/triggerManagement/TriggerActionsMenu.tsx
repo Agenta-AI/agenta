@@ -20,7 +20,7 @@ export function TriggerActionsMenu({
     open?: boolean
     /** Portal target; defaults to document.body (pass an element to render inline). */
     container?: HTMLElement | null
-    /** Kept for callers; the menu has one size on every screen (SIZE-03). */
+    /** Kept for callers; the menu has one size on every screen (SIZE-02). */
     phone?: boolean
 }) {
     const t = useT(automationsEditorCatalog)

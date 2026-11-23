@@ -53,7 +53,7 @@ export interface ApprovalCardProps {
     entityId?: string
     /** Show the Redirect (deny + note) entry point — hosts gate it by their own flag. */
     steerEnabled?: boolean
-    /** @deprecated Kept for callers; touch draws the same actions as a mouse (SIZE-03). */
+    /** @deprecated Kept for callers; touch draws the same actions as a mouse (SIZE-02). */
     touch?: boolean
     /** A host-side failure to surface under the actions (e.g. the detached resume failed). */
     errorText?: string | null

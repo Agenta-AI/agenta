@@ -1,5 +1,5 @@
 /**
- * Table cells hold one line, so every row is `row-single` (36) on the row scale (SPACE-02).
+ * Table cells hold one line, so every row is `row-single` (36) on the row scale (ROW-01).
  * The full value is one click away in the cell's popover.
  */
 export const ONE_LINE_CELL = "h-5 overflow-hidden [&_*]:truncate [&_*]:!whitespace-nowrap"

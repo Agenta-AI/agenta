@@ -33,7 +33,7 @@ export const ActivityThoughtStep = ({
             <StepRow open={open} onToggle={() => setOpen((v) => !v)}>
                 <ActivityNode icon="brain" />
                 <span
-                    // The agent's own words: prose, `text-body` (CHAT-01).
+                    // The agent's own words: prose, `text-body` (KIT-11).
                     className={`min-w-0 max-w-[44ch] truncate text-body text-foreground transition-colors group-hover/row:text-muted-foreground ${
                         live || streaming ? LIVE_TEXT_CLASS : ""
                     }`}

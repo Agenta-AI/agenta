@@ -4,7 +4,7 @@ import {useScrollFadeEdges} from "@agenta/ui/hooks"
 
 const ROWS = ["Weekly report", "Triage inbox", "Release notes", "Standup summary", "Support digest", "Churn alert", "Docs sync", "Lead scoring"]
 
-/** A short scroll box for SCROLL-01: `edges` drives the fades from the scroll position, `always` fades both edges. */
+/** A short scroll box for LAYOUT-05: `edges` drives the fades from the scroll position, `always` fades both edges. */
 export function ScrollFadeDemo({mode}: {mode: "edges" | "always"}) {
     const ref = useRef<HTMLDivElement>(null)
     useScrollFadeEdges(ref, {enabled: mode === "edges"})

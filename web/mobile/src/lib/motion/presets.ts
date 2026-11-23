@@ -2,7 +2,7 @@
  * Shared motion presets — the ONLY place transition values live in this app.
  * Components consume presets via useMotionPresets() (reduced-motion aware);
  * they never define their own durations, easings, or springs.
- * See the mobile-motion-patterns skill for usage rules.
+ * Rules: web/mobile/DESIGN.md, Motion.
  */
 import {useMemo} from "react"
 

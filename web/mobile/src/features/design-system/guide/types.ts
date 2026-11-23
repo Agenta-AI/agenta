@@ -1,13 +1,18 @@
 import type {ReactNode} from "react"
 
-/** One rule: the same ID as in DESIGN.md, a Do and an Avoid example, and how it is checked. */
-export interface GuideRule {
+/** A rule's live examples. Its title, reason and checks come from DESIGN.md (rules.json). */
+export interface RuleExample {
     id: string
-    title: string
-    why: string
     do: {example: ReactNode; caption: string; code?: string}
     avoid: {example: ReactNode; caption: string}
-    checkedBy: ("lint" | "ratchet" | "test" | "review")[]
+}
+
+/** A rule as the guide shows it: the DESIGN.md row plus its examples. */
+export interface GuideRule extends RuleExample {
+    title: string
+    why: string
+    group: string
+    checkedBy: ("ratchet" | "lint" | "review")[]
 }
 
 export interface GuidePage {

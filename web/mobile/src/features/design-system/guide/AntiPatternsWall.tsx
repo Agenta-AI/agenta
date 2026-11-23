@@ -1,19 +1,14 @@
-import type {GuidePage, GuideRule} from "./types"
+import {InlineCode} from "./InlineCode"
+import type {GuidePage} from "./types"
 
 export function AntiPatternsWall({
     pages,
-    extra = [],
     onOpen,
 }: {
     pages: GuidePage[]
-    /** Anti-patterns that are not rules: they show only here. */
-    extra?: GuideRule[]
     onOpen: (pageId: string, ruleId: string) => void
 }) {
-    const items = [
-        ...extra.map((r) => ({page: "anti-patterns", rule: r})),
-        ...pages.flatMap((p) => p.rules.map((r) => ({page: p.id, rule: r}))),
-    ]
+    const items = pages.flatMap((p) => p.rules.map((r) => ({page: p.id, rule: r})))
     return (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items.map(({page, rule}) => (
@@ -27,7 +22,7 @@ export function AntiPatternsWall({
                         {rule.avoid.example}
                     </div>
                     <span className="text-label">
-                        <span className="text-destructive">{rule.id}</span> · {rule.title}
+                        <span className="text-destructive">{rule.id}</span> · <InlineCode text={rule.title} />
                     </span>
                 </button>
             ))}

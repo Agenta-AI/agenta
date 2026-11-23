@@ -1,15 +1,13 @@
 import {Badge, Button, IconTile} from "@agenta/ui/ui"
 import {CheckIcon, GearIcon, HouseIcon, MagnifyingGlassIcon, RobotIcon, XIcon} from "@phosphor-icons/react"
 
-import type {GuideRule} from "../types"
+import type {RuleExample} from "../types"
 
 const card = "w-full max-w-64 rounded-lg bg-background p-4 text-left shadow-[inset_0_0_0_1px_var(--border-muted)]"
 
-export const colorRules: GuideRule[] = [
+export const colorRules: RuleExample[] = [
     {
         id: "COLOR-01",
-        title: "Use a theme variable, never a raw color",
-        why: "A variable names a job, so every secondary text in the app is the same gray. A raw value names a look, and the next person picks a slightly different one.",
         do: {
             example: (
                 <div className={card}>
@@ -29,12 +27,9 @@ export const colorRules: GuideRule[] = [
             ),
             caption: "Three hand-picked grays; one leans violet, one teal. The page looks off and nobody can say why.",
         },
-        checkedBy: ["ratchet", "review"],
     },
     {
         id: "COLOR-02",
-        title: "Brand yellow marks the one brand action",
-        why: "The yellow is the strongest color we have. It fills only the single creation action on Home, New agent. Publish, sign-in and billing use the default primary. On badges, links and several buttons it stops pointing at anything. Open work: the Publish button, the sign-in key and the billing recommended plan still use it.",
         do: {
             example: (
                 <div className="flex gap-1">
@@ -56,12 +51,9 @@ export const colorRules: GuideRule[] = [
             ),
             caption: "Three yellow elements compete; the eye has no first stop.",
         },
-        checkedBy: ["review"],
     },
     {
         id: "COLOR-03",
-        title: "Status needs a word or an icon, not color alone",
-        why: "About 1 in 12 men see red and green poorly. The word or the icon carries the meaning; color only supports it.",
         do: {
             example: (
                 <div className="flex gap-2">
@@ -84,12 +76,9 @@ export const colorRules: GuideRule[] = [
             ),
             caption: "Two dots. Without color vision they are the same.",
         },
-        checkedBy: ["review"],
     },
     {
         id: "COLOR-05",
-        title: "UI colors stay neutral; data colors are only for data",
-        why: "A new color for one component adds a palette nobody controls. Use one of the 23 UI colors, or a tint of one. Categories and chart series (span types, file kinds, agent avatars, template tiles) use data-1 to data-6 in order, with on-data text. A data color never shows UI state: not hover, selected, status or a button. Workspace and project Marks stay neutral.",
         do: {
             example: (
                 <div className="flex gap-2">
@@ -124,15 +113,12 @@ export const colorRules: GuideRule[] = [
             ),
             caption: "Round Marks in hand-picked colors: a new palette, and the red one looks like an error.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const typeRules: GuideRule[] = [
+export const typeRules: RuleExample[] = [
     {
         id: "TYPE-01",
-        title: "Use the text styles, never a pixel size",
-        why: "We measured up to 35 text styles on one screen. Each near-miss size looks a little wrong next to the real ones.",
         do: {
             example: (
                 <div className={card}>
@@ -153,12 +139,9 @@ export const typeRules: GuideRule[] = [
             ),
             caption: "15, 13.5 and 12.5px: each almost a style.",
         },
-        checkedBy: ["ratchet"],
     },
     {
         id: "TYPE-04",
-        title: "No weight above 600",
-        why: "Bold text shouts. Weight 600 is the heaviest, and only for titles. Emphasis comes from weight 500 and foreground against muted-foreground.",
         do: {
             example: (
                 <div className={card}>
@@ -177,12 +160,9 @@ export const typeRules: GuideRule[] = [
             ),
             caption: "Weights 800 and 700: both lines shout.",
         },
-        checkedBy: ["ratchet"],
     },
     {
         id: "TYPE-05",
-        title: "Weight never changes with state; controls stay at 500",
-        why: "A bolder word is wider, so the label moves and its neighbors shift when it turns active. Weight also already means rank: a semibold tab reads as a title. State shows through color or a fill (bg-selected, text-foreground). Controls are 500 (text-label) in every state, and never 600, primary or focused included. The ratchet counts weight-by-state classes.",
         do: {
             example: (
                 <div className="flex w-56 flex-col gap-3 text-left">
@@ -213,12 +193,9 @@ export const typeRules: GuideRule[] = [
             ),
             caption: "Active tab and selected row turn semibold: the labels widen and read as titles.",
         },
-        checkedBy: ["ratchet", "review"],
     },
     {
         id: "TYPE-03",
-        title: "Numbers in columns use tabular figures",
-        why: "Proportional digits have different widths, so a column of numbers moves left and right.",
         do: {
             example: <div className="w-28 text-right text-body tabular-nums">1,204.50<br />98.00<br />11,111.11</div>,
             caption: "tabular-nums: digits stack.",
@@ -231,15 +208,12 @@ export const typeRules: GuideRule[] = [
             ),
             caption: "The 1s are narrow and the columns drift.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const shapeRules: GuideRule[] = [
+export const shapeRules: RuleExample[] = [
     {
         id: "SHAPE-01",
-        title: "Nothing is round",
-        why: "Pills and circles belong to another design language. No pill, no circle and no 50% radius, on any component. A radius is at most a quarter of the element's short side.",
         do: {
             example: (
                 <div className="flex items-center gap-2">
@@ -258,14 +232,11 @@ export const shapeRules: GuideRule[] = [
                     <span style={{borderRadius: 999, background: "var(--secondary)", padding: "2px 8px", fontSize: 11}}>Draft</span>
                 </div>
             ),
-            caption: "A circle avatar, a pill button and a pill badge.",
+            caption: "A circle Mark, a pill button and a pill badge.",
         },
-        checkedBy: ["ratchet"],
     },
     {
         id: "SHAPE-02",
-        title: "Nest corners: inner = outer − padding",
-        why: "When an inner box has the same radius as its parent, the gap is wider at the corners than on the sides.",
         do: {
             example: (
                 <div className="w-48 rounded-xl bg-secondary p-1">
@@ -282,15 +253,12 @@ export const shapeRules: GuideRule[] = [
             ),
             caption: "12px inside 12px: the corners look thick.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const iconRules: GuideRule[] = [
+export const iconRules: RuleExample[] = [
     {
         id: "ICON-01",
-        title: "Phosphor only",
-        why: "Phosphor draws thin round strokes; lucide draws heavier square ones. Side by side they look like two products. The other library is removed and banned by lint.",
         do: {
             example: (
                 <div className="flex gap-4 text-muted-foreground">
@@ -319,12 +287,9 @@ export const iconRules: GuideRule[] = [
             ),
             caption: "Two libraries mixed: two icons look bold, two look thin.",
         },
-        checkedBy: ["lint"],
     },
     {
         id: "ICON-02",
-        title: "One icon per button",
-        why: "One icon says what the action is. A second icon makes the button look like two controls. A menu trigger may have a trailing caret instead of a leading icon.",
         do: {example: <Button variant="outline"><MagnifyingGlassIcon /> Search</Button>, caption: "One leading icon."},
         avoid: {
             example: (
@@ -334,12 +299,9 @@ export const iconRules: GuideRule[] = [
             ),
             caption: "Is it a menu or an action?",
         },
-        checkedBy: ["review"],
     },
     {
         id: "ICON-05",
-        title: "One icon per product term",
-        why: "When Skill is a compass in the nav and a book in a list, users read two different things. The Icon per term table in DESIGN.md gives each term exactly one icon.",
         do: {
             example: (
                 <div className="flex flex-col gap-2 text-label">
@@ -358,15 +320,12 @@ export const iconRules: GuideRule[] = [
             ),
             caption: "The same term, two icons.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const surfaceRules: GuideRule[] = [
+export const surfaceRules: RuleExample[] = [
     {
         id: "SURF-01",
-        title: "Separate areas by tone, not by more borders",
-        why: "Each border is a line to read. A different surface separates the same areas with less noise.",
         do: {
             example: (
                 <div className="w-56 rounded-lg bg-background p-3 text-left">
@@ -385,12 +344,9 @@ export const surfaceRules: GuideRule[] = [
             ),
             caption: "Three borders for two areas.",
         },
-        checkedBy: ["review"],
     },
     {
         id: "SURF-03",
-        title: "Shadows only on things that float",
-        why: "A shadow says this sits above the page. Menus, popovers and dialogs float; cards in a list do not.",
         do: {
             example: (
                 <div className="relative h-28 w-56">
@@ -415,6 +371,5 @@ export const surfaceRules: GuideRule[] = [
             ),
             caption: "Every card floats, on an opaque gray shadow, so nothing does.",
         },
-        checkedBy: ["review"],
     },
 ]

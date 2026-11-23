@@ -120,7 +120,7 @@ describe("ModelPickerList", () => {
         expect(head.querySelector("svg")).not.toBeNull()
     })
 
-    it("draws each model as one menu row, with the raw id on the name's line (ROW-01)", () => {
+    it("draws each model as one menu row, with the raw id on the name's line (ROW-02)", () => {
         renderList({layout: "popover"})
         const row = screen.getByText("Gemini 3.8 Flash").closest("button") as HTMLElement
         expect(row.className).toContain("min-h-8")

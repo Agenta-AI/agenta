@@ -1,13 +1,11 @@
 import {Alert, Badge, Button, EmptyState, Field, IconTile, Input, SkeletonBlock} from "@agenta/ui/ui"
 import {ArrowClockwiseIcon, CopyIcon, PlusIcon, RobotIcon, TrashIcon} from "@phosphor-icons/react"
 
-import type {GuideRule} from "../types"
+import type {RuleExample} from "../types"
 
-export const buttonRules: GuideRule[] = [
+export const buttonRules: RuleExample[] = [
     {
         id: "ACT-01",
-        title: "One primary action per view",
-        why: "The default (primary) button answers one question: what do I do here? Two of them give two answers.",
         do: {
             example: (
                 <div className="flex gap-1">
@@ -28,12 +26,9 @@ export const buttonRules: GuideRule[] = [
             ),
             caption: "Two primary buttons. Which one?",
         },
-        checkedBy: ["review"],
     },
     {
         id: "ACT-02",
-        title: "Label a button with the action",
-        why: "A verb and an object say what happens. OK and Submit make the user read the dialog again.",
         do: {
             example: (
                 <div className="flex gap-1">
@@ -52,12 +47,9 @@ export const buttonRules: GuideRule[] = [
             ),
             caption: "OK to what?",
         },
-        checkedBy: ["review"],
     },
     {
         id: "ACT-03",
-        title: "Destructive actions are quiet until the final confirm",
-        why: "A solid red button on a page is louder than the primary action. Solid red is only for the final confirm in a dialog.",
         do: {
             example: (
                 <Button variant="destructive-ghost">
@@ -77,12 +69,9 @@ export const buttonRules: GuideRule[] = [
             ),
             caption: "Solid red on a page, next to a routine action.",
         },
-        checkedBy: ["review"],
     },
     {
         id: "SIZE-01",
-        title: "Pass a size, never a height",
-        why: "A control owns its height, padding, radius, text and icon size, so size=\"sm\" is the same on every screen. A height class breaks that.",
         do: {
             example: (
                 <div className="flex items-center gap-1">
@@ -103,12 +92,9 @@ export const buttonRules: GuideRule[] = [
             ),
             caption: "36, 30 and 34px: tops and bottoms do not line up.",
         },
-        checkedBy: ["ratchet"],
     },
     {
-        id: "SIZE-02",
-        title: "Grouped buttons sit 4px apart, 8px at most",
-        why: "A group reads as one unit only when its gap is smaller than the space around it. Use gap-1, and never more than gap-2.",
+        id: "SPACE-02",
         do: {
             example: (
                 <div className="flex gap-1">
@@ -129,15 +115,12 @@ export const buttonRules: GuideRule[] = [
             ),
             caption: "Loose icons with no group.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const formRules: GuideRule[] = [
+export const formRules: RuleExample[] = [
     {
         id: "FORM-01",
-        title: "Put field help in a ? tooltip",
-        why: "Help text under every label doubles the height of the form. The label stays short; the help waits behind the ? icon.",
         do: {
             example: (
                 <div className="w-60">
@@ -158,12 +141,9 @@ export const formRules: GuideRule[] = [
             ),
             caption: "Help text always visible, on every field.",
         },
-        checkedBy: ["review"],
     },
     {
         id: "FORM-02",
-        title: "One focus style",
-        why: "Focus must look the same on every control, or users lose it. Use focus-ring on any control and focus-ring-field on a bordered field: an ink edge with a 2px lime ring. No gray halo, no gap.",
         do: {
             example: (
                 <div className="w-56">
@@ -184,15 +164,12 @@ export const formRules: GuideRule[] = [
             ),
             caption: "Lime border plus a 4px gray halo.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const badgeRules: GuideRule[] = [
+export const badgeRules: RuleExample[] = [
     {
-        id: "BADGE-01",
-        title: "Five badge variants",
-        why: "A badge color means a status. Neutral plus the four statuses cover every case; categorical colors (blue, purple, gold) add a second palette with no meaning. Data colors are for categories in charts and avatars, not badges. Badge text is text-caption.",
+        id: "KIT-01",
         do: {
             example: (
                 <div className="flex flex-wrap gap-1">
@@ -220,15 +197,12 @@ export const badgeRules: GuideRule[] = [
             ),
             caption: "Categorical colors with borders: decoration, not meaning.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const markRules: GuideRule[] = [
+export const markRules: RuleExample[] = [
     {
         id: "CONS-01",
-        title: "A Mark's size comes from its place",
-        why: "The same Mark has the same size wherever it appears: 16 inline, in nav and in menus · 20 in pickers and composer chips · 24 in list rows · 32 in page and dialog headers and cards · 40 in empty states. No 18, 22 or 28px Marks.",
         do: {
             example: (
                 <div className="flex items-end gap-3">
@@ -251,15 +225,12 @@ export const markRules: GuideRule[] = [
             ),
             caption: "One-off sizes with their own radii.",
         },
-        checkedBy: ["review"],
     },
 ]
 
-export const stateRules: GuideRule[] = [
+export const stateRules: RuleExample[] = [
     {
         id: "STATE-01",
-        title: "An empty state says what to do next",
-        why: "\"No data\" and \"Nothing here\" are dead ends. Say what is missing and why it matters, and offer the first action. Address the user as you.",
         do: {
             example: (
                 <EmptyState title="No agents yet" description="Create an agent to automate a task you do every week.">
@@ -271,12 +242,9 @@ export const stateRules: GuideRule[] = [
             caption: "What is missing, why, one action.",
         },
         avoid: {example: <span className="text-meta text-muted-foreground">No data</span>, caption: "A dead end."},
-        checkedBy: ["review"],
     },
     {
         id: "STATE-02",
-        title: "The skeleton matches the loaded view",
-        why: "If the skeleton has another layout, the page jumps when the data arrives.",
         do: {
             example: (
                 <div className="flex w-56 flex-col gap-3">
@@ -303,12 +271,9 @@ export const stateRules: GuideRule[] = [
             ),
             caption: "Generic bars: the layout shifts on load.",
         },
-        checkedBy: ["review"],
     },
     {
         id: "STATE-03",
-        title: "An error says what happened and how to fix it",
-        why: "\"Something went wrong\" gives the user nothing to act on. Name the cause, what it means, and the next step.",
         do: {
             example: (
                 <div className="w-64">
@@ -325,6 +290,5 @@ export const stateRules: GuideRule[] = [
             ),
             caption: "No cause, no fix.",
         },
-        checkedBy: ["review"],
     },
 ]

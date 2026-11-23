@@ -88,7 +88,7 @@ const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
             }
             aria-disabled={item.disabled || undefined}
             className={cn(
-                // One row height per list (SPACE-02): row-double with a description, row-single without.
+                // One row height per list (ROW-01): row-double with a description, row-single without.
                 "-mx-3 box-border flex min-w-0 items-center gap-3 rounded-md px-3",
                 item.description ? "h-row-double" : "h-row-single",
                 item.disabled && "cursor-not-allowed opacity-60",

@@ -47,7 +47,7 @@ export const TracesList = () => {
                 <div
                     role="button"
                     tabIndex={0}
-                    // row-double (SPACE-02); the list hangs into the gutter, so the type icon
+                    // row-double (ROW-01); the list hangs into the gutter, so the type icon
                     // sits on the title's line (ALIGN-01).
                     className="box-border flex h-row-double cursor-pointer flex-col justify-center border-0 border-b border-solid border-border-muted px-4"
                     onClick={() =>

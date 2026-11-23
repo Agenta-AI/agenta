@@ -1,17 +1,15 @@
 import {Button} from "@agenta/ui/ui"
 import {ArrowUpIcon, CaretLeftIcon, DotsThreeIcon, HouseIcon, PaperclipIcon, PlusIcon, RobotIcon, XIcon} from "@phosphor-icons/react"
 
-import type {GuideRule} from "../types"
+import type {RuleExample} from "../types"
 
-const phone = "flex w-52 flex-col overflow-hidden rounded-lg bg-background text-left shadow-[inset_0_0_0_1px_var(--border-muted)]"
+const compactFrame = "flex w-52 flex-col overflow-hidden rounded-lg bg-background text-left shadow-[inset_0_0_0_1px_var(--border-muted)]"
 const body = "flex flex-1 flex-col gap-1.5 p-3"
 const bar = "h-2 rounded-xs bg-secondary"
 
-export const paneRules: GuideRule[] = [
+export const paneRules: RuleExample[] = [
     {
-        id: "PANE-01",
-        title: "The agent pane sits next to the item it talks about",
-        why: "The user asks the agent about the item that is open, so the item stays in view. On a wide window the chat is the 320px right column. On a phone it is a drill-in: it opens its own screen with Back, which returns to the item, and the draft stays. The header names the item, so the user knows what the agent sees.",
+        id: "LAYOUT-06",
         do: {
             example: (
                 <div className="flex w-72 overflow-hidden rounded-lg text-left shadow-[inset_0_0_0_1px_var(--border-muted)]">
@@ -45,12 +43,9 @@ export const paneRules: GuideRule[] = [
             ),
             caption: "A dialog over the item, titled Chat: the item is hidden and not named.",
         },
-        checkedBy: ["review"],
     },
     {
-        id: "COMP-02",
-        title: "One Composer, two states",
-        why: "The collapsed entry and the open composer are two states of one component. A tap on the entry opens the field the user types in. A plain input dressed up as a composer looks the same at rest, then opens something else, and drifts from the real one on the next change.",
+        id: "KIT-10",
         do: {
             example: (
                 <div className="flex w-60 flex-col gap-2 text-left">
@@ -86,15 +81,12 @@ export const paneRules: GuideRule[] = [
             ),
             caption: "A plain input as the entry: another radius, no Send, then a different box opens.",
         },
-        checkedBy: ["review"],
     },
     {
-        id: "PHONE-01",
-        title: "One item on the phone's bottom edge",
-        why: "The thumb lands on the bottom edge, so whatever sits there is the screen's main action. Two items there compete and cover the content. Give the edge to the composer entry, one primary action or the nav bar. Put any other primary action in the header or the content.",
+        id: "COMPACT-01",
         do: {
             example: (
-                <div className={phone} style={{height: 176}}>
+                <div className={compactFrame} style={{height: 176}}>
                     <div className={body}>
                         <div className="text-label">Agents</div>
                         <div className={bar} />
@@ -109,7 +101,7 @@ export const paneRules: GuideRule[] = [
         },
         avoid: {
             example: (
-                <div className={phone} style={{height: 176}}>
+                <div className={compactFrame} style={{height: 176}}>
                     <div className={body}>
                         <div className="text-label">Agents</div>
                         <div className={bar} />
@@ -127,15 +119,12 @@ export const paneRules: GuideRule[] = [
             ),
             caption: "A button, a composer and the nav stacked on the edge.",
         },
-        checkedBy: ["review"],
     },
     {
-        id: "PHONE-02",
-        title: "The phone header is one 44px bar",
-        why: "A phone has little height, and the header is on every screen. One 44px bar holds Back, one title and at most two actions. The icon buttons are the kit's compact size, the same as everywhere else.",
+        id: "COMPACT-02",
         do: {
             example: (
-                <div className={phone}>
+                <div className={compactFrame}>
                     <div className="flex h-11 items-center gap-1 border-b border-border-muted px-1">
                         <Button variant="ghost" size="icon" aria-label="Back"><CaretLeftIcon /></Button>
                         <span className="flex-1 truncate text-label">Weekly report</span>
@@ -148,7 +137,7 @@ export const paneRules: GuideRule[] = [
         },
         avoid: {
             example: (
-                <div className={phone}>
+                <div className={compactFrame}>
                     <div className="flex items-center gap-1 border-b border-border-muted px-1" style={{height: 64}}>
                         <Button variant="outline" aria-label="Back" style={{width: 44, height: 44}}><CaretLeftIcon size={20} /></Button>
                         <div className="flex flex-1 flex-col">
@@ -162,6 +151,5 @@ export const paneRules: GuideRule[] = [
             ),
             caption: "A 64px header, 44px bordered buttons and two titles.",
         },
-        checkedBy: ["review"],
     },
 ]

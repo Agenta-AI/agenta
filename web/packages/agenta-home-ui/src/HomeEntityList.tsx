@@ -61,7 +61,7 @@ const TAB_OFF = "border-b-transparent text-muted-foreground hover:text-foregroun
 /** How many templates the tab shows before handing off to the gallery. */
 const TEMPLATE_SHORTLIST = 5
 
-// row-double (48px), 12px padding that hangs outside the column's edge (SPACE-02, ALIGN-01).
+// row-double (48px), 12px padding that hangs outside the column's edge (ROW-01, ALIGN-01).
 const ROW =
     "box-border flex h-row-double w-full shrink-0 cursor-pointer appearance-none items-center gap-3 rounded-md border-0 bg-transparent px-3 py-0 text-left font-[inherit] outline-none transition-colors hover:bg-accent " +
     FOCUS_RING

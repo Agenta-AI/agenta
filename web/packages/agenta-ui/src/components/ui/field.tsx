@@ -107,7 +107,7 @@ function Field({
 }: FieldProps) {
     const t = useT(uiControlsCatalog)
     const autoId = React.useId()
-    // Controlled so a tap toggles the help: touch has no hover (TOUCH-03).
+    // Controlled so a tap toggles the help: touch has no hover (TOUCH-02).
     const [helpOpen, setHelpOpen] = React.useState(false)
     const child = React.isValidElement<{
         id?: string

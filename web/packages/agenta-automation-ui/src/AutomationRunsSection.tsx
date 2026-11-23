@@ -46,7 +46,7 @@ const RunsRow = ({
             ) : null}
         </>
     )
-    // One row height for the card (SPACE-02); the divider sits inside it.
+    // One row height for the card (ROW-01); the divider sits inside it.
     const frame =
         "box-border flex h-row-single w-full items-center gap-2.5 border-0 border-t border-solid border-border-muted bg-transparent px-3 py-0 text-left first:border-t-0"
     return onClick ? (

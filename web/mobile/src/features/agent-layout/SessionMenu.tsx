@@ -198,7 +198,7 @@ export const SessionMenu = ({
                     {list("compact")}
                 </div>
                 <div className="flex flex-col border-0 border-t border-solid border-border-muted pt-1">
-                    {/* Menu rows, as in every menu (ROW-01). */}
+                    {/* Menu rows, as in every menu (ROW-02). */}
                     <button type="button" className={cn(MENU_ITEM, MENU_ROW)} onClick={newSession}>
                         <Plus aria-hidden className="text-muted-foreground" />
                         {t("agentLayout.header.newSession")}

@@ -58,7 +58,7 @@ export const MoreIdeasDialog = ({
                     ;(event.currentTarget as HTMLElement | null)?.focus()
                 }}
                 // 60 px from the top of the page (the positioner pads 16 px); a phone keeps the
-                // kit's bottom dock (TOUCH-04).
+                // kit's bottom dock (COMPACT-04).
                 className="flex h-[min(80svh,560px)] max-w-content-md flex-col gap-0 overflow-hidden p-0 shadow-modal sm:mt-11 sm:h-[min(460px,calc(100%-44px))] sm:max-w-content-md sm:self-start sm:rounded-xl"
             >
                 <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted px-4 py-3">

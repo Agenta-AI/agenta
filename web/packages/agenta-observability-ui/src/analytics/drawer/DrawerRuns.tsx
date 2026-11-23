@@ -363,7 +363,7 @@ const RunRow = ({
                 onClick={onToggle}
                 className={cn(
                     failedView ? FAILED_GRID : ROW_GRID,
-                    // One row height (SPACE-02): row-double with a second line, row-single without.
+                    // One row height (ROW-01): row-double with a second line, row-single without.
                     "box-border w-full cursor-pointer border-0 py-0 text-left text-label font-normal",
                     subline && !failedView ? "h-row-double" : "h-row-single",
                     open ? "bg-accent" : "bg-transparent hover:bg-accent",

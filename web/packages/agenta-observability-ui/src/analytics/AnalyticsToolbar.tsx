@@ -149,7 +149,7 @@ export const AnalyticsToolbar = ({
     const openingCustom = useRef(false)
 
     return (
-        // One size on every screen: nothing grows on a phone (SIZE-03).
+        // One size on every screen: nothing grows on a phone (SIZE-02).
         <div className="flex flex-wrap items-center gap-2">
             <Popover open={customOpen} onOpenChange={setCustomOpen}>
                 <DropdownMenu open={rangeOpen} onOpenChange={onRangeOpenChange}>

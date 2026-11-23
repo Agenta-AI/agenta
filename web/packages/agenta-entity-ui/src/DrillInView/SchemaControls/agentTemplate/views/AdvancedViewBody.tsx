@@ -26,7 +26,7 @@ const AdvancedViewBody = ({target, nav}: ViewProps<AdvancedViewParams>) => {
                         data-testid={`advanced-part-${row.key}`}
                         disabled={!nav.push}
                         onClick={() => void nav.push?.(row.view, {}, target)}
-                        // One height for every row, with or without a summary (SPACE-02).
+                        // One height for every row, with or without a summary (ROW-01).
                         className="box-border flex h-row-double w-full cursor-pointer items-center gap-2 border-0 border-t border-solid border-border-muted bg-transparent py-0 pl-3 pr-4 text-left font-[inherit] transition-colors first:border-t-0 hover:bg-accent"
                     >
                         <span className="flex shrink-0 text-muted-foreground [&_svg]:size-4">

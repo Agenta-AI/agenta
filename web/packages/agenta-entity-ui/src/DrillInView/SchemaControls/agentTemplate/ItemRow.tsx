@@ -403,7 +403,7 @@ export function InstructionsFileRow({
             }}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             className={cn(
-                // A row-double card: 8 px gap in the row (GAP-01).
+                // A row-double card: 8 px gap in the row (SPACE-03).
                 "group box-border flex min-h-row-double cursor-pointer items-center gap-2 rounded-lg border border-solid border-border-muted bg-background py-1.5 pl-2 pr-2 transition-colors",
                 !status && "hover:border-border-strong",
             )}

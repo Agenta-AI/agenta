@@ -135,7 +135,7 @@ export const ListTable = <Row,>({
     // `min(100%, …)`, so a container narrower than one card still gets one card, not a scroller.
     const cardGrid = `repeat(auto-fill, minmax(min(100%, ${cardMinWidth}px), 1fr))`
     // One value for the rows AND their skeleton, so loading holds the rhythm the rows arrive in.
-    // One row height per list (SPACE-02), the same on every screen: a meta line fills the row.
+    // One row height per list (ROW-01), the same on every screen: a meta line fills the row.
     const rowPad =
         density === "compact"
             ? "min-h-row-single py-1"

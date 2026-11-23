@@ -120,7 +120,7 @@ export const WhatsNewDialog = () => {
                                         </span>
                                         <span
                                             className={cn(
-                                                // row-double: 48 tall, the two lines centered (SPACE-02).
+                                                // row-double: 48 tall, the two lines centered (ROW-01).
                                                 "box-border flex h-row-double min-w-0 flex-col justify-center gap-0.5 rounded-lg px-2 transition-colors",
                                                 active
                                                     ? "bg-selected"

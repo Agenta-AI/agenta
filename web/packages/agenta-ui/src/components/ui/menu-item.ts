@@ -1,6 +1,6 @@
 /**
  * The one row every menu-like list renders: DropdownMenu, ContextMenu, Select, Combobox and
- * Command items. 32px tall, 8px side padding, a 16px icon 8px from the text (ROW-01, GAP-01).
+ * Command items. 32px tall, 8px side padding, a 16px icon 8px from the text (ROW-02, SPACE-03).
  * The same size on every screen.
  */
 export const MENU_ITEM = [

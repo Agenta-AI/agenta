@@ -20,14 +20,31 @@ import {
     tooltipRules,
 } from "./rules/compositeRules"
 import {microRules} from "./rules/microRules"
+import {
+    moreColorExamples,
+    moreCompactExamples,
+    moreCompactHeaderExamples,
+    moreFormExamples,
+    moreIconExamples,
+    moreKitExamples,
+    moreLayoutExamples,
+    moreMarkExamples,
+    moreSpaceExamples,
+    moreSurfaceExamples,
+    moreTooltipExamples,
+    moreTypeExamples,
+} from "./rules/moreExamples"
 import {paneRules} from "./rules/paneRules"
 import {layoutRules, touchRules} from "./rules/patternRules"
 import {gapRules, hoverRules, rowRules} from "./rules/rowRules"
 import {contentRules, motionRules, quietRules} from "./rules/voiceRules"
-import type {GuidePage} from "./types"
+import {resolveRule} from "./ruleIndex"
+import type {GuidePage, RuleExample} from "./types"
+
+type GuidePageInput = Omit<GuidePage, "rules"> & {rules: RuleExample[]}
 
 export function guidePages(mode: "light" | "dark"): GuidePage[] {
-    return [
+    const pages: GuidePageInput[] = [
         {id: "overview", group: "Overview", title: "Overview", tagline: "How Agenta looks, the rules it follows, and why.", rules: []},
         {id: "anti-patterns", group: "Overview", title: "Anti-patterns", tagline: "Every Avoid example in one place. If a screen looks like one of these, open its rule to see the fix.", rules: []},
         {id: "quiet", group: "Foundations", title: "Quiet, not loud", tagline: "Agenta is a work tool. Nothing on a screen shouts.", rules: quietRules},
@@ -42,19 +59,19 @@ export function guidePages(mode: "light" | "dark"): GuidePage[] {
                     <ContrastSection mode={mode} />
                 </>
             ),
-            rules: colorRules,
+            rules: [...colorRules, ...moreColorExamples],
         },
-        {id: "type", group: "Foundations", title: "Typography", tagline: "One font, ten interface styles, two text levels. Weight shows rank, never state.", specimen: <TypeSection />, rules: typeRules},
-        {id: "size", group: "Foundations", title: "Space and size", tagline: "A 4px grid, four control heights that step down on a phone, and one gap for each place.", specimen: <ScaleSection />, rules: [...spacingRules, ...gapRules]},
-        {id: "shape", group: "Foundations", title: "Shape", tagline: "Four radii. Nothing is round.", rules: shapeRules},
-        {id: "icons", group: "Foundations", title: "Icons", tagline: "Phosphor only, one icon per product term.", rules: iconRules},
-        {id: "surfaces", group: "Foundations", title: "Surfaces", tagline: "Tone separates areas, one fill marks hover, and shadows are only for things that float.", rules: [...surfaceRules, ...hoverRules]},
+        {id: "type", group: "Foundations", title: "Typography", tagline: "One font, ten interface styles, two text levels. Weight shows rank, never state.", specimen: <TypeSection />, rules: [...typeRules, ...moreTypeExamples]},
+        {id: "size", group: "Foundations", title: "Space and size", tagline: "A 4px grid, four control heights that step down on a compact window, and one gap for each place.", specimen: <ScaleSection />, rules: [...spacingRules, ...gapRules, ...moreSpaceExamples]},
+        {id: "shape", group: "Foundations", title: "Shape", tagline: "Five radii. Nothing is round.", rules: shapeRules},
+        {id: "icons", group: "Foundations", title: "Icons", tagline: "Phosphor only, one icon per product term.", rules: [...iconRules, ...moreIconExamples]},
+        {id: "surfaces", group: "Foundations", title: "Surfaces", tagline: "Tone separates areas, one fill marks hover, and shadows are only for things that float.", rules: [...surfaceRules, ...moreSurfaceExamples, ...hoverRules]},
         {id: "motion", group: "Foundations", title: "Motion", tagline: "Short, calm, and only when something changed. 120, 200 and 320ms; no bounce.", rules: motionRules},
         {id: "micro", group: "Foundations", title: "Microinteractions", tagline: "The control answers in its own place, at once, with one small change: a caret turns, an icon swaps, a panel unfolds from its trigger.", rules: microRules},
         {id: "voice", group: "Foundations", title: "Content and voice", tagline: "Sentence case, the words users see, and past-tense confirmations.", rules: contentRules},
-        {id: "kit", group: "Components", title: "All components", tagline: "The real @agenta/ui/ui components, as every screen renders them.", specimen: <KitComponentsSection />, rules: []},
+        {id: "kit", group: "Components", title: "All components", tagline: "The real @agenta/ui/ui components, as every screen renders them.", specimen: <KitComponentsSection />, rules: moreKitExamples},
         {id: "buttons", group: "Components", title: "Buttons", tagline: "One primary button per view; quiet variants for the rest.", rules: buttonRules},
-        {id: "forms", group: "Components", title: "Fields and focus", tagline: "Short labels, help on demand, one focus style.", rules: formRules},
+        {id: "forms", group: "Components", title: "Fields and focus", tagline: "Short labels, help on demand, one focus style.", rules: [...formRules, ...moreFormExamples]},
         {id: "badges", group: "Components", title: "Badges", tagline: "Five variants: neutral and the four statuses.", rules: badgeRules},
         {
             id: "tabs",
@@ -80,7 +97,7 @@ export function guidePages(mode: "light" | "dark"): GuidePage[] {
                 {prop: "side", values: `"top" | "right" | "bottom" | "left"`},
             ],
             code: `import {SimpleTooltip} from "@agenta/ui/ui"`,
-            rules: tooltipRules,
+            rules: [...tooltipRules, ...moreTooltipExamples],
         },
         {
             id: "toast",
@@ -98,7 +115,7 @@ export function guidePages(mode: "light" | "dark"): GuidePage[] {
             id: "table",
             group: "Components",
             title: "Table",
-            tagline: "Rows and dividers. A list on a phone.",
+            tagline: "Rows and dividers. A list on a compact window.",
             api: [
                 {prop: "row", values: "h-row-single", note: "the same on every screen; divider inside the height"},
                 {prop: "divider", values: "border-b border-border-muted"},
@@ -153,11 +170,11 @@ export function guidePages(mode: "light" | "dark"): GuidePage[] {
             tagline: "The user's turn is a bubble; the agent's reply is a document.",
             rules: chatRules,
         },
-        {id: "marks", group: "Components", title: "Marks", tagline: "The neutral icon or letter tile (IconTile): five sizes, each for a place.", rules: markRules},
+        {id: "marks", group: "Components", title: "Marks", tagline: "The neutral Mark (IconTile): five sizes, each for a place.", rules: [...markRules, ...moreMarkExamples]},
         {
             id: "overlays",
             group: "Components",
-            title: "Menus and dialogs", tagline: "One menu row everywhere. Popovers on wide windows, bottom sheets on a phone.", specimen: <OverlaysRow />,
+            title: "Menus and dialogs", tagline: "One menu row everywhere. Popovers on medium and expanded windows, bottom sheets on a compact window.", specimen: <OverlaysRow />,
             api: [
                 {prop: "row", values: "MENU_ITEM", note: "32px, 8px side padding, 16px icon, 8px icon gap; the same on every screen"},
                 {prop: "inset row", values: "MENU_ITEM_INSET", note: "for a check or an indented label"},
@@ -165,8 +182,9 @@ export function guidePages(mode: "light" | "dark"): GuidePage[] {
             rules: rowRules,
         },
         {id: "states", group: "Patterns", title: "View states", tagline: "Every view has loaded, empty, loading and error states.", rules: stateRules},
-        {id: "layout", group: "Patterns", title: "Layout and alignment", tagline: "One alignment line, a capped content width, and fades only where a pane scrolls.", rules: [...layoutRules, ...scrollRules]},
-        {id: "touch", group: "Patterns", title: "Touch and small screens", tagline: "Fields stay readable, actions stay reachable, sheets replace popovers. Nothing gets bigger on a phone.", rules: touchRules},
-        {id: "agent-pane", group: "Patterns", title: "Agent pane and phone edges", tagline: "A chat next to the item it talks about, one Composer, one item on the bottom edge, one 44px header.", rules: paneRules},
+        {id: "layout", group: "Patterns", title: "Layout and alignment", tagline: "One alignment line, a capped content width, and fades only where a pane scrolls.", rules: [...layoutRules, ...moreLayoutExamples, ...scrollRules]},
+        {id: "touch", group: "Patterns", title: "Touch and compact windows", tagline: "Fields stay readable, actions stay reachable, sheets replace popovers. Nothing gets bigger on a compact window or on touch.", rules: [...touchRules, ...moreCompactExamples]},
+        {id: "agent-pane", group: "Patterns", title: "Right pane and compact edges", tagline: "The agent chat next to the item it talks about, one Composer, one item on the bottom edge, one compact header.", rules: [...paneRules, ...moreCompactHeaderExamples]},
     ]
+    return pages.map((p) => ({...p, rules: p.rules.map(resolveRule)}))
 }

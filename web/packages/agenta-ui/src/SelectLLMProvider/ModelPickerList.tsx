@@ -125,7 +125,7 @@ const ModelPickerList = ({
                     aria-pressed={selected}
                     disabled={disabled}
                     onClick={() => onChange(option.value, option)}
-                    // A 32 px menu row: the raw id on the same line, after the name (ROW-01).
+                    // A 32 px menu row: the raw id on the same line, after the name (ROW-02).
                     title={option.label !== option.value ? option.value : undefined}
                     className={clsx(
                         MENU_ITEM,
@@ -185,7 +185,7 @@ const ModelPickerList = ({
     const renderTag = (group: ProviderGroup) =>
         group.tag ? (
             <span
-                // Plain muted text, not a bordered chip (MENU-02).
+                // Plain muted text, not a bordered chip (ROW-03).
                 className={clsx(
                     "shrink-0 text-meta font-normal text-muted-foreground",
                     !popover && "ml-1.5",

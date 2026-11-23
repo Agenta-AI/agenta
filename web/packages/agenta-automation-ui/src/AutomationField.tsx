@@ -23,7 +23,7 @@ export const AutomationField = ({
     children: ReactNode
 }) => {
     const t = useT(uiControlsCatalog)
-    // Controlled so a tap toggles the help: touch has no hover (TOUCH-03).
+    // Controlled so a tap toggles the help: touch has no hover (TOUCH-02).
     const [helpOpen, setHelpOpen] = useState(false)
     return (
         <div className="flex flex-col gap-2">
