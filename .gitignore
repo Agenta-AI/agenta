@@ -126,6 +126,7 @@ clients/python/tests/results/
 !.agents/skills/review-simplify/
 !.agents/skills/review-slop/
 !.agents/skills/test-design/
+!.agents/skills/ui-design-rules/
 !.claude/
 .claude/*
 !.claude/skills/
@@ -148,6 +149,7 @@ clients/python/tests/results/
 !.claude/skills/write-template-playbooks
 !.claude/skills/update-public-surfaces
 !.claude/skills/scan-codebase
+!.claude/skills/ui-design-rules
 !.claude/skills/triage-findings
 !.claude/skills/resolve-findings
 !.claude/skills/sync-findings

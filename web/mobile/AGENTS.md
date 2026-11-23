@@ -78,6 +78,7 @@ token-driven. Load the `mobile-shadcn-conventions` skill for the full workflow.
 - `mobile-app-structure` — feature folders, `states/` convention, data-flow rules.
 - `mobile-shadcn-conventions` — registry workflow, theming bridge, chat UI.
 - `mobile-motion-patterns` — shared presets, when to animate, reduced motion.
+- `ui-design-rules` — shape, buttons, tooltips, states, icons, and alignment rules.
 
 Also use the plugin skills when relevant: `vercel:nextjs` (Pages Router
 specifics), `vercel:shadcn`, `vercel:react-best-practices`.
