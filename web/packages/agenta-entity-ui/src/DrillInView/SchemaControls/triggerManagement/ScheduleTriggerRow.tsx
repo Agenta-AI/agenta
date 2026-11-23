@@ -75,7 +75,7 @@ export function ScheduleTriggerRow({
     return (
         <TriggerRow
             tile={
-                <RowTile className="bg-[var(--ag-tile-schedule)]">
+                <RowTile>
                     <Clock />
                 </RowTile>
             }

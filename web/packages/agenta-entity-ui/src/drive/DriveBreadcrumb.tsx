@@ -45,7 +45,7 @@ export const DriveBreadcrumb = ({
     if (variant === "icons") {
         // `inline-flex` restated: BreadcrumbLink's `inline-block` would stack glyph over label.
         const crumbLink =
-            "inline-flex h-auto items-center gap-1.5 px-1.5 py-[3px] text-[13px] font-normal text-colorTextSecondary"
+            "inline-flex h-control-xs items-center gap-1.5 px-1.5 py-0 text-label font-normal text-muted-foreground"
         return (
             <Breadcrumb
                 className="min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -53,10 +53,10 @@ export const DriveBreadcrumb = ({
                 ref={scrollRef}
             >
                 {/* Parts never shrink: a long path scrolls instead of cutting the last part. */}
-                <BreadcrumbList className="flex-nowrap gap-0.5 whitespace-nowrap text-[13px] sm:gap-0.5 [&>li]:shrink-0">
+                <BreadcrumbList className="flex-nowrap gap-0.5 whitespace-nowrap text-label sm:gap-0.5 [&>li]:shrink-0">
                     <BreadcrumbItem>
                         {segs.length === 0 ? (
-                            <BreadcrumbPage className="flex h-auto items-center gap-1.5 px-1.5 py-[3px] font-medium">
+                            <BreadcrumbPage className="flex h-control-xs items-center gap-1.5 px-1.5 py-0 font-medium">
                                 <House size={15} />
                                 {t("entityUi.driveExplorer.allFiles")}
                             </BreadcrumbPage>
@@ -80,11 +80,11 @@ export const DriveBreadcrumb = ({
                         const isLast = i === segs.length - 1
                         return (
                             <Fragment key={path}>
-                                <BreadcrumbSeparator className="mx-0.5 h-auto text-colorTextQuaternary" />
+                                <BreadcrumbSeparator className="mx-0.5 h-auto text-muted-foreground" />
                                 <BreadcrumbItem>
                                     {isLast ? (
                                         <BreadcrumbPage
-                                            className={`flex h-auto items-center gap-1.5 px-1.5 py-[3px] ${isFile ? "" : "font-medium"}`}
+                                            className={`flex h-control-xs items-center gap-1.5 px-1.5 py-0 ${isFile ? "" : "font-medium"}`}
                                         >
                                             {isFile ? (
                                                 <DriveTypeMark path={path} size="mini" />
@@ -120,7 +120,7 @@ export const DriveBreadcrumb = ({
     }
     return (
         <div
-            className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap text-xs text-colorTextTertiary"
+            className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap text-meta text-muted-foreground"
             title={shown}
         >
             <button
@@ -128,10 +128,10 @@ export const DriveBreadcrumb = ({
                 onClick={() => onNavigate("")}
                 aria-label={rootLabel}
                 title={rootLabel}
-                // Explicit text-xs: preflight is OFF, so <button>s DON'T inherit the parent
+                // Explicit text-meta: preflight is OFF, so <button>s DON'T inherit the parent
                 // font-size — without this the clickable crumbs render larger than the current-crumb
                 // span, so a segment appears to change size as you navigate (it becomes a button).
-                className="flex shrink-0 cursor-pointer items-center gap-1 rounded border-0 bg-transparent p-0 text-xs text-colorTextTertiary hover:text-colorText"
+                className="flex shrink-0 cursor-pointer items-center gap-1 rounded-sm border-0 bg-transparent p-0 text-meta text-muted-foreground hover:text-foreground"
             >
                 <House size={12} />
                 {/* Label the root "root" only when it's alone — a bare home icon reads as empty. Once
@@ -145,16 +145,16 @@ export const DriveBreadcrumb = ({
                 const isLast = i === segs.length - 1
                 return (
                     <span key={path} className="flex shrink-0 items-center gap-1">
-                        <span className="text-colorTextQuaternary">/</span>
+                        <span className="text-muted-foreground">/</span>
                         {isLast ? (
-                            <span className="font-mono text-xs">{seg}</span>
+                            <span className="font-mono text-meta">{seg}</span>
                         ) : (
-                            // text-xs: preflight OFF → this <button> won't inherit 11px, so
+                            // text-meta: preflight OFF → this <button> won't inherit the parent size, so
                             // without it the ancestor crumbs render bigger than the current span.
                             <button
                                 type="button"
                                 onClick={() => onNavigate(path)}
-                                className="cursor-pointer rounded border-0 bg-transparent p-0 font-mono text-xs text-colorTextTertiary hover:text-colorText hover:underline"
+                                className="cursor-pointer rounded-sm border-0 bg-transparent p-0 font-mono text-meta text-muted-foreground hover:text-foreground hover:underline"
                             >
                                 {seg}
                             </button>

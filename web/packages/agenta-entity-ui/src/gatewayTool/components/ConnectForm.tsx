@@ -210,7 +210,7 @@ export function ConnectAppMark({name, logo}: {name: string; logo?: string | null
                     unoptimized
                 />
             ) : (
-                <span className="text-sm font-semibold text-muted-foreground">
+                <span className="text-label font-semibold text-muted-foreground">
                     {name.charAt(0).toUpperCase()}
                 </span>
             )}
@@ -218,8 +218,8 @@ export function ConnectAppMark({name, logo}: {name: string; logo?: string | null
     )
 }
 
-/** Canvas F02 f5 inputs and selects: 34 px high, radius 6, 13 px; 44 px and 16 px on a phone. */
-const CANVAS_CONTROL = "h-[34px] rounded-[6px] max-md:h-11 md:text-[13px]"
+/** Inputs and selects: control-md (32, 44 on touch), radius 6, 13 px. */
+const CANVAS_CONTROL = "h-control rounded-md text-label"
 
 /** "Connect {name}", the description, and the fields: Name, Who can use it, Auth Method. */
 export function ConnectFormFields({
@@ -239,12 +239,12 @@ export function ConnectFormFields({
     return (
         <>
             <div className="flex flex-col gap-1">
-                <span className="text-base font-medium leading-5 text-foreground">
+                <span className="text-body font-medium leading-5 text-foreground">
                     {t("entityUi.connectForm.connectName", {name: integrationName})}
                 </span>
                 {integrationDescription && (
                     <span
-                        className="truncate text-[13px] leading-5 text-colorTextSecondary"
+                        className="truncate text-label leading-5 text-muted-foreground"
                         title={integrationDescription}
                     >
                         {integrationDescription}
@@ -307,7 +307,7 @@ export function ConnectFormFields({
             </div>
 
             {form.submitFailed ? (
-                <p className="m-0 text-xs leading-snug text-[var(--ag-colorError)]">
+                <p className="m-0 text-meta leading-snug text-destructive">
                     {t("entityUi.connectForm.submitFailed")}
                 </p>
             ) : null}

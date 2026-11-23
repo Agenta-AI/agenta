@@ -18,7 +18,7 @@ export interface SectionPageRowProps {
 
 // Rows of one card are divided by a light line (canvas A04).
 const ROW =
-    "flex w-full items-center gap-3 border-0 border-t border-solid border-[var(--ag-colorSplit)] px-3.5 py-3 text-left first:border-t-0"
+    "flex w-full items-center gap-3 border-0 border-t border-solid border-border-muted px-3.5 py-3 text-left first:border-t-0"
 
 export const SectionPageRow = ({icon, title, summary, onClick, trailing}: SectionPageRowProps) => {
     const body = (
@@ -26,15 +26,15 @@ export const SectionPageRow = ({icon, title, summary, onClick, trailing}: Sectio
             {icon ? (
                 <span
                     aria-hidden
-                    className="flex size-7 shrink-0 items-center justify-center rounded-md bg-[var(--ag-colorBgLayout)] text-colorTextSecondary"
+                    className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"
                 >
                     {icon}
                 </span>
             ) : null}
             <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm leading-5 text-colorText">{title}</span>
+                <span className="truncate text-body leading-5 text-foreground">{title}</span>
                 {summary ? (
-                    <span className="truncate text-[12px] leading-4 text-colorTextSecondary">
+                    <span className="truncate text-meta text-muted-foreground">
                         {summary}
                     </span>
                 ) : null}
@@ -47,7 +47,7 @@ export const SectionPageRow = ({icon, title, summary, onClick, trailing}: Sectio
                 type="button"
                 className={cn(
                     ROW,
-                    "cursor-pointer bg-transparent font-[inherit] hover:bg-colorFillQuaternary",
+                    "cursor-pointer bg-transparent font-[inherit] hover:bg-accent",
                 )}
                 onClick={onClick}
             >

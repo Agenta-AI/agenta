@@ -73,26 +73,26 @@ export const FolderList = ({
                                 validate={edit.validate}
                                 onCommit={edit.onCommit}
                                 onCancel={edit.onCancel}
-                                className="h-6 min-w-0 flex-1 px-1.5 text-[13px]"
+                                className="h-6 min-w-0 flex-1 px-1.5 text-label"
                             />
                         ) : (
                             <span
-                                className={`truncate text-[13px] ${n.path === selectedPath ? "font-medium" : ""} ${hidden ? "opacity-60" : ""}`}
+                                className={`truncate text-label ${n.path === selectedPath ? "font-medium" : ""} ${hidden ? "opacity-60" : ""}`}
                                 title={n.path}
                             >
                                 {n.name}
                             </span>
                         )}
                     </span>
-                    <span className="truncate text-xs text-colorTextSecondary">
+                    <span className="truncate text-meta text-muted-foreground">
                         {n.isFolder ? tNow("entityUi.driveBrowser.folder") : fileTypeLabel(n.path)}
                     </span>
-                    <span className="text-xs tabular-nums text-colorTextSecondary">
+                    <span className="text-meta tabular-nums text-muted-foreground">
                         {n.isFolder
                             ? itemCountLabel(n.itemCount ?? n.children.length)
                             : humanSize(n.size)}
                     </span>
-                    <span className="text-xs text-colorTextSecondary">
+                    <span className="text-meta text-muted-foreground">
                         {n.modifiedAt ? relativeTime(n.modifiedAt) : "—"}
                     </span>
                     <Button
@@ -107,7 +107,7 @@ export const FolderList = ({
                             e.stopPropagation()
                             onDownload(n.path, n.isFolder)
                         }}
-                        className="text-colorTextQuaternary hover:text-colorText"
+                        className="text-muted-foreground hover:text-foreground"
                     >
                         <DownloadSimple size={14} />
                     </Button>

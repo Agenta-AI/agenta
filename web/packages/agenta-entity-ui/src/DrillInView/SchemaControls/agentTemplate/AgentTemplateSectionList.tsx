@@ -112,7 +112,7 @@ export const AgentTemplateSectionList = ({
         // Its line-height token does NOT apply here: the call site already carried `text-xs`, and
         // the Tailwind sheet is injected after antd's cssinjs, so 16px is what antd rendered.
         return (
-            <span className="break-words text-xs text-colorTextDescription">
+            <span className="break-words text-meta text-muted-foreground">
                 {emptyText ?? t("entityUi.configItems.noConfigFields")}
             </span>
         )
@@ -189,7 +189,7 @@ const IndicatorDot = ({indicator}: {indicator: AgentTemplateSectionDescriptor["i
         <span
             aria-hidden
             data-section-indicator={indicator.tone}
-            className="size-1.5 shrink-0 rounded-full"
+            className="size-1.5 shrink-0 rounded-sm"
             style={{background: sectionIndicatorColor(indicator.tone)}}
         />
     ) : null
@@ -242,7 +242,7 @@ const PhoneSectionList = ({
                     type="button"
                     data-config-section={s.key}
                     data-config-section-title={sectionTitle(s)}
-                    className="flex min-h-14 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-4 py-2 text-left font-[inherit] active:bg-colorFillTertiary"
+                    className="flex min-h-14 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-border-muted bg-transparent px-4 py-2 text-left font-[inherit] active:bg-secondary"
                     onClick={() =>
                         s.onOpen ? s.onOpen() : phoneSections.show(s.key, sectionTitle(s))
                     }
@@ -250,27 +250,27 @@ const PhoneSectionList = ({
                     {s.icon ? (
                         <span
                             aria-hidden
-                            // Canvas M07: an 18 px glyph in a 32 px warm gray tile.
-                            className="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-[var(--ag-colorBgLayout)] text-[var(--ag-zinc-8)] [&_svg]:size-[18px]"
+                            // A 32 px Mark with a 16 px glyph (CONS-01).
+                            className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground [&_svg]:size-4"
                         >
                             {s.icon}
                         </span>
                     ) : null}
                     <span className="flex min-w-0 flex-1 flex-col">
                         <span className="flex min-w-0 items-center gap-1.5">
-                            <span className="truncate text-[15px] leading-5 text-colorText">
+                            <span className="truncate text-body leading-5 text-foreground">
                                 {s.title}
                             </span>
                             <IndicatorDot indicator={s.indicator} />
                             {s.titleBadge ? <span className="shrink-0">{s.titleBadge}</span> : null}
                         </span>
                         {summaryOf(s) ? (
-                            <span className="truncate text-[12px] leading-4 text-colorTextSecondary">
+                            <span className="truncate text-meta text-muted-foreground">
                                 {summaryOf(s)}
                             </span>
                         ) : null}
                     </span>
-                    <CaretRight size={14} aria-hidden className="shrink-0 text-colorTextTertiary" />
+                    <CaretRight size={14} aria-hidden className="shrink-0 text-muted-foreground" />
                 </button>
             ))}
         </div>
@@ -292,14 +292,14 @@ const PageSectionList = ({sections}: {sections: AgentTemplateSectionDescriptor[]
                 className="flex flex-col gap-2"
             >
                 <div className="flex min-h-7 items-center justify-between gap-2">
-                    <h3 className="m-0 flex min-w-0 items-center gap-1.5 text-[15px] font-semibold leading-5 text-colorText">
+                    <h3 className="m-0 flex min-w-0 items-center gap-1.5 text-title text-foreground">
                         <span className="truncate">{s.title}</span>
                         <IndicatorDot indicator={s.indicator} />
                         {s.titleBadge ? <span className="shrink-0">{s.titleBadge}</span> : null}
                     </h3>
                     {s.pageAction ? <span className="shrink-0">{s.pageAction}</span> : null}
                 </div>
-                <div className="overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgContainer">
+                <div className="overflow-hidden rounded-lg border border-solid border-border-muted bg-background">
                     {s.pageContent ? (
                         s.pageContent
                     ) : s.onOpen ? (
@@ -314,7 +314,7 @@ const PageSectionList = ({sections}: {sections: AgentTemplateSectionDescriptor[]
                         // the card's edge, and a list of rows keeps no gap. Content with no rows
                         // (an empty line, a notice) gets the card's padding instead, and an empty
                         // line reads 13/20 (canvas A04 `.cpe`).
-                        <div className="-mt-px flex flex-col empty:hidden [&:not(:has([data-page-row]))]:mt-0 [&:not(:has([data-page-row]))]:p-3.5 [&:not(:has([data-page-row]))>span]:!text-[13px] [&:not(:has([data-page-row]))>span]:!leading-5 [&_:has([data-page-row])]:gap-0">
+                        <div className="-mt-px flex flex-col empty:hidden [&:not(:has([data-page-row]))]:mt-0 [&:not(:has([data-page-row]))]:p-3.5 [&:not(:has([data-page-row]))>span]:!text-label [&:not(:has([data-page-row]))>span]:!leading-5 [&_:has([data-page-row])]:gap-0">
                             {s.content}
                         </div>
                     )}

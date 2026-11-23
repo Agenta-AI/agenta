@@ -45,8 +45,8 @@ const Chip = ({
     <div className="flex min-w-0 items-center gap-2 py-1">
         {icon}
         <span
-            className={`truncate text-xs ${
-                tone === "warning" ? "text-colorWarning" : "text-colorTextSecondary"
+            className={`truncate text-meta ${
+                tone === "warning" ? "text-warning" : "text-muted-foreground"
             }`}
         >
             {children}
@@ -78,10 +78,10 @@ const SubmittedAnswers = ({
                 <CaretRight
                     size={11}
                     weight="bold"
-                    className={`shrink-0 text-colorTextTertiary transition-transform ${open ? "rotate-90" : ""}`}
+                    className={`shrink-0 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
                 />
-                <CheckCircle size={13} weight="fill" className="shrink-0 text-colorSuccess" />
-                <span className="truncate text-xs text-colorTextSecondary">{message}</span>
+                <CheckCircle size={13} weight="fill" className="shrink-0 text-success" />
+                <span className="truncate text-meta text-muted-foreground">{message}</span>
             </button>
             {answered.length > 0 ? (
                 <HeightCollapse open={open}>
@@ -91,10 +91,10 @@ const SubmittedAnswers = ({
                                 key={step.name}
                                 className="flex items-baseline justify-between gap-3"
                             >
-                                <span className="shrink-0 text-xs text-colorTextSecondary">
+                                <span className="shrink-0 text-meta text-muted-foreground">
                                     {step.label}
                                 </span>
-                                <span className="max-w-[70%] truncate text-right text-xs text-colorText">
+                                <span className="max-w-[70%] truncate text-right text-meta text-foreground">
                                     {formatStepValue(step, content[step.name])}
                                 </span>
                             </div>
@@ -121,7 +121,7 @@ const ElicitationWidget = ({meta, degradedEarlierInTurn}: ClientToolHandlerProps
         // An abandoned session's unsettled client tools are stamped with this on replay.
         if (isInteractionEndedOutput(meta.output)) {
             return (
-                <Chip icon={<Question size={13} className="shrink-0 text-colorTextTertiary" />}>
+                <Chip icon={<Question size={13} className="shrink-0 text-muted-foreground" />}>
                     {t("entityUi.clientTools.requestEnded")}
                 </Chip>
             )
@@ -146,7 +146,7 @@ const ElicitationWidget = ({meta, degradedEarlierInTurn}: ClientToolHandlerProps
                         <CheckCircle
                             size={13}
                             weight="fill"
-                            className="shrink-0 text-colorSuccess"
+                            className="shrink-0 text-success"
                         />
                     }
                 >
@@ -161,7 +161,7 @@ const ElicitationWidget = ({meta, degradedEarlierInTurn}: ClientToolHandlerProps
                         <XCircle
                             size={13}
                             weight="fill"
-                            className="shrink-0 text-colorTextTertiary"
+                            className="shrink-0 text-muted-foreground"
                         />
                     }
                 >
@@ -170,7 +170,7 @@ const ElicitationWidget = ({meta, degradedEarlierInTurn}: ClientToolHandlerProps
             )
         if (partState === "cancelled")
             return (
-                <Chip icon={<Prohibit size={13} className="shrink-0 text-colorTextTertiary" />}>
+                <Chip icon={<Prohibit size={13} className="shrink-0 text-muted-foreground" />}>
                     {envelopeMessage ?? t("entityUi.clientTools.dismissedRequest")}
                 </Chip>
             )
@@ -183,7 +183,7 @@ const ElicitationWidget = ({meta, degradedEarlierInTurn}: ClientToolHandlerProps
     if (!parsed.ok) {
         if (degradedEarlierInTurn) return <DegradedChip reason={parsed.reason} />
         return (
-            <Chip icon={<Question size={13} className="shrink-0 text-colorTextTertiary" />}>
+            <Chip icon={<Question size={13} className="shrink-0 text-muted-foreground" />}>
                 {t("entityUi.clientTools.agentPreparingRequest")}
             </Chip>
         )
@@ -194,7 +194,7 @@ const ElicitationWidget = ({meta, degradedEarlierInTurn}: ClientToolHandlerProps
     // frame. That is the shimmer in the transcript. Hold the settled copy until the input is whole.
     if (meta.state !== "input-available") {
         return (
-            <Chip icon={<Question size={13} className="shrink-0 text-colorTextTertiary" />}>
+            <Chip icon={<Question size={13} className="shrink-0 text-muted-foreground" />}>
                 {t("entityUi.clientTools.agentPreparingRequest")}
             </Chip>
         )
@@ -204,11 +204,11 @@ const ElicitationWidget = ({meta, degradedEarlierInTurn}: ClientToolHandlerProps
     const count = buildElicitationSteps(parsed.payload).steps.length
     return (
         <div className="flex min-w-0 items-start gap-2 py-1">
-            <Question size={13} className="mt-0.5 shrink-0 text-colorTextTertiary" />
+            <Question size={13} className="mt-0.5 shrink-0 text-muted-foreground" />
             {/* Two lines is ~20 words in a wide row but ~7 on a phone, so narrow gets four. */}
-            <span className="line-clamp-4 min-w-0 text-xs text-colorTextSecondary sm:line-clamp-2">
+            <span className="line-clamp-4 min-w-0 text-meta text-muted-foreground sm:line-clamp-2">
                 {parsed.payload.message}
-                <span className="text-colorTextTertiary">
+                <span className="text-muted-foreground">
                     {" "}
                     {t("entityUi.clientTools.questionsAnsweringBelow", {count})}
                 </span>
@@ -224,7 +224,7 @@ const DegradedChip = ({reason}: {reason?: string}) => {
     const secret = reason ? parseSecretRefusal(reason) : null
     return (
         <Chip
-            icon={<Warning size={13} weight="fill" className="shrink-0 text-colorWarning" />}
+            icon={<Warning size={13} weight="fill" className="shrink-0 text-warning" />}
             tone="warning"
         >
             {secret

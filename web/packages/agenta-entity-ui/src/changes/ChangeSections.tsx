@@ -46,16 +46,16 @@ const SUMMARY_ROW_PAD = "px-2"
 const SUBGROUP_VISIBLE = 5
 const VIRTUALIZE_AT = 50
 
-const ADD_BG = "color-mix(in srgb, var(--ag-colorSuccess) 13%, transparent)"
-const DEL_BG = "color-mix(in srgb, var(--ag-colorError) 13%, transparent)"
+const ADD_BG = "color-mix(in srgb, var(--success) 13%, transparent)"
+const DEL_BG = "color-mix(in srgb, var(--destructive) 13%, transparent)"
 
 // One subtle surface for the whole card; header inherits it, the diff tints + open divider
 // carry the structure. Avoids stacking two lightening fills (no "darker body" token in dark mode).
 export const CARD =
-    "overflow-hidden rounded-[10px] border border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]"
+    "overflow-hidden rounded-lg border border-border-muted bg-secondary"
 /** Keyboard users need to see where focus lands once these rows are real controls. */
 const FOCUS_RING =
-    "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring"
+    "outline-none focus-ring"
 
 /** Sections whose edited rows carry field-level detail worth opening. */
 const DRILLABLE = new Set<ChangeSection["id"]>(["tools", "subagents"])
@@ -79,7 +79,7 @@ function Row({
             onClick={onActivate}
             className={cn(
                 className,
-                "cursor-pointer border-0 bg-transparent hover:bg-[var(--ag-colorFillQuaternary)]",
+                "cursor-pointer border-0 bg-transparent hover:bg-accent",
                 FOCUS_RING,
             )}
         >
@@ -91,7 +91,7 @@ function Row({
 export const LINK_BTN = cn(
     "inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 transition-colors",
     textColors.secondary,
-    "hover:text-[var(--ag-colorText)]",
+    "hover:text-foreground",
 )
 
 /** One per config-panel accordion section, so the diff and the panel read as the same thing. */
@@ -106,10 +106,10 @@ export const SECTION_ICON: Record<ChangeSection["id"], React.ReactNode> = {
 }
 
 const KIND_COLOR: Record<string, BadgeProps["variant"]> = {
-    added: "green",
-    removed: "red",
-    edited: "gold",
-    changed: "gold",
+    added: "success",
+    removed: "destructive",
+    edited: "warning",
+    changed: "warning",
 }
 
 export const kindIcon = (kind: string) => {
@@ -119,9 +119,9 @@ export const kindIcon = (kind: string) => {
 }
 
 export const kindStyle = (kind: string) => {
-    if (kind === "added") return {color: "var(--ag-colorSuccess)"}
-    if (kind === "removed") return {color: "var(--ag-colorError)"}
-    return {color: "var(--ag-colorWarning)"}
+    if (kind === "added") return {color: "var(--success)"}
+    if (kind === "removed") return {color: "var(--destructive)"}
+    return {color: "var(--warning)"}
 }
 
 export function StatusTags({tags, small}: {tags: ChangeSection["tags"]; small?: boolean}) {
@@ -133,7 +133,7 @@ export function StatusTags({tags, small}: {tags: ChangeSection["tags"]; small?: 
                     variant={KIND_COLOR[t.kind] ?? "default"}
                     className={cn(
                         "rounded",
-                        small ? "px-1.5 text-[12px] leading-[18px]" : "px-2 text-[12px]",
+                        small ? "px-1.5 text-meta leading-[18px]" : "px-2 text-meta",
                     )}
                 >
                     {t.label}
@@ -155,7 +155,7 @@ export function HunkRows({
 }) {
     const shown = limit ? hunks.slice(0, limit) : hunks
     return (
-        <div className="py-2 font-mono text-xs leading-[1.8]">
+        <div className="py-2 text-code-sm leading-[1.8]">
             {shown.map((line, i) => {
                 if (line.type === "fold") {
                     return (
@@ -169,14 +169,14 @@ export function HunkRows({
                 const style = isAdd
                     ? {
                           background: ADD_BG,
-                          boxShadow: "inset 1px 0 0 var(--ag-colorSuccess)",
-                          color: "var(--ag-colorSuccess)",
+                          boxShadow: "inset 1px 0 0 var(--success)",
+                          color: "var(--success)",
                       }
                     : isDel
                       ? {
                             background: DEL_BG,
-                            boxShadow: "inset 1px 0 0 var(--ag-colorError)",
-                            color: "var(--ag-colorError)",
+                            boxShadow: "inset 1px 0 0 var(--destructive)",
+                            color: "var(--destructive)",
                         }
                       : undefined
                 return (
@@ -218,7 +218,7 @@ function ItemRow({
                 <span style={kindStyle(it.kind)} className="flex w-4 shrink-0 justify-center">
                     {kindIcon(it.kind)}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-xs">
+                <span className="min-w-0 flex-1 truncate text-meta">
                     {it.label}
                     {it.detail ? (
                         <span className={cn("ml-1", textColors.tertiary)}>· {it.detail}</span>
@@ -267,7 +267,7 @@ function CappedItems({
             {hidden > 0 ? (
                 <button
                     type="button"
-                    className={cn(padX, "py-1.5 text-xs", LINK_BTN)}
+                    className={cn(padX, "py-1.5 text-label", LINK_BTN)}
                     onClick={() => setExpanded(true)}
                 >
                     <DotsThree />
@@ -284,15 +284,15 @@ function ScalarRows({changes, padX = ROW_PAD}: {changes: ScalarChange[]; padX?: 
             {changes.map((c) => (
                 <div
                     key={c.key}
-                    className={cn("flex flex-wrap items-center gap-2 py-1.5 text-xs", padX)}
+                    className={cn("flex flex-wrap items-center gap-2 py-1.5 text-meta", padX)}
                     title={c.key}
                 >
                     <span className={textColors.secondary}>{c.label ?? c.key}</span>
-                    <span className="font-mono" style={{color: "var(--ag-colorError)"}}>
+                    <span className="font-mono" style={{color: "var(--destructive)"}}>
                         {c.beforeLabel ?? c.before ?? "—"}
                     </span>
                     <ArrowRight className={textColors.tertiary} />
-                    <span className="font-mono" style={{color: "var(--ag-colorSuccess)"}}>
+                    <span className="font-mono" style={{color: "var(--success)"}}>
                         {c.afterLabel ?? c.after ?? "—"}
                     </span>
                 </div>
@@ -327,8 +327,8 @@ export function SectionCard({
         <div className={cn(small ? "mb-1.5" : "mb-2.5")}>
             <div
                 className={cn(
-                    "sticky top-0 z-[1] bg-[var(--ag-colorBgContainer)]",
-                    open ? "rounded-t-[10px]" : "rounded-[10px]",
+                    "sticky top-0 z-[1] bg-background",
+                    open ? "rounded-t-lg" : "rounded-lg",
                 )}
             >
                 <button
@@ -338,8 +338,8 @@ export function SectionCard({
                     className={cn(
                         "flex w-full cursor-pointer items-center border-0 text-left font-[inherit] transition-colors",
                         FOCUS_RING,
-                        "border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] hover:bg-[var(--ag-colorFillTertiary)]",
-                        open ? "rounded-t-[10px]" : "rounded-[10px]",
+                        "border border-solid border-border-muted bg-secondary hover:bg-accent",
+                        open ? "rounded-t-lg" : "rounded-lg",
                         small ? "gap-2 px-2.5 py-1.5" : "gap-2.5 px-3 py-2.5",
                     )}
                 >
@@ -351,7 +351,7 @@ export function SectionCard({
                     >
                         {SECTION_ICON[section.id]}
                     </span>
-                    <span className={cn("flex-1 leading-none", small ? "text-xs" : "text-[13px]")}>
+                    <span className={cn("flex-1 leading-none", small ? "text-meta" : "text-label")}>
                         {section.title}
                     </span>
                     {/* A scalar section's rows ARE the list of changes, so "N changed" only
@@ -370,7 +370,7 @@ export function SectionCard({
                 </button>
             </div>
             <HeightCollapse open={open}>
-                <div className="overflow-hidden rounded-b-[10px] border border-t-0 border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]">
+                <div className="overflow-hidden rounded-b-lg border border-t-0 border-solid border-border-muted bg-secondary">
                     {/* MCPs and Skills carry rows too; only the tool kinds drill into a detail view. */}
                     {toolItems?.length ? (
                         <CappedItems
@@ -392,13 +392,13 @@ export function SectionCard({
                             {onOpenInstructions ? (
                                 <div
                                     className={cn(
-                                        "flex items-center border-t border-[var(--ag-colorBorderSecondary)] py-2",
+                                        "flex items-center border-t border-border-muted py-2",
                                         ROW_PAD,
                                     )}
                                 >
                                     <button
                                         type="button"
-                                        className={cn("text-xs", LINK_BTN)}
+                                        className={cn("text-label", LINK_BTN)}
                                         onClick={onOpenInstructions}
                                     >
                                         <ArrowRight />
@@ -480,13 +480,13 @@ function SummaryText({hunks}: {hunks: ExtendedDiffLine[]}) {
                     // The design's flat tints (#eaf2e3, #f9e5e5): the success and error fills.
                     className={cn(
                         "flex px-2.5 py-1",
-                        line.type === "added" ? "bg-colorSuccessBg" : "bg-colorErrorBg",
+                        line.type === "added" ? "bg-success/10" : "bg-destructive/10",
                     )}
                     style={{
                         color:
                             line.type === "added"
-                                ? "var(--ag-colorSuccess)"
-                                : "var(--ag-colorError)",
+                                ? "var(--success)"
+                                : "var(--destructive)",
                     }}
                 >
                     {/* Read out, as in HunkRows: the sign is what says added or removed. */}
@@ -516,22 +516,22 @@ function SummarySection({section}: {section: ChangeSection}) {
             <div className="flex items-center gap-2 p-2">
                 <span
                     className={cn(
-                        "inline-flex shrink-0 text-[14px] leading-none",
+                        "inline-flex shrink-0 text-body leading-none",
                         textColors.secondary,
                     )}
                 >
                     {SECTION_ICON[section.id]}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--ag-colorText)]">
+                <span className="min-w-0 flex-1 truncate text-label font-medium text-foreground">
                     {section.title}
                 </span>
                 {status ? (
-                    <span className={cn("shrink-0 text-[12px] leading-4", textColors.tertiary)}>
+                    <span className={cn("shrink-0 text-meta", textColors.tertiary)}>
                         {status}
                     </span>
                 ) : null}
             </div>
-            <div className="mx-2 overflow-hidden rounded-[6px] border border-solid border-[var(--ag-colorBorderSecondary)] text-[12.5px] leading-5">
+            <div className="mx-2 overflow-hidden rounded-md border border-solid border-border-muted text-label leading-5">
                 {section.items?.length ? (
                     <CappedItems items={section.items} padX={SUMMARY_ROW_PAD} />
                 ) : null}
@@ -560,12 +560,12 @@ export function DetailCard({
     return (
         <div>
             {/* Solid underlay so scrolled rows don't ghost through the translucent fill. */}
-            <div className="sticky top-0 z-[1] rounded-t-[10px] bg-[var(--ag-colorBgContainer)]">
+            <div className="sticky top-0 z-[1] rounded-t-lg bg-background">
                 <button
                     type="button"
                     onClick={onCollapse}
                     className={cn(
-                        "flex w-full cursor-pointer items-center rounded-t-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] text-left font-[inherit] transition-colors",
+                        "flex w-full cursor-pointer items-center rounded-t-lg border border-solid border-border-muted bg-secondary text-left font-[inherit] transition-colors",
                         FOCUS_RING,
                         small ? "gap-2 px-2.5 py-1.5" : "gap-2.5 px-3 py-2.5",
                     )}
@@ -576,7 +576,7 @@ export function DetailCard({
                     </span>
                 </button>
             </div>
-            <div className="overflow-hidden rounded-b-[10px] border border-t-0 border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]">
+            <div className="overflow-hidden rounded-b-lg border border-t-0 border-solid border-border-muted bg-secondary">
                 {children}
             </div>
         </div>

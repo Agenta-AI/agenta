@@ -8,7 +8,7 @@ import {AccountSwitch} from "./AccountSwitch"
 
 /** Canvas F02 f5 field labels: 12/16/500 in the secondary text color. */
 export const CANVAS_FIELD_LABEL =
-    "[&_[data-slot=field-label]]:text-[12px] [&_[data-slot=field-label]]:leading-4 [&_[data-slot=field-label]]:text-colorTextSecondary"
+    "[&_[data-slot=field-label]]:text-meta [&_[data-slot=field-label]]:text-muted-foreground"
 
 /** Who owns a new connection: the person ("Only me") or the project ("Everyone"). */
 export type ConnectionOwner = Exclude<OwnerKind, "organization">
@@ -60,7 +60,7 @@ export function ConnectOwnerField({
                     onChange={onChange}
                     aria-label={t("entityUi.connectForm.whoCanUseIt")}
                 />
-                <span className="text-[12px] leading-4 text-colorTextTertiary">
+                <span className="text-meta text-muted-foreground">
                     {choices.find((choice) => choice.value === value)?.detail}
                 </span>
             </div>

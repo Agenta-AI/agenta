@@ -56,7 +56,7 @@ const HarnessesSection = ({
                 className="flex w-fit cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left"
                 aria-expanded={expanded}
             >
-                <span className="font-medium text-colorText">
+                <span className="font-medium text-foreground">
                     {t("entityUi.providerConnection.harnesses")}
                 </span>
                 {enabled.length ? (
@@ -71,7 +71,7 @@ const HarnessesSection = ({
                                                 {Mark ? (
                                                     <Mark className="size-3.5 shrink-0" />
                                                 ) : (
-                                                    <span className="text-colorTextSecondary">
+                                                    <span className="text-muted-foreground">
                                                         {choice.label}
                                                     </span>
                                                 )}
@@ -84,12 +84,12 @@ const HarnessesSection = ({
                         </span>
                     </TooltipProvider>
                 ) : (
-                    <span className="text-colorTextSecondary">· {summary}</span>
+                    <span className="text-muted-foreground">· {summary}</span>
                 )}
                 <CaretRight
                     size={12}
                     className={cn(
-                        "text-colorTextTertiary transition-transform",
+                        "text-muted-foreground transition-transform",
                         expanded && "rotate-90",
                     )}
                 />
@@ -109,7 +109,7 @@ const HarnessesSection = ({
                 )}
             >
                 <div className="flex min-h-0 flex-col gap-2 overflow-hidden pt-2">
-                    <span className="text-colorTextSecondary">
+                    <span className="text-muted-foreground">
                         {t("entityUi.providerConnection.enableIn")}
                     </span>
                     <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2">
@@ -142,13 +142,13 @@ const HarnessesSection = ({
                                         className={cn(
                                             "truncate font-medium",
                                             choice.supported
-                                                ? "text-colorText"
-                                                : "text-colorTextDisabled",
+                                                ? "text-foreground"
+                                                : "text-muted-foreground",
                                         )}
                                     >
                                         {choice.label}
                                     </span>
-                                    <span className="text-[11px] leading-4 text-colorTextTertiary">
+                                    <span className="text-caption text-muted-foreground">
                                         {choice.supported
                                             ? (choice.domain ?? " ")
                                             : t("entityUi.providerConnection.incompatible")}
@@ -157,7 +157,7 @@ const HarnessesSection = ({
                             )
                         })}
                     </div>
-                    <span className="text-[11px] text-colorTextTertiary">
+                    <span className="text-caption text-muted-foreground">
                         {t("entityUi.providerConnection.harnessAddsModels")}
                     </span>
                 </div>

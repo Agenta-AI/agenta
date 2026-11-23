@@ -4,8 +4,7 @@ import {resolveDriveFileKind} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {useT} from "@agenta/i18n"
 import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
-import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
-import {SimpleTooltip} from "@agenta/ui/ui"
+import {LoadingButton, SimpleTooltip} from "@agenta/ui/ui"
 import {DownloadSimple} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"
 
@@ -69,11 +68,12 @@ export const DriveFileDownloadButton = ({mount, path}: {mount: Mount | null; pat
     const [downloading, setDownloading] = useState(false)
     return (
         <SimpleTooltip title={t("entityUi.drivePreview.download")}>
-            <Button
-                icon={<DownloadSimple size={13} />}
+            <LoadingButton
+                variant="outline"
+                size="default"
+                loading={downloading}
                 aria-label={t("entityUi.drivePreview.download")}
                 disabled={!mount}
-                loading={downloading}
                 onClick={async () => {
                     setDownloading(true)
                     try {
@@ -82,7 +82,9 @@ export const DriveFileDownloadButton = ({mount, path}: {mount: Mount | null; pat
                         setDownloading(false)
                     }
                 }}
-            />
+            >
+                <DownloadSimple size={13} />
+            </LoadingButton>
         </SimpleTooltip>
     )
 }

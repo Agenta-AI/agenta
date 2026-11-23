@@ -126,7 +126,7 @@ export function describeSubagent(
         // Always chipped: an unchipped avatar paints white on transparent and the glyph vanishes.
         avatarClassName:
             chrome?.className ??
-            "bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]",
+            "bg-secondary text-muted-foreground",
         avatarStyle: chrome?.style,
         // No type tag. "workflow" is an internal type and nothing user-meaningful replaces it.
         tags: [],
@@ -259,7 +259,7 @@ export function describeMcp(server: unknown): ItemDescriptor {
         description: typeof connection.url === "string" ? connection.url : undefined,
         mono: "",
         color: "transparent",
-        icon: <McpServerMark size={28} name={name} />,
+        icon: <McpServerMark size={24} name={name} />,
         // The mark paints itself; a chip class keeps ItemAvatar from adding its white text.
         avatarClassName: "bg-transparent",
         // No type tag. Every MCP row carried "HTTP", which said the same thing on every
@@ -352,7 +352,7 @@ export function isStaticSkill(skill: unknown): boolean {
 const SKILL_MARK = {
     mono: "",
     color: "transparent",
-    icon: <SkillMark size={28} />,
+    icon: <SkillMark size={24} />,
     // The mark paints itself; a chip class keeps ItemAvatar from adding its white text.
     avatarClassName: "bg-transparent",
     // A skill title is prose; only the slash command a person types stays monospace.

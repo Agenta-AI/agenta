@@ -84,7 +84,7 @@ class AgentTemplateBoundary extends Component<{children: ReactNode}, {error: Err
         const {error} = this.state
         if (!error) return this.props.children
         return (
-            <div className="flex flex-col gap-1 rounded-lg border border-solid border-colorErrorBorder bg-colorErrorBg px-3 py-2 text-xs text-colorErrorText">
+            <div className="flex flex-col gap-1 rounded-lg border border-solid border-destructive/40 bg-destructive/10 px-3 py-2 text-meta text-destructive">
                 <span className="font-medium">
                     {tNow("entityUi.schemaControls.configCouldNotLoad")}
                 </span>
@@ -564,8 +564,8 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
             // For objects, show indicator that user should navigate into it
             return (
                 <div className={clsx("flex flex-col gap-1", className)}>
-                    <span className="text-sm font-medium text-colorText">{displayLabel}</span>
-                    <span className="text-xs text-colorTextDescription">
+                    <span className="text-label font-medium text-foreground">{displayLabel}</span>
+                    <span className="text-meta text-muted-foreground">
                         {t("entityUi.schemaControls.objectWithProperties", {
                             count: resolvedSchema?.properties
                                 ? Object.keys(resolvedSchema.properties).length
@@ -593,8 +593,8 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
             // For arrays, show indicator that user should navigate into it
             return (
                 <div className={clsx("flex flex-col gap-1", className)}>
-                    <span className="text-sm font-medium text-colorText">{displayLabel}</span>
-                    <span className="text-xs text-colorTextDescription">
+                    <span className="text-label font-medium text-foreground">{displayLabel}</span>
+                    <span className="text-meta text-muted-foreground">
                         {t("entityUi.schemaControls.arrayWithItems", {
                             count: Array.isArray(value) ? value.length : 0,
                         })}

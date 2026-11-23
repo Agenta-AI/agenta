@@ -118,7 +118,7 @@ export function AddTriggerDropdown({
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" size="compact" className="font-normal">
+                <Button type="button" variant="outline" size="compact">
                     <Plus size={14} />
                     {t("entityUi.agentOperations.addAutomation")}
                 </Button>
@@ -141,13 +141,13 @@ export function AddTriggerDropdown({
                     >
                         <span
                             aria-hidden
-                            className="mt-0.5 flex shrink-0 text-colorTextSecondary [&_svg]:size-3.5"
+                            className="mt-0.5 flex shrink-0 text-muted-foreground [&_svg]:size-3.5"
                         >
                             {item.icon}
                         </span>
                         <span className="flex min-w-0 flex-col">
-                            <span className="text-[13px] text-colorText">{item.title}</span>
-                            <span className="text-[12px] leading-4 text-colorTextTertiary">
+                            <span className="text-label text-foreground">{item.title}</span>
+                            <span className="text-meta text-muted-foreground">
                                 {item.hint}
                             </span>
                         </span>

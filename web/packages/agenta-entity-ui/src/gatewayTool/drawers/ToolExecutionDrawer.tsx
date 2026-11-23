@@ -15,8 +15,16 @@ import toolExecutionCatalog from "@agenta/i18n/catalogs/entityUi.toolExecution"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton, message} from "@agenta/ui"
 import {Tag} from "@agenta/ui/components/presentational"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, InputAffix, LoadingButton, SkeletonBlock} from "@agenta/ui/ui"
+import {
+    Button,
+    InputAffix,
+    LoadingButton,
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SkeletonBlock,
+} from "@agenta/ui/ui"
 import {ArrowLeft, CaretRight, MagnifyingGlass, Play, Wrench} from "@phosphor-icons/react"
 import {useAtom, useSetAtom} from "jotai"
 import Image from "next/image"
@@ -65,49 +73,50 @@ export default function ToolExecutionDrawer() {
     }, [])
 
     return (
-        <EnhancedDrawer
+        <Sheet
             open={open}
-            onClose={handleClose}
-            // The integration's mark heads the drawer, as in the connect dialog.
-            title={
-                <span className="flex min-w-0 items-center gap-3">
-                    <LogoTile logo={integrationLogo ?? undefined} name={integrationName || ""} />
-                    <span className="truncate text-base font-medium">{integrationName}</span>
-                </span>
-            }
-            width={640}
-            destroyOnClose
-            styles={{
-                body: {
-                    padding: 0,
-                    display: "flex",
-                    flexDirection: "column",
-                    overflow: "hidden",
-                },
+            onOpenChange={(next) => {
+                if (!next) handleClose()
             }}
         >
-            {state &&
-                (step === 1 ? (
-                    <ActionPickerStep
-                        integrationKey={state.integrationKey || ""}
-                        integrationName={integrationName || ""}
-                        integrationLogo={integrationLogo ?? undefined}
-                        connectionSlug={state.connectionSlug || ""}
-                        onSelectAction={handleSelectAction}
-                    />
-                ) : (
-                    <ActionDetailStep
-                        integrationKey={state.integrationKey || ""}
-                        integrationName={integrationName || ""}
-                        integrationLogo={integrationLogo ?? undefined}
-                        connectionSlug={state.connectionSlug || ""}
-                        actionKey={activeActionKey}
-                        actionName={selectedAction?.name}
-                        canGoBack={!state.actionKey}
-                        onBack={handleBack}
-                    />
-                ))}
-        </EnhancedDrawer>
+            <SheetContent
+                side="right"
+                style={{width: 640, maxWidth: "calc(100% - 1rem)"}}
+            >
+                <SheetHeader>
+                    {/* The integration's mark heads the drawer, as in the connect dialog. */}
+                    <SheetTitle className="min-w-0">
+                        <span className="flex min-w-0 items-center gap-3">
+                            <LogoTile logo={integrationLogo ?? undefined} name={integrationName || ""} />
+                            <span className="truncate text-body font-medium">{integrationName}</span>
+                        </span>
+                    </SheetTitle>
+                </SheetHeader>
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-b-[inherit] text-field-md text-foreground">
+                    {state &&
+                        (step === 1 ? (
+                            <ActionPickerStep
+                                integrationKey={state.integrationKey || ""}
+                                integrationName={integrationName || ""}
+                                integrationLogo={integrationLogo ?? undefined}
+                                connectionSlug={state.connectionSlug || ""}
+                                onSelectAction={handleSelectAction}
+                            />
+                        ) : (
+                            <ActionDetailStep
+                                integrationKey={state.integrationKey || ""}
+                                integrationName={integrationName || ""}
+                                integrationLogo={integrationLogo ?? undefined}
+                                connectionSlug={state.connectionSlug || ""}
+                                actionKey={activeActionKey}
+                                actionName={selectedAction?.name}
+                                canGoBack={!state.actionKey}
+                                onBack={handleBack}
+                            />
+                        ))}
+                </div>
+            </SheetContent>
+        </Sheet>
     )
 }
 
@@ -145,24 +154,24 @@ function ActionRow({
                     onSelect(action)
                 }
             }}
-            className="-mx-3 flex cursor-pointer items-center gap-3 rounded-[10px] px-3 py-2.5 outline-none hover:bg-accent/60 focus-visible:bg-accent/60"
+            className="-mx-3 flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 outline-none hover:bg-accent/60 focus-visible:bg-accent/60"
         >
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <div className="flex min-w-0 items-center gap-2">
-                    <span className="truncate text-sm font-medium text-foreground">
+                    <span className="truncate text-label font-medium text-foreground">
                         {action.name}
                     </span>
                     {hint ? (
                         <Tag
-                            tone={hint === "entityUi.toolExecution.deletes" ? "red" : "default"}
-                            className="shrink-0 text-xs"
+                            tone={hint === "entityUi.toolExecution.deletes" ? "destructive" : "default"}
+                            className="shrink-0 text-meta"
                         >
                             {t(hint)}
                         </Tag>
                     ) : null}
                 </div>
                 {action.description ? (
-                    <span className="line-clamp-2 text-xs text-colorTextDescription">
+                    <span className="line-clamp-2 text-meta text-muted-foreground">
                         {topic ? <span className="font-mono">{topic} · </span> : null}
                         {action.description}
                     </span>
@@ -189,18 +198,18 @@ function ActionRowsSkeleton({rows = 6}: {rows?: number}) {
 /** The integration's logo in a bordered tile; its initial when it has none. */
 function LogoTile({logo, name}: {logo?: string; name: string}) {
     return (
-        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-background shadow-xs">
+        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-solid border-border bg-background">
             {logo ? (
                 <Image
                     src={logo}
                     alt={name}
-                    width={18}
-                    height={18}
-                    className="size-[18px] object-contain"
+                    width={16}
+                    height={16}
+                    className="size-4 object-contain"
                     unoptimized
                 />
             ) : (
-                <span className="text-sm font-semibold text-muted-foreground">
+                <span className="text-label font-semibold text-muted-foreground">
                     {name.charAt(0).toUpperCase()}
                 </span>
             )}
@@ -250,7 +259,7 @@ function ActionPickerStep({
             {/* Sticky header */}
             <div className="flex flex-col gap-3 px-4 pt-4 pb-3 shrink-0">
                 <div className="flex min-w-0 flex-col gap-1">
-                    <span className="truncate text-base font-medium leading-snug text-foreground">
+                    <span className="truncate text-body font-medium leading-snug text-foreground">
                         {t("entityUi.toolExecution.chooseAction")}
                     </span>
                 </div>
@@ -264,7 +273,7 @@ function ActionPickerStep({
                 />
 
                 {total > 0 ? (
-                    <span className="text-xs text-colorTextDescription">
+                    <span className="text-meta text-muted-foreground">
                         {t("entityUi.toolExecution.actionsCount", {count: total})}
                     </span>
                 ) : null}
@@ -395,23 +404,23 @@ function ActionDetailStep({
                     <button
                         type="button"
                         onClick={onBack}
-                        className="-ml-1 mb-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+                        className="-ml-1 mb-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-meta text-muted-foreground hover:text-foreground"
                     >
                         <ArrowLeft size={12} />
                         {t("entityUi.toolExecution.allActions")}
                     </button>
                 )}
-                <span className="truncate text-base font-medium text-foreground">
+                <span className="truncate text-body font-medium text-foreground">
                     {detailLoading ? t("entityUi.toolExecution.loading") : displayName}
                 </span>
                 {action?.description && (
-                    <p className="m-0 line-clamp-3 text-[13px] leading-5 text-colorTextDescription">
+                    <p className="m-0 line-clamp-3 text-label leading-5 text-muted-foreground">
                         {action.description}
                     </p>
                 )}
-                <span className="flex min-w-0 items-center gap-1.5 text-xs text-colorTextDescription">
+                <span className="flex min-w-0 items-center gap-1.5 text-meta text-muted-foreground">
                     {t("entityUi.toolExecution.connection")}
-                    <span className="truncate rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">
+                    <span className="truncate rounded bg-muted px-1.5 py-0.5 font-mono text-caption text-foreground">
                         {connectionSlug}
                     </span>
                 </span>
@@ -425,7 +434,7 @@ function ActionDetailStep({
                     <div className="flex flex-col gap-6">
                         {/* Inputs section */}
                         <div className="flex flex-col gap-2">
-                            <span className="text-[13px] font-medium text-muted-foreground">
+                            <span className="text-label font-medium text-muted-foreground">
                                 {t("entityUi.toolExecution.inputs")}
                             </span>
                             <SchemaForm
@@ -437,7 +446,7 @@ function ActionDetailStep({
 
                         {/* Outputs section */}
                         <div className="flex flex-col gap-2">
-                            <span className="text-[13px] font-medium text-muted-foreground">
+                            <span className="text-label font-medium text-muted-foreground">
                                 {t("entityUi.toolExecution.output")}
                             </span>
                             {result || error ? (
@@ -447,12 +456,12 @@ function ActionDetailStep({
                                     outputSchema={outputSchema as Record<string, unknown> | null}
                                 />
                             ) : (
-                                <div className="flex flex-col items-center gap-1 rounded-[10px] border border-dashed border-border px-4 py-6 text-center">
+                                <div className="flex flex-col items-center gap-1 rounded-lg border border-dashed border-border px-4 py-6 text-center">
                                     <Play size={18} className="text-muted-foreground" />
-                                    <span className="text-sm text-foreground">
+                                    <span className="text-label text-foreground">
                                         {t("entityUi.toolExecution.noOutputYet")}
                                     </span>
-                                    <span className="text-xs text-colorTextDescription">
+                                    <span className="text-meta text-muted-foreground">
                                         {t("entityUi.toolExecution.fillInputsHint")}
                                     </span>
                                 </div>

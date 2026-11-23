@@ -5,8 +5,15 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {useT} from "@agenta/i18n"
 import triggerDeliveriesCatalog from "@agenta/i18n/catalogs/entityUi.triggerDeliveries"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, EmptyState, Skeleton} from "@agenta/ui/ui"
+import {
+    Button,
+    EmptyState,
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    Skeleton,
+} from "@agenta/ui/ui"
 import {useAtom} from "jotai"
 
 import {DeliveryDetails} from "./DeliveryDetails"
@@ -68,21 +75,29 @@ export default function TriggerDeliveriesDrawer({onOpenSession}: TriggerDeliveri
         : undefined
 
     return (
-        <EnhancedDrawer
+        <Sheet
             open={Boolean(state)}
-            onClose={() => setState(null)}
-            title={t("entityUi.triggerDeliveries.deliveryDetails")}
-            width={720}
-            destroyOnClose
-            styles={{
-                body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
+            onOpenChange={(next) => {
+                if (!next) setState(null)
             }}
         >
-            {state ? (
-                <div className="h-full overflow-y-auto p-6">
-                    <ExactDeliveryView state={state} onOpenSession={openLinkedSession} />
+            <SheetContent
+                side="right"
+                style={{width: 720, maxWidth: "calc(100% - 1rem)"}}
+            >
+                <SheetHeader>
+                    <SheetTitle className="min-w-0">
+                        {t("entityUi.triggerDeliveries.deliveryDetails")}
+                    </SheetTitle>
+                </SheetHeader>
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-b-[inherit] text-field-md text-foreground">
+                    {state ? (
+                        <div className="h-full overflow-y-auto p-6">
+                            <ExactDeliveryView state={state} onOpenSession={openLinkedSession} />
+                        </div>
+                    ) : null}
                 </div>
-            ) : null}
-        </EnhancedDrawer>
+            </SheetContent>
+        </Sheet>
     )
 }

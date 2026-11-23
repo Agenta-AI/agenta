@@ -57,11 +57,15 @@ import {
 import {customNamedSecretsAtom} from "@agenta/entities/secret"
 import {createT, richText, useT, type CatalogKey} from "@agenta/i18n"
 import mcpJourneyCatalog from "@agenta/i18n/catalogs/entityUi.mcpJourney"
-import {EnhancedModal, ModalContent} from "@agenta/ui"
 import {
     Alert,
     Button,
     cn,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
     Field,
     Input,
     LoadingButton,
@@ -71,9 +75,9 @@ import {
     SelectSeparator,
     SelectTrigger,
     SelectValue,
-    touchTargetExpansion,
+    Spinner,
 } from "@agenta/ui/ui"
-import {ArrowSquareOut, CircleNotch, Plus, WarningCircle} from "@phosphor-icons/react"
+import {ArrowSquareOut, Plus, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {CreateSecretDrawer} from "../secret"
@@ -327,20 +331,34 @@ export function McpConnectSheet({open, container = null, ...input}: McpConnectSh
     const t = useT(mcpJourneyCatalog)
     const screens = useMcpConnectScreens(input)
     return (
-        <EnhancedModal
+        // Contained runs non-modal: the host drawer already traps focus.
+        <Dialog
             open={open}
-            onCancel={screens.handleClose}
-            // Escape and a mask click reach `onCancel` even while the footer's buttons are
-            // disabled. Between consent and the refetch the grant already exists server-side,
-            // so a close here would delete a row whose credential the provider is still
-            // holding (D29). The journey moves on by itself; there is nothing to abandon.
-            maskClosable={!screens.sealed}
-            keyboard={!screens.sealed}
-            closable={!screens.sealed}
-            title={screens.title}
-            footer={
-                screens.screen === "waiting" ? null : (
-                    <>
+            onOpenChange={(next) => !next && screens.handleClose()}
+            modal={!container}
+        >
+            <DialogContent
+                container={container ?? undefined}
+                contained={!!container}
+                className="max-w-[480px]"
+                showCloseButton={!screens.sealed}
+                // Sealed: the grant exists server-side, so a close would orphan it (D29).
+                onEscapeKeyDown={(e) => {
+                    if (screens.sealed) e.preventDefault()
+                }}
+                onPointerDownOutside={(e) => {
+                    if (screens.sealed) e.preventDefault()
+                }}
+                onInteractOutside={(e) => {
+                    if (screens.sealed) e.preventDefault()
+                }}
+            >
+                <DialogHeader>
+                    <DialogTitle>{screens.title}</DialogTitle>
+                </DialogHeader>
+                <div className="flex flex-col gap-4">{screens.body}</div>
+                {screens.screen === "waiting" ? null : (
+                    <DialogFooter className="flex-row justify-end border-t-0">
                         <Button
                             variant="outline"
                             onClick={screens.handleClose}
@@ -358,17 +376,10 @@ export function McpConnectSheet({open, container = null, ...input}: McpConnectSh
                                 <ArrowSquareOut size={14} data-icon="inline-end" />
                             ) : null}
                         </LoadingButton>
-                    </>
-                )
-            }
-            classNames={{footer: "flex-row justify-end border-t-0"}}
-            width={480}
-            destroyOnClose
-            getContainer={container ?? false}
-            contained={!!container}
-        >
-            <ModalContent>{screens.body}</ModalContent>
-        </EnhancedModal>
+                    </DialogFooter>
+                )}
+            </DialogContent>
+        </Dialog>
     )
 }
 
@@ -828,8 +839,8 @@ export function useMcpConnectScreens({
     const keyScreenUrl =
         screen === "api_key" && (binding.kind === "url" || hasUrlSecretPlaceholder(state.url))
     const showUrlField = screen !== "waiting" && !keyScreenUrl
-    // The canvas field: 34 px, radius 6, 13 px text, from the desktop width up.
-    const fieldClass = canvas ? "md:h-[34px] md:rounded-[6px] md:text-[13px]" : undefined
+    // The canvas field: control-md (44 on touch), radius 6, 13 px text.
+    const fieldClass = canvas ? "h-control rounded-md text-label" : undefined
 
     const body = (
         <div
@@ -838,7 +849,7 @@ export function useMcpConnectScreens({
                 // The canvas labels at every width, as in ConnectOwnerField: 12/16, weight 500,
                 // secondary text. 12 px between fields on the desktop.
                 canvas &&
-                    "md:gap-3 [&_[data-slot=field-label]]:text-[12px] [&_[data-slot=field-label]]:leading-4 [&_[data-slot=field-label]]:text-colorTextSecondary",
+                    "md:gap-3 [&_[data-slot=field-label]]:text-meta [&_[data-slot=field-label]]:text-muted-foreground",
             )}
             data-testid="mcp-connect-journey"
         >
@@ -853,7 +864,7 @@ export function useMcpConnectScreens({
                     <Input
                         ref={urlInputRef}
                         autoFocus={!reconnect}
-                        className={cn("font-mono text-[13px]", fieldClass)}
+                        className={cn("font-mono text-label", fieldClass)}
                         placeholder="https://mcp.example.com/mcp"
                         value={reconnect?.url ?? state.url}
                         // A reconnect repairs one address and never points a saved connection
@@ -935,9 +946,9 @@ export function useMcpConnectScreens({
                     type="warning"
                     showIcon
                     icon={<WarningCircle size={15} weight="regular" />}
-                    className="items-start border-colorWarningBorder bg-colorWarningBg px-3 py-2.5"
+                    className="items-start border-warning/30 bg-warning/10 px-3 py-2.5"
                     message={
-                        <span className="text-xs font-normal leading-normal text-colorText">
+                        <span className="text-meta font-normal leading-normal text-foreground">
                             {t("entityUi.mcpJourney.legacyTransportWarning")}
                         </span>
                     }
@@ -1023,7 +1034,7 @@ export function useMcpConnectScreens({
                                 error={urlProblem ?? undefined}
                             >
                                 <Input
-                                    className="font-mono text-[13px]"
+                                    className="font-mono text-label"
                                     value={state.url}
                                     // A reconnect repairs one address and never
                                     // points a saved connection somewhere else.
@@ -1057,7 +1068,7 @@ export function useMcpConnectScreens({
                             />
                         </Field>
                     </div>
-                    <span className="-mt-2 block text-xs leading-normal text-colorTextTertiary">
+                    <span className="-mt-2 block text-meta leading-normal text-muted-foreground">
                         {secretHelpFor(binding.kind)}
                     </span>
                 </>
@@ -1095,15 +1106,11 @@ export function useMcpConnectScreens({
                     }
                 >
                     {sealed ? null : (
-                        <div className="flex items-center gap-4 text-xs">
-                            {/* Both links are the control scale's 24px, under the 44px
-                                        touch minimum, so each grows an invisible box to reach it.
-                                        The row's gap is 16px, wider than the 10px either box
-                                        reaches sideways, so they do not overlap each other. */}
+                        <div className="flex items-center gap-4 text-meta">
                             <Button
                                 variant="link"
                                 size="xs"
-                                className={cn("px-0 text-xs", touchTargetExpansion(24))}
+                                className="px-0 text-meta"
                                 onClick={() => consentPopupRef.current?.focus()}
                             >
                                 {t("entityUi.mcpJourney.openWindowAgain")}
@@ -1111,10 +1118,7 @@ export function useMcpConnectScreens({
                             <Button
                                 variant="link"
                                 size="xs"
-                                className={cn(
-                                    "px-0 text-xs text-colorTextTertiary",
-                                    touchTargetExpansion(24),
-                                )}
+                                className="px-0 text-meta text-muted-foreground"
                                 onClick={() => {
                                     closeConsentPopup()
                                     // A reconnect has no screen behind this one, so
@@ -1266,11 +1270,11 @@ const InlineError = ({
             type="error"
             showIcon
             icon={<WarningCircle size={15} weight="regular" />}
-            className={`items-start border-colorErrorBorder bg-colorErrorBg px-3 py-2.5 ${className ?? ""}`}
+            className={`items-start border-destructive/40 bg-destructive/10 px-3 py-2.5 ${className ?? ""}`}
             message={
-                <span className="text-xs font-normal leading-normal text-colorTextSecondary">
+                <span className="text-meta font-normal leading-normal text-muted-foreground">
                     {headline ? (
-                        <span className="font-medium text-colorText">{headline}</span>
+                        <span className="font-medium text-foreground">{headline}</span>
                     ) : null}
                     {text}
                     {rest}
@@ -1294,9 +1298,9 @@ const WaitingCard = ({
         role="status"
         data-testid="mcp-connect-waiting"
     >
-        <CircleNotch size={24} className="animate-spin text-colorTextSecondary" />
-        {title ? <p className="m-0 text-sm font-medium text-colorText">{title}</p> : null}
-        <p className="m-0 max-w-[300px] text-xs leading-normal text-colorTextSecondary">{body}</p>
+        <Spinner aria-hidden size="large" className="text-muted-foreground" />
+        {title ? <p className="m-0 text-body font-medium text-foreground">{title}</p> : null}
+        <p className="m-0 max-w-[300px] text-meta leading-normal text-muted-foreground">{body}</p>
         {children}
     </div>
 )
@@ -1362,7 +1366,7 @@ const SecretSelect = ({
             </SelectTrigger>
             <SelectContent>
                 {options.length === 0 ? (
-                    <div className="px-3 py-input-y-ghost text-field-md text-colorTextSecondary">
+                    <div className="px-3 py-input-y-ghost text-field-md text-muted-foreground">
                         {t("entityUi.mcpJourney.noProjectSecrets")}
                     </div>
                 ) : (

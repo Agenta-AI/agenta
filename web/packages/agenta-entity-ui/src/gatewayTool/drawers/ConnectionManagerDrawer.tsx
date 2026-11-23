@@ -14,8 +14,15 @@ import toolConnectionsCatalog from "@agenta/i18n/catalogs/entityUi.toolConnectio
 import {getAgentaApiUrl, getAgentaWebUrl, getHostQueryClient} from "@agenta/shared/api"
 import {dayjs} from "@agenta/shared/utils"
 import {modal} from "@agenta/ui/app-message"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Divider, LoadingButton, Spinner} from "@agenta/ui/ui"
+import {
+    Divider,
+    LoadingButton,
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    Spinner,
+} from "@agenta/ui/ui"
 import {ArrowClockwise, Play, Trash, XCircle} from "@phosphor-icons/react"
 import {useAtom, useSetAtom} from "jotai"
 
@@ -34,15 +41,15 @@ function formatCreatedAt(value: string | null | undefined): string {
 /** antd `Descriptions bordered size="small"` replacement — a 2-col bordered detail table. */
 function DetailsTable({items}: {items: {key: string; label: string; children: React.ReactNode}[]}) {
     return (
-        <div className="box-border overflow-hidden rounded-lg border border-solid border-colorBorderSecondary">
+        <div className="box-border overflow-hidden rounded-lg border border-solid border-border-muted">
             {items.map((item, i) => (
                 <div
                     key={item.key}
-                    className={`grid grid-cols-[120px_1fr] text-xs ${
-                        i > 0 ? "border-0 border-t border-solid border-colorBorderSecondary" : ""
+                    className={`grid grid-cols-[120px_1fr] text-meta ${
+                        i > 0 ? "border-0 border-t border-solid border-border-muted" : ""
                     }`}
                 >
-                    <div className="border-0 border-r border-solid border-colorBorderSecondary bg-colorFillQuaternary px-3 py-2 text-colorTextDescription">
+                    <div className="border-0 border-r border-solid border-border-muted bg-secondary px-3 py-2 text-muted-foreground">
                         {item.label}
                     </div>
                     <div className="px-3 py-2 break-all">{item.children}</div>
@@ -194,121 +201,132 @@ export default function ConnectionManagerDrawer() {
     const isValid = isConnectionValid(connection)
 
     return (
-        <EnhancedDrawer
+        <Sheet
             open={open}
-            onClose={handleClose}
-            title={t("entityUi.toolConnections.connectionDetails")}
-            width={480}
-            destroyOnClose
+            onOpenChange={(next) => {
+                if (!next) handleClose()
+            }}
         >
-            <div className="flex flex-col gap-4">
-                {isLoading ? (
-                    <div className="flex justify-center py-8">
-                        <Spinner />
-                    </div>
-                ) : !connection ? (
-                    <span className="text-colorTextDescription">
-                        {t("entityUi.toolConnections.connectionNotFound")}
-                    </span>
-                ) : (
-                    <>
-                        {/* Header */}
-                        <div className="flex items-center gap-3">
-                            <div className="flex-1">
-                                <div className="text-base font-semibold text-colorTextHeading">
-                                    {connection.name || connection.slug}
-                                </div>
-                                <span className="text-xs text-colorTextDescription">
-                                    {connection.integration_key}
-                                </span>
+            <SheetContent
+                side="right"
+                style={{width: 480, maxWidth: "calc(100% - 1rem)"}}
+            >
+                <SheetHeader>
+                    <SheetTitle className="min-w-0">
+                        {t("entityUi.toolConnections.connectionDetails")}
+                    </SheetTitle>
+                </SheetHeader>
+                <div className="min-h-0 flex-1 overflow-y-auto rounded-b-[inherit] p-4 text-field-md text-foreground">
+                    <div className="flex flex-col gap-4">
+                        {isLoading ? (
+                            <div className="flex justify-center py-8">
+                                <Spinner />
                             </div>
-                            <ConnectionStatusBadge connection={connection} />
-                        </div>
+                        ) : !connection ? (
+                            <span className="text-muted-foreground">
+                                {t("entityUi.toolConnections.connectionNotFound")}
+                            </span>
+                        ) : (
+                            <>
+                                {/* Header */}
+                                <div className="flex items-center gap-3">
+                                    <div className="flex-1">
+                                        <div className="text-title font-semibold text-foreground">
+                                            {connection.name || connection.slug}
+                                        </div>
+                                        <span className="text-meta text-muted-foreground">
+                                            {connection.integration_key}
+                                        </span>
+                                    </div>
+                                    <ConnectionStatusBadge connection={connection} />
+                                </div>
 
-                        {/* Details */}
-                        <DetailsTable
-                            items={[
-                                {
-                                    key: "slug",
-                                    label: t("entityUi.toolConnections.slug"),
-                                    children: connection.slug,
-                                },
-                                {
-                                    key: "provider",
-                                    label: t("entityUi.toolConnections.provider"),
-                                    children: connection.provider_key,
-                                },
-                                {
-                                    key: "integration",
-                                    label: t("entityUi.toolConnections.integration"),
-                                    children: connection.integration_key,
-                                },
-                                {
-                                    key: "active",
-                                    label: t("entityUi.toolConnections.active"),
-                                    children: isActive
-                                        ? t("entityUi.toolConnections.yes")
-                                        : t("entityUi.toolConnections.no"),
-                                },
-                                {
-                                    key: "valid",
-                                    label: t("entityUi.toolConnections.authenticated"),
-                                    children: isValid
-                                        ? t("entityUi.toolConnections.yes")
-                                        : t("entityUi.toolConnections.no"),
-                                },
-                                {
-                                    key: "created",
-                                    label: t("entityUi.toolConnections.created"),
-                                    children: formatCreatedAt(connection.created_at),
-                                },
-                            ]}
-                        />
+                                {/* Details */}
+                                <DetailsTable
+                                    items={[
+                                        {
+                                            key: "slug",
+                                            label: t("entityUi.toolConnections.slug"),
+                                            children: connection.slug,
+                                        },
+                                        {
+                                            key: "provider",
+                                            label: t("entityUi.toolConnections.provider"),
+                                            children: connection.provider_key,
+                                        },
+                                        {
+                                            key: "integration",
+                                            label: t("entityUi.toolConnections.integration"),
+                                            children: connection.integration_key,
+                                        },
+                                        {
+                                            key: "active",
+                                            label: t("entityUi.toolConnections.active"),
+                                            children: isActive
+                                                ? t("entityUi.toolConnections.yes")
+                                                : t("entityUi.toolConnections.no"),
+                                        },
+                                        {
+                                            key: "valid",
+                                            label: t("entityUi.toolConnections.authenticated"),
+                                            children: isValid
+                                                ? t("entityUi.toolConnections.yes")
+                                                : t("entityUi.toolConnections.no"),
+                                        },
+                                        {
+                                            key: "created",
+                                            label: t("entityUi.toolConnections.created"),
+                                            children: formatCreatedAt(connection.created_at),
+                                        },
+                                    ]}
+                                />
 
-                        <Divider className="my-1" />
+                                <Divider className="my-1" />
 
-                        {/* Actions */}
-                        <span className="text-sm font-medium">
-                            {t("entityUi.toolConnections.actions")}
-                        </span>
-                        <div className="flex flex-col gap-2">
-                            <LoadingButton
-                                variant="outline"
-                                onClick={onTest}
-                                disabled={!isActive || !isValid}
-                            >
-                                <Play size={14} />
-                                {t("entityUi.toolConnections.testConnection")}
-                            </LoadingButton>
-                            <LoadingButton
-                                variant="outline"
-                                loading={actionLoading === "refresh"}
-                                onClick={onRefresh}
-                            >
-                                <ArrowClockwise size={14} />
-                                {t("entityUi.toolConnections.refreshConnection")}
-                            </LoadingButton>
-                            <LoadingButton
-                                variant="outline"
-                                loading={actionLoading === "revoke"}
-                                onClick={onRevoke}
-                                disabled={!isValid}
-                            >
-                                <XCircle size={14} />
-                                {t("entityUi.toolConnections.revokeConnection")}
-                            </LoadingButton>
-                            <LoadingButton
-                                variant="destructive-outline"
-                                loading={actionLoading === "delete"}
-                                onClick={onDelete}
-                            >
-                                <Trash size={14} />
-                                {t("entityUi.toolConnections.deleteConnection")}
-                            </LoadingButton>
-                        </div>
-                    </>
-                )}
-            </div>
-        </EnhancedDrawer>
+                                {/* Actions */}
+                                <span className="text-label font-medium">
+                                    {t("entityUi.toolConnections.actions")}
+                                </span>
+                                <div className="flex flex-col gap-2">
+                                    <LoadingButton
+                                        variant="outline"
+                                        onClick={onTest}
+                                        disabled={!isActive || !isValid}
+                                    >
+                                        <Play size={14} />
+                                        {t("entityUi.toolConnections.testConnection")}
+                                    </LoadingButton>
+                                    <LoadingButton
+                                        variant="outline"
+                                        loading={actionLoading === "refresh"}
+                                        onClick={onRefresh}
+                                    >
+                                        <ArrowClockwise size={14} />
+                                        {t("entityUi.toolConnections.refreshConnection")}
+                                    </LoadingButton>
+                                    <LoadingButton
+                                        variant="outline"
+                                        loading={actionLoading === "revoke"}
+                                        onClick={onRevoke}
+                                        disabled={!isValid}
+                                    >
+                                        <XCircle size={14} />
+                                        {t("entityUi.toolConnections.revokeConnection")}
+                                    </LoadingButton>
+                                    <LoadingButton
+                                        variant="destructive-ghost"
+                                        loading={actionLoading === "delete"}
+                                        onClick={onDelete}
+                                    >
+                                        <Trash size={14} />
+                                        {t("entityUi.toolConnections.deleteConnection")}
+                                    </LoadingButton>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </SheetContent>
+        </Sheet>
     )
 }

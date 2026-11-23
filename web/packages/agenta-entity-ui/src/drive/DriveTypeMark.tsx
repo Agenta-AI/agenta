@@ -9,19 +9,19 @@ import {Folder, FolderOpen} from "@phosphor-icons/react"
 
 /** Chip colours per tone. */
 const TONE_CLASS: Record<DriveKindTone, string> = {
-    info: "bg-colorFillTertiary text-colorInfo",
-    warning: "bg-colorWarningBg text-colorWarning",
-    success: "bg-colorSuccessBg text-colorSuccess",
-    error: "bg-colorErrorBg text-colorError",
-    neutral: "bg-colorFillTertiary text-colorTextSecondary",
+    info: "bg-secondary text-info",
+    warning: "bg-warning/10 text-warning",
+    success: "bg-success/10 text-success",
+    error: "bg-destructive/10 text-destructive",
+    neutral: "bg-secondary text-muted-foreground",
 }
 /** The mini mark's colour bar. */
 const TONE_BAR_CLASS: Record<DriveKindTone, string> = {
-    info: "bg-colorInfo",
-    warning: "bg-colorWarning",
-    success: "bg-colorSuccess",
-    error: "bg-colorError",
-    neutral: "bg-colorTextQuaternary",
+    info: "bg-info",
+    warning: "bg-warning",
+    success: "bg-success",
+    error: "bg-destructive",
+    neutral: "bg-border-strong",
 }
 
 /**
@@ -42,13 +42,13 @@ const Page = ({size, tight = false}: {size: number; tight?: boolean}) => (
         {/* Elevated fill so the page lifts off the pane in dark mode. */}
         <path
             d="M4 3h24l14 14v33a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z"
-            className="fill-colorBgElevated stroke-colorBorder"
+            className="fill-background stroke-border"
             strokeWidth={1.5}
             strokeLinejoin="round"
         />
         <path
             d="M28 3v14h14"
-            className="fill-colorFillTertiary stroke-colorBorder dark:fill-colorFillSecondary"
+            className="fill-secondary stroke-border dark:fill-secondary"
             strokeWidth={1.5}
             strokeLinejoin="round"
         />
@@ -63,7 +63,7 @@ export const DriveTypeMark = ({path, size = "mini"}: {path: string; size?: "tile
             <span className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center">
                 <Page size={54} tight />
                 <span
-                    className={`absolute bottom-[8px] left-1/2 -translate-x-1/2 rounded-[3px] px-[5px] py-px text-[8.5px] font-bold uppercase leading-[1.4] tracking-[0.4px] ${TONE_CLASS[tone]}`}
+                    className={`absolute bottom-2 left-1/2 -translate-x-1/2 rounded-sm px-1 py-px text-caption font-semibold uppercase leading-[1.4] tracking-[0.4px] ${TONE_CLASS[tone]}`}
                 >
                     {fileTypeChip(path)}
                 </span>
@@ -90,7 +90,7 @@ export const DriveFolderGlyph = ({
     className?: string
 }) =>
     open ? (
-        <FolderOpen size={size} weight="fill" className={`shrink-0 text-colorInfo ${className}`} />
+        <FolderOpen size={size} weight="fill" className={`shrink-0 text-info ${className}`} />
     ) : (
-        <Folder size={size} weight="fill" className={`shrink-0 text-colorInfo ${className}`} />
+        <Folder size={size} weight="fill" className={`shrink-0 text-info ${className}`} />
     )

@@ -23,8 +23,8 @@ const IntegrationConnectViewBody = ({params}: ViewProps<IntegrationConnectViewPa
     useViewTitle(integration?.name ?? params.integrationKey)
     if (!integration && query.isError) {
         return (
-            <div className="flex flex-col items-start gap-3 px-4 py-6 text-sm">
-                <span className="text-colorTextSecondary">
+            <div className="flex flex-col items-start gap-3 px-4 py-6 text-label">
+                <span className="text-muted-foreground">
                     {t("entityUi.integrationViews.appLoadError")}
                 </span>
                 <Button variant="outline" size="sm" onClick={() => void query.refetch()}>

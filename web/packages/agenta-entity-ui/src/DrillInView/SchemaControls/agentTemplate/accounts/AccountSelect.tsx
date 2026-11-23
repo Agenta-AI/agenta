@@ -1,6 +1,5 @@
 import type {ReactNode} from "react"
 
-import {useIsPhone} from "@agenta/ui/phone"
 import {
     Select,
     SelectContent,
@@ -42,20 +41,17 @@ export function AccountSelect({
     disabled?: boolean
     "aria-label": string
 }) {
-    // A 44 px target on a phone (M09).
-    const phone = useIsPhone()
     const selected = options.find((option) => option.value === value)
     return (
         <Select value={selected ? value : ""} onValueChange={onChange} disabled={disabled}>
-            {/* Canvas F02 f6: the compact select (34 px, radius 6, 13 px, an up-down icon);
-                44 px, radius 8, 14 px on a phone (M09). */}
+            {/* Canvas F02 f6: the compact select (34 px, radius 6, 13 px, an up-down icon). */}
             <SelectTrigger
                 size="compact"
-                className={`w-full gap-2 ${phone ? "!h-11 !rounded-[8px]" : ""}`}
+                className="w-full gap-2"
                 aria-label={ariaLabel}
             >
                 {icon ? (
-                    <span className="flex shrink-0 text-colorTextSecondary">{icon}</span>
+                    <span className="flex shrink-0 text-muted-foreground">{icon}</span>
                 ) : null}
                 <SelectValue placeholder={placeholder}>
                     {selected ? <OptionText option={selected} /> : null}
@@ -67,14 +63,13 @@ export function AccountSelect({
                     <SelectItem
                         key={option.value}
                         value={option.value}
-                        size="compact"
                         className="data-[state=checked]:font-normal"
                     >
                         <OptionText option={option} />
                     </SelectItem>
                 ))}
                 <SelectSeparator />
-                <SelectItem value={CONNECT_ANOTHER} size="compact">
+                <SelectItem value={CONNECT_ANOTHER}>
                     <span className="flex items-center gap-2">
                         <Plus size={14} />
                         {connectLabel}
@@ -90,7 +85,7 @@ function OptionText({option}: {option: AccountSelectOption}) {
         <span className="flex min-w-0 items-center gap-2">
             <span className="truncate">{option.label}</span>
             {option.meta ? (
-                <span className="shrink-0 text-xs text-colorTextTertiary">{option.meta}</span>
+                <span className="shrink-0 text-meta text-muted-foreground">{option.meta}</span>
             ) : null}
         </span>
     )

@@ -98,19 +98,19 @@ function PhoneIntegrationRow({
             type="button"
             onClick={onOpen}
             disabled={disabled}
-            className="flex min-h-14 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent py-1.5 pl-4 pr-2 text-left font-[inherit] disabled:cursor-default"
+            className="flex min-h-14 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-border-muted bg-transparent py-1.5 pl-4 pr-2 text-left font-[inherit] disabled:cursor-default"
         >
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-[var(--ag-colorBgLayout)]">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">
                 <ProviderLogo logo={logo} size={22} />
             </span>
             <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[15px] leading-5 text-[var(--ag-colorText)]">
+                <span className="truncate text-body leading-5 text-foreground">
                     {name}
                 </span>
-                <span className="truncate text-[12px] leading-4 text-colorTextSecondary">
+                <span className="truncate text-meta text-muted-foreground">
                     {source}
                     {status?.reason ? (
-                        <span className="text-[var(--ag-colorWarningText)]">
+                        <span className="text-warning">
                             {" · "}
                             {status.reason}
                         </span>
@@ -123,7 +123,7 @@ function PhoneIntegrationRow({
             {disabled ? null : (
                 <CaretRight
                     size={14}
-                    className="mr-2 shrink-0 text-[var(--ag-colorTextTertiary)]"
+                    className="mr-2 shrink-0 text-muted-foreground"
                 />
             )}
         </button>
@@ -210,7 +210,7 @@ export interface ToolManagementListProps {
 
 /** Shared empty-state line: one quiet line, the section header's "+" is the way to add. */
 function EmptyLine({label}: {label: string}) {
-    return <span className="text-[12px] leading-4 text-colorTextTertiary">{label}</span>
+    return <span className="text-meta text-muted-foreground">{label}</span>
 }
 
 /** The Integrations section body: one row per connected app, no sub-header. */

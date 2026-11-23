@@ -28,8 +28,8 @@ export interface SectionMarks {
 export const SectionMarksContext = createContext<SectionMarks | null>(null)
 
 const Mark = ({label}: {label: string}) => (
-    <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[12px] font-normal leading-4 text-[var(--ag-colorInfo)]">
-        <span aria-hidden className="size-[7px] rounded-full bg-[var(--ag-colorInfo)]" />
+    <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-meta font-normal text-info">
+        <span aria-hidden className="size-2 rounded-xs bg-info" />
         {label}
     </span>
 )

@@ -10,7 +10,6 @@ import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {ConfigRowTriangle, Tag} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {
-    PHONE_TOUCH_TARGET_CLASS,
     Tooltip,
     TooltipContent,
     TooltipProvider,
@@ -25,7 +24,7 @@ import {useSectionListLayout} from "./sectionListLayout"
  * On the Configuration page (canvas A04) the rows are flat inside the section's one card: no
  * border of their own, a line above each row. The card hides the first row's line.
  */
-const PAGE_ROW = "gap-3 border-0 border-t border-solid border-[var(--ag-colorSplit)] px-3.5 py-3"
+const PAGE_ROW = "gap-3 border-0 border-t border-solid border-border-muted px-3.5 py-3"
 
 /**
  * Draft/validation status for a config-item row: tints the row border and shows a tag.
@@ -47,28 +46,28 @@ export interface ItemRowStatus {
 }
 
 const STATUS_BORDER: Record<ItemRowStatusTone, string> = {
-    new: "var(--ag-colorSuccessBorder)",
-    edited: "var(--ag-colorInfoBorder)",
-    invalid: "var(--ag-colorErrorBorder)",
-    incomplete: "var(--ag-colorWarningBorder)",
+    new: "color-mix(in srgb, var(--success) 30%, transparent)",
+    edited: "color-mix(in srgb, var(--info) 30%, transparent)",
+    invalid: "color-mix(in srgb, var(--destructive) 30%, transparent)",
+    incomplete: "color-mix(in srgb, var(--warning) 30%, transparent)",
 }
 // antd preset `Tag color` → the presentational Tag's `tone` (same preset hues on `Badge`).
 const STATUS_TAG_TONE = {
-    new: "green",
-    edited: "blue",
-    invalid: "red",
-    incomplete: "gold",
+    new: "success",
+    edited: "info",
+    invalid: "destructive",
+    incomplete: "warning",
 } as const satisfies Record<ItemRowStatusTone, string>
 // antd pins `.ant-tag`'s line-height in px (22.4), so overriding only the FONT size leaves it
 // intact; Badge's `text-badge-md` BUNDLES its line-height, which a bare `text-xs` drops
 // (tags rendered 20.3px instead of 24.4px until this was restated).
-const TAG_CLS = "m-0 text-[12px] leading-4"
+const TAG_CLS = "m-0 text-meta"
 // Solid accent for borderless child rows (an inset left bar, so rounded corners survive).
 const STATUS_ACCENT: Record<ItemRowStatusTone, string> = {
-    new: "var(--ag-colorSuccess)",
-    edited: "var(--ag-colorInfo)",
-    invalid: "var(--ag-colorError)",
-    incomplete: "var(--ag-colorWarning)",
+    new: "var(--success)",
+    edited: "var(--info)",
+    invalid: "var(--destructive)",
+    incomplete: "var(--warning)",
 }
 
 export function StatusTag({status}: {status: ItemRowStatus}) {
@@ -106,7 +105,7 @@ function RowSubtitle({
 }) {
     if (status?.reason) {
         return (
-            <span className={cn(className, "text-[var(--ag-colorWarningText)]")}>
+            <span className={cn(className, "text-warning")}>
                 {status.reason}
             </span>
         )
@@ -122,7 +121,7 @@ export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
     return (
         <span
             className={cn(
-                "flex h-7 w-7 shrink-0 items-center justify-center rounded text-[12px] font-semibold leading-none",
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded text-meta font-semibold leading-none",
                 chipped ? descriptor.avatarClassName : "text-white",
             )}
             style={chipped ? descriptor.avatarStyle : {background: descriptor.color}}
@@ -178,12 +177,12 @@ export function ItemRow({
                 // card take their padding and frame from one place each.
                 page
                     ? PAGE_ROW
-                    : "gap-2.5 rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] py-2.5 pl-3 pr-2",
+                    : "gap-2.5 rounded-lg border border-solid border-border-muted py-2.5 pl-3 pr-2",
                 // Item cards read as white sheets sitting ON the expanded section's band.
-                !locked && "bg-[var(--ag-surface-section-content)]",
-                interactive && !status && "cursor-pointer hover:bg-[var(--ag-colorFillQuaternary)]",
+                !locked && "bg-background",
+                interactive && !status && "cursor-pointer hover:bg-accent",
                 interactive && status && "cursor-pointer",
-                locked && "bg-[var(--ant-color-fill-quaternary)] opacity-70",
+                locked && "bg-muted opacity-70",
             )}
         >
             {/* The `role="button"` region is a SIBLING of the remove button, never its ancestor
@@ -215,7 +214,7 @@ export function ItemRow({
                             "truncate font-normal leading-5",
                             // Canvas A04: a page row's name is 14 px, a mono name 13 px; a panel
                             // card's is 13 px (F01).
-                            page && descriptor.monoName === false ? "text-sm" : "text-[13px]",
+                            page && descriptor.monoName === false ? "text-label" : "text-label",
                             descriptor.monoName !== false && "font-mono",
                         )}
                     >
@@ -226,7 +225,7 @@ export function ItemRow({
                         description={descriptor.description}
                         // The needs-setup reason is a 12/20 line (canvas F01, the integration card).
                         className={cn(
-                            "block truncate text-[12px] text-[var(--ag-colorTextTertiary)]",
+                            "block truncate text-meta text-muted-foreground",
                             status?.reason ? "leading-5" : "leading-4",
                         )}
                     />
@@ -254,8 +253,7 @@ export function ItemRow({
                             onRemove()
                         }}
                         // A 24px ghost target, not a bare glyph: a hover-only icon is hard to hit.
-                        // 44 px tap area on a phone, the same 24 px box (PHONE_TOUCH_TARGET_CLASS).
-                        className={`${PHONE_TOUCH_TARGET_CLASS} flex size-6 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 text-[var(--ag-colorTextTertiary)] opacity-0 transition-opacity hover:bg-[var(--ag-colorErrorBg)] hover:text-[var(--ag-danger-text)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ag-colorPrimary)] group-hover:opacity-100`}
+                        className={` flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-ring group-hover:opacity-100`}
                     >
                         <Trash size={14} />
                     </button>
@@ -269,7 +267,7 @@ export function ItemRow({
                         <CaretRight
                             aria-hidden
                             size={12}
-                            className="shrink-0 text-colorTextTertiary"
+                            className="shrink-0 text-muted-foreground"
                         />
                     )
                 ) : null}
@@ -301,7 +299,7 @@ export function ItemChildRow({
     return (
         <div
             style={status ? {boxShadow: `inset 2px 0 0 ${STATUS_ACCENT[status.tone]}`} : undefined}
-            className="group flex cursor-pointer items-center gap-2.5 rounded px-2.5 py-1.5 transition-colors hover:bg-[var(--ag-colorFillSecondary)]"
+            className="group flex cursor-pointer items-center gap-2.5 rounded px-2.5 py-1.5 transition-colors hover:bg-accent"
         >
             {/* `role="button"` on the text region only — a sibling of the remove button, not its
                 ancestor (axe nested-interactive). */}
@@ -319,7 +317,7 @@ export function ItemChildRow({
                 className="min-w-0 flex-1"
             >
                 <div
-                    className={`truncate text-xs font-medium ${
+                    className={`truncate text-label font-medium ${
                         descriptor.monoName === false ? "" : "font-mono"
                     }`}
                 >
@@ -328,7 +326,7 @@ export function ItemChildRow({
                 <RowSubtitle
                     status={status}
                     description={descriptor.description}
-                    className="block truncate text-xs leading-snug text-colorTextDescription"
+                    className="block truncate text-meta leading-snug text-muted-foreground"
                 />
             </div>
             <div
@@ -345,12 +343,12 @@ export function ItemChildRow({
                             e.stopPropagation()
                             onRemove()
                         }}
-                        className={`${PHONE_TOUCH_TARGET_CLASS} flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-zinc-5)] opacity-0 transition-opacity hover:text-colorError group-hover:opacity-100`}
+                        className={` flex cursor-pointer items-center border-0 bg-transparent p-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 pointer-coarse:opacity-100`}
                     >
                         <Trash size={14} />
                     </button>
                 ) : null}
-                <CaretRight size={14} className="text-[var(--ag-zinc-5)]" />
+                <CaretRight size={14} className="text-muted-foreground" />
             </div>
         </div>
     )
@@ -405,19 +403,19 @@ export function InstructionsFileRow({
             }}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             className={cn(
-                // Canvas F01: 8 px around, 10 px on the left (a 54 px card).
-                "group flex cursor-pointer items-center gap-2.5 rounded-[8px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] py-2 pl-2.5 pr-2 transition-colors",
-                !status && "hover:border-[var(--ag-zinc-5)]",
+                // A row-double card: 8 px gap in the row (GAP-01).
+                "group box-border flex min-h-row-double cursor-pointer items-center gap-2 rounded-lg border border-solid border-border-muted bg-background py-1.5 pl-2 pr-2 transition-colors",
+                !status && "hover:border-border-strong",
             )}
         >
             {/* The "md" monogram, not the file glyph (canvas F01). */}
             <ItemAvatar descriptor={{...descriptor, icon: undefined}} />
             <div className="flex min-w-0 flex-1 flex-col">
                 <div className="flex items-center gap-2">
-                    <span className="truncate font-mono text-[13px] leading-5">{filename}</span>
+                    <span className="truncate font-mono text-label leading-5">{filename}</span>
                     {status ? <StatusTag status={status} /> : null}
                 </div>
-                <span className="truncate text-[12px] leading-4 text-colorTextSecondary">
+                <span className="truncate text-meta text-muted-foreground">
                     {line}
                 </span>
             </div>
@@ -464,19 +462,20 @@ function InstructionsPagePreview({
                 }
             }}
             data-page-row
-            className="flex cursor-pointer flex-col hover:bg-colorFillQuaternary"
+            className="flex cursor-pointer flex-col hover:bg-accent"
         >
-            <div className="flex items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3.5 py-3">
-                <span className="truncate font-mono text-[13px] leading-[18px]">{filename}</span>
+            <div className="flex items-center gap-2 border-0 border-b border-solid border-border-muted px-3.5 py-3">
+                <span className="truncate font-mono text-label">{filename}</span>
                 {status ? <StatusTag status={status} /> : null}
-                <span className="ml-auto shrink-0 text-[12px] leading-4 text-colorTextTertiary">
+                <span className="ml-auto shrink-0 text-meta text-muted-foreground">
                     {meta}
                 </span>
             </div>
-            <div className="flex max-h-44 flex-col gap-1 overflow-hidden px-3.5 py-3 text-sm text-colorText">
+            {/* The agent's prompt is prose: `text-body-sm`, headings in `text-subtitle` (TYPE-04). */}
+            <div className="flex max-h-44 flex-col gap-1 overflow-hidden px-3.5 py-3 text-body-sm text-foreground">
                 {lines.map((line, index) =>
                     line.startsWith("#") ? (
-                        <span key={index} className="mt-1 font-semibold first:mt-0">
+                        <span key={index} className="mt-1 text-subtitle first:mt-0">
                             {line.replace(/^#+\s*/, "")}
                         </span>
                     ) : (

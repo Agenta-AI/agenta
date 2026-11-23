@@ -37,7 +37,7 @@ export const HintedField = ({
                 {cloneElement(children, {"aria-describedby": describedBy})}
             </Field>
             {hint ? (
-                <p id={hintId} className="m-0 text-xs leading-normal text-colorTextTertiary">
+                <p id={hintId} className="m-0 text-meta leading-normal text-muted-foreground">
                     {hint}
                 </p>
             ) : null}

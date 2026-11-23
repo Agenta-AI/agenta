@@ -93,7 +93,7 @@ export function PermissionPolicySelect({
                         <CaretUpDown
                             aria-hidden
                             size={canvas === "field" ? 14 : 12}
-                            className="ml-auto shrink-0 text-colorTextTertiary"
+                            className="ml-auto shrink-0 text-muted-foreground"
                         />
                     ) : undefined
                 }
@@ -104,7 +104,7 @@ export function PermissionPolicySelect({
                         <span className="flex min-w-0 flex-col items-start text-left">
                             <span className="max-w-full truncate leading-5">{selected?.title}</span>
                             {selected?.help ? (
-                                <span className="max-w-full truncate text-[12px] leading-4 text-colorTextTertiary">
+                                <span className="max-w-full truncate text-meta text-muted-foreground">
                                     {selected.help}
                                 </span>
                             ) : null}
@@ -131,16 +131,16 @@ export function PermissionPolicySelect({
                         >
                             <span className="flex items-start gap-2.5">
                                 {option.icon ? (
-                                    <span className="mt-[3px] flex shrink-0 text-colorTextSecondary">
+                                    <span className="mt-[3px] flex shrink-0 text-muted-foreground">
                                         {option.icon}
                                     </span>
                                 ) : null}
                                 <span className="flex min-w-0 flex-col">
-                                    <span className="whitespace-nowrap text-[13px] leading-5 max-sm:text-xs">
+                                    <span className="whitespace-nowrap text-label leading-5">
                                         {option.title}
                                     </span>
                                     {option.help ? (
-                                        <span className="text-[12px] leading-4 text-colorTextTertiary max-sm:text-[11px]">
+                                        <span className="text-meta text-muted-foreground">
                                             {option.help}
                                         </span>
                                     ) : null}

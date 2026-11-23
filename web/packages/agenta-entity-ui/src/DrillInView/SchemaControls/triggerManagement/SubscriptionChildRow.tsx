@@ -100,7 +100,7 @@ export function SubscriptionChildRow({
                         : `${ROW_CLASS} ${
                               disabled
                                   ? "cursor-default"
-                                  : "cursor-pointer hover:border-[var(--ag-colorBorder)]"
+                                  : "cursor-pointer hover:border-border"
                           }`
                 }
             >
@@ -121,18 +121,18 @@ export function SubscriptionChildRow({
                     {/* The app's logo when the catalog has one; else a dark tile with a white
                         lightning glyph, as the canvas draws an app trigger. */}
                     {logo ? (
-                        <RowTile className="border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgContainer)] [&_img]:size-4">
+                        <RowTile className="border border-solid border-border-muted bg-background [&_img]:size-4">
                             <ProviderLogo logo={logo} size={16} />
                         </RowTile>
                     ) : (
-                        <RowTile className="bg-[var(--ag-colorBgSpotlight)]">
+                        <RowTile>
                             <Lightning />
                         </RowTile>
                     )}
                     <div className="min-w-0 flex-1">
                         <div
-                            className={`${phone ? PHONE_NAME_CLASS : NAME_CLASS} font-normal ${
-                                primaryMuted ? "italic text-[var(--ag-colorTextTertiary)]" : ""
+                            className={`${phone ? PHONE_NAME_CLASS : NAME_CLASS} ${
+                                primaryMuted ? "italic text-muted-foreground" : ""
                             }`}
                         >
                             {primary}

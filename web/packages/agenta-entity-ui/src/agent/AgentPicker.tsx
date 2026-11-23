@@ -5,7 +5,7 @@ import {createT, useT} from "@agenta/i18n"
 import agentPickerCatalog from "@agenta/i18n/catalogs/entityUi.agentPicker"
 import {
     cn,
-    PHONE_TOUCH_TARGET_CLASS,
+    MENU_ITEM,
     Popover,
     PopoverContent,
     PopoverTrigger,
@@ -79,11 +79,11 @@ const AgentPickerEmpty = ({
     action?: React.ReactNode
 }) => (
     <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center">
-        <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-muted text-muted-foreground">
+        <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
             {icon}
         </span>
-        <p className="m-0 text-[13px] font-medium text-foreground">{title}</p>
-        <p className="m-0 max-w-[34ch] text-[12px] leading-snug text-placeholder">{body}</p>
+        <p className="m-0 text-label font-medium text-foreground">{title}</p>
+        <p className="m-0 max-w-[34ch] text-meta leading-snug text-muted-foreground">{body}</p>
         {action}
     </div>
 )
@@ -97,7 +97,7 @@ const AgentPickerEmpty = ({
  */
 export const AgentChip = ({
     workflowId,
-    box = "size-7",
+    box = "size-6",
     glyph = 16,
 }: {
     workflowId: string | null
@@ -119,9 +119,7 @@ export const AgentChip = ({
                 // `colorFillSecondary`, not `muted`: muted sits within a hair of the popover's own
                 // surface in dark mode, so the neutral tiles vanished while the coloured ones
                 // stayed. This is the fill the agent chrome itself uses for an unpicked icon.
-                chrome.customised
-                    ? chrome.className
-                    : "bg-colorFillSecondary text-muted-foreground",
+                chrome.customised ? chrome.className : "bg-secondary text-muted-foreground",
             ].join(" ")}
             style={chrome.style}
         >
@@ -159,15 +157,12 @@ const AgentPickerRow = ({
             onKeyDown={onKeyDown}
             onClick={onSelect}
             className={[
-                "box-border flex w-full cursor-pointer appearance-none items-center gap-2",
-                "rounded-control-sm border-0 px-2 py-1.5 text-left font-[inherit] text-[13px]",
-                "text-foreground outline-none transition-colors",
+                MENU_ITEM,
+                "appearance-none border-0 text-left font-[inherit] text-foreground transition-colors",
                 // The bound agent keeps a tint of its own, so "which one is this set to" survives
                 // the pointer moving down the list — a selected row that only differs by a check
                 // mark loses its answer the moment something else is hovered.
-                selected
-                    ? "bg-primary/10 hover:bg-primary/15 focus-visible:bg-primary/15"
-                    : "bg-transparent hover:bg-accent focus-visible:bg-accent",
+                selected ? "bg-selected" : "bg-transparent hover:bg-accent focus-visible:bg-accent",
             ].join(" ")}
         >
             {/* A one-line row takes a 24px tile; a two-line row keeps 28px. */}
@@ -179,17 +174,17 @@ const AgentPickerRow = ({
             <span className="flex min-w-0 flex-1 flex-col">
                 {/* One weight down the column: bolding the bound agent made the list look like
                     it had a heading in the middle of it. The tint and the check say enough. */}
-                <span className="min-w-0 truncate">{agentLabel(agent)}</span>
+                <span className="min-w-0 shrink-0 truncate">{agentLabel(agent)}</span>
                 {/* The description is the row's second line, never a tooltip: what an agent does
                     is how it is recognised. Said even when there is none, so the rows keep one
                     height and a blank line never reads as a description that failed to load. */}
                 {density === "relaxed" ? (
                     <span
                         className={[
-                            "min-w-0 truncate text-[12px]",
+                            "min-w-0 flex-1 truncate text-meta",
                             // Fainter than the name it sits under: the description is what you
                             // scan when the name did not settle it, never the row's first read.
-                            description ? "text-placeholder" : "text-placeholder/70",
+                            description ? "text-muted-foreground" : "text-muted-foreground/70",
                         ].join(" ")}
                     >
                         {description || t("entityUi.agentPicker.noDescription")}
@@ -301,14 +296,14 @@ export const AgentPickerPanel = ({
                     placeholder={searchPlaceholder}
                     aria-label={searchPlaceholder}
                     onKeyDown={onSearchKeyDown}
-                    className="box-border w-full appearance-none border-0 bg-transparent p-0 font-[inherit] text-[13px] text-foreground outline-none placeholder:text-placeholder"
+                    className="box-border w-full appearance-none border-0 bg-transparent p-0 font-[inherit] text-label text-foreground outline-none placeholder:text-muted-foreground"
                 />
             </label>
 
             <div
                 role="listbox"
                 aria-label={searchPlaceholder}
-                className="flex max-h-[280px] flex-col gap-px overflow-y-auto p-1"
+                className="flex max-h-[280px] flex-col overflow-y-auto p-1"
             >
                 {agentsQuery.isPending ? (
                     // Row geometry, not a spinner — the list replaces this without shifting.
@@ -331,7 +326,7 @@ export const AgentPickerPanel = ({
                                     <button
                                         type="button"
                                         onClick={onCreateAgent}
-                                        className="mt-1 box-border inline-flex cursor-pointer appearance-none items-center gap-1.5 rounded-control-sm border-0 bg-muted px-2.5 py-1.5 font-[inherit] text-[12px] font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
+                                        className="mt-1 box-border inline-flex cursor-pointer appearance-none items-center gap-1.5 rounded-control-sm border-0 bg-muted px-2.5 py-1.5 font-[inherit] text-meta font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
                                     >
                                         <Plus aria-hidden size={13} />
                                         {createLabel}
@@ -351,7 +346,7 @@ export const AgentPickerPanel = ({
                                         setQuery("")
                                         searchRef.current?.focus()
                                     }}
-                                    className="mt-1 box-border inline-flex cursor-pointer appearance-none items-center rounded-control-sm border-0 bg-muted px-2.5 py-1.5 font-[inherit] text-[12px] font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
+                                    className="mt-1 box-border inline-flex cursor-pointer appearance-none items-center rounded-control-sm border-0 bg-muted px-2.5 py-1.5 font-[inherit] text-meta font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
                                 >
                                     {t("entityUi.agentPicker.clearSearch")}
                                 </button>
@@ -496,7 +491,7 @@ export const AgentPicker = ({
                 className={cn(
                     "box-border cursor-pointer appearance-none border-0 font-[inherit]",
                     "inline-flex min-w-0 items-center gap-2 rounded-control bg-muted px-2 py-1",
-                    "text-[13px] font-medium text-foreground outline-none transition-colors",
+                    "text-label font-medium text-foreground outline-none transition-colors",
                     "hover:bg-accent focus-visible:bg-accent disabled:cursor-default",
                     triggerClassName,
                 )}
@@ -520,16 +515,13 @@ export const AgentPicker = ({
                     "flex w-full cursor-pointer items-center justify-between gap-1 border text-left",
                     "px-input py-input-y text-field-md rounded-control text-foreground",
                     "bg-background border-border outline-none transition-colors",
-                    "hover:border-btn-primary-hover focus:border-primary",
-                    "focus:shadow-[0_0_0_2px_var(--ag-controlOutline)]",
-                    "data-[state=open]:border-primary",
-                    "data-[state=open]:shadow-[0_0_0_2px_var(--ag-controlOutline)]",
+                    "hover:border-border-strong focus-ring-field",
+                    "data-[state=open]:border-foreground",
                     // Read-only reads as read-only: dimmed, no hover border, no caret. A bound
                     // agent that looked pickable invited a tap that did nothing.
                     "disabled:cursor-default disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:hover:border-border",
                     // The same error treatment the app's own Select trigger wears.
-                    "aria-[invalid=true]:border-error aria-[invalid=true]:focus:shadow-[0_0_0_2px_var(--ag-errorOutline)]",
-                    PHONE_TOUCH_TARGET_CLASS,
+                    "aria-[invalid=true]:border-destructive",
                     triggerClassName,
                 )}
             >
@@ -538,7 +530,7 @@ export const AgentPicker = ({
                     <span
                         className={[
                             "flex min-w-0 items-center truncate",
-                            selectedLabel || resolving ? "" : "text-placeholder",
+                            selectedLabel || resolving ? "" : "text-muted-foreground",
                         ].join(" ")}
                     >
                         {labelNode}
@@ -559,7 +551,7 @@ export const AgentPicker = ({
                 sideOffset={6}
                 aria-label={triggerAriaLabel}
                 className={[
-                    "flex w-[var(--radix-popover-trigger-width)] min-w-[260px] flex-col gap-0 p-0",
+                    "flex w-popover-md max-w-[calc(100vw-2rem)] flex-col gap-0 p-0",
                     contentClassName,
                 ]
                     .filter(Boolean)

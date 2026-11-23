@@ -102,35 +102,35 @@ export const OAuthAdvancedFields = ({
             {/* A section row (canvas F03 f5): the glyph, the title, what is inside, a caret. */}
             <button
                 type="button"
-                className="flex h-10 w-full cursor-pointer items-center gap-2 border-0 border-b border-solid border-colorSplit bg-transparent px-1 text-left font-[inherit] text-colorText outline-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-solid focus-visible:outline-ring max-md:h-11"
+                className="flex h-10 w-full cursor-pointer items-center gap-2 border-0 border-b border-solid border-border-muted bg-transparent px-1 text-left font-[inherit] text-foreground outline-none focus-ring"
                 aria-expanded={open}
                 onClick={() => setToggled(!open)}
             >
-                <SlidersHorizontal size={14} className="shrink-0 text-colorTextSecondary" />
-                <span className="text-[13px] font-medium leading-5">
+                <SlidersHorizontal size={14} className="shrink-0 text-muted-foreground" />
+                <span className="text-label font-medium leading-5">
                     {t("entityUi.mcpConnect.advanced")}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-right text-[12px] leading-4 text-colorTextSecondary">
+                <span className="min-w-0 flex-1 truncate text-right text-meta text-muted-foreground">
                     {summary}
                 </span>
-                <CollapseCaret open={open} size={10} className="text-colorText" />
+                <CollapseCaret open={open} size={10} className="text-foreground" />
             </button>
             {open ? (
                 <div className="flex flex-col gap-4">
-                    <p id={introId} className="m-0 text-xs leading-normal text-colorTextSecondary">
+                    <p id={introId} className="m-0 text-meta leading-normal text-muted-foreground">
                         {needsOwnApp
                             ? t("entityUi.mcpConnect.ownOauthAppNotice")
                             : t("entityUi.mcpConnect.clientHelp")}
                     </p>
                     {redirectUri ? (
                         <div className="flex flex-col gap-1.5">
-                            <span className="text-field-md text-colorText">
+                            <span className="text-field-md text-foreground">
                                 {t("entityUi.mcpConnect.callbackUrl")}
                             </span>
-                            <div className="flex h-8 items-center gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer pl-3 pr-1">
+                            <div className="flex h-8 items-center gap-2 rounded-lg border border-solid border-border-muted bg-background pl-3 pr-1">
                                 <code
                                     ref={callbackRef}
-                                    className="min-w-0 flex-1 truncate font-mono text-xs text-colorTextSecondary"
+                                    className="min-w-0 flex-1 truncate text-code-sm text-muted-foreground"
                                     title={redirectUri}
                                 >
                                     {redirectUri}
@@ -141,7 +141,7 @@ export const OAuthAdvancedFields = ({
                                 </Button>
                             </div>
                             {copyFailed ? (
-                                <p className="m-0 text-xs leading-normal text-colorTextTertiary">
+                                <p className="m-0 text-meta leading-normal text-muted-foreground">
                                     {t("entityUi.mcpConnect.copyByHand")}
                                 </p>
                             ) : null}
@@ -149,7 +149,7 @@ export const OAuthAdvancedFields = ({
                     ) : null}
                     <HintedField label={t("entityUi.mcpConnect.clientId")}>
                         <Input
-                            className="font-mono text-[13px]"
+                            className="font-mono text-label"
                             placeholder={
                                 needsOwnApp ? undefined : t("entityUi.mcpConnect.optional")
                             }
@@ -167,7 +167,7 @@ export const OAuthAdvancedFields = ({
                     )}
                     {hasClient ? (
                         <div className="flex flex-col gap-1.5">
-                            <span className="text-field-md text-colorText">
+                            <span className="text-field-md text-foreground">
                                 {t("entityUi.mcpConnect.clientAuthentication")}
                             </span>
                             <Select
@@ -195,14 +195,14 @@ export const OAuthAdvancedFields = ({
                     ) : null}
                     {scopesOffered.length > 0 ? (
                         <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
-                            <legend className="mb-1.5 p-0 text-field-md text-colorText">
+                            <legend className="mb-1.5 p-0 text-field-md text-foreground">
                                 {t("entityUi.mcpConnect.scopes")}
                             </legend>
                             <div className="flex flex-wrap gap-x-4 gap-y-2">
                                 {scopesOffered.map((scope) => (
                                     <label
                                         key={scope}
-                                        className="flex cursor-pointer items-center gap-2 font-mono text-xs text-colorText"
+                                        className="flex cursor-pointer items-center gap-2 text-code-sm text-foreground"
                                     >
                                         <Checkbox
                                             checked={scopesSelected.includes(scope)}
@@ -213,7 +213,7 @@ export const OAuthAdvancedFields = ({
                                     </label>
                                 ))}
                             </div>
-                            <p className="m-0 text-xs leading-normal text-colorTextTertiary">
+                            <p className="m-0 text-meta leading-normal text-muted-foreground">
                                 {t("entityUi.mcpConnect.scopesHelp")}
                             </p>
                         </fieldset>

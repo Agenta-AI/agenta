@@ -12,9 +12,9 @@ import {useT} from "@agenta/i18n"
 import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {CopyButton} from "@agenta/ui/components/presentational"
-import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {
+    Button,
     Empty,
     EmptyDescription,
     EmptyHeader,
@@ -153,7 +153,7 @@ export const FolderView = ({
     return (
         <div className="flex h-full min-h-0 w-full flex-col">
             {hideHeader ? null : (
-                <div className="flex shrink-0 flex-col gap-2 border-0 border-b border-solid border-colorBorderSecondary p-4 pb-3">
+                <div className="flex shrink-0 flex-col gap-2 border-0 border-b border-solid border-border-muted p-4 pb-3">
                     <DriveBreadcrumb
                         shown={folderPath}
                         rootLabel={rootLabel}
@@ -164,12 +164,12 @@ export const FolderView = ({
                             <FolderSimple
                                 size={16}
                                 weight="fill"
-                                className="shrink-0 text-colorWarning"
+                                className="shrink-0 text-warning"
                             />
-                            <span className="truncate font-mono text-[13px] font-semibold">
+                            <span className="truncate font-mono text-label font-semibold">
                                 {folderName}
                             </span>
-                            <span className="shrink-0 text-xs text-colorTextTertiary">
+                            <span className="shrink-0 text-meta tabular-nums text-muted-foreground">
                                 {itemCountLabel(nodes.length)}
                             </span>
                         </div>
@@ -185,29 +185,29 @@ export const FolderView = ({
                                         size="icon-sm"
                                         aria-label={t("entityUi.driveBrowser.copyFolderPath")}
                                         successMessage=""
-                                        className="!h-7 !w-7 !p-0 !text-colorTextTertiary hover:!text-colorText"
+                                        className="!h-7 !w-7 !p-0 !text-muted-foreground hover:!text-foreground"
                                     />
                                 </Tooltip>
                             ) : null}
                             {repo.isRepo ? (
                                 <Tooltip title={t("entityUi.driveBrowser.repositoryDetails")}>
                                     <Button
-                                        type="text"
+                                        variant="ghost"
+                                        size="default"
                                         aria-label={t("entityUi.driveBrowser.repositoryDetails")}
                                         aria-pressed={repoExpanded}
                                         onClick={() => setRepoExpanded((v) => !v)}
-                                        icon={
-                                            <GitBranch
-                                                size={16}
-                                                weight={repoExpanded ? "fill" : "regular"}
-                                            />
-                                        }
                                         className={`!h-7 !w-7 !p-0 ${
                                             repoExpanded
-                                                ? "!text-colorPrimary"
-                                                : "!text-colorTextTertiary hover:!text-colorText"
+                                                ? "!text-primary"
+                                                : "!text-muted-foreground hover:!text-foreground"
                                         }`}
-                                    />
+                                    >
+                                        <GitBranch
+                                            size={16}
+                                            weight={repoExpanded ? "fill" : "regular"}
+                                        />
+                                    </Button>
                                 </Tooltip>
                             ) : null}
                         </div>
@@ -222,7 +222,7 @@ export const FolderView = ({
             <DriveFolderContextMenu
                 menu={folderMenu}
                 className={`relative min-h-0 flex-1 transition-colors ${
-                    drop?.hoverPath === folderPath ? "bg-[var(--ant-color-primary-bg)]" : ""
+                    drop?.hoverPath === folderPath ? "bg-selected" : ""
                 }`}
                 {...(drop ? drop.containerDropProps(folderPath) : {})}
             >
@@ -347,8 +347,8 @@ export const FolderView = ({
                                         // One-shot staggered entrance (see gridRevealNow) — cascades the
                                         // tiles in by index when the level first reveals; `min-w-0` keeps
                                         // the wrapper a shrinkable grid cell so tiles don't overflow.
-                                        // Folder tiles are drop targets: spring-load + upload, with a
-                                        // ring while hovered.
+                                        // Folder tiles are drop targets: spring-load + upload, with the
+                                        // selected fill while hovered.
                                         const folderDrop =
                                             n.isFolder && drop
                                                 ? drop.folderDropProps(n.path)
@@ -357,7 +357,7 @@ export const FolderView = ({
                                             <motion.div
                                                 className={`min-w-0 rounded-lg ${
                                                     drop?.hoverPath === n.path
-                                                        ? "ring-2 ring-colorPrimary"
+                                                        ? "bg-selected"
                                                         : ""
                                                 }`}
                                                 {...folderDrop}
@@ -387,12 +387,12 @@ export const FolderView = ({
                             <Empty className="gap-1.5 p-8">
                                 <EmptyHeader className="gap-1">
                                     <EmptyMedia variant="icon">
-                                        <Folder size={28} />
+                                        <Folder />
                                     </EmptyMedia>
-                                    <EmptyTitle className="text-[13px]">
+                                    <EmptyTitle className="text-label">
                                         {t("entityUi.driveBrowser.nothingHere")}
                                     </EmptyTitle>
-                                    <EmptyDescription className="text-xs">
+                                    <EmptyDescription className="text-meta">
                                         {t("entityUi.driveBrowser.dropFilesHint")}
                                     </EmptyDescription>
                                 </EmptyHeader>

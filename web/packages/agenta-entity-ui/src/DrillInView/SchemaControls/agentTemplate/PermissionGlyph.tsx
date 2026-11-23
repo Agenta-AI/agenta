@@ -52,8 +52,8 @@ export function PolicyGlyph({
             size={size}
             className={
                 value === "custom"
-                    ? "shrink-0 text-[var(--ag-colorWarningText)]"
-                    : "shrink-0 text-[var(--ag-colorTextTertiary)]"
+                    ? "shrink-0 text-warning"
+                    : "shrink-0 text-muted-foreground"
             }
         />
     )

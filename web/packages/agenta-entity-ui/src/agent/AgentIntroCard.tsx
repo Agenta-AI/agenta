@@ -79,8 +79,8 @@ const Bot = ({size = 34, workflowId}: {size?: number; workflowId?: string | null
     const glyph = Math.round(size * 0.5)
     const chrome = useAgentIconChrome(workflowId, {
         size: glyph,
-        fallbackGlyph: <Robot size={glyph} className="text-colorTextSecondary" />,
-        fallbackClassName: "border border-solid border-colorBorderSecondary bg-colorBgContainer",
+        fallbackGlyph: <Robot size={glyph} className="text-muted-foreground" />,
+        fallbackClassName: "border border-solid border-border-muted bg-background",
     })
 
     return (
@@ -119,7 +119,7 @@ export const AgentIntroCard = ({entityId, className}: {entityId: string; classNa
 
     return (
         <div
-            className={`flex flex-col gap-3 rounded-xl border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-4 ${
+            className={`flex flex-col gap-3 rounded-xl border border-solid border-border-muted bg-secondary p-4 ${
                 className ?? ""
             }`}
         >
@@ -127,7 +127,7 @@ export const AgentIntroCard = ({entityId, className}: {entityId: string; classNa
                 <Bot workflowId={workflowId} />
                 <div className="min-w-0">
                     <span
-                        className="block truncate text-sm font-medium text-colorText"
+                        className="block truncate text-label font-medium text-foreground"
                         title={name || t("entityUi.agentIntro.agent")}
                     >
                         {name || t("entityUi.agentIntro.agent")}
@@ -135,14 +135,14 @@ export const AgentIntroCard = ({entityId, className}: {entityId: string; classNa
                     <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         {model ? (
                             <span
-                                className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px font-mono text-xs text-colorTextSecondary"
+                                className="rounded-md border border-solid border-border-muted bg-background px-1.5 py-px text-code-sm text-muted-foreground"
                                 title={model}
                             >
                                 {modelLabel}
                             </span>
                         ) : null}
                         {capabilities ? (
-                            <span className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px text-xs text-colorTextSecondary">
+                            <span className="rounded-md border border-solid border-border-muted bg-background px-1.5 py-px text-meta text-muted-foreground">
                                 {capabilities}
                             </span>
                         ) : null}
@@ -150,7 +150,7 @@ export const AgentIntroCard = ({entityId, className}: {entityId: string; classNa
                 </div>
             </div>
             {summary ? (
-                <span className="text-xs leading-relaxed text-colorTextSecondary">{summary}</span>
+                <span className="text-meta leading-relaxed text-muted-foreground">{summary}</span>
             ) : null}
         </div>
     )

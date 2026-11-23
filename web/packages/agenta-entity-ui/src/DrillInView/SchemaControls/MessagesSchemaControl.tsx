@@ -177,8 +177,8 @@ export const MessagesSchemaControl = memo(function MessagesSchemaControl({
     if (disabled && (!value || (Array.isArray(value) && value.length === 0))) {
         return (
             <div className={clsx("flex flex-col gap-1", className)}>
-                {label && <span className="text-sm font-medium text-colorText">{label}</span>}
-                <span className="text-xs text-colorTextDescription">
+                {label && <span className="text-label font-medium text-foreground">{label}</span>}
+                <span className="text-meta text-muted-foreground">
                     {t("entityUi.schemaControls.noMessages")}
                 </span>
             </div>
@@ -187,9 +187,9 @@ export const MessagesSchemaControl = memo(function MessagesSchemaControl({
 
     return (
         <div className={clsx("flex flex-col gap-2", className)}>
-            {label && <span className="text-sm font-medium text-colorText">{label}</span>}
+            {label && <span className="text-label font-medium text-foreground">{label}</span>}
             {description && (
-                <span className="text-xs text-colorTextDescription">{description}</span>
+                <span className="text-meta text-muted-foreground">{description}</span>
             )}
             <ChatMessageList
                 messages={normalizedMessages}

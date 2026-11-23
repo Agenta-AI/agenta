@@ -49,11 +49,11 @@ export function CategorySelect({
     return (
         <Combobox
             aria-label={t("entityUi.integrationDrawer.category")}
-            // Narrower on a phone so the search keeps room for its placeholder. The canvas size
-            // on the desktop (F02 f4): 120 px, 28 px high, radius 6, 12 px, an up-down icon.
+            // Narrower on a phone so the search keeps room for its placeholder; 120 px on the
+            // desktop. Height comes from the kit (TOUCH-01); radius 6, 12 px, an up-down icon.
             // "All categories" clears instead of a clear button.
-            className="w-36 shrink-0 sm:w-48 md:h-7 md:w-[120px] md:rounded-[6px] md:pl-2 md:text-[12px]"
-            icon={<CaretUpDown aria-hidden size={14} className="text-colorTextTertiary" />}
+            className="w-36 shrink-0 rounded-md pl-2 text-meta sm:w-48 md:w-[120px]"
+            icon={<CaretUpDown aria-hidden size={14} className="text-muted-foreground" />}
             // The list may be wider than its field, so names stay on one line on a phone.
             contentClassName="w-56"
             options={options}

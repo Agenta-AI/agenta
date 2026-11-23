@@ -27,8 +27,7 @@ import {
     selectTriggerVariants,
     TimePicker,
 } from "@agenta/ui/ui"
-import {CalendarBlank, Plus, X} from "@phosphor-icons/react"
-import {ChevronDown} from "lucide-react"
+import {CalendarBlank, CaretDownIcon, Plus, X} from "@phosphor-icons/react"
 
 import {scheduleTextNow} from "../scheduleText"
 
@@ -239,7 +238,7 @@ export function ScheduleBuilderPanel({
                             return (
                                 <Button
                                     key={d}
-                                    variant={active ? "default" : "outline"}
+                                    variant="outline"
                                     aria-pressed={active}
                                     onClick={() =>
                                         emit({
@@ -247,7 +246,10 @@ export function ScheduleBuilderPanel({
                                             daysOfMonth: toggle(builder.daysOfMonth, d),
                                         })
                                     }
-                                    className="w-full px-0 text-xs"
+                                    className={cn(
+                                        "w-full px-0 tabular-nums",
+                                        active && "bg-selected hover:bg-selected",
+                                    )}
                                 >
                                     {d}
                                 </Button>
@@ -295,7 +297,7 @@ export function ScheduleBuilderPanel({
                         aria-label={t("entityUi.scheduleBuilder.cronAria")}
                         className="font-mono"
                     />
-                    <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
+                    <span className="text-meta leading-snug text-muted-foreground">
                         {t("entityUi.scheduleBuilder.cronHelp")}
                     </span>
                 </div>
@@ -306,7 +308,7 @@ export function ScheduleBuilderPanel({
             )}
 
             {nextLine ? (
-                <span className="text-xs text-[var(--ag-colorTextSecondary)]">{nextLine}</span>
+                <span className="text-meta text-muted-foreground">{nextLine}</span>
             ) : null}
         </div>
     )
@@ -338,12 +340,12 @@ export function ScheduleBuilderField({
                             <span className="flex min-w-0 items-center gap-2">
                                 <CalendarBlank
                                     size={14}
-                                    className="shrink-0 text-[var(--ag-colorTextSecondary)]"
+                                    className="shrink-0 text-muted-foreground"
                                 />
                                 <span className="min-w-0 truncate">{summary}</span>
                             </span>
                             {/* Same glyph SelectTrigger renders, so the two fields match. */}
-                            <ChevronDown className="size-3 shrink-0 text-placeholder" />
+                            <CaretDownIcon className="size-3 shrink-0 text-muted-foreground" />
                         </button>
                     </PopoverTrigger>
                     <PopoverContent
@@ -355,7 +357,7 @@ export function ScheduleBuilderField({
                 </Popover>
 
                 {nextLine ? (
-                    <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
+                    <span className="text-meta leading-snug text-muted-foreground">
                         {nextLine}
                     </span>
                 ) : null}
@@ -425,9 +427,9 @@ function TimesField({
                             aria-label={t("entityUi.scheduleBuilder.runTimeAria", {
                                 time: fmtTime(time),
                             })}
-                            // The canvas time field: 34 px, mono 13 px, radius 6, no clock glyph
-                            // (the label above already says "Time (UTC)"). 44 px on a phone.
-                            className="h-[34px] w-[61px] justify-center rounded-[6px] px-2.5 font-mono text-[13px] max-md:h-11 [&>svg]:hidden"
+                            // The canvas time field: control-md, mono 13 px, radius 6, no clock glyph
+                            // (the label above already says "Time (UTC)"). 44 px on touch.
+                            className="h-control w-[61px] justify-center rounded-md px-2.5 font-mono text-label [&>svg]:hidden"
                         />
                         {sorted.length > 1 && (
                             <Button
@@ -443,7 +445,7 @@ function TimesField({
                         )}
                     </span>
                 ))}
-                <Button variant="outline" size="compact" onClick={addTime} className="max-md:h-11">
+                <Button variant="outline" size="compact" onClick={addTime} className="">
                     <Plus className="size-3.5" />
                     {t("entityUi.scheduleBuilder.add")}
                 </Button>
@@ -465,18 +467,16 @@ function Chip({
     onClick: () => void
     children: ReactNode
 }) {
-    // The canvas pill (F05): 26 px, 12 px text, ink when on. 44 px on a phone.
+    // Selection is a tone, not an ink fill: one highlight per screen (LOUD-05).
     return (
         <button
             type="button"
             aria-pressed={active}
             onClick={onClick}
             className={cn(
-                "flex h-[26px] cursor-pointer items-center justify-center rounded-full border border-solid px-2.5 py-0 font-[inherit] text-[12px] leading-4 outline-none transition-colors max-md:h-11 max-md:min-w-11",
-                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring",
-                active
-                    ? "border-colorText bg-colorText text-colorBgContainer"
-                    : "border-colorBorderSecondary bg-colorBgContainer text-colorText hover:bg-colorFillQuaternary",
+                "flex h-control-sm cursor-pointer items-center justify-center rounded-md border border-solid border-border-muted px-2.5 py-0 font-[inherit] text-label text-foreground outline-none transition-colors",
+                "focus-ring",
+                active ? "bg-selected" : "bg-background hover:bg-accent",
             )}
         >
             {children}
@@ -495,9 +495,7 @@ function ChipRow({label, children}: {label: string; children: ReactNode}) {
 
 function FieldLabel({children}: {children: ReactNode}) {
     return (
-        <span className="text-[12px] font-medium leading-4 text-[var(--ag-colorTextSecondary)]">
-            {children}
-        </span>
+        <span className="text-label text-foreground">{children}</span>
     )
 }
 

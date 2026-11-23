@@ -249,8 +249,8 @@ function SectionHeader({icon, title, right}: {icon: ReactNode; title: string; ri
     return (
         <div className="flex items-center justify-between px-2 py-1">
             <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-zinc-500 flex items-center">{icon}</span>
-                <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                <span className="text-muted-foreground flex items-center">{icon}</span>
+                <span className="text-meta font-medium text-muted-foreground">
                     {title}
                 </span>
             </div>
@@ -282,8 +282,8 @@ function HoverableRow({
                 "w-full border-none bg-transparent [font:inherit] text-left cursor-pointer",
                 "flex items-center gap-2 px-2 py-1.5 rounded-md",
                 active
-                    ? "bg-zinc-100 dark:bg-[var(--ag-rgba-051729-06)]"
-                    : "hover:bg-zinc-50 dark:hover:bg-[var(--ag-rgba-051729-04)]",
+                    ? "bg-selected"
+                    : "hover:bg-accent dark:hover:bg-accent",
             )}
         >
             <div className="min-w-0 flex-1">{left}</div>
@@ -319,17 +319,17 @@ function GatewayConnectionRowWithHook({
                             className="w-4 h-4 rounded object-contain shrink-0"
                         />
                     ) : (
-                        <div className="w-4 h-4 rounded bg-zinc-100 dark:bg-[var(--ag-rgba-051729-06)] shrink-0" />
+                        <div className="w-4 h-4 rounded-sm bg-secondary shrink-0" />
                     )}
                     <div className="min-w-0 flex flex-col leading-tight">
-                        <span className="text-xs truncate">{label}</span>
-                        <span className="text-[12px] text-zinc-400 truncate">
+                        <span className="text-meta truncate">{label}</span>
+                        <span className="text-meta text-muted-foreground truncate">
                             {connection.slug}
                         </span>
                     </div>
                 </div>
             }
-            right={<CaretRight size={12} className="text-zinc-400 shrink-0" />}
+            right={<CaretRight size={12} className="text-muted-foreground shrink-0" />}
         />
     )
 }
@@ -361,17 +361,17 @@ function GatewayConnectionRowFallback({
                             className="w-4 h-4 rounded object-contain shrink-0"
                         />
                     ) : (
-                        <div className="w-4 h-4 rounded bg-zinc-100 dark:bg-[var(--ag-rgba-051729-06)] shrink-0" />
+                        <div className="w-4 h-4 rounded-sm bg-secondary shrink-0" />
                     )}
                     <div className="min-w-0 flex flex-col leading-tight">
-                        <span className="text-xs truncate">{label}</span>
-                        <span className="text-[12px] text-zinc-400 truncate">
+                        <span className="text-meta truncate">{label}</span>
+                        <span className="text-meta text-muted-foreground truncate">
                             {connection.slug}
                         </span>
                     </div>
                 </div>
             }
-            right={<CaretRight size={12} className="text-zinc-400 shrink-0" />}
+            right={<CaretRight size={12} className="text-muted-foreground shrink-0" />}
         />
     )
 }
@@ -469,10 +469,10 @@ function BuiltinToolsPane({
 
     return (
         <div className="flex flex-col h-full">
-            <div className="px-2 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
+            <div className="px-2 py-2 border-0 border-b border-solid border-border-muted">
                 <InputAffix
                     variant="ghost"
-                    prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
+                    prefix={<MagnifyingGlass size={14} className="text-muted-foreground" />}
                     placeholder={t("entityUi.toolSelector.searchProviderTools", {
                         provider: provider.providerLabel,
                     })}
@@ -497,14 +497,14 @@ function BuiltinToolsPane({
                                 "w-full border-none bg-transparent [font:inherit] cursor-pointer",
                                 "flex items-center gap-2 px-2 py-1.5 rounded-md text-left",
                                 selected
-                                    ? "bg-zinc-100 dark:bg-[var(--ag-rgba-051729-06)]"
-                                    : "hover:bg-zinc-50 dark:hover:bg-[var(--ag-rgba-051729-04)]",
+                                    ? "bg-selected"
+                                    : "hover:bg-accent dark:hover:bg-accent",
                             )}
                         >
-                            <span className="min-w-0 flex-1 text-xs truncate">
+                            <span className="min-w-0 flex-1 text-meta truncate">
                                 {tool.toolLabel}
                             </span>
-                            {selected && <Check size={12} className="text-blue-600 shrink-0" />}
+                            {selected && <Check size={12} className="text-foreground shrink-0" />}
                         </button>
                     )
                 })}
@@ -514,7 +514,7 @@ function BuiltinToolsPane({
                         <EmptyState
                             image="simple"
                             description={
-                                <span className="text-xs">
+                                <span className="text-meta">
                                     {t("entityUi.toolSelector.noToolsFound")}
                                 </span>
                             }
@@ -536,7 +536,7 @@ function GatewayActionsPaneHeaderWithHook({
     const info = useIntegrationInfo(connection.integration_key)
     const label = info.name || connection.integration_key.replace(/_/g, " ")
     return (
-        <div className="px-2 pt-1 pb-0.5 text-xs text-zinc-500 truncate">
+        <div className="px-2 pt-1 pb-0.5 text-meta text-muted-foreground truncate">
             {label} / {connection.slug}
         </div>
     )
@@ -552,7 +552,7 @@ function GatewayActionsPaneHeaderFallback({
     const info = renderIntegrationInfo?.(connection.integration_key)
     const label = info?.name || connection.integration_key.replace(/_/g, " ")
     return (
-        <div className="px-2 pt-1 pb-0.5 text-xs text-zinc-500 truncate">
+        <div className="px-2 pt-1 pb-0.5 text-meta text-muted-foreground truncate">
             {label} / {connection.slug}
         </div>
     )
@@ -669,17 +669,17 @@ function GatewayActionsPane({
                 />
             )}
 
-            <div className="px-2 py-1 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
+            <div className="px-2 py-1 border-0 border-b border-solid border-border-muted">
                 <InputAffix
                     variant="ghost"
-                    prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
+                    prefix={<MagnifyingGlass size={14} className="text-muted-foreground" />}
                     placeholder={t("entityUi.toolSelector.searchActions")}
                     aria-label={t("entityUi.toolSelector.searchActions")}
                     value={rightSearch}
                     onValueChange={onRightSearchChange}
                     allowClear
                 />
-                <div className="mt-1 text-[12px] text-zinc-400">
+                <div className="mt-1 text-meta text-muted-foreground">
                     {t("entityUi.toolSelector.actionCount", {count: total})}
                 </div>
             </div>
@@ -694,7 +694,7 @@ function GatewayActionsPane({
                         <EmptyState
                             image="simple"
                             description={
-                                <span className="text-xs">
+                                <span className="text-meta">
                                     {t("entityUi.toolSelector.noActionsFound")}
                                 </span>
                             }
@@ -730,20 +730,20 @@ function GatewayActionsPane({
                                             "flex items-center gap-2 px-2 py-1.5 rounded-md text-left cursor-pointer",
                                             isPending && "opacity-70 cursor-wait",
                                             selected
-                                                ? "bg-zinc-100 dark:bg-[var(--ag-rgba-051729-06)]"
-                                                : "hover:bg-zinc-50 dark:hover:bg-[var(--ag-rgba-051729-04)]",
+                                                ? "bg-selected"
+                                                : "hover:bg-accent dark:hover:bg-accent",
                                         )}
                                     >
                                         <span className="min-w-0 flex-1 flex flex-col leading-tight">
-                                            <span className="text-xs truncate">{action.name}</span>
-                                            <span className="text-[12px] text-zinc-400 truncate">
+                                            <span className="text-meta truncate">{action.name}</span>
+                                            <span className="text-meta text-muted-foreground truncate">
                                                 {action.key}
                                             </span>
                                         </span>
                                         {isPending ? (
                                             <Spinner size="small" />
                                         ) : selected ? (
-                                            <Check size={12} className="text-blue-600 shrink-0" />
+                                            <Check size={12} className="text-foreground shrink-0" />
                                         ) : null}
                                     </button>
                                 </div>
@@ -874,14 +874,14 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     }, [resetAndClose, onReferenceWorkflow])
 
     const content = (
-        <div className="flex h-[360px] w-[min(460px,calc(100vw-1.5rem))] bg-[var(--ag-c-FFFFFF)] rounded-lg overflow-hidden border border-solid border-[var(--ag-rgba-051729-06)] shadow-sm sm:w-auto sm:min-w-[460px]">
-            <div className="flex w-1/2 flex-col min-h-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] sm:w-[232px]">
-                <div className="shrink-0 px-2 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
+        <div className="flex h-90 w-[min(460px,calc(100vw-1.5rem))] bg-popover rounded-lg overflow-hidden border border-solid border-border-muted shadow-overlay sm:w-auto sm:min-w-[460px]">
+            <div className="flex w-1/2 flex-col min-h-0 border-0 border-r border-solid border-border-muted sm:w-[232px]">
+                <div className="shrink-0 px-2 py-2 border-0 border-b border-solid border-border-muted">
                     <InputAffix
                         variant="ghost"
                         value={leftSearch}
                         onValueChange={setLeftSearch}
-                        prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
+                        prefix={<MagnifyingGlass size={14} className="text-muted-foreground" />}
                         placeholder={t("entityUi.toolSelector.searchIntegrations")}
                         aria-label={t("entityUi.toolSelector.searchIntegrations")}
                         allowClear
@@ -910,22 +910,22 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                                     }
                                     left={
                                         <div className="flex items-center gap-2 min-w-0">
-                                            <span className="flex h-4 w-4 items-center justify-center text-zinc-600 shrink-0">
+                                            <span className="flex h-4 w-4 items-center justify-center text-muted-foreground shrink-0">
                                                 {effectiveRenderProviderIcon(group.providerKey)}
                                             </span>
-                                            <span className="text-xs truncate">
+                                            <span className="text-meta truncate">
                                                 {group.providerLabel}
                                             </span>
                                         </div>
                                     }
                                     right={
-                                        <CaretRight size={12} className="text-zinc-400 shrink-0" />
+                                        <CaretRight size={12} className="text-muted-foreground shrink-0" />
                                     }
                                 />
                             ))}
 
                             {builtinProviderGroups.length === 0 && (
-                                <div className="px-2 py-2 text-xs text-zinc-400">
+                                <div className="px-2 py-2 text-meta text-muted-foreground">
                                     {t("entityUi.toolSelector.noBuiltInMatches")}
                                 </div>
                             )}
@@ -956,7 +956,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                                         <Spinner size="small" />
                                     </div>
                                 ) : gatewayConnections.length === 0 ? (
-                                    <div className="px-2 py-2 text-xs text-zinc-400">
+                                    <div className="px-2 py-2 text-meta text-muted-foreground">
                                         {t("entityUi.toolSelector.noConnectedTools")}
                                     </div>
                                 ) : (
@@ -1022,7 +1022,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                                 </Button>
                             }
                         />
-                        <div className="px-2 pb-1 text-xs text-zinc-400">
+                        <div className="px-2 pb-1 text-meta text-muted-foreground">
                             {t("entityUi.toolSelector.createInlineTool")}
                         </div>
                     </div>
@@ -1044,7 +1044,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                                     </Button>
                                 }
                             />
-                            <div className="px-2 pb-1 text-xs text-zinc-400">
+                            <div className="px-2 pb-1 text-meta text-muted-foreground">
                                 {t("entityUi.toolSelector.runWorkflowAsTool")}
                             </div>
                         </div>
@@ -1052,7 +1052,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                 </div>
             </div>
 
-            <div className="w-1/2 h-full bg-[var(--ag-c-FFFFFF)] sm:w-[232px]">
+            <div className="w-1/2 h-full bg-popover sm:w-[232px]">
                 {activeBuiltinProvider ? (
                     <BuiltinToolsPane
                         provider={activeBuiltinProvider}
@@ -1075,7 +1075,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                     />
                 ) : (
                     <div className="h-full flex items-center justify-center px-4 text-center">
-                        <span className="text-xs text-colorTextDescription">
+                        <span className="text-meta text-muted-foreground">
                             {t("entityUi.toolSelector.hoverToBrowse")}
                         </span>
                     </div>

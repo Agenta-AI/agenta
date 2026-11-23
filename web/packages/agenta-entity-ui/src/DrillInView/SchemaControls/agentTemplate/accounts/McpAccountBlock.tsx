@@ -110,7 +110,7 @@ export function McpAccountBlock({
                         label={t("entityUi.mcpAccount.sharedSignIn")}
                         note={t("entityUi.mcpAccount.sharedSignInNote")}
                     />
-                    <span className="text-[13px] text-colorText">
+                    <span className="text-label text-foreground">
                         {t("entityUi.accounts.projectSignIn")}
                     </span>
                 </div>
@@ -167,7 +167,7 @@ export function YourSignInLine({endpoint, name}: {endpoint: MCPEndpoint; name: s
                         {start ? (
                             <Button
                                 size="compact"
-                                className="max-md:h-11"
+                                className=""
                                 disabled={pending}
                                 onClick={start}
                             >
@@ -186,8 +186,8 @@ function NoPersonWarning({context}: {context: ItemAccountContext}) {
     const t = useT(mcpAccountCatalog)
     if (!useRunsWithoutPerson(useItemWorkflowId(context))) return null
     return (
-        <div className="flex items-start gap-2 rounded-lg border border-solid border-colorWarningBorder bg-colorWarningBg px-3 py-2 text-xs leading-4 text-colorText">
-            <Warning size={14} className="mt-px shrink-0 text-colorWarning" />
+        <div className="flex items-start gap-2 rounded-lg border border-solid border-warning/30 bg-warning/10 px-3 py-2 text-meta leading-4 text-foreground">
+            <Warning size={14} className="mt-px shrink-0 text-warning" />
             <span>{t("entityUi.mcpAccount.noPersonWarning")}</span>
         </div>
     )

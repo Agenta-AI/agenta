@@ -77,7 +77,7 @@ export const AuthModeSelector = ({
 
     return (
         <div className="flex flex-col gap-1" data-testid="mcp-auth-mode">
-            <span className="text-[12px] font-medium leading-4 text-colorTextSecondary">
+            <span className="text-meta font-medium text-muted-foreground">
                 {t("entityUi.mcpConnect.authentication")}
             </span>
             <div
@@ -103,19 +103,19 @@ export const AuthModeSelector = ({
                                 if (!selected) onChange(mode)
                             }}
                             className={cn(
-                                // 26px on the canvas; a 44px target on a phone.
-                                "flex h-[26px] cursor-pointer items-center gap-1.5 rounded-full border border-solid py-0 pl-2.5 font-[inherit] text-[12px] leading-5 outline-none transition-colors max-md:h-11",
-                                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring",
+                                // control-sm on the canvas; a 44px target on touch.
+                                "flex h-control-sm cursor-pointer items-center gap-1.5 rounded-md border border-solid py-0 pl-2.5 font-[inherit] text-meta leading-5 outline-none transition-colors",
+                                "focus-ring",
                                 "disabled:cursor-not-allowed disabled:opacity-50",
                                 mode === detected ? "pr-0.5" : "pr-2.5",
                                 selected
-                                    ? "border-colorText bg-colorText text-colorBgContainer"
-                                    : "border-colorBorder bg-colorBgContainer text-colorText enabled:hover:bg-colorFillQuaternary",
+                                    ? "border-foreground bg-foreground text-background"
+                                    : "border-border bg-background text-foreground enabled:hover:bg-accent",
                             )}
                         >
                             {t(MCP_AUTH_MODE_LABEL[mode])}
                             {mode === detected ? (
-                                <span className="rounded-full bg-colorBgContainer px-2 text-[12px] leading-4 text-colorTextSecondary">
+                                <span className="rounded-md bg-background px-2 text-meta text-muted-foreground">
                                     {t("entityUi.mcpConnect.detected")}
                                 </span>
                             ) : null}
@@ -124,7 +124,7 @@ export const AuthModeSelector = ({
                 })}
             </div>
             {hints.length ? (
-                <p className="m-0 text-[12px] leading-4 text-colorTextTertiary">
+                <p className="m-0 text-meta text-muted-foreground">
                     {hints.map((key) => t(key)).join(" ")}
                 </p>
             ) : null}

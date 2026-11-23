@@ -43,31 +43,31 @@ const BuiltinModelsViewBody = (_props: ViewProps<BuiltinModelsViewParams>) => {
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 py-4">
             <section className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-colorText">
+                <span className="text-label font-medium text-foreground">
                     {t("settings.providers.apiKey")}
                 </span>
                 <div
                     aria-readonly
-                    className="rounded-control-sm border border-solid border-colorBorder bg-colorFillQuaternary px-3 py-1.5 text-sm text-colorTextSecondary"
+                    className="rounded-control-sm border border-solid border-border bg-secondary px-3 py-1.5 text-body text-muted-foreground"
                 >
                     {t("entityUi.providerList.providedByAgenta")}
                 </div>
             </section>
             <section className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-colorText">
+                <span className="text-label font-medium text-foreground">
                     {t("entityUi.providerConnection.activeModels")}
                 </span>
-                <ul className="m-0 flex list-none flex-col rounded-control-sm border border-solid border-colorBorderSecondary p-0">
+                <ul className="m-0 flex list-none flex-col rounded-control-sm border border-solid border-border-muted p-0">
                     {models.map((model) => {
                         const name = modelDisplayName(capabilities, harnesses[0], model)
                         return (
                             <li
                                 key={model}
-                                className="flex flex-col border-0 border-b border-solid border-colorBorderSecondary px-3 py-2 last:border-b-0"
+                                className="flex flex-col border-0 border-b border-solid border-border-muted px-3 py-2 last:border-b-0"
                             >
-                                <span className="text-sm text-colorText">{name}</span>
+                                <span className="text-label text-foreground">{name}</span>
                                 {name !== model ? (
-                                    <span className="font-mono text-xs text-colorTextTertiary">
+                                    <span className=" text-code-sm text-muted-foreground">
                                         {model}
                                     </span>
                                 ) : null}
@@ -78,14 +78,14 @@ const BuiltinModelsViewBody = (_props: ViewProps<BuiltinModelsViewParams>) => {
             </section>
             {harnesses.length ? (
                 <section className="flex flex-col gap-1.5">
-                    <span className="text-sm font-medium text-colorText">
+                    <span className="text-label font-medium text-foreground">
                         {t("entityUi.providerConnection.harnesses")}
                     </span>
                     <ul className="m-0 flex list-none flex-wrap gap-3 p-0">
                         {harnesses.map((harness) => (
                             <li
                                 key={harness}
-                                className="flex items-center gap-1.5 text-sm text-colorTextSecondary"
+                                className="flex items-center gap-1.5 text-body text-muted-foreground"
                             >
                                 {harnessMarkNode(harness, "size-3.5 shrink-0")}
                                 {harnessMetaFor(harness).label}

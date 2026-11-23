@@ -101,7 +101,7 @@ const RunnableOutputValue = memo(function RunnableOutputValue({
     className,
 }: RunnableOutputValueProps) {
     if (value === null || value === undefined) {
-        return <span className={clsx("text-[var(--ant-color-text-quaternary)]", className)}>—</span>
+        return <span className={clsx("text-muted-foreground", className)}>—</span>
     }
 
     const schemaType = resolveSchemaType(schema)
@@ -111,7 +111,7 @@ const RunnableOutputValue = memo(function RunnableOutputValue({
     if (effectiveType === "boolean" || typeof value === "boolean") {
         const boolVal = typeof value === "boolean" ? value : value === "true"
         return (
-            <Badge variant={boolVal ? "green" : "default"} className={clsx("text-xs", className)}>
+            <Badge variant={boolVal ? "success" : "default"} className={clsx("text-meta", className)}>
                 {String(value)}
             </Badge>
         )
@@ -128,7 +128,7 @@ const RunnableOutputValue = memo(function RunnableOutputValue({
             return (
                 <span className={className}>
                     {display}
-                    <span className="text-[var(--ant-color-text-quaternary)] ml-1">
+                    <span className="text-muted-foreground ml-1">
                         / {formatDisplayNumber(resolved.maximum as number)}
                     </span>
                 </span>

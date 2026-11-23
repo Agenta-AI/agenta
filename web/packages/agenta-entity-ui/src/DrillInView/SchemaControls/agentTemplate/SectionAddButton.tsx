@@ -15,7 +15,6 @@ import {forwardRef, type ButtonHTMLAttributes, type ReactNode} from "react"
 import {cn} from "@agenta/ui/styles"
 import {
     Button,
-    PHONE_TOUCH_TARGET_CLASS,
     Tooltip,
     TooltipContent,
     TooltipProvider,
@@ -46,8 +45,7 @@ export const SectionAddButton = forwardRef<HTMLButtonElement, SectionAddButtonPr
                 // Canvas F01: a bare plus. The hover box overhangs it, so the row lays out the
                 // glyph alone.
                 className={cn(
-                    PHONE_TOUCH_TARGET_CLASS,
-                    "-mx-[5px] size-6 rounded-[6px] !text-colorTextSecondary hover:!text-colorText aria-expanded:!text-colorText",
+                    "-mx-[5px] size-6 rounded-md !text-muted-foreground hover:!text-foreground aria-expanded:!text-foreground",
                     className,
                 )}
                 {...rest}

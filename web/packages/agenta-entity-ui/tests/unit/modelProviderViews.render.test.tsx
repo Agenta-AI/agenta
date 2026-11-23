@@ -220,8 +220,8 @@ describe("Model providers list", {timeout: 30_000}, () => {
         // The Claude sign-in expired: it says so and offers a new sign-in instead of Edit.
         expect(byText("Sign in needed")).toBeTruthy()
         // An amber tag (F09, M12), not plain text.
-        expect(byText("Sign in needed")?.className).toContain("bg-colorWarningBg")
-        expect(byText("Sign in needed")?.className).toContain("text-colorWarningText")
+        expect(byText("Sign in needed")?.className).toContain("bg-warning/10")
+        expect(byText("Sign in needed")?.className).toContain("text-warning")
         // The desktop lists Subscriptions first; a phone (M12) moves API keys above them.
         expect(text.indexOf("Subscriptions")).toBeLessThan(text.indexOf("API keys"))
         const group = (label: string) =>

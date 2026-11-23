@@ -3,7 +3,7 @@
  *
  * Lifted verbatim from the Settings `ConfigureSecretModal` so the Settings modal and the
  * in-flow MCP `CreateSecretDrawer` render the SAME form with zero duplicated logic. The chrome
- * (antd modal / EnhancedDrawer) owns the Save button and wires it to `submit`/`saving`/`okDisabled`.
+ * (antd modal / Sheet) owns the Save button and wires it to `submit`/`saving`/`okDisabled`.
  */
 import {useEffect, useMemo, useState} from "react"
 

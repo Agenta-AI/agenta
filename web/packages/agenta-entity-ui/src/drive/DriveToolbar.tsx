@@ -16,7 +16,6 @@ import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {isCommentModeChord} from "@agenta/shared/previewPicker"
 import {getShortcut, isOnScreen, isOverlayOpen, shortcutText} from "@agenta/shared/utils"
-import {cn} from "@agenta/ui/styles"
 import {
     Button,
     DropdownMenu,
@@ -25,8 +24,8 @@ import {
     DropdownMenuSeparator,
     DropdownMenuShortcut,
     DropdownMenuTrigger,
-    PHONE_TOUCH_TARGET_CLASS,
     SimpleTooltip as Tooltip,
+    Spinner,
     Tabs,
     TabsList,
     TabsTrigger,
@@ -34,7 +33,6 @@ import {
 import {
     CaretDown,
     ChatCircleText,
-    CircleNotch,
     Clock,
     Code,
     DotsThree,
@@ -46,15 +44,15 @@ import {
     MarkdownLogo,
     PencilSimple,
     Play,
+    SlidersHorizontalIcon,
     SquaresFour,
     TextAa,
     TextAlignLeft,
     Trash,
 } from "@phosphor-icons/react"
 // The design's sort glyph: three rails with offset knobs (Phosphor's has two).
-import {SlidersHorizontal} from "lucide-react"
 
-import {type DriveFolderActions, driveFolderMenuEntries, PHONE_MENU_ROWS} from "./DriveFolderMenu"
+import {type DriveFolderActions, driveFolderMenuEntries} from "./DriveFolderMenu"
 import {ROW_ICON_BTN, ROW_ICON_BTN_ON} from "./DriveHeader"
 import {DriveInlineName} from "./DriveInlineName"
 import {SelectedMark} from "./DriveMenuMark"
@@ -62,10 +60,9 @@ import {useDriveSessionId} from "./driveSessionContext"
 import {isCommentableKind, usePreviewCommentMode} from "./previewCommentMode"
 
 /** Row 2's text buttons: the kit's ghost sm, muted until hover. */
-const ROW_TEXT_BTN =
-    "h-[26px] gap-1 rounded-[6px] px-2 text-[12px] leading-5 text-colorTextSecondary hover:text-colorText"
+const ROW_TEXT_BTN = "px-2 text-muted-foreground hover:text-foreground"
 /** `mr-1` leaves the last segment room for its tap area before the Sort button. */
-const PHONE_PILL = "mr-1 h-9 rounded-[6px] p-0.5"
+const PHONE_PILL = "mr-1 h-9 rounded-md p-0.5"
 /**
  * Each segment is 34 x 32 px with its 1 px border, as drawn, and grows its own hit area to 44 x 44 px (one over the
  * whole list would take the taps): up and down, and out at the pill's outer edge only, so a tap
@@ -73,16 +70,15 @@ const PHONE_PILL = "mr-1 h-9 rounded-[6px] p-0.5"
  * border: 7 px reaches 6 px past the drawn edge, 11 px reaches 10 px.
  */
 const PHONE_PILL_TRIGGER =
-    "relative h-full rounded-[5px] px-[9px] py-0 after:absolute after:inset-x-0 after:-inset-y-[7px] first:after:-left-[11px] last:after:-right-[11px] after:content-['']"
-const PHONE_TEXT_BTN = `h-9 gap-1 rounded-[6px] px-2 text-[13px] leading-5 text-colorTextSecondary hover:text-colorText ${PHONE_TOUCH_TARGET_CLASS}`
+    "relative h-full rounded-sm px-[9px] py-0 after:absolute after:inset-x-0 after:-inset-y-[7px] first:after:-left-[11px] last:after:-right-[11px] after:content-['']"
+const PHONE_TEXT_BTN = `gap-1.5 rounded-md px-2 text-label text-muted-foreground hover:text-foreground`
 
 /**
  * A phone's one 52 px row: the crumb at the left, then the row's controls and its ⋯ menu.
- * The crumb parts and Retry keep a 44 px tap target, as row 1 gives them.
  */
 const PhoneRow = ({crumb, children}: {crumb: ReactNode; children: ReactNode}) => (
-    <div className="box-border flex h-[52px] shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary pl-3 pr-1">
-        <div className="flex min-w-0 flex-1 items-center [&_button]:min-h-11 [&_button]:min-w-11">
+    <div className="box-border flex h-13 shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted pl-3 pr-1">
+        <div className="flex min-w-0 flex-1 items-center">
             {crumb}
         </div>
         {children}
@@ -128,7 +124,7 @@ interface ToolbarMode {
     onChange: (value: string) => void
 }
 
-/** An icon-only pill at the row's 26px control height (icons carry `size-3.5`, the trigger's default is 16px). */
+/** An icon-only pill at the row's control-sm height (icons carry `size-3.5`, the trigger's default is 16px). */
 const IconPill = ({value, options, onChange, phone}: ToolbarMode & {phone?: boolean}) => {
     const t = useT(driveExplorerCatalog, driveBrowserCatalog)
     return (
@@ -136,7 +132,7 @@ const IconPill = ({value, options, onChange, phone}: ToolbarMode & {phone?: bool
             <TabsList
                 variant="pill"
                 aria-label={t("entityUi.driveBrowser.view")}
-                className={phone ? PHONE_PILL : "h-[26px] rounded-[6px] p-0.5"}
+                className={phone ? PHONE_PILL : "h-control-sm rounded-md p-0.5"}
             >
                 {options.map((o) => (
                     <TabsTrigger
@@ -145,7 +141,7 @@ const IconPill = ({value, options, onChange, phone}: ToolbarMode & {phone?: bool
                         aria-label={o.label}
                         title={o.label}
                         className={
-                            phone ? PHONE_PILL_TRIGGER : "h-full rounded-[5px] px-[5px] py-0"
+                            phone ? PHONE_PILL_TRIGGER : "h-full rounded-sm px-1.5 py-0"
                         }
                     >
                         {o.icon}
@@ -236,18 +232,18 @@ const DraftStatus = ({status, onRetry}: {status: DriveSaveStatus; onRetry: () =>
     if (status === "error")
         return (
             <>
-                <span className="text-xs text-colorError">
+                <span className="text-meta text-destructive">
                     {t("entityUi.driveBrowser.couldNotSave")}
                 </span>
                 <Button variant="ghost" size="sm" onClick={onRetry} className={ROW_TEXT_BTN}>
                     {t("entityUi.driveBrowser.retry")}
                 </Button>
-                <span className="mx-1 h-4 w-px bg-colorBorderSecondary" aria-hidden />
+                <span className="mx-1 h-4 w-px bg-border-muted" aria-hidden />
             </>
         )
     return (
-        <span className="flex items-center gap-1.5 pr-1 text-xs text-colorTextTertiary">
-            {status === "saving" ? <CircleNotch className="size-3 animate-spin" /> : null}
+        <span className="flex items-center gap-1.5 pr-1 text-meta text-muted-foreground">
+            {status === "saving" ? <Spinner aria-hidden className="size-3" /> : null}
             {status === "saving"
                 ? t("entityUi.driveBrowser.saving")
                 : t("entityUi.driveBrowser.saved")}
@@ -284,14 +280,14 @@ const FileActionsMenu = ({
                     size="icon-sm"
                     aria-label={t("entityUi.driveBrowser.moreActions")}
                     title={t("entityUi.driveBrowser.more")}
-                    className={cn(ROW_ICON_BTN, phoneMenu ? "size-11" : null)}
+                    className={ROW_ICON_BTN}
                 >
                     <DotsThree size={14} weight="bold" />
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
                 align="end"
-                className={cn("min-w-[180px]", PHONE_MENU_ROWS)}
+                className="min-w-45"
                 // New / Rename open a name field; the menu must not pull focus back to its trigger.
                 onCloseAutoFocus={(e) => e.preventDefault()}
             >
@@ -312,7 +308,7 @@ const FileActionsMenu = ({
                         <DropdownMenuItem onSelect={appView.access.onOpen}>
                             <Key />
                             {t("entityUi.driveBrowser.fileAccess")}
-                            <span className="ml-auto pl-3 text-xs text-colorTextTertiary">
+                            <span className="ml-auto pl-3 text-meta text-muted-foreground">
                                 {appView.access.label}
                             </span>
                         </DropdownMenuItem>
@@ -344,7 +340,7 @@ const FileActionsMenu = ({
                         <DropdownMenuItem
                             disabled={!actions}
                             onSelect={actions?.onDelete}
-                            className="text-colorError focus:text-colorError"
+                            className="text-destructive focus:text-destructive"
                         >
                             <Trash />
                             {t("entityUi.driveExplorer.delete")}
@@ -409,7 +405,7 @@ const CommentToggle = () => {
 
 /** The 36px row frame with the hairline the rail's search header shares. */
 const Row = ({children}: {children: ReactNode}) => (
-    <div className="flex h-9 shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary px-2.5">
+    <div className="flex h-9 shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted px-2.5">
         {children}
     </div>
 )
@@ -458,14 +454,14 @@ export function DriveToolbar(props: DriveToolbarProps) {
                             aria-label={t("entityUi.driveBrowser.sort")}
                             className={phone ? PHONE_TEXT_BTN : ROW_TEXT_BTN}
                         >
-                            <SlidersHorizontal className="size-3.5" />
+                            <SlidersHorizontalIcon className="size-3.5" />
                             {t(SORT_LABELS[sort])}
                             <CaretDown weight="bold" className="size-3 opacity-70" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                         align="start"
-                        className={cn("min-w-[170px]", PHONE_MENU_ROWS)}
+                        className="min-w-45"
                     >
                         {(Object.keys(SORT_LABELS) as DriveSortKey[]).map((key) => (
                             <DropdownMenuItem key={key} onSelect={() => setSort(key)}>
@@ -486,14 +482,14 @@ export function DriveToolbar(props: DriveToolbarProps) {
                         size="icon-sm"
                         aria-label={t("entityUi.driveBrowser.moreActions")}
                         title={t("entityUi.driveBrowser.more")}
-                        className={cn(ROW_ICON_BTN, phone ? "size-11" : "size-6 rounded-[6px]")}
+                        className={ROW_ICON_BTN}
                     >
                         <DotsThree size={14} weight="bold" />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                     align="end"
-                    className={cn("min-w-[180px]", PHONE_MENU_ROWS)}
+                    className="min-w-45"
                     // New / Rename open a name field; the menu must not pull focus back to its trigger.
                     onCloseAutoFocus={(e) => e.preventDefault()}
                 >
@@ -649,7 +645,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
                 onRename={actions?.renameTo}
             />
             {note ? (
-                <span className="truncate pl-1 text-xs text-colorTextTertiary">{note}</span>
+                <span className="truncate pl-1 text-meta text-muted-foreground">{note}</span>
             ) : null}
             <span className="flex-1" />
             {draft ? <DraftStatus {...draft} /> : null}

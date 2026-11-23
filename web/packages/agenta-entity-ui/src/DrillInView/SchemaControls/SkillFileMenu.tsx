@@ -49,18 +49,18 @@ export interface SkillFileMenuProps {
 }
 
 const ROW =
-    "box-border flex w-full min-w-0 cursor-pointer appearance-none items-center gap-1.5 rounded-[6px] border-0 px-2 py-1 text-left font-[inherit] text-[13px] text-colorText outline-none transition-colors hover:bg-colorFillTertiary focus-visible:bg-colorFillTertiary max-md:min-h-11"
+    "box-border flex w-full min-w-0 cursor-pointer appearance-none items-center gap-1.5 rounded-md border-0 px-2 py-1 text-left font-[inherit] text-label text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-secondary"
 
 /** The open file, or the result Enter opens: a gray row (F07 f2, f3). */
-const CURRENT = "bg-colorFillSecondary"
+const CURRENT = "bg-secondary"
 
 /** The check at the end of the open file's row (F07 f2). */
 const OpenCheck = ({show}: {show: boolean}) =>
-    show ? <Check aria-hidden size={14} className="shrink-0 text-colorText" /> : null
+    show ? <Check aria-hidden size={14} className="shrink-0 text-foreground" /> : null
 
 const EditedDot = ({show}: {show: boolean}) =>
     show ? (
-        <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-[var(--ag-colorPrimary)]" />
+        <span aria-hidden className="size-1.5 shrink-0 rounded-sm bg-primary" />
     ) : null
 
 export function SkillFileMenu({
@@ -107,18 +107,18 @@ export function SkillFileMenu({
                         !withFolder && "pl-6",
                     )}
                 >
-                    <FileIcon size={12} className="shrink-0 text-colorTextSecondary" />
+                    <FileIcon size={12} className="shrink-0 text-muted-foreground" />
                     <span className="flex min-w-0 flex-1 flex-col">
                         <span
                             className={cn(
-                                "truncate font-mono text-[12px] leading-5",
+                                "truncate font-mono text-meta leading-5",
                                 selected === index && "font-medium",
                             )}
                         >
                             {name}
                         </span>
                         {withFolder && fileFolder(path) ? (
-                            <span className="truncate text-[11px] text-muted-foreground">
+                            <span className="truncate text-caption text-muted-foreground">
                                 {fileFolder(path)}
                             </span>
                         ) : null}
@@ -146,7 +146,7 @@ export function SkillFileMenu({
                             aria-label={t("entityUi.skillView.delete")}
                             title={t("entityUi.skillView.delete")}
                             onClick={() => onDelete(index)}
-                            className="flex size-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-muted-foreground hover:text-[var(--ag-colorError)]"
+                            className="flex size-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-muted-foreground hover:text-destructive"
                         >
                             <Trash size={13} />
                         </button>
@@ -167,7 +167,7 @@ export function SkillFileMenu({
                     placeholder={t("entityUi.skillView.findFile")}
                     aria-label={t("entityUi.skillView.findFile")}
                     // A phone keeps a 44 px search field (touch rule).
-                    className="max-md:h-11 max-md:[&_input]:h-full"
+                    className=" pointer-coarse:[&_input]:h-full"
                     prefix={<MagnifyingGlass size={13} className="text-muted-foreground" />}
                 />
             </div>
@@ -179,7 +179,7 @@ export function SkillFileMenu({
                             fileRow(index, {withFolder: true, highlight: i === 0}),
                         )
                     ) : (
-                        <span className="px-2 py-2 text-xs text-muted-foreground">
+                        <span className="px-2 py-2 text-meta text-muted-foreground">
                             {t("entityUi.skillView.noFileMatches")}
                         </span>
                     )
@@ -191,10 +191,10 @@ export function SkillFileMenu({
                             aria-current={selected === "skill" ? "true" : undefined}
                             className={cn(ROW, selected === "skill" ? CURRENT : "bg-transparent")}
                         >
-                            <FileIcon size={12} className="shrink-0 text-colorTextSecondary" />
+                            <FileIcon size={12} className="shrink-0 text-muted-foreground" />
                             <span
                                 className={cn(
-                                    "min-w-0 flex-1 truncate font-mono text-[12px] leading-5",
+                                    "min-w-0 flex-1 truncate font-mono text-meta leading-5",
                                     selected === "skill" && "font-medium",
                                 )}
                             >
@@ -218,18 +218,18 @@ export function SkillFileMenu({
                                         <CaretDown
                                             size={12}
                                             className={cn(
-                                                "shrink-0 text-colorTextTertiary transition-transform",
+                                                "shrink-0 text-muted-foreground transition-transform",
                                                 folded.has(group.folder) && "-rotate-90",
                                             )}
                                         />
                                         <Folder
                                             size={12}
-                                            className="shrink-0 text-colorTextSecondary"
+                                            className="shrink-0 text-muted-foreground"
                                         />
-                                        <span className="min-w-0 flex-1 truncate font-mono text-[12px] leading-5 text-[var(--ag-zinc-8)]">
+                                        <span className="min-w-0 flex-1 truncate font-mono text-meta leading-5 text-muted-foreground">
                                             {group.folder}
                                         </span>
-                                        <span className="shrink-0 text-[12px] text-colorTextTertiary">
+                                        <span className="shrink-0 text-meta text-muted-foreground">
                                             {group.files.length}
                                         </span>
                                     </button>
@@ -243,24 +243,24 @@ export function SkillFileMenu({
                 )}
             </div>
             {searching && results.length ? (
-                <span className="shrink-0 px-3 pb-1 text-[11px] text-muted-foreground">
+                <span className="shrink-0 px-3 pb-1 text-caption text-muted-foreground">
                     {t("entityUi.skillView.searchCount", {
                         count: results.length,
                         total: files.length + 1,
                     })}
                 </span>
             ) : null}
-            <div className="flex shrink-0 flex-col border-0 border-t border-solid border-colorBorderSecondary p-1 empty:hidden">
+            <div className="flex shrink-0 flex-col border-0 border-t border-solid border-border-muted p-1 empty:hidden">
                 {/* With results, Enter or a click opens a file; "Add a file" waits for no match (F07 f3). */}
                 {!disabled && !(searching && results.length) ? (
                     <button type="button" onClick={onAddFile} className={SKILL_ACTION_ROW}>
-                        <Plus size={14} className="text-colorText" />
+                        <Plus size={14} className="text-foreground" />
                         {t("entityUi.skillForm.addAFile")}
                     </button>
                 ) : null}
                 {!disabled && !searching ? (
                     <button type="button" onClick={onUpload} className={SKILL_ACTION_ROW}>
-                        <ArrowUp size={14} className="text-colorText" />
+                        <ArrowUp size={14} className="text-foreground" />
                         {t("entityUi.skillView.uploadFolderOrZip")}
                     </button>
                 ) : null}
@@ -270,7 +270,7 @@ export function SkillFileMenu({
                         onClick={download.onDownload}
                         className={SKILL_ACTION_ROW}
                     >
-                        <DownloadSimple size={14} className="text-colorText" />
+                        <DownloadSimple size={14} className="text-foreground" />
                         <span className="flex-1">{download.label}</span>
                     </button>
                 ) : null}

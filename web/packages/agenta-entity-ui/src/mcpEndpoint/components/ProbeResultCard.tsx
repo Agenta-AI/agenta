@@ -7,7 +7,7 @@
  */
 import {useT, type CatalogKey} from "@agenta/i18n"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
-import {Button, cn, touchTargetExpansion} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {Check} from "@phosphor-icons/react"
 
 /** How the server said it authorizes. `none` is a server that asked for nothing. */
@@ -37,24 +37,20 @@ export const ProbeResultCard = ({mode, onChange}: ProbeResultCardProps) => {
         <div
             data-testid="mcp-probe-result"
             // Canvas F03 f5: radius 8, the check in a 16 px green tile.
-            className="flex items-center gap-2 rounded-[8px] border border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-2.5"
+            className="flex items-center gap-2 rounded-lg border border-solid border-border-muted bg-background px-3 py-2.5"
         >
-            <span className="flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-colorSuccessBg text-colorSuccess">
+            <span className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-success/10 text-success">
                 <Check size={12} weight="bold" />
             </span>
-            <span className="min-w-0 flex-1 truncate text-[13px] leading-5 text-colorText">
+            <span className="min-w-0 flex-1 truncate text-label leading-5 text-foreground">
                 {t(SUMMARY[mode])}
             </span>
             {onChange ? (
                 <Button
                     variant="link"
                     size="xs"
-                    // The control scale's 24px is under the 44px touch minimum, so the invisible
-                    // expansion carries the rest. The negative margin keeps the box at its 20px line.
-                    className={cn(
-                        "-my-0.5 shrink-0 px-0 text-[12px] leading-4 text-colorText underline underline-offset-2",
-                        touchTargetExpansion(24),
-                    )}
+                    // The negative margin keeps the 24px box at its 20px line.
+                    className="-my-0.5 shrink-0 px-0 text-meta text-foreground underline underline-offset-2"
                     onClick={onChange}
                 >
                     {t("entityUi.mcpConnect.change")}

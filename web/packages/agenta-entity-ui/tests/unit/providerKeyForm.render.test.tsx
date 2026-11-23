@@ -281,7 +281,7 @@ describe("the answers", () => {
         const key = field("Paste your OpenAI API key")
         expect(key.getAttribute("aria-invalid")).toBe("true")
         expect(key.closest("[data-slot=input-affix]")?.className).toContain(
-            "border-colorErrorBorder",
+            "border-destructive/40",
         )
 
         expect(text()).toContain(

@@ -11,7 +11,6 @@ export function TriggerActionsMenu({
     menu,
     open,
     container,
-    phone,
 }: {
     /** The automation's name: the button is "More actions for <name>". */
     name: string
@@ -21,7 +20,7 @@ export function TriggerActionsMenu({
     open?: boolean
     /** Portal target; defaults to document.body (pass an element to render inline). */
     container?: HTMLElement | null
-    /** Phone: "⋯" is 44 px; each entry is at least 44 px high. */
+    /** Kept for callers; the menu has one size on every screen (SIZE-03). */
     phone?: boolean
 }) {
     const t = useT(automationsEditorCatalog)
@@ -33,11 +32,7 @@ export function TriggerActionsMenu({
                     size="icon-sm"
                     aria-label={t("automations.editor.moreActionsFor", {name})}
                     onClick={(e) => e.stopPropagation()}
-                    className={
-                        phone
-                            ? "size-11 text-colorTextSecondary [&_svg]:!size-[18px]"
-                            : "size-6 text-colorTextSecondary [&_svg]:!size-3.5"
-                    }
+                    className="size-6 text-muted-foreground [&_svg]:!size-3.5"
                 >
                     <DotsThree weight="bold" />
                 </Button>
@@ -46,11 +41,7 @@ export function TriggerActionsMenu({
             <DropdownMenuContent
                 align="end"
                 container={container}
-                className={
-                    phone
-                        ? "w-[220px] [&_[role=menuitem]]:min-h-11 [&_[role=menuitem]]:text-[15px]"
-                        : "w-[180px] [&_[role=menuitem]]:h-8 [&_[role=menuitem]]:text-[13px] [&_[role=menuitem]_svg]:!size-3.5"
-                }
+                className="w-popover-sm [&_[role=menuitem]_svg]:!size-3.5"
             >
                 {menu}
             </DropdownMenuContent>

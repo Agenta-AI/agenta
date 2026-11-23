@@ -17,9 +17,6 @@ import {
 } from "@agenta/ui/ui"
 import {DownloadSimple, FilePlus, FolderPlus, LinkSimple, UploadSimple} from "@phosphor-icons/react"
 
-/** A phone's menu rows are 44 px high (the tap rule); a desktop keeps the kit's 28 px rows. */
-export const PHONE_MENU_ROWS = "max-md:[&_[role^=menuitem]]:min-h-11"
-
 // The entries are built by a plain function that menus call while rendering.
 const tNow = createT(driveExplorerCatalog, driveBrowserCatalog)
 
@@ -169,7 +166,7 @@ export const DriveFolderContextMenu = ({
                 <div {...wrapper}>{children}</div>
             </ContextMenuTrigger>
             <ContextMenuContent
-                className={`min-w-[180px] ${PHONE_MENU_ROWS}`}
+                className="min-w-45"
                 // New folder / New file open a name field; the menu must not pull focus back.
                 onCloseAutoFocus={(e) => e.preventDefault()}
             >
@@ -185,7 +182,7 @@ export const DriveFolderContextMenu = ({
                             {entry.icon}
                             {entry.label}
                             {entry.shortcut ? (
-                                <span className="ml-auto pl-3 text-xs tracking-widest text-muted-foreground">
+                                <span className="ml-auto pl-3 text-caption tracking-widest text-muted-foreground">
                                     {entry.shortcut}
                                 </span>
                             ) : null}

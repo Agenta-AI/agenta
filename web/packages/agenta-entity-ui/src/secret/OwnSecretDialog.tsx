@@ -3,8 +3,17 @@
  * fixed. The caller stores the choice with the new secret's id.
  */
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
-import {EnhancedModal} from "@agenta/ui/components/modal"
+import {
+    Button,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    LoadingButton,
+} from "@agenta/ui/ui"
 
 import {ACCOUNT_COPY} from "../accounts/copy"
 
@@ -27,6 +36,7 @@ export function OwnSecretDialog({
     zIndex?: number
 }) {
     const t = useT(secretFormCatalog)
+    const tCommon = useT(commonCatalog)
     const controller = useSecretForm({
         open,
         initialName,
@@ -37,28 +47,44 @@ export function OwnSecretDialog({
         },
     })
     return (
-        <EnhancedModal
+        // Contained runs non-modal: the host drawer already traps focus.
+        <Dialog
             open={open}
-            onCancel={onClose}
-            zIndex={zIndex}
-            getContainer={container ?? undefined}
-            contained={!!container}
-            width={480}
-            destroyOnClose
-            title={ACCOUNT_COPY.addYourSecret}
-            okText={t("entityUi.secretForm.save")}
-            onOk={() => void controller.submit()}
-            confirmLoading={controller.saving}
-            okButtonProps={{
-                disabled:
-                    !controller.name.trim() ||
-                    !controller.textValue.trim() ||
-                    controller.okDisabled,
-            }}
+            onOpenChange={(next) => !next && onClose()}
+            modal={!container}
         >
-            <div className="flex flex-col gap-4">
-                <SecretCreateFields controller={controller} focusValue={!!initialName?.trim()} />
-            </div>
-        </EnhancedModal>
+            <DialogContent
+                container={container ?? undefined}
+                contained={!!container}
+                className="max-w-[480px]"
+                style={zIndex != null ? {zIndex} : undefined}
+            >
+                <DialogHeader>
+                    <DialogTitle>{ACCOUNT_COPY.addYourSecret}</DialogTitle>
+                </DialogHeader>
+                <div className="flex flex-col gap-4">
+                    <SecretCreateFields
+                        controller={controller}
+                        focusValue={!!initialName?.trim()}
+                    />
+                </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={onClose}>
+                        {tCommon("common.cancel")}
+                    </Button>
+                    <LoadingButton
+                        loading={controller.saving}
+                        disabled={
+                            !controller.name.trim() ||
+                            !controller.textValue.trim() ||
+                            controller.okDisabled
+                        }
+                        onClick={() => void controller.submit()}
+                    >
+                        {t("entityUi.secretForm.save")}
+                    </LoadingButton>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }

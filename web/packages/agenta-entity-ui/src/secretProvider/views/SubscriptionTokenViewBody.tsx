@@ -84,7 +84,7 @@ const SubscriptionTokenViewBody = ({params, nav}: ViewProps<SubscriptionViewPara
             {/* A phone keeps 44 px buttons (touch rule). */}
             <Button
                 size="compact"
-                className="max-md:h-11"
+                className=""
                 disabled={!valid || saving}
                 onClick={() => void connect()}
             >
@@ -93,7 +93,7 @@ const SubscriptionTokenViewBody = ({params, nav}: ViewProps<SubscriptionViewPara
             <Button
                 variant="outline"
                 size="compact"
-                className="max-md:h-11"
+                className=""
                 disabled={saving}
                 onClick={() => nav.cancel()}
             >
@@ -106,10 +106,10 @@ const SubscriptionTokenViewBody = ({params, nav}: ViewProps<SubscriptionViewPara
     // as the ChatGPT sign-in card draws it.
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-3.5">
-            <section className="flex flex-col gap-2.5 rounded-lg border border-solid border-colorBorderSecondary p-3 text-[13px]">
+            <section className="flex flex-col gap-2.5 rounded-lg border border-solid border-border-muted p-3 text-label">
                 <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium text-colorText">{name}</span>
-                    <span className="text-colorTextSecondary">
+                    <span className="text-label font-medium text-foreground">{name}</span>
+                    <span className="text-muted-foreground">
                         {connected
                             ? t("entityUi.subscriptionSignIn.agentsCanRun")
                             : t("entityUi.subscriptionSignIn.pasteToken")}
@@ -117,7 +117,7 @@ const SubscriptionTokenViewBody = ({params, nav}: ViewProps<SubscriptionViewPara
                 </div>
                 {connected ? (
                     <div className="flex flex-col items-start gap-3">
-                        <span className="flex items-center gap-2 text-colorSuccess">
+                        <span className="flex items-center gap-2 text-success">
                             <CheckCircle size={16} weight="fill" />
                             {t("entityUi.subscriptionSignIn.readyPickModel", {name})}
                         </span>
@@ -127,7 +127,7 @@ const SubscriptionTokenViewBody = ({params, nav}: ViewProps<SubscriptionViewPara
                         {actions}
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-3 rounded-lg bg-colorFillQuaternary p-3">
+                    <div className="flex flex-col gap-3 rounded-lg bg-secondary p-3">
                         <SubscriptionTokenSteps token={token} submitOnEnter={false} />
                         {/* Lines up with the step text: a 24 px number and a 12 px gap. */}
                         <div className="pl-9">{actions}</div>

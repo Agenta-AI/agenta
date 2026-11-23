@@ -15,7 +15,7 @@ import {useState} from "react"
 import {PROBE_RESPONSE_BODY_LIMIT} from "@agenta/entities/mcpEndpoint"
 import {useT} from "@agenta/i18n"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
-import {Button, cn, touchTargetExpansion} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 
 export interface ShowResponsePanelProps {
     /** The status line, when the answer had one. */
@@ -32,9 +32,7 @@ export const ShowResponsePanel = ({statusLine, body}: ShowResponsePanelProps) =>
             <Button
                 variant="link"
                 size="xs"
-                // 24px of chrome, 44px of hit area: the expansion is invisible, so the toggle
-                // keeps its place on the sentence's baseline.
-                className={cn("px-0 align-baseline text-xs", touchTargetExpansion(24))}
+                className="px-0 align-baseline text-meta"
                 aria-expanded={open}
                 onClick={() => setOpen((current) => !current)}
             >
@@ -45,7 +43,7 @@ export const ShowResponsePanel = ({statusLine, body}: ShowResponsePanelProps) =>
             {open ? (
                 <pre
                     data-testid="mcp-probe-response"
-                    className="m-0 mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-control-sm bg-colorFillTertiary p-2 font-mono text-[11px] leading-normal text-colorTextSecondary"
+                    className="m-0 mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-control-sm bg-secondary p-2 font-mono text-caption leading-normal text-muted-foreground"
                 >
                     {[statusLine, body.slice(0, PROBE_RESPONSE_BODY_LIMIT)]
                         .filter(Boolean)

@@ -20,9 +20,9 @@ export function MarkdownEditorSkeleton() {
     return (
         <div
             aria-busy
-            className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-solid border-[var(--ag-c-BDC7D1)]"
+            className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-solid border-border"
         >
-            <div className="flex items-center gap-2 border-0 border-b border-solid border-[var(--ag-c-EAEFF5)] px-3 py-2">
+            <div className="flex items-center gap-2 border-0 border-b border-solid border-border-muted px-3 py-2">
                 <SkeletonBlock className="h-5 w-24" />
                 <SkeletonBlock className="h-5 w-5" />
                 <SkeletonBlock className="h-5 w-5" />
@@ -74,7 +74,7 @@ export function ToolPermissionsSkeleton() {
             <SkeletonBlock className="h-9" />
             <SkeletonRows
                 count={6}
-                className="rounded border border-solid border-colorBorderSecondary p-3"
+                className="rounded border border-solid border-border-muted p-3"
                 rowClassName="h-9"
             />
         </div>

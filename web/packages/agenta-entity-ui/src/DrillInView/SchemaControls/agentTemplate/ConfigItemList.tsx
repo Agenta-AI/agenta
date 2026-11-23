@@ -59,5 +59,5 @@ export function ConfigItemList({
     }
     if (disabled) return null
     // One quiet line; the section header's "+" is the way to add one.
-    return <span className="text-xs text-colorTextTertiary">{def.emptyLabel}</span>
+    return <span className="text-meta text-muted-foreground">{def.emptyLabel}</span>
 }

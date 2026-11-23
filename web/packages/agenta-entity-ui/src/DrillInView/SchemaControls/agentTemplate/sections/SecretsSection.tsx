@@ -217,7 +217,7 @@ export const SecretsSectionBody = ({
             {notice ? (
                 <div
                     className={cn(
-                        "rounded-lg border border-colorBorderSecondary p-3 text-xs text-colorTextSecondary",
+                        "rounded-lg border border-border-muted p-3 text-meta text-muted-foreground",
                         inset && "m-3",
                     )}
                 >
@@ -225,11 +225,11 @@ export const SecretsSectionBody = ({
                 </div>
             ) : null}
             {loading ? (
-                <div className="flex items-center gap-2 py-3 text-xs text-colorTextSecondary">
+                <div className="flex items-center gap-2 py-3 text-meta text-muted-foreground">
                     <Spinner size="small" /> {t("entityUi.agentSecrets.loadingSecrets")}
                 </div>
             ) : bindings.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-colorBorderSecondary p-4 text-center text-xs text-colorTextSecondary">
+                <div className="rounded-lg border border-dashed border-border-muted p-4 text-center text-meta text-muted-foreground">
                     {t("entityUi.agentSecrets.noSecretsAttached")}
                 </div>
             ) : (
@@ -266,7 +266,7 @@ export const SecretsSectionBody = ({
                                     color: "",
                                     icon: <LockSimple size={14} />,
                                     avatarClassName:
-                                        "bg-colorFillSecondary text-colorTextSecondary",
+                                        "bg-secondary text-muted-foreground",
                                     tags: [],
                                     typeLabel: "",
                                     subtitle: "",

@@ -20,12 +20,12 @@ export function NeedsSetupTag({reason, tag = true, className}: NeedsSetupTagProp
     return (
         <span className={cn("flex min-w-0 flex-col items-start gap-0.5", className)}>
             {tag ? (
-                <Tag tone="gold" className="m-0 text-xs leading-[22.4px]">
+                <Tag tone="warning" className="m-0 text-meta leading-[22.4px]">
                     {needsSetupLabel()}
                 </Tag>
             ) : null}
             {reason ? (
-                <span className="truncate text-xs leading-tight text-[var(--ag-colorWarningText)]">
+                <span className="truncate text-meta leading-tight text-warning">
                     {reason}
                 </span>
             ) : null}

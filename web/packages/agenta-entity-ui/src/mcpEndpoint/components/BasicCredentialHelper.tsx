@@ -29,10 +29,10 @@ export const BasicCredentialHelper = ({disabled, onCreateSecret}: BasicCredentia
 
     return (
         <div
-            className="flex flex-col gap-3 rounded-control border border-solid border-colorBorderSecondary p-3"
+            className="flex flex-col gap-3 rounded-control border border-solid border-border-muted p-3"
             data-testid="mcp-basic-helper"
         >
-            <span className="text-xs font-medium text-colorText">
+            <span className="text-label font-medium text-foreground">
                 {t("entityUi.mcpConnect.basicTitle")}
             </span>
             <div className="grid grid-cols-2 gap-2">
@@ -60,7 +60,7 @@ export const BasicCredentialHelper = ({disabled, onCreateSecret}: BasicCredentia
                     />
                 </Field>
             </div>
-            <p className="m-0 text-xs leading-normal text-colorTextTertiary">
+            <p className="m-0 text-meta leading-normal text-muted-foreground">
                 {t("entityUi.mcpConnect.basicHint")}
             </p>
             <div>

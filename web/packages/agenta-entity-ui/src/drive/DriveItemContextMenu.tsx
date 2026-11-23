@@ -35,7 +35,6 @@ import {
 } from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
-import {PHONE_MENU_ROWS} from "./DriveFolderMenu"
 import {DriveLinkContext} from "./driveLink"
 import {useDriveFileDownload} from "./useDriveFileDownload"
 
@@ -186,7 +185,6 @@ export const DriveItemContextMenu = ({
             <ContextMenuContent
                 onClick={stop}
                 onCloseAutoFocus={(e) => e.preventDefault()}
-                className={PHONE_MENU_ROWS}
             >
                 <ContextMenuItem onSelect={onOpen}>
                     {isFolder ? <FolderOpen size={14} /> : <ArrowSquareOut size={14} />}
@@ -220,7 +218,7 @@ export const DriveItemContextMenu = ({
                             <PencilSimple size={14} />
                             {t("entityUi.driveExplorer.rename")}
                             {isFolder ? (
-                                <span className="ml-auto pl-3 text-[11px] text-colorTextQuaternary">
+                                <span className="ml-auto pl-3 text-caption text-muted-foreground">
                                     {t("entityUi.driveExplorer.filesOnly")}
                                 </span>
                             ) : null}
@@ -228,7 +226,7 @@ export const DriveItemContextMenu = ({
                         <ContextMenuSeparator />
                         <ContextMenuItem
                             onSelect={() => writes.onDelete(path, isFolder)}
-                            className="text-colorError focus:text-colorError"
+                            className="text-destructive focus:text-destructive"
                         >
                             <Trash size={14} />
                             {t("entityUi.driveExplorer.delete")}

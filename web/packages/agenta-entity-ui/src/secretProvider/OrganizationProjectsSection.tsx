@@ -59,8 +59,8 @@ export interface OrganizationProjectsSectionProps {
     saved?: OrganizationSecretProjects | null
 }
 
-const HEADING = "font-medium text-colorText"
-const NOTE = "text-[11px] text-colorTextTertiary"
+const HEADING = "font-medium text-foreground"
+const NOTE = "text-caption text-muted-foreground"
 
 /** Every project the saved choice reached and the new one does not. */
 const removedProjects = (
@@ -103,7 +103,7 @@ const ProjectPicker = ({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className="w-full justify-between font-normal text-colorTextSecondary"
+                    className="w-full justify-between font-normal text-muted-foreground"
                 >
                     {t("entityUi.organizationProjects.pickProjects")}
                     <CaretUpDown size={12} className="shrink-0" />
@@ -116,7 +116,7 @@ const ProjectPicker = ({
                         value={search}
                         onValueChange={setSearch}
                     />
-                    <CommandList className="max-h-[212px]">
+                    <CommandList className="max-h-53">
                         <CommandEmpty>
                             {t("entityUi.organizationProjects.noProjectsMatch", {search})}
                         </CommandEmpty>
@@ -167,7 +167,7 @@ const OrganizationProjectsSection = ({
                 <span className={HEADING}>
                     {t("entityUi.organizationProjects.projectsThatCanUse")}
                 </span>
-                <span className="text-colorTextSecondary">
+                <span className="text-muted-foreground">
                     {t("entityUi.organizationProjects.everyProjectIn", {organization: scope.name})}
                 </span>
             </section>
@@ -199,7 +199,7 @@ const OrganizationProjectsSection = ({
                 <label className="flex cursor-pointer items-start gap-2.5">
                     <RadioGroupItem value="all_projects" className="mt-0.5" />
                     <span className="flex flex-col gap-0.5">
-                        <span className="text-colorText">
+                        <span className="text-foreground">
                             {t("entityUi.organizationProjects.allProjects")}
                         </span>
                         <span className={NOTE}>
@@ -222,7 +222,7 @@ const OrganizationProjectsSection = ({
                         className="mt-0.5"
                     />
                     <span className="flex flex-col gap-0.5">
-                        <span className="text-colorText">
+                        <span className="text-foreground">
                             {t("entityUi.organizationProjects.selectedProjects")}
                         </span>
                         <span className={NOTE}>
@@ -233,7 +233,7 @@ const OrganizationProjectsSection = ({
             </RadioGroup>
 
             {scope.projectChoice === "plan" ? (
-                <span className="flex flex-wrap items-center gap-1 text-colorTextSecondary">
+                <span className="flex flex-wrap items-center gap-1 text-muted-foreground">
                     {t("entityUi.organizationProjects.choosingProjectsPlan")}
                     {scope.plansHref ? (
                         <a
@@ -254,7 +254,7 @@ const OrganizationProjectsSection = ({
                             {value.projectIds.map((id) => (
                                 <span
                                     key={id}
-                                    className="flex items-center gap-1 rounded-control-sm bg-colorFillTertiary py-0.5 pl-2 pr-1 text-colorText"
+                                    className="flex items-center gap-1 rounded-control-sm bg-secondary py-0.5 pl-2 pr-1 text-foreground"
                                 >
                                     {names.get(id) ?? id}
                                     <button
@@ -266,7 +266,7 @@ const OrganizationProjectsSection = ({
                                             },
                                         )}
                                         onClick={() => toggle(id)}
-                                        className="flex cursor-pointer items-center border-0 bg-transparent p-0.5 text-colorTextTertiary hover:text-colorText"
+                                        className="flex cursor-pointer items-center border-0 bg-transparent p-0.5 text-muted-foreground hover:text-foreground"
                                     >
                                         <X size={12} />
                                     </button>
@@ -280,7 +280,7 @@ const OrganizationProjectsSection = ({
                         onToggle={toggle}
                     />
                     {value.projectIds.length === 0 ? (
-                        <span className="flex items-start gap-1 text-colorWarning">
+                        <span className="flex items-start gap-1 text-warning">
                             <WarningCircle size={14} className="mt-0.5 shrink-0" />
                             {t("entityUi.organizationProjects.noProjectUntilPick")}
                         </span>
@@ -289,7 +289,7 @@ const OrganizationProjectsSection = ({
             ) : null}
 
             {removed.map((project) => (
-                <span key={project.id} className="flex items-start gap-1 text-colorWarning">
+                <span key={project.id} className="flex items-start gap-1 text-warning">
                     <WarningCircle size={14} className="mt-0.5 shrink-0" />
                     {t("entityUi.organizationProjects.projectLosesAccess", {project: project.name})}
                 </span>

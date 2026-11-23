@@ -88,7 +88,7 @@ export function McpAddServerList({
             <div className="flex flex-1 items-center justify-center p-6">
                 <EmptyState
                     className="max-w-[320px] text-center"
-                    image={<McpServerMark size={44} />}
+                    image={<McpServerMark size={40} />}
                     title={t("entityUi.mcpConnect.noServersYet")}
                     description={t("entityUi.mcpConnect.noServersYetBody")}
                 >
@@ -106,7 +106,7 @@ export function McpAddServerList({
             <div className="flex items-center gap-2">
                 <SearchInput
                     size="compact-search"
-                    className="min-w-0 flex-1 border-colorBorderSecondary"
+                    className="min-w-0 flex-1 border-border-muted"
                     placeholder={t("entityUi.mcpConnect.searchServers")}
                     aria-label={t("entityUi.mcpConnect.searchServers")}
                     value={search}
@@ -122,7 +122,7 @@ export function McpAddServerList({
             {loading ? (
                 <SkeletonRows rowClassName="h-[58px]" />
             ) : visible.length === 0 ? (
-                <span className="text-xs text-colorTextTertiary">
+                <span className="text-meta text-muted-foreground">
                     {t("entityUi.mcpConnect.noServersMatch")}
                 </span>
             ) : (

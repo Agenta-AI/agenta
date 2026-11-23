@@ -28,14 +28,14 @@ const SECRET_FIELD_ID = "agent-secret-attach-secret"
 const ENV_FIELD_ID = "agent-secret-attach-env"
 
 /** The canvas form label: 12 px, weight 500, secondary. */
-const LABEL_CLASS = "text-[12px] font-medium leading-4 text-colorTextSecondary"
+const LABEL_CLASS = "text-meta font-medium text-muted-foreground"
 /** The help line under a field. */
-const HELP_CLASS = "text-[12px] leading-4"
+const HELP_CLASS = "text-meta"
 /**
  * Fields on the canvas scale (13 px, radius 6) from md up; a phone keeps 16 px so iOS does not
  * zoom. The mono line height leaves room for underscores, which a 20 px line clips on Linux.
  */
-const FIELD_CLASS = "rounded-[6px] md:text-[13px]"
+const FIELD_CLASS = "rounded-md text-label"
 
 /**
  * Auto-save leaves the agent's draft dirty until the save lands. The notice shows only when the
@@ -61,7 +61,7 @@ export const useHeldTrue = (value: boolean, ms: number): boolean => {
 export const SecretOwnerTag = ({owner}: {owner: SecretListEntry["owner"]}) => {
     const t = useT(secretViewsCatalog)
     return (
-        <span className="ml-auto inline-flex h-5 shrink-0 items-center rounded px-[7px] font-sans text-[12px] leading-4 text-colorTextSecondary ring-1 ring-inset ring-colorBorderSecondary">
+        <span className="ml-auto inline-flex h-5 shrink-0 items-center rounded-sm px-2 font-sans text-meta text-muted-foreground ring-1 ring-inset ring-border-muted">
             {owner === "shared" ? t("entityUi.secretViews.everyone") : ACCOUNT_COPY.onlyMe}
         </span>
     )
@@ -95,9 +95,9 @@ export function SecretAttachFields({
     return (
         <div className="flex flex-col gap-3.5">
             {request ? (
-                <p className="m-0 text-xs text-colorTextSecondary">
+                <p className="m-0 text-meta text-muted-foreground">
                     {richText(t("entityUi.secretAttachment.agentAskedFor", {name: request.name}), {
-                        name: (text) => <span className="font-medium text-colorText">{text}</span>,
+                        name: (text) => <span className="font-medium text-foreground">{text}</span>,
                     })}
                     {request.reason ? ` · ${request.reason}` : ""}
                 </p>
@@ -136,10 +136,9 @@ export function SecretAttachFields({
                             <SelectItem
                                 key={entry.value}
                                 value={entry.value}
-                                size="compact"
                                 className="[&>span:first-child]:flex [&>span:first-child]:items-center [&>span:first-child]:gap-2"
                             >
-                                <span className="min-w-0 truncate font-mono text-[13px]">
+                                <span className="min-w-0 truncate font-mono text-label">
                                     {entry.name}
                                 </span>
                                 <SecretOwnerTag owner={entry.owner} />
@@ -150,13 +149,12 @@ export function SecretAttachFields({
                                 {form.entries.length > 0 ? <SelectSeparator /> : null}
                                 <SelectItem
                                     value={NEW_SECRET}
-                                    size="compact"
                                     className="[&>span:first-child]:flex [&>span:first-child]:items-center [&>span:first-child]:gap-2"
                                 >
                                     <Plus
                                         size={14}
                                         aria-hidden
-                                        className="shrink-0 text-colorTextSecondary"
+                                        className="shrink-0 text-muted-foreground"
                                     />
                                     <span>{ACCOUNT_COPY.createNewSecret}</span>
                                 </SelectItem>
@@ -166,12 +164,12 @@ export function SecretAttachFields({
                 </Select>
                 {form.choice.kind === "user" ? (
                     <span
-                        className={`mt-1 flex items-start gap-2 text-colorTextSecondary ${HELP_CLASS}`}
+                        className={`mt-1 flex items-start gap-2 text-muted-foreground ${HELP_CLASS}`}
                     >
                         <LockSimple
                             size={14}
                             aria-hidden
-                            className="mt-px shrink-0 text-colorTextTertiary"
+                            className="mt-px shrink-0 text-muted-foreground"
                         />
                         <span>{t("entityUi.secretViews.onlyYouLine")}</span>
                     </span>
@@ -222,7 +220,7 @@ export function SecretAttachFields({
                 </label>
                 <Input
                     id={ENV_FIELD_ID}
-                    className={`h-[34px] py-0 font-mono leading-6 ${FIELD_CLASS}`}
+                    className={`h-control py-0 font-mono leading-6 ${FIELD_CLASS}`}
                     value={form.envVar}
                     placeholder={t("entityUi.secretAttachment.envPlaceholder")}
                     onChange={(event) => form.setEnvVar(event.target.value)}
@@ -231,7 +229,7 @@ export function SecretAttachFields({
                     aria-invalid={form.envError ? true : undefined}
                 />
                 <span
-                    className={`${HELP_CLASS} ${form.envError ? "text-error" : "text-colorTextTertiary"}`}
+                    className={`${HELP_CLASS} ${form.envError ? "text-destructive" : "text-muted-foreground"}`}
                 >
                     {form.envError === "invalid"
                         ? t("entityUi.secretAttachment.envInvalid")
@@ -242,14 +240,14 @@ export function SecretAttachFields({
             </div>
 
             {showDirtyNotice ? (
-                <div className="rounded-lg border border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] p-3 text-xs text-colorText">
+                <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-meta text-foreground">
                     {t("entityUi.secretAttachment.saveOrDiscard")}
                 </div>
             ) : null}
             {form.error ? (
                 <div
                     role="alert"
-                    className="rounded-lg border border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg)] p-3 text-xs text-error"
+                    className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-meta text-destructive"
                 >
                     {form.error}
                 </div>

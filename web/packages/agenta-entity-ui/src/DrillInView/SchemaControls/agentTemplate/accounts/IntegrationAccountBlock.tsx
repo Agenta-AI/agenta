@@ -163,8 +163,8 @@ function NoPersonWarning({context}: {context: ItemAccountContext}) {
     const t = useT(accountSwitchCatalog)
     if (!useRunsWithoutPerson(useItemWorkflowId(context))) return null
     return (
-        <div className="flex items-start gap-2 rounded-lg border border-solid border-colorWarningBorder bg-colorWarningBg px-3 py-2 text-xs leading-4 text-colorText">
-            <Warning size={14} className="mt-px shrink-0 text-colorWarning" />
+        <div className="flex items-start gap-2 rounded-lg border border-solid border-warning/30 bg-warning/10 px-3 py-2 text-meta leading-4 text-foreground">
+            <Warning size={14} className="mt-px shrink-0 text-warning" />
             <span>{t("entityUi.accountSwitch.noPersonWarning")}</span>
         </div>
     )
@@ -197,7 +197,7 @@ function YourAccount({
         // Canvas F10 f3: a dashed box with the dark connect button.
         body = (
             <EmptyAccountBox text={t("entityUi.accountSwitch.noAccountYet")}>
-                <Button size="compact" className="max-md:h-11" onClick={onConnect}>
+                <Button size="compact" className="" onClick={onConnect}>
                     {t("entityUi.accountSwitch.connectApp", {name})}
                 </Button>
             </EmptyAccountBox>
@@ -244,7 +244,7 @@ function YourAccount({
             />
             {body}
             {choice.failed ? (
-                <span className="text-xs text-colorError">
+                <span className="text-meta text-destructive">
                     {t("entityUi.accounts.choiceFailed")}
                 </span>
             ) : null}

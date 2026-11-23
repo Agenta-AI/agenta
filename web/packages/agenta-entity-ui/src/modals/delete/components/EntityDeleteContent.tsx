@@ -11,7 +11,7 @@ import {useT} from "@agenta/i18n"
 import deleteModalCatalog from "@agenta/i18n/catalogs/entityUi.deleteModal"
 import {Alert} from "@agenta/ui/ui"
 import {atom, useAtomValue} from "jotai"
-import {Trash2} from "lucide-react"
+import {TrashIcon} from "@phosphor-icons/react"
 
 import {getEntityAdapter} from "../../adapters"
 import type {EntityGroup, EntityReference} from "../../types"
@@ -41,7 +41,7 @@ export function EntityDeleteContent() {
     return (
         <div className="flex flex-col gap-4">
             {/* Confirmation message */}
-            <span className="text-colorText">{t("entityUi.deleteModal.confirm")}</span>
+            <span className="text-foreground">{t("entityUi.deleteModal.confirm")}</span>
 
             {/* Entity groups */}
             {groups.map((group) => (
@@ -72,7 +72,7 @@ export function EntityDeleteContent() {
                     message={t("entityUi.deleteModal.cannotDelete")}
                     description={
                         <div>
-                            <span className="text-colorText">
+                            <span className="text-foreground">
                                 {t("entityUi.deleteModal.blockedItems")}
                             </span>
                             <ul className="list-disc list-inside m-0 pl-0 mt-2">
@@ -116,20 +116,20 @@ function EntityGroupDisplay({group}: EntityGroupDisplayProps) {
     const Icon = adapter?.getIcon?.()
 
     return (
-        <div className="bg-gray-50 rounded-lg p-3">
+        <div className="bg-muted rounded-lg p-3">
             <div className="flex items-center gap-2 mb-2">
                 {Icon ? (
-                    <span className="text-gray-500">{Icon}</span>
+                    <span className="text-muted-foreground">{Icon}</span>
                 ) : (
-                    <Trash2 size={16} className="text-gray-500" />
+                    <TrashIcon size={16} className="text-muted-foreground" />
                 )}
-                <span className="font-semibold text-gray-700">
+                <span className="font-semibold text-foreground">
                     {group.displayLabel} ({group.entities.length})
                 </span>
             </div>
             <ul className="list-disc list-inside m-0 pl-4 space-y-1">
                 {group.entities.map((entity) => (
-                    <li key={entity.id} className="text-gray-600">
+                    <li key={entity.id} className="text-muted-foreground">
                         <EntityNameDisplay entity={entity} />
                     </li>
                 ))}

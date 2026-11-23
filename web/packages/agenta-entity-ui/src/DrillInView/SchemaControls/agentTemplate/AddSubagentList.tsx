@@ -40,10 +40,10 @@ export interface AddSubagentListProps {
     onRemove: (options: SubagentOption[]) => void | Promise<void>
 }
 
-const FOCUS_RING = "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+const FOCUS_RING = "focus-visible:border-ring focus-ring"
 /** Canvas F03 f1: rows on the column's 16 px inset, 8 px above and below, 8 px apart. */
 const ROW =
-    "box-border flex w-full cursor-pointer appearance-none items-center gap-2.5 rounded-lg border-0 bg-transparent px-0 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-colorFillQuaternary disabled:cursor-not-allowed " +
+    "box-border flex w-full cursor-pointer appearance-none items-center gap-2.5 rounded-lg border-0 bg-transparent px-0 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent disabled:cursor-not-allowed " +
     FOCUS_RING
 
 /** The agent's tile: 32 px, radius 8, a 14 px glyph; the agent type's blue when the author never
@@ -52,12 +52,12 @@ function SubagentTile({icon}: {icon?: AgentIconSelection | null}) {
     const chrome = agentIconChrome(icon, {
         size: 14,
         fallbackGlyph: <Robot aria-hidden size={14} />,
-        fallbackClassName: "bg-[var(--ag-type-agent-bg)] text-[var(--ag-type-agent-text)]",
+        fallbackClassName: "bg-secondary text-muted-foreground",
     })
     return (
         <span
             className={cn(
-                "flex size-8 shrink-0 items-center justify-center rounded-[8px]",
+                "flex size-8 shrink-0 items-center justify-center rounded-lg",
                 chrome.className,
             )}
             style={chrome.style}
@@ -96,21 +96,21 @@ function SubagentRow({
             <SubagentTile icon={option.icon} />
             {/* The description line renders even when empty so rows keep one height. */}
             <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[13px] font-medium leading-5 text-colorText">
+                <span className="truncate text-label font-medium leading-5 text-foreground">
                     {option.name}
                 </span>
-                <span className="truncate text-[12px] leading-4 text-colorTextSecondary">
+                <span className="truncate text-meta text-muted-foreground">
                     {option.description?.trim() || t("entityUi.addSubagent.noDescription")}
                 </span>
             </span>
             {option.added ? (
-                <span className="ml-2 flex shrink-0 items-center gap-1 text-[12px] leading-4 text-colorTextSecondary">
+                <span className="ml-2 flex shrink-0 items-center gap-1 text-meta text-muted-foreground">
                     <Check aria-hidden size={14} />
                     {t("entityUi.subagentViews.added")}
                 </span>
             ) : (
                 // The canvas "+" target: 28 px, a 14 px glyph. The row is the button.
-                <span className="ml-2 flex size-7 shrink-0 items-center justify-center text-colorTextSecondary">
+                <span className="ml-2 flex size-7 shrink-0 items-center justify-center text-muted-foreground">
                     <Plus aria-hidden size={14} />
                 </span>
             )}
@@ -122,7 +122,7 @@ function SubagentRow({
 function RowSkeleton({widths}: {widths: [string, string]}) {
     return (
         <div className="flex items-center gap-2.5 py-2">
-            <SkeletonBlock className="size-8 shrink-0 rounded-[8px]" />
+            <SkeletonBlock className="size-8 shrink-0 rounded-lg" />
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                 <SkeletonBlock className={`h-3.5 ${widths[0]}`} />
                 <SkeletonBlock className={`h-3 ${widths[1]}`} />
@@ -175,7 +175,7 @@ export function AddSubagentList({
             <div className="shrink-0 px-4 pt-3.5">
                 <SearchInput
                     size="compact-search"
-                    className="border-colorBorderSecondary max-md:h-11"
+                    className="border-border-muted"
                     placeholder={t("entityUi.addSubagent.searchAgents")}
                     aria-label={t("entityUi.addSubagent.searchAgents")}
                     value={search}
@@ -221,7 +221,7 @@ export function AddSubagentList({
                 {!loading && failedCount > 0 ? (
                     <div
                         role="status"
-                        className="flex items-center gap-2 text-xs text-muted-foreground"
+                        className="flex items-center gap-2 text-meta text-muted-foreground"
                     >
                         <span className="min-w-0 flex-1">
                             {t("entityUi.addSubagent.agentsNotLoaded", {count: failedCount})}

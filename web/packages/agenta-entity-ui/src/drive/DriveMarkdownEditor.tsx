@@ -59,7 +59,7 @@ export function DriveMarkdownEditor({
             {ready ? null : <DriveEditorSkeleton lines={7} />}
             <div
                 ref={quoteRootRef}
-                className="relative flex min-h-0 flex-1 flex-col text-sm"
+                className="relative flex min-h-0 flex-1 flex-col text-body"
                 hidden={!ready}
                 onKeyDown={onKeyDown}
                 {...quotable}

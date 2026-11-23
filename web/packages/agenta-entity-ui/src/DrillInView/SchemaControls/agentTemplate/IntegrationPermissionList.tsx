@@ -272,10 +272,10 @@ const ToolRow = memo(function ToolRow({
 
     return (
         <div
-            className={`flex flex-col border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] px-3 transition-colors first:border-t-0 ${phone ? "py-3" : "py-2.5"} ${
+            className={`flex flex-col border-0 border-t border-solid border-border-muted px-3 transition-colors first:border-t-0 ${phone ? "py-3" : "py-2.5"} ${
                 expanded
-                    ? "bg-[var(--ag-colorFillQuaternary)]"
-                    : "hover:bg-[var(--ag-colorFillQuaternary)]"
+                    ? "bg-secondary"
+                    : "hover:bg-accent"
             }`}
         >
             {/* Centred while collapsed; open, the select stays on the name line as the row grows. */}
@@ -289,21 +289,21 @@ const ToolRow = memo(function ToolRow({
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <div className="flex min-w-0 items-center gap-1.5">
                         <span
-                            className={`${phone ? "min-w-0 break-words text-[14px]" : "truncate text-[13px]"} font-medium leading-5`}
+                            className={`${phone ? "min-w-0 break-words text-body" : "truncate text-label"} font-medium leading-5`}
                         >
                             {tool.name || humanizeActionKey(tool.key)}
                         </span>
                         {tool.stale ? (
                             <Badge
-                                variant="outlined"
-                                className="m-0 px-1.5 text-[11px] font-normal leading-4"
+                                variant="default"
+                                className="m-0 px-1.5 text-caption font-normal"
                             >
                                 {staleLabel}
                             </Badge>
                         ) : null}
                     </div>
                     {lockedReason ? (
-                        <span className="text-xs text-colorTextTertiary">{lockedReason}</span>
+                        <span className="text-meta text-muted-foreground">{lockedReason}</span>
                     ) : (
                         // Canvas F02 f6: one 12 px line, the line itself opens the full text; a
                         // phone shows the whole line (M09).
@@ -317,7 +317,7 @@ const ToolRow = memo(function ToolRow({
                     )}
                 </div>
                 {readOnly ? null : valuesAsText ? (
-                    <span className="shrink-0 text-sm text-colorTextSecondary">
+                    <span className="shrink-0 text-body text-muted-foreground">
                         {options.find((option) => option.value === permission)?.title ?? permission}
                     </span>
                 ) : (
@@ -330,15 +330,15 @@ const ToolRow = memo(function ToolRow({
                         canvas="chip"
                         aria-label={t("entityUi.permissionDrawer.permissionFor", {tool: tool.key})}
                         // A compact 28px chip (radius 6, canvas F02 f6), so a long list reads as
-                        // rows, not a column of fields. On a phone a full-width 44px field on its
-                        // own line (radius 8, M09).
+                        // rows, not a column of fields. On a phone a full-width field on its own
+                        // line (M09).
                         triggerClassName={`${
                             phone
-                                ? "w-full !h-11 !rounded-[8px] !text-[14px] !leading-5"
-                                : "w-auto min-w-[96px] shrink-0 gap-2 !h-7 !rounded-[6px] !px-2 !text-[13px] sm:min-w-[116px]"
+                                ? "w-full gap-2"
+                                : "w-auto min-w-[96px] shrink-0 gap-2 !h-7 !rounded-md !px-2 !text-label sm:min-w-[116px]"
                         } ${
                             permission === "deny" && !plainDeny
-                                ? "border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorErrorText)]"
+                                ? "border-destructive/40 bg-destructive/10 text-destructive"
                                 : ""
                         }`}
                         // The panel is pinned to the trigger; a compact chip wraps every option label.
@@ -409,7 +409,7 @@ function ToolGroup({
     const remaining = matching.length - visible.length
 
     return (
-        <div className="overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)]">
+        <div className="overflow-hidden rounded-lg border border-solid border-border-muted">
             <div
                 onClick={setOpen}
                 role="button"
@@ -421,30 +421,30 @@ function ToolGroup({
                         setOpen()
                     }
                 }}
-                className={`flex cursor-pointer items-center gap-2 bg-[var(--ag-colorFillQuaternary)] px-3 py-2 transition-colors hover:bg-[var(--ag-colorFillSecondary)] ${phone ? "min-h-11" : ""}`}
+                className={`flex cursor-pointer items-center gap-2 bg-secondary px-3 py-2 transition-colors hover:bg-accent ${""}`}
             >
                 {open ? (
-                    <CaretDown size={12} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
+                    <CaretDown size={12} className="shrink-0 text-muted-foreground" />
                 ) : (
                     <CaretRight
                         size={12}
-                        className="shrink-0 text-[var(--ag-colorTextSecondary)]"
+                        className="shrink-0 text-muted-foreground"
                     />
                 )}
                 {/* Sentence case, not the board's uppercase: the house style wins over the spec's
                     typography, and "Read-only · 22" is how every other count reads in the app. */}
-                <span className="flex-1 text-[12px] font-medium leading-5 text-[var(--ag-colorTextSecondary)]">
+                <span className="flex-1 text-meta font-medium leading-5 text-muted-foreground">
                     {label} · {tools.length}
                 </span>
                 {/* Plain 12 px text for every rollup (canvas F02 f6, M09). */}
-                <span className="shrink-0 text-[12px] leading-4 text-[var(--ag-colorTextTertiary)]">
+                <span className="shrink-0 text-meta text-muted-foreground">
                     {rollupLabel(rollup)}
                 </span>
             </div>
             <HeightCollapse open={open}>
                 <div className="flex flex-col">
                     {search && matching.length === 0 ? (
-                        <span className="px-3 py-2 text-xs text-[var(--ag-colorTextTertiary)]">
+                        <span className="px-3 py-2 text-meta text-muted-foreground">
                             {t("entityUi.permissionDrawer.noMatchesInGroup")}
                         </span>
                     ) : null}
@@ -473,7 +473,7 @@ function ToolGroup({
                         <button
                             type="button"
                             onClick={() => setShown((value) => value + GROUP_PAGE_SIZE)}
-                            className={`cursor-pointer border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent px-3 py-2 text-left text-xs text-colorInfo ${phone ? "min-h-11" : ""}`}
+                            className={`cursor-pointer border-0 border-t border-solid border-border-muted bg-transparent px-3 py-2 text-left text-meta text-info ${""}`}
                         >
                             {t("entityUi.permissionDrawer.showMore", {count: remaining})}
                         </button>
@@ -608,8 +608,8 @@ export function PermissionDrawerBody({
 
                 {readOnly ? null : (
                     <div className="flex flex-col gap-1.5">
-                        {/* 12/16/500 (canvas F02 f6, M09); `text-xs` is 13 px in /m. */}
-                        <span className="text-[12px] font-medium leading-4 text-[var(--ag-colorTextSecondary)]">
+                        {/* 12/16/500 (canvas F02 f6, M09); `text-meta` is 13 px in /m. */}
+                        <span className="text-meta font-medium text-muted-foreground">
                             {t("entityUi.permissionDrawer.defaultPermission")}
                         </span>
                         {presets?.pending ? (
@@ -617,7 +617,7 @@ export function PermissionDrawerBody({
                             // the answer is on the way. Decorative, like the list's rows.
                             <SkeletonRows count={1} rowClassName="h-9" />
                         ) : valuesAsText ? (
-                            <span className="text-sm text-colorText">
+                            <span className="text-label text-foreground">
                                 {presetOptions.find((option) => option.value === preset)?.title ??
                                     preset}
                             </span>
@@ -638,13 +638,9 @@ export function PermissionDrawerBody({
                                 disabled={inert}
                                 aria-label={t("entityUi.permissionDrawer.defaultPermission")}
                                 // Two lines, the value and its help (canvas F02 f6, F10 f3): 44 px,
-                                // radius 6, 13 px; 52 px, radius 8, 14 px on a phone (M09).
+                                // radius 6, 13 px.
                                 canvas="field"
-                                triggerClassName={
-                                    phone
-                                        ? "w-full gap-2 !h-[52px] !rounded-[8px] !px-3 !text-[14px]"
-                                        : "w-full gap-2 !h-11 !rounded-[6px] !px-[11px] !text-[13px]"
-                                }
+                                triggerClassName="w-full gap-2 !h-11 !rounded-md !px-3 !text-label"
                             />
                         )}
                     </div>
@@ -665,8 +661,8 @@ export function PermissionDrawerBody({
                         // Canvas F02 f6: 30 px, radius 6, the secondary border, 13 px.
                         className={
                             phone
-                                ? "h-11 shrink-0"
-                                : "h-[30px] shrink-0 rounded-[6px] border-colorBorderSecondary md:[&_input]:text-[13px]"
+                                ? "shrink-0"
+                                : "h-control shrink-0 rounded-md border-border-muted [&_input]:text-label"
                         }
                     />
                 ) : null}
@@ -675,7 +671,7 @@ export function PermissionDrawerBody({
                     // Three rows at a tool row's own height, so the list area keeps its shape
                     // while the answer is on the way (decision 25).
                     <SkeletonRows
-                        className="rounded border border-solid border-colorBorderSecondary p-3"
+                        className="rounded border border-solid border-border-muted p-3"
                         rowClassName="h-9"
                     />
                 ) : catalog.status === "error" ? (
@@ -684,7 +680,7 @@ export function PermissionDrawerBody({
                     // an empty one.
                     catalog.errorNode
                 ) : catalogTools.length === 0 ? (
-                    <div className="px-1 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
+                    <div className="px-1 py-4 text-meta text-muted-foreground">
                         {emptyLabel}
                     </div>
                 ) : noMatches ? (
@@ -692,7 +688,7 @@ export function PermissionDrawerBody({
                     // own counts read as a server that stopped advertising its tools, which is a
                     // different answer from "this query does not name any of them". Same sentence
                     // the connection detail drawer's tool filter uses.
-                    <div className="px-1 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
+                    <div className="px-1 py-4 text-meta text-muted-foreground">
                         {t("entityUi.permissionDrawer.noToolMatches")}
                     </div>
                 ) : (
@@ -779,7 +775,7 @@ export function IntegrationDrawerBody({
             tools: fetchedTools,
             complete,
             errorNode: (
-                <div className="px-1 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
+                <div className="px-1 py-4 text-meta text-muted-foreground">
                     {tNow("entityUi.permissionDrawer.toolsNotLoaded", {
                         integration: target.integration,
                     })}
@@ -811,8 +807,8 @@ export function IntegrationDrawerBody({
 export function UnmigratedNotice({target}: {target: GatewayConnectionTarget}) {
     const t = useT(permissionDrawerCatalog)
     return (
-        <div className="flex flex-col gap-2 p-4 text-xs text-[var(--ag-colorTextSecondary)]">
-            <span className="text-sm font-medium">{t("entityUi.permissionDrawer.oldFormat")}</span>
+        <div className="flex flex-col gap-2 p-4 text-meta text-muted-foreground">
+            <span className="text-label font-medium">{t("entityUi.permissionDrawer.oldFormat")}</span>
             <span>
                 {t("entityUi.permissionDrawer.oldFormatDetail", {
                     integration: target.integration,
@@ -854,7 +850,7 @@ export function IntegrationTitle({
     // A healthy connection shows no tag.
     const healthy = connection && isConnectionActive(connection) && isConnectionValid(connection)
     // Canvas F10 f3: a bordered 12 px tag.
-    const tag = "m-0 shrink-0 px-1.5 text-[12px] font-normal leading-4"
+    const tag = "m-0 shrink-0 px-1.5 text-meta font-normal"
 
     return (
         // w-full + min-w-0: the title slot will not shrink alone, pushing the badge past the edge.
@@ -863,16 +859,16 @@ export function IntegrationTitle({
             {/* Canvas F02 f6: name 13/20/600, the account 12/16; a phone shows the name alone at
                 15/20 (M09). */}
             <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
-                <span className="truncate text-[13px] font-semibold leading-5 max-md:text-[15px]">
+                <span className="truncate text-label font-semibold leading-5">
                     {displayName}
                 </span>
                 {showSlug && !phone ? (
-                    <span className="shrink-0 text-[12px] font-normal leading-4 text-[var(--ag-colorTextTertiary)]">
+                    <span className="shrink-0 text-meta font-normal text-muted-foreground">
                         {target.integration}
                     </span>
                 ) : null}
                 {connectionSlug && !phone ? (
-                    <span className="min-w-0 truncate text-[12px] font-normal leading-4 text-[var(--ag-colorTextTertiary)]">
+                    <span className="min-w-0 truncate text-meta font-normal text-muted-foreground">
                         {connectionSlug}
                     </span>
                 ) : null}
@@ -880,19 +876,19 @@ export function IntegrationTitle({
             {notConnected || missing ? (
                 // Canvas F10 f3: a square white tag with a light border.
                 <Badge
-                    variant="outlined"
-                    className={`${tag} h-5 rounded-[4px] border-colorBorderSecondary bg-colorBgContainer px-[7px] text-colorTextSecondary`}
+                    variant="default"
+                    className={`${tag} h-5 rounded-sm border-border-muted bg-background px-2 text-muted-foreground`}
                 >
                     {tCommon("common.notConnected")}
                 </Badge>
             ) : attention !== undefined ? (
                 attention ? (
-                    <Badge variant="gold" className={tag}>
+                    <Badge variant="warning" className={tag}>
                         {attention}
                     </Badge>
                 ) : null
             ) : connection && !healthy ? (
-                <span className="shrink-0 text-xs font-normal">
+                <span className="shrink-0 text-meta font-normal">
                     <ConnectionStatusBadge connection={connection} />
                 </span>
             ) : null}

@@ -15,7 +15,7 @@ export function RowRemoveButton({onRemove}: {onRemove: () => void}) {
                 e.stopPropagation()
                 onRemove()
             }}
-            className="flex shrink-0 cursor-pointer appearance-none items-center self-center rounded border-0 bg-transparent p-0.5 text-[var(--ag-colorTextTertiary)] opacity-0 hover:bg-[var(--ag-colorFillSecondary)] hover:text-[var(--ag-colorText)] focus-visible:opacity-100 group-hover:opacity-100"
+            className="flex shrink-0 cursor-pointer appearance-none items-center self-center rounded border-0 bg-transparent p-0.5 text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
         >
             <X size={13} />
         </button>

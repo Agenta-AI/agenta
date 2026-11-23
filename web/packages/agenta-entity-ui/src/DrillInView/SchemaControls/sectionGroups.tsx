@@ -11,7 +11,6 @@
  */
 import type {ReactNode} from "react"
 
-import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {CaretRight, Plugs} from "@phosphor-icons/react"
 import Image from "next/image"
 
@@ -30,7 +29,7 @@ export function ProviderLogo({
         return (
             <Plugs
                 size={size}
-                className={`shrink-0 text-[var(--ag-colorTextSecondary)] ${className ?? ""}`}
+                className={`shrink-0 text-muted-foreground ${className ?? ""}`}
             />
         )
     return (
@@ -69,13 +68,13 @@ export function SubSectionHeader({
         </>
     )
     return (
-        <div className="flex items-center gap-1.5 px-0.5 text-[12px] text-[var(--ag-colorTextTertiary)]">
+        <div className="flex items-center gap-1.5 px-0.5 text-meta text-muted-foreground">
             {onToggle ? (
                 <button
                     type="button"
                     onClick={onToggle}
                     aria-expanded={!collapsed}
-                    className={`-mx-1 flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1 py-0.5 text-inherit [font:inherit] hover:text-[var(--ag-colorText)] ${PHONE_TOUCH_TARGET_CLASS}`}
+                    className={`-mx-1 flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1 py-0.5 text-inherit [font:inherit] hover:text-foreground`}
                 >
                     {text}
                     {/* A caret that turns shows where the rows went. */}

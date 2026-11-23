@@ -602,7 +602,7 @@ describe("Advanced", () => {
         expect(document.querySelector('[data-testid="advanced-part-build-kit"]')).toBeNull()
         // One bordered card (F04 f9), each row with the triangle caret.
         expect(execution.parentElement).toBe(tools.parentElement)
-        expect(execution.parentElement?.className).toContain("border-colorBorderSecondary")
+        expect(execution.parentElement?.className).toContain("border-border-muted")
         expect(execution.querySelector('[data-slot="collapse-caret"]')).not.toBeNull()
     })
 

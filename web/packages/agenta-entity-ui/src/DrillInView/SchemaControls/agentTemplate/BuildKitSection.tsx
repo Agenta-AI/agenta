@@ -126,10 +126,10 @@ export function BuildKitSection({
     return (
         <div className="flex min-h-0 flex-col">
             <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium">
+                <span className="text-label font-medium">
                     {t("entityUi.buildKit.playgroundBuildKit")}
                 </span>
-                <span className="text-xs text-colorTextDescription">
+                <span className="text-meta text-muted-foreground">
                     {t("entityUi.buildKit.playgroundBuildKitHint")}
                 </span>
             </div>
@@ -198,14 +198,14 @@ export function BuildKitSection({
                 readOnlyLabel={t("entityUi.buildKit.readOnlyGroup")}
                 banner={
                     !state.enabled ? (
-                        <span className="text-xs text-colorTextDescription">
+                        <span className="text-meta text-muted-foreground">
                             {t("entityUi.buildKit.buildKitOff")}
                         </span>
                     ) : null
                 }
                 footNote={
                     <div className="flex flex-col gap-2">
-                        <span className="text-xs text-colorTextDescription">
+                        <span className="text-meta text-muted-foreground">
                             {t("entityUi.buildKit.includedWhileActive")}
                         </span>
                         {tools

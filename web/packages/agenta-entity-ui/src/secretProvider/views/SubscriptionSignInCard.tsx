@@ -7,8 +7,8 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import subscriptionViewsCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionViews"
-import {Button, SkeletonBlock} from "@agenta/ui/ui"
-import {ArrowSquareOut, Check, CheckCircle, CircleNotch, WarningCircle} from "@phosphor-icons/react"
+import {Button, SkeletonBlock, Spinner} from "@agenta/ui/ui"
+import {ArrowSquareOut, Check, CheckCircle, WarningCircle} from "@phosphor-icons/react"
 
 import {countdownLabel, type PendingAttempt} from "../useSubscriptionSignIn"
 
@@ -43,10 +43,6 @@ export interface SubscriptionSignInCardProps {
     footer?: ReactNode
 }
 
-const Loader = ({size}: {size: number}) => (
-    <CircleNotch size={size} className="shrink-0 motion-safe:animate-spin" aria-hidden />
-)
-
 export const SubscriptionSignInCard = ({
     name,
     phase,
@@ -65,36 +61,36 @@ export const SubscriptionSignInCard = ({
     const waiting = phase === "waiting" && attempt
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-3.5">
-            <section className="flex flex-col gap-2.5 rounded-lg border border-solid border-colorBorderSecondary p-3 text-[13px]">
+            <section className="flex flex-col gap-2.5 rounded-lg border border-solid border-border-muted p-3 text-label">
                 <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium text-colorText">{name}</span>
+                    <span className="text-label font-medium text-foreground">{name}</span>
                     {waiting ? (
-                        <span className="flex items-center gap-1.5 text-colorTextSecondary">
-                            <Loader size={12} />
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                            <Spinner aria-hidden className="size-3" />
                             {t("entityUi.subscriptionSignIn.waitingForSignIn")}
                         </span>
                     ) : phase === "connected" ? (
-                        <span className="text-colorTextSecondary">
+                        <span className="text-muted-foreground">
                             {statusLine || t("entityUi.subscriptionSignIn.agentsCanRun")}
                         </span>
                     ) : phase === "busy" ? null : (
-                        <span className="text-colorTextSecondary">
+                        <span className="text-muted-foreground">
                             {t("entityUi.subscriptionSignIn.signInChatgpt")}
                         </span>
                     )}
                 </div>
 
                 {waiting ? (
-                    <div className="flex flex-col gap-2.5 rounded-lg bg-colorFillQuaternary p-3">
-                        <span className="text-colorText">
+                    <div className="flex flex-col gap-2.5 rounded-lg bg-secondary p-3">
+                        <span className="text-foreground">
                             {t("entityUi.subscriptionSignIn.openChatgptEnterCode")}
                         </span>
                         <div className="flex items-center gap-2">
-                            <span className="select-all font-mono text-lg tracking-[0.2em] text-colorText">
+                            <span className="select-all font-mono text-title tracking-[0.2em] text-foreground">
                                 {attempt.userCode}
                             </span>
                             {copied ? (
-                                <span className="flex items-center gap-1 text-xs text-colorSuccess">
+                                <span className="flex items-center gap-1 text-meta text-success">
                                     <Check size={12} />
                                     {t("entityUi.subscriptionSignIn.copied")}
                                 </span>
@@ -114,13 +110,13 @@ export const SubscriptionSignInCard = ({
                                 href={attempt.verificationUri}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="flex items-center gap-1 text-colorText underline underline-offset-2"
+                                className="flex items-center gap-1 text-foreground underline underline-offset-2"
                             >
                                 {t("entityUi.subscriptionSignIn.openName", {name})}
                                 <ArrowSquareOut size={12} />
                             </a>
                             {attempt.expiresAt ? (
-                                <span className="tabular-nums text-colorTextTertiary">
+                                <span className="tabular-nums text-muted-foreground">
                                     {t("entityUi.subscriptionSignIn.expiresIn", {
                                         time: countdownLabel(attempt.expiresAt, now),
                                     })}
@@ -134,16 +130,16 @@ export const SubscriptionSignInCard = ({
                         {copied ? (
                             <div
                                 role="status"
-                                className="flex items-start gap-2.5 border-0 border-t border-solid border-colorBorderSecondary pt-2.5"
+                                className="flex items-start gap-2.5 border-0 border-t border-solid border-border-muted pt-2.5"
                             >
                                 <span className="mt-0.5">
-                                    <Loader size={14} />
+                                    <Spinner aria-hidden size="small" />
                                 </span>
                                 <span className="flex flex-col gap-0.5">
-                                    <span className="font-medium text-colorText">
+                                    <span className="font-medium text-foreground">
                                         {t("entityUi.subscriptionViews.waitingToConfirm", {name})}
                                     </span>
-                                    <span className="text-xs leading-4 text-colorTextSecondary">
+                                    <span className="text-meta leading-4 text-muted-foreground">
                                         {t("entityUi.subscriptionViews.waitingToConfirmBody", {
                                             name,
                                         })}
@@ -159,7 +155,7 @@ export const SubscriptionSignInCard = ({
                     </div>
                 ) : phase === "connected" ? (
                     <>
-                        <span className="flex items-center gap-2 text-colorSuccess">
+                        <span className="flex items-center gap-2 text-success">
                             <CheckCircle size={16} weight="fill" />
                             {t("entityUi.subscriptionSignIn.readyPickModel", {name})}
                         </span>
@@ -174,7 +170,7 @@ export const SubscriptionSignInCard = ({
                 )}
 
                 {lostPoll ? (
-                    <p className="m-0 flex items-center gap-1.5 text-xs text-colorWarning">
+                    <p className="m-0 flex items-center gap-1.5 text-meta text-warning">
                         <WarningCircle size={14} />
                         {t("entityUi.subscriptionSignIn.lostTrack", {name})}
                     </p>
@@ -182,7 +178,7 @@ export const SubscriptionSignInCard = ({
                 {error ? (
                     <p
                         role="alert"
-                        className="m-0 flex items-center gap-1.5 text-xs text-colorError"
+                        className="m-0 flex items-center gap-1.5 text-meta text-destructive"
                     >
                         <WarningCircle size={14} />
                         {error}

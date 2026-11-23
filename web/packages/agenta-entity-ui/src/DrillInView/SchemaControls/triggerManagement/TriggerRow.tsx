@@ -22,7 +22,7 @@ export function TriggerRow({
     phone,
     onToggle,
 }: {
-    /** The 28 px tile before the name (`RowTile`). */
+    /** The 24 px Mark before the name (`RowTile`). */
     tile: ReactNode
     name: string
     nameMuted?: boolean
@@ -51,7 +51,7 @@ export function TriggerRow({
                 className={
                     phone
                         ? `${PHONE_ROW_CLASS} ${disabled ? "cursor-default" : "cursor-pointer"}`
-                        : `${ROW_CLASS} ${disabled ? "cursor-default" : "cursor-pointer hover:border-[var(--ag-colorBorder)]"}`
+                        : `${ROW_CLASS} ${disabled ? "cursor-default" : "cursor-pointer hover:border-border"}`
                 }
             >
                 <div
@@ -71,8 +71,8 @@ export function TriggerRow({
                     {tile}
                     <div className="min-w-0 flex-1">
                         <div
-                            className={`${phone ? PHONE_NAME_CLASS : NAME_CLASS} font-normal ${
-                                nameMuted ? "italic text-[var(--ag-colorTextTertiary)]" : ""
+                            className={`${phone ? PHONE_NAME_CLASS : NAME_CLASS} ${
+                                nameMuted ? "italic text-muted-foreground" : ""
                             }`}
                         >
                             {name}

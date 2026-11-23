@@ -121,7 +121,7 @@ function ResultDisplay({
     if (jsonMode || fields.length === 0) {
         return (
             <div className="flex flex-col gap-1">
-                <div className="rounded-lg border border-solid border-gray-300 dark:border-gray-700 overflow-hidden relative">
+                <div className="rounded-lg border border-solid border-border overflow-hidden relative">
                     <Editor
                         initialValue={jsonString}
                         codeOnly
@@ -162,7 +162,7 @@ function OutputField({field, data}: {field: FormFieldDescriptor; data: Record<st
                     rows={3}
                     value={typeof value === "string" ? value : JSON.stringify(value, null, 2)}
                     readOnly
-                    className="font-mono !text-xs"
+                    className=" !text-code-sm"
                 />
             ) : field.type === "number" ? (
                 <InputNumber className="w-full" value={value as number} readOnly />

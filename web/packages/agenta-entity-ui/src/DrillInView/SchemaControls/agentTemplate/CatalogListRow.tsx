@@ -80,8 +80,8 @@ export function CatalogListRow({
             }
             // Borderless; the -mx/px pair keeps the logo on the search field's edge while the
             // hover fill reaches past it.
-            className={`group/row -mx-2 rounded-lg px-2 py-2 outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-solid focus-visible:outline-ring ${
-                highlighted ? "bg-[var(--ag-colorFillQuaternary)]" : ""
+            className={`group/row -mx-2 rounded-lg px-2 py-2 outline-none transition-colors focus-ring ${
+                highlighted ? "bg-secondary" : ""
             } ${onClick ? "cursor-pointer hover:bg-accent/60" : ""} ${className ?? ""}`}
         >
             <div className={`flex gap-2.5 ${align === "start" ? "items-start" : "items-center"}`}>
@@ -97,7 +97,7 @@ export function CatalogListRow({
                     {/* min-h matches a small Button, so the title line stays level with the action. */}
                     <div className={`flex items-center ${canvas ? "gap-1" : "min-h-6 gap-1.5"}`}>
                         <span
-                            className={`truncate text-[13px] font-medium ${canvas ? "leading-5" : ""}`}
+                            className={`truncate text-label font-medium ${canvas ? "leading-5" : ""}`}
                         >
                             {title}
                         </span>

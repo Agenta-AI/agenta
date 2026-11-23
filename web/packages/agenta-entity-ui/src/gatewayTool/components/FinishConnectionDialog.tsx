@@ -54,17 +54,17 @@ export const FinishConnectionDialog = ({
                 contained={!!container}
             >
                 <DialogHeader className="gap-3 text-left">
-                    <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-background shadow-xs [&_img]:size-[18px] [&_img]:object-contain">
+                    <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-background [&_img]:size-4 [&_img]:object-contain">
                         {logo}
                     </span>
                     <div className="flex flex-col gap-1">
-                        <DialogTitle className="text-base font-medium leading-snug">
+                        <DialogTitle className="text-body font-medium leading-snug">
                             {/* The name is a node, so it fills the tag rather than a placeholder. */}
                             {richText(t("entityUi.toolConnections.finishConnecting"), {
                                 name: () => name,
                             })}
                         </DialogTitle>
-                        <DialogDescription className="text-sm text-colorTextDescription">
+                        <DialogDescription className="text-body text-muted-foreground">
                             {apiKey
                                 ? t("entityUi.toolConnections.apiKeyNeverVerified")
                                 : t("entityUi.toolConnections.signInNeverCompleted")}

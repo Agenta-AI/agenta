@@ -24,9 +24,9 @@ export function HelpTip({
                     <button
                         type="button"
                         aria-label={t("entityUi.drawerShared.about", {label})}
-                        className="inline-flex shrink-0 cursor-help items-center justify-center rounded-sm border-0 bg-transparent p-0 leading-none text-colorTextDescription outline-none hover:text-colorTextSecondary focus-visible:text-colorTextSecondary focus-visible:shadow-[0_0_0_2px_var(--ag-controlOutline)]"
+                        className="inline-flex shrink-0 cursor-help items-center justify-center rounded-sm border-0 bg-transparent p-0 leading-none text-muted-foreground outline-none hover:text-muted-foreground focus-visible:text-muted-foreground focus-ring"
                     >
-                        <Info className="size-[13px]" aria-hidden="true" />
+                        <Info className="size-3.5" aria-hidden="true" />
                     </button>
                 </TooltipTrigger>
                 <TooltipContent side={side} className="max-w-[320px]">

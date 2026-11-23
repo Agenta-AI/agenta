@@ -39,7 +39,7 @@ const ExecutionViewBody = ({target}: ViewProps<AdvancedViewParams>) => {
     return (
         <div className="flex flex-col gap-4 px-4 py-3">
             <div className="flex items-start gap-2">
-                <span className="min-w-0 flex-1 text-xs leading-snug text-colorTextDescription">
+                <span className="min-w-0 flex-1 text-meta leading-snug text-muted-foreground">
                     {t("entityUi.modelHarness.executionCaption")}
                 </span>
                 {changed && !writer.readOnly ? (
@@ -53,7 +53,7 @@ const ExecutionViewBody = ({target}: ViewProps<AdvancedViewParams>) => {
             >
                 {/* Read only (a phone): the value as text, no control. */}
                 {writer.readOnly ? (
-                    <span className="text-sm text-colorText">
+                    <span className="text-label text-foreground">
                         {sandboxOptions.find((o) => o.value === shownSandboxKind)?.label ??
                             shownSandboxKind}
                     </span>

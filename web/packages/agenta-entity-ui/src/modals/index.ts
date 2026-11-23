@@ -180,8 +180,6 @@ export type {EntityState, SaveOrCommitOptions, UseSaveOrCommitReturn} from "./us
 // SHARED COMPONENTS & HOOK FACTORIES
 // ============================================================================
 
-export {EnhancedModal, type EnhancedModalProps, type EnhancedModalStyles} from "./shared"
-
 // Hook factories for creating entity action hooks
 export {
     createEntityActionHook,

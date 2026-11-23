@@ -9,14 +9,14 @@ import {Switch} from "@agenta/ui/ui"
  * full width of the screen (the list's 16 px gutter moves inside the row).
  */
 export const PHONE_ROW_CLASS =
-    "-mx-4 flex min-h-14 items-center gap-3 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] py-1.5 pl-4 pr-2"
+    "-mx-4 flex min-h-row-double items-center gap-3 border-0 border-b border-solid border-border-muted bg-background py-1.5 pl-4 pr-2"
 
-/** The name on a phone: 15 px, wraps instead of being cut. */
-export const PHONE_NAME_CLASS = "break-words text-[15px] leading-5"
+/** The name on a phone: the same text style, wraps instead of being cut. */
+export const PHONE_NAME_CLASS = "break-words text-label"
 
 /** The automation line on a phone: wraps instead of being cut (phone-layout, "Long line"). */
 export const PHONE_LINE_CLASS =
-    "mt-0.5 break-words text-[12px] leading-4 text-[var(--ag-colorTextSecondary)]"
+    "mt-0.5 break-words text-meta text-muted-foreground"
 
 /**
  * The on/off switch of a row on a phone. It acts at once, as "Activate" and "Deactivate" do in

@@ -59,7 +59,7 @@ export const SecretRemoveDialog = ({
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 {error ? (
-                    <div role="alert" className="text-sm text-colorError">
+                    <div role="alert" className="text-label text-destructive">
                         {error}
                     </div>
                 ) : null}

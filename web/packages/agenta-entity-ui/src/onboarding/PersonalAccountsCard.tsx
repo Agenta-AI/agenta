@@ -112,7 +112,7 @@ interface RowProps {
 }
 
 const Failure = ({show}: {show: boolean}) =>
-    show ? <span className="text-xs text-[var(--ag-colorError)]">{copy.failed}</span> : null
+    show ? <span className="text-meta text-destructive">{copy.failed}</span> : null
 
 function AppRow({item, workflowId, done, open, onToggle}: RowProps) {
     const {integration} = useToolIntegrationDetail(item.name)
@@ -145,7 +145,7 @@ function AppRow({item, workflowId, done, open, onToggle}: RowProps) {
                 />
             }
         >
-            <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
+            <p className="m-0 text-meta leading-snug text-muted-foreground">
                 {yours.length > 0 ? copy.chooseAccount(name) : copy.connectAccount(name)}
             </p>
             {yours.length > 0 ? (
@@ -197,7 +197,7 @@ function McpRow({item, done, open, onToggle}: RowProps) {
             open={open && !done}
             onToggle={done ? undefined : onToggle}
         >
-            <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
+            <p className="m-0 text-meta leading-snug text-muted-foreground">
                 {copy.signIn(name)}
             </p>
             {endpoint ? (
@@ -249,7 +249,7 @@ function SecretRow({item, workflowId, done, open, onToggle}: RowProps) {
                 />
             }
         >
-            <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
+            <p className="m-0 text-meta leading-snug text-muted-foreground">
                 {yours.length > 0 ? copy.chooseSecret(item.name) : copy.addSecret(item.name)}
             </p>
             {yours.length > 0 ? (

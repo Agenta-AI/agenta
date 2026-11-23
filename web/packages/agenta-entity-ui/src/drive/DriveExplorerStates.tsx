@@ -16,8 +16,9 @@ import {
     EmptyHeader,
     EmptyMedia,
     EmptyTitle,
+    Spinner,
 } from "@agenta/ui/ui"
-import {ArrowClockwise, CircleNotch, Tray, WarningCircle} from "@phosphor-icons/react"
+import {ArrowClockwise, Tray, WarningCircle} from "@phosphor-icons/react"
 
 export function DriveErrorState({drive}: {drive: SessionDriveData}) {
     const t = useT(driveExplorerCatalog, driveBrowserCatalog)
@@ -25,12 +26,12 @@ export function DriveErrorState({drive}: {drive: SessionDriveData}) {
         <Empty className="flex-1 gap-2 p-8">
             <EmptyHeader className="gap-1">
                 <EmptyMedia variant="icon">
-                    <WarningCircle size={26} />
+                    <WarningCircle />
                 </EmptyMedia>
-                <EmptyTitle className="text-xs">
+                <EmptyTitle className="text-label">
                     {t("entityUi.driveBrowser.couldNotReachStore")}
                 </EmptyTitle>
-                <EmptyDescription className="text-xs">
+                <EmptyDescription className="text-meta">
                     {t("entityUi.driveBrowser.noStoreConfigured")}
                 </EmptyDescription>
             </EmptyHeader>
@@ -44,7 +45,7 @@ export function DriveErrorState({drive}: {drive: SessionDriveData}) {
                         aria-busy={drive.isFetching || undefined}
                     >
                         {drive.isFetching ? (
-                            <CircleNotch className="animate-spin" />
+                            <Spinner aria-hidden />
                         ) : (
                             <ArrowClockwise />
                         )}
@@ -64,10 +65,10 @@ export function DriveEmptyState({scope}: {scope: DriveScope}) {
         <Empty className="flex-1 gap-2 p-8">
             <EmptyHeader className="gap-1">
                 <EmptyMedia variant="icon">
-                    <Tray size={26} />
+                    <Tray />
                 </EmptyMedia>
-                <EmptyTitle className="text-xs">{t("entityUi.driveBrowser.driveEmpty")}</EmptyTitle>
-                <EmptyDescription className="text-xs">
+                <EmptyTitle className="text-label">{t("entityUi.driveBrowser.driveEmpty")}</EmptyTitle>
+                <EmptyDescription className="text-meta">
                     {scope === "session"
                         ? t("entityUi.driveBrowser.createdOnFirstRun")
                         : t("entityUi.driveBrowser.agentFilesLandHere")}

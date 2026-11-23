@@ -5,9 +5,9 @@ export function EmptyAccountBox({text, children}: {text: string; children?: Reac
     return (
         <div
             data-testid="empty-account-box"
-            className="flex min-h-[46px] items-center justify-between gap-3 rounded-[8px] border border-dashed border-colorBorder px-3 py-2"
+            className="flex min-h-[46px] items-center justify-between gap-3 rounded-lg border border-dashed border-border px-3 py-2"
         >
-            <span className="min-w-0 text-[13px] leading-5 text-colorTextSecondary">{text}</span>
+            <span className="min-w-0 text-label leading-5 text-muted-foreground">{text}</span>
             {children}
         </div>
     )

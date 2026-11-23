@@ -14,7 +14,7 @@
 
 import {VirtualTileGrid} from "./VirtualTileGrid"
 
-const bar = "animate-pulse rounded bg-colorFillSecondary"
+const bar = "animate-pulse rounded-sm bg-secondary"
 
 // A single tile placeholder — same box as the real FolderTile/DriveFileRow tile (4:3 thumb + name +
 // meta), so a tile lands exactly where content will. `box-border` is REQUIRED: the real tiles are
@@ -70,12 +70,12 @@ const TREE_ROWS: {depth: number; w: string}[] = [
 /** The tree rail: 200px, its 36px search header, rows at the real 28px rhythm. */
 const TreePaneSkeleton = ({mirrored}: {mirrored: boolean}) => (
     <div
-        className={`w-[200px] shrink-0 border-0 border-solid border-colorBorderSecondary bg-colorBgLayout ${
+        className={`w-50 shrink-0 border-0 border-solid border-border-muted bg-muted ${
             mirrored ? "border-l" : "border-r"
         }`}
     >
-        <div className="flex h-9 items-center border-0 border-b border-solid border-colorBorderSecondary px-2">
-            <div className={`h-[26px] w-full rounded-md ${bar}`} />
+        <div className="flex h-9 items-center border-0 border-b border-solid border-border-muted px-2">
+            <div className={`h-control-sm w-full rounded-md ${bar}`} />
         </div>
         <div className="flex flex-col px-2 py-2">
             {TREE_ROWS.map((r, i) => (
@@ -96,17 +96,17 @@ const TreePaneSkeleton = ({mirrored}: {mirrored: boolean}) => (
  * the drawer header owns the breadcrumb/name, matching DriveFilePreview in chrome mode. */
 const PreviewPaneSkeleton = () => (
     <div className="flex min-w-0 flex-1 flex-col p-4">
-        <div className={`h-full min-h-[60vh] w-full max-w-[760px] rounded-lg ${bar}`} />
+        <div className={`h-full min-h-[60vh] w-full max-w-content-md rounded-lg ${bar}`} />
     </div>
 )
 
 /** The content column: row 2's band, then the grid or the preview. */
 const ContentPaneSkeleton = ({mode}: {mode: "grid" | "preview"}) => (
     <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex h-9 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-2.5">
-            <div className={`h-[22px] w-12 rounded-md ${bar}`} />
-            <div className={`h-[22px] w-20 rounded-md ${bar}`} />
-            <div className={`ml-auto h-6 w-6 ${bar}`} />
+        <div className="flex h-9 shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted px-2.5">
+            <div className={`h-control-sm w-12 rounded-md ${bar}`} />
+            <div className={`h-control-sm w-20 rounded-md ${bar}`} />
+            <div className={`ml-auto size-control-sm ${bar}`} />
         </div>
         {mode === "preview" ? <PreviewPaneSkeleton /> : <TileGridSkeleton />}
     </div>
@@ -114,13 +114,13 @@ const ContentPaneSkeleton = ({mode}: {mode: "grid" | "preview"}) => (
 
 /** Row 1's 48px band, matching DriveHeader. */
 const ChromeSkeleton = () => (
-    <div className="flex h-[48px] shrink-0 items-center gap-1.5 border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-2">
-        <div className={`h-6 w-6 shrink-0 ${bar}`} />
-        <div className={`h-6 w-6 shrink-0 ${bar}`} />
+    <div className="flex h-12 shrink-0 items-center gap-1.5 border-0 border-b border-solid border-border px-2">
+        <div className={`size-control-sm shrink-0 ${bar}`} />
+        <div className={`size-control-sm shrink-0 ${bar}`} />
         <div className={`ml-1 h-3.5 w-40 ${bar}`} />
         <div className="ml-auto flex items-center gap-1.5">
-            <div className={`h-6 w-6 ${bar}`} />
-            <div className={`h-6 w-6 ${bar}`} />
+            <div className={`size-control-sm ${bar}`} />
+            <div className={`size-control-sm ${bar}`} />
         </div>
     </div>
 )

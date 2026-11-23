@@ -48,7 +48,7 @@ function formatCategoryLabel(raw: string): string {
 
 /** An app's logo (catalog `integration.logo`), with a neutral plug fallback. */
 export function AppLogo({logo, size = 20}: {logo?: string | null; size?: number}) {
-    if (!logo) return <Plugs size={size} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
+    if (!logo) return <Plugs size={size} className="shrink-0 text-muted-foreground" />
     return (
         <Image
             src={logo}
@@ -98,7 +98,7 @@ export function AppCard({
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <span className="size-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
+                                <span className="size-1.5 shrink-0 rounded-sm bg-success" />
                             </TooltipTrigger>
                             <TooltipContent>
                                 {t("entityUi.catalogAppCard.connected")}
@@ -109,7 +109,7 @@ export function AppCard({
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <span className="size-1.5 shrink-0 rounded-full bg-[var(--ag-colorWarning)]" />
+                                <span className="size-1.5 shrink-0 rounded-sm bg-warning" />
                             </TooltipTrigger>
                             <TooltipContent>
                                 {t("entityUi.catalogAppCard.connectionPending")}
@@ -122,7 +122,7 @@ export function AppCard({
             tags={shownCategories}
             meta={
                 typeof actionsCount === "number" && actionsCount > 0 ? (
-                    <span className="flex items-center gap-1 text-[12px] text-[var(--ag-colorTextTertiary)]">
+                    <span className="flex items-center gap-1 text-meta text-muted-foreground">
                         <Lightning size={11} weight="fill" />
                         {actionsCount}
                     </span>

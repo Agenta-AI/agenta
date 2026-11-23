@@ -37,8 +37,8 @@ import {DriveRetryButton} from "./DriveFileRow"
 import {SelectedMark} from "./DriveMenuMark"
 
 /** The chrome's icon button: the kit's ghost icon-sm, muted until hover. */
-export const ROW_ICON_BTN = "text-colorTextTertiary hover:text-colorText"
-export const ROW_ICON_BTN_ON = "bg-accent text-colorText"
+export const ROW_ICON_BTN = "text-muted-foreground hover:text-foreground"
+export const ROW_ICON_BTN_ON = "bg-accent text-foreground"
 
 export interface DriveHeaderProps {
     selectedPath: string | null
@@ -129,7 +129,7 @@ export const DriveHeader = ({
     ) : null
     return (
         // The session bar's height and border token, so its line continues across the divider.
-        <div className="flex h-[48px] shrink-0 items-center gap-1.5 border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-2">
+        <div className="flex h-12 shrink-0 items-center gap-1.5 border-0 border-b border-solid border-border px-2">
             {onClose && closeVariant === "close" ? (
                 <Tooltip title={t("entityUi.driveExplorer.close")}>
                     <Button
@@ -200,7 +200,7 @@ export const DriveHeader = ({
                         <Sliders size={15} />
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[220px]">
+                <DropdownMenuContent align="end" className="min-w-55">
                     <DriveViewOptionItems
                         copyText={copyText}
                         ids={ids}
@@ -344,10 +344,10 @@ const DriveViewOptionItems = ({
                 >
                     <Copy />
                     <span className="flex flex-col gap-0.5 py-0.5">
-                        <span className="text-xs font-medium">
+                        <span className="text-label">
                             {t("entityUi.driveExplorer.copyLabel", {label: id.label})}
                         </span>
-                        <span className="font-mono text-[12px] text-colorTextTertiary">
+                        <span className="font-mono text-meta text-muted-foreground">
                             {id.value}
                         </span>
                     </span>
@@ -399,7 +399,7 @@ export const DrivePartialError = ({
     return (
         <Tooltip title={t("entityUi.driveExplorer.someFilesFailed")}>
             <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
-                <WarningCircle size={14} weight="fill" className="shrink-0 text-colorWarning" />
+                <WarningCircle size={14} weight="fill" className="shrink-0 text-warning" />
                 <DriveRetryButton onRetry={onRetry} busy={retrying} />
             </span>
         </Tooltip>

@@ -54,7 +54,6 @@ import providerKeyFormCatalog from "@agenta/i18n/catalogs/entityUi.providerKeyFo
 import {projectIdAtom} from "@agenta/shared/state"
 import type {OwnerKind} from "@agenta/shared/types"
 import {message} from "@agenta/ui/app-message"
-import {useIsPhone} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
 import {Button, InputAffix, PasswordInput, Segmented, Spinner, Textarea} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
@@ -93,17 +92,10 @@ const HARNESS_DOMAINS: Record<string, string> = {pi_core: "pi.dev"}
  * The card's 13px row scale, reached through the affix wrapper: `InputAffix` sizes its inner
  * `<input>` from its own size variant, so a class on the wrapper never lands on the text.
  */
-const FIELD_TYPE_SCALE = "[&_input]:!text-xs"
+const FIELD_TYPE_SCALE = "[&_input]:!text-meta"
 
 /** How long the form waits after the last keystroke before it checks by itself. */
 const SETTLE_MS = 800
-
-/**
- * On a phone every control of the form has a 44 px hit area: fields, buttons and links, and the
- * model and harness rows (a label around a checkbox). A checkbox itself stays small.
- */
-const PHONE_TARGETS =
-    "[&_[data-slot=input-affix]]:min-h-11 [&_textarea]:min-h-11 [&_button:not([role=checkbox])]:min-h-11 [&_button:not([role=checkbox])]:min-w-11 [&_label]:min-h-11"
 
 /** The two ways to sign in to AWS Bedrock, and the fields of each. */
 type BedrockWay = "apiKey" | "accessKeys"
@@ -211,7 +203,6 @@ const ProviderConnectionCard = ({
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
     const saveConnection = useSetAtom(saveProviderConnectionAtom)
     const keyCheck = useKeyCheck()
-    const phone = useIsPhone()
 
     const fields = useMemo(() => credentialFieldsForKind(kind), [kind])
     const title = providerTitleForKind(kind)
@@ -784,9 +775,9 @@ const ProviderConnectionCard = ({
         return (
             <div key={field.key} className="flex flex-col gap-1">
                 <div className="flex items-baseline justify-between gap-3">
-                    <span className="font-medium text-colorText">{label}</span>
+                    <span className="font-medium text-foreground">{label}</span>
                     {field.key === firstSecretField ? (
-                        <span className="shrink-0 text-[11px] text-colorTextTertiary">
+                        <span className="shrink-0 text-caption text-muted-foreground">
                             {t("entityUi.providerConnection.encryptedAtRest")}
                         </span>
                     ) : null}
@@ -795,7 +786,7 @@ const ProviderConnectionCard = ({
                     <Textarea
                         {...common}
                         rows={block.rows ?? 8}
-                        className="font-mono !text-xs"
+                        className=" !text-code-sm"
                         spellCheck={false}
                         autoComplete="off"
                         value={value}
@@ -809,7 +800,7 @@ const ProviderConnectionCard = ({
                         className={cn(
                             FIELD_TYPE_SCALE,
                             rejected &&
-                                "border-colorErrorBorder focus-within:border-colorErrorBorder focus-within:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)] dark:focus-within:ring-[color:color-mix(in_srgb,var(--ag-colorError)_40%,transparent)]",
+                                "border-destructive/40 focus-within:border-destructive/40 focus-ring-field dark:focus-within:ring-[color:color-mix(in_srgb,var(--destructive)_40%,transparent)]",
                         )}
                         autoComplete="new-password"
                         value={value}
@@ -824,7 +815,7 @@ const ProviderConnectionCard = ({
                         onValueChange={change}
                     />
                 )}
-                {note ? <span className="text-[11px] text-colorTextTertiary">{note}</span> : null}
+                {note ? <span className="text-caption text-muted-foreground">{note}</span> : null}
             </div>
         )
     }
@@ -833,7 +824,7 @@ const ProviderConnectionCard = ({
 
     const statusNode = statusLine ? (
         statusLine.tone === "progress" ? (
-            <span className="flex items-center gap-1.5 text-colorTextSecondary" role="status">
+            <span className="flex items-center gap-1.5 text-muted-foreground" role="status">
                 <Spinner size="small" />
                 <span className="min-w-0 flex-1">
                     {t("entityUi.providerKeyForm.checking", {provider: displayTitle})}
@@ -841,7 +832,7 @@ const ProviderConnectionCard = ({
                 <Button
                     variant="link"
                     size="sm"
-                    className="h-auto shrink-0 px-0 font-medium text-colorText no-underline"
+                    className="h-auto shrink-0 px-0 font-medium text-foreground no-underline"
                     onClick={() => keyCheck.stop()}
                 >
                     {t("entityUi.providerKeyForm.stop")}
@@ -851,17 +842,17 @@ const ProviderConnectionCard = ({
             <span
                 className={
                     statusLine.tone === "error"
-                        ? "flex min-w-0 items-start gap-1.5 text-colorError"
+                        ? "flex min-w-0 items-start gap-1.5 text-destructive"
                         : statusLine.tone === "success"
-                          ? "flex min-w-0 items-start gap-1.5 text-colorSuccess"
-                          : "flex min-w-0 items-start gap-1.5 text-colorTextSecondary"
+                          ? "flex min-w-0 items-start gap-1.5 text-success"
+                          : "flex min-w-0 items-start gap-1.5 text-muted-foreground"
                 }
                 role={statusLine.tone === "error" ? "alert" : "status"}
             >
                 {statusLine.tone === "error" ? (
                     <WarningCircle size={14} className="mt-0.5 shrink-0" />
                 ) : statusLine.tone === "success" ? (
-                    <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-colorSuccess" />
+                    <span className="mt-1.5 size-1.5 shrink-0 rounded-xs bg-success" />
                 ) : null}
                 <span id={statusId} className="min-w-0 flex-1">
                     {statusLine.text}
@@ -870,7 +861,7 @@ const ProviderConnectionCard = ({
                     <Button
                         variant="link"
                         size="sm"
-                        className="h-auto shrink-0 px-0 font-medium text-colorText no-underline"
+                        className="h-auto shrink-0 px-0 font-medium text-foreground no-underline"
                         onClick={checkAgain}
                     >
                         {t("entityUi.providerKeyForm.checkAgain")}
@@ -880,17 +871,17 @@ const ProviderConnectionCard = ({
         )
     ) : // Before any check, a new standard key says what will happen.
     isStandard && !connection && !readOnly ? (
-        <span className="text-colorTextTertiary">{t("entityUi.providerKeyForm.keyCheckHint")}</span>
+        <span className="text-muted-foreground">{t("entityUi.providerKeyForm.keyCheckHint")}</span>
     ) : null
 
     return (
         <div
-            className={`flex min-h-full flex-1 flex-col gap-4 text-xs ${phone ? PHONE_TARGETS : ""}`}
+            className="flex min-h-full flex-1 flex-col gap-4 text-meta"
         >
             {/* A member cannot rename an organization connection, so the field is not offered. */}
             {readOnly ? null : (
                 <div className="flex shrink-0 flex-col gap-1">
-                    <span className="font-medium text-colorText">
+                    <span className="font-medium text-foreground">
                         {t("entityUi.providerKeyForm.name")}
                     </span>
                     <InputAffix
@@ -908,7 +899,7 @@ const ProviderConnectionCard = ({
 
                 {isBedrock ? (
                     <div className="flex flex-col gap-1.5">
-                        <span className="font-medium text-colorText">
+                        <span className="font-medium text-foreground">
                             {t("entityUi.providerKeyForm.signInWith")}
                         </span>
                         <OwnerRadioGroup<BedrockWay>
@@ -935,14 +926,14 @@ const ProviderConnectionCard = ({
 
                 {protocolText ? (
                     <div className="flex flex-col gap-1">
-                        <span className="font-medium text-colorText">{protocolText.label}</span>
+                        <span className="font-medium text-foreground">{protocolText.label}</span>
                         <Segmented
                             className="self-start"
                             disabled={readOnly}
                             // 28px options with 12px text (F11 f7).
                             options={protocolText.options.map((option) => ({
                                 ...option,
-                                className: "text-[12px]",
+                                className: "text-meta",
                             }))}
                             // An undeclared record shows the default without having declared it;
                             // pressing an option is what makes the statement.
@@ -957,7 +948,7 @@ const ProviderConnectionCard = ({
 
             {ownerChoice ? (
                 <div className="flex shrink-0 flex-col gap-1.5">
-                    <span className="font-medium text-colorText">
+                    <span className="font-medium text-foreground">
                         {t("entityUi.providerConnection.whoCanUseIt")}
                     </span>
                     <OwnerRadioGroup<ProviderOwner>
@@ -1004,16 +995,16 @@ const ProviderConnectionCard = ({
                 />
             ) : isStandard ? (
                 // The models come after the key works; one line says so.
-                <p className="m-0 border-0 border-t border-solid border-colorSplit pt-3 text-[12px] text-colorTextTertiary">
+                <p className="m-0 border-0 border-t border-solid border-border-muted pt-3 text-meta text-muted-foreground">
                     {t("entityUi.providerKeyForm.nextModels")}
                 </p>
             ) : (
                 // Says where the model list comes from instead of leaving the card blank.
                 <section className="flex shrink-0 flex-col gap-2">
-                    <span className="font-medium text-colorText">
+                    <span className="font-medium text-foreground">
                         {t("entityUi.providerConnection.activeModels")}
                     </span>
-                    <p className="m-0 rounded-md border border-dashed border-colorBorderSecondary px-3 py-4 text-center text-colorTextTertiary">
+                    <p className="m-0 rounded-md border border-dashed border-border-muted px-3 py-4 text-center text-muted-foreground">
                         {t("entityUi.providerConnection.enterCredential", {provider: displayTitle})}
                     </p>
                 </section>

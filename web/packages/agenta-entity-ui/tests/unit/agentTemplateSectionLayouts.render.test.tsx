@@ -101,8 +101,8 @@ describe("AgentTemplateSectionList layouts", () => {
         expect(headerRow("subagents").className).toContain("h-[45px]")
         expect(headerRow("subagents").className).toContain("px-4")
         expect(section("subagents").textContent).toContain("None")
-        expect(headerRow("skills").className).toContain("bg-[var(--ag-colorInfoBg)]")
-        expect(headerRow("subagents").className).not.toContain("bg-[var(--ag-colorInfoBg)]")
+        expect(headerRow("skills").className).toContain("bg-info/10")
+        expect(headerRow("subagents").className).not.toContain("bg-info/10")
     })
 
     it("page: one titled card per section, with its content always open", () => {

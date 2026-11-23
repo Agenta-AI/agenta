@@ -11,9 +11,9 @@ const NAME_FIELD_ID = "agent-secret-attach-name"
 const VALUE_FIELD_ID = "agent-secret-attach-value"
 
 /** The canvas form label (F04 f7): 12 px, weight 500, secondary. */
-const LABEL_CLASS = "text-[12px] font-medium leading-4 text-colorTextSecondary"
-/** A 34 px field, 13 px from md up (a phone keeps 16 px so iOS does not zoom), radius 6. */
-const FIELD_CLASS = "h-[34px] rounded-[6px] py-0 leading-6 md:text-[13px]"
+const LABEL_CLASS = "text-meta font-medium text-muted-foreground"
+/** A control-md field (44 on touch), 13 px text, radius 6. */
+const FIELD_CLASS = "h-control rounded-md py-0 leading-6 text-label"
 
 export function SecretCreateFields({
     controller,
@@ -61,7 +61,7 @@ export function SecretCreateFields({
                     id={VALUE_FIELD_ID}
                     ref={valueRef}
                     autoSize={{minRows: 1, maxRows: 6}}
-                    className="rounded-[6px] py-[6px] leading-5 md:text-[13px]"
+                    className="rounded-md py-1.5 leading-5 text-label"
                     placeholder={t("entityUi.secretForm.pasteSecret")}
                     autoFocus={focusValue}
                     value={controller.textValue}
@@ -70,7 +70,7 @@ export function SecretCreateFields({
                     spellCheck={false}
                 />
                 {hint ? (
-                    <span className="text-[12px] leading-4 text-colorTextTertiary">{hint}</span>
+                    <span className="text-meta text-muted-foreground">{hint}</span>
                 ) : null}
             </div>
         </>

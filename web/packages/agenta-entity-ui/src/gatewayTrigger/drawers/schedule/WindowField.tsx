@@ -34,7 +34,7 @@ function Row({
         <div className="flex items-center gap-3">
             <span
                 id={labelId}
-                className="w-[86px] shrink-0 text-xs text-[var(--ag-colorTextDescription)]"
+                className="w-[86px] shrink-0 text-meta text-muted-foreground"
             >
                 {label}
             </span>
@@ -75,7 +75,7 @@ export function WindowField({
                 value={endTime}
                 onChange={onChangeEnd}
             />
-            <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
+            <span className="text-meta leading-snug text-muted-foreground">
                 {t("entityUi.triggerSchedule.windowHint")}
             </span>
         </div>

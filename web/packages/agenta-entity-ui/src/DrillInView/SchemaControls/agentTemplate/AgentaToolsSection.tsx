@@ -172,7 +172,7 @@ export function AgentaToolsSection({
         // this body undoes the view's 16 px sides and its bottom padding, and pads the hint itself.
         <div className="-mx-4 -mb-3.5 flex min-h-0 flex-col">
             {/* The view's breadcrumb names the part, so the body starts at its description (F04 f10). */}
-            <span className="px-4 text-[13px] leading-5 text-colorTextSecondary">
+            <span className="px-4 text-label leading-5 text-muted-foreground">
                 {t("entityUi.buildKit.agentaToolsHint")}
             </span>
             <PermissionDrawerBody

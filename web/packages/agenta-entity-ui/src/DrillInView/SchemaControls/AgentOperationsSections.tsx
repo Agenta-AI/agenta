@@ -28,8 +28,8 @@ import {
 } from "./TriggerManagementSection"
 
 const barClass = (sticky: boolean) =>
-    `${CONFIG_REGION_BAR} ${sticky ? "sticky top-0 z-[10]" : ""} bg-[var(--ag-surface-section-header)]`
-const titleClass = "text-[13px] font-semibold text-colorText"
+    `${CONFIG_REGION_BAR} ${sticky ? "sticky top-0 z-[10]" : ""} bg-muted`
+const titleClass = "text-subtitle text-foreground"
 
 /** A region header bar. `children` follow the {@link ConfigRowTrailing} convention. */
 export function AgentRegionHeaderBar({
@@ -51,10 +51,10 @@ export function AgentRegionHeaderBar({
 // Region BODIES are the white sheet the Configuration region's field list already paints
 // (`ag-drill-in-field-list`). Without it they'd expose the raised panel tint behind collapsed
 // section headers, so Subscriptions/Schedules would not match collapsed Tools/Skills.
-const bodyClass = "bg-[var(--ag-surface-section-content)] px-4 pb-3 pt-1"
+const bodyClass = "bg-background px-4 pb-3 pt-1"
 // Sections-holding body: no vertical padding, so an expanded section's band runs flush into the
 // region header above and the next region below instead of leaving white slivers.
-const sectionsBodyClass = "bg-[var(--ag-surface-section-content)] px-4"
+const sectionsBodyClass = "bg-background px-4"
 
 /**
  * Loading shape for the operational regions, shown while the panel's hydration/agent-ness is
@@ -181,7 +181,7 @@ export function AgentOperationsSections({
                     <div className={`flex grow flex-col ${bodyClass}`}>
                         {storage ?? (
                             // Static fallback for surfaces that don't slot the live Files body.
-                            <span className="text-xs text-colorTextDescription">
+                            <span className="text-meta text-muted-foreground">
                                 {t("entityUi.agentOperations.workingFilesHint")}
                             </span>
                         )}

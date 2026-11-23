@@ -108,7 +108,7 @@ export const AgentTransferDialog = ({
             }
         >
             <div className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-muted-foreground">{copy.newOwner}</span>
+                <span className="text-label font-medium text-muted-foreground">{copy.newOwner}</span>
                 <MemberPicker
                     mode="single"
                     projectName={projectName}
@@ -130,9 +130,9 @@ export const AgentTransferDialog = ({
                     error={membersError}
                     disabled={saving}
                 />
-                <p className="m-0 text-xs text-muted-foreground">{copy.transferHelp}</p>
+                <p className="m-0 text-meta text-muted-foreground">{copy.transferHelp}</p>
                 {invalid && target ? (
-                    <p className="m-0 text-xs text-error">{copy.transferInvalid(name)}</p>
+                    <p className="m-0 text-meta text-destructive">{copy.transferInvalid(name)}</p>
                 ) : null}
             </div>
             {target ? (

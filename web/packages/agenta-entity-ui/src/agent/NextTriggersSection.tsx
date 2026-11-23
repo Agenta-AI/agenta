@@ -28,7 +28,7 @@ export const NextTriggersSection = ({agentId, agentNames}: NextTriggersSectionPr
                     onRetry={retry}
                 />
             ) : rows.length === 0 ? (
-                <p className="m-0 px-2 py-3 text-xs text-colorTextTertiary">
+                <p className="m-0 px-2 py-3 text-meta text-muted-foreground">
                     {agentId
                         ? t("entityUi.agentOverview.noAutomationsForAgent")
                         : t("entityUi.agentOverview.nothingScheduled")}
@@ -39,18 +39,18 @@ export const NextTriggersSection = ({agentId, agentNames}: NextTriggersSectionPr
                         <div className="box-border flex items-start gap-2 rounded-lg px-2 py-2.5">
                             <LightningIcon
                                 size={16}
-                                className="mt-0.5 shrink-0 text-colorTextTertiary"
+                                className="mt-0.5 shrink-0 text-muted-foreground"
                                 weight="fill"
                             />
                             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                <span className="truncate text-sm text-colorText">{row.name}</span>
+                                <span className="truncate text-label text-foreground">{row.name}</span>
                                 {row.subtitle ? (
-                                    <span className="truncate text-[13px] text-colorTextSecondary">
+                                    <span className="truncate text-label text-muted-foreground">
                                         {row.subtitle}
                                     </span>
                                 ) : null}
                             </span>
-                            <span className="mt-0.5 shrink-0 text-xs text-colorTextSecondary">
+                            <span className="mt-0.5 shrink-0 text-meta text-muted-foreground">
                                 {row.detail}
                             </span>
                         </div>

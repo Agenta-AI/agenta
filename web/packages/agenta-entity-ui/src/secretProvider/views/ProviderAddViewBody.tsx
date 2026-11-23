@@ -24,7 +24,7 @@ import {subscriptionViewFor} from "./subscriptionViews"
 
 const SUBSCRIPTIONS = ["chatgpt", "claude"]
 
-/** A 31 px row with a divider and a chevron (F09 f1b); 44 px tall on a phone. */
+/** One list row with its divider inside the height: row-single 36, row-double 48 with a hint. */
 const PickRow = ({
     kind,
     name,
@@ -36,29 +36,29 @@ const PickRow = ({
     hint?: string
     onPick: () => void
 }) => (
-    <li className="border-0 border-b border-solid border-colorSplit">
+    <li>
         <button
             type="button"
             onClick={onPick}
-            className="flex w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-4 py-[5px] text-left font-[inherit] hover:bg-colorFillTertiary max-md:min-h-11"
+            className={`box-border flex w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-border-muted bg-transparent px-4 text-left font-[inherit] hover:bg-accent ${hint ? "h-row-double" : "h-row-single"}`}
         >
             <ProviderLogo kind={kind} />
             <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[13px] leading-5 text-colorText">{name}</span>
+                <span className="truncate text-label leading-5 text-foreground">{name}</span>
                 {hint ? (
-                    <span className="truncate text-[11px] leading-4 text-colorTextTertiary">
+                    <span className="truncate text-caption text-muted-foreground">
                         {hint}
                     </span>
                 ) : null}
             </span>
-            <CaretRight size={14} aria-hidden className="shrink-0 text-colorTextTertiary" />
+            <CaretRight size={14} aria-hidden className="shrink-0 text-muted-foreground" />
         </button>
     </li>
 )
 
 /** A group heading, as the list view draws it. */
 const GroupLabel = ({children}: {children: string}) => (
-    <div className="px-4 pb-1 pt-3.5 text-[12px] font-medium leading-5 text-colorTextTertiary">
+    <div className="px-4 pb-1 pt-3.5 text-meta font-medium leading-5 text-muted-foreground">
         {children}
     </div>
 )
@@ -121,7 +121,7 @@ const ProviderAddViewBody = ({target, nav}: ViewProps<ProviderAddViewParams>) =>
                     ))}
                 </ul>
             ) : (
-                <p className="m-0 px-4 py-3 text-sm text-colorTextSecondary">
+                <p className="m-0 px-4 py-3 text-body text-muted-foreground">
                     {t("entityUi.providerDrawer.noProviderMatches")}
                 </p>
             )}

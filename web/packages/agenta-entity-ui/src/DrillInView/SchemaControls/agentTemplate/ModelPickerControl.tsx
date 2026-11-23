@@ -243,7 +243,7 @@ const ModelPickerControl = ({
 
     if (!allSourcesResolved) {
         return gutter(
-            <div className="w-full rounded-control-sm border border-border px-3 py-1.5 text-field-md text-colorTextTertiary">
+            <div className="w-full rounded-control-sm border border-border px-3 py-1.5 text-field-md text-muted-foreground">
                 {t("entityUi.configItems.loadingModels")}
             </div>,
         )
@@ -258,7 +258,7 @@ const ModelPickerControl = ({
                     type="button"
                     disabled={disabled}
                     onClick={openModelProviders}
-                    className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border border-dashed border-border bg-transparent px-3 py-1.5 text-left text-field-md text-colorTextSecondary hover:border-colorPrimary hover:text-colorText disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-control-sm border border-dashed border-border bg-transparent px-3 py-1.5 text-left text-field-md text-muted-foreground hover:border-primary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     <Plus size={14} className="shrink-0" />
                     {t("entityUi.configItems.setUpProviders")}

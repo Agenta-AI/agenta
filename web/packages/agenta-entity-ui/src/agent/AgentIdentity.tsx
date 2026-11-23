@@ -18,17 +18,16 @@ const IDENTITY_SIZE: Record<
 > = {
     // The gaps AgentPageHeader puts between its own icon and name slots.
     bar: {
-        row: "flex min-w-0 items-center gap-1.5 sm:gap-2",
+        row: "flex min-w-0 items-center gap-2",
         chip: AGENT_CHIP_BOX,
         glyph: 13,
         initialsFallback: false,
         label: "span",
     },
     title: {
-        row: "flex min-w-0 items-center gap-2",
-        // ::after hit extender — 28px is under the touch guideline. Below `sm` the chip drops to
-        // 24px to fit a phone header.
-        chip: "relative flex size-6 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold after:absolute after:-inset-1.5 after:content-[''] sm:size-7 sm:rounded-lg",
+        row: "flex min-w-0 items-center gap-3",
+        // A 32 px header Mark (CONS-01); the ::after box extends the hit area to 44 px.
+        chip: "relative flex size-8 shrink-0 items-center justify-center rounded-md text-caption font-semibold after:absolute after:-inset-1.5 after:content-['']",
         glyph: 16,
         initialsFallback: true,
         label: "h1",
@@ -143,7 +142,7 @@ export const AgentKindBadge = ({
     const badge = (
         <span
             data-testid="agent-kind-badge"
-            className={`box-border flex size-6 shrink-0 items-center justify-center rounded-[6px] border border-solid border-colorBorderSecondary bg-muted ${chrome.customised ? chrome.className : "text-zinc-8"}`}
+            className={`box-border flex size-6 shrink-0 items-center justify-center rounded-md border border-solid border-border-muted bg-muted ${chrome.customised ? chrome.className : "text-zinc-8"}`}
             style={chrome.style}
         >
             {chrome.glyph}

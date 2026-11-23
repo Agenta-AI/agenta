@@ -31,8 +31,8 @@ export const SkeletonSectionRow = ({
             // icon, title + summary + chevron, and the same 44px text-driven header height (min-h
             // pins it so the 16px placeholders don't collapse the row) — a divider row then totals
             // 45px like a real bordered section, and the last (no-divider) row is 44px like Advanced.
-            "flex min-h-[44px] items-center gap-2 overflow-hidden py-3" +
-            (divider ? " border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]" : "")
+            "flex min-h-11 items-center gap-2 overflow-hidden py-3" +
+            (divider ? " border-0 border-b border-solid border-border-muted" : "")
         }
     >
         {/* antd `Skeleton.Avatar size={n}` = an n×n block (square = no radius, circle = 50%);
@@ -67,7 +67,7 @@ const PageSkeleton = () => (
                     <SkeletonBlock active style={{width: row.title, height: 16}} />
                     <SkeletonBlock active className="h-7 w-14" />
                 </div>
-                <div className="flex h-14 items-center gap-3 rounded-[10px] border border-solid border-colorBorderSecondary px-3.5">
+                <div className="flex h-14 items-center gap-3 rounded-lg border border-solid border-border-muted px-3.5">
                     <SkeletonBlock active shape="square" className="h-7 w-7" />
                     <SkeletonBlock active style={{width: row.value + 80, height: 14}} />
                 </div>

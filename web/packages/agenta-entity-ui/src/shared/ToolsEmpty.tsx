@@ -25,13 +25,13 @@ export const ToolsEmpty = ({
         <EmptyHeader>
             <EmptyMedia
                 variant="icon"
-                className="border border-solid border-border bg-background shadow-sm"
+                className="border border-solid border-border bg-background"
             >
                 {icon}
             </EmptyMedia>
-            <EmptyTitle className="text-sm font-medium">{title}</EmptyTitle>
+            <EmptyTitle className="text-label font-medium">{title}</EmptyTitle>
             {description ? (
-                <EmptyDescription className="text-[13px]">{description}</EmptyDescription>
+                <EmptyDescription className="text-label">{description}</EmptyDescription>
             ) : null}
         </EmptyHeader>
         {action ? <EmptyContent>{action}</EmptyContent> : null}

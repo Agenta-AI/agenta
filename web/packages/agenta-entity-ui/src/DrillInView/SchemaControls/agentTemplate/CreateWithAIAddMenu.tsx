@@ -73,13 +73,13 @@ function MenuRow({
         <DropdownMenuItem onSelect={onSelect} className="items-start gap-2 p-2">
             <span
                 aria-hidden
-                className="mt-0.5 flex shrink-0 text-colorTextSecondary [&_svg]:!size-3.5"
+                className="mt-0.5 flex shrink-0 text-muted-foreground [&_svg]:!size-3.5"
             >
                 {icon}
             </span>
             <span className="flex min-w-0 flex-col">
-                <span className="text-[13px] leading-5 text-colorText">{title}</span>
-                <span className="text-[12px] leading-4 text-colorTextTertiary">{hint}</span>
+                <span className="text-label leading-5 text-foreground">{title}</span>
+                <span className="text-meta text-muted-foreground">{hint}</span>
             </span>
         </DropdownMenuItem>
     )

@@ -46,7 +46,6 @@ import {
     EmptyTitle,
     RadioGroup,
     RadioGroupItem,
-    PHONE_TOUCH_TARGET_CLASS,
     SearchInput,
     cn,
 } from "@agenta/ui/ui"
@@ -207,8 +206,8 @@ const attentionOf = (connection: ToolConnection | undefined): Attention | null =
 /** The app logo in Settings' tile: a bordered 32px square. */
 function LogoTile({logo}: {logo: string | null}) {
     return (
-        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-background shadow-xs [&_img]:size-[18px] [&_img]:object-contain">
-            <ProviderLogo logo={logo} size={18} />
+        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-background [&_img]:size-4 [&_img]:object-contain">
+            <ProviderLogo logo={logo} size={16} />
         </span>
     )
 }
@@ -254,7 +253,7 @@ const menuItems = (connection: ToolConnection, verbs: RowVerbs): ConnectionMenuI
 
 /** "Default" beside the person's default account. */
 const DefaultMark = ({label}: {label: string}) => (
-    <span className="shrink-0 text-xs font-normal text-[var(--ag-colorTextTertiary)]">{label}</span>
+    <span className="shrink-0 text-meta font-normal text-muted-foreground">{label}</span>
 )
 
 /** A row in "Connected in your workspace": quick-add, or open the connection chooser. */
@@ -368,7 +367,7 @@ function ConnectedRow({
             titleSuffix={
                 canvas ? (
                     attention ? (
-                        <span className="inline-flex h-5 shrink-0 items-center rounded px-[7px] text-[12px] font-medium leading-4 text-colorWarningText bg-colorWarningBg">
+                        <span className="inline-flex h-5 shrink-0 items-center rounded-sm px-2 text-caption text-warning bg-warning/10">
                             {attention === "inactive"
                                 ? t("entityUi.integrationDrawer.inactive")
                                 : t("entityUi.integrationDrawer.pending")}
@@ -377,14 +376,14 @@ function ConnectedRow({
                         <DefaultMark label={verbs.makeDefault.defaultLabel} />
                     ) : null
                 ) : added && !choosing ? (
-                    <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-colorSuccess">
+                    <span className="flex shrink-0 items-center gap-1 text-meta font-normal text-success">
                         <Check size={11} weight="bold" />
                         {t("entityUi.integrationDrawer.added")}
                     </span>
                 ) : attention ? (
                     // Beside the name and never truncated, so the problem always shows.
-                    <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-colorWarning">
-                        <span aria-hidden className="size-1.5 rounded-full bg-current" />
+                    <span className="flex shrink-0 items-center gap-1.5 text-label font-medium text-warning">
+                        <span aria-hidden className="size-1.5 rounded-sm bg-current" />
                         {attention === "inactive"
                             ? t("entityUi.integrationDrawer.inactive")
                             : t("entityUi.integrationDrawer.pending")}
@@ -398,14 +397,14 @@ function ConnectedRow({
                     {/* "Added" only on a working connection; a pending or inactive one shows its
                         tag instead (canvas F02 f4). */}
                     {canvas && added && !choosing && addedWorks ? (
-                        <span className="flex shrink-0 items-center gap-1 text-[12px] leading-4 text-colorTextSecondary">
+                        <span className="flex shrink-0 items-center gap-1 text-meta text-muted-foreground">
                             <Check size={14} />
                             {t("entityUi.integrationDrawer.added")}
                         </span>
                     ) : null}
                     {rowAction}
                     {canvas && attention === "pending" ? (
-                        <CaretRight size={12} className="shrink-0 text-colorTextTertiary" />
+                        <CaretRight size={12} className="shrink-0 text-muted-foreground" />
                     ) : null}
                     {/* Per-connection verbs need one connection to act on. In the panel they take
                         no room until the row is hovered or focused; touch shows them always. */}
@@ -439,7 +438,7 @@ function ConnectedRow({
                             return (
                                 <div
                                     key={connection.slug}
-                                    className="flex items-center gap-2 rounded border border-solid border-[var(--ag-colorBorderSecondary)] px-2.5 py-1 text-xs"
+                                    className="flex items-center gap-2 rounded border border-solid border-border-muted px-2.5 py-1 text-label"
                                 >
                                     <span className="flex-1 truncate">{label}</span>
                                     {verbs.makeDefault && isConnectionDefault(connection) ? (
@@ -456,7 +455,7 @@ function ConnectedRow({
                                             {t("entityUi.integrationDrawer.pending")}
                                         </Button>
                                     ) : isConnectionValid(connection) ? null : (
-                                        <span className="shrink-0 text-[var(--ag-colorWarningText)]">
+                                        <span className="shrink-0 text-warning">
                                             {t("entityUi.integrationDrawer.needsReconnect")}
                                         </span>
                                     )}
@@ -480,10 +479,10 @@ function ConnectedRow({
                             {group.connections.map((connection) => (
                                 <label
                                     key={connection.slug}
-                                    className={`flex cursor-pointer items-center gap-2 rounded border border-solid px-2.5 py-1.5 text-xs ${
+                                    className={`flex cursor-pointer items-center gap-2 rounded border border-solid px-2.5 py-1.5 text-label ${
                                         selected === connection.slug
-                                            ? "border-[var(--ag-colorText)]"
-                                            : "border-[var(--ag-colorBorderSecondary)]"
+                                            ? "border-foreground"
+                                            : "border-border-muted"
                                     }`}
                                 >
                                     <RadioGroupItem value={connection.slug ?? ""} />
@@ -491,7 +490,7 @@ function ConnectedRow({
                                         {connectionLabel(connection, integration?.name)}
                                     </span>
                                     {isConnectionValid(connection) ? null : (
-                                        <span className="shrink-0 text-[var(--ag-colorWarningText)]">
+                                        <span className="shrink-0 text-warning">
                                             {t("entityUi.integrationDrawer.needsReconnect")}
                                         </span>
                                     )}
@@ -522,8 +521,8 @@ function ConnectedRow({
             <span
                 className={
                     canvas
-                        ? "truncate text-[12px] leading-4 text-colorTextSecondary"
-                        : "truncate text-xs text-[var(--ag-colorTextTertiary)]"
+                        ? "truncate text-meta text-muted-foreground"
+                        : "truncate text-meta text-muted-foreground"
                 }
                 title={subtitle}
             >
@@ -566,10 +565,10 @@ function CatalogRow({
                         name: integration.name,
                     })}
                     title={t("entityUi.integrationDrawer.connect")}
-                    className={canvas ? undefined : PHONE_TOUCH_TARGET_CLASS}
+                    
                     onClick={onConnect}
                 >
-                    {canvas ? <Plus className="size-3.5 max-md:size-5" /> : <Plus size={16} />}
+                    {canvas ? <Plus className="size-3.5" /> : <Plus size={16} />}
                 </Button>
             }
         >
@@ -578,8 +577,8 @@ function CatalogRow({
                 <span
                     className={
                         canvas
-                            ? "truncate text-[12px] leading-4 text-colorTextSecondary"
-                            : "truncate text-xs text-[var(--ag-colorTextTertiary)]"
+                            ? "truncate text-meta text-muted-foreground"
+                            : "truncate text-meta text-muted-foreground"
                     }
                     title={integration.description}
                 >
@@ -593,7 +592,7 @@ function CatalogRow({
 /** The agent panel's group header (canvas F02 f4): 13/600, a divider above, no count, no fold. */
 function CanvasGroupHeader({label}: {label: ReactNode}) {
     return (
-        <div className="mt-0.5 flex items-center border-0 border-t border-solid border-[var(--ag-colorSplit)] pb-0.5 pt-2 text-[13px] font-semibold leading-5 text-colorText">
+        <div className="mt-0.5 flex items-center border-0 border-t border-solid border-border-muted pb-0.5 pt-2 text-label font-semibold leading-5 text-foreground">
             {label}
         </div>
     )
@@ -879,7 +878,7 @@ export function IntegrationCatalog({
                 "min-w-0 flex-1",
                 // Canvas F02 f4: 30 px, radius 6, 13 px; 44 px on a phone.
                 !page &&
-                    "h-[30px] rounded-[6px] border-colorBorderSecondary max-md:h-11 md:[&_input]:text-[13px]",
+                    "h-control rounded-md border-border-muted [&_input]:text-label",
             )}
             placeholder={searchPlaceholder ?? t("entityUi.integrationDrawer.searchApps")}
             value={query}

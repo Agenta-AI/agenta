@@ -70,7 +70,7 @@ export const railInfoLabel = (label: ReactNode, hint: ReactNode): ReactNode => (
         <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <Info size={13} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
+                    <Info size={13} className="shrink-0 text-muted-foreground" />
                 </TooltipTrigger>
                 <TooltipContent>{hint}</TooltipContent>
             </Tooltip>
@@ -117,20 +117,20 @@ function ChangedDetail({
     const {text, muted} = formatCommitted(before)
     return (
         <div className="flex w-[200px] flex-col gap-2">
-            <div className="text-xs uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+            <div className="text-meta text-muted-foreground">
                 {t("entityUi.drawerShared.committedValue")}
             </div>
             <div
-                className={`max-h-28 overflow-auto whitespace-pre-wrap break-words rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-2 py-1 text-xs ${
+                className={`max-h-28 overflow-auto whitespace-pre-wrap break-words rounded border border-solid border-border-muted bg-secondary px-2 py-1 text-meta ${
                     muted
-                        ? "italic text-[var(--ag-colorTextTertiary)]"
-                        : "font-mono text-[var(--ag-colorText)]"
+                        ? "italic text-muted-foreground"
+                        : "font-mono text-foreground"
                 }`}
             >
                 {text}
             </div>
             {onRevert ? (
-                <Button variant="outline" onClick={onRevert} className="w-full text-xs">
+                <Button variant="outline" onClick={onRevert} className="w-full text-meta">
                     <ArrowCounterClockwise size={13} />
                     {before === undefined
                         ? t("entityUi.drawerShared.removeChange")
@@ -157,7 +157,7 @@ export function RailField({label, align = "top", path, wide, children}: RailFiel
                 {/* A real button, so the keyboard can reach the change detail and its Restore. */}
                 <button
                     type="button"
-                    className="cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-inherit underline decoration-[var(--ag-colorInfo)] decoration-dotted underline-offset-4 outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                    className="cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-inherit underline decoration-info decoration-dotted underline-offset-4 outline-none focus-ring"
                 >
                     {label}
                 </button>
@@ -176,10 +176,10 @@ export function RailField({label, align = "top", path, wide, children}: RailFiel
         return (
             <div className="flex flex-col gap-1.5">
                 <span
-                    className={`text-xs ${
+                    className={`text-meta ${
                         changed
-                            ? "text-[var(--ag-colorText)]"
-                            : "text-[var(--ag-colorTextDescription)]"
+                            ? "text-foreground"
+                            : "text-muted-foreground"
                     }`}
                 >
                     {labelNode}
@@ -193,15 +193,15 @@ export function RailField({label, align = "top", path, wide, children}: RailFiel
         // Below sm the 116px label column left the control a few dozen px, so the label stacks.
         <div className="flex flex-col gap-1.5 sm:flex-row sm:gap-3">
             <div
-                className={`box-border w-full px-0 text-xs sm:w-[116px] sm:shrink-0 sm:px-2.5 ${
+                className={`box-border w-full px-0 text-meta sm:w-[116px] sm:shrink-0 sm:px-2.5 ${
                     align === "center" ? "sm:self-center" : "sm:pt-1.5"
-                } ${changed ? "text-[var(--ag-colorText)]" : "text-[var(--ag-colorTextSecondary)]"}`}
+                } ${changed ? "text-foreground" : "text-muted-foreground"}`}
             >
                 {labelNode}
             </div>
             <div
                 className={cn(
-                    "flex min-w-0 flex-1 flex-col border-0 border-solid border-[var(--ag-colorBorderSecondary)] sm:border-l sm:pl-3",
+                    "flex min-w-0 flex-1 flex-col border-0 border-solid border-border-muted sm:border-l sm:pl-3",
                     !wide && "max-w-prose",
                 )}
             >

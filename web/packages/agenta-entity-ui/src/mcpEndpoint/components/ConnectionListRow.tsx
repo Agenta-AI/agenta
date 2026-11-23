@@ -20,7 +20,7 @@ import {useT} from "@agenta/i18n"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import {McpServerMark} from "@agenta/ui/agent-icon"
 import {cn} from "@agenta/ui/styles"
-import {Button, touchTargetExpansion} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {Check, Plus} from "@phosphor-icons/react"
 
 export interface ConnectionListRowProps {
@@ -74,20 +74,20 @@ export function ConnectionListRow({
                 rowAction && "cursor-pointer hover:bg-accent/60",
             )}
         >
-            <McpServerMark size={28} name={name} />
+            <McpServerMark size={24} name={name} />
 
             <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-medium leading-5 text-colorText">
+                <div className="truncate text-label font-medium leading-5 text-foreground">
                     {name}
                 </div>
-                <div className="truncate text-[12px] leading-4 text-colorTextSecondary">
+                <div className="truncate text-meta text-muted-foreground">
                     {subtitle}
                 </div>
             </div>
 
             <div className="flex shrink-0 items-center gap-2.5">
                 {added ? (
-                    <span className="flex items-center gap-1 text-[12px] leading-4 text-colorTextSecondary">
+                    <span className="flex items-center gap-1 text-meta text-muted-foreground">
                         <Check size={14} />
                         {t("entityUi.mcpConnect.added")}
                     </span>
@@ -102,11 +102,8 @@ export function ConnectionListRow({
                         }}
                         aria-label={t("entityUi.mcpConnect.addNameToAgent", {name})}
                         title={t("entityUi.mcpConnect.addToAgent")}
-                        // 28px of chrome on both actions, so the row keeps the desktop
-                        // rhythm, and an invisible box around it for a finger.
-                        className={touchTargetExpansion(28)}
                     >
-                        <Plus className="size-3.5 max-md:size-5" />
+                        <Plus className="size-3.5" />
                     </Button>
                 ) : (
                     <Button
@@ -118,7 +115,6 @@ export function ConnectionListRow({
                             onReconnect?.()
                         }}
                         aria-label={t("entityUi.mcpConnect.reconnectName", {name})}
-                        className={touchTargetExpansion(28)}
                     >
                         {t("entityUi.mcpConnect.reconnect")}
                     </Button>

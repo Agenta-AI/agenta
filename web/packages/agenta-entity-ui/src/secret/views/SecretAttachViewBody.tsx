@@ -65,8 +65,8 @@ const SecretAttachViewBody = ({params, target, nav}: ViewProps<SecretAttachViewP
 
     if (params.envVar && !editing) {
         return (
-            <div className="flex flex-col items-start gap-3 px-4 py-6 text-sm">
-                <span className="text-colorTextSecondary">
+            <div className="flex flex-col items-start gap-3 px-4 py-6 text-label">
+                <span className="text-muted-foreground">
                     {t("entityUi.secretViews.removedState")}
                 </span>
                 <Button variant="outline" size="sm" onClick={() => void nav.back()}>
@@ -79,7 +79,7 @@ const SecretAttachViewBody = ({params, target, nav}: ViewProps<SecretAttachViewP
     return (
         <div className="flex flex-col gap-3 px-4 py-3">
             {!canEditSecrets ? (
-                <div className="rounded-lg border border-colorBorderSecondary p-3 text-xs text-colorTextSecondary">
+                <div className="rounded-lg border border-border-muted p-3 text-meta text-muted-foreground">
                     {t("entityUi.agentSecrets.needPermission")}
                 </div>
             ) : null}

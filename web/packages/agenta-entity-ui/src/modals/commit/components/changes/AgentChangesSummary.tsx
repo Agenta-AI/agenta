@@ -115,14 +115,14 @@ export default function AgentChangesSummary({
                 {isDetail ? (
                     <button
                         type="button"
-                        className={cn("text-xs", LINK_BTN, textColors.primary)}
+                        className={cn("text-label", LINK_BTN, textColors.primary)}
                         onClick={() => setView({kind: "summary"})}
                     >
                         <ArrowLeft />
                         {t("entityUi.changesSummary.changes")}
                     </button>
                 ) : (
-                    <span className="text-xs font-semibold text-colorText">
+                    <span className="text-label font-semibold text-foreground">
                         {t("entityUi.changesSummary.whatsChanging")}
                         <span className={cn("ml-1.5 font-normal", textColors.tertiary)}>
                             {t("entityUi.changesSummary.changeCount", {count: totalChanges})}
@@ -132,7 +132,7 @@ export default function AgentChangesSummary({
                 {view.kind === "summary" && !compact ? (
                     <button
                         type="button"
-                        className={cn("text-xs", LINK_BTN)}
+                        className={cn("text-label", LINK_BTN)}
                         onClick={() => setView({kind: "json"})}
                     >
                         <Code style={{fontSize: 13}} />
@@ -146,7 +146,7 @@ export default function AgentChangesSummary({
             <div
                 className={cn(
                     "overflow-auto",
-                    compact ? "max-h-80 rounded-[10px]" : "min-h-0 flex-1 px-4 pb-4",
+                    compact ? "max-h-80 rounded-lg" : "min-h-0 flex-1 px-4 pb-4",
                 )}
             >
                 {view.kind === "summary" ? (
@@ -173,7 +173,7 @@ export default function AgentChangesSummary({
                                 <span className={textColors.secondary}>
                                     {SECTION_ICON.instructions}
                                 </span>
-                                <span className={cn("flex-1", small ? "text-xs" : "text-[13px]")}>
+                                <span className={cn("flex-1", small ? "text-meta" : "text-label")}>
                                     {t("entityUi.changesSummary.instructions")}
                                 </span>
                                 <StatusTags tags={activeSection.tags} small={small} />
@@ -190,12 +190,12 @@ export default function AgentChangesSummary({
                         onCollapse={collapseDetail}
                         head={
                             <>
-                                <PencilSimple style={{color: "var(--ag-colorWarning)"}} />
-                                <span className={cn("flex-1", small ? "text-xs" : "text-[13px]")}>
+                                <PencilSimple style={{color: "var(--warning)"}} />
+                                <span className={cn("flex-1", small ? "text-meta" : "text-label")}>
                                     {activeTool.label}
                                 </span>
                                 {activeTool.rawKey ? (
-                                    <span className={cn("font-mono text-xs", textColors.tertiary)}>
+                                    <span className={cn(" text-code-sm", textColors.tertiary)}>
                                         {activeTool.rawKey}
                                     </span>
                                 ) : null}
@@ -207,17 +207,17 @@ export default function AgentChangesSummary({
                                 <>
                                     <div
                                         className={cn(
-                                            "mb-1.5 text-[12px] uppercase tracking-wide",
+                                            "mb-1.5 text-meta",
                                             textColors.tertiary,
                                         )}
                                     >
                                         {t("entityUi.changesSummary.description")}
                                     </div>
-                                    <div className="font-mono text-xs leading-[1.8]">
-                                        <div style={{color: "var(--ag-colorError)"}}>
+                                    <div className=" text-code-sm leading-[1.8]">
+                                        <div style={{color: "var(--destructive)"}}>
                                             − {activeTool.descriptionDiff.before}
                                         </div>
-                                        <div style={{color: "var(--ag-colorSuccess)"}}>
+                                        <div style={{color: "var(--success)"}}>
                                             + {activeTool.descriptionDiff.after}
                                         </div>
                                     </div>
@@ -227,7 +227,7 @@ export default function AgentChangesSummary({
                                 <>
                                     <div
                                         className={cn(
-                                            "mb-1.5 mt-3 text-[12px] uppercase tracking-wide",
+                                            "mb-1.5 mt-3 text-meta",
                                             textColors.tertiary,
                                         )}
                                     >
@@ -246,9 +246,9 @@ export default function AgentChangesSummary({
                                                 >
                                                     {kindIcon(f.kind)}
                                                 </span>
-                                                <span className="font-mono text-xs">{f.field}</span>
+                                                <span className=" text-code-sm">{f.field}</span>
                                                 <span
-                                                    className={cn("text-xs", textColors.tertiary)}
+                                                    className={cn("text-meta", textColors.tertiary)}
                                                 >
                                                     · {f.detail}
                                                 </span>

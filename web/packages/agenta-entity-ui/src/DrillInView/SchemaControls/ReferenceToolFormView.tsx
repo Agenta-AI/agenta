@@ -56,9 +56,9 @@ const readableModelName = (
 /** One row of the configuration card: a muted label column, then the value. */
 function DetailRow({label, children}: {label: string; children: React.ReactNode}) {
     return (
-        <div className="flex items-start gap-4 border-0 border-t border-solid border-[var(--ag-colorSplit)] px-3 py-2 first:border-t-0">
+        <div className="flex items-start gap-4 border-0 border-t border-solid border-border-muted px-3 py-2 first:border-t-0">
             {/* Canvas F03 f2: 12/16 in the secondary color. */}
-            <span className="w-[84px] shrink-0 pt-0.5 text-[12px] leading-4 text-[var(--ag-colorTextSecondary)]">
+            <span className="w-[84px] shrink-0 pt-0.5 text-meta text-muted-foreground">
                 {label}
             </span>
             <div className="min-w-0 flex-1">{children}</div>
@@ -68,7 +68,7 @@ function DetailRow({label, children}: {label: string; children: React.ReactNode}
 
 /** Muted text for a row with nothing in it, worded like the picker's own empty line. */
 const Empty = ({children}: {children: React.ReactNode}) => (
-    <span className="text-[13px] text-[var(--ag-colorTextQuaternary)]">{children}</span>
+    <span className="text-label text-muted-foreground">{children}</span>
 )
 
 /** The agent's instruction file, clamped behind a fade and scrolled inside a fixed well. */
@@ -78,9 +78,9 @@ function Instructions({file}: {file: NonNullable<SubagentDetail["instructions"]>
     return (
         <div className="flex flex-col gap-2">
             <div className="flex items-center gap-1.5">
-                <FileText size={14} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
-                <span className="text-[13px]">{file.fileName}</span>
-                <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                <FileText size={14} className="shrink-0 text-muted-foreground" />
+                <span className="text-label">{file.fileName}</span>
+                <span className="text-meta text-muted-foreground">
                     {t("entityUi.toolForm.wordCount", {
                         count: file.wordCount,
                         formatted: formatNumber(file.wordCount),
@@ -90,7 +90,7 @@ function Instructions({file}: {file: NonNullable<SubagentDetail["instructions"]>
             <div className="relative">
                 <div
                     className={cn(
-                        "whitespace-pre-line rounded-md bg-[var(--ag-colorFillQuaternary)] p-3 text-[13px] leading-relaxed text-[var(--ag-colorTextSecondary)]",
+                        "whitespace-pre-line rounded-md bg-secondary p-3 text-label leading-relaxed text-muted-foreground",
                         open ? "max-h-80 overflow-y-auto" : "line-clamp-4 overflow-hidden",
                     )}
                 >
@@ -98,14 +98,14 @@ function Instructions({file}: {file: NonNullable<SubagentDetail["instructions"]>
                 </div>
                 {/* The fade says "there is more" without a second control competing with the link. */}
                 {open ? null : (
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 rounded-b-md bg-gradient-to-t from-[var(--ag-colorFillQuaternary)] to-transparent" />
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 rounded-b-md bg-gradient-to-t from-secondary to-transparent" />
                 )}
             </div>
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
                 aria-expanded={open}
-                className="flex w-fit cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[13px] text-colorInfo"
+                className="flex w-fit cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-label text-info"
             >
                 {open
                     ? t("entityUi.toolForm.hideInstructions")
@@ -165,7 +165,7 @@ function SubagentDetailPanel({
         <div className="flex flex-col gap-6 p-4">
             <div className="flex flex-col gap-2">
                 {/* Canvas F03 f2: the label 12/16/500 in the secondary color. */}
-                <span className="text-[12px] font-medium leading-4 text-colorTextSecondary">
+                <span className="text-meta font-medium text-muted-foreground">
                     {t("entityUi.toolForm.description")}
                 </span>
                 <AutosizeTextarea
@@ -177,20 +177,20 @@ function SubagentDetailPanel({
                     }
                     aria-label={t("entityUi.toolForm.subagentDescription")}
                 />
-                <span className="text-[12px] leading-4 text-[var(--ag-colorTextTertiary)]">
+                <span className="text-meta text-muted-foreground">
                     {t("entityUi.toolForm.subagentDescriptionHint")}
                 </span>
             </div>
 
             <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-medium leading-5">
+                    <span className="text-label font-medium leading-5">
                         {t("entityUi.toolForm.configuration")}
                     </span>
                     {/* Canvas F03 f2: a bordered 12 px tag, radius 4, with a 12 px lock. */}
                     <Badge
-                        variant="outlined"
-                        className="m-0 gap-1 rounded-[4px] bg-colorBgContainer px-1.5 text-[12px] font-normal leading-4 text-colorTextSecondary"
+                        variant="default"
+                        className="m-0 gap-1 rounded-sm bg-background px-1.5 text-meta font-normal text-muted-foreground"
                     >
                         <Lock size={12} />
                         {t("entityUi.toolForm.readOnly")}
@@ -198,15 +198,15 @@ function SubagentDetailPanel({
                     {configurationAction ? (
                         <span className="ml-auto">{configurationAction}</span>
                     ) : (
-                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                        <span className="text-meta text-muted-foreground">
                             {t("entityUi.toolForm.managedOnAgent")}
                         </span>
                     )}
                 </div>
-                <div className="overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)]">
+                <div className="overflow-hidden rounded-lg border border-solid border-border-muted">
                     {failed && !detail ? (
-                        <div className="flex items-center gap-3 p-4 text-[13px]">
-                            <span className="min-w-0 flex-1 text-[var(--ag-colorTextSecondary)]">
+                        <div className="flex items-center gap-3 p-4 text-label">
+                            <span className="min-w-0 flex-1 text-muted-foreground">
                                 {t("entityUi.subagentViews.configLoadError")}
                             </span>
                             {retry ? (
@@ -226,7 +226,7 @@ function SubagentDetailPanel({
                             <DetailRow label={t("entityUi.toolForm.model")}>
                                 {detail?.model ? (
                                     <span className="flex items-start gap-2">
-                                        <span className="mt-px flex size-[18px] shrink-0 items-center justify-center rounded bg-[var(--ag-colorFillTertiary)]">
+                                        <span className="mt-px flex size-5 shrink-0 items-center justify-center rounded-sm bg-secondary">
                                             {ProviderIcon ? (
                                                 <ProviderIcon className="size-3" />
                                             ) : (
@@ -236,15 +236,15 @@ function SubagentDetailPanel({
                                         {modelName ? (
                                             // The readable name, the id under it (canvas F03 f2).
                                             <span className="flex min-w-0 flex-col">
-                                                <span className="truncate text-[13px] leading-5">
+                                                <span className="truncate text-label leading-5">
                                                     {modelName}
                                                 </span>
-                                                <span className="truncate font-mono text-[11px] leading-5 text-[var(--ag-colorTextTertiary)]">
+                                                <span className="truncate font-mono text-caption leading-5 text-muted-foreground">
                                                     {detail.model}
                                                 </span>
                                             </span>
                                         ) : (
-                                            <span className="truncate text-[13px] leading-5 tabular-nums">
+                                            <span className="truncate text-label leading-5 tabular-nums">
                                                 {detail.model}
                                             </span>
                                         )}
@@ -268,7 +268,7 @@ function SubagentDetailPanel({
                                             return (
                                                 <span
                                                     key={app.key}
-                                                    className="flex items-center gap-2 text-[13px]"
+                                                    className="flex items-center gap-2 text-label"
                                                 >
                                                     <ProviderLogo
                                                         logo={catalog?.logo ?? null}
@@ -278,7 +278,7 @@ function SubagentDetailPanel({
                                                         {catalog?.name ?? app.key}
                                                     </span>
                                                     {app.permission ? (
-                                                        <span className="shrink-0 text-[13px] text-[var(--ag-colorTextTertiary)]">
+                                                        <span className="shrink-0 text-label text-muted-foreground">
                                                             {app.permission}
                                                         </span>
                                                     ) : null}
@@ -296,7 +296,7 @@ function SubagentDetailPanel({
                                         {detail.skills.map((skill) => (
                                             <span
                                                 key={skill}
-                                                className="rounded-md bg-[var(--ag-colorFillQuaternary)] px-2 py-1 text-[13px] text-[var(--ag-colorTextSecondary)]"
+                                                className="rounded-md bg-secondary px-2 py-1 text-label text-muted-foreground"
                                             >
                                                 {skill}
                                             </span>

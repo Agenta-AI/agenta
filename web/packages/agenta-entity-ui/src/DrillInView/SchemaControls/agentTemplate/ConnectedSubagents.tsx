@@ -174,7 +174,7 @@ export function ConnectedSubagentList({
                 size: 15,
                 fallbackGlyph: <Robot size={15} weight="fill" />,
                 fallbackClassName:
-                    "bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]",
+                    "bg-secondary text-muted-foreground",
             })
             map.set(slug, {glyph: chrome.glyph, className: chrome.className, style: chrome.style})
         }

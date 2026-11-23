@@ -90,7 +90,7 @@ export interface TriggerManagementSectionProps {
     automationDrawer: ReactNode
     /**
      * The phone shape (M10): flat rows whose line wraps, a switch on each row of a person who
-     * can edit, and 44 px controls. The host decides it (`useIsPhone`).
+     * can edit. The host decides it (`useIsPhone`).
      */
     phone?: boolean
 }
@@ -344,8 +344,8 @@ export function TriggerManagementSection({
         <h3
             className={
                 phone
-                    ? "m-0 pb-1.5 pt-4 text-[12px] font-medium leading-5 text-[var(--ag-colorTextTertiary)]"
-                    : "m-0 mt-1 text-[12px] font-medium leading-4 text-[var(--ag-colorTextSecondary)]"
+                    ? "m-0 pb-1.5 pt-4 text-meta font-medium leading-5 text-muted-foreground"
+                    : "m-0 mt-1 text-subtitle text-foreground"
             }
         >
             {label}
@@ -415,7 +415,7 @@ export function TriggerManagementSection({
             {loadFailed ? (
                 // A list that did not load is not an empty list; one that half loaded says so
                 // under the rows it has.
-                <div className={phone ? "[&_button]:min-h-11" : undefined}>
+                <div>
                     <SectionLoadError
                         message={tScreens("automations.screens.loadFailed")}
                         onRetry={retryLoad}
@@ -423,7 +423,7 @@ export function TriggerManagementSection({
                 </div>
             ) : !loading && scopedSubscriptions.length === 0 && scopedSchedules.length === 0 ? (
                 // One quiet line; the header's "Add automation" is the way to add one.
-                <span className="text-xs text-colorTextTertiary">
+                <span className="text-meta text-muted-foreground">
                     {t("entityUi.triggers.noAutomations")}
                 </span>
             ) : null}

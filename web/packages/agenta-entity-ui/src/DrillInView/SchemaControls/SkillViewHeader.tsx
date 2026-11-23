@@ -16,11 +16,11 @@ import {downloadSkill, skillDownloadKind} from "./skillDownload"
 
 /** A row of the actions menu: icon, label, full width. */
 const SKILL_ACTION_ROW_SHAPE =
-    "box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1.5 text-left font-[inherit] text-[13px] outline-none transition-colors hover:bg-colorFillTertiary focus-visible:bg-colorFillTertiary disabled:cursor-default disabled:opacity-50 max-md:min-h-11"
-export const SKILL_ACTION_ROW = `${SKILL_ACTION_ROW_SHAPE} text-colorText`
+    "box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1.5 text-left font-[inherit] text-label outline-none transition-colors hover:bg-accent focus-visible:bg-secondary disabled:cursor-default disabled:opacity-50"
+export const SKILL_ACTION_ROW = `${SKILL_ACTION_ROW_SHAPE} text-foreground`
 /** A danger row (F07 f10: Archive in red). Its own color, not an override: two color classes on
  *  one element resolve by stylesheet order. */
-const SKILL_DANGER_ROW = `${SKILL_ACTION_ROW_SHAPE} text-[var(--ag-danger-text)]`
+const SKILL_DANGER_ROW = `${SKILL_ACTION_ROW_SHAPE} text-destructive`
 
 export interface SkillAction {
     key: string
@@ -88,19 +88,19 @@ export function SkillViewHeader({
     return (
         <div ref={setHeaderRoot} className="flex shrink-0 flex-col gap-1 px-4 py-3">
             <div className="flex min-w-0 items-center gap-2">
-                <SkillMark size={28} />
+                <SkillMark size={32} />
                 <div className="flex min-w-0 flex-1 flex-col">
                     <div className="flex min-w-0 items-center gap-2">
                         <span
                             title={name}
-                            className="min-w-0 truncate text-[13px] font-semibold leading-5 text-colorText"
+                            className="min-w-0 truncate text-label font-semibold leading-5 text-foreground"
                         >
                             {name}
                         </span>
                         {extra}
                     </div>
                     {status ? (
-                        <span className="text-[12px] leading-4 text-colorTextSecondary">
+                        <span className="text-meta text-muted-foreground">
                             {status}
                         </span>
                     ) : null}
@@ -131,7 +131,7 @@ export function SkillViewHeader({
                                     {action.danger && index > 0 && !actions[index - 1].danger ? (
                                         <span
                                             role="separator"
-                                            className="mx-1 my-1 h-px shrink-0 bg-colorBorderSecondary"
+                                            className="mx-1 my-1 h-px shrink-0 bg-border-muted"
                                         />
                                     ) : null}
                                     <button
@@ -154,7 +154,7 @@ export function SkillViewHeader({
                     </Popover>
                 ) : null}
             </div>
-            {error ? <span className="text-xs text-[var(--ag-colorError)]">{error}</span> : null}
+            {error ? <span className="text-meta text-destructive">{error}</span> : null}
         </div>
     )
 }

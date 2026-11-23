@@ -216,7 +216,7 @@ export function ParameterNodeEditor({
 
     return (
         <div className="flex flex-col gap-4">
-            <div className="text-xs font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+            <div className="text-meta font-medium text-muted-foreground">
                 {t("entityUi.parameterEditor.editingPath", {path: pathLabel(path)})}
             </div>
 
@@ -340,7 +340,7 @@ export function ParameterNodeEditor({
                             }
                             disabled={disabled}
                         />
-                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                        <span className="text-meta text-muted-foreground">
                             {t("entityUi.parameterEditor.requiredHint")}
                         </span>
                     </div>
@@ -357,7 +357,7 @@ export function ParameterNodeEditor({
                                 <Plus size={13} />
                                 {t("entityUi.parameterEditor.addProperty")}
                             </Button>
-                            <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                            <span className="text-meta text-muted-foreground">
                                 {childCount === 0
                                     ? t("entityUi.parameterEditor.noNestedProperties")
                                     : t("entityUi.parameterEditor.nestedProperties", {
@@ -369,10 +369,10 @@ export function ParameterNodeEditor({
                 ) : null}
             </div>
 
-            <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">{hint}</p>
+            <p className="m-0 text-meta leading-snug text-muted-foreground">{hint}</p>
 
             {path.length > 3 ? (
-                <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
+                <p className="m-0 text-meta leading-snug text-muted-foreground">
                     {t("entityUi.parameterEditor.deeplyNested")}
                 </p>
             ) : null}

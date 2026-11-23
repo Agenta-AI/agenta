@@ -2,7 +2,7 @@
  * SecretForm — presentational body for creating/editing a named secret.
  *
  * Pure view over a `SecretFormController` (see `useSecretForm`). The surrounding chrome
- * (Settings `EnhancedModal` or the MCP `CreateSecretDrawer`) owns the Save button; this
+ * (a Settings dialog or the MCP `CreateSecretDrawer`) owns the Save button; this
  * component renders no action buttons of its own.
  *
  * `@agenta/ui` (shadcn) primitives, NOT antd: both chromes portal to <body>, landing outside
@@ -74,7 +74,7 @@ const FieldLabel = ({
     // what tells a screen reader which field it is reading.
     const Tag = htmlFor ? "label" : "span"
     return (
-        <Tag className="font-medium text-colorText" htmlFor={htmlFor} id={id}>
+        <Tag className="font-medium text-foreground" htmlFor={htmlFor} id={id}>
             {children}
         </Tag>
     )
@@ -109,7 +109,7 @@ const rowValueLabel = (t: SecretFormT, key: string, index: number): string =>
         : t("entityUi.secretForm.rowValueNumbered", {number: index + 1})
 
 const HintText = ({children}: {children: React.ReactNode}) => (
-    <span className="text-xs text-colorTextSecondary">{children}</span>
+    <span className="text-meta text-muted-foreground">{children}</span>
 )
 
 export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFormProps) {
@@ -209,7 +209,7 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                             {valueLabel}
                         </FieldLabel>
                         {duplicateKeyError && (
-                            <span className="text-xs text-error">
+                            <span className="text-meta text-destructive">
                                 {t("entityUi.secretForm.duplicateKeys")}
                             </span>
                         )}
@@ -256,7 +256,7 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                                 aria-invalid={defaultEnvError || undefined}
                             />
                             {defaultEnvError ? (
-                                <span className="text-xs text-error">
+                                <span className="text-meta text-destructive">
                                     {t("entityUi.secretForm.envInvalid")}
                                 </span>
                             ) : (
@@ -287,7 +287,7 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                             value={jsonText}
                             onChange={(e) => setJsonText(e.target.value)}
                         />
-                        {jsonError && <span className="text-xs text-error">{jsonError}</span>}
+                        {jsonError && <span className="text-meta text-destructive">{jsonError}</span>}
                     </div>
                 ) : (
                     <div className="flex flex-col gap-2">
@@ -394,7 +394,7 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                                 </div>
                             )
                         })}
-                        <Button variant="dashed" size="sm" className="w-full" onClick={addRow}>
+                        <Button variant="outline" size="sm" className="w-full" onClick={addRow}>
                             <Plus size={14} />
                             {t("entityUi.secretForm.addField")}
                         </Button>

@@ -48,16 +48,16 @@ const providerLogo = (kind: string, className = "size-4 shrink-0") => {
 /** Sentence case, 12px, tertiary — never a shouted header. */
 const SectionLabel = ({children, hint}: {children: string; hint?: string}) => (
     <div className="flex shrink-0 items-baseline justify-between gap-3 px-6 pb-1 pt-4">
-        <h4 className="m-0 text-field-sm font-medium text-colorTextTertiary">{children}</h4>
-        {hint ? <span className="text-field-sm text-colorTextTertiary">{hint}</span> : null}
+        <h4 className="m-0 text-field-sm font-medium text-muted-foreground">{children}</h4>
+        {hint ? <span className="text-field-sm text-muted-foreground">{hint}</span> : null}
     </div>
 )
 
 /** The green dot and chevron every openable row on this surface ends with. */
 const RowAffordance = () => (
     <>
-        <span aria-hidden className="size-2 shrink-0 rounded-full bg-colorSuccess" />
-        <CaretRight size={14} className="shrink-0 text-colorTextTertiary" />
+        <span aria-hidden className="size-2 shrink-0 rounded-xs bg-success" />
+        <CaretRight size={14} className="shrink-0 text-muted-foreground" />
     </>
 )
 
@@ -74,12 +74,12 @@ const ConnectedRow = ({
     <button
         type="button"
         onClick={() => onSelect(connection)}
-        className="box-border flex w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-6 py-2 text-left hover:bg-colorFillQuaternary"
+        className="box-border flex w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-6 py-2 text-left hover:bg-accent"
     >
         {providerLogo(connection.kind, "size-5 shrink-0")}
         <span className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-xs text-colorText">{connection.name}</span>
-            <span className="truncate font-mono text-[11px] text-colorTextTertiary">
+            <span className="truncate text-meta text-foreground">{connection.name}</span>
+            <span className="truncate font-mono text-caption text-muted-foreground">
                 {subtitle}
             </span>
         </span>
@@ -92,12 +92,12 @@ const SubscriptionRow = ({pair, onSelect}: {pair: SubscriptionPair; onSelect: ()
     <button
         type="button"
         onClick={onSelect}
-        className="box-border flex w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-6 py-2 text-left hover:bg-colorFillQuaternary"
+        className="box-border flex w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-6 py-2 text-left hover:bg-accent"
     >
         {providerLogo(pair.provider, "size-5 shrink-0")}
         <span className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="truncate text-xs text-colorText">{pair.name}</span>
-            <span className="flex shrink-0 items-center gap-1 rounded-control-sm bg-colorFillTertiary px-1.5 py-0.5 text-[11px] text-colorTextSecondary">
+            <span className="truncate text-meta text-foreground">{pair.name}</span>
+            <span className="flex shrink-0 items-center gap-1 rounded-control-sm bg-secondary px-1.5 py-0.5 text-caption text-muted-foreground">
                 {harnessMarkNode(pair.harness)}
                 {harnessMetaFor(pair.harness).label}
             </span>
@@ -119,12 +119,12 @@ const AgentsOnlyRow = ({connection}: {connection: ProviderConnection}) => {
         >
             {providerLogo(connection.kind, "size-5 shrink-0")}
             <span className="flex min-w-0 flex-1 items-center gap-2">
-                <span className="truncate text-xs text-colorText">{connection.name}</span>
-                <span className="shrink-0 rounded-control-sm bg-colorFillTertiary px-1.5 py-0.5 text-[11px] text-colorTextSecondary">
+                <span className="truncate text-meta text-foreground">{connection.name}</span>
+                <span className="shrink-0 rounded-control-sm bg-secondary px-1.5 py-0.5 text-caption text-muted-foreground">
                     {t("entityUi.providerDrawer.organization")}
                 </span>
             </span>
-            <span className="shrink-0 text-[11px] text-colorTextTertiary">
+            <span className="shrink-0 text-caption text-muted-foreground">
                 {t("entityUi.providerDrawer.agentsOnly")}
             </span>
         </div>
@@ -184,7 +184,7 @@ export const PlaygroundConnectedSection = ({
                     {organizationConnections.map((connection) => (
                         <AgentsOnlyRow key={connection.id} connection={connection} />
                     ))}
-                    <p className="m-0 px-6 pb-2 pt-1 text-[11px] text-colorTextTertiary">
+                    <p className="m-0 px-6 pb-2 pt-1 text-caption text-muted-foreground">
                         {t("entityUi.providerDrawer.orgConnectionsAgentsOnly")}
                     </p>
                 </>
@@ -245,7 +245,7 @@ export const PlaygroundSubscriptionsSection = ({
     showMounted = true,
     hostedFamilies,
 }: PlaygroundSubscriptionsSectionProps) => (
-    <div className="shrink-0 border-0 border-t border-solid border-colorSplit">
+    <div className="shrink-0 border-0 border-t border-solid border-border-muted">
         <div className="flex flex-col gap-3 px-6 py-4">{hostedCards}</div>
         {showMounted ? (
             <MountedSubscriptionRows onSelectPair={onSelectPair} hostedFamilies={hostedFamilies} />

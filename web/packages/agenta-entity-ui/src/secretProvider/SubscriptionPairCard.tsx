@@ -100,10 +100,10 @@ const SubscriptionPairCard = ({
     }, [onSaveStateChange, submit])
 
     return (
-        <div className="flex min-h-full flex-1 flex-col gap-4 text-xs">
+        <div className="flex min-h-full flex-1 flex-col gap-4 text-meta">
             <div className="flex items-start justify-between gap-3">
-                <span className="flex items-center gap-1.5 text-colorSuccess">
-                    <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-colorSuccess" />
+                <span className="flex items-center gap-1.5 text-success">
+                    <span aria-hidden className="size-1.5 shrink-0 rounded-xs bg-success" />
                     {t("entityUi.providerDrawer.detected", {name: pair.name})}
                 </span>
                 <a
@@ -117,27 +117,27 @@ const SubscriptionPairCard = ({
             </div>
 
             <section className="flex min-h-0 flex-1 flex-col gap-2">
-                <span className="font-medium text-colorText">
+                <span className="font-medium text-foreground">
                     {richText(t("entityUi.providerDrawer.activeModelsFixed"), {
                         muted: (text) => (
-                            <span className="font-normal text-colorTextTertiary">{text}</span>
+                            <span className="font-normal text-muted-foreground">{text}</span>
                         ),
                     })}
                 </span>
 
-                <div className="flex min-h-0 flex-col overflow-hidden rounded-md border border-solid border-colorBorderSecondary">
+                <div className="flex min-h-0 flex-col overflow-hidden rounded-md border border-solid border-border-muted">
                     {ordered.length === 0 ? (
-                        <p className="m-0 px-3 py-3 text-colorTextSecondary">
+                        <p className="m-0 px-3 py-3 text-muted-foreground">
                             {t("entityUi.providerDrawer.noModelsForPlan", {name: pair.name})}
                         </p>
                     ) : (
                         ordered.map((id, index) => (
                             <label
                                 key={id}
-                                className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-colorFillQuaternary ${
+                                className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-accent ${
                                     index === ordered.length - 1
                                         ? ""
-                                        : "border-0 border-b border-solid border-colorSplit"
+                                        : "border-0 border-b border-solid border-border-muted"
                                 }`}
                             >
                                 <Checkbox
@@ -150,7 +150,7 @@ const SubscriptionPairCard = ({
                                         )
                                     }
                                 />
-                                <span className="min-w-0 flex-1 truncate font-mono text-field-sm text-colorText">
+                                <span className="min-w-0 flex-1 truncate font-mono text-field-sm text-foreground">
                                     {id}
                                 </span>
                                 {defaults.includes(id) ? (
@@ -165,7 +165,7 @@ const SubscriptionPairCard = ({
                     )}
                 </div>
 
-                <span className="text-[11px] text-colorTextTertiary">
+                <span className="text-caption text-muted-foreground">
                     {t("entityUi.providerDrawer.planDefinesList")}
                 </span>
             </section>

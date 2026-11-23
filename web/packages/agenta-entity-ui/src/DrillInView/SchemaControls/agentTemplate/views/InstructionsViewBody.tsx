@@ -51,12 +51,12 @@ const InstructionsViewBody = ({params, target}: ViewProps<InstructionsViewParams
     return (
         <div className="md-prose-panel flex min-h-0 flex-1 flex-col">
             {showToolbar ? (
-                <div className="flex shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary bg-[var(--ag-surface-raised)] px-2.5 py-1.5">
+                <div className="flex shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted bg-muted px-2.5 py-1.5">
                     <div ref={setToolbarHost} className="min-w-0 flex-1" />
                     <button
                         type="button"
                         onClick={() => setView((v) => (v === "source" ? "rendered" : "source"))}
-                        className="shrink-0 cursor-pointer rounded-[6px] border-0 bg-transparent px-1.5 py-0.5 font-[inherit] text-[12px] font-medium text-colorText underline underline-offset-2 hover:bg-colorFillTertiary"
+                        className="shrink-0 cursor-pointer rounded-md border-0 bg-transparent px-1.5 py-0.5 font-[inherit] text-meta font-medium text-foreground underline underline-offset-2 hover:bg-accent"
                     >
                         {view === "source"
                             ? t("entityUi.schemaControls.richText")

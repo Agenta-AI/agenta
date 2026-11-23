@@ -152,17 +152,17 @@ function ChildPanelContent({
         <div data-testid={POPOVER_CASCADER_TEST_IDS.childPanel} style={panelStyle}>
             {/* Child panel header */}
             {multiSelect && (
-                <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-center justify-between gap-2">
+                <div className="px-3 py-2 border-0 border-b border-solid border-border-muted bg-muted h-8 flex items-center justify-between gap-2">
                     {/* One line, so the header keeps the left panel's height. */}
                     <div className="flex min-w-0 flex-1 items-baseline gap-2">
                         <span
-                            className="block min-w-0 truncate text-[12px] font-medium"
+                            className="block min-w-0 truncate text-meta font-medium"
                             title={parentLabel}
                         >
                             {parentLabel}
                         </span>
                         {multiSelect && (
-                            <span className="shrink-0 whitespace-nowrap text-colorTextSecondary text-[12px]">
+                            <span className="shrink-0 whitespace-nowrap text-muted-foreground text-meta">
                                 {selectedCount} of {filteredItems.length} selected
                             </span>
                         )}
@@ -174,7 +174,7 @@ function ChildPanelContent({
                                 type="button"
                                 variant="link"
                                 size="sm"
-                                className="shrink-0 h-auto p-0 text-[12px]"
+                                className="shrink-0 h-auto p-0 text-meta"
                                 onClick={handleSelectAll}
                             >
                                 {t("entityUi.selection.selectAll")}
@@ -206,7 +206,7 @@ function ChildPanelContent({
                                     "flex items-center gap-2 px-2 py-1.5 rounded-md",
                                     isDisabled
                                         ? "opacity-50 cursor-not-allowed"
-                                        : "cursor-pointer hover:bg-[var(--ag-rgba-051729-04)]",
+                                        : "cursor-pointer hover:bg-accent",
                                 )}
                                 onClick={() => {
                                     if (!isDisabled) onSelect(item)
@@ -218,7 +218,7 @@ function ChildPanelContent({
                                     tabIndex={-1}
                                     className="pointer-events-none"
                                 />
-                                <span className="truncate text-sm" title={label}>
+                                <span className="truncate text-label" title={label}>
                                     {labelNode ?? label}
                                 </span>
                             </div>
@@ -274,7 +274,7 @@ function SelectedChildChips({
             {chips.map((chip) => (
                 <span
                     key={chip.id}
-                    className="inline-flex items-center gap-1 rounded bg-[var(--ag-rgba-051729-06)] px-1.5 py-0.5 text-[12px] leading-none"
+                    className="inline-flex items-center gap-1 rounded bg-secondary px-1.5 py-0.5 text-meta leading-none"
                 >
                     {chip.label}
                     <X
@@ -758,7 +758,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     const content = (
         <div className="flex flex-col" data-testid={POPOVER_CASCADER_TEST_IDS.content}>
             {/* HEADER ROW: Search + Action Button */}
-            <div className="flex items-center gap-2 p-2 pb-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
+            <div className="flex items-center gap-2 p-2 pb-2 border-0 border-b border-solid border-border-muted">
                 <div className="flex-1">
                     <SearchInput
                         value={searchTerm}
@@ -782,14 +782,14 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                     value={activeTabKey}
                     onValueChange={setActiveTabKey}
                     className={cn(
-                        "border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]",
+                        "border-0 border-b border-solid border-border-muted",
                     )}
                 >
                     {/* Tab bar only — the panels below are rendered outside Tabs, so there is
                         no TabsContent. gap-4 = antd tabBarGutter 16. */}
                     <TabsList className="mb-0 gap-4 border-b-0 px-3">
                         {tabs.map((tab) => (
-                            <TabsTrigger key={tab.key} value={tab.key} className="py-2 text-xs">
+                            <TabsTrigger key={tab.key} value={tab.key} className="py-2 text-meta">
                                 {tab.label}
                             </TabsTrigger>
                         ))}
@@ -802,13 +802,13 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                 {/* ROOT PANEL */}
                 <div
                     data-testid={POPOVER_CASCADER_TEST_IDS.rootPanel}
-                    className="flex flex-col border-0 border-r border-solid border-[var(--ag-rgba-051729-06)]"
+                    className="flex flex-col border-0 border-r border-solid border-border-muted"
                     style={panelStyle}
                 >
                     {/* Selection summary */}
                     {selectionSummaryText ? (
-                        <div className="px-3 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-05172905)] h-8 flex items-center justify-between">
-                            <span className="text-colorTextSecondary text-[12px]">
+                        <div className="px-3 py-2 border-0 border-b border-solid border-border-muted bg-muted h-8 flex items-center justify-between">
+                            <span className="text-muted-foreground text-meta">
                                 {selectionSummaryText}
                             </span>
                             {onClearAll && (selectedChildIds?.size ?? 0) > 0 && (
@@ -816,7 +816,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                                     type="button"
                                     variant="link"
                                     size="sm"
-                                    className="h-auto p-0 text-[12px]"
+                                    className="h-auto p-0 text-meta"
                                     onClick={onClearAll}
                                 >
                                     {t("entityUi.selection.clearAll")}
@@ -845,11 +845,11 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                                         <div key={groupKey}>
                                             {showGroupHeaders && (
                                                 <div className="flex items-center gap-2 px-2 pt-2 pb-1">
-                                                    <span className="text-[12px] font-medium text-colorTextDescription">
+                                                    <span className="text-meta font-medium text-muted-foreground">
                                                         {rootLevel.getGroupLabel?.(groupKey) ??
                                                             groupKey}
                                                     </span>
-                                                    <div className="flex-1 h-px bg-[var(--ag-rgba-051729-06)]" />
+                                                    <div className="flex-1 h-px bg-secondary" />
                                                 </div>
                                             )}
                                             {items.map((item) => (
@@ -866,10 +866,10 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                                     <div>
                                         {showGroupHeaders && groupedItems.groups.size > 0 && (
                                             <div className="flex items-center gap-2 px-2 pt-2 pb-1">
-                                                <span className="text-[12px] font-medium text-colorTextDescription">
+                                                <span className="text-meta font-medium text-muted-foreground">
                                                     Other
                                                 </span>
-                                                <div className="flex-1 h-px bg-[var(--ag-rgba-051729-06)]" />
+                                                <div className="flex-1 h-px bg-secondary" />
                                             </div>
                                         )}
                                         {groupedItems.ungrouped.map((item) => (

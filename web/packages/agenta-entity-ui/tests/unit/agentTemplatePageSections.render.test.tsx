@@ -117,7 +117,7 @@ describe("AgentTemplateSectionList on the Configuration page", () => {
         act(() =>
             root.render(createElement(SectionListLayoutContext.Provider, {value: "page"}, file)),
         )
-        const bold = [...container.querySelectorAll(".font-semibold")].map((e) => e.textContent)
+        const bold = [...container.querySelectorAll(".text-subtitle")].map((e) => e.textContent)
         expect(bold).toEqual(["Role", "Guardrails"])
         expect(container.textContent).toContain("AGENTS.md")
         expect(container.textContent).toContain("You triage tickets.")
@@ -135,7 +135,7 @@ describe("AgentTemplateSectionList on the Configuration page", () => {
                 ),
             ),
         )
-        expect(container.querySelectorAll(".rounded-\\[10px\\]").length).toBe(6)
+        expect(container.querySelectorAll(".rounded-lg.border").length).toBe(6)
     })
 
     it("keeps the accordion without the page layout", () => {

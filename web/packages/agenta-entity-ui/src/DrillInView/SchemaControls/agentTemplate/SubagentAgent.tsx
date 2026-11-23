@@ -57,7 +57,7 @@ export function SubagentOpenAgentButton({
         <Button
             variant="ghost"
             size="compact"
-            className="gap-1.5 text-colorTextSecondary max-md:h-11 [&_svg]:size-3"
+            className="gap-1.5 text-muted-foreground [&_svg]:size-3"
             asChild
         >
             {/* no-underline: a bare anchor picks up the app's link styling inside a button. */}

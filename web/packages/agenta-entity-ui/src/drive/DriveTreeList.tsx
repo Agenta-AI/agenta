@@ -25,7 +25,7 @@ const Text = ({
     children,
     ...rest
 }: React.HTMLAttributes<HTMLSpanElement> & {type?: "secondary"}) => (
-    <span className={`text-colorTextSecondary ${className ?? ""}`} {...rest}>
+    <span className={`text-muted-foreground ${className ?? ""}`} {...rest}>
         {children}
     </span>
 )
@@ -94,7 +94,7 @@ export function DriveTreeList({
     return flatRows.length === 0 ? (
         <>
             {rootRow}
-            <Text type="secondary" className="px-2 !text-xs">
+            <Text type="secondary" className="px-2 !text-meta">
                 {searchLoading
                     ? t("entityUi.driveBrowser.searching")
                     : t("entityUi.driveBrowser.noMatches")}
@@ -135,7 +135,7 @@ export function DriveTreeList({
                             ref={measureRow}
                             className={
                                 drop.hoverPath === node.path
-                                    ? "rounded bg-[var(--ant-color-primary-bg)]"
+                                    ? "rounded-md bg-selected"
                                     : undefined
                             }
                             style={{

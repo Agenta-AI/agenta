@@ -99,13 +99,13 @@ const SecretFormViewBody = ({params}: ViewProps<SecretFormViewParams>) => {
 
     return (
         <div className="flex flex-col gap-4 px-4 py-3">
-            <p className="m-0 text-xs text-colorTextSecondary">
+            <p className="m-0 text-meta text-muted-foreground">
                 {t("settings.secretFormSheet.description")}
             </p>
             <SecretForm controller={controller} />
             {askOwner ? (
                 <div className="flex flex-col gap-1">
-                    <span className="font-medium text-colorText">{ACCOUNT_COPY.whoCanUseIt}</span>
+                    <span className="font-medium text-foreground">{ACCOUNT_COPY.whoCanUseIt}</span>
                     <OwnerRadioGroup<SecretOwner>
                         value={owner}
                         onChange={setOwner}

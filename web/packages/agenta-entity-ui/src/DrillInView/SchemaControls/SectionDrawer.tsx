@@ -12,9 +12,15 @@ import {type ReactNode, useCallback, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
-import {EnhancedModal} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button} from "@agenta/ui/ui"
+import {
+    Button,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@agenta/ui/ui"
 
 import {FormDrawerSkeleton} from "./DrawerSkeletons"
 import {SectionDrawerPanelContext} from "./sectionDrawerPanel"
@@ -71,7 +77,7 @@ export function SectionDrawer({
                 title={
                     <div className="flex min-w-0 items-center gap-2">
                         {icon ? <span className="flex shrink-0 items-center">{icon}</span> : null}
-                        <span className="truncate text-sm font-medium">{title}</span>
+                        <span className="truncate text-label font-medium">{title}</span>
                     </div>
                 }
                 footer={
@@ -92,39 +98,44 @@ export function SectionDrawer({
                     {children}
                 </SectionDrawerPanelContext.Provider>
             </EnhancedDrawer>
-            <EnhancedModal
+            <Dialog
                 open={confirmOpen}
-                onCancel={() => setConfirmOpen(false)}
-                title={t("entityUi.configItems.unsavedChanges")}
-                width={420}
-                footer={
-                    <div className="flex items-center justify-end gap-2">
-                        <Button variant="outline" onClick={() => setConfirmOpen(false)}>
-                            {t("entityUi.configItems.keepEditing")}
-                        </Button>
-                        <Button
-                            variant="destructive-outline"
-                            onClick={() => {
-                                setConfirmOpen(false)
-                                onCancel()
-                            }}
-                        >
-                            {t("entityUi.configItems.discard")}
-                        </Button>
-                        <Button
-                            disabled={disabled}
-                            onClick={() => {
-                                setConfirmOpen(false)
-                                onSave()
-                            }}
-                        >
-                            {t("entityUi.configItems.saveChanges")}
-                        </Button>
-                    </div>
-                }
+                onOpenChange={(next) => {
+                    if (!next) setConfirmOpen(false)
+                }}
             >
-                <p className="text-sm">{t("entityUi.configItems.saveOrDiscardDraft")}</p>
-            </EnhancedModal>
+                <DialogContent className="max-w-[420px]">
+                    <DialogHeader>
+                        <DialogTitle>{t("entityUi.configItems.unsavedChanges")}</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-body">{t("entityUi.configItems.saveOrDiscardDraft")}</p>
+                    <DialogFooter>
+                        <div className="flex items-center justify-end gap-2">
+                            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+                                {t("entityUi.configItems.keepEditing")}
+                            </Button>
+                            <Button
+                                variant="destructive-ghost"
+                                onClick={() => {
+                                    setConfirmOpen(false)
+                                    onCancel()
+                                }}
+                            >
+                                {t("entityUi.configItems.discard")}
+                            </Button>
+                            <Button
+                                disabled={disabled}
+                                onClick={() => {
+                                    setConfirmOpen(false)
+                                    onSave()
+                                }}
+                            >
+                                {t("entityUi.configItems.saveChanges")}
+                            </Button>
+                        </div>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     )
 }

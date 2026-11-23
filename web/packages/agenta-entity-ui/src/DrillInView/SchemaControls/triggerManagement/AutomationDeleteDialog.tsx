@@ -64,7 +64,7 @@ export const AutomationDeleteDialog = ({
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 {failed ? (
-                    <p role="alert" className="m-0 text-[13px] text-destructive">
+                    <p role="alert" className="m-0 text-label text-destructive">
                         {t("automations.panel.deleteFailed")}
                     </p>
                 ) : null}

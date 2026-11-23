@@ -67,9 +67,9 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
 
     if (!entry) {
         return (
-            <div className="flex flex-col items-start gap-3 px-4 py-6 text-sm">
+            <div className="flex flex-col items-start gap-3 px-4 py-6 text-label">
                 <ViewTitle title={params.item.key.replace(/^@slug:/, "")} />
-                <span className="text-colorTextSecondary">
+                <span className="text-muted-foreground">
                     {t("entityUi.subagentViews.removedState")}
                 </span>
                 <Button variant="outline" size="sm" onClick={nav.cancel}>
