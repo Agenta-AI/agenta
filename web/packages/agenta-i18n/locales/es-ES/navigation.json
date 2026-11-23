@@ -81,5 +81,21 @@
     "settings.tools": "Herramientas",
     "settings.watchWalkthrough": "Ver el tutorial",
     "settings.webhooks": "Webhooks",
-    "settings.workspace": "Miembros"
+    "settings.workspace": "Miembros",
+    "arrange.more": "Más",
+    "arrange.morePages": "Más páginas",
+    "arrange.pinPage": "Fijar {{title}} en la barra lateral",
+    "arrange.pinToSidebar": "Fijar en la barra lateral",
+    "arrange.allVisible": "Todas las páginas están en la barra lateral.",
+    "arrange.reset": "Restablecer valores predeterminados",
+    "arrange.dropToHide": "Suelta aquí para ocultar",
+    "arrange.keepOne": "Deja al menos una página aquí",
+    "arrange.movedToMore": "{{title}} se movió a Más.",
+    "arrange.backInSidebar": "{{title}} vuelve a estar en la barra lateral.",
+    "arrange.orderUpdated": "Orden de la barra lateral actualizado.",
+    "arrange.resetDone": "La barra lateral volvió a los valores predeterminados.",
+    "arrange.undo": "Deshacer",
+    "items.sessionWaiting": "Esperándote",
+    "items.sessionLive": "En curso",
+    "chrome.backFrom": "Volver desde {{label}}"
 }

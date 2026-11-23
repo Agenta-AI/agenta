@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState, type ReactNode} from "react"
+import {useCallback, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -8,6 +8,7 @@ import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {
     ArrowLeft,
     ArrowsLeftRight,
+    CaretDown,
     CaretRight,
     CaretUpDown,
     Check,
@@ -50,8 +51,12 @@ export interface ProjectOrgSwitcherViewProps {
     panelContainer?: HTMLElement | null
     /** Theme fly-out row above logout — omit and no theme control renders. */
     theme?: SwitcherThemeControl
-    /** Rendered beside the trigger on the expanded rail — the desktop's help menu button. */
+    /** Rendered beside the trigger on the expanded rail. */
     trailing?: ReactNode
+    /** Where the panel opens: "bottom" when the switcher sits in the rail's header. */
+    side?: "top" | "bottom"
+    /** The header's compact trigger, with the panel as wide as the rail. On by default for "bottom". */
+    compact?: boolean
     /** Quiet text inside the expanded trigger, before the caret (the app version). */
     triggerMeta?: ReactNode
     /** Optional rows — absent handlers render nothing, so a shell offers what it supports. */
@@ -64,7 +69,7 @@ export interface ProjectOrgSwitcherViewProps {
 type Panel = "projects" | "orgs"
 
 export const ROW_CLASS =
-    "flex w-full items-center gap-2 h-8 px-2 rounded-md text-sm leading-none text-left cursor-pointer border-0 bg-transparent [font-family:inherit] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-colorPrimary text-colorText hover:bg-colorFillTertiary transition-colors"
+    "flex w-full items-center gap-2 h-8 px-2 rounded-[6px] text-sm leading-none text-left cursor-pointer border-0 bg-transparent [font-family:inherit] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-colorPrimary text-colorText hover:bg-colorFillSecondary transition-colors"
 
 /** shrink-0 stops the capped scroll list from compressing rows instead of scrolling. */
 export const ITEM_ROW_CLASS = "shrink-0"
@@ -86,6 +91,10 @@ const Row = ({
         {children}
     </button>
 )
+
+// The rule above it is drawn by the row, 8px up, so it matches the panel's own dividers.
+const LOGOUT_ROW =
+    "relative mt-[9px] !text-colorError before:pointer-events-none before:absolute before:inset-x-0 before:-top-[5px] before:h-px before:bg-colorBorderSecondary before:content-['']"
 
 /** Theme picker as a hover fly-out row; the Preferences tab offers the same choices. */
 const ThemeFlyout = ({
@@ -168,6 +177,8 @@ export const ProjectOrgSwitcherView = ({
     panelContainer,
     theme,
     trailing,
+    side = "top",
+    compact: compactProp,
     triggerMeta,
     onCreateProject,
     onCreateOrg,
@@ -175,13 +186,22 @@ export const ProjectOrgSwitcherView = ({
     onLogout,
 }: ProjectOrgSwitcherViewProps) => {
     const t = useT(navigationCatalog, commonCatalog)
+    const compact = compactProp ?? side === "bottom"
     const [open, setOpen] = useState(false)
     const [panel, setPanel] = useState<Panel>("projects")
+    const rowRef = useRef<HTMLDivElement>(null)
+    const [headerWidth, setHeaderWidth] = useState<number>()
 
-    const handleOpenChange = useCallback((next: boolean) => {
-        setOpen(next)
-        if (!next) setPanel("projects")
-    }, [])
+    const handleOpenChange = useCallback(
+        (next: boolean) => {
+            // In the header the panel spans the rail, 8px in from each side, as the trigger is.
+            if (next && compact && !collapsed && rowRef.current)
+                setHeaderWidth(rowRef.current.offsetWidth - 16)
+            setOpen(next)
+            if (!next) setPanel("projects")
+        },
+        [collapsed, compact],
+    )
 
     const close = useCallback(() => {
         setOpen(false)
@@ -216,7 +236,7 @@ export const ProjectOrgSwitcherView = ({
                 {theme && <ThemeFlyout theme={theme} container={panelContainer} />}
                 {onLogout && (
                     <Row
-                        className="!text-colorError"
+                        className={LOGOUT_ROW}
                         onClick={() => {
                             close()
                             onLogout()
@@ -284,7 +304,7 @@ export const ProjectOrgSwitcherView = ({
                 {theme && <ThemeFlyout theme={theme} container={panelContainer} />}
                 {onLogout && (
                     <Row
-                        className="!text-colorError"
+                        className={LOGOUT_ROW}
                         onClick={() => {
                             close()
                             onLogout()
@@ -301,11 +321,11 @@ export const ProjectOrgSwitcherView = ({
 
     return (
         <div
+            ref={rowRef}
             className={clsx(
-                // Same 300ms the rail itself uses (SidebarShell): without it this box jumps to its
-                // collapsed geometry on the first frame while the rail is still sliding, and the
-                // switcher reads as a separate, badly-timed element rather than part of the rail.
-                "flex gap-1 px-2 pb-2 transition-all duration-300",
+                "flex gap-1 px-2",
+                side === "bottom" ? "h-12 shrink-0" : "pb-1.5",
+                compact && "justify-between",
                 // No top pad: the bottom nav already ends with its own spacing above the switcher.
                 collapsed ? "flex-col items-center" : "w-full items-center",
             )}
@@ -319,29 +339,37 @@ export const ProjectOrgSwitcherView = ({
                         type="button"
                         data-project-org-switcher
                         className={clsx(
-                            // Borderless at rest; the hover fill is the affordance. `transition-all`
-                            // (not just colors) so the width/padding swap below travels with the
-                            // rail rather than snapping ahead of it.
-                            "flex cursor-pointer items-center rounded-md border-0 bg-transparent transition-all duration-300 hover:bg-colorFillTertiary",
+                            // Borderless at rest; the hover fill is the affordance.
+                            "flex cursor-pointer items-center rounded-[6px] border-0 bg-transparent transition-colors duration-150 hover:bg-colorFillTertiary",
                             // pl-2.5 tucks the wider avatar 2px left of the nav rows' icon column.
                             collapsed
                                 ? "size-7 justify-center p-0"
-                                : "h-10 min-w-0 flex-1 gap-3 pl-2.5 pr-1",
+                                : compact
+                                  ? "h-7 min-w-0 max-w-[196px] gap-2 pl-2.5 pr-3"
+                                  : "h-10 min-w-0 flex-1 gap-3 pl-2.5 pr-1",
                         )}
                         title={`${projectLabel} · ${orgLabel}`}
                     >
-                        {/* The design's workspace mark: radius 5, a 10 px semibold initial. */}
+                        {/* The design's workspace mark: a 10 px semibold initial. */}
                         <InitialsAvatar
                             size="small"
                             name={projectLabel}
-                            className="shrink-0 !rounded-[5px] !text-[10px] !font-semibold"
+                            className={clsx(
+                                "shrink-0 !text-[10px] !font-semibold",
+                                compact ? "!size-5 !rounded" : "!rounded-[5px]",
+                            )}
                         />
                         {/* One line, not two: the org already names itself on the panel's
                             caption, and stacking it here made the rail's shortest row its
                             tallest. */}
                         {!collapsed && (
                             <>
-                                <span className="min-w-0 flex-1 truncate text-left text-sm leading-5 text-colorText">
+                                <span
+                                    className={clsx(
+                                        "min-w-0 truncate text-left text-sm leading-5 text-colorText",
+                                        compact ? "font-medium" : "flex-1",
+                                    )}
+                                >
                                     {projectLabel}
                                 </span>
                                 {triggerMeta ? (
@@ -349,10 +377,20 @@ export const ProjectOrgSwitcherView = ({
                                         {triggerMeta}
                                     </span>
                                 ) : null}
-                                <CaretUpDown
-                                    size={14}
-                                    className="shrink-0 text-[var(--ag-zinc-8)]"
-                                />
+                                {compact ? (
+                                    <CaretDown
+                                        size={12}
+                                        className={clsx(
+                                            "shrink-0 text-colorTextSecondary",
+                                            side === "top" && "rotate-180",
+                                        )}
+                                    />
+                                ) : (
+                                    <CaretUpDown
+                                        size={14}
+                                        className="shrink-0 text-[var(--ag-zinc-8)]"
+                                    />
+                                )}
                             </>
                         )}
                     </button>
@@ -360,13 +398,15 @@ export const ProjectOrgSwitcherView = ({
                 {/* A popover, not a menu: the panels hold scrollable lists, and a Radix menu's
                     pointer handling swallows touch scrolling. Docked at the rail's bottom-left
                     edge: open upward, left-aligned, so the panel never clips the viewport's
-                    left edge. Width matches the expanded trigger. */}
+                    left edge. In the header it opens below, as wide as the rail. */}
                 <PopoverContent
                     container={panelContainer}
                     onOpenAutoFocus={(event) => event.preventDefault()}
-                    side="top"
+                    side={side}
                     align="start"
-                    className="z-[2000] w-[220px] overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
+                    sideOffset={side === "bottom" ? 4 : undefined}
+                    style={compact && !collapsed ? {width: headerWidth} : undefined}
+                    className="z-[2000] w-[220px] overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
                 >
                     {panel === "projects" ? projectPanel : orgPanel}
                 </PopoverContent>

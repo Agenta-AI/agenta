@@ -8,7 +8,6 @@ import {sidebarOpenGroupsAtomFamily, sidebarSessionSearchOpenAtom} from "@agenta
 import {SidebarLayoutContext, SidebarShell} from "@agenta/navigation-ui"
 import {SidebarSheet, useIsPhone} from "@agenta/ui/phone"
 import {Button, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger} from "@agenta/ui/ui"
-import {ListBullets} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -118,12 +117,23 @@ export const NavDrawer = ({
             variant="ghost"
             size="icon-compact"
             aria-label={label}
-            // The canvas menu button (M01, M02, M13): a list glyph in secondary text, 44 x 44 with
+            // The canvas menu button (M01, M02, M13): a panel-with-lines glyph in secondary text, 44 x 44 with
             // radius 8 and a 20 px glyph on a phone (the size gives it). From md, where it is
             // 28 px, the ::after reaches 8 px past each edge for the touch target.
             className="relative md:after:absolute md:after:-inset-2 md:after:content-[''] lg:hidden"
         >
-            <ListBullets />
+            <svg
+                aria-hidden
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.75}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            >
+                <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+                <path d="M6.5 8.5h4M6.5 12h4M6.5 15.5h4" />
+            </svg>
         </Button>
     )
 

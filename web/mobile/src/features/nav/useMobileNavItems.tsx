@@ -80,6 +80,7 @@ import {AgentsNavAction} from "./AgentsNavAction"
 import {AgentsQuickPanel} from "./AgentsQuickPanel"
 import {developerNavSlots, PROMPTS_ROW_KEY} from "./developerNavSlots"
 import {useSyncLocalSessionRefs} from "./localSessionRefs"
+import {SupportActions} from "./SupportActions"
 
 /** Outside React: the row-level labels the entity registry builds at call time. */
 const tNow = createT(navigationCatalog)
@@ -280,7 +281,17 @@ export const usePaletteShortcut = () => {
  * to the screens mobile has. Entries appear here as their screens land; nothing is hidden by
  * forking a component.
  */
-export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
+export interface MobileNavItems {
+    /** Pinned above the arranged pages. */
+    builder: SidebarConfig
+    /** The pages the user arranges, in their default order. */
+    pages: SidebarConfig[]
+    sessions: SidebarConfig
+    /** The pages that start in "More". */
+    defaultHidden: ReadonlySet<string>
+}
+
+export const useMobileNavItems = (projectURL: string): MobileNavItems => {
     const t = useT(navigationCatalog)
     const tBuilder = useT(builderPageCatalog)
     // Sessions this client created ride the shared local seam until the server lists them.
@@ -292,16 +303,15 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     const needNextPage = useAtomValue(sidebarSessionsNeedNextPageAtomFamily(MOBILE_NAV_SCOPE_ID))
     // Read so the effect runs again after each page, also when a page came from the cache and
     // the answer stayed true.
-    const pages = useAtomValue(sidebarSessionPageCountAtomFamily(MOBILE_NAV_SCOPE_ID))
+    const sessionPages = useAtomValue(sidebarSessionPageCountAtomFamily(MOBILE_NAV_SCOPE_ID))
     useEffect(() => {
         if (needNextPage) loadMoreSessions()
-    }, [needNextPage, pages, loadMoreSessions])
+    }, [needNextPage, sessionPages, loadMoreSessions])
     const groups = useAtomValue(sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID))
     // MEMOIZED, and load-bearing: `withEntityGroups` spreads into a new object, so an unmemoized
     // call changes identity on every render — which busts the memo below, re-buckets every row,
     // and hands `NavMenu` a new items array that defeats its own memo.
     const source = useMemo(() => withEntityGroups(rawSource, groups), [rawSource, groups])
-    const paletteShortcut = usePaletteShortcut()
     const developerViews = useEnabledDeveloperViews()
     const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
     const wrapSession = useRailSessionRowWrapper(projectURL)
@@ -332,24 +342,28 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
         [developerMode, developerViews, projectURL, promptsSource, t],
     )
 
-    return useMemo(
-        () => [
+    const builder = useMemo<SidebarConfig>(
+        () => ({
+            key: "mobile-builder",
+            title: tBuilder("builder.page.builder"),
+            icon: createElement(BuilderIcon, {size: 16}),
+            link: `${projectURL}/builder`,
+            // After "Back" on a new chat the link goes nowhere new, so the click itself
+            // brings the builder sidebar back.
+            onClick: showBuilderSidebar,
+        }),
+        [projectURL, tBuilder],
+    )
+
+    const {pages, defaultHidden} = useMemo(() => {
+        const developerRows = [...developerSlots.afterHome, ...developerSlots.afterSessions]
+        const list: SidebarConfig[] = [
             {
                 key: "mobile-home",
                 title: t("navigation.items.home"),
                 icon: createElement(HouseIcon, {size: 16}),
                 link: `${projectURL}/apps`,
             },
-            {
-                key: "mobile-builder",
-                title: tBuilder("builder.page.builder"),
-                icon: createElement(BuilderIcon, {size: 16}),
-                link: `${projectURL}/builder`,
-                // After "Back" on a new chat the link goes nowhere new, so the click itself
-                // brings the builder sidebar back.
-                onClick: showBuilderSidebar,
-            },
-            ...developerSlots.afterHome,
             {
                 key: AGENTS_SIDEBAR_KEY,
                 title: t("navigation.items.agents"),
@@ -381,50 +395,46 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 link: `${projectURL}/skills`,
             },
             {
-                key: SESSIONS_SIDEBAR_KEY,
-                title: t("navigation.items.sessions"),
-                icon: createElement(ChatsIcon, {size: 16}),
-                link: `${projectURL}/sessions`,
-                hideChildrenWhenCollapsed: true,
-                // No collapse caret here: the filter control is this group's affordance, and the
-                // rows are grouped and individually collapsible already.
-                alwaysOpen: true,
-                // The rail does not scroll; THIS group does. Sessions is the only list that grows
-                // without bound, so Observability (and whatever lands after it) stays on screen.
-                scrollChildren: true,
-                onReachEnd: loadMoreSessions,
-                // Search reaches past what the rail lists; the filter narrows it. Same pair,
-                // same order, as the desktop rail.
-                groupAction: createElement(
-                    "span",
-                    {className: "flex items-center gap-0.5"},
-                    createElement(SessionSearchButton, {
-                        label: t("navigation.items.search"),
-                        shortcut: paletteShortcut,
-                    }),
-                    createElement(SessionFilterMenu, {scopeId: MOBILE_NAV_SCOPE_ID}),
-                ),
-                submenu: resolveChildren(
-                    mobileSessionsEntity,
-                    source,
-                    projectURL,
-                    undefined,
-                    undefined,
-                    wrapSessionRow,
-                ),
+                key: "mobile-templates",
+                title: t("navigation.items.templates"),
+                icon: createElement(SquaresFourIcon, {size: 16}),
+                link: `${projectURL}/templates`,
             },
-            ...developerSlots.afterSessions,
-        ],
-        [
-            loadMoreSessions,
-            source,
-            projectURL,
-            wrapSessionRow,
-            paletteShortcut,
-            developerSlots,
-            t,
-            tBuilder,
-        ],
+            ...developerRows,
+        ]
+        // Templates and the developer pages start in "More".
+        const hidden = new Set(["mobile-templates", ...developerRows.map((row) => row.key)])
+        return {pages: list, defaultHidden: hidden}
+    }, [developerSlots, projectURL, t])
+
+    const sessions = useMemo<SidebarConfig>(
+        () => ({
+            key: SESSIONS_SIDEBAR_KEY,
+            title: t("navigation.items.sessions"),
+            icon: createElement(ChatsIcon, {size: 16}),
+            link: `${projectURL}/sessions`,
+            hideChildrenWhenCollapsed: true,
+            // No caret: the filter is this group's control.
+            alwaysOpen: true,
+            // The rail does not scroll; THIS group does, so the footer stays on screen.
+            scrollChildren: true,
+            onReachEnd: loadMoreSessions,
+            groupAction: createElement(SessionFilterMenu, {scopeId: MOBILE_NAV_SCOPE_ID}),
+            submenu: resolveChildren(
+                mobileSessionsEntity,
+                source,
+                projectURL,
+                undefined,
+                undefined,
+                wrapSessionRow,
+            ),
+        }),
+        [loadMoreSessions, source, projectURL, wrapSessionRow, t],
+    )
+
+    return useMemo(
+        () => ({builder, pages, sessions, defaultHidden}),
+        [builder, pages, sessions, defaultHidden],
     )
 }
 
@@ -434,7 +444,7 @@ const versionAtom = unwrap(atom(async () => (await import("../../../package.json
 
 export const useMobileVersion = () => useAtomValue(versionAtom)
 
-/** Templates and Settings (not in the settings scope), plus Invite Teammate in beta developer mode. */
+/** Settings with live chat and help (not in the settings scope), plus Invite Teammate in beta developer mode. */
 export const useMobileBottomNavItems = (
     projectURL: string,
     {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
@@ -464,17 +474,11 @@ export const useMobileBottomNavItems = (
                 : [],
         [canInvite, developerMode, projectURL, t],
     )
-    const items = useMemo(
+    const items = useMemo<SidebarConfig[]>(
         () =>
-            // The settings scope drops them: the rail IS settings there.
+            // The settings scope drops it: the rail IS settings there.
             includeSettingsLink
                 ? [
-                      {
-                          key: "mobile-templates",
-                          title: t("navigation.items.templates"),
-                          icon: createElement(SquaresFourIcon, {size: 16}),
-                          link: `${projectURL}/templates`,
-                      },
                       {
                           key: "mobile-settings",
                           title: t("common.settings"),
@@ -483,14 +487,15 @@ export const useMobileBottomNavItems = (
                           suffix: version
                               ? createElement(
                                     "span",
-                                    {className: "text-[12px] leading-4 text-colorTextTertiary"},
+                                    {className: "text-[10px] leading-none text-colorTextTertiary"},
                                     `v${version}`,
                                 )
                               : undefined,
+                          trailing: createElement(SupportActions, {projectId}),
                       },
                   ]
                 : [],
-        [includeSettingsLink, projectURL, version, t],
+        [includeSettingsLink, projectId, projectURL, version, t],
     )
     return useMemo(
         () => (inviteItems.length ? [...items, ...inviteItems] : items),
@@ -499,9 +504,7 @@ export const useMobileBottomNavItems = (
 }
 
 /**
- * Help & Docs as an item the rail renders as an icon button beside the project switcher, the
- * same place the desktop rail puts it. It is a menu you reach for, not a place in the product,
- * and the row it held was the widest thing in the rail's footer.
+ * Help & Docs as an icon button on the Settings row: a menu you reach for, not a place.
  */
 export const useMobileHelpItem = ({
     onOpenShortcuts,

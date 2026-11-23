@@ -81,5 +81,21 @@
     "settings.tools": "ツール",
     "settings.watchWalkthrough": "ウォークスルーを見る",
     "settings.webhooks": "Webhook",
-    "settings.workspace": "メンバー"
+    "settings.workspace": "メンバー",
+    "arrange.more": "その他",
+    "arrange.morePages": "その他のページ",
+    "arrange.pinPage": "{{title}} をサイドバーに固定",
+    "arrange.pinToSidebar": "サイドバーに固定",
+    "arrange.allVisible": "すべてのページがサイドバーにあります。",
+    "arrange.reset": "デフォルトに戻す",
+    "arrange.dropToHide": "ここにドロップして非表示",
+    "arrange.keepOne": "1 ページは残してください",
+    "arrange.movedToMore": "{{title}} を「その他」に移動しました。",
+    "arrange.backInSidebar": "{{title}} をサイドバーに戻しました。",
+    "arrange.orderUpdated": "サイドバーの順序を更新しました。",
+    "arrange.resetDone": "サイドバーをデフォルトに戻しました。",
+    "arrange.undo": "元に戻す",
+    "items.sessionWaiting": "あなたの操作待ち",
+    "items.sessionLive": "実行中",
+    "chrome.backFrom": "{{label}} から戻る"
 }

@@ -81,5 +81,21 @@
     "settings.tools": "Werkzeuge",
     "settings.watchWalkthrough": "Einführung ansehen",
     "settings.webhooks": "Webhooks",
-    "settings.workspace": "Mitglieder"
+    "settings.workspace": "Mitglieder",
+    "arrange.more": "Mehr",
+    "arrange.morePages": "Weitere Seiten",
+    "arrange.pinPage": "{{title}} an die Seitenleiste anheften",
+    "arrange.pinToSidebar": "An die Seitenleiste anheften",
+    "arrange.allVisible": "Alle Seiten sind in der Seitenleiste.",
+    "arrange.reset": "Auf Standard zurücksetzen",
+    "arrange.dropToHide": "Hier ablegen zum Ausblenden",
+    "arrange.keepOne": "Mindestens eine Seite behalten",
+    "arrange.movedToMore": "{{title}} wurde nach „Mehr“ verschoben.",
+    "arrange.backInSidebar": "{{title}} ist wieder in der Seitenleiste.",
+    "arrange.orderUpdated": "Reihenfolge der Seitenleiste aktualisiert.",
+    "arrange.resetDone": "Seitenleiste auf Standard zurückgesetzt.",
+    "arrange.undo": "Rückgängig",
+    "items.sessionWaiting": "Wartet auf dich",
+    "items.sessionLive": "Aktiv",
+    "chrome.backFrom": "Zurück aus {{label}}"
 }

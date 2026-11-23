@@ -5,10 +5,10 @@ import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import phoneCatalog from "@agenta/i18n/catalogs/ui.phone"
 import {sidebarCollapsedAtom} from "@agenta/navigation"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
-import {Sidebar, X} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 import type {PrimitiveAtom} from "jotai"
+import {PanelLeft, X} from "lucide-react"
 
 import {SidebarLayoutContext} from "./sidebarLayout"
 
@@ -37,13 +37,8 @@ export const SidebarToggleButton = ({
             type="text"
             size="small"
             className={clsx(
-                // A 28px square, the same box the rail's icon rows use, so the one control above
-                // the list is as easy to hit as the rows under it. It was 22 with a -3px ::after
-                // extending only the POINTER area, which left a hover fill visibly smaller than
-                // the thing you were pointing at.
-                // The secondary ink, as the design draws the rail's icon buttons.
+                // A 28px square, the same box the rail's icon rows use.
                 "shrink-0 !size-7 !rounded-sm !p-0 !text-colorTextSecondary hover:!text-colorText",
-                // The phone sheet's close is a 44 px target (the sheet sets it) with a 20 px X.
                 className,
             )}
             aria-label={
@@ -57,15 +52,9 @@ export const SidebarToggleButton = ({
             }
             icon={
                 onDismiss ? (
-                    // A size class: the button sizes any glyph without one.
                     <X className={phone ? "size-5" : "size-4"} />
                 ) : (
-                    <Sidebar
-                        className={clsx(
-                            "size-4 transition-transform",
-                            collapsed ? "rotate-180" : "",
-                        )}
-                    />
+                    <PanelLeft size={16} strokeWidth={1.75} />
                 )
             }
             onClick={() => (onDismiss ? onDismiss() : setCollapsed((c) => !c))}

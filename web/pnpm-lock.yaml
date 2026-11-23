@@ -1807,6 +1807,12 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      lucide-react:
+        specifier: ^0.479.0
+        version: 0.479.0(react@19.2.6)
+      motion:
+        specifier: ^12.0.0
+        version: 12.38.0(@emotion/is-prop-valid@0.7.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
     devDependencies:
       '@types/node':
         specifier: ^20.19.20
@@ -2766,6 +2772,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:*
         version: link:../packages/agenta-entity-ui
+      '@agenta/navigation':
+        specifier: workspace:*
+        version: link:../packages/agenta-navigation
       '@agenta/navigation-ui':
         specifier: workspace:*
         version: link:../packages/agenta-navigation-ui

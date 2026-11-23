@@ -81,5 +81,21 @@
     "settings.tools": "Tools",
     "settings.watchWalkthrough": "Watch walkthrough",
     "settings.webhooks": "Webhooks",
-    "settings.workspace": "Members"
+    "settings.workspace": "Members",
+    "arrange.more": "More",
+    "arrange.morePages": "More pages",
+    "arrange.pinPage": "Pin {{title}} to the sidebar",
+    "arrange.pinToSidebar": "Pin to the sidebar",
+    "arrange.allVisible": "Every page is in the sidebar.",
+    "arrange.reset": "Reset to default",
+    "arrange.dropToHide": "Drop here to hide",
+    "arrange.keepOne": "Keep one page here",
+    "arrange.movedToMore": "{{title}} moved to More.",
+    "arrange.backInSidebar": "{{title}} is back in the sidebar.",
+    "arrange.orderUpdated": "Sidebar order updated.",
+    "arrange.resetDone": "Sidebar reset to default.",
+    "arrange.undo": "Undo",
+    "items.sessionWaiting": "Waiting on you",
+    "items.sessionLive": "Live",
+    "chrome.backFrom": "Back from {{label}}"
 }

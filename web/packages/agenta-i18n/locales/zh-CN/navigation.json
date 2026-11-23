@@ -81,5 +81,21 @@
     "settings.tools": "工具",
     "settings.watchWalkthrough": "观看演示",
     "settings.webhooks": "Webhook",
-    "settings.workspace": "成员"
+    "settings.workspace": "成员",
+    "arrange.more": "更多",
+    "arrange.morePages": "更多页面",
+    "arrange.pinPage": "将 {{title}} 固定到侧边栏",
+    "arrange.pinToSidebar": "固定到侧边栏",
+    "arrange.allVisible": "所有页面都在侧边栏中。",
+    "arrange.reset": "恢复默认",
+    "arrange.dropToHide": "拖到此处以隐藏",
+    "arrange.keepOne": "请至少保留一个页面",
+    "arrange.movedToMore": "{{title}} 已移至“更多”。",
+    "arrange.backInSidebar": "{{title}} 已回到侧边栏。",
+    "arrange.orderUpdated": "侧边栏顺序已更新。",
+    "arrange.resetDone": "侧边栏已恢复默认。",
+    "arrange.undo": "撤销",
+    "items.sessionWaiting": "等待你处理",
+    "items.sessionLive": "进行中",
+    "chrome.backFrom": "从 {{label}} 返回"
 }
