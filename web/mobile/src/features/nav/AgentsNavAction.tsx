@@ -23,7 +23,6 @@ export const AgentsNavAction = ({base}: {base: string}) => {
             }}
         >
             <PopoverTrigger asChild>
-                {/* Shown at rest: a 14 px "+" in the quaternary ink, as the design draws it. */}
                 <button
                     type="button"
                     aria-label={t("navigation.items.newAgentOrOpen")}

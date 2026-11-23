@@ -73,7 +73,9 @@ const GROUP_CHILDREN =
 // are rail rows. No indent and no guide line, so their glyphs sit in the nav icons' own column.
 const SECTION_CHILDREN = "flex flex-col"
 // Always shown: the design draws the Agents "+" at rest, not on hover.
-const ROW_ACTION = "relative z-[1] mr-1 flex shrink-0 items-center"
+// Hidden at rest; shows on row hover or focus, while its popover is open, and on touch.
+const ROW_ACTION =
+    "relative z-[1] mr-1 flex shrink-0 items-center opacity-0 transition-opacity group-hover/navrow:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100 pointer-coarse:opacity-100"
 // Stretches the anchor over the whole row so middle-click / ctrl+click work anywhere on it.
 const LINK_CLASS =
     "!text-inherit no-underline before:absolute before:inset-0 before:content-[''] min-w-0 flex-1 truncate"
@@ -472,7 +474,7 @@ const LeafRow = memo(function LeafRow({
                 phone && `${PHONE_ROW_CLASS} mb-0`,
                 item.disabled || item.isPlaceholder ? ROW_DISABLED : ROW_INTERACTIVE,
                 selected && ROW_SELECTED,
-                item.rowAction && "pr-0",
+                item.rowAction && "group/navrow pr-0",
                 item.trailing && "pr-0",
                 item.rowClassName,
                 isControl &&
