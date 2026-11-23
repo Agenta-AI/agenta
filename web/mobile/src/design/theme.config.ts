@@ -23,7 +23,7 @@ export interface TextStyle {
 export const colors: ThemeVariable<ColorValue>[] = [
     {name: "background", value: {light: "#fefdfc", dark: "#0f0e0d"}, usage: "Main content area. The ground for every text color."},
     {name: "foreground", value: {light: "#1f1e1c", dark: "#eeecea"}, usage: "Primary text and icons (≥12:1). Also the tooltip fill and the inner focus ring. One of only two text levels."},
-    {name: "muted", value: {light: "#f8f6f4", dark: "#151412"}, usage: "Sidebar, side panels and grouped blocks. Separates an area by tone, not by a border."},
+    {name: "muted", value: {light: "#f8f6f4", dark: "#151412"}, usage: "Sidebar, the right pane and grouped blocks. Separates an area by tone, not by a border."},
     {name: "muted-foreground", value: {light: "#605d59", dark: "#9a9893"}, usage: "The second and last text level: descriptions, meta, timestamps, placeholders, inactive nav, icon buttons (≥4.5:1 on every surface)."},
     {name: "secondary", value: {light: "#1f1e1c0a", dark: "#eeecea0a"}, usage: "Fill of quiet controls: secondary button, segmented control, chips, Marks, user chat turns. Ink at 4%, so it stays one step darker than any surface it sits on, hover included."},
     {name: "accent", value: {light: "#1f1e1c0d", dark: "#eeecea0f"}, usage: "The one hover fill: rows, nav items, menu items and ghost controls. Ink at 5% (6% in dark), so hover is one step darker than the surface under it, and fills inside the row stay visible. Hover never adds a shadow."},
@@ -34,7 +34,7 @@ export const colors: ThemeVariable<ColorValue>[] = [
     {name: "scrim", value: {light: "rgba(0, 0, 0, 0.55)", dark: "rgba(0, 0, 0, 0.55)"}, usage: "Media only: the dark film behind captions and controls on images and video."},
     {name: "on-scrim", value: {light: "#ffffff", dark: "#ffffff"}, usage: "Media only: text and icons on scrim."},
     {name: "logo-ground", value: {light: "#ffffff", dark: "#ffffff"}, usage: "Media only: the white tile behind a third-party brand logo."},
-    // Data: categories and chart series only (span types, file kinds, agent avatars, chart lines). Never UI state.
+    // Data: categories and chart series only (span types, file kinds, agent Marks, chart lines). Never UI state.
     {name: "data-1", value: {light: "#4f7cac", dark: "#7ea6d4"}, usage: "Data only: first category or series."},
     {name: "data-2", value: {light: "#5b8f68", dark: "#86bd93"}, usage: "Data only: second category or series."},
     {name: "data-3", value: {light: "#b07d36", dark: "#d8ad6b"}, usage: "Data only: third category or series."},
@@ -140,7 +140,7 @@ export const sizes: ThemeVariable[] = [
     {name: "mark-md", value: "24px", usage: "Mark in list rows (default). Radius radius-md, icon 14."},
     {name: "mark-lg", value: "32px", usage: "Mark in page and dialog headers, cards. Radius radius-md, icon 16."},
     {name: "mark-xl", value: "40px", usage: "Mark in empty states. Radius radius-lg, icon 20."},
-    {name: "header-h", value: "44px", usage: "The phone header bar. Medium and expanded windows have no header bar: the page top band holds the title."},
+    {name: "header-h", value: "44px", usage: "The compact header: the one bar at the top of a compact window. Medium and expanded windows have none; the page top band holds the title."},
     {name: "sidebar-w", value: "240px", usage: "Sidebar width on medium and expanded windows."},
     {name: "sidebar-w-closed", value: "48px", usage: "Sidebar width when it is closed."},
     {name: "page-margin", value: "80px", usage: "Smallest margin on each side of the content column on medium and expanded windows. More room grows both margins equally."},

@@ -1,4 +1,5 @@
-// Writes theme.css, theme.tailwind.css, tokens.json and the DESIGN.md tables from theme.config.ts.
+// Writes theme.css, theme.tailwind.css, tokens.json and the DESIGN.md tables from theme.config.ts,
+// and rules.json (the principles and rules) from DESIGN.md for the guide.
 import {existsSync, readFileSync, writeFileSync} from "fs"
 import {dirname, resolve} from "path"
 import {fileURLToPath} from "url"
@@ -182,6 +183,54 @@ function designTables(): Record<string, string> {
     }
 }
 
+interface DesignRule {
+    id: string
+    rule: string
+    why: string
+    avoid: string
+    do: string
+    checkedBy: ("ratchet" | "lint" | "review")[]
+}
+
+/** The principles and rule tables of DESIGN.md, so the guide shows the same words. */
+function rulesJson(markdown: string): string {
+    const cells = (line: string) => line.slice(1, -1).split(" | ").map((c) => c.trim())
+    const principles = [...markdown.matchAll(/^\d+\. \*\*(.+?)\*\* (.+)$/gm)].map((m) => ({title: m[1].replace(/[.:]$/, ""), body: m[2]}))
+    const rulesPart = markdown.slice(markdown.indexOf("\n## Rules\n"), markdown.indexOf("\n## Working with the system"))
+    const checks = (label: string) =>
+        new Set([...(rulesPart.match(new RegExp(`^- ${label}[^\n]*`, "m"))?.[0] ?? "").matchAll(/`([A-Z]+-\d+)`/g)].map((m) => m[1]))
+    const ratchet = checks("Ratchet")
+    const lint = checks("ESLint")
+    const groups: {prefix: string; title: string; rules: DesignRule[]}[] = []
+    for (const section of rulesPart.split(/^### /m).slice(1)) {
+        const [title, ...lines] = section.split("\n")
+        const rows = lines.filter((l) => /^\| `[A-Z]+-\d+` \|/.test(l))
+        if (!rows.length) continue
+        const rules = rows.map((l) => {
+            const [id, rule, why, avoid, doInstead] = cells(l)
+            const bare = id.replace(/`/g, "")
+            const checkedBy: DesignRule["checkedBy"] = []
+            if (ratchet.has(bare)) checkedBy.push("ratchet")
+            if (lint.has(bare)) checkedBy.push("lint")
+            checkedBy.push("review")
+            return {id: bare, rule, why, avoid, do: doInstead, checkedBy}
+        })
+        const prefixes = new Set(rules.map((r) => r.id.split("-")[0]))
+        if (prefixes.size !== 1) throw new Error(`DESIGN.md: the "${title}" table mixes rule prefixes: ${[...prefixes].join(", ")}`)
+        rules.forEach((r, i) => {
+            const n = String(i + 1).padStart(2, "0")
+            if (!r.id.endsWith(`-${n}`)) throw new Error(`DESIGN.md: ${r.id} is out of order in "${title}"; expected ${[...prefixes][0]}-${n}`)
+        })
+        groups.push({prefix: [...prefixes][0], title: title.trim(), rules})
+    }
+    const seen = new Set<string>()
+    for (const g of groups) {
+        if (seen.has(g.prefix)) throw new Error(`DESIGN.md: the prefix ${g.prefix} is used by two tables`)
+        seen.add(g.prefix)
+    }
+    return JSON.stringify({principles, groups}, null, 4) + "\n"
+}
+
 function withTables(markdown: string): string {
     let out = markdown
     for (const [name, table] of Object.entries(designTables())) {
@@ -199,7 +248,10 @@ const outputs: [string, string][] = [
     [resolve(DESIGN, "theme.tailwind.css"), tailwindCss()],
     [resolve(DESIGN, "tokens.json"), tokensJson()],
 ]
-if (existsSync(DESIGN_MD)) outputs.push([DESIGN_MD, withTables(readFileSync(DESIGN_MD, "utf8"))])
+if (existsSync(DESIGN_MD)) {
+    const markdown = readFileSync(DESIGN_MD, "utf8")
+    outputs.push([DESIGN_MD, withTables(markdown)], [resolve(DESIGN, "rules.json"), rulesJson(markdown)])
+}
 
 const check = process.argv.includes("--check")
 let stale = 0

@@ -1,56 +1,63 @@
 # Agenta design system
 
-This file is the design system for `web/mobile` (served at `/m`), the only Agenta frontend. It says what the interface is, the rules it follows, and why. Read it before any UI change.
+The design system for `web/mobile` (served at `/m`), the only Agenta frontend. Read the Glossary, the Principles and the Rules before any UI change. Look up the rest when you need it. If a case is not covered, ask; do not invent a rule.
 
-- The text is written by hand. The value tables between `<!-- generated:…:start -->` and `<!-- generated:…:end -->` markers come from `src/design/theme.config.ts`. Run `pnpm generate:theme` to refresh them; never edit inside the markers.
-- `/m/design-system` shows the rules live, with a Do and an Avoid example built from the real components.
-- The `ui-design-rules` skill is the short checklist for agents.
+Each fact has one home:
+
+| What | Where |
+| --- | --- |
+| Values: colors, text styles, sizes, radii, shadows, motion | `src/design/theme.config.ts`. The value tables below are generated from it. |
+| Principles, rules with their reasons, patterns | This file. The rule tables are the only list of rules. |
+| A live Do and Avoid example for each rule | `/m/design-system`. The guide reads each rule's title and reason from this file. |
 
 Agenta is a workspace where people build and run AI agents. People use it all day, so the interface is quiet, dense and exact. Color marks the one thing to do. Everything else is neutral.
+
+## Glossary
+
+One word for one thing. Use these words in code, comments, docs and reviews.
+
+| Word | Means | Do not say |
+| --- | --- | --- |
+| Theme variable | A named value from `theme.config.ts`: `--muted`, `bg-muted`, `text-label`, `control-md`. `tokens.json` exports them for design tools. | token |
+| Kit | The shared components in `@agenta/ui/ui` (source `web/packages/agenta-ui/src/components/ui/`). | primitives library, shadcn folder |
+| Mark | The square tile with an icon or a letter that stands for an entity. The component is `IconTile`. | avatar, letter tile, icon tile |
+| Compact window | A window under 640px (`breakpoint-sm`). Medium is 640–1023px, expanded is 1024px and up. | phone, small screen, mobile |
+| Touch | A coarse pointer (`pointer: coarse`). It is not a window size: a tablet is touch on a medium window. | mobile |
+| Right pane | The 320px layout slot on the right of every page (`panel-side`). A drill-in on a compact window. | side panel, agent pane, right column |
+| Agent chat | A chat with the agent about the open item. It opens in the right pane. | agent pane |
+| Page top band | The 148px band at the top of a page on medium and expanded windows: the title and the page actions (`page-band`). | page header, header bar |
+| Compact header | The one 44px bar at the top of a compact window (`header-h`). | phone header, top bar |
+| Alignment line | The left edge of the page title. Content sits on it; padded boxes outdent. | grid line, gutter |
+| Hover fill | `accent`, the one fill for hover. | hover color |
 
 ## Principles
 
 1. **Theme variables name a job, not a look.** Write `bg-muted text-muted-foreground border-border-muted`. Never a hex value, a stock Tailwind color or an antd name.
 2. **Components own their size.** A caller passes `size="sm"`. Height, padding, radius, text and icon size come from the component. `className` is for layout only.
 3. **Tone separates areas, borders separate items.** An area that must stand apart gets a different surface (`muted` on `background`), not another border.
-4. **One primary action per view.** Color points at one thing: the `default` (primary) button. The brand yellow (`brand`) is only for New agent on Home. It never shares a view with a `default` button, because in dark both are yellow.
-5. **Hierarchy from weight and tone first, size last.** Ten interface styles cover the interface. Weight shows rank, never state: a control is 500 at rest, selected, open and focused.
-6. **Small screens never get bigger UI.** Below 640px the default control steps down one size, so a phone toolbar fits. Touch changes nothing about size: no bigger controls, rows, text or tap boxes on a phone or a touch screen.
-7. **Every view has four states:** loaded, empty, loading (a skeleton with the loaded layout) and error.
-8. **Quiet, not loud.** No bold text (700+), no thick lines, no large saturated fills, no heavy shadows. Weight 600 is the heaviest, and only for titles. Emphasis comes from `foreground` against `muted-foreground`.
-9. **Nothing is round.** No circles, no pills, no 50% radius, on any component. A corner radius is at most a quarter of the element's short side.
-10. **One icon per term.** Each product term (Agent, Skill, Automation, Session…) has exactly one icon, used everywhere the term appears.
-
-## Content
-
-- Sentence case everywhere: "New agent", not "New Agent".
-- A button says its action as verb + object: "Delete agent", "Reconnect Slack". Never "OK", "Submit" or "Yes".
-- A toast says the result in the past tense: "Agent published".
-- An error says what happened, what it means, and the fix: "Slack is disconnected. The token expired, so this run cannot post. Reconnect to continue." Never "Something went wrong".
-- An empty state names the thing and the first step: "No agents yet. Create an agent to automate a task you do every week."
-- Use the words users see: "connection", not "integration config"; "run", not "invocation".
-- Address the user as "you". No exclamation marks, no emoji, no ALL CAPS.
+4. **One primary action per view.** Color points at one thing: the `default` (primary) button. Everything else is quiet.
+5. **Hierarchy from weight and tone first, size last.** Weight shows rank, never state.
+6. **Quiet, not loud.** No bold text, no thick lines, no large saturated fills, no heavy shadows. Emphasis comes from `foreground` against `muted-foreground`.
+7. **The same thing looks the same everywhere.** An entity, an action or a list has one size, one label and one icon on every screen. Take it from the tables here, not from the screen you are on.
+8. **Every view has four states:** loaded, empty, loading and error.
 
 ## Color
 
-There are 23 UI colors: 12 neutrals, 7 brand colors and 4 statuses. A separate group of 7 data colors and 3 media colors serves charts, categories and media only. Each has one job. Light and dark use the same names; only the values change, so no component sets its own dark-mode color.
+There are 23 UI colors: 12 neutrals, 7 brand colors and 4 statuses. A separate group of 7 data colors and 3 media colors serves charts, categories and media only. Light and dark use the same names; only the values change.
 
-- **Surfaces.** `background` is the content area. `muted` is the sidebar, side panels and grouped blocks. `popover` is everything that floats: menus, popovers, dialogs, sheets and toasts. Tooltips invert: `foreground` fill with `background` text.
-- **Fills.** `secondary` fills quiet controls, chips and Marks. `accent` is the one hover fill. Both are translucent ink (4% and 5%, 6% for hover in dark), so they stay one step darker than whatever surface is under them, and a `secondary` fill inside a hovered row stays visible (`HOVER-01`, `HOVER-02`). `selected` marks the selected row, the active nav item and the pressed state.
+- **Surfaces.** `background` is the content area. `muted` is the sidebar, the right pane and grouped blocks. `popover` is everything that floats: menus, popovers, dialogs, sheets and toasts. Tooltips invert: `foreground` fill with `background` text.
+- **Fills.** `secondary` fills quiet controls, chips and Marks. `accent` is the hover fill. Both are translucent ink, so they stay one step darker than any surface under them. `selected` marks the selected row, the active nav item and the pressed state.
 - **Borders.** `border` for card edges, inputs and outline buttons at rest. `border-muted` for dividers inside a card or list. `border-strong` for a hovered input and for edges that carry meaning (checkbox, switch, radio).
-- **Text has two levels.** `foreground` for primary text. `muted-foreground` for everything secondary: descriptions, meta, timestamps, placeholders, inactive nav. There is no third gray. Links use `link` and are always underlined. Status text uses its status color.
+- **Text has two levels.** `foreground` for primary text. `muted-foreground` for everything secondary. There is no third gray. Links use `link` and are always underlined. Status text uses its status color.
 - **Text on a fill.** `background` on `primary` and `destructive`. `brand-foreground` on `brand`.
-- **Brand yellow is for one action.** `brand` fills only the single creation action on Home, "New agent". Publish, sign-in and billing use the default primary button (`COLOR-02`). Open work: three places still break this: the Publish button (`PublishButton`), the sign-in key, and the "recommended" plan in billing (`PlanOptionCard`).
-- **Brand colors are locked.** `primary`, `primary-hover`, `brand`, `brand-hover`, `link` and `ring` are the brand's values and do not change. In light, `primary` is ink; in dark, it is the brand yellow.
-- **Status.** `destructive`, `success`, `warning` and `info`: one color each, for the status text and icon. A badge or banner fills with the same color at 10% (`bg-success/10 text-success`). Status always has a word or an icon too (`COLOR-03`). Status colors never decorate.
-- **Destructive actions are quiet** on a page, in a toolbar and in a menu: a `destructive` label with no fill. Only the final confirm button in a dialog is solid (`ACT-03`).
-- **Tints are not new colors.** A tint is an existing color at low opacity: `bg-destructive/10`, `bg-brand/15`. Before you add a color, look for the job among these 23.
-- **Marks are neutral.** A Mark uses `secondary` with a `muted-foreground` icon or letter. Workspace and project Marks differ by letter or icon, never by color. Only the current workspace Mark takes a brand tint (`bg-brand/15`). Agent avatars are data and may use a data color (see below).
+- **Brand colors are locked.** `primary`, `primary-hover`, `brand`, `brand-hover`, `link` and `ring` do not change. In light, `primary` is ink; in dark, it is the brand yellow.
+- **Status.** `destructive`, `success`, `warning` and `info`: one color each, for status text and icons. A badge or banner fills with the same color at 10% (`bg-success/10 text-success`).
+- **Tints are not new colors.** A tint is an existing color at low opacity: `bg-destructive/10`, `bg-brand/15`.
+- **Marks are neutral.** `secondary` with a `muted-foreground` icon or letter. Only the current workspace Mark takes `bg-brand/15`. Agent Marks are data and may use a data color.
 - **Disabled** controls keep their colors at 50% opacity.
-- **The 23 UI colors do not change.** Two small groups sit next to them, each with one narrow job. They never show UI state: not hover, not selected, not status, not a button.
-- **Data colors** (`data-1` … `data-6`, text `on-data`) tell categories and chart series apart: span types, file kinds, agent avatars, template tiles, template-syntax tokens, chart lines. Use them in order. A category that means pass or fail is a status, not data: use a status color (`COLOR-05`).
-- **Media colors** (`scrim`, `on-scrim`, `logo-ground`) are the same in both themes, because they sit on images, video and third-party logos. `scrim` is the dark film behind captions and video controls, `on-scrim` is the text on it, and `logo-ground` is the white tile behind a brand logo that is not legible on dark. Use them only there.
-- **Contrast**, in both themes (checked by `tests/unit/designThemeContrast.test.ts`): `foreground` ≥ 12:1; `muted-foreground` ≥ 4.5:1 on every surface; each status color ≥ 4.5:1 on `background`, on `muted` and on its own 10% tint; `border-strong` ≥ 3:1. `border` is below 3:1 on purpose, to keep the interface quiet; hover and focus carry the contrast.
+- **Data colors** (`data-1` … `data-6`, text `on-data`) tell categories and chart series apart: span types, file kinds, agent Marks, template tiles, template-syntax tokens, chart lines. Use them in order.
+- **Media colors** (`scrim`, `on-scrim`, `logo-ground`) are the same in both themes, because they sit on images, video and third-party logos.
+- **Contrast**, in both themes (`tests/unit/designThemeContrast.test.ts`): `foreground` ≥ 12:1; `muted-foreground` ≥ 4.5:1 on every surface; each status color ≥ 4.5:1 on `background`, on `muted` and on its own 10% tint; `border-strong` ≥ 3:1. `border` is below 3:1 on purpose; hover and focus carry the contrast.
 
 ### Color values
 
@@ -60,7 +67,7 @@ There are 23 UI colors: 12 neutrals, 7 brand colors and 4 statuses. A separate g
 | --- | --- | --- | --- |
 | `background` | `#fefdfc` | `#0f0e0d` | Main content area. The ground for every text color. |
 | `foreground` | `#1f1e1c` | `#eeecea` | Primary text and icons (≥12:1). Also the tooltip fill and the inner focus ring. One of only two text levels. |
-| `muted` | `#f8f6f4` | `#151412` | Sidebar, side panels and grouped blocks. Separates an area by tone, not by a border. |
+| `muted` | `#f8f6f4` | `#151412` | Sidebar, the right pane and grouped blocks. Separates an area by tone, not by a border. |
 | `muted-foreground` | `#605d59` | `#9a9893` | The second and last text level: descriptions, meta, timestamps, placeholders, inactive nav, icon buttons (≥4.5:1 on every surface). |
 | `secondary` | `#1f1e1c0a` | `#eeecea0a` | Fill of quiet controls: secondary button, segmented control, chips, Marks, user chat turns. Ink at 4%, so it stays one step darker than any surface it sits on, hover included. |
 | `accent` | `#1f1e1c0d` | `#eeecea0f` | The one hover fill: rows, nav items, menu items and ghost controls. Ink at 5% (6% in dark), so hover is one step darker than the surface under it, and fills inside the row stay visible. Hover never adds a shadow. |
@@ -97,23 +104,18 @@ There are 23 UI colors: 12 neutrals, 7 brand colors and 4 statuses. A separate g
 ## Type
 
 - One family: Inter. JetBrains Mono only for code, IDs and keys.
-- Ten interface styles:
-  - `text-display`: the Home greeting and first-run hero screens (builder start, onboarding), and the title on auth and error pages. Nowhere else.
+- Where each style goes:
+  - `text-display`: the Home greeting, first-run hero screens, and the title on auth and error pages. Nowhere else.
   - `text-heading`: the page title.
   - `text-title`: card and dialog titles.
-  - `text-subtitle` (13/18, 600): section and panel titles inside a page or a drawer. Never on a control.
-  - `text-body` (14/22): chat and prose.
-  - `text-body-sm` (13/20, 400): regular 13px text that can wrap: field and cell values, card descriptions, short secondary prose.
-  - `text-label` (13/18, 500): the default for controls, rows and labels. Buttons and fields use it through the kit (`text-btn-md`, `text-field-md`).
-  - `text-metric` (20/28, 500, with `tabular-nums`): a number that is the point of a tile, such as credits or a score. Never larger than the page title.
-  - `text-meta`: meta lines.
-  - `text-caption`: badges, keyboard hints, and the letter inside a 16–24px Mark.
-- Two code styles: `text-code` and `text-code-sm`.
-- List and menu rows keep `text-label` on touch. There is no touch text style.
-- To lift a name, use weight 500 and `foreground`. To quiet its meta, use `muted-foreground`. Do not add a size (`TYPE-02`).
-- Weights: 400 (body), 450 (meta), 500 (controls and emphasis), 600 (titles only). Never 700 or more, and no `<strong>` or `font-bold` in the interface (`TYPE-04`).
-- Weight never changes with state. A button, tab, segment, menu item, selected row or focused control keeps weight 500 when it is active, selected, current, open or focused. State shows through color or a fill (`bg-selected`, `text-foreground`). A control is never 600: not a primary button, not a focused one (`TYPE-05`). A weight change also moves the text, because the bolder word is wider.
-- Columns of numbers use `tabular-nums`, so digits line up (`TYPE-03`).
+  - `text-subtitle`: section and panel titles inside a page or the right pane. Never on a control.
+  - `text-body`: chat and prose.
+  - `text-body-sm`: 13px text that can wrap: field and cell values, card descriptions.
+  - `text-label`: the default for controls, rows and labels. The kit applies it through `text-btn-md` and `text-field-md`.
+  - `text-metric`: a number that is the point of a tile, with `tabular-nums`.
+  - `text-meta`: meta lines. `text-caption`: badges, keyboard hints, the letter in a 16–24px Mark.
+  - `text-code` and `text-code-sm`: code.
+- Weights: 400 body, 450 meta, 500 controls and emphasis, 600 titles only.
 
 ### Text style values
 
@@ -136,16 +138,15 @@ There are 23 UI colors: 12 neutrals, 7 brand colors and 4 statuses. A separate g
 
 <!-- generated:text-styles:end -->
 
-## Space and size
+## Space, size and shape
 
-- A 4px grid on the Tailwind scale: `spacing-1` is 4px and `spacing-4` is 16px, the same as `p-4`. Steps: 0.5, 1, 1.5, 2, 3, 4, 5, 6, 8, 10, 12, 16.
-- Controls have four heights: `control-xs` 24, `control-sm` 28 (`size="sm"`, toolbar and row actions), `control-md` 32 (the default for buttons, inputs and selects), `control-lg` 40 (the composer and the Home brand action).
-- Small screens get smaller controls. Below 640px `control-md` steps down to 28 (`control-md-compact`) and `control-lg` to 32 (`control-lg-compact`). Button, Input, Select, Segmented and Tabs do this themselves. A screen never adds its own phone size (`SIZE-03`).
-- Touch never changes a size. No control, row, icon or text is bigger on a touch screen or a phone, and nothing adds a hidden tap box around a control.
-- Button and field text is 13px (`text-btn-md`, `text-field-md`). On touch, fields show 16px text at the same height, so iOS does not zoom the page (`TOUCH-02`).
-- Rows have three heights: `row-dense` 28 (tree and rail rows), `row-single` 36, `row-double` 48. A row's divider sits inside its height (`box-border`), so a list of ten rows is ten rows tall.
-- Floating panels have three widths: `w-popover-sm` 240 (menus), `w-popover-md` 320 (pickers and popovers with search), `w-popover-lg` 400 (rich popovers).
-- The "Size by place" table in Patterns gives the size of every Mark, icon, row and gap.
+- A 4px grid on the Tailwind scale: `spacing-1` is 4px, the same as `p-1`.
+- Controls have four heights. Below 640px, `control-md` steps down to 28 and `control-lg` to 32. Button, Input, Select, Segmented and Tabs do this themselves.
+- Rows have three heights: `row-dense` 28, `row-single` 36, `row-double` 48. A row's divider sits inside its height (`box-border`).
+- Floating panels have three widths: `w-popover-sm`, `w-popover-md`, `w-popover-lg`.
+- Five radii, from `radius-xs` to `radius-xl`. Icons are drawings and keep their own curves; the shape rules are about component shapes.
+- Shadows: `shadow-overlay` for menus, popovers, tooltips and toasts; `shadow-modal` for dialogs and sheets; `shadow-raised` only for a card while it is dragged. Shadows are translucent ink.
+- "Size by place" in Patterns gives the size of every Mark, icon, row and gap.
 
 ### Scale values
 
@@ -186,7 +187,7 @@ There are 23 UI colors: 12 neutrals, 7 brand colors and 4 statuses. A separate g
 | `mark-md` | `24px` | Mark in list rows (default). Radius radius-md, icon 14. |
 | `mark-lg` | `32px` | Mark in page and dialog headers, cards. Radius radius-md, icon 16. |
 | `mark-xl` | `40px` | Mark in empty states. Radius radius-lg, icon 20. |
-| `header-h` | `44px` | The phone header bar. Medium and expanded windows have no header bar: the page top band holds the title. |
+| `header-h` | `44px` | The compact header: the one bar at the top of a compact window. Medium and expanded windows have none; the page top band holds the title. |
 | `sidebar-w` | `240px` | Sidebar width on medium and expanded windows. |
 | `sidebar-w-closed` | `48px` | Sidebar width when it is closed. |
 | `page-margin` | `80px` | Smallest margin on each side of the content column on medium and expanded windows. More room grows both margins equally. |
@@ -217,90 +218,54 @@ There are 23 UI colors: 12 neutrals, 7 brand colors and 4 statuses. A separate g
 
 <!-- generated:scales:end -->
 
-## Shape
-
-- Five radii: `radius-xs` 2 (status dots, timeline nodes and thin bars of 4–8px), `radius-sm` 4 (badges, chips, menu items, checkboxes, 16 and 20px Marks), `radius-md` 6 (controls, inputs, nav items, 24 and 32px Marks), `radius-lg` 8 (cards, menus, popovers, banners, toasts, the 40px Mark), `radius-xl` 12 (dialogs and sheets).
-- Nothing is round. No `rounded-full`, no `50%`, no pills, no circles: not on buttons, avatars, Marks, badges, switches, status dots, progress bars or handles (`SHAPE-01`).
-- A radius is at most a quarter of the element's short side: a 16px checkbox takes 4px, a 4px handle takes 1px.
-- Icons are drawings and keep their own curves. The rule is about component shapes.
-- Nested corners are concentric: inner radius = outer radius − padding (`SHAPE-02`).
-
-## Elevation
-
-- Flat content has no shadow. Tone separates it.
-- `shadow-overlay` for menus, popovers, tooltips and toasts. `shadow-modal` for dialogs and sheets. `shadow-raised` only for a card while it is dragged.
-- Shadows are translucent ink, never an opaque gray.
-- Hover never adds or grows a shadow.
-
 ## Motion
 
-- `duration-fast` 120ms (hover, press, toggles), `duration-base` 200ms (menus, popovers, view swaps), `duration-slow` 320ms (sheets, dialogs, page transitions).
-- `ease-out` for things that enter. `ease-in-out` for things that move on screen.
-- Animate a swap between views. Use the presets in `src/lib/motion`; do not hardcode a duration or an easing.
-- No bounce, no overshoot, nothing that pulses or shakes to get attention.
-- Live activity has one look: a spinning `CircleNotch` icon, or a 1.5s opacity pulse on a status dot. No ping, no scaling, no spinning rings and no moving gradients (`MOTION-02`).
-- Every animation has a `prefers-reduced-motion` fallback.
+- Use the presets in `src/lib/motion` through `useMotionPresets()`, which turns motion off under reduced motion. Never hardcode a duration or an easing in a component. Package code cannot import these presets; it uses the `duration-*` and `ease-*` theme variables.
+- `duration-fast` for hover, press and toggles; `duration-base` for menus, popovers and view swaps; `duration-slow` for sheets, dialogs and page transitions. `ease-out` for things that enter, `ease-in-out` for things that move.
+- Every animation has a `prefers-reduced-motion` fallback. Under reduced motion the new state still shows; only the movement goes.
 
-## Microinteractions
+### Microinteractions
 
-A microinteraction is the small answer a control gives when a person acts on it: a caret turns, an icon swaps, a panel unfolds from what was clicked. They make the app feel alive and tell the person that the click landed, without a word.
-
-The rule: **the control answers in its own place, at once, with one small change of state.**
-
-- With the icons the kit uses: Phosphor `CaretDown` (regular) on a trigger, Phosphor `CaretRight` (regular) on an expanding row, `Check` for done, `Stop` for running. Never a filled triangle, a chevron from another set or a hand-drawn arrow (`ICON-01`).
-- In its own place. The thing that was clicked changes, not a toast or a banner somewhere else.
-- At once. It starts on the press and takes `duration-fast` (120ms); an overlay takes `duration-base` (200ms). The result never waits for the animation.
-- One small change. One property moves: a rotation, an icon, a fill, an opacity. No new color, no size change that pushes the layout, no bounce (`MOTION-02`).
-- With reduced motion, the new state still shows; only the movement goes.
-
-The guide's Microinteractions page has a live Do and Avoid for each rule (`MICRO-01` to `MICRO-06`).
-
-Use one when a control has a state the person should see change: open and closed, done and not done, on and off, running and idle. Skip it when nothing changed, and on actions used many times an hour from the keyboard (the command palette, shortcuts): those open at once.
+A microinteraction is the small answer a control gives when a person acts on it: a caret turns, an icon swaps, a panel unfolds from what was clicked. It tells the person the click landed. The control answers in its own place, at once, with one small change (`MICRO-01` to `MICRO-06`). Use one when a control has a state the person should see change. Skip it when nothing changed.
 
 | Moment | The answer | In the kit |
 | --- | --- | --- |
-| A trigger with a caret opens a menu, select or popover | The caret turns 180° while the panel is open and turns back when it closes. Add `ag-caret` to the caret | `Select`, `Combobox`; any trigger with `ag-caret` |
-| A row or section expands | Its right caret turns 90° to point down at the content | `CollapseCaret` |
-| A menu, popover or tooltip opens | It unfolds from the trigger's edge (Radix's transform origin) and fades in; a dialog stays centered | `Popover`, `DropdownMenu`, `HoverCard` (`ag-overlay-motion`) |
-| Copy | The Copy icon becomes a Check for 1.5s, then goes back. No toast | `CopyButton` (`@agenta/ui`) |
+| A trigger with a caret opens a panel | Phosphor `CaretDown` turns 180° while the panel is open | `Select`, `Combobox`; `ag-caret` on any other caret |
+| A row or section expands | Phosphor `CaretRight` turns 90° to point at the content | `CollapseCaret` |
+| A menu, popover or hover card opens | It unfolds from the trigger's edge; a dialog stays centered | `ag-overlay-motion` in `Popover`, `DropdownMenu`, `HoverCard` |
+| Copy | The Copy icon becomes Check for 1.5s | `CopyButton` (`@agenta/ui`) |
 | A toggle | The switch thumb slides; a checkbox mark appears | `Switch`, `Checkbox` |
 | Send and run | The send arrow becomes Stop while the agent runs | `Composer` |
 | A number changes | The number counts to its new value | `useCountUp` in `src/lib/motion` |
-| A save or a toggle that calls the server | The control shows the new state at once; it goes back only if the call fails | Optimistic update in the hook |
+| A save or toggle that calls the server | The control shows the new state at once; it goes back only if the call fails | An optimistic update in the hook |
 
 ## Icons
 
-- Phosphor (`@phosphor-icons/react`), regular weight, is the only icon library. `lucide-react` is removed and banned by lint: its heavier square strokes look like a second product next to Phosphor (`ICON-01`).
-- Icons take `currentColor`. Only a status icon takes a status color (`LOUD-04`). Use the `fill` weight only to show a state (on, active).
-- Icon size follows the place, not the screen: 12, 14 or 16px. See "Size by place".
-- One icon per button: a leading icon, or a trailing caret on a menu trigger. Never both (`ICON-02`).
+- Phosphor (`@phosphor-icons/react`), regular weight, is the only icon library. The `fill` weight only shows a state (on, active).
+- Icons take `currentColor`. Only a status icon takes a status color.
 - Any Phosphor regular icon may be used for a generic action (Plus, Trash, Copy).
-- Fixed action icons: Send is `arrow-up` (never a paper plane, which means Invite). Run is `play`. Retry is `arrow-clockwise`. Loading is a spinning `circle-notch`.
+- Fixed action icons: Send is `arrow-up` (never a paper plane, which means Invite). Run is `play`. Retry is `arrow-clockwise`. Loading is a spinning `circle-notch`. Live activity is a spinning `circle-notch` or a 1.5s opacity pulse on a status dot.
 
 ### Icon per term
 
-A product term always has this icon: in the nav, list rows, page headers, pickers, empty states, menus and chat activity. An icon in this table means its term only; do not reuse it for something else (`ICON-05`). To add or change a term, change its row here first, then every place that shows the term. "Proposed" marks an icon that the code does not use yet.
+A product term always has this icon, wherever it shows. An icon here means its term only (`ICON-05`). To add or change a term, change its row first, then every place that shows the term.
 
 | Term | Icon | Component | Note |
 | --- | --- | --- | --- |
 | Agent | `robot` | RobotIcon | |
-| Builder (the assistant that builds agents) | `sparkle` | SparkleIcon | Sparkle means only this. Not models, not AI in general |
+| Builder (the assistant that builds agents) | `sparkle` | SparkleIcon | Only the Builder. Not models, not AI in general |
 | Skill | `compass` | CompassIcon | |
 | Automation | `lightning` | LightningIcon | Not for runs |
 | Schedule trigger | `calendar-blank` | CalendarBlankIcon | Clock icons mean History |
-| Event trigger | `pulse` | PulseIcon | Proposed |
 | Session | `chats` | ChatsIcon | |
 | Connection (app integration) | `plugs` | PlugsIcon | |
 | Channel | `broadcast` | BroadcastIcon | Not for MCP |
 | Webhook | `webhooks-logo` | WebhooksLogoIcon | |
 | MCP server | `hard-drives` | HardDrivesIcon | |
 | Tool | `wrench` | WrenchIcon | |
-| Template | `squares-four` | SquaresFourIcon | Only templates. Not prompts, connections or "All" filters |
-| Prompt | `scroll` | ScrollIcon | Proposed |
+| Template | `squares-four` | SquaresFourIcon | Only templates |
 | Project | `folder-simple` | FolderSimpleIcon | Only projects |
 | File | `file-text` | FileTextIcon | A single file |
-| Files (pane, list) | `files` | FilesIcon | Proposed |
-| Archived | `archive` | ArchiveIcon | Proposed |
 | Model | `cpu` | CpuIcon | |
 | Run (action and item) | `play` | PlayIcon | |
 | History | `clock-counter-clockwise` | ClockCounterClockwiseIcon | Past runs, versions |
@@ -312,62 +277,339 @@ A product term always has this icon: in the nav, list rows, page headers, picker
 | Workspace | — | A Mark with the workspace letter | No icon |
 | Members | `users-three` | UsersThreeIcon | |
 | Invite | `paper-plane` | PaperPlaneIcon | |
-| Share | `share-network` | ShareNetworkIcon | Proposed |
 | Settings | `gear` | GearIcon | |
 | Home | `house` | HouseIcon | |
 | Browser (tool) | `browser` | BrowserIcon | |
 | Web search | `globe` | GlobeIcon | |
-| Memory | `brain` | BrainIcon | Proposed |
-| Sandbox / computer | `terminal-window` | TerminalWindowIcon | Proposed |
-| Trace | `tree-structure` | TreeStructureIcon | Proposed |
-| Evaluation | `list-checks` | ListChecksIcon | Proposed |
-| Evaluator | `scales` | ScalesIcon | Proposed |
-| Testset | `table` | TableIcon | Proposed |
-| Variant / revision | `git-branch` | GitBranchIcon | Proposed |
-| Endpoint | `cloud` | CloudIcon | Proposed |
-| Annotation | `note-pencil` | NotePencilIcon | Proposed |
-| Playground | `flask` | FlaskIcon | Proposed |
-| Analytics | `chart-line` | ChartLineIcon | Proposed |
 
 ## Layout and windows
 
-- Three window classes: compact (under `breakpoint-sm`, 640px), medium (640–1023px) and expanded (from `breakpoint-lg`, 1024px). Do not add a third breakpoint.
-- On medium and expanded windows a screen has a sidebar (`sidebar-w`, on `muted`), the content column, and an optional right pane (`panel-side`). There is no header bar. When the window is too narrow for the right pane next to an 80px-margin content column, the right pane opens as an overlay with the scrim. On a compact window the right pane is a drill-in, whatever it holds: the page shows an entry for it, and opening it pushes its own screen with Back, which returns to the page (`LAYOUT-04`).
-- The page frame on medium and expanded windows:
-  - The sidebar is 240px (`sidebar-w`), or 48px when closed (`sidebar-w-closed`). The right pane is part of the layout on every page, 320px wide, with its own 24px margins and its own alignment line. Any page or feature can put information in it: an item's details or activity, the agent chat, a preview, help. It holds one thing at a time; opening something else replaces it. Pages never draw a side panel of their own.
-  - The content column sits between them with at least 80px on each side (`page-margin`). Its maximum width depends on the page: `content-lg` (1040) for lists, `content-md` (760) for item pages, sessions and Home, `content-sm` (560) for settings. Workbench pages (Builder, Playground, the trace view) use the full width.
-  - When there is more room, the column stays centered and both margins grow equally. When the right pane opens, the content column gives way first, then the margins down to 80px; at 1440px with the pane open, an item column is 720px.
-  - From the top: a 32px gap (`spacing-8`), the page top band (`page-band`, 148px: the title and the page actions), a 24px gap (`spacing-6`), then the body. Every page uses this rhythm, so the title never moves.
-  - There is no breadcrumb bar. The alignment line is the left edge of the content column, with padded boxes outdented (`ALIGN-01`).
-  - Only the body scrolls.
-- On a compact window the gutters are 16px (`spacing-4`). The 44px header (`header-h`) starts with the menu button, which opens the sidebar as a drawer, on top-level pages, and with Back on detail pages and drill-ins (`PHONE-03`).
-- Every page has the same header height and the same top padding. No page invents its own header (`LAYOUT-03`).
-- One scroll container per pane. Never nest two scroll areas that scroll the same way (`LAYOUT-01`).
-- Cap the content width and center the column in its pane: `content-lg` for lists and tables, `content-md` for chat and documents, `content-sm` for forms, dialogs and settings, and the full width for workbench pages (Builder, Playground, the trace view) (`LAYOUT-02`). Widths such as 880, 920, 960 and 1120 are not allowed. Open work: these pages still use them: the agent list (`AgentListScreen`, 960), the first-run screen (`FirstRunScreen`, 880), the agent configuration pages (`configurationTabs`, 920), and the agent sessions page (`AgentListPageHeader`, 1120).
-- Each page has one alignment line: the left edge of its title. The line aligns content, not boxes. The text, and the first icon or Mark, of every element sit on it: the search icon and placeholder, the tab labels, the section headings, the column header text and the Marks of the list rows (`ALIGN-01`).
-- A padded component lets its box hang outside the line by its own padding. This is an outdent: a negative margin equal to the padding, so a row's hover fill and an input's border reach left of the line while the content stays on it. Outdents: list row 12px, group header 12px, input 8px, nav item 8px, segmented control by its inner padding. Open work: the kit does not apply outdents yet, so a screen sets the negative margin itself.
-- The sidebar follows the same rule. The text of the nav items, the group labels and the workspace name sit on one line, and the nav item boxes hang outside it by 8px. The nav icons sit on the center line of the workspace Mark (`ALIGN-02`).
+- Three window classes: compact, medium and expanded. Do not add another breakpoint.
+- On medium and expanded windows a page has the sidebar (`sidebar-w`, 48px closed, on `muted`), the content column and the right pane (`panel-side`). There is no header bar.
+- The right pane is part of the layout on every page, with its own 24px margins and its own alignment line. Any page or feature can put information in it: an item's details or activity, the agent chat, a preview, help. It holds one thing at a time; opening something else replaces it. When the window is too narrow for the pane next to an 80px-margin content column, the pane opens as an overlay with the scrim. On a compact window it is a drill-in: the page shows an entry, and opening it pushes its own screen with Back.
+- The content column has at least `page-margin` on each side. Its maximum width: `content-lg` for lists, `content-md` for item pages, sessions and Home, `content-sm` for settings. Workbench pages (Builder, Playground, the trace view) use the full width. With more room, the column stays centered. When the right pane opens, the column gives way first, then the margins down to 80px.
+- From the top of every page: `spacing-8`, the page top band (`page-band`), `spacing-6`, then the body. Only the body scrolls.
+- On a compact window the gutters are `spacing-4`. The compact header starts with the menu button (it opens the sidebar as a drawer) on top-level pages, and with Back on detail pages and drill-ins.
 - Components that sit in panes of different widths (lists, cards, the composer) adapt with container queries, not window media queries.
-- Every line is `border-w` (1px). The 2px lines are the focus ring and two markers: the active tab underline, and a diff or recent-change marker in a gutter (`LOUD-06`).
 
 ## Accessibility
 
-- Focus is always visible and looks the same on every control. Use the `focus-ring` class on any control: a 2px `ring` outline on the edge with a 1px `foreground` line inside it. Use `focus-ring-field` on a bordered field: the border turns `foreground` and the 2px ring sits on it. Use `focus-ring-inset` on a full-bleed row inside a scroller, where an outer ring is clipped: the ring sits inside the row's edge. No gray halo, no gap, no other `ring-*` or `outline-*` on focus (`FORM-02`). The classes live in `@agenta/ui/focus.css`.
-- Every icon-only button has an `aria-label` and a tooltip with the same text (`TIP-01`).
-- Nothing is reachable only by hover. Under `pointer: coarse`, row and message actions are always visible (`TOUCH-03`).
-- Status never depends on color alone (`COLOR-03`).
+- Focus uses one of three classes from `@agenta/ui/focus.css`: `focus-ring` on any control (a 2px `ring` outline with a 1px `foreground` line inside), `focus-ring-field` on a bordered field (the border turns `foreground`), and `focus-ring-inset` on a full-bleed row inside a scroller.
+- Every icon-only button has an `aria-label` and a tooltip with the same text.
+- Status never depends on color alone.
 
-## Theme variable names
+## Patterns
 
-Names follow shadcn, so the kit and Tailwind read them as they are.
+How the kit components combine on Agenta screens.
 
-- A surface is a noun: `background`, `muted`, `secondary`, `accent`, `popover`. Text on it is `foreground` unless the rules above say otherwise.
-- A tint is never a new variable. Write the base color with an opacity: `bg-destructive/10`.
-- The extra names (`selected`, `brand`, `border-muted`, `border-strong`, `link`, `overlay`, `scrim`, `on-scrim`, `logo-ground`, `data-1` … `data-6`, `on-data`) name a role. A name never refers to a product entity (agent, skill), a single component (hero, composer) or an old system (antd, `--ag-*`).
-- The shadcn slot names that the kit expects (`card`, `input`, `sidebar-*`, `*-foreground` on quiet surfaces) are not extra colors. They point at the 23 colors (`colorAliases` in `theme.config.ts`).
-- Spacing uses Tailwind's own scale, so `p-4` and `gap-2` need no new names.
+### Page
 
-Old antd-era names still resolve through a legacy block in `globals.css`. Do not add new uses; the ratchet blocks any increase. When you touch old code, replace them:
+1. The page top band: a `text-heading` title, a one-line `text-body` description in `muted-foreground`, and the page actions on the right (one `default` button, the rest `outline` or `ghost`).
+2. A toolbar row: the search `Input`, then a `Segmented` control or filters.
+3. `Tabs`, if the page has sibling views.
+4. The content: a list, a settings form, or a session.
+
+Everything from the title down sits on the alignment line. Section gap: `spacing-6` on compact windows, `spacing-8` above.
+
+### List
+
+- One row shape: a Mark, a title (`text-label`), an optional meta line (`text-meta`, `muted-foreground`), an optional status `Badge`, and up to two row actions.
+- No borders between rows. Hover is `accent`; selection is `selected`.
+- Row actions show on hover and focus with a mouse, and always on touch.
+- Loading: skeleton rows with the same Mark, title and meta shapes. Empty: `EmptyState` with the first action.
+
+### Form and settings
+
+- `Field` around every control: the label above (forms) or on the left (settings rows), help in a "?" tooltip, the error below.
+- Form fields use the default `control-md`. `control-sm` is for toolbar and row actions.
+- One Save for the section, right-aligned. A switch that applies at once needs no Save.
+
+### Session
+
+- Column width `content-md`. The user's turn sits on `secondary` at the right. The agent's reply is plain `text-body` at full width.
+- Tool calls are small chips (`secondary`, `text-meta`) above the agent's answer.
+- Message actions (copy, retry) show on hover, always on the last turn, and always on touch.
+- The Composer is pinned at the bottom.
+
+### Composer
+
+- One component with two states: the collapsed entry (one line, a placeholder and Send) and the open composer (the field, attach, tools, model and Send). A tap on the entry opens the same field the user types in.
+- Attach on the left and Send on the right, inside the field's border. Send is the one filled button, disabled while the field is empty.
+
+### Agent chat
+
+- It opens in the right pane on `muted`. Its header names the item ("Ask about Weekly report"). It holds the same Composer as a session.
+- On a compact window it is a drill-in: the item page shows an entry; opening it pushes a screen with Back and the item named in the header. Back returns to the item, and the draft stays.
+
+### Auth and error pages
+
+- They may use `text-display` for their one title and one illustration.
+- No gradients and no background decoration. Everything else follows the app rules.
+
+### Menus, dialogs and sheets
+
+- Menu rows are `MENU_ITEM` in every dropdown, context menu, select, combobox and command palette.
+- Menus are `popover-sm` wide. Destructive items come last, after a separator.
+- A dialog is only for a decision that blocks. Name both buttons by their effect.
+- Menus and selects sit above dialogs (`z-popover` over `z-modal`).
+- On a compact window the kit turns menus and selects into bottom sheets and docks dialogs to the bottom edge.
+
+### States
+
+| State | What it shows | Kit |
+| --- | --- | --- |
+| Loaded | The content | |
+| Empty | What is missing, why it matters, one action | `EmptyState` (`title`, `description`, the action as children). `Empty` is the bare layout for a custom one |
+| Loading | A skeleton with the layout of the loaded view | `Skeleton`, `SkeletonBlock`, `SkeletonRows` |
+| Error | An `Alert` next to the problem: cause, effect, fix | `Alert` |
+
+In `web/mobile`, state components go in the feature's `states/` folder.
+
+### Feedback
+
+- Success after an action: a toast in the past tense, with Undo when the action can be reversed.
+- A problem the user must fix: an `Alert` next to it, never a toast.
+- Running work: an `info` Badge with a spinning `circle-notch`, or a progress bar in the row.
+
+### Compact window
+
+- The compact header: one leading button, one title, at most two actions; everything else goes in More. The leading button is the menu on top-level pages (Home, Agents, Automations, Skills, Sessions, Settings) and Back, with a 16px caret, on detail pages and drill-ins.
+- One item owns the bottom edge: the composer entry on chat pages, or one primary action. There is no bottom nav bar; main navigation is the sidebar drawer.
+- Secondary screens (files, run details, settings pages) open as their own routes with Back.
+- The composer is pinned to the visual viewport, so it stays above the keyboard.
+
+### Size by place
+
+Find the element's place here. Do not copy the look of the screen you are on.
+
+| Element | Size by place |
+| --- | --- |
+| Mark | 16 inline, in nav and in menus · 20 in pickers and composer chips · 24 in list rows · 32 in page and dialog headers and cards · 40 in empty states |
+| Term icon | Bare in nav and menus · inside a Mark in lists, pickers and headers |
+| Icon | 12 in badges and `xs` buttons · 14 in 28px controls · 16 in menu rows, list rows, tabs and 32px controls |
+| Control | `control-md` by default · `control-sm` for toolbar and row actions · `control-lg` for the composer and the Home brand action · `control-xs` inside inputs and dense toolbars |
+| List row | `row-dense` for tree and rail rows · `row-single` · `row-double` |
+| Menu row | `MENU_ITEM`, 32 |
+| Popover | `w-popover-sm` for menus · `w-popover-md` for pickers · `w-popover-lg` for rich popovers |
+| Status dot, timeline node, thin bar | `radius-xs` |
+| Mark letter | `text-caption` in 16–24px Marks |
+| Empty state icon | A 40px neutral Mark |
+| Icon to text | 4 in badges and `xs` buttons · 6 in other controls · 8 in rows |
+| Mark to text | 8 for 16–24px Marks · 12 for 32–40px Marks |
+| Between controls | 4 in a group, 8 at most |
+| Between sections | 24 on compact windows · 32 above |
+| Top of a page | The page top band on medium and expanded windows · the compact header on compact windows |
+
+## Rules
+
+Each rule has an ID that lint, reviews and the guide cite. The prefix names the table it lives in. `/m/design-system` shows a Do and an Avoid example for each rule.
+
+### Checks
+
+- Ratchet (`pnpm design:ratchet`, in `pnpm lint`): `COLOR-01`, `TYPE-01`, `TYPE-04`, `TYPE-05`, `SIZE-01`, `SHAPE-01`, `ICON-01`, `SURF-05`. It counts the patterns in `web/mobile/src` and `web/packages/*/src` and fails when a count rises.
+- ESLint: `ICON-01`.
+- Review: every other rule.
+
+### Quiet
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `LOUD-01` | No gradients or large saturated fills | Color on a large area pulls the eye away from the content. | Gradients; large saturated fills | A neutral surface; color on one small thing |
+| `LOUD-02` | Nothing is bigger than the page title | Size is the last tool for hierarchy. A banner or a number larger than the title takes over the page. | Text larger than the page title (big metrics, banners) | `text-heading` at most; `text-metric` for a tile number; `text-display` only on Home, first-run hero screens, and auth and error pages |
+| `LOUD-03` | No all caps, exclamation marks or emoji | The product speaks plainly. Sentence case reads faster than capitals. | ALL CAPS, exclamation marks, emoji | Sentence case, plain words |
+| `LOUD-04` | Icons take the text color | A colored icon competes with the text next to it. | Colored icons outside status | The text color; only a status icon takes its status color |
+| `LOUD-05` | One highlight color per screen | One highlight tells the user where to look. Several cancel each other out. | Several highlight colors on one screen | One highlight: the brand action or one status |
+| `LOUD-06` | Thin lines, soft shadows | A heavy frame is louder than its content. | Lines of 2px or more; hard or colored shadows | 1px lines; 2px only for focus, the active tab underline and a diff or recent-change gutter marker; translucent shadows on floating things only |
+
+### Color
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `COLOR-01` | Use a theme variable, never a raw color | A variable names a job, so the same job gets the same color everywhere. A raw value drifts with the next person. | Raw hex, stock Tailwind colors, antd names (`colorBg*`, `--ag-color*`) | A theme variable: `bg-muted`, `text-muted-foreground` |
+| `COLOR-02` | Brand yellow marks the one brand action | The yellow is the strongest color. On several things it points at nothing, and in dark `primary` is yellow too. | Brand yellow on badges, highlights, Publish, sign-in, billing, or more than one button | `brand` only on New agent on Home; the default primary elsewhere |
+| `COLOR-03` | Status needs a word or an icon | About 1 in 12 men see red and green poorly. Color only supports the meaning. | Status shown by a colored dot alone | A tint and a word, with an icon where it fits |
+| `COLOR-04` | No dark-mode colors in a component | A theme variable already changes per theme. A component's own dark color drifts from the theme. | A component that sets its own dark-mode color (`.dark .menu {…}`) | A theme variable whose value changes per theme (`popover`) |
+| `COLOR-05` | UI colors stay neutral; data colors are for data | A color for one component adds a palette nobody controls. A data color on UI state reads as a category. | A new color for one component; a data color for selected, hover, status or a button; a color per workspace or project Mark | One of the 23 UI colors or a tint of one; `data-1` … `data-6` only for categories and chart series, in order |
+
+### Type
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `TYPE-01` | Use the text styles, never a pixel size | Each near-miss size looks a little wrong next to the real ones. One screen had 35 sizes. | Arbitrary sizes: `text-[13px]`, `text-[15px]`, 13.5px | One of the text styles |
+| `TYPE-02` | Show importance with weight and tone, not size | A bigger size breaks the scale and makes the line taller. | A bigger size to show importance | Weight 500 and `foreground`; quiet the rest with `muted-foreground` |
+| `TYPE-03` | Numbers in columns use tabular figures | Proportional digits move a column of numbers left and right. | Proportional digits in columns | `tabular-nums` |
+| `TYPE-04` | No weight above 600 | Bold text shouts. | `font-bold`, weight 700 or more, `<strong>` in the interface | 600 for titles only, 500 for emphasis |
+| `TYPE-05` | Weight never changes with state | A bolder word is wider, so the label and its neighbors move. Weight already means rank. | A control that turns bolder when active, selected, current, open or focused (`data-[state=active]:font-semibold`); a 600 button | Weight 500 (`text-label`) in every state; state shows by color or a fill (`bg-selected`, `text-foreground`) |
+
+### Size
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `SIZE-01` | Pass a size, never a height | A control owns its height, padding, radius, text and icon. A height class breaks that on one screen. | Height classes on controls: `h-[34px]`, `h-[30px]` | The `size` prop |
+| `SIZE-02` | Nothing gets bigger on a compact window or on touch | Bigger controls make every screen bulky: the toolbar no longer fits and lists show half the rows. The kit already steps down below 640px. | `phone ? "h-11"`, `pointer-coarse:size-11`, `max-md:h-11`, `[&_button]:min-h-11`, 44px rows, hidden tap boxes | The same kit sizes everywhere; they step down below 640px by themselves |
+
+### Shape
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `SHAPE-01` | Nothing is round | Pills and circles belong to another design language. | `rounded-full`, `50%`, pills, circle Marks, round dots, round switch knobs | `radius-sm` or `radius-md`; at most a quarter of the short side |
+| `SHAPE-02` | Nested corners are concentric | With the same radius inside and out, the gap is wider at the corners than on the sides. | The same radius inside and outside a padded box | Inner radius = outer radius − padding |
+
+### Icons
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `ICON-01` | Phosphor, regular weight, only | Phosphor's thin round strokes next to heavier ones look like two products. | `lucide-react` or a second icon library; a filled icon that does not show a state | Phosphor, regular weight; `fill` only to show a state |
+| `ICON-02` | One icon per button | A second icon makes the button look like two controls. | Two icons in one button | One icon: leading, or a trailing caret on a menu trigger |
+| `ICON-03` | Center icons by eye | A play triangle or an arrow looks off-center when its box is centered. | Play and arrow icons centered by their box | Move them 1px so they look centered |
+| `ICON-04` | Icon size comes from the place | An icon picked per screen looks wrong next to the text beside it. | 18 or 20px icons next to 13px text | 12, 14 or 16px, from "Size by place" |
+| `ICON-05` | One icon per product term | When a term has two icons, users read two different things. | Skill as a compass in the nav and a book in a list | The icon from "Icon per term" |
+
+### Surfaces
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `SURF-01` | Separate areas by tone | Each border is one more line to read. | Borders around borders to separate areas | A different surface tone |
+| `SURF-02` | Draw each border once | Two bordered boxes stacked draw a 2px seam. | Two bordered boxes stacked | One border, with a divider inside |
+| `SURF-03` | Shadows only on things that float | A shadow says this sits above the page. | Shadows on flat cards and list items; opaque gray shadows | `shadow-overlay`, `shadow-modal`, `shadow-raised`, on floating things only |
+| `SURF-04` | Hover never lifts | A shadow on hover says the element moved up, not that it is hovered. | A shadow or a lift on hover | The hover fill |
+| `SURF-05` | One hover fill | `accent` is ink at 5%, so it is the same step darker on the page, in the sidebar and in a popover. | `hover:bg-muted`, `hover:bg-foreground/10`, a gray picked per screen | `hover:bg-accent`; on a sticky row that must stay opaque, `accent` over the ground as a gradient image |
+| `SURF-06` | Nothing inside a row has the row's hover color | A fill that matches the hover disappears when the row is hovered. | A fill inside a row that matches the row's hover | A translucent fill (`secondary`) that stacks on the hover |
+
+### Space
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `SPACE-01` | Space from the 4px scale, tighter inside groups | Less space inside a group than between groups shows the groups without lines. | Off-scale gaps (11px); even spacing that hides groups | `gap-1/2/3/4/6/8`; less space inside a group than between groups |
+| `SPACE-02` | Grouped buttons sit 4px apart, 8px at most | A group reads as one unit only when its gap is smaller than the space around it. | Grouped buttons 12px or more apart | `gap-1`; `gap-2` at most |
+| `SPACE-03` | Icon to text: 4, 6 or 8px by place | The gap follows the place, so the same element looks the same everywhere. | Icon-to-text gaps picked per screen (1, 10, 12px) | 4px in badges and `xs` buttons, 6px in other controls, 8px in rows |
+| `SPACE-04` | Mark to text: 8 or 12px | A bigger Mark needs more room, and the same Mark always gets the same gap. | Mark-to-text gaps picked per screen | 8px for 16–24px Marks, 12px for 32–40px Marks |
+| `SPACE-05` | Equal visible gaps between icons | Icons differ in width, so gaps measured from their boxes look uneven. | Icons in a row spaced by their boxes | Equal gaps between the visible icon edges |
+
+### Rows and menus
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `ROW-01` | One row height per list | Rows of one height make a list easy to scan. | List rows other than 28, 36 and 48px; mixed heights in one list; a divider below the row's height | `row-dense` for tree and rail rows, `row-single`, `row-double`; the divider inside the height |
+| `ROW-02` | Every menu row is `MENU_ITEM` | A menu, a select and a combobox are the same thing to a user. | Menu rows with their own height, padding or text (a 28px dropdown, a 36px option) | `MENU_ITEM`: 32px, 8px side padding, `text-label`, a 16px icon |
+| `ROW-03` | A search popover has one shape | Users learn the layout once. | A search popover with a tall search, rows on other edges, or a big button as the action | Search on top, group headings, `MENU_ITEM` rows, a divider, then the action as one more row |
+
+### Actions
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `ACT-01` | One primary action per view | The primary button answers "what do I do here?". Two give two answers. | Two primary buttons in one view | One primary; the rest `secondary`, `outline` or `ghost` |
+| `ACT-02` | Label a button with its action | A verb and an object say what happens. OK makes the user read the dialog again. | "OK", "Submit", "Yes" | Verb + object: "Delete agent" |
+| `ACT-03` | Destructive actions stay quiet until the confirm | A solid red button on a page is louder than the primary action. | A solid red button on a page, in a toolbar or in a menu | `destructive-ghost`; solid `destructive` only to confirm in a dialog |
+
+### Forms and focus
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `FORM-01` | Field help goes in a "?" tooltip | Help under every label doubles the height of the form. | Help text under every label | `Field` with `tooltip` |
+| `FORM-02` | One focus style | Focus that looks different per control is easy to lose. | A gray halo, `outline-4`, `ring-[3px]`, an offset gap | `focus-ring`, `focus-ring-field` or `focus-ring-inset` |
+| `FORM-03` | Focus the field the user came to fill | A click to reach the only field is a wasted step. | The user must click into the field | Autofocus it |
+
+### View states
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `STATE-01` | An empty state says what to do next | "Nothing here" is a dead end. | "No data", "Nothing here" | What is missing, why it matters, one first action |
+| `STATE-02` | The skeleton matches the loaded view | Another layout makes the page jump when the data arrives. | A spinner or generic bars for a list | A skeleton with the loaded layout |
+| `STATE-03` | An error says what happened and the fix | "Something went wrong" gives the user nothing to act on. | "Something went wrong" | Cause, effect, fix |
+
+### Alignment
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `ALIGN-01` | Content sits on the alignment line; boxes outdent | When the boxes align, the text inside drifts right by each box's padding. | Box edges on the title's line | Text and the first icon or Mark on the line; padded boxes outdent by their padding (row 12, group header 12, input 8, nav item 8); the screen sets the negative margin, since the kit does not yet |
+| `ALIGN-02` | Sidebar text on one line, icons on the Mark's center | Icons on the workspace Mark's left edge make the Mark look off. | Sidebar icons on the Mark's left edge; nav text, group labels and the workspace name on different lines | Icons on the Mark's center line; all sidebar text on one line |
+
+### Layout
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `LAYOUT-01` | One scroll container per pane | Two areas that scroll the same way trap the scroll wheel. | Nested scroll areas that scroll the same way | One scroll container per pane |
+| `LAYOUT-02` | Cap the content width | Text across a wide window is hard to read. | Text and lists stretched across the window; a width of its own (880, 920, 960, 1120) | `content-sm`, `content-md` or `content-lg`, centered, at least `page-margin` on each side; full width only for workbench pages |
+| `LAYOUT-03` | Every page has the same top | When the top changes per page, the title jumps between pages. | A page with its own header height or top padding; a breadcrumb bar | `spacing-8`, the page top band, `spacing-6`, then the body |
+| `LAYOUT-04` | One right pane, in the layout | A page's own side panel competes with the right pane and squeezes the content. | A page's own side panel; a side panel squeezed into a narrow window; the right pane stacked under the body | The right pane, one thing at a time; an overlay with the scrim when there is no room; a drill-in with Back on compact |
+| `LAYOUT-05` | Fade only the edge that can scroll | A fade says there is more this way. | A fade on an edge that cannot scroll | `useScrollFadeEdges` with `.ag-scroll-fade` |
+| `LAYOUT-06` | The agent chat sits next to its item | The user asks about the open item, so the item stays in view and the header says what the agent sees. | An agent chat in a stacked route or a dialog, or that does not name the item | The right pane; a drill-in with Back on compact; the item named in the header; the same Composer |
+
+### Compact windows
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `COMPACT-01` | One item on the bottom edge | The thumb lands on the bottom edge, so whatever sits there is the main action. | Two things on the bottom edge (a composer and a floating New); a bottom nav bar | The composer entry or one primary action; another primary action goes in the header or the content |
+| `COMPACT-02` | The compact header is one 44px bar | A phone has little height, and the header is on every screen. | A tall header; 44px icon buttons; two titles | One 44px bar, the kit's compact icon buttons, one leading button, one title, at most two actions |
+| `COMPACT-03` | Menu or Back, never both | Two leading buttons make the user guess which way each goes. | Back and the menu together; the menu on a detail page | The menu on top-level pages; Back alone on detail pages and drill-ins |
+| `COMPACT-04` | Menus and dialogs come from the kit | The kit turns them into bottom sheets. A hand-made variant drifts. | A desktop popover on a compact window; a hand-made phone variant | The kit menus, selects and dialogs |
+| `COMPACT-05` | Use the real viewport | `100vh` hides content under browser bars and the notch. | `100vh`; fixed bars without safe-area padding | `svh` or `dvh`; `env(safe-area-inset-*)` |
+
+### Touch
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `TOUCH-01` | Fields show 16px text on touch | iOS zooms the page when a field under 16px gets focus. | Fields under 16px on touch; a taller field on touch | 16px text under `pointer: coarse`, at the same height (the kit does it) |
+| `TOUCH-02` | No action only on hover | Touch has no hover. | Actions shown only on hover | Shown on focus too, and always under `pointer: coarse` |
+
+### Motion
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `MOTION-01` | Animate a view swap, briefly | A short fade and slide shows that something changed. | An instant swap of one view for another | A 120–200ms fade and 4px slide preset |
+| `MOTION-02` | No bounce, no attention-seeking motion | Motion that repeats or overshoots pulls the eye from the work. | Bounce, overshoot, shaking; a ping, a scaling dot, a spinning ring or gradient | The three durations with `ease-out` or `ease-in-out`; still at rest; live activity as in Icons |
+
+### Microinteractions
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `MICRO-01` | A caret shows where its panel is | The caret says a panel opens there, then points back at the trigger while it is open. | A caret that points the same way open and closed | Phosphor `CaretDown` that turns 180° while open (`ag-caret`) |
+| `MICRO-02` | Overlays unfold from what opened them | A panel that grows out of its trigger shows where it came from. | A menu or popover that grows from its center or appears from nowhere | `ag-overlay-motion` from the trigger's edge; only dialogs open from the center |
+| `MICRO-03` | The control answers in its own place | The person is looking at what they clicked. | A toast for Copy, a banner for a toggle | The control changes: Copy becomes Check for 1.5s, the switch slides |
+| `MICRO-04` | No animation on things used many times an hour | Any animation there makes the person wait, again and again. | An animated open for the command palette or a shortcut | It opens at once |
+| `MICRO-05` | A toggle shows its new state on the click | Waiting for the server first makes every click feel slow. | A spinner, then the switch moves | The switch and its label change on the click; they go back only if the call fails |
+| `MICRO-06` | An expanding row points at what it opened | The caret tells the person where the new content is. | A caret that does not change open or closed; a filled triangle | Phosphor `CaretRight` that turns 90° (`CollapseCaret`) |
+
+### Content and voice
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `COPY-01` | Sentence case everywhere | In Title Case every word competes for attention. | Title Case labels | Sentence case |
+| `COPY-02` | Toasts say what happened, in the past tense | A toast confirms a result. | "Success!" toasts | What happened, in the past tense, with Undo when possible |
+| `COPY-03` | Use the words users see | Users manage connections and runs, not integration configs and invocations. | System words (invocation, integration config) | The user's words (run, connection) |
+
+Also: a button says verb + object; an error says what happened, what it means and the fix; address the user as "you".
+
+### Components
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `KIT-01` | Five badge variants | A badge color means a status. Other colors add a palette with no meaning. | Categorical badge colors (blue, purple, gold), data colors on a badge, bordered tags | `default`, `success`, `warning`, `destructive`, `info`; text in `text-caption` |
+| `KIT-02` | Tabs switch views of one thing | A tab that starts an action surprises the user. | Title Case tabs, an icon in every tab, an action as a tab | Short nouns; the `line` variant on pages |
+| `KIT-03` | Every icon-only button has a tooltip | An icon alone is a guess. | An icon-only button with no tooltip; a paragraph in a tooltip | `SimpleTooltip` with two or three words and the shortcut |
+| `KIT-04` | A tooltip does not cover the next action | A tooltip over the next control blocks the user's next click. | A tooltip that opens over the control the user goes to next | Pick the side: `tooltipPlacement` on `Field`, `side` on `TooltipContent` |
+| `KIT-05` | A toast confirms; it does not ask | A toast closes on its own, so it cannot hold a decision or an error to fix. | A question or a fixable error in a toast | An inline `Alert` or a dialog; a toast only confirms |
+| `KIT-06` | Tables are rows, not a grid | Grid lines and zebra fills add ink without meaning. | Grid lines, zebra rows, dark header rows | 36px rows, `border-muted` dividers, numbers right-aligned in `tabular-nums` |
+| `KIT-07` | Code blocks are quiet and copyable | Code is content, not decoration. | A dark code slab on a light page; line numbers on short snippets | A bordered box: a `muted` header with the label and one Copy button, the code in `text-code` on `background` |
+| `KIT-08` | The command palette lists actions | Each item reads as an action, and one wrong Enter must not delete anything. | Bare nouns and destructive items in the palette | Verb + object, grouped by object, the shortcut on the right |
+| `KIT-09` | The Composer is one field with its actions inside | One box reads as one control. | Composer controls outside the field; a loud send pill | Attach and Send inside the field; Send is the one filled button |
+| `KIT-10` | One Composer, two states | A plain input dressed up as the entry opens something else and drifts from the real one. | A plain input dressed up as the composer entry | The Composer's collapsed state, which opens into the same component |
+| `KIT-11` | The user's turn is a bubble; the agent's reply is not | Long answers, code and tables read like a document at full width. | Both sides in colored bubbles | The user's turn on `bg-secondary`; the agent's reply as plain full-width text |
+
+### Consistency
+
+| ID | Rule | Why | Avoid | Do instead |
+| --- | --- | --- | --- | --- |
+| `CONS-01` | Sizes come from the place | The same Mark, icon or row at two sizes reads as two things. | 18, 22 or 28px Marks; 15px icons; a size copied from the nearest screen | "Size by place" |
+| `CONS-02` | The same thing is drawn the same way | An entity, an action or a list drawn two ways looks like two things. | The same entity, action or list drawn differently on two screens | The same Mark, label, icon and row shape everywhere |
+| `CONS-03` | Base components live only in the kit | A second button or menu drifts from the kit on the next change. | A hand-rolled button, input, menu or dialog; a copy of a kit component in a feature | Import from `@agenta/ui/ui`; a new base component goes in the kit |
+
+## Working with the system
+
+- No theme variable fits? Stop and ask for one. Do not write an arbitrary value.
+- A new rule gets a row in its table here and a Do and an Avoid example in the guide. The guide test fails when a rule has no example or an example has no rule.
+- Old antd-era names still resolve through a legacy block in `globals.css`. Do not add new uses; the ratchet blocks any increase. When you touch old code, replace them:
 
 | Old name | New name |
 | --- | --- |
@@ -381,306 +623,11 @@ Old antd-era names still resolve through a legacy block in `globals.css`. Do not
 | `heroAction` | `brand` |
 | `colorError*` | `destructive` |
 
-## Patterns
-
-How the components combine on Agenta screens. "Mark" in this file is the neutral icon or letter tile; the component is `IconTile` from `@agenta/ui/ui`.
-
-### Page
-
-1. The page header: a `text-heading` title, a one-line `text-body` description in `muted-foreground`, and actions on the right (one `default` button, the rest `outline` or `ghost`).
-2. A toolbar row: the search `Input`, then a `Segmented` control or filters.
-3. `Tabs`, if the page has sibling views.
-4. The content: a list, a settings form, or a session.
-
-Everything from the title down shares the title's left edge, the left edge of the content column. Page margins: `spacing-4` on compact windows, at least `page-margin` (80px) above. Section gap: `spacing-6` on compact windows, `spacing-8` above.
-
-### List
-
-- One row shape: a Mark, a title (`text-label`), an optional meta line (`text-meta`, `muted-foreground`), an optional status `Badge`, and up to two row actions.
-- Rows are `row-single` (36px, one line) or `row-double` (48px, title + meta). Tree and rail rows are `row-dense` (28px). Do not mix heights in one list (`SPACE-02`). The divider sits inside the row's height (`box-border`).
-- A full-bleed row inside a scroller uses `focus-ring-inset`.
-- The selected row uses `bg-selected` and keeps its weight (`TYPE-05`).
-- No borders between rows. Hover is `accent`; selection is `selected`.
-- Row actions show on hover and focus with a mouse, and always on touch.
-- Loading: skeleton rows with the same Mark, title and meta shapes.
-- Empty: `EmptyState` with the first action.
-
-### Form and settings
-
-- `Field` around every control: the label above (forms) or on the left (settings rows), help in a "?" tooltip (`FORM-01`), the error below.
-- Form fields use the default `control-md` (32px). Use `control-sm` (28px) only for toolbar and row actions.
-- One Save for the section, right-aligned. A switch that applies at once needs no Save.
-- Autofocus the field the user came to fill (`FORM-03`).
-
-### Session (chat)
-
-- Column width `content-md`. The user's turn sits on `secondary` at the right. The agent's reply is plain `text-body` at full width (`CHAT-01`).
-- Tool calls are small chips (`secondary`, `text-meta`) above the agent's answer.
-- Message actions (copy, retry) show on hover, always on the last turn, and always on touch.
-- The composer is pinned at the bottom: text, attach, tools, model, and Send as the one filled button (`COMP-01`).
-
-### One Composer
-
-- The Composer is one component with two states: the collapsed entry (one line, a placeholder and Send) and the open composer (the field, attach, tools, model and Send). Both states come from that component, so a tap on the entry opens the same field the user then types in (`COMP-02`).
-- Never dress up a plain input as a composer entry. It looks the same at rest, then opens something different, and it drifts from the real Composer on the next change.
-
-### Agent pane
-
-A chat with the agent about the item that is open (an agent, a skill, an automation). It is a side panel that holds a conversation (`PANE-01`).
-
-- Expanded and medium windows: it opens in the right pane (`panel-side`, 320px) on `muted`. Its header names the item ("Ask about Weekly report"). It holds the same Composer as a session.
-- Compact window: a drill-in, like everything in the right pane. The item page shows an entry ("Ask about Weekly report"); opening it pushes a screen with Back, the item named in the header and the same Composer. Back returns to the item, and the draft stays.
-
-### Marketing surfaces
-
-- Auth pages (sign-in, sign-up) and error pages (404, 500) may use `text-display` for their one title and one illustration.
-- No gradients and no dot-grid or other background decoration.
-- Everything else follows the app rules: the same colors, buttons, fields and focus.
-
-### Menus, dialogs and sheets
-
-- Menu rows are `MENU_ITEM` in every dropdown, context menu, select, combobox and command palette (`ROW-01`). A popover with search has one layout (`MENU-02`).
-- Menus are `popover-sm` wide. Destructive items come last, after a separator.
-- A dialog is only for a decision that blocks. Name both buttons by their effect.
-- Menus and selects sit above dialogs (`z-popover` over `z-modal`), so a select inside a dialog opens on top.
-- On a compact window the kit turns menus and selects into bottom sheets and docks dialogs to the bottom edge. Use the kit components and do not build a second phone variant (`TOUCH-04`).
-
-### States
-
-| State | What it shows |
-| --- | --- |
-| Loaded | The content. |
-| Empty | What is missing, why it matters, one action (`STATE-01`). |
-| Loading | A skeleton with the layout of the loaded view (`STATE-02`). |
-| Error | An `Alert` next to the problem: cause, effect, fix (`STATE-03`). |
-
-### Feedback
-
-- Success after an action: a toast in the past tense, with Undo when the action can be reversed.
-- A problem the user must fix: an `Alert` next to it, never a toast (`TOAST-01`).
-- Running work: an `info` Badge with a spinning `circle-notch`, or a progress bar in the row.
-
-### Compact window (phone)
-
-- The phone header is one 44px bar: one leading button, one title, and at most two actions. Everything else goes in More. Its icon buttons are the kit's compact size (`PHONE-02`).
-- The leading button is the menu on top-level pages (Home, Agents, Automations, Skills, Sessions, Settings). On a detail page (an agent, an automation, a skill) and in any drill-in it is Back, with a 16px caret, and the menu button is hidden. Never show both (`PHONE-03`).
-- One item owns the bottom edge of a screen: the composer entry on chat pages, or one primary action. Never two of them stacked, and never a nav bar. When the bottom edge is taken, a primary action goes in the header or in the content (`PHONE-01`).
-- Main navigation is the sidebar. On a compact window the menu button at the start of the 44px header opens it as a drawer. There is no bottom nav bar.
-- Controls are the compact sizes (`control-md-compact` 28, `control-lg-compact` 32), from the kit. A toolbar with search, a filter, a view switcher and New fits one row.
-- Secondary screens (files, run details, settings pages) open as their own routes with Back.
-- The composer is pinned to the visual viewport, so it stays above the keyboard.
-- Pad every fixed edge with its `env(safe-area-inset-*)`. Set heights with `svh` or `dvh`, never `100vh` (`TOUCH-05`).
-
-### Size by place
-
-The same thing has the same size everywhere. When you place an element, find its place in this table. Do not copy the look of the screen you are on (`CONS-01`).
-
-| Element | Size by place |
-| --- | --- |
-| Mark | 16 inline, in nav and in menus · 20 in pickers and composer chips · 24 in list rows · 32 in page and dialog headers and cards · 40 in empty states |
-| Term icon | bare in nav and menus · inside a Mark in lists, pickers and headers |
-| Icon | 12 in badges and `xs` buttons · 14 in 28px controls · 16 in menu rows, list rows, tabs and 32px controls |
-| Control | `control-md` 32 by default · `control-sm` 28 for toolbar and row actions · `control-lg` 40 for the composer and the Home brand action · `control-xs` 24 inside inputs and dense toolbars · below 640px `control-md` is 28 and `control-lg` is 32 · the look never grows on touch |
-| List row | `row-dense` 28 for tree and rail rows · `row-single` 36 · `row-double` 48 · the same on every screen |
-| Menu row | `MENU_ITEM`: 32 on every screen |
-| Popover | `w-popover-sm` 240 for menus · `w-popover-md` 320 for pickers · `w-popover-lg` 400 for rich popovers |
-| Status dot, timeline node, thin bar | `radius-xs` 2 |
-| Mark letter | `text-caption` in 16–24px Marks |
-| Empty state icon | a 40px neutral Mark |
-| Phone header | 44 tall; the kit's compact icon buttons |
-| Icon to text | 4 in badges and `xs` buttons · 6 in other controls · 8 in rows (`GAP-01`) |
-| Mark to text | 8 for 16–24px Marks · 12 for 32–40px Marks (`GAP-02`) |
-| Between controls | 4 in a group, 8 at most (`SIZE-02`) |
-| Between sections | 24 on compact windows · 32 above |
-| Header | No header bar on medium and expanded windows: the page top band (`page-band` 148) holds the title. `header-h` 44 on phones |
-
-The same goes for everything else (`CONS-02`):
-
-- The same entity keeps the same Mark and letter everywhere.
-- The same action keeps the same label and icon everywhere: "Delete agent" with Trash in the row menu, on the detail page and in the dialog.
-- The same kind of list keeps the same row shape on every screen.
-
-## Anti-patterns
-
-What review and lint reject. Each row has a rule ID that lint messages, reviews and the guide cite. Most rules have a Do and an Avoid example at `/m/design-system`.
-
-Two checks run in `pnpm lint`:
-
-- The design ratchet (`pnpm run design:ratchet`) counts raw antd color names (`COLOR-01`), `text-[Npx]` (`TYPE-01`), `font-bold` (`TYPE-04`), a font weight set by state such as `data-[state=active]:font-*` or `aria-selected:font-*` (`weight-by-state`, `TYPE-05`), `h-[Npx]` (`SIZE-01`), `rounded-full` (`SHAPE-01`), `lucide-react` (`ICON-01`) and hover fills other than `accent` (`HOVER-01`) in `web/mobile/src` and `web/packages/*/src`. It fails when a count rises. `scripts/design-ratchet.json` holds the baseline; `--write` records a lower one.
-- ESLint bans the `lucide-react` import (`ICON-01`).
-
-Review checks every other rule.
-
-### Quiet, not loud
-
-| ID | Avoid | Do instead |
-| --- | --- | --- |
-| `LOUD-01` | Gradients and large saturated fills | A neutral surface; color on one small thing |
-| `LOUD-02` | Text larger than the page title (big metrics, banners) | `text-heading` at most; `text-metric` for a tile number; `text-display` only on Home, first-run hero screens, and auth and error pages |
-| `LOUD-03` | ALL CAPS, exclamation marks, emoji | Sentence case, plain words |
-| `LOUD-04` | Colored icons outside status | The text color; only a status icon takes its status color |
-| `LOUD-05` | Several highlight colors on one screen | One highlight: the brand action or one status |
-| `LOUD-06` | Lines of 2px or more, hard or colored shadows | 1px lines; 2px only for focus, the active tab underline and a diff or recent-change gutter marker; translucent shadows on floating things only |
-
-### Color
-
-| ID | Avoid | Do instead |
-| --- | --- | --- |
-| `COLOR-01` | Raw hex, stock Tailwind colors, antd names (`colorBg*`, `--ag-color*`) | A theme variable: `bg-muted`, `text-muted-foreground` |
-| `COLOR-02` | Brand yellow on badges, highlights, Publish, sign-in, billing, or more than one button | `brand` only on New agent on Home; the default primary elsewhere |
-| `COLOR-03` | Status shown by a colored dot alone | A tint and a word, with an icon where it fits |
-| `COLOR-04` | A component that sets its own dark-mode color (`.dark .menu {…}`) | A theme variable whose value changes per theme (`popover`) |
-| `COLOR-05` | A new color for one component; a data color for UI state (selected, hover, status, a button); a color per workspace or project Mark | One of the 23 UI colors, or a tint of one; `data-1` … `data-6` only for categories and chart series (agent avatars, span types, file kinds, template tiles) |
-
-### Type
-
-| ID | Avoid | Do instead |
-| --- | --- | --- |
-| `TYPE-01` | Arbitrary sizes: `text-[13px]`, `text-[15px]`, 13.5px | One of the text styles |
-| `TYPE-02` | A bigger size to show importance | Weight 500 and `foreground`; quiet the rest with `muted-foreground` |
-| `TYPE-03` | Proportional digits in columns | `tabular-nums` |
-| `TYPE-04` | Bold text: `font-bold`, weight 700 or more, `<strong>` in the interface | 600 for titles only, 500 for emphasis |
-| `TYPE-05` | A control that turns bolder when active, selected, current, open or focused (`data-[state=active]:font-semibold`); a 600 or bold button | Weight 500 (`text-label`) in every state; state shows by color or a fill (`bg-selected`, `text-foreground`) |
-
-### Size and shape
-
-| ID | Avoid | Do instead |
-| --- | --- | --- |
-| `SIZE-01` | Height classes on controls: `h-[34px]`, `h-[30px]` | The `size` prop |
-| `SIZE-02` | Grouped buttons 12px or more apart | `gap-1` (4px); `gap-2` (8px) at most |
-| `SHAPE-01` | Anything round: `rounded-full`, `50%`, pills, circle avatars, round dots, round switch knobs, a radius over a quarter of the short side | `radius-sm` or `radius-md` |
-| `SHAPE-02` | The same radius inside and outside a padded box | Inner = outer − padding |
-
-### Icons
-
-| ID | Avoid | Do instead |
-| --- | --- | --- |
-| `ICON-01` | `lucide-react` or any second icon library | Phosphor, regular weight |
-| `ICON-02` | Two icons in one button | One icon: leading, or a trailing caret |
-| `ICON-03` | Play and arrow icons centered by their box | Move them 1px so they look centered |
-| `ICON-04` | An icon size picked per screen (18 or 20px next to 13px text) | The size for the place: 12, 14 or 16 |
-| `ICON-05` | One term with two icons (Skill as a compass in the nav and a book in a list) | The one icon from "Icon per term" |
-
-### Surfaces and hover
-
-| ID | Avoid | Do instead |
-| --- | --- | --- |
-| `SURF-01` | Borders around borders to separate areas | A different surface tone |
-| `SURF-02` | Two bordered boxes stacked, which draws a 2px seam | One border, with a divider inside |
-| `SURF-03` | Shadows on flat cards and list items; opaque gray shadows | The three shadow variables, on floating things only |
-| `SURF-04` | A shadow or a lift on hover | `accent` |
-| `HOVER-01` | A hover fill picked per screen: `hover:bg-muted`, `hover:bg-foreground/10`, a gray | `hover:bg-accent`. On a sticky row that must stay opaque, layer `accent` over the ground as a gradient image |
-| `HOVER-02` | A fill inside a row that matches the row's hover, so it disappears | A translucent fill (`secondary`) that stacks on the hover |
-
-### Actions and forms
-
-| ID | Avoid | Do instead |
-| --- | --- | --- |
-| `ACT-01` | Two primary buttons in one view | One primary; the rest `secondary`, `outline` or `ghost` |
-| `ACT-02` | "OK", "Submit", "Yes" | Verb + object |
-| `ACT-03` | A solid red button on a page, in a toolbar or in a menu | `destructive-ghost`; solid `destructive` only to confirm in a dialog |
-| `FORM-01` | Help text under every label | A "?" tooltip on the label |
-| `FORM-02` | A focus style of its own: a gray halo, `outline-4`, `ring-[3px]`, an offset gap | `focus-ring` or `focus-ring-field` |
-| `FORM-03` | The user must click into the field they came to fill | Autofocus it |
-
-### States, scroll and alignment
-
-| ID | Avoid | Do instead |
-| --- | --- | --- |
-| `STATE-01` | "No data", "Nothing here" | What is missing, why it matters, one first action |
-| `STATE-02` | A spinner or generic bars for a list | A skeleton with the loaded layout |
-| `STATE-03` | "Something went wrong" | Cause, effect, fix |
-| `SCROLL-01` | A fade on an edge that cannot scroll | `useScrollFadeEdges` with `.ag-scroll-fade` |
-| `ALIGN-01` | Box edges on the title's line, so the text inside drifts right by each box's padding | Content on one line from the title; padded boxes outdent by their padding (row 12, group header 12, input 8, nav item 8) |
-| `ALIGN-02` | Sidebar icons on the workspace Mark's left edge; nav text, group labels and the workspace name on different lines | Icons on the Mark's center line; all sidebar text on one line |
-
-### Motion
-
-| ID | Avoid | Do instead |
-| --- | --- | --- |
-| `MOTION-01` | An instant swap of one view for another | A 120–200ms fade and slide preset |
-| `MOTION-02` | Bounce, overshoot, shaking; a ping, a scaling dot, a spinning ring or gradient for live activity | 120, 200 or 320ms with `ease-out` or `ease-in-out`; still at rest; live activity is a spinning `CircleNotch` or a 1.5s opacity pulse on a status dot |
-| `MICRO-01` | A caret that points the same way whether its menu is open or closed | The caret turns 180° while open (`ag-caret`) |
-| `MICRO-02` | A menu or popover that grows from its center or appears from nowhere | It unfolds from the trigger's edge (`ag-overlay-motion`); only dialogs open from the center |
-| `MICRO-03` | Feedback away from the control: a toast for Copy, a banner for a toggle | The control itself changes: Copy becomes Check for 1.5s, the switch slides |
-| `MICRO-04` | An animated open for something used many times an hour from the keyboard (the command palette, a shortcut) | It opens at once |
-| `MICRO-05` | A toggle that waits for the server before it moves (a spinner, then the switch) | The switch and its label change on the click; they go back only if the call fails |
-| `MICRO-06` | An expanding row whose caret does not change, open or closed | Its right caret turns 90° to point at the content (`CollapseCaret`) |
-
-### Layout
-
-| ID | Avoid | Do instead |
-| --- | --- | --- |
-| `LAYOUT-01` | Nested scroll areas that scroll the same way | One scroll container per pane |
-| `LAYOUT-02` | Text and lists stretched across a wide window; a width of its own (880, 920, 960, 1120) | `content-sm`, `content-md` or `content-lg`, centered with at least `page-margin` on each side; full width only for workbench pages |
-| `LAYOUT-03` | A page with its own header height or top padding; a breadcrumb bar | 32px, the 148px page top band, 24px, then the body, on every page |
-| `LAYOUT-04` | A page's own side panel next to the right pane; a side panel squeezed into a medium or compact window; the right pane stacked under the body on a phone | The one right pane (`panel-side`), one thing at a time; an overlay with the scrim when there is no room; on compact, a drill-in with Back |
-| `PANE-01` | An agent chat that opens as a stacked route or a dialog, or that does not name the item | The right pane (`panel-side`); a drill-in with Back on compact; the item named in the header; the same Composer |
-| `PHONE-01` | Two things on the phone's bottom edge (a composer and a floating New); a bottom nav bar | One item on the bottom edge; a primary action goes in the header or the content |
-| `PHONE-02` | A tall phone header; 44px icon buttons; two titles | A 44px bar, the kit's compact icon buttons, one leading button, one title |
-| `PHONE-03` | Back and the menu button together in a phone header; the menu on a detail page | The menu on top-level pages; Back alone on detail pages and drill-ins |
-
-### Content and voice
-
-| ID | Avoid | Do instead |
-| --- | --- | --- |
-| `COPY-01` | Title Case labels | Sentence case |
-| `COPY-02` | "Success!" toasts | What happened, in the past tense, with Undo when possible |
-| `COPY-03` | System words (invocation, integration config) | The user's words (run, connection) |
-
-### Space, rows and gaps
-
-| ID | Avoid | Do instead |
-| --- | --- | --- |
-| `SPACE-01` | Off-scale gaps (11px), and even spacing that hides groups | `gap-1/2/3/4/6/8`; less space inside a group than between groups |
-| `SPACE-02` | List rows other than 28, 36 and 48px; a divider added below the row's height | `row-dense` 28 for tree and rail rows, `row-single` 36 for one line, `row-double` 48 for title + meta; the divider inside the height (`box-border`) |
-| `ROW-01` | Menu rows with their own height, padding or text (a 28px dropdown, a 36px option) | `MENU_ITEM`: 32px, 8px side padding, `text-label`, a 16px icon |
-| `MENU-02` | A search popover with its own layout: a tall search, rows on other edges, a big button as the action | Search on top, group headings, `MENU_ITEM` rows, a divider, then the action as one more row |
-| `GAP-01` | Icon-to-text gaps picked per screen (1, 10, 12px) | 4px in badges and `xs` buttons, 6px in other controls, 8px in rows |
-| `GAP-02` | Mark-to-text gaps picked per screen | 8px for 16–24px Marks, 12px for 32–40px Marks |
-
-### Components
-
-| ID | Avoid | Do instead |
-| --- | --- | --- |
-| `BADGE-01` | Categorical badge colors (blue, purple, gold), data colors on a badge, and bordered tags | The five `Badge` variants: default, success, warning, destructive, info. Badge text is `text-caption` |
-| `TABS-01` | Title Case tabs, an icon in every tab, an action as a tab | Short nouns; the `line` variant on pages |
-| `TIP-01` | An icon-only button with no tooltip; a paragraph in a tooltip | `SimpleTooltip` with two or three words and the shortcut |
-| `TOAST-01` | A question or a fixable error in a toast | Inline errors and dialogs; a toast only confirms |
-| `TABLE-01` | Grid lines, zebra rows, dark header rows | 36px rows, `border-border-muted` dividers, numbers right-aligned in `tabular-nums` |
-| `CODE-01` | A dark code slab on a light page; line numbers on short snippets | A bordered box: a `muted` header with the label and one Copy button, the code in `text-code` on `background` |
-| `CMD-01` | Bare nouns and destructive items in the command palette | Verb + object, grouped by object, the shortcut on the right |
-| `COMP-01` | Composer controls outside the field; a loud send pill | Attach and send inside the field; send is the one filled button |
-| `COMP-02` | A plain input dressed up as the composer entry | The Composer's own collapsed state, which opens into the same component |
-| `CHAT-01` | Both sides in colored round bubbles | The user's turn in a `bg-secondary` bubble; the agent's reply as plain full-width text |
-
-### Consistency
-
-| ID | Avoid | Do instead |
-| --- | --- | --- |
-| `CONS-01` | One-off sizes for Marks, icons or rows (18, 22 or 28px Marks; 15px icons) | The "Size by place" table |
-| `CONS-02` | The same entity, action or list drawn differently on two screens | Copy the existing size, label and icon |
-
-### Touch and small screens
-
-| ID | Avoid | Do instead |
-| --- | --- | --- |
-| `SIZE-03` | Bigger UI on a phone or a touch screen: `phone ? "h-11"`, `pointer-coarse:size-11`, `max-md:h-11`, `[&_button]:min-h-11`, 44px rows, hidden tap boxes | The same kit sizes everywhere; they step down below 640px |
-| `TOUCH-02` | Fields under 16px on touch (iOS zooms the page); a taller field on touch | 16px text under `pointer: coarse`, at the same height |
-| `TOUCH-03` | Actions shown only on hover | Always visible under `pointer: coarse` |
-| `TOUCH-04` | A desktop popover on a phone; a hand-made phone variant | The kit menus, selects and dialogs, which become sheets |
-| `TOUCH-05` | `100vh`; fixed bars without safe-area padding | `svh` or `dvh`; `env(safe-area-inset-*)` |
-
-## Working with the system
-
-- Import base components from `@agenta/ui/ui`. Do not hand-roll a button, input, menu or dialog.
-- No theme variable fits? Stop and ask for one. Do not write an arbitrary value such as `text-[13px]` or `h-[34px]`.
-- A new rule gets an ID, a row in Anti-patterns, and a Do and an Avoid example in the guide. A deleted rule is removed from all three and from the skill.
+Theme variable names follow shadcn, so the kit and Tailwind read them as they are. A surface is a noun (`muted`); text on it is `foreground` unless a rule says otherwise. An extra name (`selected`, `border-muted`, `data-1`) names a role, never a product entity or a component. The shadcn slot names the kit expects (`card`, `input`, `sidebar-*`) point at the 23 colors through `colorAliases` in `theme.config.ts`.
 
 | File | What it is | How it changes |
 | --- | --- | --- |
-| `web/mobile/DESIGN.md` | The rules and their reasons | By hand, by PR |
-| `web/mobile/src/design/theme.config.ts` | The values: colors, text styles, spacing, sizes, radii, shadows, motion | By hand, by PR; then `pnpm generate:theme` |
-| `web/mobile/scripts/generate-theme.ts` | Writes `theme.css`, `theme.tailwind.css` and `tokens.json`, and the value tables in this file | `pnpm theme:check` fails when its output is stale |
+| `web/mobile/DESIGN.md` | Principles, rules with reasons, patterns | By hand, by PR |
+| `web/mobile/src/design/theme.config.ts` | The values | By hand, by PR; then `pnpm generate:theme` |
+| `web/mobile/scripts/generate-theme.ts` | Writes `theme.css`, `theme.tailwind.css`, `tokens.json` (the values in the W3C design-token format, for design tools; the app does not read it), `rules.json` (the rules and principles from this file, for the guide) and the value tables here | `pnpm theme:check` fails when any output is stale |
 | `web/mobile/src/features/design-system/` | The guide at `/m/design-system`: one Do and one Avoid example per rule | By hand, with this file |
-| `.agents/skills/ui-design-rules/SKILL.md` | The short checklist agents load before UI work | By hand, with this file |

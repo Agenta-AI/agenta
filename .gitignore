@@ -115,7 +115,6 @@ clients/python/tests/results/
 !.agents/skills/update-public-surfaces/
 !.agents/skills/mobile-app-structure/
 !.agents/skills/mobile-shadcn-conventions/
-!.agents/skills/mobile-motion-patterns/
 !.agents/skills/design-interfaces/
 !.agents/skills/keep-docs-in-sync/
 !.agents/skills/naming-and-resources/
@@ -126,7 +125,6 @@ clients/python/tests/results/
 !.agents/skills/review-simplify/
 !.agents/skills/review-slop/
 !.agents/skills/test-design/
-!.agents/skills/ui-design-rules/
 !.claude/
 .claude/*
 !.claude/skills/
@@ -149,14 +147,12 @@ clients/python/tests/results/
 !.claude/skills/write-template-playbooks
 !.claude/skills/update-public-surfaces
 !.claude/skills/scan-codebase
-!.claude/skills/ui-design-rules
 !.claude/skills/triage-findings
 !.claude/skills/resolve-findings
 !.claude/skills/sync-findings
 !.claude/skills/test-codebase
 !.claude/skills/mobile-app-structure
 !.claude/skills/mobile-shadcn-conventions
-!.claude/skills/mobile-motion-patterns
 !.claude/skills/gitbutler-stacks
 !.claude/skills/design-interfaces
 !.claude/skills/keep-docs-in-sync

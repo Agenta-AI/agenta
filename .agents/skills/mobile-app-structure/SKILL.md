@@ -60,5 +60,5 @@ web/mobile/
 1. Create `src/features/<feature>/` with the screen component.
 2. Create `states/` siblings for every data-bearing component.
 3. Add the route shell in `src/pages/` that renders the screen.
-4. Use `useMotionPresets()` for any transitions (see mobile-motion-patterns).
+4. Use `useMotionPresets()` for any transitions (`web/mobile/DESIGN.md`, Motion).
 5. `pnpm --filter @agenta/mobile lint && pnpm --filter @agenta/mobile types:check`.

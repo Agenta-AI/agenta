@@ -3,8 +3,8 @@
 Scope: everything under `web/`. Active frontend work lives in two places: `web/mobile` (the
 app, served at `/m`; its own rules are in `web/mobile/AGENTS.md`) and `web/packages` (the
 shared `@agenta/*` packages). `web/oss` and `web/ee` are the abandoned desktop app: do not
-edit, run, or copy from them. The one exception is the theme source in
-`web/oss/src/styles/theme/` (see below). This file loads when you work in the frontend. The
+edit, run, or copy from them. The one exception is the legacy palette in
+`web/oss/src/styles/theme/` (see "Styling"). This file loads when you work in the frontend. The
 repo-wide root conventions live in `/AGENTS.md`.
 
 Exception (M3 sharing): `/w` sends `visibility: "project"` on new chats and agents. Do not add
@@ -27,14 +27,8 @@ the detail this file only summarizes.
   checks can pass while `/m` renders nothing; this has happened before.
 - A PR that changes what a user sees (a screen, a component, a label, a state) shows before
   and after screenshots in its body. The `write-pr-description` skill says how.
-- Theme colors have a single source of truth: `oss/src/styles/theme/palette.ts` (semantic
-  roles with `{light, dark}` values). This theme folder is the one part of `web/oss` still
-  in use. To change any color, edit `palette.ts`, run `pnpm generate:tailwind-tokens`, and
-  commit the regenerated files (`packages/agenta-ui/src/styles/theme-variables.css`,
-  `mobile/src/styles/theme.generated.css`, `oss/src/styles/theme/antd-overrides.generated.ts`).
-  Never hand-edit the generated files. See the "Styling" section below.
-  `web/mobile` does not read `palette.ts`: its colors, type, radii and shadows come from
-  `mobile/src/design/theme.config.ts` (`pnpm generate:theme` in `web/mobile`).
+- Theme and design changes: see `mobile/DESIGN.md`, "Working with the system", and the "Styling"
+  section below.
 - The Fern-generated `@agentaai/api-client` ships as a compiled `dist/` (entry
   `./dist/index.js`). `pnpm install` runs the package's `prepare` script which builds
   `dist/` automatically, so a fresh checkout works out of the box. If you regenerate the
@@ -321,23 +315,14 @@ class (evaluators showing "default", SDK-created apps showing "--" or hex slugs)
 
 When adding or changing UI elements, implement appearance and interaction states for both light and dark themes, and verify both before considering the work complete.
 
-**Theme colors.** All theme-aware colors flow from one source of truth,
-`oss/src/styles/theme/palette.ts` — semantic roles (surface / text / border / fill /
-accent / semantic / scales / feature families), each a `{light, dark}` pair. The generator
-(`pnpm generate:tailwind-tokens`) turns it into `@agenta/ui`'s `theme-variables.css`, the
-mobile shadcn tokens (`mobile/scripts/generate-shadcn-tokens.ts` →
-`mobile/src/styles/theme.generated.css`), the antd dark overrides, and the `--ag-c-*`
-compatibility shim. In `web/mobile` and the `@agenta/ui/ui` kit, use the shadcn semantic
-tokens (`bg-background`, `text-muted-foreground`, `border-border`). Older package code uses
-antd-derived tokens (`bg-colorBgContainer`, `var(--ag-color*)`); match the file you are in.
-Never use raw hex or `--ag-c-*` literals. To change a color, edit `palette.ts` and
-regenerate — never hand-edit the generated files.
-
-`web/mobile` (and so every package screen rendered at `/m`) is themed by
-`mobile/src/design/theme.config.ts` instead. Its `globals.css` points the old names above at
-the new variables, so package code that still uses them follows the `/m` theme. In new code use
-the design-system names (`bg-muted`, `text-label`, `border-border-muted`); see
-`mobile/DESIGN.md`. `theme.generated.css` now feeds only the marketing website's demo frame.
+**Theme and design rules.** `web/mobile` (and every package screen rendered at `/m`) takes its
+values from `mobile/src/design/theme.config.ts` and its rules from `mobile/DESIGN.md`. Use the
+theme variable names (`bg-muted`, `text-label`, `border-border-muted`), never raw hex. Old
+antd-era names (`bg-colorBgContainer`, `var(--ag-color*)`) still resolve through `globals.css`;
+replace them when you touch the code. `oss/src/styles/theme/palette.ts` feeds only legacy
+generated files: `@agenta/ui`'s `theme-variables.css`, the website demo frame's
+`theme.generated.css` and the antd overrides (`pnpm generate:tailwind-tokens`; never hand-edit
+the output).
 
 Always prefer Tailwind utility classes over CSS-in-JS or separate CSS files.
 

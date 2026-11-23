@@ -1,0 +1,1053 @@
+{
+    "principles": [
+        {
+            "title": "Theme variables name a job, not a look",
+            "body": "Write `bg-muted text-muted-foreground border-border-muted`. Never a hex value, a stock Tailwind color or an antd name."
+        },
+        {
+            "title": "Components own their size",
+            "body": "A caller passes `size=\"sm\"`. Height, padding, radius, text and icon size come from the component. `className` is for layout only."
+        },
+        {
+            "title": "Tone separates areas, borders separate items",
+            "body": "An area that must stand apart gets a different surface (`muted` on `background`), not another border."
+        },
+        {
+            "title": "One primary action per view",
+            "body": "Color points at one thing: the `default` (primary) button. Everything else is quiet."
+        },
+        {
+            "title": "Hierarchy from weight and tone first, size last",
+            "body": "Weight shows rank, never state."
+        },
+        {
+            "title": "Quiet, not loud",
+            "body": "No bold text, no thick lines, no large saturated fills, no heavy shadows. Emphasis comes from `foreground` against `muted-foreground`."
+        },
+        {
+            "title": "The same thing looks the same everywhere",
+            "body": "An entity, an action or a list has one size, one label and one icon on every screen. Take it from the tables here, not from the screen you are on."
+        },
+        {
+            "title": "Every view has four states",
+            "body": "loaded, empty, loading and error."
+        }
+    ],
+    "groups": [
+        {
+            "prefix": "LOUD",
+            "title": "Quiet",
+            "rules": [
+                {
+                    "id": "LOUD-01",
+                    "rule": "No gradients or large saturated fills",
+                    "why": "Color on a large area pulls the eye away from the content.",
+                    "avoid": "Gradients; large saturated fills",
+                    "do": "A neutral surface; color on one small thing",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "LOUD-02",
+                    "rule": "Nothing is bigger than the page title",
+                    "why": "Size is the last tool for hierarchy. A banner or a number larger than the title takes over the page.",
+                    "avoid": "Text larger than the page title (big metrics, banners)",
+                    "do": "`text-heading` at most; `text-metric` for a tile number; `text-display` only on Home, first-run hero screens, and auth and error pages",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "LOUD-03",
+                    "rule": "No all caps, exclamation marks or emoji",
+                    "why": "The product speaks plainly. Sentence case reads faster than capitals.",
+                    "avoid": "ALL CAPS, exclamation marks, emoji",
+                    "do": "Sentence case, plain words",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "LOUD-04",
+                    "rule": "Icons take the text color",
+                    "why": "A colored icon competes with the text next to it.",
+                    "avoid": "Colored icons outside status",
+                    "do": "The text color; only a status icon takes its status color",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "LOUD-05",
+                    "rule": "One highlight color per screen",
+                    "why": "One highlight tells the user where to look. Several cancel each other out.",
+                    "avoid": "Several highlight colors on one screen",
+                    "do": "One highlight: the brand action or one status",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "LOUD-06",
+                    "rule": "Thin lines, soft shadows",
+                    "why": "A heavy frame is louder than its content.",
+                    "avoid": "Lines of 2px or more; hard or colored shadows",
+                    "do": "1px lines; 2px only for focus, the active tab underline and a diff or recent-change gutter marker; translucent shadows on floating things only",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "COLOR",
+            "title": "Color",
+            "rules": [
+                {
+                    "id": "COLOR-01",
+                    "rule": "Use a theme variable, never a raw color",
+                    "why": "A variable names a job, so the same job gets the same color everywhere. A raw value drifts with the next person.",
+                    "avoid": "Raw hex, stock Tailwind colors, antd names (`colorBg*`, `--ag-color*`)",
+                    "do": "A theme variable: `bg-muted`, `text-muted-foreground`",
+                    "checkedBy": [
+                        "ratchet",
+                        "review"
+                    ]
+                },
+                {
+                    "id": "COLOR-02",
+                    "rule": "Brand yellow marks the one brand action",
+                    "why": "The yellow is the strongest color. On several things it points at nothing, and in dark `primary` is yellow too.",
+                    "avoid": "Brand yellow on badges, highlights, Publish, sign-in, billing, or more than one button",
+                    "do": "`brand` only on New agent on Home; the default primary elsewhere",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "COLOR-03",
+                    "rule": "Status needs a word or an icon",
+                    "why": "About 1 in 12 men see red and green poorly. Color only supports the meaning.",
+                    "avoid": "Status shown by a colored dot alone",
+                    "do": "A tint and a word, with an icon where it fits",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "COLOR-04",
+                    "rule": "No dark-mode colors in a component",
+                    "why": "A theme variable already changes per theme. A component's own dark color drifts from the theme.",
+                    "avoid": "A component that sets its own dark-mode color (`.dark .menu {…}`)",
+                    "do": "A theme variable whose value changes per theme (`popover`)",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "COLOR-05",
+                    "rule": "UI colors stay neutral; data colors are for data",
+                    "why": "A color for one component adds a palette nobody controls. A data color on UI state reads as a category.",
+                    "avoid": "A new color for one component; a data color for selected, hover, status or a button; a color per workspace or project Mark",
+                    "do": "One of the 23 UI colors or a tint of one; `data-1` … `data-6` only for categories and chart series, in order",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "TYPE",
+            "title": "Type",
+            "rules": [
+                {
+                    "id": "TYPE-01",
+                    "rule": "Use the text styles, never a pixel size",
+                    "why": "Each near-miss size looks a little wrong next to the real ones. One screen had 35 sizes.",
+                    "avoid": "Arbitrary sizes: `text-[13px]`, `text-[15px]`, 13.5px",
+                    "do": "One of the text styles",
+                    "checkedBy": [
+                        "ratchet",
+                        "review"
+                    ]
+                },
+                {
+                    "id": "TYPE-02",
+                    "rule": "Show importance with weight and tone, not size",
+                    "why": "A bigger size breaks the scale and makes the line taller.",
+                    "avoid": "A bigger size to show importance",
+                    "do": "Weight 500 and `foreground`; quiet the rest with `muted-foreground`",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "TYPE-03",
+                    "rule": "Numbers in columns use tabular figures",
+                    "why": "Proportional digits move a column of numbers left and right.",
+                    "avoid": "Proportional digits in columns",
+                    "do": "`tabular-nums`",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "TYPE-04",
+                    "rule": "No weight above 600",
+                    "why": "Bold text shouts.",
+                    "avoid": "`font-bold`, weight 700 or more, `<strong>` in the interface",
+                    "do": "600 for titles only, 500 for emphasis",
+                    "checkedBy": [
+                        "ratchet",
+                        "review"
+                    ]
+                },
+                {
+                    "id": "TYPE-05",
+                    "rule": "Weight never changes with state",
+                    "why": "A bolder word is wider, so the label and its neighbors move. Weight already means rank.",
+                    "avoid": "A control that turns bolder when active, selected, current, open or focused (`data-[state=active]:font-semibold`); a 600 button",
+                    "do": "Weight 500 (`text-label`) in every state; state shows by color or a fill (`bg-selected`, `text-foreground`)",
+                    "checkedBy": [
+                        "ratchet",
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "SIZE",
+            "title": "Size",
+            "rules": [
+                {
+                    "id": "SIZE-01",
+                    "rule": "Pass a size, never a height",
+                    "why": "A control owns its height, padding, radius, text and icon. A height class breaks that on one screen.",
+                    "avoid": "Height classes on controls: `h-[34px]`, `h-[30px]`",
+                    "do": "The `size` prop",
+                    "checkedBy": [
+                        "ratchet",
+                        "review"
+                    ]
+                },
+                {
+                    "id": "SIZE-02",
+                    "rule": "Nothing gets bigger on a compact window or on touch",
+                    "why": "Bigger controls make every screen bulky: the toolbar no longer fits and lists show half the rows. The kit already steps down below 640px.",
+                    "avoid": "`phone ? \"h-11\"`, `pointer-coarse:size-11`, `max-md:h-11`, `[&_button]:min-h-11`, 44px rows, hidden tap boxes",
+                    "do": "The same kit sizes everywhere; they step down below 640px by themselves",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "SHAPE",
+            "title": "Shape",
+            "rules": [
+                {
+                    "id": "SHAPE-01",
+                    "rule": "Nothing is round",
+                    "why": "Pills and circles belong to another design language.",
+                    "avoid": "`rounded-full`, `50%`, pills, circle Marks, round dots, round switch knobs",
+                    "do": "`radius-sm` or `radius-md`; at most a quarter of the short side",
+                    "checkedBy": [
+                        "ratchet",
+                        "review"
+                    ]
+                },
+                {
+                    "id": "SHAPE-02",
+                    "rule": "Nested corners are concentric",
+                    "why": "With the same radius inside and out, the gap is wider at the corners than on the sides.",
+                    "avoid": "The same radius inside and outside a padded box",
+                    "do": "Inner radius = outer radius − padding",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "ICON",
+            "title": "Icons",
+            "rules": [
+                {
+                    "id": "ICON-01",
+                    "rule": "Phosphor, regular weight, only",
+                    "why": "Phosphor's thin round strokes next to heavier ones look like two products.",
+                    "avoid": "`lucide-react` or a second icon library; a filled icon that does not show a state",
+                    "do": "Phosphor, regular weight; `fill` only to show a state",
+                    "checkedBy": [
+                        "ratchet",
+                        "lint",
+                        "review"
+                    ]
+                },
+                {
+                    "id": "ICON-02",
+                    "rule": "One icon per button",
+                    "why": "A second icon makes the button look like two controls.",
+                    "avoid": "Two icons in one button",
+                    "do": "One icon: leading, or a trailing caret on a menu trigger",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "ICON-03",
+                    "rule": "Center icons by eye",
+                    "why": "A play triangle or an arrow looks off-center when its box is centered.",
+                    "avoid": "Play and arrow icons centered by their box",
+                    "do": "Move them 1px so they look centered",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "ICON-04",
+                    "rule": "Icon size comes from the place",
+                    "why": "An icon picked per screen looks wrong next to the text beside it.",
+                    "avoid": "18 or 20px icons next to 13px text",
+                    "do": "12, 14 or 16px, from \"Size by place\"",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "ICON-05",
+                    "rule": "One icon per product term",
+                    "why": "When a term has two icons, users read two different things.",
+                    "avoid": "Skill as a compass in the nav and a book in a list",
+                    "do": "The icon from \"Icon per term\"",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "SURF",
+            "title": "Surfaces",
+            "rules": [
+                {
+                    "id": "SURF-01",
+                    "rule": "Separate areas by tone",
+                    "why": "Each border is one more line to read.",
+                    "avoid": "Borders around borders to separate areas",
+                    "do": "A different surface tone",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "SURF-02",
+                    "rule": "Draw each border once",
+                    "why": "Two bordered boxes stacked draw a 2px seam.",
+                    "avoid": "Two bordered boxes stacked",
+                    "do": "One border, with a divider inside",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "SURF-03",
+                    "rule": "Shadows only on things that float",
+                    "why": "A shadow says this sits above the page.",
+                    "avoid": "Shadows on flat cards and list items; opaque gray shadows",
+                    "do": "`shadow-overlay`, `shadow-modal`, `shadow-raised`, on floating things only",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "SURF-04",
+                    "rule": "Hover never lifts",
+                    "why": "A shadow on hover says the element moved up, not that it is hovered.",
+                    "avoid": "A shadow or a lift on hover",
+                    "do": "The hover fill",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "SURF-05",
+                    "rule": "One hover fill",
+                    "why": "`accent` is ink at 5%, so it is the same step darker on the page, in the sidebar and in a popover.",
+                    "avoid": "`hover:bg-muted`, `hover:bg-foreground/10`, a gray picked per screen",
+                    "do": "`hover:bg-accent`; on a sticky row that must stay opaque, `accent` over the ground as a gradient image",
+                    "checkedBy": [
+                        "ratchet",
+                        "review"
+                    ]
+                },
+                {
+                    "id": "SURF-06",
+                    "rule": "Nothing inside a row has the row's hover color",
+                    "why": "A fill that matches the hover disappears when the row is hovered.",
+                    "avoid": "A fill inside a row that matches the row's hover",
+                    "do": "A translucent fill (`secondary`) that stacks on the hover",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "SPACE",
+            "title": "Space",
+            "rules": [
+                {
+                    "id": "SPACE-01",
+                    "rule": "Space from the 4px scale, tighter inside groups",
+                    "why": "Less space inside a group than between groups shows the groups without lines.",
+                    "avoid": "Off-scale gaps (11px); even spacing that hides groups",
+                    "do": "`gap-1/2/3/4/6/8`; less space inside a group than between groups",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "SPACE-02",
+                    "rule": "Grouped buttons sit 4px apart, 8px at most",
+                    "why": "A group reads as one unit only when its gap is smaller than the space around it.",
+                    "avoid": "Grouped buttons 12px or more apart",
+                    "do": "`gap-1`; `gap-2` at most",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "SPACE-03",
+                    "rule": "Icon to text: 4, 6 or 8px by place",
+                    "why": "The gap follows the place, so the same element looks the same everywhere.",
+                    "avoid": "Icon-to-text gaps picked per screen (1, 10, 12px)",
+                    "do": "4px in badges and `xs` buttons, 6px in other controls, 8px in rows",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "SPACE-04",
+                    "rule": "Mark to text: 8 or 12px",
+                    "why": "A bigger Mark needs more room, and the same Mark always gets the same gap.",
+                    "avoid": "Mark-to-text gaps picked per screen",
+                    "do": "8px for 16–24px Marks, 12px for 32–40px Marks",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "SPACE-05",
+                    "rule": "Equal visible gaps between icons",
+                    "why": "Icons differ in width, so gaps measured from their boxes look uneven.",
+                    "avoid": "Icons in a row spaced by their boxes",
+                    "do": "Equal gaps between the visible icon edges",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "ROW",
+            "title": "Rows and menus",
+            "rules": [
+                {
+                    "id": "ROW-01",
+                    "rule": "One row height per list",
+                    "why": "Rows of one height make a list easy to scan.",
+                    "avoid": "List rows other than 28, 36 and 48px; mixed heights in one list; a divider below the row's height",
+                    "do": "`row-dense` for tree and rail rows, `row-single`, `row-double`; the divider inside the height",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "ROW-02",
+                    "rule": "Every menu row is `MENU_ITEM`",
+                    "why": "A menu, a select and a combobox are the same thing to a user.",
+                    "avoid": "Menu rows with their own height, padding or text (a 28px dropdown, a 36px option)",
+                    "do": "`MENU_ITEM`: 32px, 8px side padding, `text-label`, a 16px icon",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "ROW-03",
+                    "rule": "A search popover has one shape",
+                    "why": "Users learn the layout once.",
+                    "avoid": "A search popover with a tall search, rows on other edges, or a big button as the action",
+                    "do": "Search on top, group headings, `MENU_ITEM` rows, a divider, then the action as one more row",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "ACT",
+            "title": "Actions",
+            "rules": [
+                {
+                    "id": "ACT-01",
+                    "rule": "One primary action per view",
+                    "why": "The primary button answers \"what do I do here?\". Two give two answers.",
+                    "avoid": "Two primary buttons in one view",
+                    "do": "One primary; the rest `secondary`, `outline` or `ghost`",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "ACT-02",
+                    "rule": "Label a button with its action",
+                    "why": "A verb and an object say what happens. OK makes the user read the dialog again.",
+                    "avoid": "\"OK\", \"Submit\", \"Yes\"",
+                    "do": "Verb + object: \"Delete agent\"",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "ACT-03",
+                    "rule": "Destructive actions stay quiet until the confirm",
+                    "why": "A solid red button on a page is louder than the primary action.",
+                    "avoid": "A solid red button on a page, in a toolbar or in a menu",
+                    "do": "`destructive-ghost`; solid `destructive` only to confirm in a dialog",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "FORM",
+            "title": "Forms and focus",
+            "rules": [
+                {
+                    "id": "FORM-01",
+                    "rule": "Field help goes in a \"?\" tooltip",
+                    "why": "Help under every label doubles the height of the form.",
+                    "avoid": "Help text under every label",
+                    "do": "`Field` with `tooltip`",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "FORM-02",
+                    "rule": "One focus style",
+                    "why": "Focus that looks different per control is easy to lose.",
+                    "avoid": "A gray halo, `outline-4`, `ring-[3px]`, an offset gap",
+                    "do": "`focus-ring`, `focus-ring-field` or `focus-ring-inset`",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "FORM-03",
+                    "rule": "Focus the field the user came to fill",
+                    "why": "A click to reach the only field is a wasted step.",
+                    "avoid": "The user must click into the field",
+                    "do": "Autofocus it",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "STATE",
+            "title": "View states",
+            "rules": [
+                {
+                    "id": "STATE-01",
+                    "rule": "An empty state says what to do next",
+                    "why": "\"Nothing here\" is a dead end.",
+                    "avoid": "\"No data\", \"Nothing here\"",
+                    "do": "What is missing, why it matters, one first action",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "STATE-02",
+                    "rule": "The skeleton matches the loaded view",
+                    "why": "Another layout makes the page jump when the data arrives.",
+                    "avoid": "A spinner or generic bars for a list",
+                    "do": "A skeleton with the loaded layout",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "STATE-03",
+                    "rule": "An error says what happened and the fix",
+                    "why": "\"Something went wrong\" gives the user nothing to act on.",
+                    "avoid": "\"Something went wrong\"",
+                    "do": "Cause, effect, fix",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "ALIGN",
+            "title": "Alignment",
+            "rules": [
+                {
+                    "id": "ALIGN-01",
+                    "rule": "Content sits on the alignment line; boxes outdent",
+                    "why": "When the boxes align, the text inside drifts right by each box's padding.",
+                    "avoid": "Box edges on the title's line",
+                    "do": "Text and the first icon or Mark on the line; padded boxes outdent by their padding (row 12, group header 12, input 8, nav item 8); the screen sets the negative margin, since the kit does not yet",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "ALIGN-02",
+                    "rule": "Sidebar text on one line, icons on the Mark's center",
+                    "why": "Icons on the workspace Mark's left edge make the Mark look off.",
+                    "avoid": "Sidebar icons on the Mark's left edge; nav text, group labels and the workspace name on different lines",
+                    "do": "Icons on the Mark's center line; all sidebar text on one line",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "LAYOUT",
+            "title": "Layout",
+            "rules": [
+                {
+                    "id": "LAYOUT-01",
+                    "rule": "One scroll container per pane",
+                    "why": "Two areas that scroll the same way trap the scroll wheel.",
+                    "avoid": "Nested scroll areas that scroll the same way",
+                    "do": "One scroll container per pane",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "LAYOUT-02",
+                    "rule": "Cap the content width",
+                    "why": "Text across a wide window is hard to read.",
+                    "avoid": "Text and lists stretched across the window; a width of its own (880, 920, 960, 1120)",
+                    "do": "`content-sm`, `content-md` or `content-lg`, centered, at least `page-margin` on each side; full width only for workbench pages",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "LAYOUT-03",
+                    "rule": "Every page has the same top",
+                    "why": "When the top changes per page, the title jumps between pages.",
+                    "avoid": "A page with its own header height or top padding; a breadcrumb bar",
+                    "do": "`spacing-8`, the page top band, `spacing-6`, then the body",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "LAYOUT-04",
+                    "rule": "One right pane, in the layout",
+                    "why": "A page's own side panel competes with the right pane and squeezes the content.",
+                    "avoid": "A page's own side panel; a side panel squeezed into a narrow window; the right pane stacked under the body",
+                    "do": "The right pane, one thing at a time; an overlay with the scrim when there is no room; a drill-in with Back on compact",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "LAYOUT-05",
+                    "rule": "Fade only the edge that can scroll",
+                    "why": "A fade says there is more this way.",
+                    "avoid": "A fade on an edge that cannot scroll",
+                    "do": "`useScrollFadeEdges` with `.ag-scroll-fade`",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "LAYOUT-06",
+                    "rule": "The agent chat sits next to its item",
+                    "why": "The user asks about the open item, so the item stays in view and the header says what the agent sees.",
+                    "avoid": "An agent chat in a stacked route or a dialog, or that does not name the item",
+                    "do": "The right pane; a drill-in with Back on compact; the item named in the header; the same Composer",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "COMPACT",
+            "title": "Compact windows",
+            "rules": [
+                {
+                    "id": "COMPACT-01",
+                    "rule": "One item on the bottom edge",
+                    "why": "The thumb lands on the bottom edge, so whatever sits there is the main action.",
+                    "avoid": "Two things on the bottom edge (a composer and a floating New); a bottom nav bar",
+                    "do": "The composer entry or one primary action; another primary action goes in the header or the content",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "COMPACT-02",
+                    "rule": "The compact header is one 44px bar",
+                    "why": "A phone has little height, and the header is on every screen.",
+                    "avoid": "A tall header; 44px icon buttons; two titles",
+                    "do": "One 44px bar, the kit's compact icon buttons, one leading button, one title, at most two actions",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "COMPACT-03",
+                    "rule": "Menu or Back, never both",
+                    "why": "Two leading buttons make the user guess which way each goes.",
+                    "avoid": "Back and the menu together; the menu on a detail page",
+                    "do": "The menu on top-level pages; Back alone on detail pages and drill-ins",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "COMPACT-04",
+                    "rule": "Menus and dialogs come from the kit",
+                    "why": "The kit turns them into bottom sheets. A hand-made variant drifts.",
+                    "avoid": "A desktop popover on a compact window; a hand-made phone variant",
+                    "do": "The kit menus, selects and dialogs",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "COMPACT-05",
+                    "rule": "Use the real viewport",
+                    "why": "`100vh` hides content under browser bars and the notch.",
+                    "avoid": "`100vh`; fixed bars without safe-area padding",
+                    "do": "`svh` or `dvh`; `env(safe-area-inset-*)`",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "TOUCH",
+            "title": "Touch",
+            "rules": [
+                {
+                    "id": "TOUCH-01",
+                    "rule": "Fields show 16px text on touch",
+                    "why": "iOS zooms the page when a field under 16px gets focus.",
+                    "avoid": "Fields under 16px on touch; a taller field on touch",
+                    "do": "16px text under `pointer: coarse`, at the same height (the kit does it)",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "TOUCH-02",
+                    "rule": "No action only on hover",
+                    "why": "Touch has no hover.",
+                    "avoid": "Actions shown only on hover",
+                    "do": "Shown on focus too, and always under `pointer: coarse`",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "MOTION",
+            "title": "Motion",
+            "rules": [
+                {
+                    "id": "MOTION-01",
+                    "rule": "Animate a view swap, briefly",
+                    "why": "A short fade and slide shows that something changed.",
+                    "avoid": "An instant swap of one view for another",
+                    "do": "A 120–200ms fade and 4px slide preset",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "MOTION-02",
+                    "rule": "No bounce, no attention-seeking motion",
+                    "why": "Motion that repeats or overshoots pulls the eye from the work.",
+                    "avoid": "Bounce, overshoot, shaking; a ping, a scaling dot, a spinning ring or gradient",
+                    "do": "The three durations with `ease-out` or `ease-in-out`; still at rest; live activity as in Icons",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "MICRO",
+            "title": "Microinteractions",
+            "rules": [
+                {
+                    "id": "MICRO-01",
+                    "rule": "A caret shows where its panel is",
+                    "why": "The caret says a panel opens there, then points back at the trigger while it is open.",
+                    "avoid": "A caret that points the same way open and closed",
+                    "do": "Phosphor `CaretDown` that turns 180° while open (`ag-caret`)",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "MICRO-02",
+                    "rule": "Overlays unfold from what opened them",
+                    "why": "A panel that grows out of its trigger shows where it came from.",
+                    "avoid": "A menu or popover that grows from its center or appears from nowhere",
+                    "do": "`ag-overlay-motion` from the trigger's edge; only dialogs open from the center",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "MICRO-03",
+                    "rule": "The control answers in its own place",
+                    "why": "The person is looking at what they clicked.",
+                    "avoid": "A toast for Copy, a banner for a toggle",
+                    "do": "The control changes: Copy becomes Check for 1.5s, the switch slides",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "MICRO-04",
+                    "rule": "No animation on things used many times an hour",
+                    "why": "Any animation there makes the person wait, again and again.",
+                    "avoid": "An animated open for the command palette or a shortcut",
+                    "do": "It opens at once",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "MICRO-05",
+                    "rule": "A toggle shows its new state on the click",
+                    "why": "Waiting for the server first makes every click feel slow.",
+                    "avoid": "A spinner, then the switch moves",
+                    "do": "The switch and its label change on the click; they go back only if the call fails",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "MICRO-06",
+                    "rule": "An expanding row points at what it opened",
+                    "why": "The caret tells the person where the new content is.",
+                    "avoid": "A caret that does not change open or closed; a filled triangle",
+                    "do": "Phosphor `CaretRight` that turns 90° (`CollapseCaret`)",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "COPY",
+            "title": "Content and voice",
+            "rules": [
+                {
+                    "id": "COPY-01",
+                    "rule": "Sentence case everywhere",
+                    "why": "In Title Case every word competes for attention.",
+                    "avoid": "Title Case labels",
+                    "do": "Sentence case",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "COPY-02",
+                    "rule": "Toasts say what happened, in the past tense",
+                    "why": "A toast confirms a result.",
+                    "avoid": "\"Success!\" toasts",
+                    "do": "What happened, in the past tense, with Undo when possible",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "COPY-03",
+                    "rule": "Use the words users see",
+                    "why": "Users manage connections and runs, not integration configs and invocations.",
+                    "avoid": "System words (invocation, integration config)",
+                    "do": "The user's words (run, connection)",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "KIT",
+            "title": "Components",
+            "rules": [
+                {
+                    "id": "KIT-01",
+                    "rule": "Five badge variants",
+                    "why": "A badge color means a status. Other colors add a palette with no meaning.",
+                    "avoid": "Categorical badge colors (blue, purple, gold), data colors on a badge, bordered tags",
+                    "do": "`default`, `success`, `warning`, `destructive`, `info`; text in `text-caption`",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "KIT-02",
+                    "rule": "Tabs switch views of one thing",
+                    "why": "A tab that starts an action surprises the user.",
+                    "avoid": "Title Case tabs, an icon in every tab, an action as a tab",
+                    "do": "Short nouns; the `line` variant on pages",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "KIT-03",
+                    "rule": "Every icon-only button has a tooltip",
+                    "why": "An icon alone is a guess.",
+                    "avoid": "An icon-only button with no tooltip; a paragraph in a tooltip",
+                    "do": "`SimpleTooltip` with two or three words and the shortcut",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "KIT-04",
+                    "rule": "A tooltip does not cover the next action",
+                    "why": "A tooltip over the next control blocks the user's next click.",
+                    "avoid": "A tooltip that opens over the control the user goes to next",
+                    "do": "Pick the side: `tooltipPlacement` on `Field`, `side` on `TooltipContent`",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "KIT-05",
+                    "rule": "A toast confirms; it does not ask",
+                    "why": "A toast closes on its own, so it cannot hold a decision or an error to fix.",
+                    "avoid": "A question or a fixable error in a toast",
+                    "do": "An inline `Alert` or a dialog; a toast only confirms",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "KIT-06",
+                    "rule": "Tables are rows, not a grid",
+                    "why": "Grid lines and zebra fills add ink without meaning.",
+                    "avoid": "Grid lines, zebra rows, dark header rows",
+                    "do": "36px rows, `border-muted` dividers, numbers right-aligned in `tabular-nums`",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "KIT-07",
+                    "rule": "Code blocks are quiet and copyable",
+                    "why": "Code is content, not decoration.",
+                    "avoid": "A dark code slab on a light page; line numbers on short snippets",
+                    "do": "A bordered box: a `muted` header with the label and one Copy button, the code in `text-code` on `background`",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "KIT-08",
+                    "rule": "The command palette lists actions",
+                    "why": "Each item reads as an action, and one wrong Enter must not delete anything.",
+                    "avoid": "Bare nouns and destructive items in the palette",
+                    "do": "Verb + object, grouped by object, the shortcut on the right",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "KIT-09",
+                    "rule": "The Composer is one field with its actions inside",
+                    "why": "One box reads as one control.",
+                    "avoid": "Composer controls outside the field; a loud send pill",
+                    "do": "Attach and Send inside the field; Send is the one filled button",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "KIT-10",
+                    "rule": "One Composer, two states",
+                    "why": "A plain input dressed up as the entry opens something else and drifts from the real one.",
+                    "avoid": "A plain input dressed up as the composer entry",
+                    "do": "The Composer's collapsed state, which opens into the same component",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "KIT-11",
+                    "rule": "The user's turn is a bubble; the agent's reply is not",
+                    "why": "Long answers, code and tables read like a document at full width.",
+                    "avoid": "Both sides in colored bubbles",
+                    "do": "The user's turn on `bg-secondary`; the agent's reply as plain full-width text",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        },
+        {
+            "prefix": "CONS",
+            "title": "Consistency",
+            "rules": [
+                {
+                    "id": "CONS-01",
+                    "rule": "Sizes come from the place",
+                    "why": "The same Mark, icon or row at two sizes reads as two things.",
+                    "avoid": "18, 22 or 28px Marks; 15px icons; a size copied from the nearest screen",
+                    "do": "\"Size by place\"",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "CONS-02",
+                    "rule": "The same thing is drawn the same way",
+                    "why": "An entity, an action or a list drawn two ways looks like two things.",
+                    "avoid": "The same entity, action or list drawn differently on two screens",
+                    "do": "The same Mark, label, icon and row shape everywhere",
+                    "checkedBy": [
+                        "review"
+                    ]
+                },
+                {
+                    "id": "CONS-03",
+                    "rule": "Base components live only in the kit",
+                    "why": "A second button or menu drifts from the kit on the next change.",
+                    "avoid": "A hand-rolled button, input, menu or dialog; a copy of a kit component in a feature",
+                    "do": "Import from `@agenta/ui/ui`; a new base component goes in the kit",
+                    "checkedBy": [
+                        "review"
+                    ]
+                }
+            ]
+        }
+    ]
+}

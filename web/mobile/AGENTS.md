@@ -33,61 +33,35 @@ web/mobile/src/
   components/           # app-wide shells (ScreenScaffold, PageTitle, ContentRail, ...)
     ui/                 # local shadcn registry components (installed, then owned)
   lib/                  # motion presets, cn util, api glue — no JSX except tiny helpers
-  design/               # theme.config.ts (the values) + generated theme.css, theme.tailwind.css, tokens.json
+  design/               # theme.config.ts (the values) + generated theme.css, theme.tailwind.css, tokens.json, rules.json
   styles/               # globals.css (imports the generated theme; Tailwind v4 CSS-first config)
 ```
 
-## States are designed, not defaulted
+## Design
 
-Every screen and every data-bearing component defines loading, empty, error
-(and partial, where relevant) states as first-class sibling components in the
-feature's `states/` folder. Skeletons mirror the final layout geometry so
-content replaces them without shift. Errors carry a retry affordance and never
-lose entered state (a failed send never loses the draft).
+**Before any UI change, read `DESIGN.md`**: the glossary, the principles and the rules, each with an
+ID and a reason. Look up its patterns and value tables as you need them. `/m/design-system` shows a
+Do and an Avoid example for each rule. Values live in `src/design/theme.config.ts`; how to change
+one is in DESIGN.md, "Working with the system".
 
-## Motion
-
-All animation uses the `motion` package through the shared presets in
-`src/lib/motion/presets.ts`, consumed via `useMotionPresets()` (reduced-motion
-aware). Never hardcode durations, easings, or springs in components. Load the
-`mobile-motion-patterns` skill before writing any animation code.
-
-## Styling and theming
-
-- **Before any UI change, read `DESIGN.md`** (the design system: rules, reasons, patterns,
-  anti-patterns) and load the `ui-design-rules` skill. Values live in `src/design/theme.config.ts`;
-  run `pnpm generate:theme` after changing them. Preview: `/m/design-system`.
-- Tailwind v4, CSS-first config in `src/styles/globals.css`. No
-  `tailwind.config.*` file exists on purpose.
-- Style exclusively with the semantic tokens (`bg-background`,
-  `text-muted-foreground`, `border-border`, ...). Never hardcode hex/rgb values
-  in components.
-- The single source of every color, text style, radius, shadow and size is
-  `src/design/theme.config.ts`. Run `pnpm generate:theme` after changing it: it writes
-  `src/design/theme.css` (variables on `:root` and `.dark`), `src/design/theme.tailwind.css`
-  (the `@theme inline` mapping that `globals.css` imports), `tokens.json` and the DESIGN.md
-  tables. Never hand-edit the generated files. `pnpm theme:check` fails when they are stale.
-  `web/oss/src/styles/theme/palette.ts` no longer feeds `/m`.
-- Old antd-era names (`text-colorTextSecondary`, `var(--ag-colorText)`, ...) still resolve through
-  the legacy block in `globals.css`, which points each one at the new variable with the same job.
-  Do not add new uses; `pnpm design:ratchet` blocks any increase.
+- View states (empty, loading, error) are sibling components in the feature's `states/` folder.
+  A failed send never loses the draft.
+- Animation uses the `motion` package through `useMotionPresets()` from `src/lib/motion`.
+- Tailwind v4, CSS-first config in `src/styles/globals.css`; no `tailwind.config.*` on purpose.
 - Fonts: Inter and JetBrains Mono load through `next/font` in `src/features/app/AppFonts.tsx`.
-- Dark mode is class-based (`.dark` on `<html>`), keyed off the
-  `agenta-theme` localStorage value.
+- Dark mode is the `.dark` class on `<html>`, keyed off the `agenta-theme` localStorage value.
 
 ## shadcn registry workflow
 
 Install or update registry components with `pnpm dlx shadcn@latest add <name>`
 run from `web/mobile/`. Installed components live in `src/components/ui/` and
 are owned code — adapt them, but keep diffs from upstream minimal and
-token-driven. Load the `mobile-shadcn-conventions` skill for the full workflow.
+token-driven. The `mobile-shadcn-conventions` skill has the full workflow.
 
 ## Skills to load when working here
 
 - `mobile-app-structure` — feature folders, `states/` convention, data-flow rules.
-- `mobile-shadcn-conventions` — registry workflow, theming bridge, chat UI.
-- `mobile-motion-patterns` — shared presets, when to animate, reduced motion.
-- `ui-design-rules` — shape, buttons, tooltips, states, icons, and alignment rules.
+- `mobile-shadcn-conventions` — the registry workflow and chat UI.
 
 Also use the plugin skills when relevant: `vercel:nextjs` (Pages Router
 specifics), `vercel:shadcn`, `vercel:react-best-practices`.
