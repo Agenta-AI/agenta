@@ -26,6 +26,7 @@ import {
     ListBulletsIcon,
     PulseIcon,
     RobotIcon,
+    SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
@@ -34,20 +35,9 @@ const ALL_AGENTS = "__all__"
 
 const ICON = 14
 
-/** The canvas filter glyph: three sliders (Lucide's sliders-horizontal; Phosphor has no match). */
+/** The filter glyph: the "+" icon's 12px on the rail; the phone keeps its larger tap glyph. */
 const FilterGlyph = () => (
-    <svg
-        aria-hidden
-        className="size-3.5 max-md:size-[18px]"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-    >
-        <path d="M10 5H3M12 19H3M14 3v4M16 17v4M21 12h-9M21 19h-5M21 5h-7M8 10v4M8 12H3" />
-    </svg>
+    <SlidersHorizontalIcon aria-hidden size={12} className="max-md:size-[18px]" />
 )
 
 type FilterTextKey = CatalogKey<typeof sessionFilterCatalog> | CatalogKey<typeof commonCatalog>

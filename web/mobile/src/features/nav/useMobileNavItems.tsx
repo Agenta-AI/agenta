@@ -42,6 +42,7 @@ import {betaDeveloperModeActiveAtom, userAtom} from "@agenta/shared/state"
 import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
 import {useIsMacPlatform} from "@agenta/ui/shortcuts"
 import {
+    ArrowsOutLineVerticalIcon,
     ChatsIcon,
     GearIcon,
     GithubLogoIcon,
@@ -59,7 +60,6 @@ import {
 } from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
-import {UnfoldVertical} from "lucide-react"
 import {useRouter} from "next/router"
 
 import {openAgentSidebar} from "@/features/agent-sidebar/selectedSidebar"
@@ -164,7 +164,7 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
             if (!agentId) return undefined
             return {
                 label: tAgentSections("nav.agentSections.openAgent", {agent: group.label}),
-                icon: createElement(UnfoldVertical, {size: 14}),
+                icon: createElement(ArrowsOutLineVerticalIcon, {size: 12}),
                 onClick: isBuilderAgent(agentId)
                     ? () => openBuilderPage(projectURL)
                     : () => openAgentSidebar(agentId, "main"),
