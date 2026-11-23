@@ -26,6 +26,9 @@ import Link from "next/link"
 import {ROW_BASE, ROW_INTERACTIVE, ROW_SELECTED} from "./rowStyles"
 import {PHONE_ROW_CLASS, SidebarLayoutContext} from "./sidebarLayout"
 
+const MORE_PANEL_CLASS =
+    "z-[2000] w-[248px] rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
+
 const MOUSE_SLOP_PX = 4
 const TOUCH_HOLD_MS = 350
 const TOUCH_SLOP_PX = 8
@@ -278,10 +281,11 @@ export const ArrangeablePages = ({
     const finish = (key: string) => {
         const next = live.current.draft ?? keys
         const rest = hiddenKeys.filter((hiddenKey) => hiddenKey !== key)
+        // A page already in "More" keeps its place there; a newly hidden one goes last.
         if (live.current.overMore)
             commit(
                 next.filter((k) => k !== key),
-                [...rest, key],
+                hiddenKeys.includes(key) ? hiddenKeys : [...rest, key],
             )
         else commit(next, rest)
         live.current.overMore = false
@@ -411,7 +415,7 @@ export const ArrangeablePages = ({
                         side="right"
                         align="start"
                         sideOffset={8}
-                        className="z-[2000] w-[248px] rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
+                        className={MORE_PANEL_CLASS}
                     >
                         <MoreMenu
                             hidden={arrange.hidden}
@@ -427,6 +431,9 @@ export const ArrangeablePages = ({
 
     const dropping = overMore && dragging !== null
     const keepsLast = dragging !== null && lastPage && keys.includes(dragging)
+    // In the phone sheet the menu portals into the sheet and opens below the row.
+    const sheet = moreRef.current?.closest<HTMLElement>('[data-slot="sheet-content"]')
+
     return (
         <div
             className="flex flex-col"
@@ -496,13 +503,11 @@ export const ArrangeablePages = ({
                     </button>
                 </PopoverTrigger>
                 <PopoverContent
-                    container={moreRef.current?.closest<HTMLElement>('[data-slot="sheet-content"]')}
-                    side={
-                        moreRef.current?.closest('[data-slot="sheet-content"]') ? "bottom" : "right"
-                    }
+                    container={sheet}
+                    side={sheet ? "bottom" : "right"}
                     align="start"
                     sideOffset={2}
-                    className="z-[2000] w-[248px] rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
+                    className={MORE_PANEL_CLASS}
                 >
                     <MoreMenu
                         hidden={menuHidden}

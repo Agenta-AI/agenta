@@ -262,12 +262,12 @@ const SessionRowActions = ({
             >
                 <span
                     // Room for the floating kebab while it shows, and for the mark at rest.
-                    className={`min-w-0 flex-1 truncate pointer-fine:group-hover/row:pr-5 pointer-fine:group-has-[[data-open]]/row:pr-5 ${status ? "pointer-fine:pr-5" : ""}`}
+                    className={`min-w-0 flex-1 truncate pointer-fine:group-hover/row:pr-5 pointer-fine:group-has-[button:focus-visible]/row:pr-5 pointer-fine:group-has-[[data-open]]/row:pr-5 ${status ? "pointer-fine:pr-5" : ""}`}
                 >
                     {link}
                 </span>
                 {status ? (
-                    <span className="pointer-events-none flex w-4 shrink-0 items-center justify-center transition-opacity pointer-fine:absolute pointer-fine:right-1 pointer-fine:top-1/2 pointer-fine:w-6 pointer-fine:-translate-y-1/2 pointer-fine:group-hover/row:opacity-0 pointer-fine:group-has-[[data-open]]/row:opacity-0">
+                    <span className="pointer-events-none flex w-4 shrink-0 items-center justify-center transition-opacity pointer-fine:absolute pointer-fine:right-1 pointer-fine:top-1/2 pointer-fine:w-6 pointer-fine:-translate-y-1/2 pointer-fine:group-hover/row:opacity-0 pointer-fine:group-has-[button:focus-visible]/row:opacity-0 pointer-fine:group-has-[[data-open]]/row:opacity-0">
                         {status}
                     </span>
                 ) : null}

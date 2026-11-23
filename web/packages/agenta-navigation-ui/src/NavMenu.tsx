@@ -72,7 +72,6 @@ const GROUP_CHILDREN =
 // A group with no collapse control is a SECTION of the rail, not a submenu you opened: its rows
 // are rail rows. No indent and no guide line, so their glyphs sit in the nav icons' own column.
 const SECTION_CHILDREN = "flex flex-col"
-// Always shown: the design draws the Agents "+" at rest, not on hover.
 // Hidden at rest; shows on row hover or focus, while its popover is open, and on touch.
 const ROW_ACTION =
     "relative z-[1] mr-1 flex shrink-0 items-center opacity-0 transition-opacity group-hover/navrow:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100 pointer-coarse:opacity-100"
@@ -687,7 +686,7 @@ const NavMenuImpl = ({
                         className={cn(
                             // size-7, not size-8: on a 48px rail a 32px hit box leaves 8px a
                             // side and the icons read as tiles rather than as a nav.
-                            "relative mx-auto flex size-7 items-center justify-center rounded-md",
+                            "relative mx-auto flex size-7 items-center justify-center rounded-[6px]",
                             item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                             selected && ROW_SELECTED,
                         )}
@@ -700,14 +699,21 @@ const NavMenuImpl = ({
                     </div>
                 )
                 // The flyout replaces the tooltip: both would open on the same hover.
-                return item.hoverFlyout ? (
-                    <HoverFlyout key={item.key} content={item.hoverFlyout}>
-                        {icon}
-                    </HoverFlyout>
+                const leaf = item.hoverFlyout ? (
+                    <HoverFlyout content={item.hoverFlyout}>{icon}</HoverFlyout>
                 ) : (
-                    <Tip key={item.key} title={item.tooltip || item.title}>
-                        {icon}
-                    </Tip>
+                    <Tip title={item.tooltip || item.title}>{icon}</Tip>
+                )
+                // The row's trailing controls (Settings' live chat and help) stack under its icon.
+                return (
+                    <Fragment key={item.key}>
+                        {leaf}
+                        {collapsed && item.trailing ? (
+                            <div className="mx-auto flex flex-col items-center gap-1">
+                                {item.trailing}
+                            </div>
+                        ) : null}
+                    </Fragment>
                 )
             }
             return (

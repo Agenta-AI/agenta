@@ -34,17 +34,17 @@ describe("Invite Teammate in the rail", () => {
     let store: ReturnType<typeof createStore>
     let items: SidebarConfig[] = []
 
-    const Probe = ({includeSettingsLink}: {includeSettingsLink?: boolean}) => {
-        items = useMobileBottomNavItems(P, {includeSettingsLink})
+    const Probe = () => {
+        items = useMobileBottomNavItems(P)
         return null
     }
 
-    const render = (beta: boolean, includeSettingsLink = true) => {
+    const render = (beta: boolean) => {
         store.set(betaAtom.current!, beta)
         act(() =>
             root.render(
                 <Provider store={store}>
-                    <Probe includeSettingsLink={includeSettingsLink} />
+                    <Probe />
                 </Provider>,
             ),
         )
@@ -71,10 +71,6 @@ describe("Invite Teammate in the rail", () => {
             },
         ])
         expect(permission).toHaveBeenCalledWith("proj-1", "add_new_user_to_workspace")
-    })
-
-    it("beta developer mode keeps Invite Teammate in the settings rail", () => {
-        expect(render(true, false).map(({key}) => key)).toEqual(["invite-teammate-link"])
     })
 
     it("a reader who may not invite gets no row", () => {

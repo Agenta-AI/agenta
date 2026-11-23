@@ -14,9 +14,9 @@ import {
 
 import {
     RUNNING_TITLE,
-    sessionMarkOf,
     sessionStatusMark,
     withStatusMark,
+    type SessionMark,
 } from "../nav/sessionStatusMark"
 
 import {agentPageHref, isAgentPageView, type AgentPageView} from "./agentPages"
@@ -28,7 +28,6 @@ export interface AgentSidebarSession extends SessionRowTarget {
     /** ISO time of the last activity, for the day groups. */
     activityAt: string | null
     status: SessionRowStatus
-    isAutomation: boolean
 }
 
 export type AgentSidebarText = (
@@ -51,6 +50,9 @@ export type AgentSidebarText = (
     values?: {count: number},
 ) => string
 
+const markOf = (status: SessionRowStatus): SessionMark =>
+    status === "alive" ? "live" : status === "running" || status === "waiting" ? status : null
+
 export const AGENT_SIDEBAR_SESSIONS_KEY = "agent-sidebar-sessions"
 
 export const AGENT_SIDEBAR_NEW_SESSION_KEY = "agent-sidebar-new-session"
@@ -61,19 +63,17 @@ export const agentSidebarSessionKey = (sessionId: string) => `agent-sidebar-sess
 const pageRowKey = (view: AgentPageView) =>
     view === "sessions" ? AGENT_SIDEBAR_SESSIONS_KEY : `agent-sidebar-${view}`
 
-/**
- * The current row: the agent page on screen, else the open session. A session this agent's
- * "New session" opened (`?agent=`) that the list does not show yet is "New session".
- */
+/** The agent page on screen, else the open session; one the full list lacks yet is "New session". */
 export const agentSidebarSelectedKey = (
     query: Record<string, string | string[] | undefined>,
     agentId: string,
-    listed: ReadonlySet<string>,
+    /** The unfiltered, loaded list's session ids; null when the list cannot tell. */
+    listed: ReadonlySet<string> | null,
 ): string | undefined => {
     if (query.agent_id === agentId && typeof query.view === "string")
         return isAgentPageView(query.view) ? pageRowKey(query.view) : undefined
     if (typeof query.session_id !== "string") return undefined
-    if (query.agent === agentId && !listed.has(query.session_id))
+    if (query.agent === agentId && listed && !listed.has(query.session_id))
         return AGENT_SIDEBAR_NEW_SESSION_KEY
     return agentSidebarSessionKey(query.session_id)
 }
@@ -147,13 +147,7 @@ export const agentSidebarItems = ({
             prefetch: false,
             // The state shows as a quiet mark on the right, as on the main sidebar.
             wrapRow: (node) => {
-                const status = sessionStatusMark(
-                    sessionMarkOf({
-                        running: session.status === "running",
-                        waiting: session.status === "waiting",
-                        alive: session.status === "alive",
-                    }),
-                )
+                const status = sessionStatusMark(markOf(session.status))
                 return wrapSessionRow
                     ? wrapSessionRow(session, node, status)
                     : withStatusMark(node, status)

@@ -177,7 +177,6 @@ const agentScope = {
                     collapsed={collapsed}
                     projectName="Production"
                     onPick={noop}
-                    onPickBuilder={noop}
                     onAllAgents={noop}
                     onNewAgent={noop}
                 />

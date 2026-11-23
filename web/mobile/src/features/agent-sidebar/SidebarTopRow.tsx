@@ -2,10 +2,7 @@ import {useContext, type ReactNode} from "react"
 
 import {SidebarLayoutContext} from "@agenta/navigation-ui"
 
-/**
- * The top row of a scope's sidebar: Back and the collapse toggle, as the Settings sidebar draws
- * them (the phone sheet: its close). Collapsed, the toggle sits above Back.
- */
+/** A scope sidebar's top row: Back and the collapse toggle; collapsed, the toggle sits above Back. */
 export const SidebarTopRow = ({
     collapsed,
     back,

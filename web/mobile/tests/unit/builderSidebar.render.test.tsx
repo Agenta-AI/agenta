@@ -101,7 +101,6 @@ describe("the sidebar switcher", () => {
                 current={{kind: "builder"}}
                 collapsed={false}
                 onPick={onPick}
-                onPickBuilder={vi.fn()}
                 onAllAgents={vi.fn()}
                 onNewAgent={vi.fn()}
             />,
@@ -132,7 +131,6 @@ describe("the sidebar switcher", () => {
                 collapsed={false}
                 projectName="Production"
                 onPick={onPick}
-                onPickBuilder={vi.fn()}
                 onAllAgents={onAllAgents}
                 onNewAgent={onNewAgent}
             />,

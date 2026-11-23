@@ -1,4 +1,4 @@
-import {useContext, useMemo, useRef, useState, type ReactNode} from "react"
+import {useContext, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
@@ -10,7 +10,7 @@ import {
     SWITCHER_PANEL_CLASS,
     SWITCHER_ROW_CLASS,
 } from "@agenta/navigation-ui"
-import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {Popover, PopoverContent, PopoverTrigger, Spinner} from "@agenta/ui/ui"
 import {CaretUpDownIcon, CheckIcon, PlusIcon, RobotIcon, SparkleIcon} from "@phosphor-icons/react"
 
 import {SWITCHER_TILE, SwitcherTile, type SwitcherTileSize} from "./SwitcherTile"
@@ -65,21 +65,17 @@ const PanelRow = ({
     </button>
 )
 
-/**
- * The sidebar switcher: a boxed row with the agent's tile and name, and, in the project
- * switcher's look, a panel with the project's agents, the current one checked, then "All agents"
- * and "New agent". The builder sidebar's panel starts with "Builder". What a pick opens is the
- * host's.
- */
+/** The sidebar's agent switcher: a boxed row, and a panel in the project switcher's look. */
 export const AgentSidebarSwitcher = ({
     agents,
     current,
     collapsed,
     projectName,
     onPick,
-    onPickBuilder,
     onAllAgents,
     onNewAgent,
+    creating = false,
+    createError,
 }: {
     agents: SwitcherAgent[]
     current: SwitcherCurrent
@@ -87,24 +83,24 @@ export const AgentSidebarSwitcher = ({
     /** The panel's caption, "Agents in <project>"; "Agents" until it loads. */
     projectName?: string
     onPick: (agentId: string) => void
-    /** "Builder" in the builder sidebar's panel. */
-    onPickBuilder: () => void
     onAllAgents: () => void
     onNewAgent: () => void
+    /** A "New agent" create is running; the panel stays open and says so. */
+    creating?: boolean
+    createError?: string | null
 }) => {
     const t = useT(agentSidebarCatalog)
     const tBuilder = useT(builderPageCatalog)
     const phone = useContext(SidebarLayoutContext) === "phone"
     const [open, setOpen] = useState(false)
     const [search, setSearch] = useState("")
-    const [panelWidth, setPanelWidth] = useState<number>()
     const anchorRef = useRef<HTMLDivElement>(null)
     const builder = current.kind === "builder"
     const agentId = current.kind === "agent" ? current.agentId : null
     const name = builder
         ? tBuilder("builder.page.builder")
         : agentName(agents.find((agent) => agent.id === agentId))
-    const tileSize: SwitcherTileSize = collapsed ? "rail" : phone ? "phone" : "row"
+    const tileSize: SwitcherTileSize = collapsed ? "md" : phone ? "lg" : "sm"
 
     const shown = useMemo(() => {
         const needle = search.trim().toLowerCase()
@@ -113,11 +109,17 @@ export const AgentSidebarSwitcher = ({
     }, [agents, search])
 
     const onOpenChange = (next: boolean) => {
-        // In the rail the panel spans the switcher's row, as the project panel spans the header.
-        if (next && !collapsed && anchorRef.current) setPanelWidth(anchorRef.current.offsetWidth)
+        // A running create keeps the panel open, so its outcome stays in view.
+        if (!next && creating) return
         if (!next) setSearch("")
         setOpen(next)
     }
+    // A create that lands closes the panel; one that fails keeps it open with its error.
+    const wasCreating = useRef(creating)
+    useEffect(() => {
+        if (wasCreating.current && !creating && !createError) setOpen(false)
+        wasCreating.current = creating
+    }, [createError, creating])
     const run = (action: () => void) => () => {
         onOpenChange(false)
         action()
@@ -179,19 +181,22 @@ export const AgentSidebarSwitcher = ({
                     side="bottom"
                     align="start"
                     sideOffset={4}
-                    onOpenAutoFocus={(event) => event.preventDefault()}
-                    style={panelWidth ? {width: panelWidth} : undefined}
-                    className={SWITCHER_PANEL_CLASS}
+                    // Inside the phone sheet, or the sheet's scroll lock blocks the list's scroll.
+                    container={anchorRef.current?.closest<HTMLElement>(
+                        '[data-slot="sheet-content"]',
+                    )}
+                    // Expanded, the panel spans the switcher row, as the project panel spans the header.
+                    className={`${SWITCHER_PANEL_CLASS} ${collapsed ? "" : "!w-[var(--radix-popover-trigger-width)]"}`}
                 >
                     <div className="flex flex-col p-1">
                         {builder ? (
                             <>
                                 <PanelRow
                                     current
-                                    onClick={run(onPickBuilder)}
+                                    onClick={() => onOpenChange(false)}
                                     testId="agent-sidebar-switcher-builder"
                                 >
-                                    <BuilderTile size="panel" />
+                                    <BuilderTile size="md" />
                                     <span className="min-w-0 flex-1 truncate">
                                         {tBuilder("builder.page.builder")}
                                     </span>
@@ -224,7 +229,7 @@ export const AgentSidebarSwitcher = ({
                                         if (agent.id !== agentId) onPick(agent.id)
                                     })}
                                 >
-                                    <SwitcherTile agentId={agent.id} size="panel" />
+                                    <SwitcherTile agentId={agent.id} size="md" />
                                     <span className="min-w-0 flex-1 truncate">
                                         {agentName(agent)}
                                     </span>
@@ -239,12 +244,25 @@ export const AgentSidebarSwitcher = ({
                                 </span>
                                 <span className="flex-1">{t("agentSidebar.allAgents")}</span>
                             </PanelRow>
-                            <PanelRow onClick={run(onNewAgent)}>
+                            <PanelRow onClick={() => !creating && onNewAgent()}>
                                 <span className="flex size-6 shrink-0 items-center justify-center">
-                                    <PlusIcon aria-hidden size={14} />
+                                    {creating ? (
+                                        <Spinner size="small" />
+                                    ) : (
+                                        <PlusIcon aria-hidden size={14} />
+                                    )}
                                 </span>
-                                <span className="flex-1">{t("agentSidebar.newAgent")}</span>
+                                <span className="flex-1">
+                                    {creating
+                                        ? t("agentSidebar.creatingAgent")
+                                        : t("agentSidebar.newAgent")}
+                                </span>
                             </PanelRow>
+                            {createError ? (
+                                <p className="m-0 px-2 pb-1 text-[12px] text-colorError">
+                                    {createError}
+                                </p>
+                            ) : null}
                         </div>
                     </div>
                 </PopoverContent>

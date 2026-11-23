@@ -22,6 +22,7 @@ import {useRouter} from "next/router"
 import {isProjectPath, projectSwitchUrl} from "@/lib/context"
 import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
 
+import {SidebarTopRow} from "../agent-sidebar/SidebarTopRow"
 import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
 import {lastNonSettingsPathAtom} from "../nav/lastNonSettingsPath"
 import {SupportActions} from "../nav/SupportActions"
@@ -90,33 +91,25 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
         const lastPath = useAtomValue(lastNonSettingsPathAtom)
 
         return (
-            <div
-                className={[
-                    "flex w-full shrink-0 items-center",
-                    // The collapsed rail is 48px wide, too narrow for Back and the toggle side by
-                    // side, so stack them instead of squeezing both into one row.
-                    collapsed
-                        ? "flex-col justify-center gap-1 pb-1 pt-2.5"
-                        : "h-12 justify-between gap-0.5 px-2",
-                ].join(" ")}
-            >
-                {/* Collapsed, the toggle keeps the spot every collapsed rail gives it. */}
-                {collapsed && <SidebarToggleButton onDismiss={onDismiss} />}
-                <SidebarBackButton
-                    collapsed={collapsed}
-                    label={t("common.settings")}
-                    onBack={() =>
-                        void router.push(
-                            !lastPath
-                                ? `${projectURL}/apps`
-                                : isProjectPath(lastPath)
-                                  ? projectSwitchUrl(lastPath, {workspaceId, projectId})
-                                  : lastPath,
-                        )
-                    }
-                />
-                {!collapsed && <SidebarToggleButton onDismiss={onDismiss} />}
-            </div>
+            <SidebarTopRow
+                collapsed={collapsed}
+                toggle={<SidebarToggleButton onDismiss={onDismiss} />}
+                back={
+                    <SidebarBackButton
+                        collapsed={collapsed}
+                        label={t("common.settings")}
+                        onBack={() =>
+                            void router.push(
+                                !lastPath
+                                    ? `${projectURL}/apps`
+                                    : isProjectPath(lastPath)
+                                      ? projectSwitchUrl(lastPath, {workspaceId, projectId})
+                                      : lastPath,
+                            )
+                        }
+                    />
+                }
+            />
         )
     }
 
@@ -127,12 +120,13 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
             projectId={projectId}
             collapsed={collapsed}
             compact
+            // Collapsed, the switcher stacks them above itself.
             trailing={
-                collapsed ? undefined : (
-                    <span className="flex items-center">
-                        <SupportActions projectId={projectId} />
-                    </span>
-                )
+                <span
+                    className={collapsed ? "flex flex-col items-center gap-1" : "flex items-center"}
+                >
+                    <SupportActions projectId={projectId} />
+                </span>
             }
         />
     )

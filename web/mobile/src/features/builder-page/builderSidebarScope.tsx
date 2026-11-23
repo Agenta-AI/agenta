@@ -27,11 +27,7 @@ export const builderChatRowKey = (sessionId: string) => `builder-chat-${sessionI
 
 const BUILDER_NEW_CHAT_KEY = "builder-new-chat"
 
-/**
- * The builder sidebar (B01), laid out as the agent sidebar: Back, the switcher on "Builder", a
- * "New chat" row, then the "Chats" row and the person's builder chats newest first under Today, Yesterday and Earlier, as the agent sidebar
- * groups its sessions. "Back" shows the main sidebar and leaves the page as it is.
- */
+/** The builder sidebar, laid out as the agent sidebar: New chat, then the chats by day. */
 export const createBuilderSidebarScope = (
     workspaceId: string,
     projectId: string,

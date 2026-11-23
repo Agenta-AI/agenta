@@ -33,10 +33,7 @@ export const SidebarBackButton = ({
             aria-label={label === undefined ? text : t("navigation.chrome.backFrom", {label})}
             onClick={onBack}
             className={clsx(
-                // A white chip on the rail, as the design draws it, 13 px in the label's ink. The
-                // phone sheet draws no ground: 15 px in the secondary ink (M02).
-                // [font-family:inherit] is load-bearing — preflight is off, so a bare <button>
-                // falls back to Arial while every <div> row beside it renders Inter.
+                // [font-family:inherit]: preflight is off, so a bare <button> renders Arial.
                 "flex cursor-pointer items-center justify-center gap-2 border-0 bg-transparent [font-family:inherit] text-colorText",
                 "hover:bg-colorFillTertiary",
                 collapsed

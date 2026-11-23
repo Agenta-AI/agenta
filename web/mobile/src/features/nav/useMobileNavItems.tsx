@@ -29,7 +29,7 @@ import {
     type SidebarConfig,
     type SidebarEntityRef,
 } from "@agenta/navigation"
-import {buildReleaseNavItems, SessionFilterMenu, SessionSearchButton} from "@agenta/navigation-ui"
+import {buildReleaseNavItems, SessionFilterMenu} from "@agenta/navigation-ui"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {
     SessionRowActions,
@@ -39,8 +39,6 @@ import {
     type SessionRowTarget,
 } from "@agenta/sessions-ui"
 import {betaDeveloperModeActiveAtom, userAtom} from "@agenta/shared/state"
-import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
-import {useIsMacPlatform} from "@agenta/ui/shortcuts"
 import {
     ArrowsOutLineVerticalIcon,
     ChatsIcon,
@@ -95,8 +93,6 @@ export const MOBILE_NAV_SCOPE_ID = "mobile-main"
 // By agent, not the shared flat default: the rail's "+" lives on agent headings, and a heading
 // that is a date or a status names no agent to start a session with. Reset comes back here.
 setSidebarSessionFilterDefaults(MOBILE_NAV_SCOPE_ID, {groupBy: "agent"})
-/** The registry entry for ⌘K / Ctrl+K, which `MobileCommandPalette` binds. */
-const PALETTE_SHORTCUT_ID = "palette.open"
 
 /**
  * Mobile's registration over the SHARED machinery: same gated sessions source, same
@@ -250,23 +246,7 @@ export const useRailSessionRowWrapper = (projectURL: string) => {
     )
 }
 
-/** The chord that opens the search window, for the search buttons' tooltips. */
-export const usePaletteShortcut = () => {
-    // Platform read in an effect: the server has none, and a guess mismatches on hydration.
-    const mac = useIsMacPlatform()
-    return useMemo(() => {
-        const shortcut = getShortcut(PALETTE_SHORTCUT_ID)
-        return shortcut
-            ? {faces: shortcutFaces(shortcut, mac), aria: shortcutAria(PALETTE_SHORTCUT_ID)}
-            : undefined
-    }, [mac])
-}
-
-/**
- * The rail's nav model — the same keys, order and icon sizes the desktop rail uses, narrowed
- * to the screens mobile has. Entries appear here as their screens land; nothing is hidden by
- * forking a component.
- */
+/** The main rail's pages, its Sessions group, and the pages that start in "More". */
 export interface MobileNavItems {
     /** The pages the user arranges, in their default order. */
     pages: SidebarConfig[]
@@ -327,19 +307,6 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
         [developerMode, developerViews, projectURL, promptsSource, t],
     )
 
-    const builder = useMemo<SidebarConfig>(
-        () => ({
-            key: "mobile-builder",
-            title: tBuilder("builder.page.builder"),
-            icon: createElement(SparkleIcon, {size: 16}),
-            link: `${projectURL}/builder`,
-            // After "Back" on a new chat the link goes nowhere new, so the click itself
-            // brings the builder sidebar back.
-            onClick: showBuilderSidebar,
-        }),
-        [projectURL, tBuilder],
-    )
-
     const {pages, defaultHidden} = useMemo(() => {
         const developerRows = [...developerSlots.afterHome, ...developerSlots.afterSessions]
         const list: SidebarConfig[] = [
@@ -349,7 +316,15 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
                 icon: createElement(HouseIcon, {size: 16}),
                 link: `${projectURL}/apps`,
             },
-            builder,
+            {
+                key: "mobile-builder",
+                title: tBuilder("builder.page.builder"),
+                icon: createElement(SparkleIcon, {size: 16}),
+                link: `${projectURL}/builder`,
+                // After "Back" on a new chat the link goes nowhere new, so the click itself
+                // brings the builder sidebar back.
+                onClick: showBuilderSidebar,
+            },
             {
                 key: AGENTS_SIDEBAR_KEY,
                 title: t("navigation.items.agents"),
@@ -390,7 +365,7 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
         // Templates and the developer pages start in "More".
         const hidden = new Set(["mobile-templates", ...developerRows.map((row) => row.key)])
         return {pages: list, defaultHidden: hidden}
-    }, [builder, developerSlots, projectURL, t])
+    }, [developerSlots, projectURL, t, tBuilder])
 
     const sessions = useMemo<SidebarConfig>(
         () => ({
@@ -426,11 +401,8 @@ const versionAtom = unwrap(atom(async () => (await import("../../../package.json
 
 export const useMobileVersion = () => useAtomValue(versionAtom)
 
-/** Settings with live chat and help (not in the settings scope), plus Invite Teammate in beta developer mode. */
-export const useMobileBottomNavItems = (
-    projectURL: string,
-    {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
-): SidebarConfig[] => {
+/** Settings with live chat and help, plus Invite Teammate in beta developer mode. */
+export const useMobileBottomNavItems = (projectURL: string): SidebarConfig[] => {
     const t = useT(navigationCatalog, commonCatalog)
     const version = useMobileVersion()
     const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
@@ -457,27 +429,23 @@ export const useMobileBottomNavItems = (
         [canInvite, developerMode, projectURL, t],
     )
     const items = useMemo<SidebarConfig[]>(
-        () =>
-            // The settings scope drops it: the rail IS settings there.
-            includeSettingsLink
-                ? [
-                      {
-                          key: "mobile-settings",
-                          title: t("common.settings"),
-                          icon: createElement(GearIcon, {size: 16}),
-                          link: `${projectURL}/settings`,
-                          suffix: version
-                              ? createElement(
-                                    "span",
-                                    {className: "text-[10px] leading-none text-colorTextTertiary"},
-                                    `v${version}`,
-                                )
-                              : undefined,
-                          trailing: createElement(SupportActions, {projectId}),
-                      },
-                  ]
-                : [],
-        [includeSettingsLink, projectId, projectURL, version, t],
+        () => [
+            {
+                key: "mobile-settings",
+                title: t("common.settings"),
+                icon: createElement(GearIcon, {size: 16}),
+                link: `${projectURL}/settings`,
+                suffix: version
+                    ? createElement(
+                          "span",
+                          {className: "text-[10px] leading-none text-colorTextTertiary"},
+                          `v${version}`,
+                      )
+                    : undefined,
+                trailing: createElement(SupportActions, {projectId}),
+            },
+        ],
+        [projectId, projectURL, version, t],
     )
     return useMemo(
         () => (inviteItems.length ? [...items, ...inviteItems] : items),

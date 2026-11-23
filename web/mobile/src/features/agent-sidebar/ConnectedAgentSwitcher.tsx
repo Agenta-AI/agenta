@@ -20,12 +20,7 @@ import {
 } from "./selectedSidebar"
 import {switchTarget} from "./switchAgent"
 
-/**
- * The switcher, connected: the agents the person can see, in the main sidebar's order, and a
- * pick that keeps the same kind of page (see `switchTarget`) and shows the picked agent's
- * sidebar. "All agents" returns to the main sidebar on the agents list; "New agent" creates a
- * blank agent. The agent sidebar and the builder sidebar both use it.
- */
+/** The switcher with the project's agents in the main sidebar's order, and what each pick opens. */
 export const ConnectedAgentSwitcher = ({
     projectURL,
     projectId,
@@ -88,12 +83,13 @@ export const ConnectedAgentSwitcher = ({
             collapsed={collapsed}
             projectName={projectName}
             onPick={(id) => void onPick(id)}
-            onPickBuilder={() => void router.push(`${projectURL}/builder`)}
             onAllAgents={() => {
                 openMainSidebar()
                 void router.push(`${projectURL}/agents`)
             }}
             onNewAgent={() => void newAgent.create()}
+            creating={newAgent.creating}
+            createError={newAgent.error}
         />
     )
 }

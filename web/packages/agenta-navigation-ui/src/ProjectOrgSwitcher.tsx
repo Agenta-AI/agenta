@@ -330,7 +330,6 @@ export const ProjectOrgSwitcherView = ({
                 "flex gap-1 px-2",
                 side === "bottom" ? "h-12 shrink-0" : "pb-1.5",
                 compact && "justify-between",
-                // No top pad: the bottom nav already ends with its own spacing above the switcher.
                 collapsed ? "flex-col items-center" : "w-full items-center",
             )}
         >
@@ -399,10 +398,7 @@ export const ProjectOrgSwitcherView = ({
                         )}
                     </button>
                 </PopoverTrigger>
-                {/* A popover, not a menu: the panels hold scrollable lists, and a Radix menu's
-                    pointer handling swallows touch scrolling. Docked at the rail's bottom-left
-                    edge: open upward, left-aligned, so the panel never clips the viewport's
-                    left edge. In the header it opens below, as wide as the rail. */}
+                {/* A popover, not a menu: a Radix menu swallows touch scrolling of its lists. */}
                 <PopoverContent
                     container={panelContainer}
                     onOpenAutoFocus={(event) => event.preventDefault()}

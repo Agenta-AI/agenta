@@ -6,6 +6,7 @@
     "analytics": "分析",
     "channels": "チャネル",
     "configuration": "設定",
+    "creatingAgent": "エージェントを作成中…",
     "earlier": "それ以前",
     "loadError": "セッションを読み込めませんでした",
     "loading": "読み込み中",

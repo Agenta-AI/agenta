@@ -193,6 +193,8 @@ describe("the agent sidebar's session rows", () => {
         expect(agentSidebarSelectedKey({session_id: "s1"}, "a1", new Set())).toBe(
             "agent-sidebar-session-s1",
         )
+        // A filtered or loading list cannot say the session is new.
+        expect(agentSidebarSelectedKey(query, "a1", null)).toBe("agent-sidebar-session-s1")
     })
 
     it("links Sessions to the Sessions page and puts the host's filter control on it", () => {
@@ -213,7 +215,6 @@ describe("the agent sidebar's session rows", () => {
             title: "One",
             activityAt: new Date().toISOString(),
             status: "idle" as const,
-            isAutomation: false,
         }
         const narrowed = sessionsGroup(
             agentSidebarItems({...base, sessions: [session], total: 30, filtered: true}),
@@ -230,7 +231,6 @@ describe("the agent sidebar's session rows", () => {
             title: "One",
             activityAt: new Date().toISOString(),
             status: "idle" as const,
-            isAutomation: false,
         }
         const group = sessionsGroup(agentSidebarItems({...base, sessions: [session], total: 42}))
         expect(group.suffix).toBeUndefined()

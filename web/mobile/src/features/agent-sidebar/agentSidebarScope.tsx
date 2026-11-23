@@ -110,7 +110,6 @@ const useAgentSessions = (projectId: string, agentId: string) => {
                     title: vm.title,
                     activityAt: vm.activityAt,
                     status: vm.status.status,
-                    isAutomation: vm.isAutomation,
                 }
             }),
         [pending, query.data?.sessions, waitingFailed],
@@ -151,9 +150,15 @@ export const createAgentSidebarScope = (
 
     const useSelection = (): SidebarSelection => {
         const router = useRouter()
-        // The same query the rows read: a session not listed yet is "New session".
-        const {sessions} = useAgentSessions(projectId, agentId)
-        const listed = useMemo(() => new Set(sessions.map((row) => row.sessionId)), [sessions])
+        // A filtered or loading list cannot say a session is new.
+        const {sessions, status, filtered} = useAgentSessions(projectId, agentId)
+        const listed = useMemo(
+            () =>
+                status === "ready" && !filtered
+                    ? new Set(sessions.map((row) => row.sessionId))
+                    : null,
+            [filtered, sessions, status],
+        )
         const selectedKeyOverride = agentSidebarSelectedKey(router.query, agentId, listed)
         return useMemo(
             () => (selectedKeyOverride ? {mode: "route", selectedKeyOverride} : {mode: "route"}),

@@ -316,9 +316,6 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                 )}
                 {renderSlot(section.before, shown)}
                 <NavMenu
-                    // A bottom section is anchored from below, so it needs the trailing 4px to
-                    // hold its own height; a top section must not have it, or it pushes every
-                    // section after it down the rail.
                     // Rows end in a 4px margin, so a following section needs no top pad of its own.
                     className={clsx(
                         section.placement === "bottom" && "pb-1",
