@@ -63,7 +63,6 @@ describe("Invite Teammate in the rail", () => {
 
     it("beta developer mode adds Invite Teammate after Settings, opening the invite dialog", () => {
         expect(render(true)).toEqual([
-            {key: "mobile-templates", link: `${P}/templates`},
             {key: "mobile-settings", link: `${P}/settings`},
             {
                 key: "invite-teammate-link",
@@ -75,12 +74,11 @@ describe("Invite Teammate in the rail", () => {
 
     it("a reader who may not invite gets no row", () => {
         permission.mockReturnValue(false)
-        expect(render(true).map(({key}) => key)).toEqual(["mobile-templates", "mobile-settings"])
+        expect(render(true).map(({key}) => key)).toEqual(["mobile-settings"])
     })
 
     it("without beta developer mode the bottom rail is unchanged and asks no permission", () => {
-        expect(render(false).map(({key}) => key)).toEqual(["mobile-templates", "mobile-settings"])
-        expect(render(false, false)).toEqual([])
+        expect(render(false).map(({key}) => key)).toEqual(["mobile-settings"])
         expect(permission.mock.calls.every(([projectId]) => projectId === "")).toBe(true)
     })
 })
