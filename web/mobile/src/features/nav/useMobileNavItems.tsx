@@ -268,8 +268,6 @@ export const usePaletteShortcut = () => {
  * forking a component.
  */
 export interface MobileNavItems {
-    /** Pinned above the arranged pages. */
-    builder: SidebarConfig
     /** The pages the user arranges, in their default order. */
     pages: SidebarConfig[]
     sessions: SidebarConfig
@@ -351,6 +349,7 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
                 icon: createElement(HouseIcon, {size: 16}),
                 link: `${projectURL}/apps`,
             },
+            builder,
             {
                 key: AGENTS_SIDEBAR_KEY,
                 title: t("navigation.items.agents"),
@@ -391,7 +390,7 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
         // Templates and the developer pages start in "More".
         const hidden = new Set(["mobile-templates", ...developerRows.map((row) => row.key)])
         return {pages: list, defaultHidden: hidden}
-    }, [developerSlots, projectURL, t])
+    }, [builder, developerSlots, projectURL, t])
 
     const sessions = useMemo<SidebarConfig>(
         () => ({
@@ -418,10 +417,7 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
         [loadMoreSessions, source, projectURL, wrapSessionRow, t],
     )
 
-    return useMemo(
-        () => ({builder, pages, sessions, defaultHidden}),
-        [builder, pages, sessions, defaultHidden],
-    )
+    return useMemo(() => ({pages, sessions, defaultHidden}), [pages, sessions, defaultHidden])
 }
 
 // Lazy-load package.json so its version stays out of the initial bundle.

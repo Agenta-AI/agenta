@@ -72,14 +72,12 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
     }
 
     const useSections = (): SidebarSection[] => {
-        const {builder, pages, sessions, defaultHidden} = useMobileNavItems(projectURL)
+        const {pages, sessions, defaultHidden} = useMobileNavItems(projectURL)
         const {visible, arrange} = usePageArrangement(pages, defaultHidden)
         const bottomItems = useMobileBottomNavItems(projectURL)
 
         return useMemo(
             () => [
-                // Builder lives on top of the arranged pages, fixed in place.
-                ...(builder ? [{key: "builder", items: [builder]}] : []),
                 {key: "pages", items: visible, arrange},
                 {key: "sessions", items: [sessions], dividerBefore: true},
                 // `vertical`: Help & Docs opens as a flyout, not inline.
@@ -90,7 +88,7 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
                     mode: "vertical",
                 },
             ],
-            [builder, visible, arrange, sessions, bottomItems],
+            [visible, arrange, sessions, bottomItems],
         )
     }
 
