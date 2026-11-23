@@ -39,7 +39,7 @@ const UserTurn = ({width}: {width: string}) => (
     <div className={cn(mobileTurnRowClass, "justify-end")}>
         {/* Width on the bubble itself: the real wrapper is content-sized, and a percentage
             inside it would resolve to nothing. */}
-        <SkeletonBlock active shape="round" className={cn("h-10.5 max-w-[85%]", width)} />
+        <SkeletonBlock active shape="soft" className={cn("h-10.5 max-w-[85%]", width)} />
     </div>
 )
 

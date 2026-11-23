@@ -290,7 +290,17 @@ function rulesJson(markdown: string): string {
             throw new Error(`DESIGN.md: the prefix ${g.prefix} is used by two tables`)
         seen.add(g.prefix)
     }
-    return JSON.stringify({principles, groups}, null, 4) + "\n"
+    // The "Icon per term" table, so the guide draws the same icons the file names.
+    const termsPart = markdown.slice(markdown.indexOf("\n### Icon per term\n"), markdown.indexOf("\n## Layout and windows"))
+    const terms = termsPart
+        .split("\n")
+        .filter((l) => l.startsWith("| ") && !/^\| (Term|---) /.test(l))
+        .map((l) => {
+            const [term, icon, component, note] = l.slice(1, -1).split(" | ").map((c) => c.trim())
+            return {term, icon: icon.replace(/`/g, ""), component, note: note ?? ""}
+        })
+    if (!terms.length) throw new Error("DESIGN.md is missing the Icon per term table")
+    return JSON.stringify({principles, groups, terms}, null, 4) + "\n"
 }
 
 /** DESIGN.md follows its own Glossary: no word from the "Do not say" column outside that table. */

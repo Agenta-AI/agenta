@@ -44,7 +44,7 @@ export interface LoadingSkeletonProps {
     /** list: show avatar placeholder (default: true) */
     showAvatar?: boolean
     /** list: avatar shape (default: "square") */
-    avatarShape?: "circle" | "square"
+    avatarShape?: "mark" | "square"
     /** Additional CSS class names */
     className?: string
 }

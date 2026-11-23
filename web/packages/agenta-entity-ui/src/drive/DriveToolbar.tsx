@@ -130,7 +130,7 @@ const IconPill = ({value, options, onChange, phone}: ToolbarMode & {phone?: bool
     return (
         <Tabs value={value} onValueChange={onChange}>
             <TabsList
-                variant="pill"
+                variant="track"
                 aria-label={t("entityUi.driveBrowser.view")}
                 className={phone ? PHONE_PILL : "h-control-sm rounded-md p-0.5"}
             >

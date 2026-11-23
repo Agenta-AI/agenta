@@ -7,11 +7,11 @@ import {cn} from "./utils"
 
 /**
  * Tabs — the shadcn tabs on Radix. `TabsList variant="line"` (default here, antd's look-alike)
- * underlines the active trigger; `variant="pill"` is shadcn's default muted track with a raised
+ * underlines the active trigger; `variant="track"` is shadcn's default muted track with a raised
  * active segment. antd mapping: items→TabsTrigger/TabsContent, activeKey→value, onChange→onValueChange.
  */
 
-type TabsListVariant = "line" | "pill"
+type TabsListVariant = "line" | "track"
 
 // The list tells its triggers which look they wear, so a call-site sets the variant once.
 const TabsVariantContext = React.createContext<TabsListVariant>("line")
@@ -22,7 +22,7 @@ const tabsListVariants = cva(
     {
         variants: {
             variant: {
-                pill: "rounded-control-lg bg-muted",
+                track: "rounded-control-lg bg-muted",
                 line: "gap-1 rounded-none bg-transparent",
             },
         },
@@ -46,7 +46,7 @@ const tabsTriggerVariants = cva(
         variants: {
             variant: {
                 // Raised on the surface while active, like the Segmented thumb.
-                pill: "data-[state=active]:bg-background data-[state=active]:shadow-raised",
+                track: "data-[state=active]:bg-background data-[state=active]:shadow-raised",
                 // A 2px underline at the bottom edge of the list, shown while active.
                 line: "after:absolute after:inset-x-0 after:-bottom-[4px] after:h-0.5 after:bg-foreground after:opacity-0 after:transition-opacity data-[state=active]:after:opacity-100",
             },

@@ -388,7 +388,7 @@ export const SessionCardList = ({
                 <div className="flex flex-col" aria-busy>
                     {COMPACT_SKELETON_TITLE_WIDTHS.map((width) => (
                         <div key={width} className="mb-1 flex h-7 items-center gap-2 px-3">
-                            <SkeletonBlock active shape="circle" className="size-2.5 shrink-0" />
+                            <SkeletonBlock active shape="mark" className="size-2.5 shrink-0" />
                             <SkeletonBlock active className={clsx("h-3", width)} />
                             <SkeletonBlock active className="ml-auto h-3 w-12 shrink-0" />
                         </div>

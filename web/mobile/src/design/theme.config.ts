@@ -138,12 +138,8 @@ export const spacing: ThemeVariable[] = [
 ]
 
 export const radius: ThemeVariable[] = [
-    {name: "radius-xs", value: "2px", usage: "Status dots, timeline nodes and thin bars of 4–8px."},
-    {
-        name: "radius-sm",
-        value: "4px",
-        usage: "Badges, kbd, chips, menu items, checkboxes, skeleton bars, 16 and 20px Marks.",
-    },
+    {name: "radius-xs", value: "2px", usage: "Status dots, timeline nodes, skeleton bars and thin bars of 4–8px."},
+    {name: "radius-sm", value: "4px", usage: "Badges, kbd, chips, menu items, checkboxes, 16 and 20px Marks."},
     {name: "radius-md", value: "6px", usage: "Controls, inputs, nav items, 24 and 32px Marks."},
     {
         name: "radius-lg",

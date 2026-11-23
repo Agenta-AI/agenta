@@ -60,7 +60,7 @@ export const tabsRules: RuleExample[] = [
         avoid: {
             example: (
                 <Tabs defaultValue="a">
-                    <TabsList variant="pill">
+                    <TabsList variant="track">
                         <TabsTrigger value="a"><RobotIcon /> Agent Runs</TabsTrigger>
                         <TabsTrigger value="b"><GearIcon /> Agent Settings</TabsTrigger>
                         <TabsTrigger value="c">Create New</TabsTrigger>

@@ -1,5 +1,6 @@
 import {ColorSection} from "../ColorSection"
 import {ContrastSection} from "../ContrastSection"
+import {IconTermsSection} from "../IconTermsSection"
 import {KitComponentsSection} from "../KitComponentsSection"
 import {OverlaysRow} from "../OverlaysRow"
 import {ScaleSection} from "../ScaleSection"
@@ -64,7 +65,7 @@ export function guidePages(mode: "light" | "dark"): GuidePage[] {
         {id: "type", group: "Foundations", title: "Typography", tagline: "One font, one set of text styles, two text levels. Weight shows rank, never state.", specimen: <TypeSection />, rules: [...typeRules, ...moreTypeExamples]},
         {id: "size", group: "Foundations", title: "Space and size", tagline: "A 4px grid, control heights that step down on a compact window, and one gap for each place.", specimen: <ScaleSection />, rules: [...spacingRules, ...gapRules, ...moreSpaceExamples]},
         {id: "shape", group: "Foundations", title: "Shape", tagline: "One radius scale. Nothing is round.", rules: shapeRules},
-        {id: "icons", group: "Foundations", title: "Icons", tagline: "Phosphor only, one icon per product term.", rules: [...iconRules, ...moreIconExamples]},
+        {id: "icons", group: "Foundations", title: "Icons", tagline: "Phosphor only, one icon per product term.", specimen: <IconTermsSection />, rules: [...iconRules, ...moreIconExamples]},
         {id: "surfaces", group: "Foundations", title: "Surfaces", tagline: "Tone separates areas, one fill marks hover, and shadows are only for things that float.", rules: [...surfaceRules, ...moreSurfaceExamples, ...hoverRules]},
         {id: "motion", group: "Foundations", title: "Motion", tagline: "Short, calm, and only when something changed. No bounce.", rules: motionRules},
         {id: "micro", group: "Foundations", title: "Microinteractions", tagline: "The control answers in its own place, at once, with one small change: a caret turns, an icon swaps, a panel unfolds from its trigger.", rules: microRules},
@@ -79,7 +80,7 @@ export function guidePages(mode: "light" | "dark"): GuidePage[] {
             title: "Tabs",
             tagline: "Sibling views of one object.",
             api: [
-                {prop: "TabsList variant", values: `"line" | "pill"`, note: "line on pages; pill is the muted track, only inside a small panel"},
+                {prop: "TabsList variant", values: `"line" | "track"`, note: "line on pages; track only inside a small panel"},
                 {prop: "Tabs value / onValueChange", values: "string", note: "controlled; mirror it in the URL"},
                 {prop: "TabsTrigger value", values: "string"},
             ],

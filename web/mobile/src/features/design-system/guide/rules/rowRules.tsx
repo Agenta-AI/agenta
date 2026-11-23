@@ -202,7 +202,7 @@ export const hoverRules: RuleExample[] = [
                 <div className="flex flex-col gap-2">
                     {["var(--muted)", "rgba(0,0,0,0.15)", "#e5e7eb"].map((fill) => (
                         <div key={fill} className="rounded-lg bg-background p-1">
-                            <div className={hoverRow} style={{background: fill}}><RobotIcon /> Weekly report</div>
+                            <div className={hoverRow} style={{background: fill, color: fill.startsWith("#") ? "#1f1e1c" : undefined}}><RobotIcon /> Weekly report</div>
                         </div>
                     ))}
                 </div>

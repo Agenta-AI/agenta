@@ -14,7 +14,7 @@ export const layoutRules: RuleExample[] = [
                     <span className={line} style={{left: 20}} />
                     <div className="text-heading">Skills</div>
                     <div className="mb-2 text-meta text-muted-foreground">Reusable instructions for agents</div>
-                    <div className="mb-2 flex items-center gap-1.5 rounded-md border border-border py-1.5 pr-2 text-label text-muted-foreground" style={{marginLeft: -8, paddingLeft: 8}}>
+                    <div className="mb-2 flex items-center gap-1.5 rounded-md border border-border py-1.5 pr-2 text-label text-muted-foreground" style={{paddingLeft: 8}}>
                         <MagnifyingGlassIcon /> Search skills
                     </div>
                     <div className="mb-1 text-meta text-muted-foreground">Name</div>
@@ -23,7 +23,7 @@ export const layoutRules: RuleExample[] = [
                     </div>
                 </div>
             ),
-            caption: "Title, search icon, column header and Mark on one line; the input and the hovered row hang outside it.",
+            caption: "Title, description, the edge of the field, the label and the Mark on one line. Only the hover fill of the row hangs outside it.",
         },
         avoid: {
             example: (
@@ -31,7 +31,7 @@ export const layoutRules: RuleExample[] = [
                     <span className={line} style={{left: 20}} />
                     <div className="text-heading">Skills</div>
                     <div className="mb-2 text-meta text-muted-foreground">Reusable instructions for agents</div>
-                    <div className="mb-2 flex items-center gap-1.5 rounded-md border border-border py-1.5 pr-2 text-label text-muted-foreground" style={{paddingLeft: 8}}>
+                    <div className="mb-2 flex items-center gap-1.5 rounded-md border border-border py-1.5 pr-2 text-label text-muted-foreground" style={{marginLeft: -8, paddingLeft: 8}}>
                         <MagnifyingGlassIcon /> Search skills
                     </div>
                     <div className="mb-1 text-meta text-muted-foreground" style={{paddingLeft: 12}}>Name</div>
@@ -40,7 +40,7 @@ export const layoutRules: RuleExample[] = [
                     </div>
                 </div>
             ),
-            caption: "Box edges on the line: the icon, the header and the Mark drift right by each padding.",
+            caption: "The field hangs outside the line, and the box of the row sits on it: the label and the Mark drift right.",
         },
     },
     {

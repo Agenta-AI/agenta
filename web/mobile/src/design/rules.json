@@ -505,8 +505,8 @@
             "rules": [
                 {
                     "id": "ALIGN-01",
-                    "rule": "Content sits on the alignment line; boxes outdent",
-                    "why": "When the boxes align, the text inside drifts right by each box's padding.",
+                    "rule": "One alignment line; only a hover fill hangs outside it",
+                    "why": "The eye follows what it sees at rest: text, the edge of a field, a Mark. The hover fill of a row is not visible at rest, so when its box starts on the line, the Mark inside drifts right by the padding of the row.",
                     "checkedBy": [
                         "review"
                     ]
@@ -872,6 +872,200 @@
                     ]
                 }
             ]
+        }
+    ],
+    "terms": [
+        {
+            "term": "Agent",
+            "icon": "robot",
+            "component": "RobotIcon",
+            "note": ""
+        },
+        {
+            "term": "Builder (the assistant that builds agents)",
+            "icon": "sparkle",
+            "component": "SparkleIcon",
+            "note": "Only the Builder. Not models, not AI in general"
+        },
+        {
+            "term": "Skill",
+            "icon": "compass",
+            "component": "CompassIcon",
+            "note": ""
+        },
+        {
+            "term": "Automation",
+            "icon": "lightning",
+            "component": "LightningIcon",
+            "note": "Not for runs"
+        },
+        {
+            "term": "Schedule trigger",
+            "icon": "calendar-blank",
+            "component": "CalendarBlankIcon",
+            "note": "Clock icons mean History"
+        },
+        {
+            "term": "Session",
+            "icon": "chats",
+            "component": "ChatsIcon",
+            "note": ""
+        },
+        {
+            "term": "Connection (app integration)",
+            "icon": "plugs",
+            "component": "PlugsIcon",
+            "note": ""
+        },
+        {
+            "term": "Channel",
+            "icon": "broadcast",
+            "component": "BroadcastIcon",
+            "note": "Not for MCP"
+        },
+        {
+            "term": "Webhook",
+            "icon": "webhooks-logo",
+            "component": "WebhooksLogoIcon",
+            "note": ""
+        },
+        {
+            "term": "MCP server",
+            "icon": "hard-drives",
+            "component": "HardDrivesIcon",
+            "note": ""
+        },
+        {
+            "term": "Tool",
+            "icon": "wrench",
+            "component": "WrenchIcon",
+            "note": ""
+        },
+        {
+            "term": "Template",
+            "icon": "squares-four",
+            "component": "SquaresFourIcon",
+            "note": "Only templates"
+        },
+        {
+            "term": "Project",
+            "icon": "folder-simple",
+            "component": "FolderSimpleIcon",
+            "note": "Only projects"
+        },
+        {
+            "term": "File",
+            "icon": "file-text",
+            "component": "FileTextIcon",
+            "note": "A single file"
+        },
+        {
+            "term": "Model",
+            "icon": "cpu",
+            "component": "CpuIcon",
+            "note": ""
+        },
+        {
+            "term": "Run (action and item)",
+            "icon": "play",
+            "component": "PlayIcon",
+            "note": ""
+        },
+        {
+            "term": "Send",
+            "icon": "arrow-up",
+            "component": "ArrowUpIcon",
+            "note": "Never a paper plane, which means Invite"
+        },
+        {
+            "term": "Retry",
+            "icon": "arrow-clockwise",
+            "component": "ArrowClockwiseIcon",
+            "note": ""
+        },
+        {
+            "term": "Loading",
+            "icon": "circle-notch",
+            "component": "CircleNotchIcon",
+            "note": "Spinning"
+        },
+        {
+            "term": "History",
+            "icon": "clock-counter-clockwise",
+            "component": "ClockCounterClockwiseIcon",
+            "note": "Past runs, versions"
+        },
+        {
+            "term": "Credits",
+            "icon": "coins",
+            "component": "CoinsIcon",
+            "note": ""
+        },
+        {
+            "term": "Billing",
+            "icon": "receipt",
+            "component": "ReceiptIcon",
+            "note": ""
+        },
+        {
+            "term": "API key",
+            "icon": "key",
+            "component": "KeyIcon",
+            "note": ""
+        },
+        {
+            "term": "Secret",
+            "icon": "vault",
+            "component": "VaultIcon",
+            "note": ""
+        },
+        {
+            "term": "Organization",
+            "icon": "buildings",
+            "component": "BuildingsIcon",
+            "note": ""
+        },
+        {
+            "term": "Workspace",
+            "icon": "—",
+            "component": "A Mark with the workspace letter",
+            "note": "No icon"
+        },
+        {
+            "term": "Members",
+            "icon": "users-three",
+            "component": "UsersThreeIcon",
+            "note": ""
+        },
+        {
+            "term": "Invite",
+            "icon": "paper-plane",
+            "component": "PaperPlaneIcon",
+            "note": ""
+        },
+        {
+            "term": "Settings",
+            "icon": "gear",
+            "component": "GearIcon",
+            "note": ""
+        },
+        {
+            "term": "Home",
+            "icon": "house",
+            "component": "HouseIcon",
+            "note": ""
+        },
+        {
+            "term": "Browser (tool)",
+            "icon": "browser",
+            "component": "BrowserIcon",
+            "note": ""
+        },
+        {
+            "term": "Web search",
+            "icon": "globe",
+            "component": "GlobeIcon",
+            "note": ""
         }
     ]
 }

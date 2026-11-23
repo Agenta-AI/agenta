@@ -42,8 +42,8 @@ export const SkeletonSectionRow = ({
         <SkeletonBlock active className="min-w-12" style={{width: title, height: 16}} />
         <div className="ml-auto flex items-center gap-2">
             <SkeletonBlock active className="min-w-12" style={{width: value, height: 14}} />
-            {withAdd ? <SkeletonBlock active shape="circle" className="h-4 w-4" /> : null}
-            <SkeletonBlock active shape="circle" className="h-3.5 w-3.5" />
+            {withAdd ? <SkeletonBlock active shape="mark" className="h-4 w-4" /> : null}
+            <SkeletonBlock active shape="mark" className="h-3.5 w-3.5" />
         </div>
     </div>
 )

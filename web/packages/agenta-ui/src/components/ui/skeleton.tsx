@@ -15,9 +15,10 @@ const skeletonBlockVariants = cva("block bg-accent", {
             false: "",
         },
         shape: {
-            block: "rounded-md",
-            round: "rounded-lg",
-            circle: "rounded-[25%]",
+            // 2px keeps every bar, down to 8px tall, within a quarter of its short side (SHAPE-01).
+            block: "rounded-xs",
+            soft: "rounded-lg",
+            mark: "rounded-[25%]",
             square: "rounded-none",
         },
     },
@@ -25,7 +26,7 @@ const skeletonBlockVariants = cva("block bg-accent", {
 })
 
 export type SkeletonAvatarSize = "small" | "default" | "large"
-export type SkeletonAvatarShape = "circle" | "square"
+export type SkeletonAvatarShape = "mark" | "square"
 
 const AVATAR_SIZE: Record<SkeletonAvatarSize, string> = {
     small: "size-6",
@@ -64,7 +65,7 @@ export function SkeletonAvatar({
     className,
     active,
     size = "default",
-    shape = "circle",
+    shape = "mark",
     ...props
 }: SkeletonAvatarProps) {
     return (
@@ -72,7 +73,7 @@ export function SkeletonAvatar({
             data-slot="skeleton-avatar"
             aria-hidden
             className={cn(
-                skeletonBlockVariants({active, shape: shape === "square" ? "block" : "circle"}),
+                skeletonBlockVariants({active, shape: shape === "square" ? "block" : "mark"}),
                 "shrink-0",
                 AVATAR_SIZE[size],
                 className,
@@ -96,7 +97,7 @@ export interface SkeletonProps extends Omit<React.HTMLAttributes<HTMLDivElement>
     active?: boolean
     /** When explicitly `false`, render `children` instead of the placeholder. */
     loading?: boolean
-    round?: boolean
+    soft?: boolean
     avatar?: boolean | AvatarConfig
     title?: boolean | TitleConfig
     paragraph?: boolean | ParagraphConfig
@@ -109,7 +110,7 @@ export function Skeleton({
     className,
     active,
     loading,
-    round = false,
+    soft = false,
     avatar = false,
     title = true,
     paragraph = true,
@@ -120,7 +121,7 @@ export function Skeleton({
 
     const hasAvatar = Boolean(avatar)
     const hasTitle = Boolean(title)
-    const shape = round ? "round" : "block"
+    const shape = soft ? "soft" : "block"
 
     const avatarCfg = asConfig<AvatarConfig>(avatar)
     const titleCfg = asConfig<TitleConfig>(title)
@@ -144,7 +145,7 @@ export function Skeleton({
                 <SkeletonAvatar
                     active={active}
                     size={avatarCfg.size ?? "large"}
-                    shape={avatarCfg.shape ?? "circle"}
+                    shape={avatarCfg.shape ?? "mark"}
                 />
             ) : null}
             <div data-slot="skeleton-section" className="flex w-full min-w-0 flex-col gap-3">

@@ -50,7 +50,7 @@ export const ConfigPaneLoading = () => {
                             className="ml-auto"
                             style={{width: value, height: 14}}
                         />
-                        <SkeletonBlock active shape="circle" className="h-3.5 w-3.5" />
+                        <SkeletonBlock active shape="mark" className="h-3.5 w-3.5" />
                     </div>
                 ))}
             </div>

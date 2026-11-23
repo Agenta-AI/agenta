@@ -27,7 +27,7 @@ One word for one thing. Use these words in code, comments, docs and reviews.
 | Agent chat | A chat with the agent about the open item. It opens in the right pane. | agent pane |
 | Page top band | The 148px band at the top of a page on medium and expanded windows: the title and the page actions (`page-band`). | page header, header bar |
 | Compact header | The one 44px bar at the top of a compact window (`header-h`). | phone header, top bar |
-| Alignment line | The left edge of the page title. Content sits on it; padded boxes outdent. | anchor line |
+| Alignment line | The left edge of the page title. Text, visible edges and the first Mark sit on it; only a hover fill hangs outside. | anchor line |
 | Hover fill | `accent`, the one fill for hover. | hover color |
 
 ## Principles
@@ -156,8 +156,8 @@ There are 23 UI colors: 12 neutrals, 7 brand colors and 4 statuses. A separate g
 | `spacing-10` | `40px` | Space above an empty state. |
 | `spacing-12` | `48px` | Page top padding on expanded windows. |
 | `spacing-16` | `64px` | Largest layout gap. |
-| `radius-xs` | `2px` | Status dots, timeline nodes and thin bars of 4–8px. |
-| `radius-sm` | `4px` | Badges, kbd, chips, menu items, checkboxes, skeleton bars, 16 and 20px Marks. |
+| `radius-xs` | `2px` | Status dots, timeline nodes, skeleton bars and thin bars of 4–8px. |
+| `radius-sm` | `4px` | Badges, kbd, chips, menu items, checkboxes, 16 and 20px Marks. |
 | `radius-md` | `6px` | Controls, inputs, nav items, 24 and 32px Marks. |
 | `radius-lg` | `8px` | Cards, menus, popovers, banners, toasts, the 40px Mark. |
 | `radius-xl` | `12px` | Dialogs and sheets. Inner parts use radius-lg (12 − 4 padding). |
@@ -382,7 +382,7 @@ Find the element's place here. Do not copy the look of the screen you are on.
 | List row | `row-dense` for tree and rail rows · `row-single` · `row-double` |
 | Menu row | `MENU_ITEM`, 32 |
 | Popover | `w-popover-sm` for menus · `w-popover-md` for pickers · `w-popover-lg` for rich popovers |
-| Status dot, timeline node, thin bar | `radius-xs` |
+| Status dot, timeline node, skeleton bar, thin bar | `radius-xs` |
 | Mark letter | `text-caption` in 16–24px Marks |
 | Empty state icon | A 40px neutral Mark |
 | Between sections | 24 on compact windows · 32 above |
@@ -510,7 +510,7 @@ Each rule has an ID that lint, reviews and the guide cite. The prefix names the 
 
 | ID | Rule | Why | Avoid | Do instead |
 | --- | --- | --- | --- | --- |
-| `ALIGN-01` | Content sits on the alignment line; boxes outdent | When the boxes align, the text inside drifts right by each box's padding. | Box edges on the title's line | Text and the first icon or Mark on the line; padded boxes outdent by their padding (row 12, group header 12, input 8, nav item 8); the screen sets the negative margin, since the kit does not yet |
+| `ALIGN-01` | One alignment line; only a hover fill hangs outside it | The eye follows what it sees at rest: text, the edge of a field, a Mark. The hover fill of a row is not visible at rest, so when its box starts on the line, the Mark inside drifts right by the padding of the row. | A field pushed out left of the line; the box of a row on the line, so its Mark and the column label drift right | The title, the description, the edge of a field, the labels and the first Mark of each row on the line; a row or a nav item hangs its hover fill outside by its own padding (row 12, nav item 8); the screen sets the negative margin, since the kit does not yet |
 | `ALIGN-02` | Sidebar text on one line, icons on the Mark's center | Icons on the workspace Mark's left edge make the Mark look off. | Sidebar icons on the Mark's left edge; nav text, group labels and the workspace name on different lines | Icons on the Mark's center line; all sidebar text on one line |
 
 ### Layout
