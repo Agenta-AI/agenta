@@ -3124,7 +3124,7 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/set-session-stream-header",
+          id: "reference/api/set-session-stream-header-post",
           label: "Set Session Stream Header",
           className: "api-method post",
         },
