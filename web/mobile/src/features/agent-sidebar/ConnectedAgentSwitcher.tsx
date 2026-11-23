@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {useQueryClient} from "@tanstack/react-query"
@@ -37,6 +37,9 @@ export const ConnectedAgentSwitcher = ({
     const selected = useSelectedSidebar()
     const projectName = useCurrentProject("", projectId)?.project_name
     const newAgent = useNewAgentAction(projectURL)
+    // The create's own latch stays set after it hands off; here it ends when the route moves on.
+    const [createdFrom, setCreatedFrom] = useState<string | null>(null)
+    const creating = createdFrom === router.asPath && newAgent.creating && !newAgent.error
     const catalog = useAtomValue(agentWorkflowsListQueryStateAtom).data
     const {chatCounts, manualOrder} = useMainSidebarAgentOrder()
     const agents = useMemo(
@@ -87,8 +90,11 @@ export const ConnectedAgentSwitcher = ({
                 openMainSidebar()
                 void router.push(`${projectURL}/agents`)
             }}
-            onNewAgent={() => void newAgent.create()}
-            creating={newAgent.creating}
+            onNewAgent={() => {
+                setCreatedFrom(router.asPath)
+                void newAgent.create()
+            }}
+            creating={creating}
             createError={newAgent.error}
         />
     )

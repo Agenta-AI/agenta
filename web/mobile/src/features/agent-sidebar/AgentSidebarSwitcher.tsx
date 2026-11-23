@@ -120,7 +120,9 @@ export const AgentSidebarSwitcher = ({
         if (wasCreating.current && !creating && !createError) setOpen(false)
         wasCreating.current = creating
     }, [createError, creating])
+    // While a create runs, its hand-off decides where you land; other picks wait.
     const run = (action: () => void) => () => {
+        if (creating) return
         onOpenChange(false)
         action()
     }
