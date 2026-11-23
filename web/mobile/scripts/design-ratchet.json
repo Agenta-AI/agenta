@@ -1,0 +1,42 @@
+{
+    "hover-fill-not-accent": {
+        "mobile": 3,
+        "packages": 26
+    },
+    "legacy-hex-shims": {
+        "mobile": 0,
+        "packages": 0
+    },
+    "weight-by-state": {
+        "mobile": 0,
+        "packages": 0
+    },
+    "antd-color-names": {
+        "mobile": 14,
+        "packages": 171
+    },
+    "var(--ag-color": {
+        "mobile": 3,
+        "packages": 0
+    },
+    "text-[Npx]": {
+        "mobile": 0,
+        "packages": 12
+    },
+    "h-[Npx]": {
+        "mobile": 15,
+        "packages": 40
+    },
+    "rounded-full": {
+        "mobile": 1,
+        "packages": 2
+    },
+    "font-bold": {
+        "mobile": 0,
+        "packages": 0
+    },
+    "lucide-react": {
+        "mobile": 0,
+        "packages": 0
+    }
+}
