@@ -15,7 +15,7 @@ them — styling and import rules here are deliberately different. Design doc:
   No `@agenta/annotation-ui` either (it is built on antd); annotation state and helpers come
   from `@agenta/annotation`.
   UI comes from the shared shadcn kit in `@agenta/ui/ui`. Chat is built on `@agenta/chat`.
-  Icons come from `@phosphor-icons/react` or `lucide-react`.
+  Icons come from `@phosphor-icons/react` only; `lucide-react` is removed and lint-banned.
 - **No app-layer imports.** Never import `@/oss/*`, `@agenta/oss`, or
   `@agenta/ee`. Data and state come from the `@agenta/*` packages only
   (`@agenta/entities`, `@agenta/shared`, `@agenta/chat`, the `*-ui` packages, ...).
@@ -33,7 +33,8 @@ web/mobile/src/
   components/           # app-wide shells (ScreenScaffold, PageTitle, ContentRail, ...)
     ui/                 # local shadcn registry components (installed, then owned)
   lib/                  # motion presets, cn util, api glue — no JSX except tiny helpers
-  styles/               # globals.css + theme.generated.css (generated, committed)
+  design/               # theme.config.ts (the values) + generated theme.css, theme.tailwind.css, tokens.json
+  styles/               # globals.css (imports the generated theme; Tailwind v4 CSS-first config)
 ```
 
 ## States are designed, not defaulted
@@ -53,16 +54,24 @@ aware). Never hardcode durations, easings, or springs in components. Load the
 
 ## Styling and theming
 
+- **Before any UI change, read `DESIGN.md`** (the design system: rules, reasons, patterns,
+  anti-patterns) and load the `ui-design-rules` skill. Values live in `src/design/theme.config.ts`;
+  run `pnpm generate:theme` after changing them. Preview: `/m/design-system`.
 - Tailwind v4, CSS-first config in `src/styles/globals.css`. No
   `tailwind.config.*` file exists on purpose.
 - Style exclusively with the semantic tokens (`bg-background`,
   `text-muted-foreground`, `border-border`, ...). Never hardcode hex/rgb values
   in components.
-- The color source of truth is `web/oss/src/styles/theme/palette.ts`, bridged
-  by `scripts/generate-shadcn-tokens.ts` into `src/styles/theme.generated.css`
-  (committed, never hand-edited). `web/oss/src/styles/theme/` (`palette.ts`,
-  `controlScale.ts`) is the one part of `web/oss` still in use. To change a color: edit `palette.ts` or the
-  role map in the script, then run `pnpm --filter @agenta/mobile generate:tokens`.
+- The single source of every color, text style, radius, shadow and size is
+  `src/design/theme.config.ts`. Run `pnpm generate:theme` after changing it: it writes
+  `src/design/theme.css` (variables on `:root` and `.dark`), `src/design/theme.tailwind.css`
+  (the `@theme inline` mapping that `globals.css` imports), `tokens.json` and the DESIGN.md
+  tables. Never hand-edit the generated files. `pnpm theme:check` fails when they are stale.
+  `web/oss/src/styles/theme/palette.ts` no longer feeds `/m`.
+- Old antd-era names (`text-colorTextSecondary`, `var(--ag-colorText)`, ...) still resolve through
+  the legacy block in `globals.css`, which points each one at the new variable with the same job.
+  Do not add new uses; `pnpm design:ratchet` blocks any increase.
+- Fonts: Inter and JetBrains Mono load through `next/font` in `src/features/app/AppFonts.tsx`.
 - Dark mode is class-based (`.dark` on `<html>`), keyed off the
   `agenta-theme` localStorage value.
 
@@ -88,7 +97,7 @@ specifics), `vercel:shadcn`, `vercel:react-best-practices`.
 - Dev: `pnpm dev-mobile` (→ http://localhost:3000/m)
 - Build: `pnpm build-mobile`
 - Lint / types: `pnpm --filter @agenta/mobile lint` / `pnpm --filter @agenta/mobile types:check`
-- Token bridge: `pnpm --filter @agenta/mobile generate:tokens`
+- Theme: `pnpm --filter @agenta/mobile generate:theme` (check: `theme:check`, `design:ratchet`)
 
 ## Translations (i18n)
 

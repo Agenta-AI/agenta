@@ -33,6 +33,8 @@ the detail this file only summarizes.
   commit the regenerated files (`packages/agenta-ui/src/styles/theme-variables.css`,
   `mobile/src/styles/theme.generated.css`, `oss/src/styles/theme/antd-overrides.generated.ts`).
   Never hand-edit the generated files. See the "Styling" section below.
+  `web/mobile` does not read `palette.ts`: its colors, type, radii and shadows come from
+  `mobile/src/design/theme.config.ts` (`pnpm generate:theme` in `web/mobile`).
 - The Fern-generated `@agentaai/api-client` ships as a compiled `dist/` (entry
   `./dist/index.js`). `pnpm install` runs the package's `prepare` script which builds
   `dist/` automatically, so a fresh checkout works out of the box. If you regenerate the
@@ -330,6 +332,12 @@ tokens (`bg-background`, `text-muted-foreground`, `border-border`). Older packag
 antd-derived tokens (`bg-colorBgContainer`, `var(--ag-color*)`); match the file you are in.
 Never use raw hex or `--ag-c-*` literals. To change a color, edit `palette.ts` and
 regenerate — never hand-edit the generated files.
+
+`web/mobile` (and so every package screen rendered at `/m`) is themed by
+`mobile/src/design/theme.config.ts` instead. Its `globals.css` points the old names above at
+the new variables, so package code that still uses them follows the `/m` theme. In new code use
+the design-system names (`bg-muted`, `text-label`, `border-border-muted`); see
+`mobile/DESIGN.md`. `theme.generated.css` now feeds only the marketing website's demo frame.
 
 Always prefer Tailwind utility classes over CSS-in-JS or separate CSS files.
 

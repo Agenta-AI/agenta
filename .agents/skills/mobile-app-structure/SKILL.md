@@ -26,8 +26,9 @@ web/mobile/
                               #   ScreenScaffold, StatusTag
       ui/                     # local shadcn registry components (see mobile-shadcn-conventions)
     lib/                      # cn util, motion presets, api glue, context resolution
-    styles/                   # globals.css, theme.generated.css (generated)
-  scripts/                    # generate-shadcn-tokens.ts (token bridge)
+    design/                   # theme.config.ts + generated theme.css / theme.tailwind.css
+    styles/                   # globals.css
+  scripts/                    # generate-theme.ts, design-ratchet.ts
 ```
 
 ## Rules

@@ -89,6 +89,8 @@ basics.
   `web/mobile/src/styles/theme.generated.css`,
   `web/oss/src/styles/theme/antd-overrides.generated.ts`). Do not hand-edit the generated
   files.
+  The app (`web/mobile`) does not use `palette.ts`: its theme is
+  `web/mobile/src/design/theme.config.ts`; run `pnpm generate:theme` in `web/mobile`.
 
 ## Local dev loop (deploy + test)
 
