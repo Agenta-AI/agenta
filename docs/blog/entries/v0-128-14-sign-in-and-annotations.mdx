@@ -1,28 +1,26 @@
 ---
-title: "A new sign-in screen and cleaner annotations"
+title: "A new sign-in screen"
 slug: v0-128-14-sign-in-and-annotations
 date: 2026-11-18
 tags: [v0.128.14]
 improvements:
-  - area: Tracing
-    text: "Spans now carry turn ids, and a new index makes session queries faster"
-  - area: Agents
-    text: "The sandbox image now includes a newer pypdf"
+  - area: Sessions
+    text: "The Sessions page loads faster"
 fixes:
+  - area: Annotations
+    text: "Annotating a session no longer changes the session counts or moves it to the top"
   - area: Tracing
-    text: "Span ingest keeps working when many live session streams are open"
+    text: "Traces keep arriving when many chats are open at the same time"
   - area: SDK
-    text: "Baggage that a caller sends now reaches the trace again"
+    text: "Trace details that your app sends reach the trace again"
   - area: Agents
-    text: "Commands now stop cleanly at their time limit, including when you press Stop"
-  - area: Security
-    text: "Updated Next.js, vite, dnspython, filelock and litellm to current versions"
+    text: "A command now stops at its time limit, and when you press Stop"
 description: "A redesigned sign-in screen with a preview of templates, clearer sign-in errors, and annotations that no longer disturb your sessions."
 ---
 
 <Summary>
 
-The sign-in screen has a new look. Next to the form, you now see a preview of templates and a playground-style run, so you can see what you are about to use. Sign-in errors are also clearer, and annotations no longer change your session counts or order.
+The sign-in screen now shows a preview of what agents can do, next to the form. Sign-in errors also say what went wrong. For example, a wrong password now shows **Invalid email or password**.
 
 </Summary>
 
@@ -46,11 +44,4 @@ Annotations now behave better in agent sessions.
 - A text note now shows as plain text in the trace drawer. Before, it showed as raw JSON. Thank you to [@yunusarda-sudo](https://github.com/yunusarda-sudo) for this fix.
 - When you clear a column in an annotation and sync to a test set, the column is now removed from the test set. Thank you to [@TbhVishal](https://github.com/TbhVishal) for this fix.
 
-## Fixes and improvements
-
-- **Tracing:** Spans now carry turn ids, and a new index makes session queries faster.
-- **Tracing:** Span ingest keeps working when many live session streams are open.
-- **SDK:** Baggage that a caller sends now reaches the trace again. Thank you to [@abrahamguo](https://github.com/abrahamguo) for this fix.
-- **Agents:** Commands now stop cleanly at their time limit, including when you press Stop.
-- **Agents:** The sandbox image now includes a newer `pypdf`.
-- **Security:** We updated Next.js, vite, dnspython, filelock and litellm to current versions.
+Thank you to [@abrahamguo](https://github.com/abrahamguo) for the fix that brings the trace details your app sends back to the trace.

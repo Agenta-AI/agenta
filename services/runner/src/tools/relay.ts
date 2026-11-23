@@ -696,10 +696,11 @@ async function executeAllowedRelayedTool(
   // and the run's authorization is reused (see tools/direct.ts). A spec carries `call` XOR
   // `callRef`, so this is checked before the gateway fallback. `runContext` fills the
   // `call.context` bindings server-side (direct-call tools, Phase 3a), hidden from the model.
+  // Both modes see the call's own id as `tool.call_id`, so either can key a retry on it.
+  const callContext: RunContext | undefined = req.toolCallId
+    ? { ...runContext, tool: { call_id: req.toolCallId } }
+    : runContext;
   if (spec.call) {
-    const callContext: RunContext | undefined = req.toolCallId
-      ? { ...runContext, tool: { call_id: req.toolCallId } }
-      : runContext;
     const body = assembleBody(spec.call, dispatchArgs, callContext, spec.name);
     const url = directCallUrl(callback.endpoint, spec.call, body);
     // Path params were just substituted into the URL from this same body; strip them so a
@@ -716,7 +717,7 @@ async function executeAllowedRelayedTool(
   // Gateway (Composio) and handler-mode platform ops: POST back through Agenta's /tools/call so
   // the secret stays server-side.
   const args = spec.contextBindings
-    ? applyContextBindings(dispatchArgs, spec.contextBindings, runContext)
+    ? applyContextBindings(dispatchArgs, spec.contextBindings, callContext)
     : dispatchArgs;
   return callAgentaTool(
     callback.endpoint,

@@ -26,6 +26,11 @@ export interface CatalogListRowProps {
      * for a row whose text can grow (an expandable description) so they do not drift with it.
      */
     align?: "center" | "start"
+    /**
+     * `canvas`: the agent panel's row (canvas F02 f4): a 28 px leading box, the title 13/20/500
+     * with no control-height line. Absent, the Settings page row.
+     */
+    variant?: "default" | "canvas"
 }
 
 // A click on a control inside the row belongs to that control, not to the row.
@@ -43,7 +48,9 @@ export function CatalogListRow({
     onClick,
     actionLabel,
     align = "center",
+    variant = "default",
 }: CatalogListRowProps) {
+    const canvas = variant === "canvas"
     const handleClick = onClick
         ? (event: MouseEvent<HTMLDivElement>) => {
               // React bubbles a click out of a portal (a menu, a dialog) into this row too.
@@ -78,16 +85,22 @@ export function CatalogListRow({
             } ${onClick ? "cursor-pointer hover:bg-accent/60" : ""} ${className ?? ""}`}
         >
             <div className={`flex gap-2.5 ${align === "start" ? "items-start" : "items-center"}`}>
-                {/* A 32px box centres the logo on the title and meta lines together. */}
+                {/* A 32px box (28 on the canvas) centres the logo on the title and meta lines. */}
                 {leading ? (
-                    <span className="flex size-8 shrink-0 items-center justify-center">
+                    <span
+                        className={`flex shrink-0 items-center justify-center ${canvas ? "size-7" : "size-8"}`}
+                    >
                         {leading}
                     </span>
                 ) : null}
                 <div className="flex min-w-0 flex-1 flex-col">
                     {/* min-h matches a small Button, so the title line stays level with the action. */}
-                    <div className="flex min-h-6 items-center gap-1.5">
-                        <span className="truncate text-[13px] font-medium">{title}</span>
+                    <div className={`flex items-center ${canvas ? "gap-1" : "min-h-6 gap-1.5"}`}>
+                        <span
+                            className={`truncate text-[13px] font-medium ${canvas ? "leading-5" : ""}`}
+                        >
+                            {title}
+                        </span>
                         {titleSuffix}
                     </div>
                     {children}

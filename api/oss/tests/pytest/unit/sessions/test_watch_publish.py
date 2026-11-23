@@ -291,6 +291,7 @@ async def test_set_header_publishes_session_change_with_explicit_project_id():
     )
 
     result = await service.set_header(
+        envelope=None,
         project_id=project_id,
         user_id=uuid4(),
         session_id="session-1",
@@ -351,6 +352,7 @@ async def test_change_publisher_failure_does_not_fail_either_write(monkeypatch):
         watch_publisher=publisher,
     )
     session_result = await streams_service.set_header(
+        envelope=None,
         project_id=project_id,
         user_id=uuid4(),
         session_id="session-1",

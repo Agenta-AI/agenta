@@ -1,4 +1,5 @@
 {
+    "childSessionAsks": "Angefragt von der Sitzung <link>Sitzungsname</link>",
     "failed": "Die Genehmigung ist fehlgeschlagen.",
     "failedStatus": "Die Genehmigung ist fehlgeschlagen (HTTP {{status}}).",
     "noLongerPending": "Diese Genehmigung steht nicht mehr aus: Aktualisieren Sie und versuchen Sie es erneut.",

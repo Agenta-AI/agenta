@@ -6,6 +6,7 @@ import {
     DEFAULT_SESSION_LIST_VIEW,
     deriveSessionGroups,
     isDefaultSessionListView,
+    sessionAgentRoster,
 } from "../../src/features/sessions/sessionListView"
 
 /** Midday, so a "yesterday" row an hour either side of midnight still lands in its calendar day. */
@@ -30,6 +31,7 @@ const row = (
         agentId,
         activityAt,
         isAutomation: false,
+        isChildSession: false,
         automation: null,
         deliveryId: null,
         isPinned: false,
@@ -129,6 +131,42 @@ describe("deriveSessionGroups", () => {
             NOW,
         )
         expect(labels(groups)).toEqual(["Unknown agent", "No agent yet"])
+    })
+})
+
+describe("sessionAgentRoster", () => {
+    const catalog = [
+        {id: "support", name: "Support triage"},
+        {id: "draft", name: "", slug: "draft-agent"},
+        {id: "nameless", name: ""},
+    ]
+    const names = (roster: {id: string; name: string}[]) =>
+        new Map(roster.map((agent) => [agent.id, agent.name]))
+
+    it("names the builder, which lives in code and not in the agent catalog", () => {
+        const roster = sessionAgentRoster(catalog, {id: "builder-wf", name: "Builder"})
+        const groups = deriveSessionGroups(
+            [row("a", {agentId: "builder-wf"}), row("b", {agentId: "support"})],
+            "agent",
+            names(roster),
+            NOW,
+        )
+        expect(labels(groups)).toEqual(["Builder", "Support triage"])
+    })
+
+    it("keeps the catalog agents, by name or else slug, and drops one with neither", () => {
+        expect(sessionAgentRoster(catalog, null)).toEqual([
+            {id: "support", name: "Support triage"},
+            {id: "draft", name: "draft-agent"},
+        ])
+    })
+
+    it("lists the builder once when the catalog already has it", () => {
+        const roster = sessionAgentRoster([{id: "builder-wf", name: "Builder"}], {
+            id: "builder-wf",
+            name: "Builder",
+        })
+        expect(roster).toEqual([{id: "builder-wf", name: "Builder"}])
     })
 })
 

@@ -18,4 +18,5 @@ export interface GatewayCredentialsRequest {
     plane?: (AgentaApi.GatewayPlane | null) | undefined;
     session_id?: (string | null) | undefined;
     agent_id?: (string | null) | undefined;
+    item_keys?: (string[] | null) | undefined;
 }

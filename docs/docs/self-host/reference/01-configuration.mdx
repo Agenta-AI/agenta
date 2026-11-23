@@ -106,6 +106,7 @@ for how they behave. The plan and role variables are Enterprise-only; see
 | `AGENTA_ACCESS_DEFAULT_PLAN` | `agenta.access.default_plan` | `agenta.access.defaultPlan` |
 | `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` | `agenta.access.default_plan_overlay` | `agenta.access.defaultPlanOverlay` |
 | `AGENTA_ACCESS_EMAIL_DISABLED` | `agenta.access.email_disabled` | `agenta.access.emailDisabled` |
+| `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` | `agenta.access.personal_accounts_enabled` | `agenta.access.personalAccountsEnabled` |
 | `AGENTA_ACCESS_PLANS` | `agenta.access.plans` | `agenta.access.plans` |
 | `AGENTA_ACCESS_ROLES` | `agenta.access.roles` | `agenta.access.roles` |
 | `AGENTA_ACCESS_ROLES_OVERLAY` | `agenta.access.roles_overlay` | `agenta.access.rolesOverlay` |
@@ -117,6 +118,13 @@ client adds itself. The bundled Traefik and nginx setups need `1`. When it is un
 uses the first `X-Forwarded-For` entry, which a client can set. The API reads `CF-Connecting-IP`
 only when `AGENTA_ACCESS_TRUST_CLOUDFLARE_IP` is `true`. Turn it on only when Cloudflare proxies
 every request to the API.
+
+`AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` defaults to `true`. People can then store their own
+accounts (custom secrets, Composio connections, MCP sign-ins), and an agent's `user` items use
+them. Set it to `false` to turn this off. While it is `false`, the API refuses person-owned
+writes and account choices, and a run leaves every `user` item out. During an upgrade, set it to
+`false` until every API pod, services pod and runner runs a release that supports personal accounts.
+On Kubernetes, set `agenta.access.personalAccountsEnabled`. The chart default is `true`, and the chart renders it into the API, worker, cron, services and alembic pods. To keep the old behavior during an upgrade, set it to `false`, and set it back to `true` once every pod runs the release.
 
 ## Agenta AI services
 
@@ -1025,6 +1033,41 @@ Read by the `runner` service:
 A turn that carries more than `AGENTA_ATTACHMENTS_MAX_PER_TURN` attachments fails before the
 run starts. The runner also refuses any single attachment body over 16 MB. That ceiling is
 fixed in code, so raising a per-file cap above it stores files the runner cannot fetch.
+
+## Agenta sessions
+
+Bounds what an agent can do with the session tools: starting child sessions, sending them
+messages, and turns that no person sent. A child session is a session that another session
+started with `start_session`. The session that a person started is level 0, its child is
+level 1, and the child of that child is level 2.
+
+The chart has no dedicated values keys for these. Set them through `api.env.<NAME>`.
+
+Read by the `api` service:
+
+| Env var | env.py path | What it bounds | Default |
+|---|---|---|---|
+| `AGENTA_SESSIONS_TURNS_WITHOUT_PERSON_LIMIT` | `agenta.sessions.turns_without_person_limit` | Turns in a row in one session that no person sent. At this count, a new message that no person sent waits in the queue and runs after the next turn that a person sends. | `20` |
+| `AGENTA_SESSIONS_CHILD_SESSIONS_LIMIT` | `agenta.sessions.child_sessions_limit` | Running child sessions of one session. At this count, `start_session` is refused, and so is a send that would start a turn in an idle child. | `5` |
+| `AGENTA_SESSIONS_CHILD_SESSION_DEPTH_LIMIT` | `agenta.sessions.child_session_depth_limit` | Deepest level of a child session. `start_session` is refused when the new child would be deeper. | `3` |
+| `AGENTA_SESSIONS_CHILD_QUEUED_MESSAGES_LIMIT` | `agenta.sessions.child_queued_messages_limit` | Queued messages from one session in one child session. A send that would queue one more is refused. | `3` |
+| `AGENTA_SESSIONS_STILL_RUNNING_UPDATE_MINUTES` | `agenta.sessions.still_running_update_minutes` | Minutes after a start or a send before the calling session gets a "still running" update, when the agent gives no `update_after_minutes`. Values above `360` are treated as `360`. | `30` |
+
+Each value must be a whole number greater than `0`. The API does not start with `0` or a
+negative value.
+
+## Agenta triggers
+
+The chart has no dedicated values key for this. Set it through `api.env.<NAME>`.
+
+Read by the `api` service:
+
+| Env var | env.py path | What it bounds | Default |
+|---|---|---|---|
+| `AGENTA_TRIGGERS_ONE_TIME_SCHEDULES_MAX_PER_TICK` | `triggers.one_time_schedules_max_per_tick` | One-time schedules that one schedule tick fires, over all projects. The earliest are fired first; the rest fire in the next tick. | `2000` |
+
+The value must be a whole number greater than `0`. The API does not start with `0` or a
+negative value.
 
 ## Agenta egress
 

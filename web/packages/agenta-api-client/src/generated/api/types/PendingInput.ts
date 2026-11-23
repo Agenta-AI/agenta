@@ -16,6 +16,7 @@ export interface PendingInput {
     position: number;
     state: AgentaApi.PendingInputState;
     policy: PendingInput.Policy;
+    kind?: AgentaApi.PendingInputKind | undefined;
     idempotency_key: string;
     request_fingerprint: string;
     promoted_execution_id?: (string | null) | undefined;

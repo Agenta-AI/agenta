@@ -149,6 +149,20 @@ async def test_an_unknown_name_is_ignored_with_a_warning(caplog):
     assert "search_skills" in caplog.text
 
 
+async def test_the_entry_turns_on_the_session_tools_an_author_lists():
+    # Design D12: an agent gets a session tool when its configuration lists it. The
+    # entry is the place where an author (or the builder) lists one; a `platform`
+    # entry is refused at commit.
+    resolved = await _resolve(
+        [_entry(start_session="allow", wait_for_sessions="allow", read_session="ask")]
+    )
+    assert _permissions(resolved) == {
+        "start_session": "allow",
+        "wait_for_sessions": "allow",
+        "read_session": "ask",
+    }
+
+
 async def test_the_session_tools_are_skipped_without_a_session_id():
     resolved = await _resolve(
         [

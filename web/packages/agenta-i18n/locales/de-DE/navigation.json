@@ -1,7 +1,9 @@
 {
     "chrome.closeNavigation": "Navigation schließen",
     "chrome.collapseGroup": "{{title}} einklappen",
+    "chrome.collapseSidebar": "Seitenleiste einklappen",
     "chrome.expandGroup": "{{title}} ausklappen",
+    "chrome.expandSidebar": "Seitenleiste ausklappen",
     "chrome.itemFallback": "Eintrag",
     "chrome.itemMoved": "{{item}} an Position {{position}} von {{total}} verschoben",
     "chrome.navigationTitle": "Navigation",
@@ -34,6 +36,7 @@
     "items.prompts": "Prompts",
     "items.registry": "Registry",
     "items.search": "Suchen",
+    "items.searchChats": "Chats durchsuchen",
     "items.sessions": "Sitzungen",
     "items.skills": "Skills",
     "items.slackSupport": "Slack-Support",

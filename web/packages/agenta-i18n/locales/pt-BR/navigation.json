@@ -1,7 +1,9 @@
 {
     "chrome.closeNavigation": "Fechar navegação",
     "chrome.collapseGroup": "Recolher {{title}}",
+    "chrome.collapseSidebar": "Recolher a barra lateral",
     "chrome.expandGroup": "Expandir {{title}}",
+    "chrome.expandSidebar": "Expandir a barra lateral",
     "chrome.itemFallback": "Item",
     "chrome.itemMoved": "{{item}} movido para a posição {{position}} de {{total}}",
     "chrome.navigationTitle": "Navegação",
@@ -34,6 +36,7 @@
     "items.prompts": "Prompts",
     "items.registry": "Registro",
     "items.search": "Buscar",
+    "items.searchChats": "Pesquisar chats",
     "items.sessions": "Sessões",
     "items.skills": "Habilidades",
     "items.slackSupport": "Suporte no Slack",

@@ -18,7 +18,7 @@ import {getSettingsSidebarIcon} from "@agenta/settings"
 import type {LlmProvider} from "@agenta/shared/types"
 import {LoadError, Tag} from "@agenta/ui/components/presentational"
 import {formatListDateTime, ListTable, type ListTableColumn} from "@agenta/ui/list-table"
-import {Button, IconTile} from "@agenta/ui/ui"
+import {Button, IconTile, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {LockKey, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {atom, useAtom, useAtomValue} from "jotai"
 import {atomWithStorage} from "jotai/utils"
@@ -260,7 +260,7 @@ export const NamedSecretTable = ({
 
     // The form is the host's; without one this would open nothing, so it is absent rather than dead.
     const create = renderConfigureDialog ? (
-        <Button disabled={loading} onClick={openCreate}>
+        <Button disabled={loading} className={PHONE_TOUCH_TARGET_CLASS} onClick={openCreate}>
             <Plus size={14} />
             {t("settings.secrets.createSecret")}
         </Button>

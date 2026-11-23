@@ -25,6 +25,8 @@ const {connections} = vi.hoisted(() => ({
             integration_key: "github",
             provider_key: "composio",
             status: "ACTIVE",
+            // A working connection: only those show "Added" (a pending one shows its tag).
+            flags: {is_active: true, is_valid: true},
         },
     ],
 }))
@@ -47,7 +49,7 @@ vi.mock("@agenta/entities/gatewayTool", async (importOriginal) => ({
     useToolIntegrationDetail: () => ({integration: {name: "GitHub", categories: []}}),
 }))
 
-import {AgentIntegrationDrawer} from "../../src/DrillInView/SchemaControls/agentTemplate/AgentIntegrationDrawer"
+import {IntegrationCatalog} from "../../src/DrillInView/SchemaControls/agentTemplate/IntegrationCatalog"
 
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
@@ -67,7 +69,8 @@ const addedLabel = () =>
 
 const expectDeclaredToken = (label: Element | undefined, where: string) => {
     expect(label, `no Added label on ${where}`).toBeDefined()
-    expect(label!.className, where).toContain("text-colorSuccess")
+    // The panel row draws it in the secondary text color, as canvas F02 f4 does.
+    expect(label!.className, where).toContain("text-colorTextSecondary")
     expect(label!.className, where).not.toContain("--ag-colorSuccessText")
 }
 
@@ -88,24 +91,55 @@ afterEach(async () => {
 describe("the Added label on the catalog drawers", () => {
     it("is painted with a declared token on the integrations catalog", async () => {
         await mount(
-            createElement(AgentIntegrationDrawer, {
-                open: true,
-                onClose: vi.fn(),
-                integrationRows: [
-                    {
-                        provider: "composio",
-                        integration: "github",
-                        entry: null,
-                        entryIndices: [0],
-                        legacyIndices: [],
-                        legacyConnections: [],
-                    },
-                ],
-                onAddIntegration: vi.fn(),
-                onAddPersonalIntegration: vi.fn(),
+            createElement(IntegrationCatalog, {
+                onConnect: vi.fn(),
+                adding: {
+                    integrationRows: [
+                        {
+                            provider: "composio",
+                            integration: "github",
+                            entry: null,
+                            entryIndices: [0],
+                            legacyIndices: [],
+                            legacyConnections: [],
+                        },
+                    ],
+                    onAddIntegration: vi.fn(),
+                    onAddPersonalIntegration: vi.fn(),
+                },
             }),
         )
 
         expectDeclaredToken(addedLabel(), "the integrations catalog")
+    })
+
+    it("is not drawn on a pending connection, which shows its Pending tag instead", async () => {
+        const working = connections[0]!.flags
+        connections[0]!.flags = {is_active: true, is_valid: false}
+        try {
+            await mount(
+                createElement(IntegrationCatalog, {
+                    onConnect: vi.fn(),
+                    adding: {
+                        integrationRows: [
+                            {
+                                provider: "composio",
+                                integration: "github",
+                                entry: null,
+                                entryIndices: [0],
+                                legacyIndices: [],
+                                legacyConnections: [],
+                            },
+                        ],
+                        onAddIntegration: vi.fn(),
+                        onAddPersonalIntegration: vi.fn(),
+                    },
+                }),
+            )
+            expect(addedLabel()).toBeUndefined()
+            expect(document.body.textContent).toContain("Pending")
+        } finally {
+            connections[0]!.flags = working
+        }
     })
 })

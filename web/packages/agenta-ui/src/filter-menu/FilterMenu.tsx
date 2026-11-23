@@ -2,7 +2,7 @@ import {useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
-import {ListFilter} from "lucide-react"
+import {SlidersHorizontal} from "lucide-react"
 
 import {Popover, PopoverContent} from "../components/ui/popover"
 
@@ -78,7 +78,7 @@ export const FilterMenu = ({
         <Popover open={open} onOpenChange={setOpen}>
             <FilterMenuTrigger
                 label={label}
-                icon={icon ?? <ListFilter size={14} aria-hidden />}
+                icon={icon ?? <SlidersHorizontal size={14} aria-hidden />}
                 size={size}
                 variant={variant}
                 triggerClassName={triggerClassName}
