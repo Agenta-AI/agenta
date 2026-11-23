@@ -10,16 +10,15 @@ export interface CollapseCaretProps {
     className?: string
 }
 
-/** The one collapse/expand caret: a filled right caret that turns 90° when open. */
+/** The one collapse/expand caret: Phosphor's regular right caret, turned 90° when open. */
 function CollapseCaret({open, size = 12, className}: CollapseCaretProps) {
     return (
         <CaretRight
             aria-hidden
             data-slot="collapse-caret"
-            weight="fill"
             size={size}
             className={cn(
-                "shrink-0 text-muted-foreground transition-transform duration-150 motion-reduce:transition-none",
+                "shrink-0 text-muted-foreground transition-transform duration-[var(--duration-fast)] ease-[var(--ease-out)] motion-reduce:transition-none",
                 open && "rotate-90",
                 className,
             )}

@@ -307,7 +307,12 @@ export function Combobox({
                     ) : (
                         <span className="relative flex shrink-0 items-center">
                             {/* antd Select's closed arrow is a single down chevron (not an up/down caret). */}
-                            {icon ?? <CaretDownIcon className={cn("size-3", adornmentColor)} />}
+                            {icon ?? (
+                                <CaretDownIcon
+                                    data-open={open}
+                                    className={cn("ag-caret size-3", adornmentColor)}
+                                />
+                            )}
                             {showClear ? (
                                 <button
                                     type="button"

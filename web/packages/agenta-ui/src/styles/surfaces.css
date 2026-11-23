@@ -251,6 +251,23 @@
     }
 }
 
+/* MICRO-01: a trigger's caret turns while its panel is open. Child of the trigger only, so an
+   open dialog around it does not turn it. */
+.ag-caret {
+    transition: transform var(--duration-fast, 120ms) var(--ease-out, ease-out);
+}
+
+:is([data-state="open"], [aria-expanded="true"]) > .ag-caret,
+.ag-caret[data-open="true"] {
+    transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ag-caret {
+        transition: none;
+    }
+}
+
 .ag-overlay-motion {
     /* Radix publishes the origin matching the resolved side/align, so this is the edge the panel
        is anchored to — the trigger's. Scaling Y from there makes the panel UNFOLD out of the

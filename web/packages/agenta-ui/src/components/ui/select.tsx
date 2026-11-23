@@ -100,7 +100,7 @@ function SelectTrigger({className, variant, size, icon, children, ...props}: Sel
         size === "compact" ? (
             <CaretUpDown aria-hidden size={14} className="text-muted-foreground" />
         ) : (
-            <CaretDownIcon className="size-3 text-muted-foreground" />
+            <CaretDownIcon className="ag-caret size-3 text-muted-foreground" />
         )
     return (
         <SelectPrimitive.Trigger

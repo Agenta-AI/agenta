@@ -19,6 +19,7 @@ import {
     toastRules,
     tooltipRules,
 } from "./rules/compositeRules"
+import {microRules} from "./rules/microRules"
 import {paneRules} from "./rules/paneRules"
 import {layoutRules, touchRules} from "./rules/patternRules"
 import {gapRules, hoverRules, rowRules} from "./rules/rowRules"
@@ -49,6 +50,7 @@ export function guidePages(mode: "light" | "dark"): GuidePage[] {
         {id: "icons", group: "Foundations", title: "Icons", tagline: "Phosphor only, one icon per product term.", rules: iconRules},
         {id: "surfaces", group: "Foundations", title: "Surfaces", tagline: "Tone separates areas, one fill marks hover, and shadows are only for things that float.", rules: [...surfaceRules, ...hoverRules]},
         {id: "motion", group: "Foundations", title: "Motion", tagline: "Short, calm, and only when something changed. 120, 200 and 320ms; no bounce.", rules: motionRules},
+        {id: "micro", group: "Foundations", title: "Microinteractions", tagline: "The control answers in its own place, at once, with one small change: a caret turns, an icon swaps, a panel unfolds from its trigger.", rules: microRules},
         {id: "voice", group: "Foundations", title: "Content and voice", tagline: "Sentence case, the words users see, and past-tense confirmations.", rules: contentRules},
         {id: "kit", group: "Components", title: "All components", tagline: "The real @agenta/ui/ui components, as every screen renders them.", specimen: <KitComponentsSection />, rules: []},
         {id: "buttons", group: "Components", title: "Buttons", tagline: "One primary button per view; quiet variants for the rest.", rules: buttonRules},
