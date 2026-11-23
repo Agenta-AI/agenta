@@ -17,7 +17,7 @@ const skeletonBlockVariants = cva("block bg-accent", {
         shape: {
             block: "rounded-md",
             round: "rounded-lg",
-            circle: "rounded-full",
+            circle: "rounded-[25%]",
             square: "rounded-none",
         },
     },

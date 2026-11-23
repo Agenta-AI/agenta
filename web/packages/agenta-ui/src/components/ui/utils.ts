@@ -63,6 +63,20 @@ const CONTROL_PAD = [
     "input-y-ghost-lg",
 ]
 
+// Design-system text styles (web/mobile/DESIGN.md); sizes, not colours.
+const TEXT_STYLES = [
+    "display",
+    "heading",
+    "title",
+    "body",
+    "label",
+    "touch",
+    "meta",
+    "caption",
+    "code",
+    "code-sm",
+]
+
 const twMerge = extendTailwindMerge({
     extend: {
         classGroups: {
@@ -77,6 +91,7 @@ const twMerge = extendTailwindMerge({
                         "field-md",
                         "field-lg",
                         "badge-md",
+                        ...TEXT_STYLES,
                     ],
                 },
             ],

@@ -2,6 +2,7 @@ import * as React from "react"
 
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu"
 
+import {MENU_ITEM} from "./menu-item"
 import {cn} from "./utils"
 
 /**
@@ -39,7 +40,7 @@ function ContextMenuContent({
                 className={cn(
                     // Chrome copied from DropdownMenuContent (antd `.ant-dropdown-menu`).
                     "relative z-50 box-border max-h-96 overflow-y-auto overflow-x-hidden bg-popover text-popover-foreground shadow-overlay font-portal",
-                    "rounded-control-lg p-1",
+                    "rounded-lg p-1",
                     // Same scroll-timeline opt-out as DropdownMenuContent: without it a host
                     // scrollbar-fade rule keeps the closed menu mounted and painted.
                     "[animation-name:none] [animation-timeline:auto]",
@@ -51,14 +52,7 @@ function ContextMenuContent({
     )
 }
 
-const itemBase = [
-    "relative flex w-full cursor-pointer select-none items-center gap-2 outline-none",
-    "box-border rounded-control-sm px-3 py-1 text-field-md",
-    // See dropdown-menu: `muted` is the popover's own colour in dark, so it shows no hover.
-    "[&[data-highlighted]]:bg-accent",
-    "data-[disabled]:pointer-events-none data-[disabled]:text-disabled",
-    "[&_svg]:pointer-events-none [&_svg]:shrink-0",
-]
+const itemBase = MENU_ITEM
 
 function ContextMenuItem({
     className,
@@ -74,7 +68,7 @@ function ContextMenuItem({
             className={cn(
                 itemBase,
                 variant === "destructive" &&
-                    "text-error [&[data-highlighted]]:bg-error-bg [&_svg]:text-error",
+                    "text-destructive [&[data-highlighted]]:bg-destructive/10 [&_svg]:text-destructive",
                 className,
             )}
             {...props}

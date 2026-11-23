@@ -39,7 +39,7 @@ export function ConfigRowDrawerCaret({className}: {className?: string}) {
         <CaretRight
             aria-hidden
             size={AFFORDANCE_SIZE}
-            className={cn("shrink-0 text-colorTextTertiary", className)}
+            className={cn("shrink-0 text-muted-foreground", className)}
         />
     )
 }
@@ -56,8 +56,8 @@ export function ConfigRowTriangle({open = false}: {open?: boolean}) {
             className={cn(
                 "block size-0 shrink-0 border-solid border-transparent",
                 open
-                    ? "mx-0.5 border-x-4 border-b-0 border-t-[5px] border-t-colorTextSecondary"
-                    : "mr-1 border-y-4 border-l-[5px] border-r-0 border-l-colorTextSecondary",
+                    ? "mx-0.5 border-x-4 border-b-0 border-t-[5px] border-t-muted-foreground"
+                    : "mr-1 border-y-4 border-l-[5px] border-r-0 border-l-muted-foreground",
             )}
         />
     )
@@ -95,4 +95,4 @@ export function ConfigRowTrailing({
  * `width:100%` plus the bar's own `px-4` overflows its parent by 32px.
  */
 export const CONFIG_REGION_BAR =
-    "h-[48px] flex items-center justify-between overflow-hidden border-b border-colorBorderSecondary py-2 px-4"
+    "h-12 flex items-center justify-between overflow-hidden border-b border-border-muted py-2 px-4"

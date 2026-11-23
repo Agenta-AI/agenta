@@ -27,7 +27,6 @@ import {
     hasDistributionData,
     formatMetricDisplay,
     parseArrayTags,
-    getTagColor,
 } from "./metricUtils"
 
 export interface MetricCellContentProps {
@@ -72,7 +71,7 @@ const MetricCellContent = memo(function MetricCellContent({
     if (isLoading) {
         return (
             <div className={clsx("w-full", className)}>
-                <div className="h-3 w-full rounded bg-neutral-200 animate-pulse" />
+                <div className="h-3 w-full rounded bg-secondary animate-pulse" />
             </div>
         )
     }
@@ -84,8 +83,8 @@ const MetricCellContent = memo(function MetricCellContent({
                     {arrayTags.map((entry, index) => (
                         <Badge
                             key={`${entry.label}-${index}`}
-                            variant={getTagColor(index)}
-                            className="m-0 text-xs"
+                            variant="default"
+                            className="m-0"
                         >
                             {entry.label}
                         </Badge>
@@ -96,7 +95,7 @@ const MetricCellContent = memo(function MetricCellContent({
         return (
             <span
                 className={clsx("whitespace-pre-wrap", {
-                    "text-gray-400": isPlaceholder,
+                    "text-muted-foreground": isPlaceholder,
                 })}
             >
                 {formatted}
@@ -133,13 +132,13 @@ export const MetricValueDisplay = memo(function MetricValueDisplay({
     className?: string
 }) {
     if (value === null || value === undefined) {
-        return <span className={clsx("text-gray-400", className)}>{METRIC_PLACEHOLDER}</span>
+        return <span className={clsx("text-muted-foreground", className)}>{METRIC_PLACEHOLDER}</span>
     }
 
     // Boolean
     if (typeof value === "boolean") {
         return (
-            <Badge variant={value ? "green" : "default"} className="m-0 text-xs">
+            <Badge variant={value ? "success" : "default"} className="m-0">
                 {String(value)}
             </Badge>
         )
@@ -156,8 +155,8 @@ export const MetricValueDisplay = memo(function MetricValueDisplay({
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Badge
-                                        variant={getTagColor(i)}
-                                        className="!m-0 max-w-[120px] truncate text-xs"
+                                        variant="default"
+                                        className="!m-0 max-w-[120px] truncate"
                                     >
                                         {display}
                                     </Badge>
@@ -178,7 +177,7 @@ export const MetricValueDisplay = memo(function MetricValueDisplay({
             <TooltipProvider delayDuration={100}>
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <Badge className="!m-0 max-w-[120px] truncate text-xs">{formatted}</Badge>
+                        <Badge className="!m-0 max-w-[120px] truncate">{formatted}</Badge>
                     </TooltipTrigger>
                     <TooltipContent>{formatted}</TooltipContent>
                 </Tooltip>
@@ -192,7 +191,7 @@ export const MetricValueDisplay = memo(function MetricValueDisplay({
         <TooltipProvider delayDuration={100}>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <Badge className="!m-0 max-w-[120px] truncate text-xs">{display}</Badge>
+                    <Badge className="!m-0 max-w-[120px] truncate">{display}</Badge>
                 </TooltipTrigger>
                 <TooltipContent>{display}</TooltipContent>
             </Tooltip>

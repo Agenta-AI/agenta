@@ -4,7 +4,7 @@
  * `SelectLLMProviderBase`, whose popover stays for the inline controls.
  *
  * Each group shows its logo, name and tag, then its models under their harness line
- * ("via Claude Code"). A row shows the readable name with the raw id under it. A disabled group
+ * ("via Claude Code"). A row shows the readable name with the raw id after it. A disabled group
  * (a subscription that needs a new sign-in) shows its caption and one action instead of models.
  */
 import {useLayoutEffect, useMemo, useRef, useState, type ReactNode} from "react"
@@ -12,12 +12,14 @@ import {useLayoutEffect, useMemo, useRef, useState, type ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import uiLlmProviderCatalog from "@agenta/i18n/catalogs/ui.llmProvider"
-import {Check, FadersHorizontal} from "@phosphor-icons/react"
+import {Check} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 import {Button} from "../components/ui/button"
 import {SearchInput} from "../components/ui/input-composed"
-import {PHONE_TOUCH_TARGET_CLASS} from "../components/ui/touch-target"
+import {MENU_ITEM} from "../components/ui/menu-item"
+
+import ManageProvidersRow from "./ManageProvidersRow"
 
 import type {ProviderGroup, ProviderOption, ProviderSection} from "./types"
 import {getProviderIcon, optionMatchesSearch} from "./utils"
@@ -123,31 +125,36 @@ const ModelPickerList = ({
                     aria-pressed={selected}
                     disabled={disabled}
                     onClick={() => onChange(option.value, option)}
-                    className="flex w-full cursor-pointer items-center gap-2.5 rounded-[8px] border-0 bg-transparent px-2 py-[5px] text-left font-[inherit] hover:bg-accent aria-pressed:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                    // A 32 px menu row: the raw id on the same line, after the name (ROW-01).
+                    title={option.label !== option.value ? option.value : undefined}
+                    className={clsx(
+                        MENU_ITEM,
+                        "border-0 bg-transparent text-left font-[inherit] hover:bg-accent aria-pressed:bg-accent disabled:cursor-not-allowed disabled:opacity-60",
+                    )}
                 >
                     <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="flex min-w-0 items-center gap-1.5">
-                            <span className="truncate text-[13px] leading-5 text-colorText">
+                        <span className="flex min-w-0 items-baseline gap-1.5">
+                            <span className="shrink-0 truncate text-label text-foreground">
                                 {option.label}
                             </span>
                             {option.hint ? (
-                                <span className="shrink-0 text-[12px] text-colorTextTertiary">
+                                <span className="shrink-0 text-meta text-muted-foreground">
                                     {option.hint}
                                 </span>
                             ) : null}
+                            {option.label !== option.value ? (
+                                <span className="min-w-0 truncate font-mono text-caption text-muted-foreground">
+                                    {option.value}
+                                </span>
+                            ) : null}
                         </span>
-                        {option.label !== option.value ? (
-                            <span className="truncate font-mono text-[11px] leading-5 text-colorTextTertiary">
-                                {option.value}
-                            </span>
-                        ) : null}
                         {option.caption ? (
-                            <span className="truncate text-[12px] leading-4 text-colorTextTertiary">
+                            <span className="truncate text-meta text-muted-foreground">
                                 {option.caption}
                             </span>
                         ) : null}
                     </span>
-                    {selected ? <Check size={14} className="shrink-0 text-colorText" /> : null}
+                    {selected ? <Check className="text-foreground" /> : null}
                 </button>
             </li>
         )
@@ -162,8 +169,8 @@ const ModelPickerList = ({
             {section.label && !headed ? (
                 <div
                     className={clsx(
-                        "px-2 text-[12px] leading-4",
-                        popover ? "pb-1 pt-2 text-colorTextSecondary" : "text-colorTextTertiary",
+                        "px-2 text-meta",
+                        popover ? "pb-1 pt-2 text-muted-foreground" : "text-muted-foreground",
                     )}
                 >
                     {harnessText(section, single)}
@@ -178,9 +185,10 @@ const ModelPickerList = ({
     const renderTag = (group: ProviderGroup) =>
         group.tag ? (
             <span
+                // Plain muted text, not a bordered chip (MENU-02).
                 className={clsx(
-                    "inline-flex h-5 shrink-0 items-center rounded-[4px] bg-colorBgContainer px-[7px] text-[12px] leading-4 text-colorTextSecondary ring-1 ring-inset ring-colorBorderSecondary",
-                    popover ? "font-normal" : "ml-1.5",
+                    "shrink-0 text-meta font-normal text-muted-foreground",
+                    !popover && "ml-1.5",
                 )}
             >
                 {group.tag}
@@ -201,19 +209,19 @@ const ModelPickerList = ({
             >
                 <div
                     className={clsx(
-                        "flex min-w-0 items-center px-2 text-[12px]",
+                        "flex min-w-0 items-center px-2 text-meta",
                         popover
-                            ? "gap-1.5 pb-1 pt-2 leading-4 text-colorTextSecondary"
-                            : "pb-0.5 pt-2.5 font-semibold leading-5 text-zinc-8",
+                            ? "gap-1.5 pb-1 pt-2 leading-4 text-muted-foreground"
+                            : "pb-0.5 pt-2.5 leading-5 text-muted-foreground",
                     )}
                 >
-                    {Icon ? <Icon className="size-3.5 shrink-0 text-colorText" /> : null}
-                    <span className={clsx("truncate", popover && "font-medium text-colorText")}>
+                    {Icon ? <Icon className="size-3.5 shrink-0 text-foreground" /> : null}
+                    <span className={clsx("truncate", popover && "font-medium text-foreground")}>
                         {group.label}
                     </span>
                     {renderTag(group)}
                     {group.caption && !group.disabled ? (
-                        <span className="ml-1.5 min-w-0 truncate font-normal text-colorTextTertiary">
+                        <span className="ml-1.5 min-w-0 truncate font-normal text-muted-foreground">
                             {group.caption}
                         </span>
                     ) : null}
@@ -225,13 +233,12 @@ const ModelPickerList = ({
                 </div>
                 {group.disabled ? (
                     <div className="flex items-center justify-between gap-2 px-2 py-1">
-                        <span className="text-[12px] text-colorWarning">{group.caption}</span>
+                        <span className="text-meta text-warning">{group.caption}</span>
                         {disabledGroupAction ? (
                             <Button
                                 variant="outline"
                                 size="sm"
                                 disabled={disabled}
-                                className={PHONE_TOUCH_TARGET_CLASS}
                                 onClick={() => disabledGroupAction.onClick(group)}
                             >
                                 {disabledGroupAction.label}
@@ -260,7 +267,7 @@ const ModelPickerList = ({
                     size="compact-search"
                     // The canvas field (`.find`): a quiet border and no focus ring, even with the
                     // caret in it on open. A phone keeps the 32px field it had.
-                    className="border-colorBorderSecondary focus-within:border-colorBorderSecondary focus-within:ring-0 max-md:h-8"
+                    className="border-border-muted focus-within:border-border-muted focus-within:ring-0"
                     placeholder={searchPlaceholder}
                     value={search}
                     allowClear
@@ -268,7 +275,7 @@ const ModelPickerList = ({
                     autoFocus={autoFocusSearch}
                     suffix={
                         searchSuffix ? (
-                            <span className="font-mono text-[11px] text-colorTextTertiary">
+                            <span className="font-mono text-caption text-muted-foreground">
                                 {searchSuffix}
                             </span>
                         ) : undefined
@@ -286,29 +293,14 @@ const ModelPickerList = ({
                 {groups.length ? (
                     groups.map(renderGroup)
                 ) : (
-                    <p className="m-0 px-3 py-4 text-sm text-colorTextSecondary">
+                    <p className="m-0 px-3 py-4 text-body text-muted-foreground">
                         {t("ui.controls.noData")}
                     </p>
                 )}
             </div>
             {onManageProviders ? (
-                <div
-                    className={clsx(
-                        "shrink-0 border-0 border-t border-solid",
-                        popover
-                            ? "mt-1.5 border-colorSplit px-0.5 pb-0.5 pt-2"
-                            : "mt-1.5 border-colorBorderSecondary p-3",
-                    )}
-                >
-                    <Button
-                        variant="outline"
-                        size="compact"
-                        className={clsx("h-8 w-full leading-5", PHONE_TOUCH_TARGET_CLASS)}
-                        onClick={onManageProviders}
-                    >
-                        <FadersHorizontal size={14} />
-                        {t("ui.llmProvider.manageProviders")}
-                    </Button>
+                <div className={clsx("mt-1.5", !popover && "px-3")}>
+                    <ManageProvidersRow onClick={onManageProviders} />
                 </div>
             ) : null}
         </div>

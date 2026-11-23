@@ -24,14 +24,14 @@ const switchVariants = cva(
     [
         // CONTROL_RESET — preflight is off app-wide (antd ships its own reset); see button.tsx.
         "box-border border-0 font-[inherit]",
-        "inline-flex shrink-0 cursor-pointer select-none items-center rounded-full align-middle transition-colors",
-        "p-[2px]", // antd trackPadding: 2px inset the thumb sits within (theme-invariant literal).
+        "inline-flex shrink-0 cursor-pointer select-none items-center rounded-control-check align-middle transition-colors",
+        "p-0.5", // 2px inset the thumb sits within.
         // antd track: unchecked=colorTextQuaternary, checked=colorPrimary.
-        "data-[state=unchecked]:bg-colorTextQuaternary data-[state=checked]:bg-primary",
+        "data-[state=unchecked]:bg-border-strong data-[state=checked]:bg-foreground",
         // antd hover (only when enabled): unchecked=colorTextTertiary, checked=colorPrimaryHover.
-        "enabled:hover:data-[state=unchecked]:bg-colorTextTertiary enabled:hover:data-[state=checked]:bg-btn-primary-hover",
+        "enabled:hover:data-[state=unchecked]:bg-muted-foreground enabled:hover:data-[state=checked]:bg-foreground/85",
         // antd focus (lineWidthFocus=4): 4px solid colorPrimaryBorder outline, 1px offset, :focus-visible only.
-        "outline-none focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-1 focus-visible:outline-focus-ring",
+        "outline-none focus-ring",
         // antd disabled: opacityLoading (0.65) + not-allowed; handle shadow removed.
         "disabled:cursor-not-allowed disabled:opacity-[0.65] disabled:[&_[data-slot=switch-thumb]]:shadow-none",
     ],
@@ -68,7 +68,7 @@ const switchVariants = cva(
 
 const switchThumbVariants = cva(
     [
-        "pointer-events-none block rounded-full bg-white",
+        "pointer-events-none block rounded-xs bg-background",
         // antd handle shadow (`handleShadow`, theme-invariant) — `switch-handle` bridge token.
         "shadow-switch-handle",
         "transition-transform data-[state=unchecked]:[transform:translateX(0)]",

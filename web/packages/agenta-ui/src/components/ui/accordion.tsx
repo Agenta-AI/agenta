@@ -32,7 +32,7 @@ const accordionRootVariants = cva("", {
         variant: {
             // overflow-hidden clips item corners to the group radius (antd borderRadiusLG=10px).
             bordered:
-                "box-border border border-solid border-colorBorder rounded-control-lg overflow-hidden",
+                "box-border border border-solid border-border rounded-lg overflow-hidden",
             ghost: "border-0 bg-transparent",
         },
     },
@@ -49,19 +49,19 @@ const accordionTriggerVariants = cva(
         // gap-3 = antd's `.ant-collapse-expand-icon { margin-inline-end: marginSM }` (12px, not 8).
         "box-border border-0 font-[inherit] flex w-full items-start gap-3 text-left",
         // antd header: paddingSM 12px vertical, padding 16px horizontal; colorTextHeading text.
-        "px-4 py-3 text-field-md text-colorTextHeading cursor-pointer outline-none transition-colors",
+        "px-4 py-3 text-label text-foreground cursor-pointer outline-none transition-colors",
         // antd Collapse's header uses the SHARED genFocusStyle(token) with no offset arg →
         // outline-offset 1px (outward), same as Radio/Checkbox/Tabs/Segmented. An inward
         // offset drew the ring inside the panel, which antd never does.
-        "focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-1 focus-visible:outline-focus-ring",
+        "focus-ring",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0",
         // Caret rotates 90° when open; data-state lives on the trigger, so target the marked svg.
         "[&[data-state=open]_[data-slot=collapse-caret]]:rotate-90",
     ],
     {
         variants: {
-            // antd colorFillAlter == colorFillQuaternary in this theme → bg-fill-quaternary.
-            variant: {bordered: "bg-fill-quaternary", ghost: "bg-transparent"},
+            // The header sits on `muted`, the content on `background` (tone separates, SURF-01).
+            variant: {bordered: "bg-muted", ghost: "bg-transparent"},
         },
         defaultVariants: {variant: "bordered"},
     },
@@ -97,7 +97,7 @@ function AccordionItem({
                 // border-0 first so the single bottom rule doesn't leak the app's default
                 // border-width on the other 3 sides (preflight off). Ghost has no dividers.
                 variant === "bordered" &&
-                    "border-0 border-b border-solid border-colorBorder last:border-b-0",
+                    "border-0 border-b border-solid border-border last:border-b-0",
                 className,
             )}
             {...props}
@@ -115,7 +115,7 @@ function AccordionTrigger({
     const variant = React.useContext(AccordionContext)
     // Same box either side, so the caret keeps antd's fontHeight alignment wherever it sits.
     const caretBox = (
-        <span className="flex h-[22px] shrink-0 items-center">
+        <span className="flex h-5.5 shrink-0 items-center">
             <CollapseCaret size={12} />
         </span>
     )
@@ -131,8 +131,7 @@ function AccordionTrigger({
                 {/* antd expandIconPosition default = start; caret rotates 90° when open. antd
                     sizes its expand-icon box to fontHeight (22px = base 14px × lineHeight
                     1.5714) and centers the 12px icon in it; the flex-start header then makes
-                    the header 46px tall and fixes the caret's vertical position. h-[22px] has
-                    no scale key (h-5=20/h-6=24) — it IS antd's fontHeight, so kept as px. */}
+                    the header 46px tall and fixes the caret's vertical position. */}
                 {caret === "start" ? caretBox : null}
                 {children}
                 {/* An end caret takes the leftover width so it sits against the trigger's edge
@@ -159,11 +158,11 @@ function AccordionContent({
             data-slot="accordion-content"
             className={cn(
                 // overflow-hidden is required for the height motion to clip.
-                "overflow-hidden text-field-md text-foreground",
+                "overflow-hidden text-body text-foreground",
                 // antd panel open/close height+opacity motion (Radix data-state + content-height var).
                 "data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up",
                 // antd content: 16px padding, top border colorBorder (border-0 first, preflight off).
-                variant === "bordered" && "border-0 border-t border-solid border-colorBorder",
+                variant === "bordered" && "border-0 border-t border-solid border-border-muted",
                 className,
             )}
             {...props}

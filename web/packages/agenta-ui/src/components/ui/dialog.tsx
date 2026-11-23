@@ -3,7 +3,7 @@ import * as React from "react"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import {X} from "lucide-react"
+import {XIcon} from "@phosphor-icons/react"
 
 import {Button} from "./button"
 import {cn} from "./utils"
@@ -66,9 +66,8 @@ function DialogClose(props: React.ComponentProps<typeof DialogPrimitive.Close>) 
     return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
 }
 
-// 10% black mask with a light blur where supported.
-const OVERLAY_CLASS =
-    "fixed inset-0 isolate z-50 bg-black/10 supports-[backdrop-filter]:backdrop-blur-[4px]"
+// The one scrim behind dialogs and sheets (`overlay`).
+const OVERLAY_CLASS = "fixed inset-0 isolate z-50 bg-overlay"
 
 function DialogOverlay({
     className,
@@ -103,9 +102,9 @@ function DialogContent({
     container?: HTMLElement | null
     /** Mask and centre inside `container` (positioned), not the page; use with a non-modal Dialog. */
     contained?: boolean
-    /** Renders the top-right close X. */
+    /** Renders the top-right close XIcon. */
     showCloseButton?: boolean
-    /** Replaces the default X icon. */
+    /** Replaces the default XIcon icon. */
     closeIcon?: React.ReactNode
     /** Extra backdrop classes, e.g. a darker mask for a media lightbox. */
     overlayClassName?: string
@@ -153,9 +152,7 @@ function DialogContent({
                         // font-portal: portalled to <body>, outside the app font scope (preflight off).
                         "relative pointer-events-auto font-portal",
                         "box-border flex max-h-full w-full max-w-[520px] flex-col gap-4 overflow-y-auto",
-                        // Hairline ring instead of a shadow; color-mix because v3 can't alpha a var() colour.
-                        "rounded-xl bg-popover p-4 text-sm text-popover-foreground outline-none",
-                        "ring-1 ring-[color:color-mix(in_srgb,var(--ag-colorText)_10%,transparent)]",
+                        "rounded-xl bg-popover p-4 text-body text-popover-foreground outline-none shadow-modal",
                         "data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out",
                         className,
                     )}
@@ -170,7 +167,7 @@ function DialogContent({
                                 className="absolute right-2 top-2"
                                 aria-label={t("common.close")}
                             >
-                                {closeIcon ?? <X />}
+                                {closeIcon ?? <XIcon />}
                             </Button>
                         </DialogPrimitive.Close>
                     )}
@@ -207,8 +204,8 @@ function DialogFooter({
             // border-0 first: preflight is off, so `border-solid` alone would paint every side.
             className={cn(
                 "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl p-4 sm:flex-row sm:justify-end",
-                "border-0 border-t border-solid border-border",
-                "bg-[color:color-mix(in_srgb,var(--ag-colorFillTertiary)_50%,transparent)]",
+                "border-0 border-t border-solid border-border-muted",
+                "bg-[color:color-mix(in_srgb,var(--secondary)_50%,transparent)]",
                 className,
             )}
             {...props}
@@ -228,7 +225,7 @@ function DialogTitle({className, ...props}: React.ComponentProps<typeof DialogPr
         <DialogPrimitive.Title
             data-slot="dialog-title"
             // m-0 resets the UA <h2> margin (preflight off).
-            className={cn("m-0 text-base font-medium leading-none", className)}
+            className={cn("m-0 text-title leading-none", className)}
             {...props}
         />
     )
@@ -243,7 +240,7 @@ function DialogDescription({
             data-slot="dialog-description"
             // m-0 resets the UA <p> margin (preflight off).
             className={cn(
-                "m-0 text-sm text-muted-foreground [&_a]:underline [&_a]:underline-offset-[3px] [&_a:hover]:text-foreground",
+                "m-0 text-body text-muted-foreground [&_a]:underline [&_a]:underline-offset-[3px] [&_a:hover]:text-foreground",
                 className,
             )}
             {...props}

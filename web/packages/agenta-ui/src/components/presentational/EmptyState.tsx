@@ -5,7 +5,7 @@ import {Stream} from "@cloudflare/stream-react"
 import {ArrowRight} from "@phosphor-icons/react"
 import clsx from "clsx"
 
-import EnhancedButton from "./EnhancedButton"
+import {Button} from "../ui/button"
 
 export interface EmptyStateProps {
     /** Cloudflare Stream video ID (preferred) */
@@ -112,14 +112,14 @@ export const EmptyState = ({
                 {/* Title + Description */}
                 <div className="mb-6">
                     <h3
-                        className="mb-2 text-2xl font-bold text-colorText"
+                        className="mb-2 text-heading text-foreground"
                         style={{textWrap: "balance"}}
                     >
                         {title}
                     </h3>
 
                     <p
-                        className="mx-auto max-w-2xl text-base text-colorTextSecondary"
+                        className="mx-auto max-w-2xl text-body text-muted-foreground"
                         style={{marginBottom: 0, textWrap: "pretty"}}
                     >
                         {description}
@@ -129,15 +129,15 @@ export const EmptyState = ({
                 {/* CTAs */}
                 <div className="mb-8 flex flex-wrap items-center justify-center gap-4">
                     {primaryCta.node ?? (
-                        <EnhancedButton
-                            type="primary"
-                            size="large"
+                        <Button
+                            variant="default"
+                            size="lg"
                             onClick={primaryCta.onClick}
-                            icon={primaryCta.icon}
                             className="!px-8"
                         >
+                            {primaryCta.icon}
                             {primaryCta.label}
-                        </EnhancedButton>
+                        </Button>
                     )}
 
                     {secondaryCta ? (
@@ -147,15 +147,10 @@ export const EmptyState = ({
                             rel="noreferrer"
                             className="no-underline"
                         >
-                            <EnhancedButton
-                                type="default"
-                                size="large"
-                                icon={<ArrowRight size={16} />}
-                                iconPosition="end"
-                                className="!px-8"
-                            >
+                            <Button variant="outline" size="lg" className="!px-8">
                                 {secondaryCta.label}
-                            </EnhancedButton>
+                                <ArrowRight size={16} />
+                            </Button>
                         </a>
                     ) : null}
                 </div>
@@ -163,13 +158,13 @@ export const EmptyState = ({
                 {/* Video / Image Preview with fixed aspect ratio container */}
                 {hasPreview && !loadError && (
                     <div
-                        className="relative w-full max-w-3xl overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
+                        className="relative w-full max-w-3xl overflow-hidden rounded-lg border border-border-muted bg-muted"
                         style={{aspectRatio: VIDEO_ASPECT_RATIO}}
                     >
                         {/* Skeleton shown while loading */}
                         {isLoading && (
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="size-full animate-pulse bg-colorFillSecondary" />
+                                <div className="size-full animate-pulse bg-secondary" />
                             </div>
                         )}
 

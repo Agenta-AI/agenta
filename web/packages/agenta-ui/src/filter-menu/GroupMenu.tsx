@@ -4,7 +4,7 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
-import {List} from "lucide-react"
+import {ListIcon} from "@phosphor-icons/react"
 
 import {Popover, PopoverContent} from "../components/ui/popover"
 
@@ -103,7 +103,7 @@ export const GroupMenu = <Value extends string = string>({
         <Popover open={open} onOpenChange={setOpen}>
             <FilterMenuTrigger
                 label={label}
-                icon={icon ?? <List size={14} aria-hidden />}
+                icon={icon ?? <ListIcon size={14} aria-hidden />}
                 size={size}
                 variant={variant}
                 triggerClassName={triggerClassName}
@@ -116,7 +116,7 @@ export const GroupMenu = <Value extends string = string>({
                 align={align}
                 sideOffset={sideOffset}
                 aria-label={t("ui.listControls.groupBy")}
-                className={className ?? "w-[220px] p-0"}
+                className={className ?? "w-popover-sm p-0"}
                 onOpenAutoFocus={(event) => event.preventDefault()}
             >
                 {searchable ? (
@@ -127,7 +127,7 @@ export const GroupMenu = <Value extends string = string>({
                             onChange={(event) => setQuery(event.target.value)}
                             placeholder={searchPlaceholder}
                             aria-label={searchPlaceholder}
-                            className="box-border w-full appearance-none border-0 bg-transparent p-0 font-[inherit] text-[13px] text-foreground outline-none placeholder:text-placeholder"
+                            className="box-border w-full appearance-none border-0 bg-transparent p-0 font-[inherit] text-label text-foreground outline-none placeholder:text-muted-foreground"
                         />
                     </label>
                 ) : null}

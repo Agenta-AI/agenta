@@ -2,20 +2,7 @@
  * Styling Utilities
  *
  * Shared utilities for CSS class names and styling constants.
- * Uses Ant Design theme tokens from antd-tailwind.json for design system consistency.
- *
- * Token Reference (from antd-tailwind.json):
- * - zinc-1 to zinc-10: Gray scale (zinc-5 = #97a4b0, zinc-6 = #758391, zinc-7 = #586673, zinc-9 = #1c2c3d)
- * - colorText: #1c2c3d (primary text)
- * - colorTextSecondary: #586673 (secondary text)
- * - colorTextTertiary: #758391 (tertiary/muted text)
- * - colorTextQuaternary: #bdc7d1 (disabled/placeholder text)
- * - colorIcon: #758391 (icon color)
- * - colorIconHover: #1c2c3d (icon hover color)
- * - colorBorder: #bdc7d1 (primary border)
- * - colorBorderSecondary: #eaeff5 (secondary border)
- * - colorFillSecondary: rgba(5, 23, 41, 0.06) (subtle fill)
- * - colorFillTertiary: rgba(5, 23, 41, 0.04) (very subtle fill)
+ * Values are the design-system theme variables (web/mobile/DESIGN.md).
  *
  * @example
  * ```tsx
@@ -117,181 +104,179 @@ export const flexLayouts = {
 } as const
 
 /**
- * Common text color classes for semantic styling
- * Uses Ant Design theme tokens: colorTextSecondary (#586673), colorTextTertiary (#758391), colorIcon (#758391)
+ * Text color classes. The design system has two text levels: `foreground` and
+ * `muted-foreground` (web/mobile/DESIGN.md, Color). Every quiet role maps to the second.
  *
  * @example
  * <span className={textColors.secondary}>{secondaryText}</span>
  */
 export const textColors = {
-    /** Primary text - colorText (#1c2c3d) - zinc-9 */
-    primary: "text-zinc-9",
-    /** Secondary text - colorTextSecondary (#586673) - zinc-7 */
-    secondary: "text-zinc-7",
-    /** Tertiary/muted text - colorTextTertiary (#758391) - zinc-6 */
-    tertiary: "text-zinc-6",
-    /** Quaternary/disabled text - colorTextQuaternary (#bdc7d1) - zinc-4 */
-    quaternary: "text-zinc-4",
-    /** Muted/secondary text - alias for tertiary (colorTextTertiary) */
-    muted: "text-zinc-6",
-    /** Separator/divider text - colorTextQuaternary (#bdc7d1) - zinc-4 */
-    separator: "text-zinc-4",
-    /** Icon color - colorIcon (#758391) - zinc-6 */
-    icon: "text-zinc-6",
-    /** Icon hover color - colorIconHover (#1c2c3d) - zinc-9 */
-    iconHover: "hover:text-zinc-9",
-    /** Label text - colorTextSecondary (#586673) - zinc-7 */
-    label: "text-zinc-7",
-    /** Subtle text - colorTextTertiary (#758391) - zinc-6 */
-    subtle: "text-zinc-6",
-    /** Description text - colorTextDescription (#758391) - zinc-6 */
-    description: "text-zinc-6",
-    /** Placeholder text - colorTextPlaceholder (#bdc7d1) - zinc-4 */
-    placeholder: "text-zinc-4",
-    /** Disabled text - colorTextDisabled (#bdc7d1) - zinc-4 */
-    disabled: "text-zinc-4",
+    /** Primary text */
+    primary: "text-foreground",
+    /** Secondary text */
+    secondary: "text-muted-foreground",
+    /** Tertiary text */
+    tertiary: "text-muted-foreground",
+    /** Quaternary text (there is no third gray) */
+    quaternary: "text-muted-foreground",
+    /** Muted text - alias for tertiary */
+    muted: "text-muted-foreground",
+    /** Separator text */
+    separator: "text-muted-foreground",
+    /** Icon color */
+    icon: "text-muted-foreground",
+    /** Icon hover color */
+    iconHover: "hover:text-foreground",
+    /** Label text */
+    label: "text-muted-foreground",
+    /** Subtle text */
+    subtle: "text-muted-foreground",
+    /** Description text */
+    description: "text-muted-foreground",
+    /** Placeholder text */
+    placeholder: "text-muted-foreground",
+    /** Disabled text */
+    disabled: "text-muted-foreground",
 } as const
 
 /**
- * Common background color classes
- * Uses Ant Design theme tokens: colorFillSecondary, colorFillTertiary, zinc scale
+ * Background color classes. Fills inside rows are translucent (`secondary`) so they stay
+ * visible on the row's `accent` hover (HOVER-02).
  *
  * @example
  * <span className={bgColors.chip}>{badge}</span>
  */
 export const bgColors = {
-    /** Chip/badge background - colorFillSecondary - zinc-1 (#f5f7fa) */
-    chip: "bg-zinc-1",
-    /** Subtle background - colorFillTertiary - zinc-1 (#f5f7fa) */
-    subtle: "bg-zinc-1",
-    /** Hover background - colorFillSecondary - zinc-2 (#eaeff5) */
-    hover: "bg-zinc-2",
+    /** Chip/badge background */
+    chip: "bg-secondary",
+    /** Subtle background */
+    subtle: "bg-secondary",
+    /** Hover background */
+    hover: "bg-accent",
     /** Hover state background - for hover pseudo-class */
-    hoverState: "hover:bg-zinc-2",
-    /** Active/selected background - controlItemBgActive - zinc-1 (#f5f7fa) */
-    active: "bg-zinc-1",
-    /** Container background - colorBgContainer (#ffffff) */
-    container: "bg-[var(--ag-c-FFFFFF)]",
-    /** Elevated background - colorBgElevated (#ffffff) */
-    elevated: "bg-[var(--ag-c-FFFFFF)]",
+    hoverState: "hover:bg-accent",
+    /** Active/selected background */
+    active: "bg-selected",
+    /** Container background */
+    container: "bg-background",
+    /** Elevated (floating) background */
+    elevated: "bg-popover",
     /** Hover subtle - for hover states on subtle backgrounds */
-    hoverSubtle: "hover:bg-zinc-1",
+    hoverSubtle: "hover:bg-accent",
 } as const
 
 /**
- * Common border color classes
- * Uses Ant Design theme tokens: colorBorder (#bdc7d1), colorBorderSecondary (#eaeff5)
+ * Border color classes.
  *
  * @example
  * <div className={borderColors.default} />
  */
 export const borderColors = {
-    /** Default border - colorBorder (#bdc7d1) - zinc-4 */
-    default: "border-zinc-4",
-    /** Secondary/subtle border - colorBorderSecondary (#eaeff5) - zinc-2 */
-    secondary: "border-zinc-2",
-    /** Divider/separator border - colorBorderSecondary (#eaeff5) - zinc-2 */
-    divider: "border-zinc-2",
-    /** Strong border - zinc-3 (#d6dee6) */
-    strong: "border-zinc-3",
+    /** Default border - card edges, inputs */
+    default: "border-border",
+    /** Secondary/subtle border - dividers inside a card or list */
+    secondary: "border-border-muted",
+    /** Divider/separator border */
+    divider: "border-border-muted",
+    /** Strong border - edges that carry meaning */
+    strong: "border-border-strong",
 } as const
 
 /**
- * Interactive element styles
- * Uses Ant Design theme tokens for consistent hover states
+ * Interactive element styles. Hover is `accent` (HOVER-01).
  *
  * @example
  * <span className={interactiveStyles.expandIcon}>...</span>
  */
 export const interactiveStyles = {
-    /** Expand/collapse icon styling - colorIcon to colorIconHover */
-    expandIcon: "cursor-pointer text-zinc-6 hover:text-zinc-9 transition-colors",
+    /** Expand/collapse icon styling */
+    expandIcon: "cursor-pointer text-muted-foreground hover:text-foreground transition-colors",
     /** Expand icon with inline-flex */
     expandIconInline:
-        "cursor-pointer text-zinc-6 hover:text-zinc-9 transition-colors inline-flex items-center",
+        "cursor-pointer text-muted-foreground hover:text-foreground transition-colors inline-flex items-center",
     /** Clickable text - secondary to primary on hover */
-    clickableText: "cursor-pointer text-zinc-7 hover:text-zinc-9 transition-colors",
+    clickableText: "cursor-pointer text-muted-foreground hover:text-foreground transition-colors",
     /** Subtle button - for icon buttons */
-    subtleButton: "cursor-pointer text-zinc-6 hover:text-zinc-9 hover:bg-zinc-1 transition-colors",
+    subtleButton:
+        "cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors",
 } as const
 
 /**
- * Status color classes based on Ant Design semantic colors
+ * Status color classes: one color per status, tinted at 10% for a fill.
  *
  * @example
  * <span className={statusColors.success}>Success</span>
  */
 export const statusColors = {
-    /** Success text - colorSuccessText (#389e0d) - green-7 */
-    success: "text-green-7",
-    /** Success background - colorSuccessBg (#f6ffed) - green-1 */
-    successBg: "bg-green-1",
-    /** Success icon - green-6 */
-    successIcon: "text-green-6",
-    /** Warning text - colorWarningText (#faad14) - gold-6 */
-    warning: "text-gold-6",
-    /** Warning background - colorWarningBg (#fffbe6) - gold-1 */
-    warningBg: "bg-gold-1",
-    /** Error text - colorErrorText (#d61010) - red-6 */
-    error: "text-red-6",
-    /** Error background - colorErrorBg (#fbe7e7) - red-1 */
-    errorBg: "bg-red-1",
-    /** Info text - colorInfoText (#1c2c3d) - zinc-9 */
-    info: "text-zinc-9",
-    /** Info background - colorInfoBg (#f5f7fa) - zinc-1 */
-    infoBg: "bg-zinc-1",
+    /** Success text */
+    success: "text-success",
+    /** Success background */
+    successBg: "bg-success/10",
+    /** Success icon */
+    successIcon: "text-success",
+    /** Warning text */
+    warning: "text-warning",
+    /** Warning background */
+    warningBg: "bg-warning/10",
+    /** Error text */
+    error: "text-destructive",
+    /** Error background */
+    errorBg: "bg-destructive/10",
+    /** Info text */
+    info: "text-info",
+    /** Info background */
+    infoBg: "bg-info/10",
 } as const
 
 /**
- * Entity icon color classes for consistent icon styling
- * Used in entity headers, panels, and list items
+ * Entity icon color classes. Marks are neutral (COLOR-05): `secondary` with a
+ * `muted-foreground` icon; only status takes a status color.
  *
  * @example
  * <EntityIconLabel iconBgColor={entityIconColors.primaryBg} iconColor={entityIconColors.primary} />
  */
 export const entityIconColors = {
-    /** Primary icon color - blue-6 */
-    primary: "text-blue-6",
-    /** Primary icon background - blue-1 */
-    primaryBg: "bg-blue-1",
-    /** Connected/success icon color - green-6 */
-    connected: "text-green-6",
-    /** Connected/success icon background - green-1 */
-    connectedBg: "bg-green-1",
+    /** Primary icon color */
+    primary: "text-muted-foreground",
+    /** Primary icon background */
+    primaryBg: "bg-secondary",
+    /** Connected/success icon color */
+    connected: "text-success",
+    /** Connected/success icon background */
+    connectedBg: "bg-success/10",
 } as const
 
 /**
- * Common shadow classes
+ * Shadow classes. Flat content has no shadow (SURF-03); only floating things do.
  *
  * @example
- * <div className={shadows.card}>Card content</div>
+ * <div className={shadows.elevated}>Menu</div>
  */
 export const shadows = {
-    /** Subtle shadow for cards */
-    card: "shadow-sm",
-    /** Elevated shadow for dropdowns/popovers */
-    elevated: "shadow-md",
-    /** Strong shadow for modals */
-    modal: "shadow-lg",
+    /** Cards are flat: tone or a border separates them */
+    card: "",
+    /** Menus, popovers, tooltips, toasts */
+    elevated: "shadow-overlay",
+    /** Dialogs and sheets */
+    modal: "shadow-modal",
 } as const
 
 /**
- * Text size classes for consistent typography
- * Use these instead of hardcoded Tailwind text size classes
+ * Text size classes, mapped to the design-system text styles.
  *
  * @example
- * <span className={textSizes.xs}>Small text</span>
+ * <span className={textSizes.xs}>Meta text</span>
  * <span className={textSizes.sm}>Default text</span>
  */
 export const textSizes = {
-    /** Extra small text - 12px */
-    xs: "text-xs",
-    /** Small text - 14px (default body) */
-    sm: "text-sm",
-    /** Base text - 16px */
-    base: "text-base",
-    /** Large text - 18px */
-    lg: "text-lg",
+    /** Meta text - 12px */
+    xs: "text-meta",
+    /** Single-line UI text - 13px */
+    sm: "text-label",
+    /** Prose - 14px */
+    base: "text-body",
+    /** Section title - 16px */
+    lg: "text-title",
 } as const
 
 /**
@@ -308,19 +293,18 @@ export const justifyClasses = {
 } as const
 
 /**
- * Focus ring styles for accessibility
- * Uses zinc-5 for consistent focus indication across components
+ * Focus styles. Every control uses the shared `focus-ring` (FORM-02, `@agenta/ui/focus.css`).
  *
  * @example
  * <button className={cn("rounded", focusStyles.ring)}>Click me</button>
  */
 export const focusStyles = {
-    /** Standard focus ring - 2px zinc-5 */
-    ring: "outline-none focus:ring-2 focus:ring-zinc-5",
-    /** Focus ring with offset for elements with backgrounds */
-    ringOffset: "outline-none focus:ring-2 focus:ring-zinc-5 focus:ring-offset-2",
-    /** Focus-visible variant for keyboard-only focus */
-    ringVisible: "outline-none focus-visible:ring-2 focus-visible:ring-zinc-5",
+    /** Standard focus ring */
+    ring: "outline-none focus-ring",
+    /** Same ring; the shared ring has no offset */
+    ringOffset: "outline-none focus-ring",
+    /** Keyboard-only focus (the shared ring already uses :focus-visible) */
+    ringVisible: "outline-none focus-ring",
 } as const
 
 /**
@@ -394,30 +378,28 @@ export const gapClasses = {
 } as const
 
 /**
- * Link color classes for consistent link styling
- * Uses Ant Design primary color tokens
+ * Link color classes. Links use `link`.
  *
  * @example
  * <a className={linkColors.default}>Link text</a>
  * <button className={cn(linkColors.default, linkColors.hover)}>Click</button>
  */
 export const linkColors = {
-    /** Default link color - primary blue */
-    default: "text-primary",
+    /** Default link color */
+    default: "text-link",
     /** Link hover state */
-    hover: "hover:text-primary-6 hover:underline",
+    hover: "hover:underline",
 } as const
 
 /**
- * Danger/destructive action colors
- * Uses Ant Design error color tokens
+ * Danger/destructive action colors.
  *
  * @example
  * <button className={cn(dangerColors.text, dangerColors.hover)}>Delete</button>
  */
 export const dangerColors = {
     /** Danger text color */
-    text: "text-red-6",
+    text: "text-destructive",
     /** Danger hover state */
-    hover: "hover:text-red-7",
+    hover: "hover:text-destructive",
 } as const

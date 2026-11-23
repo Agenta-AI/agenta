@@ -1,7 +1,7 @@
 /**
  * SearchInput Component
  *
- * Search input for filtering lists with clear button.
+ * MagnifyingGlassIcon input for filtering lists with clear button.
  *
  * @example
  * ```tsx
@@ -18,7 +18,7 @@
 
 import React, {useCallback} from "react"
 
-import {Search} from "lucide-react"
+import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 import type {InputProps} from "../ui/input"
 import {InputAffix} from "../ui/input-composed"
@@ -71,7 +71,7 @@ export interface SearchInputProps {
 // ============================================================================
 
 /**
- * Search input with clear button
+ * MagnifyingGlassIcon input with clear button
  */
 export function SearchInput({
     value,
@@ -102,7 +102,7 @@ export function SearchInput({
             autoFocus={autoFocus}
             className={className}
             size={size}
-            prefix={<Search className="w-4 h-4" />}
+            prefix={<MagnifyingGlassIcon className="w-4 h-4" />}
             allowClear
             onClear={handleClear}
         />

@@ -5,7 +5,7 @@ import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 
 import {Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia} from "../ui/empty"
 
-import EnhancedButton from "./EnhancedButton"
+import {Button} from "../ui/button"
 
 interface Cta {
     text: string
@@ -15,6 +15,9 @@ interface Cta {
     variant?: "primary" | "default"
     size?: "small" | "middle" | "large"
 }
+
+// antd size names kept on the public Cta.
+const toSize = (size: Cta["size"]) => (size === "small" ? "sm" : size === "middle" ? "default" : "lg")
 
 export interface EmptyPlaceholderProps {
     image?: ReactNode
@@ -44,32 +47,32 @@ export const EmptyPlaceholder = ({
             </EmptyHeader>
             <EmptyContent className="gap-2">
                 {primaryCta ? (
-                    <EnhancedButton
-                        size={primaryCta.size ?? "large"}
-                        icon={primaryCta.icon}
-                        type={primaryCta.variant ?? "primary"}
+                    <Button
+                        size={toSize(primaryCta.size)}
+                        variant={primaryCta.variant === "default" ? "outline" : "default"}
                         onClick={primaryCta.onClick}
                         title={primaryCta.tooltip}
                     >
+                        {primaryCta.icon}
                         {primaryCta.text}
-                    </EnhancedButton>
+                    </Button>
                 ) : null}
                 {secondaryCta ? (
                     <>
                         {/* The separator only makes sense between two CTAs; a secondary-only state
                         used to render an orphaned "Or". */}
                         {primaryCta ? (
-                            <span className="text-colorText">{t("ui.listControls.or")}</span>
+                            <span className="text-foreground">{t("ui.listControls.or")}</span>
                         ) : null}
-                        <EnhancedButton
-                            size={secondaryCta.size ?? "large"}
-                            icon={secondaryCta.icon}
-                            type={secondaryCta.variant ?? "default"}
+                        <Button
+                            size={toSize(secondaryCta.size)}
+                            variant={secondaryCta.variant === "primary" ? "default" : "outline"}
                             onClick={secondaryCta.onClick}
                             title={secondaryCta.tooltip}
                         >
+                            {secondaryCta.icon}
                             {secondaryCta.text}
-                        </EnhancedButton>
+                        </Button>
                     </>
                 ) : null}
             </EmptyContent>

@@ -38,15 +38,15 @@ export interface SegmentedOption {
 
 type SegmentedRawOption = SegmentedValue | SegmentedOption
 
-// Track: the rounded rail holding the options. antd trackBg = colorBgLayout (white light / black
-// dark — it blends into the page; the thumb is distinguished by its shadow), trackPadding 2px,
+// Track: the rounded rail holding the options, on `muted`; the thumb stands out by tone,
+// trackPadding 2px,
 // radius = borderRadius per size. box-border + border-solid: preflight is off (see button.tsx).
 const segmentedTrackVariants = cva(
     [
         // border-0 zeroes the app's global default border-width (preflight off) — antd's track
         // has no border, and a phantom ~1.5px border would eat the height so items can't fill.
         "relative inline-flex items-stretch box-border border-0 font-[inherit] p-0.5",
-        "bg-colorBgLayout",
+        "bg-muted",
         "data-[disabled=true]:cursor-not-allowed",
     ],
     {
@@ -58,7 +58,7 @@ const segmentedTrackVariants = cva(
                 // The canvas scale (decision D1, `.seg`): a 28px track, radius 8, a 2px gap and a
                 // hairline ring. Below md it keeps the default 32px track.
                 compact:
-                    "h-control-sm gap-0.5 rounded-[8px] shadow-[inset_0_0_0_1px_var(--ag-colorBorderSecondary)] max-md:h-control max-md:rounded-control",
+                    "h-control-sm gap-0.5 rounded-control shadow-[inset_0_0_0_1px_var(--border-muted)]",
             },
             block: {true: "flex w-full", false: ""},
         },
@@ -74,17 +74,19 @@ const segmentedItemVariants = cva(
         "relative z-10 box-border border-0 bg-transparent font-[inherit] cursor-pointer",
         // gap-1.5 = antd's `-item-icon + * { margin-inline-start: marginSM/2 }` = 6px.
         "inline-flex h-full items-center justify-center gap-1.5 whitespace-nowrap select-none",
+        // An icon-only segment is square, so two icons sit together instead of far apart.
+        "has-[>svg:only-child]:aspect-square has-[>svg:only-child]:px-0",
         "transition-colors outline-none",
-        "text-colorTextLabel",
-        "data-[state=active]:text-colorText",
+        "text-muted-foreground",
+        "data-[state=active]:text-foreground",
         // hover/active only when inactive + enabled — the selected item owns the thumb. antd
         // itemHoverColor/itemActiveColor = colorText, itemHoverBg = colorFillSecondary,
         // itemActiveBg = colorFill.
-        "enabled:data-[state=inactive]:hover:text-colorText enabled:data-[state=inactive]:hover:bg-colorFillSecondary",
-        "enabled:data-[state=inactive]:active:text-colorText enabled:data-[state=inactive]:active:bg-colorFill",
-        "disabled:cursor-not-allowed disabled:text-colorTextDisabled",
+        "enabled:data-[state=inactive]:hover:text-foreground enabled:data-[state=inactive]:hover:bg-accent",
+        "enabled:data-[state=inactive]:active:text-foreground enabled:data-[state=inactive]:active:bg-selected",
+        "disabled:cursor-not-allowed disabled:text-muted-foreground",
         // antd shared keyboard focus ring: 4px colorPrimaryBorder, focus-visible only.
-        "focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-1 focus-visible:outline-focus-ring",
+        "focus-ring",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:block",
     ],
     {
@@ -93,10 +95,10 @@ const segmentedItemVariants = cva(
             // border) default/lg = `input`, 7px (SM - 1) = `input-sm`. Font 12px sm/default,
             // 14px lg (antd bumps the label to fontSizeLG at lg); item radius 4/6/8px per size.
             size: {
-                sm: "px-input-sm text-field-md rounded",
-                default: "px-input text-field-md rounded-control-sm",
-                lg: "px-input-lg text-field-lg rounded-control",
-                compact: "px-2.5 text-btn-sm rounded-[6px]",
+                sm: "px-input-sm text-label rounded",
+                default: "px-input text-label rounded-control-sm",
+                lg: "px-input-lg text-body rounded-control",
+                compact: "px-2.5 text-label rounded-control-sm",
             },
             block: {true: "flex-1 basis-0", false: ""},
         },
@@ -104,13 +106,13 @@ const segmentedItemVariants = cva(
     },
 )
 
-// Thumb: the single sliding pill behind the active option. antd itemSelectedBg = colorBgElevated
-// with boxShadowTertiary. It transitions transform + width to the active item's box.
+// Thumb: the single sliding fill behind the active option. Tone only, no shadow: the control is
+// flat (SURF-03). It transitions transform + width to the active item's box.
 const segmentedThumbVariants = cva(
     // left-0 pins the absolute origin to the track's padding box (else left:auto = static
     // position, which double-offsets the translateX slide).
     [
-        "absolute left-0 z-0 box-border border-0 bg-colorBgElevated shadow-tertiary",
+        "absolute left-0 z-0 box-border border-0 bg-background",
         "pointer-events-none",
     ],
     {
@@ -120,7 +122,7 @@ const segmentedThumbVariants = cva(
                 sm: "rounded",
                 default: "rounded-control-sm",
                 lg: "rounded-control",
-                compact: "rounded-[6px]",
+                compact: "rounded-control-sm",
             },
         },
         defaultVariants: {size: "default"},

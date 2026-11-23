@@ -27,18 +27,18 @@ import {cn} from "./utils"
  * errored control — so a field that refuses an entry says so to more than the eye.
  *
  * Parity target is the current `LabeledField` rendering: label `font-medium` + `text-foreground`
- * (colorText), 12px at the default size, 4px gap to the control; asterisk `text-error`
+ * (colorText), 12px at the default size, 4px gap to the control; asterisk `text-destructive`
  * (colorError); info icon in `colorTextDescription`; description in `colorTextDescription`.
  * Colour/geometry come from tokens — no raw hex, no raw px (bar the noted icon size).
  */
 
-// Label typography by size — mirrors LabeledField's xs/sm/md → text-xs/text-sm/text-base ramp.
+// Label typography by size — xs/sm/md → text-label / text-body / text-title.
 const fieldLabelVariants = cva("font-medium", {
     variants: {
         size: {
-            xs: "text-xs",
-            sm: "text-sm",
-            md: "text-base",
+            xs: "text-label",
+            sm: "text-body",
+            md: "text-title",
         },
     },
     defaultVariants: {size: "xs"},
@@ -107,6 +107,8 @@ function Field({
 }: FieldProps) {
     const t = useT(uiControlsCatalog)
     const autoId = React.useId()
+    // Controlled so a tap toggles the help: touch has no hover (TOUCH-03).
+    const [helpOpen, setHelpOpen] = React.useState(false)
     const child = React.isValidElement<{
         id?: string
         "aria-describedby"?: string
@@ -147,7 +149,7 @@ function Field({
     const isHorizontal = direction === "horizontal"
 
     const errorLine = error != null && (
-        <span id={errorId} data-slot="field-error" className="text-xs text-error">
+        <span id={errorId} data-slot="field-error" className="text-meta text-destructive">
             {error}
         </span>
     )
@@ -162,7 +164,7 @@ function Field({
                         className={cn(
                             fieldLabelVariants({size}),
                             isHorizontal && "flex-shrink-0",
-                            invalid && "text-error",
+                            invalid && "text-destructive",
                         )}
                     >
                         <span data-slot="field-label-text">
@@ -171,7 +173,7 @@ function Field({
                                 <span
                                     data-slot="field-required"
                                     aria-hidden="true"
-                                    className="ml-0.5 text-error"
+                                    className="ml-0.5 text-destructive"
                                 >
                                     *
                                 </span>
@@ -180,13 +182,14 @@ function Field({
                     </Label>
                     {tooltip != null && (
                         <TooltipProvider>
-                            <Tooltip>
+                            <Tooltip open={helpOpen} onOpenChange={setHelpOpen}>
                                 <TooltipTrigger asChild>
                                     <button
                                         type="button"
+                                        onClick={() => setHelpOpen((open) => !open)}
                                         data-slot="field-tooltip-trigger"
                                         aria-label={t("ui.controls.moreInformation")}
-                                        className="box-border inline-flex cursor-help border-0 bg-transparent p-0 font-[inherit] text-colorTextDescription"
+                                        className="box-border inline-flex cursor-help border-0 bg-transparent p-0 font-[inherit] text-muted-foreground"
                                     >
                                         <Info className="size-3" aria-hidden="true" />
                                     </button>
@@ -201,7 +204,7 @@ function Field({
                 <span
                     id={descriptionId}
                     data-slot="field-description"
-                    className="text-xs text-colorTextDescription"
+                    className="text-meta text-muted-foreground"
                 >
                     {description}
                 </span>

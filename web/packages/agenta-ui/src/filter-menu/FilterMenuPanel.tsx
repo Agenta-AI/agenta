@@ -2,7 +2,7 @@ import {useEffect, useMemo, useRef, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
-import {ArrowLeft, RotateCcw as ArrowCounterClockwise, Search} from "lucide-react"
+import {ArrowCounterClockwiseIcon as ArrowCounterClockwise, ArrowLeftIcon, MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 import {cn} from "../components/ui/utils"
 import {useMediaQuery} from "../hooks/useMediaQuery"
@@ -47,8 +47,8 @@ export const ResetRow = ({
             className={cn(
                 // Preflight is off app-wide, so the <button> reset is restated here.
                 "box-border appearance-none border-0 bg-transparent font-[inherit]",
-                "flex w-full items-center gap-2 rounded-control-sm px-2 py-1.5 text-left",
-                "text-[13px] text-muted-foreground outline-none transition-colors",
+                "flex w-full min-h-8 items-center gap-2 rounded-control-sm px-2 py-1 text-left",
+                "text-label text-muted-foreground outline-none transition-colors",
                 disabled
                     ? "cursor-default opacity-45"
                     : "cursor-pointer hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground",
@@ -108,7 +108,7 @@ export const FilterMenuPanel = ({
     const rowRefs = useRef(new Map<string, HTMLElement | null>())
     const searchRef = useRef<HTMLInputElement | null>(null)
 
-    // Search matches a row by its own label OR by any option's — typing "chat" should surface
+    // MagnifyingGlassIcon matches a row by its own label OR by any option's — typing "chat" should surface
     // Type, not hide it because the word never appears in the word "Type".
     // A toggle has no options, so it matches by its label alone.
     const matched = useMemo(() => {
@@ -229,7 +229,7 @@ export const FilterMenuPanel = ({
         const back = () => setDrillKey(null)
         return (
             <div
-                className={cn("flex w-[248px] flex-col", className)}
+                className={cn("flex w-popover-sm flex-col", className)}
                 onKeyDown={(event) => {
                     // Escape steps back to the rows before it closes the panel — the reader is
                     // one level in, and losing the whole menu is not what "back" means.
@@ -246,16 +246,16 @@ export const FilterMenuPanel = ({
                         aria-label={t("ui.controls.backToFilters")}
                         className={cn(
                             "box-border cursor-pointer appearance-none border-0 bg-transparent font-[inherit]",
-                            "flex min-w-0 flex-1 items-center gap-2 rounded-control-sm px-2 py-1.5 text-left",
-                            "text-[13px] font-medium text-foreground outline-none transition-colors",
+                            "flex min-w-0 flex-1 min-h-8 items-center gap-2 rounded-control-sm px-2 py-1 text-left",
+                            "text-label font-medium text-foreground outline-none transition-colors",
                             "hover:bg-accent focus-visible:bg-accent",
                         )}
                     >
-                        <ArrowLeft size={14} aria-hidden className="shrink-0" />
+                        <ArrowLeftIcon size={14} aria-hidden className="shrink-0" />
                         <span className="truncate">{section.label}</span>
                     </button>
                 </div>
-                <div className="flex max-h-[280px] flex-col">
+                <div className="flex max-h-70 flex-col">
                     <FilterMenuFlyoutBody
                         section={section}
                         options={options}
@@ -275,13 +275,13 @@ export const FilterMenuPanel = ({
     }
 
     return (
-        <div className={cn("flex w-[248px] flex-col", className)}>
+        <div className={cn("flex w-popover-sm flex-col", className)}>
             {searchable ? (
                 <label
                     className="flex items-center gap-2 border-0 border-b border-solid border-border px-3 py-2"
                     onMouseEnter={closeNow}
                 >
-                    <Search size={14} className="shrink-0 text-muted-foreground" aria-hidden />
+                    <MagnifyingGlassIcon size={14} className="shrink-0 text-muted-foreground" aria-hidden />
                     <input
                         ref={searchRef}
                         value={query}
@@ -295,7 +295,7 @@ export const FilterMenuPanel = ({
                         }}
                         className={cn(
                             "box-border w-full appearance-none border-0 bg-transparent p-0 font-[inherit]",
-                            "text-[13px] text-foreground outline-none placeholder:text-placeholder",
+                            "text-label text-foreground outline-none placeholder:text-muted-foreground",
                         )}
                     />
                 </label>
@@ -306,7 +306,7 @@ export const FilterMenuPanel = ({
             {searchable ? <div aria-hidden className="h-1 shrink-0" /> : null}
 
             {order.length === 0 ? (
-                <p className="m-0 px-3 py-8 text-center text-[12px] text-muted-foreground">
+                <p className="m-0 px-3 py-8 text-center text-meta text-muted-foreground">
                     {t("ui.controls.nothingMatches", {term: query.trim()})}
                 </p>
             ) : (

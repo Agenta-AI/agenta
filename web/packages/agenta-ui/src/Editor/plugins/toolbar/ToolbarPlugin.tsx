@@ -8,7 +8,7 @@ import {
     FORMAT_TEXT_COMMAND,
     FORMAT_ELEMENT_COMMAND,
 } from "lexical"
-import {Bold, Italic, Underline, Code, AlignLeft, AlignCenter, AlignRight} from "lucide-react"
+import {CodeIcon, TextAlignCenterIcon, TextAlignLeftIcon, TextAlignRightIcon, TextBIcon, TextItalicIcon, TextUnderlineIcon} from "@phosphor-icons/react"
 
 export function ToolbarPlugin(): JSX.Element {
     const [editor] = useLexicalComposerContext()
@@ -37,8 +37,8 @@ export function ToolbarPlugin(): JSX.Element {
         )
     }, [editor, $updateToolbar])
 
-    const toolbarButton = "p-2 rounded hover:bg-gray-100 transition-colors"
-    const activeClass = "bg-gray-200"
+    const toolbarButton = "p-2 rounded hover:bg-accent transition-colors"
+    const activeClass = "bg-secondary"
 
     return (
         <div className="flex items-center gap-1 p-2 border-0 border-b border-solid">
@@ -46,44 +46,44 @@ export function ToolbarPlugin(): JSX.Element {
                 className={`${toolbarButton} ${isBold ? activeClass : ""}`}
                 onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold")}
             >
-                <Bold size={18} />
+                <TextBIcon size={18} />
             </button>
             <button
                 className={`${toolbarButton} ${isItalic ? activeClass : ""}`}
                 onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic")}
             >
-                <Italic size={18} />
+                <TextItalicIcon size={18} />
             </button>
             <button
                 className={`${toolbarButton} ${isUnderline ? activeClass : ""}`}
                 onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline")}
             >
-                <Underline size={18} />
+                <TextUnderlineIcon size={18} />
             </button>
             <button
                 className={`${toolbarButton} ${isCode ? activeClass : ""}`}
                 onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "code")}
             >
-                <Code size={18} />
+                <CodeIcon size={18} />
             </button>
-            <div className="w-px h-6 bg-gray-200 mx-2" />
+            <div className="w-px h-6 bg-border-muted mx-2" />
             <button
                 className={toolbarButton}
                 onClick={() => editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "left")}
             >
-                <AlignLeft size={18} />
+                <TextAlignLeftIcon size={18} />
             </button>
             <button
                 className={toolbarButton}
                 onClick={() => editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "center")}
             >
-                <AlignCenter size={18} />
+                <TextAlignCenterIcon size={18} />
             </button>
             <button
                 className={toolbarButton}
                 onClick={() => editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "right")}
             >
-                <AlignRight size={18} />
+                <TextAlignRightIcon size={18} />
             </button>
         </div>
     )

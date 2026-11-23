@@ -83,12 +83,12 @@ export interface PathSelectorDropdownProps {
 function defaultSourceIcon(source: string | undefined, size: number): React.ReactNode {
     switch (source) {
         case "testcase":
-            return <Table size={size} className="text-colorSuccess flex-shrink-0" />
+            return <Table size={size} className="text-success flex-shrink-0" />
         case "output":
             // Blue in both themes; colorPrimary is navy/olive here, not blue.
             return <Lightning size={size} className="text-tag-blue flex-shrink-0" />
         default:
-            return <Database size={size} className="text-colorTextTertiary flex-shrink-0" />
+            return <Database size={size} className="text-muted-foreground flex-shrink-0" />
     }
 }
 
@@ -125,7 +125,7 @@ export const PathSelectorDropdown = memo(function PathSelectorDropdown({
                         : defaultSourceIcon(p.source, iconSize)}
                     <span className="truncate">{p.label}</span>
                 </div>
-                <span className="ml-2 text-xs text-colorTextDescription">
+                <span className="ml-2 text-meta text-muted-foreground">
                     {p.valueType || p.type || ""}
                 </span>
             </div>

@@ -55,11 +55,11 @@ export const BottomSheet = ({
             >
                 <div
                     aria-hidden
-                    className="mx-auto mb-2.5 h-[5px] w-9 shrink-0 rounded-full bg-colorBorder"
+                    className="mx-auto mb-2.5 h-[5px] w-9 shrink-0 rounded-sm bg-border"
                 />
                 <SheetTitle
                     className={cn(
-                        "px-4 pb-2 pt-1 text-base font-semibold leading-5",
+                        "px-4 pb-2 pt-1 text-title",
                         !showTitle && "sr-only",
                     )}
                 >
@@ -71,7 +71,7 @@ export const BottomSheet = ({
                     <Button
                         variant="outline"
                         // fg2 text, as the canvas draws Cancel (M11).
-                        className={cn(PHONE_BUTTON_CLASS, "text-colorTextSecondary")}
+                        className={cn(PHONE_BUTTON_CLASS, "text-muted-foreground")}
                         onClick={() => onOpenChange(false)}
                     >
                         {t("ui.phone.cancel")}

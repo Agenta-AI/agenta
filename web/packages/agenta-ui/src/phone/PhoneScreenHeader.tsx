@@ -43,7 +43,7 @@ export const PhoneScreenHeader = ({
         <div
             data-testid="phone-screen-header"
             className={cn(
-                "flex h-[52px] min-w-0 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer px-1",
+                "flex h-13 min-w-0 shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted bg-background px-1",
                 className,
             )}
         >
@@ -54,16 +54,16 @@ export const PhoneScreenHeader = ({
                         backLabel ??
                         (backTitle ? t("ui.phone.backTo", {title: backTitle}) : t("ui.phone.back"))
                     }
-                    className="box-border flex h-11 min-w-11 max-w-[130px] shrink-0 cursor-pointer items-center gap-0.5 rounded-[8px] border-0 bg-transparent py-0 pl-0.5 pr-1.5 font-[inherit] text-[15px] leading-5 text-colorTextSecondary active:bg-colorFillTertiary"
+                    className=" box-border flex h-8 min-w-8 max-w-[130px] shrink-0 cursor-pointer items-center gap-0.5 rounded-md border-0 bg-transparent py-0 pl-0.5 pr-1.5 font-[inherit] text-label leading-5 text-muted-foreground active:bg-secondary"
                     onClick={onBack}
                 >
-                    <CaretLeft size={18} aria-hidden className="shrink-0" />
+                    <CaretLeft size={16} aria-hidden className="shrink-0" />
                     {backTitle ? <span className="truncate">{backTitle}</span> : null}
                 </button>
             ) : null}
             <h1
                 className={cn(
-                    "m-0 min-w-0 truncate text-base leading-5 font-semibold text-colorText",
+                    "m-0 min-w-0 truncate text-title text-foreground",
                     onBack ? "pr-1.5" : "px-3",
                 )}
             >

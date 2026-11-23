@@ -3,7 +3,7 @@ import type {KeyboardEvent} from "react"
 
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
-import {ChevronDown} from "lucide-react"
+import {CaretDownIcon} from "@phosphor-icons/react"
 
 import {Checkbox} from "../components/ui/checkbox"
 import {CollapseCaret} from "../components/ui/collapse-caret"
@@ -12,14 +12,6 @@ import {cn} from "../components/ui/utils"
 
 import {ListTableSelectionBar} from "./ListTableSelectionBar"
 import type {ListTableColumn, ListTableProps} from "./types"
-
-/**
- * A group heading's collapse button on a phone: a 44px tap area that fills the heading's own
- * padding (14px above the one-line label, 10px below it) and so never reaches the row under it.
- * Not PHONE_TOUCH_TARGET_CLASS: that one is centred, and the room above and below is not equal.
- */
-const GROUP_TOGGLE_PHONE_TARGET =
-    "max-md:relative max-md:after:absolute max-md:after:inset-x-0 max-md:after:-bottom-2.5 max-md:after:-top-3.5 max-md:after:min-w-11 max-md:after:content-['']"
 
 /** The checkbox column `selection` adds in front of the consumer's columns. */
 const SELECT_COLUMN: ListTableColumn = {
@@ -37,7 +29,7 @@ const SELECT_COLUMN: ListTableColumn = {
  * none`, which `outline-2` then reads back, so the pair alone renders NO ring at all.
  */
 const FOCUS_RING =
-    "outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px]"
+    "outline-none focus-ring"
 
 const gridTemplate = (columns: ListTableColumn[]): string =>
     columns.map((column) => column.width).join(" ")
@@ -64,7 +56,7 @@ const groupTop = (hideHeader: boolean) => (hideHeader ? "top-0" : STICKY.groupTo
  * one opens on its own".
  */
 const CARD_CHROME =
-    "box-border flex min-w-0 flex-col gap-2 rounded-lg border border-solid border-border bg-card p-3 text-left text-card-foreground"
+    "box-border flex min-w-0 flex-col gap-2 rounded-lg border border-solid border-border bg-card p-4 text-left text-card-foreground"
 
 /**
  * The list frame every table-shaped screen in this app shares: a header row, optional group
@@ -143,8 +135,11 @@ export const ListTable = <Row,>({
     // `min(100%, …)`, so a container narrower than one card still gets one card, not a scroller.
     const cardGrid = `repeat(auto-fill, minmax(min(100%, ${cardMinWidth}px), 1fr))`
     // One value for the rows AND their skeleton, so loading holds the rhythm the rows arrive in.
-    // A compact one-line row is 40px; a phone row is a tap target, so it is at least 44px there.
-    const rowPad = density === "compact" ? "py-2 max-md:min-h-11" : "py-[13px]"
+    // One row height per list (SPACE-02), the same on every screen: a meta line fills the row.
+    const rowPad =
+        density === "compact"
+            ? "min-h-row-single py-1"
+            : "min-h-row-double py-1.5"
     const isEmpty = groups.every((group) => group.rows.length === 0)
     // A grid has no column header, so a stuck heading sits at the scroller's own top.
     // Selection lives in the header row (select all, the bulk bar), so it keeps the header.
@@ -206,14 +201,12 @@ export const ListTable = <Row,>({
                                       // together is what matters — the header's content box has to stay
                                       // identical to a row's, or their grid tracks resolve differently and
                                       // every column but the first drifts off its cells.
-                                      "grid gap-3 border-0 border-b border-solid border-border/40 text-[13px] font-medium text-muted-foreground",
+                                      `box-border grid ${STICKY.height} items-center gap-3 border-0 border-b border-solid border-border/40 text-label text-muted-foreground`,
                                       // Opaque, or the rows read straight through it as they pass under. A
                                       // stated height rather than padding, so the group headings below can be
                                       // stuck directly beneath it without measuring anything — and the margin
                                       // goes, or a 4px slot of rows would show through the gap.
-                                      stickyHeader
-                                          ? `sticky top-0 z-20 ${STICKY.height} items-center bg-background`
-                                          : "mb-1 py-2",
+                                      stickyHeader ? "sticky top-0 z-20 bg-background" : "mb-1",
                                       headerClassName,
                                   ],
                         )}
@@ -260,7 +253,7 @@ export const ListTable = <Row,>({
                         // so the cards arrive into the slots the skeleton was already holding.
                         <div
                             aria-hidden
-                            className="grid gap-3"
+                            className="grid gap-3 sm:-mx-4"
                             style={{gridTemplateColumns: cardGrid}}
                         >
                             {Array.from({length: skeletonRows}, (_, tile) => (
@@ -359,9 +352,7 @@ export const ListTable = <Row,>({
                                     // inside the collapse button.
                                     <div
                                         className={cn(
-                                            // 10px under it on a phone, the room the collapse
-                                            // button's tap area reaches below it.
-                                            "flex items-center gap-2 pb-1.5 pt-3.5 max-md:pb-2.5",
+                                            "flex items-center gap-2 pb-1.5 pt-3.5",
                                             // Stuck directly under the column header, so a long
                                             // run still says which group you are reading.
                                             stickyHeader &&
@@ -376,12 +367,8 @@ export const ListTable = <Row,>({
                                                 className={cn(
                                                     "box-border flex min-w-0 cursor-pointer appearance-none items-center gap-1.5",
                                                     "border-0 bg-transparent p-0 text-left font-[inherit]",
-                                                    "text-[13px] text-muted-foreground hover:text-foreground",
+                                                    "text-label text-muted-foreground hover:text-foreground",
                                                     FOCUS_RING,
-                                                    // 20px high however the label sets its line height, so
-                                                    // the tap area below adds up to 44px.
-                                                    "max-md:min-h-5",
-                                                    GROUP_TOGGLE_PHONE_TARGET,
                                                 )}
                                             >
                                                 {/* A heading names a run, it does not wrap: a
@@ -389,11 +376,11 @@ export const ListTable = <Row,>({
                                                     action keeps its place on the right. */}
                                                 <span className="truncate">{group.label}</span>
                                                 {groupCaret === "chevron" ? (
-                                                    <ChevronDown
+                                                    <CaretDownIcon
                                                         aria-hidden
                                                         size={12}
                                                         className={cn(
-                                                            "shrink-0 text-colorTextTertiary transition-transform duration-150 motion-reduce:transition-none",
+                                                            "shrink-0 text-muted-foreground transition-transform duration-150 motion-reduce:transition-none",
                                                             collapsed && "-rotate-90",
                                                         )}
                                                     />
@@ -402,7 +389,7 @@ export const ListTable = <Row,>({
                                                 )}
                                             </button>
                                         ) : (
-                                            <p className="m-0 min-w-0 truncate text-[13px] text-muted-foreground">
+                                            <p className="m-0 min-w-0 truncate text-label text-muted-foreground">
                                                 {group.label}
                                             </p>
                                         )}
@@ -416,11 +403,11 @@ export const ListTable = <Row,>({
 
                                 {isGrid ? (
                                     rows.length ? (
-                                        // Cards sit on the content edge — none of a row's bleed:
-                                        // a tile that reached past its track would overflow the
-                                        // `auto-fill` columns it was measured into.
+                                        // The grid hangs 16px past the content edge, the cards'
+                                        // own padding, so card text sits on the title's line
+                                        // (ALIGN-01). Not on a phone, where the gutter is 16px.
                                         <div
-                                            className="grid gap-3 pb-2"
+                                            className="grid gap-3 pb-2 sm:-mx-4"
                                             style={{gridTemplateColumns: cardGrid}}
                                         >
                                             {rows.map((row) => {
@@ -431,14 +418,10 @@ export const ListTable = <Row,>({
                                                         className={cn(
                                                             "group",
                                                             CARD_CHROME,
-                                                            // Lifts a touch on hover — a lighter
-                                                            // edge and a soft shadow — so the tile
-                                                            // reads as the thing about to open. A
-                                                            // shadow is nearly invisible on a dark
-                                                            // surface, so dark mode adds the fill
-                                                            // lift a row gets and a deeper shadow.
+                                                            // Hover: a stronger edge and the `accent`
+                                                            // fill, never a shadow (SURF-04).
                                                             opens(row) &&
-                                                                "cursor-pointer transition-[border-color,box-shadow,background-color] hover:border-foreground/30 hover:shadow-[0_3px_14px_rgb(0_0_0/0.07)] dark:hover:bg-accent/40 dark:hover:shadow-[0_4px_16px_rgb(0_0_0/0.5)]",
+                                                                "cursor-pointer transition-[border-color,background-color] hover:border-border-strong hover:bg-accent",
                                                             opens(row) && FOCUS_RING,
                                                         )}
                                                     >
@@ -482,7 +465,7 @@ export const ListTable = <Row,>({
                                                     "-mx-3 w-[calc(100%+1.5rem)] px-3",
                                                     rowClassName,
                                                     opens(row) &&
-                                                        "cursor-pointer hover:bg-accent/60",
+                                                        "cursor-pointer hover:bg-accent",
                                                     opens(row) && FOCUS_RING,
                                                 )}
                                                 style={{gridTemplateColumns: grid}}

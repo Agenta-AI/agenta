@@ -101,10 +101,7 @@ export function InputAffix({
                 {...(isControlled ? {value} : {defaultValue})}
                 onChange={handleChange}
                 className={cn(
-                    // On a phone the field itself is the 44px tap area: it reaches past the
-                    // frame, centred, with a transparent background, so the frame keeps its size.
-                    "min-w-0 flex-1 border-0 bg-transparent p-0 font-[inherit] text-base text-foreground outline-none placeholder:text-muted-foreground max-md:h-11 md:text-sm",
-                    size.startsWith("compact") && "md:text-[13px]",
+                    "min-w-0 flex-1 border-0 bg-transparent p-0 font-[inherit] text-[13px] text-foreground outline-none placeholder:text-muted-foreground",
                 )}
                 {...rest}
             />

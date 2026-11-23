@@ -21,9 +21,8 @@ const HarnessTooltip = () => {
                 href={HARNESS_DOCS_URL}
                 target="_blank"
                 rel="noreferrer"
-                // The tooltip is an ink surface in BOTH themes, so its link takes the mode-independent
-                // step rather than `colorLink`, which is olive in light and unreadable here.
-                className="text-[var(--ag-colorLinkOnInk)] no-underline hover:underline"
+                // The tooltip is a foreground surface, so its link takes the background color.
+                className="text-background underline"
             >
                 {t("ui.llmProvider.aboutHarnesses")}
             </a>

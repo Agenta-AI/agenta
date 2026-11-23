@@ -165,7 +165,7 @@ export function RevisionLabel({
                 <VersionBadge version={version} variant="chip" />
                 {variantName && (
                     <span
-                        className={cn("truncate text-xs", textColors.secondary)}
+                        className={cn("truncate text-meta", textColors.secondary)}
                         style={{maxWidth: 120}}
                         title={variantName}
                     >

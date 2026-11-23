@@ -5,7 +5,6 @@ import uiChatInputCatalog from "@agenta/i18n/catalogs/ui.chatInput"
 import {ArrowUp, CircleNotch} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
-import {PHONE_TOUCH_TARGET_CLASS} from "../components/ui/touch-target"
 import {cn} from "../components/ui/utils"
 
 import type {ComposerSurface} from "./RichChatInput"
@@ -59,18 +58,17 @@ export function ComposerSendButton({
                 // The control radius, not a circle: the composer is a rounded rectangle and every
                 // other control on it follows that radius — a puck was the one round thing on it.
                 // The canvas surface draws the round one.
-                surface === "canvas" ? "size-7 rounded-full" : "rounded-control",
+                surface === "canvas" ? "size-control-sm rounded-md" : "rounded-control",
                 // A phone: 36 px drawn and a 44 px area (4 px reach), as the design canvas.
-                "max-md:size-9",
-                PHONE_TOUCH_TARGET_CLASS,
+                "",
                 surface === "canvas"
-                    ? "!border-[var(--ag-colorText)] !bg-[var(--ag-colorText)] !text-[var(--ag-colorBgContainer)] disabled:!opacity-100 hover:!opacity-90"
+                    ? "!border-[var(--ag-composer-send-bg,var(--foreground))] !bg-[var(--ag-composer-send-bg,var(--foreground))] !text-[var(--ag-composer-send-fg,var(--background))] disabled:!opacity-100 hover:!opacity-90"
                     : disabled && !sending
-                      ? "!border-[var(--ag-send-disabled-bg)] !bg-[var(--ag-send-disabled-bg)] !text-[var(--ag-send-disabled-fg)]"
+                      ? "!border-secondary !bg-secondary !text-muted-foreground"
                       : // Re-toned by its CONTAINER, not by a prop: the button sits five levels below
                         // any host that might want a different fill, and threading a colour down
-                        // that chain is how one control becomes two. Defaults to the brand accent.
-                        "!border-[var(--ag-composer-send-bg,var(--ag-surface-accent))] !bg-[var(--ag-composer-send-bg,var(--ag-surface-accent))] !text-[var(--ag-composer-send-fg,#191a0d)] hover:!border-[var(--ag-composer-send-hover-bg,#b8cb3f)] hover:!bg-[var(--ag-composer-send-hover-bg,#b8cb3f)]",
+                        // that chain is how one control becomes two. Defaults to `primary`.
+                        "!border-[var(--ag-composer-send-bg,var(--primary))] !bg-[var(--ag-composer-send-bg,var(--primary))] !text-[var(--ag-composer-send-fg,var(--background))] hover:!border-[var(--ag-composer-send-hover-bg,var(--primary-hover))] hover:!bg-[var(--ag-composer-send-hover-bg,var(--primary-hover))]",
             )}
         >
             {sending ? (

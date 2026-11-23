@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import {LoaderCircle} from "lucide-react"
+import {CircleNotchIcon} from "@phosphor-icons/react"
 
 import {Button, type ButtonProps} from "./button"
 import {cn} from "./utils"
@@ -44,7 +44,7 @@ export function LoadingButton({
             {...props}
         >
             {/* No size class: the Button's per-size svg rule sizes the spinner like any glyph. */}
-            {loading ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : null}
+            {loading ? <CircleNotchIcon data-icon="inline-start" className="animate-spin" /> : null}
             {children}
         </Button>
     )

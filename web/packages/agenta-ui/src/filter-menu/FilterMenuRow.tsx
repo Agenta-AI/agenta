@@ -1,4 +1,4 @@
-import {ChevronRight, Lock} from "lucide-react"
+import {CaretRightIcon, LockSimpleIcon} from "@phosphor-icons/react"
 
 import {Popover, PopoverAnchor, PopoverContent} from "../components/ui/popover"
 import {cn} from "../components/ui/utils"
@@ -98,8 +98,8 @@ export const FilterMenuRow = ({
                 }}
                 className={cn(
                     "box-border cursor-default appearance-none border-0 bg-transparent font-[inherit]",
-                    "flex w-full items-center gap-2 rounded-control-sm px-2 py-1.5 text-left",
-                    "text-[13px] text-colorTextTertiary outline-none focus-visible:bg-accent",
+                    "flex w-full min-h-8 items-center gap-2 rounded-control-sm px-2 py-1 text-left",
+                    "text-label text-muted-foreground outline-none focus-visible:bg-accent",
                 )}
             >
                 {section.icon ? (
@@ -111,7 +111,7 @@ export const FilterMenuRow = ({
                 <span className="min-w-0 flex-1 truncate text-right">
                     {summaryLabel(section, section.options)}
                 </span>
-                <Lock size={12} className="shrink-0 text-colorTextTertiary" aria-hidden />
+                <LockSimpleIcon size={12} className="shrink-0 text-muted-foreground" aria-hidden />
             </button>
         )
     }
@@ -131,8 +131,8 @@ export const FilterMenuRow = ({
             className={cn(
                 // Preflight is off app-wide, so the <button> reset is restated here.
                 "box-border cursor-pointer appearance-none border-0 bg-transparent font-[inherit]",
-                "flex w-full items-center gap-2 rounded-control-sm px-2 py-1.5 text-left",
-                "text-[13px] text-foreground outline-none transition-colors",
+                "flex w-full min-h-8 items-center gap-2 rounded-control-sm px-2 py-1 text-left",
+                "text-label text-foreground outline-none transition-colors",
                 "hover:bg-accent focus-visible:bg-accent",
                 // Driven by the controlled `open`, not `data-[state=open]`: the row is a
                 // PopoverAnchor, and an anchor never carries the state attribute a trigger does.
@@ -150,7 +150,7 @@ export const FilterMenuRow = ({
             <span className="min-w-0 flex-1 truncate text-right text-muted-foreground">
                 {summaryLabel(section, section.options)}
             </span>
-            <ChevronRight size={14} className="shrink-0 text-muted-foreground" aria-hidden />
+            <CaretRightIcon size={14} className="shrink-0 text-muted-foreground" aria-hidden />
         </button>
     )
 
@@ -165,8 +165,8 @@ export const FilterMenuRow = ({
                 sideOffset={flyoutSideOffset}
                 aria-label={section.label}
                 className={cn(
-                    "flex max-h-[280px] flex-col p-0",
-                    section.wide ? "w-[248px]" : "w-[188px]",
+                    "flex max-h-70 flex-col p-0",
+                    "w-popover-sm",
                 )}
                 onOpenAutoFocus={(event) => event.preventDefault()}
                 // Radix hands focus back to its anchor on close; under the pointer that would

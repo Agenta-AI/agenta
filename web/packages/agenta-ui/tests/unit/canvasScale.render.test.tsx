@@ -77,20 +77,20 @@ describe("Button size on the canvas scale", () => {
                     variant="ghost"
                     size="icon-compact"
                     aria-label="Pick"
-                    className="text-colorText"
+                    className="text-foreground"
                 >
                     <svg />
                 </Button>
             </>,
         )
-        expect(byName("Keep").className.split(" ")).toContain("text-colorTextSecondary")
-        expect(byName("Pick").className.split(" ")).not.toContain("text-colorTextSecondary")
+        expect(byName("Keep").className.split(" ")).toContain("text-muted-foreground")
+        expect(byName("Pick").className.split(" ")).not.toContain("text-muted-foreground")
     })
 
     it("Keep editing in the unsaved changes dialog is a compact secondary ghost", () => {
         render(<UnsavedChangesDialog open description="Save?" canSave onAnswer={() => undefined} />)
         const keep = byName("Keep editing")
         expect(keep.dataset.size).toBe("compact")
-        expect(keep.className.split(" ")).toContain("text-colorTextSecondary")
+        expect(keep.className.split(" ")).toContain("text-muted-foreground")
     })
 })

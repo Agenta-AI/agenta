@@ -17,7 +17,7 @@ export interface EntityCardProps {
     onClick?: () => void
     /** "subtle" drops the resting border for a fill-based tile. @default "bordered" */
     variant?: "bordered" | "subtle"
-    /** Min-height utility class. @default "min-h-[112px]" */
+    /** Min-height utility class. @default "min-h-28" */
     minHeightClassName?: string
     className?: string
     disabled?: boolean
@@ -37,15 +37,15 @@ export function EntityCard({
     meta,
     onClick,
     variant = "bordered",
-    minHeightClassName = "min-h-[112px]",
+    minHeightClassName = "min-h-28",
     className,
     disabled,
 }: EntityCardProps) {
     const shownTags = (tags ?? []).filter(Boolean)
     const surface =
         variant === "subtle"
-            ? "border-transparent bg-colorFillQuaternary hover:border-colorBorderSecondary hover:bg-colorFillTertiary"
-            : "border-colorBorder bg-transparent hover:border-colorPrimary hover:bg-colorFillQuaternary"
+            ? "border-transparent bg-secondary hover:border-border-muted hover:bg-accent"
+            : "border-border bg-transparent hover:border-primary hover:bg-accent"
 
     return (
         <button
@@ -63,13 +63,13 @@ export function EntityCard({
             <div className="flex items-center gap-2.5">
                 {icon}
                 <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                    <span className="truncate text-xs font-medium">{title}</span>
+                    <span className="truncate text-label">{title}</span>
                     {titleAdornment}
                 </div>
             </div>
 
             {description ? (
-                <p className="m-0 line-clamp-2 text-xs leading-snug text-colorTextSecondary">
+                <p className="m-0 line-clamp-2 text-meta text-muted-foreground">
                     {description}
                 </p>
             ) : (
@@ -81,7 +81,7 @@ export function EntityCard({
                     {shownTags.map((tag) => (
                         <span
                             key={tag}
-                            className="truncate rounded bg-colorFillTertiary px-1.5 py-0.5 text-[12px] leading-none text-colorTextSecondary"
+                            className="truncate rounded bg-secondary px-1.5 py-0.5 text-meta leading-none text-muted-foreground"
                         >
                             {tag}
                         </span>

@@ -17,40 +17,37 @@ const buttonVariants = cva(
         // antd is gone and preflight is switched back on.
         "box-border border-solid font-[inherit] py-0",
         "group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap",
-        // Weight 400, not shadcn's 500 — a house choice.
-        "border border-transparent bg-clip-padding font-normal",
+        "border border-transparent bg-clip-padding font-medium",
         "cursor-pointer select-none transition-all",
-        // The shared 3px control outline.
-        "outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-[color:var(--ag-controlOutline)]",
+        "outline-none focus-ring",
         // Press nudge, skipped on menu/popover triggers.
         "active:[&:not([aria-haspopup])]:translate-y-px",
         "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
-        "aria-invalid:border-error aria-invalid:ring-[3px] aria-invalid:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)]",
+        "aria-invalid:border-destructive",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0",
     ],
     {
         variants: {
             variant: {
                 default:
-                    "bg-primary text-btn-primary-fg hover:bg-[color-mix(in_srgb,var(--ag-colorPrimary)_80%,transparent)]",
+                    "bg-primary text-primary-foreground hover:bg-primary-hover",
                 outline:
                     "border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground aria-expanded:bg-accent aria-expanded:text-accent-foreground",
-                dashed: "border-dashed border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground",
                 secondary:
-                    "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_srgb,var(--ag-colorFillSecondary),var(--ag-colorText)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+                    "bg-secondary text-secondary-foreground hover:bg-accent aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
                 ghost: "bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground aria-expanded:bg-accent aria-expanded:text-accent-foreground",
-                // Hovers use `accent` (6%): `muted` is 4% here and vanishes on the warm rail.
-                // The palette's own error pair (pink fill, dark red text), as the canvas draws it.
-                destructive:
-                    "bg-colorErrorBg text-error hover:bg-[color-mix(in_srgb,var(--ag-colorError)_8%,var(--ag-colorErrorBg))] focus-visible:border-[color:color-mix(in_srgb,var(--ag-colorError)_40%,transparent)] focus-visible:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)]",
-                "destructive-outline":
-                    "border-error bg-background text-error hover:bg-[color-mix(in_srgb,var(--ag-colorError)_10%,transparent)] focus-visible:border-[color:color-mix(in_srgb,var(--ag-colorError)_40%,transparent)] focus-visible:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)]",
-                link: "bg-transparent text-primary underline-offset-4 hover:underline",
+                // Solid red: only the final confirm in a dialog. Elsewhere use destructive-ghost.
+                destructive: "bg-destructive text-background hover:bg-destructive/90",
+                "destructive-ghost":
+                    "bg-transparent text-destructive hover:bg-destructive/10 aria-expanded:bg-destructive/10",
+                // Brand yellow: only New agent on Home, never beside a default button.
+                brand: "bg-brand text-brand-foreground hover:bg-brand-hover",
+                link: "bg-transparent text-link underline underline-offset-4",
             },
             // `has-[[data-icon=…]]` trims the padding on the icon side.
             size: {
                 xs: "h-control-xs gap-btn-gap-sm px-btn-xs text-btn-xs rounded-control-sm has-[[data-icon=inline-start]]:pl-btn-icon-pad-sm has-[[data-icon=inline-end]]:pr-btn-icon-pad-sm [&_svg:not([class*='size-'])]:size-btn-icon-xs",
-                sm: "h-control-sm gap-btn-gap-sm px-btn-sm text-btn-sm rounded-control-sm has-[[data-icon=inline-start]]:pl-btn-icon-pad-sm has-[[data-icon=inline-end]]:pr-btn-icon-pad-sm [&_svg:not([class*='size-'])]:size-btn-icon-sm",
+                sm: "h-control-sm gap-btn-gap px-btn-sm text-btn-sm rounded-control-sm has-[[data-icon=inline-start]]:pl-btn-icon-pad-sm has-[[data-icon=inline-end]]:pr-btn-icon-pad-sm [&_svg:not([class*='size-'])]:size-btn-icon-sm",
                 default:
                     "h-control gap-btn-gap px-btn text-btn-md rounded-control has-[[data-icon=inline-start]]:pl-btn-icon-pad has-[[data-icon=inline-end]]:pr-btn-icon-pad [&_svg:not([class*='size-'])]:size-btn-icon",
                 lg: "h-control-lg gap-btn-gap px-btn-lg text-btn-lg rounded-control has-[[data-icon=inline-start]]:pl-btn-icon-pad has-[[data-icon=inline-end]]:pr-btn-icon-pad [&_svg:not([class*='size-'])]:size-btn-icon",
@@ -66,11 +63,9 @@ const buttonVariants = cva(
                 // and 14px glyph because hundreds of other screens use it. The radii are literal
                 // pixels: `rounded-sm` and `rounded-md` differ between the two apps.
                 compact:
-                    "h-control-sm gap-1.5 px-btn-sm text-btn-sm rounded-[6px] has-[[data-icon=inline-start]]:pl-btn-icon-pad has-[[data-icon=inline-end]]:pr-btn-icon-pad [&_svg:not([class*='size-'])]:size-btn-icon",
-                // Below md the icon button is the canvas phone button: a 44px tap target, radius 8,
-                // 20px glyph.
+                    "h-control-sm gap-1.5 px-btn-sm text-btn-sm rounded-control has-[[data-icon=inline-start]]:pl-btn-icon-pad has-[[data-icon=inline-end]]:pr-btn-icon-pad [&_svg:not([class*='size-'])]:size-btn-icon",
                 "icon-compact":
-                    "size-control-sm p-0 text-btn-sm rounded-[6px] [&_svg:not([class*='size-'])]:size-btn-icon max-md:size-11 max-md:rounded-[8px] max-md:[&_svg:not([class*='size-'])]:size-5",
+                    "size-control-sm p-0 text-btn-sm rounded-control [&_svg:not([class*='size-'])]:size-btn-icon",
             },
         },
         compoundVariants: [
@@ -79,7 +74,7 @@ const buttonVariants = cva(
                 variant: "ghost",
                 size: ["compact", "icon-compact"],
                 className:
-                    "text-colorTextSecondary hover:text-colorText aria-expanded:text-colorText",
+                    "text-muted-foreground hover:text-foreground aria-expanded:text-foreground",
             },
             {variant: "ghost", size: "compact", className: "px-2"},
         ],

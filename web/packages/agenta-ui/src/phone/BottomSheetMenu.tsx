@@ -61,8 +61,8 @@ export const BottomSheetMenu = ({
                         role="menuitem"
                         disabled={item.disabled}
                         className={cn(
-                            "box-border flex min-h-[60px] w-full cursor-pointer items-center gap-3.5 border-0 border-t border-solid border-colorSplit bg-transparent px-4 py-2 text-left font-[inherit]",
-                            "outline-none active:bg-colorFillTertiary focus-visible:bg-colorFillTertiary disabled:cursor-not-allowed disabled:opacity-50",
+                            "box-border flex min-h-15 w-full cursor-pointer items-center gap-3.5 border-0 border-t border-solid border-border-muted bg-transparent px-4 py-2 text-left font-[inherit]",
+                            "outline-none active:bg-secondary focus-visible:bg-secondary disabled:cursor-not-allowed disabled:opacity-50",
                         )}
                         onClick={() => {
                             onOpenChange(false)
@@ -75,8 +75,8 @@ export const BottomSheetMenu = ({
                                 className={cn(
                                     "flex shrink-0 [&_svg]:size-[18px]",
                                     item.destructive
-                                        ? "text-colorError"
-                                        : "text-colorTextSecondary",
+                                        ? "text-destructive"
+                                        : "text-muted-foreground",
                                 )}
                             >
                                 {item.icon}
@@ -85,14 +85,14 @@ export const BottomSheetMenu = ({
                         <span className="flex min-w-0 flex-col">
                             <span
                                 className={cn(
-                                    "text-[15px] leading-5",
-                                    item.destructive ? "text-colorError" : "text-colorText",
+                                    "text-body leading-5",
+                                    item.destructive ? "text-destructive" : "text-foreground",
                                 )}
                             >
                                 {item.label}
                             </span>
                             {item.description ? (
-                                <span className="text-[12px] leading-4 text-colorTextTertiary">
+                                <span className="text-meta text-muted-foreground">
                                     {item.description}
                                 </span>
                             ) : null}

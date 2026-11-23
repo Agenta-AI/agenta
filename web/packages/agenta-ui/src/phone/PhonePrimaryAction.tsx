@@ -35,7 +35,7 @@ export const PhonePrimaryAction = ({
     <div
         data-testid="phone-primary-action"
         className={cn(
-            "sticky bottom-0 mt-auto flex shrink-0 border-0 border-t border-solid border-colorBorderSecondary bg-colorBgContainer px-4 pb-6 pt-3",
+            "sticky bottom-0 mt-auto flex shrink-0 border-0 border-t border-solid border-border-muted bg-background px-4 pb-6 pt-3",
             className,
         )}
     >

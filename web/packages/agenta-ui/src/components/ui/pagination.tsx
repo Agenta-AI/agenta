@@ -65,7 +65,7 @@ export function Pagination({
         Math.min(page * pageSize, total),
     ]
 
-    const box = size === "small" ? "h-6 min-w-6 text-xs" : "h-8 min-w-8 text-field-md"
+    const box = size === "small" ? "h-6 min-w-6 text-label" : "h-8 min-w-8 text-label"
     const step = (next: number) => () => {
         if (next >= 1 && next <= totalPages && next !== page) onChange(next, pageSize)
     }
@@ -73,10 +73,10 @@ export function Pagination({
     return (
         <nav
             aria-label={t("ui.controls.pagination")}
-            className={cn("flex items-center gap-2 text-colorText", className)}
+            className={cn("flex items-center gap-2 text-foreground", className)}
         >
             {showTotal ? (
-                <span className="text-colorTextSecondary">{showTotal(total, range)}</span>
+                <span className="text-muted-foreground">{showTotal(total, range)}</span>
             ) : null}
 
             <button
@@ -86,8 +86,8 @@ export function Pagination({
                 onClick={step(page - 1)}
                 className={cn(
                     box,
-                    "box-border cursor-pointer rounded border border-solid border-colorBorder bg-colorBgContainer px-2",
-                    "disabled:cursor-not-allowed disabled:text-colorTextDisabled",
+                    "box-border cursor-pointer rounded border border-solid border-border bg-background px-2",
+                    "disabled:cursor-not-allowed disabled:text-muted-foreground",
                 )}
             >
                 ‹
@@ -96,7 +96,7 @@ export function Pagination({
             {items.map((item, index) =>
                 item === null ? (
                     // Gaps repeat, so the index is the only stable key available.
-                    <span key={`gap-${index}`} className="px-1 text-colorTextSecondary">
+                    <span key={`gap-${index}`} className="px-1 text-muted-foreground">
                         …
                     </span>
                 ) : (
@@ -110,8 +110,8 @@ export function Pagination({
                             box,
                             "box-border cursor-pointer rounded border border-solid px-2",
                             item === page
-                                ? "border-colorPrimary text-colorPrimary"
-                                : "border-colorBorder bg-colorBgContainer",
+                                ? "border-primary text-primary"
+                                : "border-border bg-background",
                         )}
                     >
                         {item}
@@ -126,8 +126,8 @@ export function Pagination({
                 onClick={step(page + 1)}
                 className={cn(
                     box,
-                    "box-border cursor-pointer rounded border border-solid border-colorBorder bg-colorBgContainer px-2",
-                    "disabled:cursor-not-allowed disabled:text-colorTextDisabled",
+                    "box-border cursor-pointer rounded border border-solid border-border bg-background px-2",
+                    "disabled:cursor-not-allowed disabled:text-muted-foreground",
                 )}
             >
                 ›

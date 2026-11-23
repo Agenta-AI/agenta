@@ -15,7 +15,7 @@ import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
-import {CheckCircle, ChevronDown, LoaderCircle, XCircle} from "lucide-react"
+import {CaretDownIcon, CheckCircleIcon, XCircleIcon} from "@phosphor-icons/react"
 
 import {Button, type ButtonProps} from "./ui/button"
 import {LoadingButton} from "./ui/button-composed"
@@ -25,6 +25,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "./ui/dropdown-menu"
+import {Spinner} from "./ui/spinner"
 import {cn} from "./ui/utils"
 
 // ============================================================================
@@ -229,7 +230,7 @@ export function DropdownButton({
     // size={10} drew 5.8x3.3 against antd DownOutlined's measured 8.48x5.71. Including the
     // scaled stroke, 15 gives 8.75x5.0. antd's glyph is FILLED and lucide's is STROKED, so the
     // weights can never match exactly — size only matches the extent.
-    const chevronIcon = dropdownIcon ?? <ChevronDown size={15} />
+    const chevronIcon = dropdownIcon ?? <CaretDownIcon size={15} />
 
     // SOLID segments have no visible border, so the split would read as one blob. antd draws a
     // 1px connector between two solid compact items (antd/lib/button/style/compact.js L26-46:
@@ -237,7 +238,7 @@ export function DropdownButton({
     // background), hidden while that segment is hovered. Same rule, same tokens, here.
     const connector =
         variant === "default"
-            ? "before:absolute before:-inset-y-px before:-left-px before:w-px before:content-[''] before:bg-btn-primary-hover hover:before:hidden disabled:before:hidden"
+            ? "before:absolute before:-inset-y-px before:-left-px before:w-px before:content-[''] before:bg-primary-hover hover:before:hidden disabled:before:hidden"
             : variant === "destructive"
               ? "before:absolute before:-inset-y-px before:-left-px before:w-px before:content-[''] before:bg-error-hover hover:before:hidden disabled:before:hidden"
               : ""
@@ -296,11 +297,11 @@ export function DropdownButton({
 function OptionStatusIndicator({status}: {status: DropdownButtonOptionStatus}) {
     switch (status) {
         case "running":
-            return <LoaderCircle size={14} className="animate-spin text-blue-500" />
+            return <Spinner size="small" className="text-info" />
         case "success":
-            return <CheckCircle size={14} className="text-green-500" />
+            return <CheckCircleIcon size={14} className="text-success" />
         case "error":
-            return <XCircle size={14} className="text-red-500" />
+            return <XCircleIcon size={14} className="text-destructive" />
         default:
             return null
     }

@@ -3,9 +3,10 @@ import * as React from "react"
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {Command as CommandPrimitive} from "cmdk"
-import {CheckIcon, SearchIcon} from "lucide-react"
+import {CheckIcon, MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from "./dialog"
+import {MENU_ITEM} from "./menu-item"
 import {cn} from "./utils"
 
 /**
@@ -81,12 +82,12 @@ function CommandInput({className, ...props}: React.ComponentProps<typeof Command
     // Nova's field: a low, filled input group sitting in the panel's own gutter.
     return (
         <div data-slot="command-input-wrapper" className="p-1 pb-0">
-            <div className="flex h-8 items-center gap-2 rounded-lg bg-colorFillQuaternary pl-2 pr-3 ring-1 ring-inset ring-border transition-[box-shadow] focus-within:ring-ring focus-within:shadow-[0_0_0_3px_var(--ag-controlOutline)]">
-                <SearchIcon className="size-4 shrink-0 opacity-50" />
+            <div className="flex h-8 items-center gap-2 rounded-control bg-secondary pl-2 pr-3 ring-1 ring-inset ring-border transition-[box-shadow] focus-ring-field">
+                <MagnifyingGlassIcon className="size-4 shrink-0 opacity-50" />
                 <CommandPrimitive.Input
                     data-slot="command-input"
                     className={cn(
-                        "box-border h-full w-full min-w-0 border-0 bg-transparent p-0 font-[inherit] text-sm text-foreground outline-none placeholder:text-placeholder disabled:cursor-not-allowed disabled:opacity-50",
+                        "box-border h-full w-full min-w-0 border-0 bg-transparent p-0 font-[inherit] text-label text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
                         className,
                     )}
                     {...props}
@@ -113,7 +114,7 @@ function CommandEmpty({className, ...props}: React.ComponentProps<typeof Command
     return (
         <CommandPrimitive.Empty
             data-slot="command-empty"
-            className={cn("py-6 text-center text-sm", className)}
+            className={cn("py-6 text-center text-body", className)}
             {...props}
         />
     )
@@ -124,7 +125,7 @@ function CommandGroup({className, ...props}: React.ComponentProps<typeof Command
         <CommandPrimitive.Group
             data-slot="command-group"
             className={cn(
-                "overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground",
+                "overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-meta [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground",
                 className,
             )}
             {...props}
@@ -154,11 +155,10 @@ function CommandItem({
         <CommandPrimitive.Item
             data-slot="command-item"
             className={cn(
-                "group/command-item relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none",
-                "[[data-slot=dialog-content]_&]:rounded-lg",
-                "data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground",
+                MENU_ITEM,
+                // cmdk marks rows with data-selected / data-disabled="true", not Radix's attributes.
+                "group/command-item data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground",
                 "data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
-                "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
                 className,
             )}
             {...props}
@@ -175,7 +175,7 @@ function CommandShortcut({className, ...props}: React.ComponentProps<"span">) {
         <span
             data-slot="command-shortcut"
             className={cn(
-                "ml-auto text-xs tracking-widest text-muted-foreground group-data-[selected=true]/command-item:text-accent-foreground",
+                "ml-auto text-caption tracking-widest text-muted-foreground group-data-[selected=true]/command-item:text-accent-foreground",
                 className,
             )}
             {...props}

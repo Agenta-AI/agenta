@@ -85,11 +85,12 @@ describe("PhoneViewChrome", () => {
         expect(screen.queryByRole("button", {name: "Close"})).toBeNull()
     })
 
-    it("draws Cancel and Save 44 px high for an editable view", async () => {
+    it("shares the row between Cancel and Save for an editable view, at the kit's size", async () => {
         renderStack(editableView, true)
         const save = await screen.findByRole("button", {name: "Save"})
-        expect(save.className).toContain("h-11")
-        expect(screen.getByRole("button", {name: "Cancel"}).className).toContain("h-11")
+        expect(save.className).toContain("flex-1")
+        expect(save.className).not.toContain("h-11")
+        expect(screen.getByRole("button", {name: "Cancel"}).className).toContain("flex-1")
     })
 
     it("the back arrow goes back to the root", async () => {
@@ -128,12 +129,11 @@ describe("readOnly input", () => {
 })
 
 describe("PhoneScreenHeader", () => {
-    it("reads Back without a name, and has a 44 px hit area", () => {
+    it("reads Back without a name, at the kit's size", () => {
         const onBack = vi.fn()
         render(<PhoneScreenHeader title="Files" onBack={onBack} />)
         const back = screen.getByRole("button", {name: "Back"})
-        expect(back.className).toContain("h-11")
-        expect(back.className).toContain("min-w-11")
+        expect(back.className).not.toContain("h-11")
         fireEvent.click(back)
         expect(onBack).toHaveBeenCalledOnce()
     })
@@ -191,7 +191,7 @@ describe("BottomSheetMenu", () => {
         expect(screen.getByText("Add automation")).toBeTruthy()
         expect(screen.getByRole("menuitem", {name: /App trigger/})).toBeTruthy()
         expect(screen.getByText("Run on a recurring schedule")).toBeTruthy()
-        expect(screen.getByRole("button", {name: "Cancel"}).className).toContain("h-11")
+        expect(screen.getByRole("button", {name: "Cancel"}).className).toContain("h-control-lg")
     })
 
     it("a tap on an entry closes the sheet and runs it", () => {
@@ -216,7 +216,7 @@ describe("PhonePrimaryAction", () => {
         const onClick = vi.fn()
         render(<PhonePrimaryAction onClick={onClick}>Add integration</PhonePrimaryAction>)
         const button = screen.getByRole("button", {name: "Add integration"})
-        expect(button.className).toContain("h-11")
+        expect(button.className).toContain("h-control-lg")
         expect(button.className).toContain("w-full")
         fireEvent.click(button)
         expect(onClick).toHaveBeenCalledOnce()
@@ -251,7 +251,8 @@ describe("SidebarSheet", () => {
         expect(sheet.style.width).toBe("300px")
         expect(screen.getByRole("button", {name: "Back"})).toBeTruthy()
         const close = screen.getByRole("button", {name: "Close the sidebar"})
-        expect(close.className).toContain("size-11")
+        expect(close.className).toContain("size-control")
+        expect(close.className).not.toContain("size-11")
         fireEvent.click(close)
         expect(onOpenChange).toHaveBeenCalledWith(false)
     })

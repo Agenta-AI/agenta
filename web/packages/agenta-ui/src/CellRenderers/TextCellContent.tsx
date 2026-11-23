@@ -30,7 +30,7 @@ const TextCellContent = memo(
         }, [value, truncate, maxLines, maxChars])
 
         return (
-            <span className={`text-xs whitespace-pre-wrap ${className ?? ""}`}>{displayValue}</span>
+            <span className={`text-body whitespace-pre-wrap ${className ?? ""}`}>{displayValue}</span>
         )
     },
 )

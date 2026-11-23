@@ -137,7 +137,7 @@ export interface RichChatInputProps {
     /** Visual density: `compact` (default, chat) or `comfortable` (hero-scale surfaces) —
      * pads the editor/footer without forking the component. */
     size?: "compact" | "comfortable"
-    /** Font-size class for the editor text + placeholder (default `text-xs`). */
+    /** Font-size class for the editor text + placeholder (default `text-body`). */
     textSizeClassName?: string
     /**
      * The box's look. `canvas` is the builder layout design (a white card, radius 12, a quiet
@@ -179,7 +179,7 @@ export type ComposerSurface = "default" | "canvas"
 
 export function ShortcutHint({keys, label}: {keys: string; label: string}) {
     return (
-        <span className="flex items-center gap-1 whitespace-nowrap text-[12px] text-[var(--ag-colorTextSecondary)]">
+        <span className="flex items-center gap-1 whitespace-nowrap text-meta text-muted-foreground">
             <KbdGroup>
                 {keys.split(" ").map((key) => (
                     <Kbd key={key} size="md">
@@ -361,10 +361,8 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         // The canvas box: 14 px text on a 22 px line (15 / 20 in a 24 px row on a phone) and a
         // 12 px inset over a one-line editor; the toolbar sits 12 px under it (S03, M01).
         const minHeightClassName =
-            minHeightProp ?? (canvas ? "min-h-[34px] max-md:min-h-9" : "min-h-[62px]")
-        const textSizeClassName =
-            textSizeProp ??
-            (canvas ? "text-sm leading-[22px] max-md:text-[15px] max-md:leading-5" : "text-xs")
+            minHeightProp ?? (canvas ? "min-h-[34px]" : "min-h-[62px]")
+        const textSizeClassName = textSizeProp ?? "text-body"
         // The default box keeps its relaxed leading under any size a host passes.
         const leading = canvas ? "" : "leading-relaxed"
         const editorPad = comfortable
@@ -385,13 +383,13 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         // Filled, not transparent: an outlined box reads as an outline, where a fill reads as
                         // somewhere to type. A FILL token rather than an opaque surface — it lifts off the
                         // page in dark and settles into it in light, where "elevated" is the page colour.
-                        "relative flex flex-col overflow-hidden border border-solid border-[var(--ag-composer-border)] transition-colors",
+                        "relative flex flex-col overflow-hidden border border-solid border-border transition-colors",
                         canvas
-                            ? // A white card; focus darkens the edge, no halo. A size container:
+                            ? // A card with the shared field focus ring. A size container:
                               // the key hints give way in a narrow box (the builder panel).
-                              "@container/composer rounded-[12px] bg-[var(--ag-colorBgContainer)] shadow-[var(--ag-surface-card-shadow)] focus-within:border-[var(--ag-composer-focus)]"
-                            : // Focus is the kit's control ring: a softer edge plus a 3px halo.
-                              "rounded-lg bg-[var(--ag-colorFillTertiary)] shadow-[var(--ag-surface-chat-shadow)] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-[color:var(--ag-controlOutline)]",
+                              "@container/composer rounded-xl bg-background focus-ring-field"
+                            : // Focus is the shared field ring (FORM-02).
+                              "rounded-lg bg-secondary focus-ring-field",
                         disabled && "opacity-60",
                         className,
                     )}
@@ -427,7 +425,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                 aria-label={t("ui.chatInput.chatMessage")}
                                 aria-placeholder={placeholder}
                                 className={clsx(
-                                    "overflow-y-auto break-words text-[var(--ag-colorText)] outline-none",
+                                    "overflow-y-auto break-words text-foreground outline-none",
                                     leading,
                                     maxHeightClassName,
                                     editorPad,
@@ -440,7 +438,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                     // caret's baseline by a couple of pixels.
                                     <div
                                         className={clsx(
-                                            "pointer-events-none absolute inset-0 select-none break-words text-[var(--ag-composer-placeholder)]",
+                                            "pointer-events-none absolute inset-0 select-none break-words text-muted-foreground",
                                             leading,
                                             // The canvas editor is one line high: a long hint
                                             // ends in "…" rather than spilling under the toolbar.
@@ -463,7 +461,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                 ? "px-4 pb-3 pt-1.5"
                                 : canvas
                                   ? // A phone row is 44 px: the 36 px buttons and their 4 px reach.
-                                    "pb-2.5 pl-2.5 pr-3 pt-3 max-md:min-h-14 max-md:pb-1.5 max-md:pl-1.5 max-md:pr-3 max-md:pt-1.5"
+                                    "pb-2.5 pl-2.5 pr-3 pt-3 max-md:pb-1.5 max-md:pl-1.5 max-md:pr-3 max-md:pt-1.5"
                                   : "px-2 py-1.5",
                         )}
                     >

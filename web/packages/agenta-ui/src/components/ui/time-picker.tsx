@@ -71,7 +71,7 @@ function Column({
 
     return (
         <div className="flex min-w-0 flex-col">
-            <span className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--ag-colorTextDescription)]">
+            <span className="px-2 pb-1 text-meta font-medium text-muted-foreground">
                 {label}
             </span>
             <div
@@ -95,10 +95,10 @@ function Column({
                             data-selected={active}
                             onClick={() => onPick(option)}
                             className={cn(
-                                "shrink-0 rounded border-0 px-3 py-1 text-center text-xs tabular-nums",
+                                "shrink-0 rounded border-0 px-3 py-1 text-center text-label tabular-nums",
                                 active
-                                    ? "bg-primary text-btn-primary-fg"
-                                    : "bg-transparent text-[var(--ag-colorTextSecondary)] hover:bg-[var(--ag-colorFillQuaternary)]",
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-transparent text-muted-foreground hover:bg-accent",
                             )}
                         >
                             {pad2(option)}
@@ -159,12 +159,12 @@ function TimePicker({
                     <span
                         className={cn(
                             "tabular-nums",
-                            !current && "text-[var(--ag-colorTextPlaceholder)]",
+                            !current && "text-muted-foreground",
                         )}
                     >
                         {current ? `${pad2(current.hour)}:${pad2(current.minute)}` : placeholder}
                     </span>
-                    <Clock size={14} className="text-[var(--ag-colorIcon)]" />
+                    <Clock size={14} className="text-muted-foreground" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent align="start" className="w-auto p-2">
@@ -175,7 +175,7 @@ function TimePicker({
                         selected={current?.hour ?? null}
                         onPick={(hour) => emit({hour})}
                     />
-                    <span className="my-1 w-px shrink-0 bg-[var(--ag-colorBorderSecondary)]" />
+                    <span className="my-1 w-px shrink-0 bg-border-muted" />
                     <Column
                         label={t("ui.controls.minute")}
                         options={minutes}

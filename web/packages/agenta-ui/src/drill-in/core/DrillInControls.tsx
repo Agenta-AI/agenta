@@ -114,7 +114,7 @@ export function DrillInControls({
             {/* Add property input form - with smooth transition */}
             {currentPathDataType === "object" && (
                 <div
-                    className={`flex items-center gap-2 px-2 bg-blue-50 rounded-md border border-solid border-blue-200 overflow-hidden transition-all duration-200 ease-in-out ${
+                    className={`flex items-center gap-2 px-2 bg-muted rounded-md border border-solid border-border-muted overflow-hidden transition-all duration-200 ease-in-out ${
                         showAddProperty
                             ? "max-h-20 py-2 opacity-100"
                             : "max-h-0 py-0 opacity-0 border-transparent"

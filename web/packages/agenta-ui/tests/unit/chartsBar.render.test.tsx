@@ -175,13 +175,13 @@ describe("BarChart", () => {
             <BarChart
                 title="Pass rate"
                 height={200}
-                series={[{key: "pct", name: "Percentage", color: "var(--ag-colorSuccess)"}]}
+                series={[{key: "pct", name: "Percentage", color: "var(--success)"}]}
                 data={[{category: "True", values: {pct: 40}}]}
                 yMax={100}
                 formatValue={(value) => `${value}%`}
             />,
         )
-        expect(bars(container, "pct")[0].getAttribute("fill")).toBe("var(--ag-colorSuccess)")
+        expect(bars(container, "pct")[0].getAttribute("fill")).toBe("var(--success)")
         expect(screen.getByText("100%").tagName).toBe("text")
         fireEvent.focus(screen.getByRole("img"))
         expect(screen.getByRole("tooltip").textContent).toContain("Percentage: 40%")

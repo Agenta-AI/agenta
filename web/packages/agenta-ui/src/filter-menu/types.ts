@@ -46,8 +46,7 @@ export interface FilterMenuSection<Value extends string = string> {
     /** What the flyout says when `options` is empty. */
     emptyText?: string
     /**
-     * A wider flyout, for options whose labels are names rather than words. The default width
-     * fits "Last 30 days"; an agent called "Search Console Assistant" truncates to nothing.
+     * Kept for callers: every flyout is now `w-popover-sm` (240), wide enough for names.
      */
     wide?: boolean
     /** A search field over the flyout's options, for lists of names too long to scan. */
@@ -94,7 +93,7 @@ export interface FilterMenuTriggerProps {
     /** Replaces the default leading glyph. */
     icon?: ReactNode
     size?: "sm" | "default" | "lg" | "icon" | "icon-sm" | "compact" | "icon-compact"
-    variant?: "outline" | "ghost" | "default" | "secondary" | "dashed" | "link"
+    variant?: "outline" | "ghost" | "default" | "secondary" | "link"
     triggerClassName?: string
     triggerAriaLabel?: string
     /**

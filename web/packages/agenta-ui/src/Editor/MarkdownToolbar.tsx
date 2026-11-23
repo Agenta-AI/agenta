@@ -45,19 +45,7 @@ import {
     FORMAT_TEXT_COMMAND,
     type TextFormatType,
 } from "lexical"
-import {
-    Bold,
-    ChevronDown,
-    Code,
-    Italic,
-    Link as LinkIcon,
-    List,
-    ListOrdered,
-    Strikethrough,
-    Table as TableIcon,
-    TextQuote,
-    Unlink,
-} from "lucide-react"
+import {CaretDownIcon, CodeIcon, LinkBreakIcon, LinkIcon as LinkIcon, ListIcon, ListNumbersIcon, QuotesIcon, TableIcon as TableIcon, TextBIcon, TextItalicIcon, TextStrikethroughIcon} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
 import {
@@ -97,17 +85,17 @@ const btnClass = (disabled: boolean, isActive: boolean, layout: "default" | "inl
               BTN_BASE,
               "size-6 rounded",
               disabled
-                  ? "cursor-not-allowed text-colorTextQuaternary"
-                  : "cursor-pointer text-zinc-8 hover:bg-colorFillSecondary",
-              isActive && "bg-colorFillSecondary text-colorText",
+                  ? "cursor-not-allowed text-muted-foreground"
+                  : "cursor-pointer text-muted-foreground hover:bg-accent",
+              isActive && "bg-secondary text-foreground",
           )
         : cn(
               BTN_BASE,
               "h-7 w-7 rounded",
               disabled
-                  ? "cursor-not-allowed text-[var(--ag-zinc-5)] opacity-50"
-                  : "cursor-pointer text-[var(--ag-c-586673)] hover:bg-[var(--ag-c-EAEFF5)]",
-              isActive && "bg-[var(--ag-c-EAEFF5)] !text-[var(--ag-c-1677FF)]",
+                  ? "cursor-not-allowed text-muted-foreground opacity-50"
+                  : "cursor-pointer text-muted-foreground hover:bg-accent",
+              isActive && "bg-selected !text-foreground",
           )
 
 /** Keep focus (and the Lexical selection) in the editor when a menu item is pressed. */
@@ -140,14 +128,14 @@ function TableSizePicker({onPick}: {onPick: (rows: number, cols: number) => void
                             className={[
                                 "h-4 w-4 rounded-[2px] border border-solid transition-colors",
                                 on
-                                    ? "border-[var(--ant-color-primary)] bg-[var(--ant-color-primary)]"
-                                    : "border-[var(--ant-color-border)] bg-[var(--ant-color-fill-quaternary)]",
+                                    ? "border-primary bg-primary"
+                                    : "border-border bg-muted",
                             ].join(" ")}
                         />
                     )
                 })}
             </div>
-            <span className="text-center text-xs text-[var(--ag-zinc-5)]">
+            <span className="text-center text-meta text-muted-foreground">
                 {hover.rows > 0 ? `${hover.rows} × ${hover.cols}` : t("ui.editor.insertTable")}
             </span>
         </div>
@@ -231,7 +219,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
 
     // Convert the current block to the chosen type. Headings/quote/paragraph go through
     // `$setBlocksType`; the markdown serializer maps them back to `#`, `>` and fenced blocks.
-    // Code is special: with a multi-line selection, `$setBlocksType` makes one code node per line
+    // CodeIcon is special: with a multi-line selection, `$setBlocksType` makes one code node per line
     // (the stacked-chips bug), so mirror the Lexical playground — insert one code node and write
     // the text back with its line breaks preserved as code lines.
     const formatBlock = useCallback(
@@ -324,9 +312,9 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
 
     const divider =
         layout === "default" ? (
-            <span className="mx-1 h-4 w-px shrink-0 bg-colorBorderSecondary" aria-hidden />
+            <span className="mx-1 h-4 w-px shrink-0 bg-border-muted" aria-hidden />
         ) : (
-            <span className="mx-0.5 h-4 w-px shrink-0 bg-[var(--ag-c-EAEFF5)]" aria-hidden />
+            <span className="mx-0.5 h-4 w-px shrink-0 bg-border-muted" aria-hidden />
         )
 
     const blockLabel = t(
@@ -342,7 +330,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                 : level === "h2"
                   ? t("ui.editor.heading2")
                   : t("ui.editor.heading3"),
-            <span className="text-[11px] font-semibold tracking-wide">{level.toUpperCase()}</span>,
+            <span className="text-caption font-semibold tracking-wide">{level.toUpperCase()}</span>,
             () => formatBlock(blockType === level ? "paragraph" : level),
             blockType === level,
         )
@@ -373,26 +361,24 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                             aria-label={t("ui.editor.textStyle")}
                             disabled={disabled}
                             onMouseDown={(e) => e.preventDefault()}
-                            // A bordered select, 26 px tall (F01 f3).
+                            // A bordered select at the control-xs height.
                             className={cn(
-                                "flex h-[26px] min-w-[112px] shrink-0 items-center justify-between gap-1 rounded-[6px] border border-solid border-colorBorder bg-colorBgContainer px-1.5 font-[inherit] text-[12px] text-colorText",
+                                "flex h-control-xs min-w-[112px] shrink-0 items-center justify-between gap-1 rounded-md border border-solid border-border bg-background px-1.5 font-[inherit] text-meta text-foreground",
                                 disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
                             )}
                         >
                             <span className="truncate">{blockLabel}</span>
-                            <ChevronDown size={12} className="shrink-0 text-colorTextTertiary" />
+                            <CaretDownIcon size={12} className="shrink-0 text-muted-foreground" />
                         </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
                         {BLOCK_TYPES.map((b) => (
                             <DropdownMenuItem
                                 key={b.key}
-                                // text-xs matches the trigger; the item default (14px) overshoots it.
                                 // antd `selectable` + `selectedKeys`: the active block is highlighted.
                                 className={cn(
-                                    "text-xs",
                                     b.key === blockType &&
-                                        "bg-controlItemBgActive text-colorPrimary",
+                                        "bg-selected text-foreground",
                                 )}
                                 onMouseDown={keepEditorSelection}
                                 onSelect={() => formatBlock(b.key)}
@@ -408,28 +394,28 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
             {button(
                 "b",
                 t("ui.editor.bold"),
-                <Bold size={14} />,
+                <TextBIcon size={14} />,
                 () => formatText("bold"),
                 active.bold,
             )}
             {button(
                 "i",
                 t("ui.editor.italic"),
-                <Italic size={14} />,
+                <TextItalicIcon size={14} />,
                 () => formatText("italic"),
                 active.italic,
             )}
             {button(
                 "s",
                 t("ui.editor.strikethrough"),
-                <Strikethrough size={14} />,
+                <TextStrikethroughIcon size={14} />,
                 () => formatText("strikethrough"),
                 active.strikethrough,
             )}
             {button(
                 "code",
                 t("ui.editor.inlineCode"),
-                <Code size={14} />,
+                <CodeIcon size={14} />,
                 () => formatText("code"),
                 active.code,
             )}
@@ -437,7 +423,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
             {button(
                 "ul",
                 t("ui.editor.bulletedList"),
-                <List size={14} />,
+                <ListIcon size={14} />,
                 () => editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined),
                 active.bullet,
             )}
@@ -445,7 +431,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                 ? button(
                       "ol",
                       t("ui.editor.numberedList"),
-                      <ListOrdered size={14} />,
+                      <ListNumbersIcon size={14} />,
                       () => editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined),
                       active.ordered,
                   )
@@ -454,7 +440,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                 ? button(
                       "quote",
                       t("ui.editor.quote"),
-                      <TextQuote size={14} />,
+                      <QuotesIcon size={14} />,
                       () => formatBlock(blockType === "quote" ? "paragraph" : "quote"),
                       blockType === "quote",
                   )
@@ -498,11 +484,11 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                             <div className="flex items-center justify-between gap-2">
                                 {active.link ? (
                                     <Button
-                                        variant="destructive-outline"
+                                        variant="destructive-ghost"
                                         size="sm"
                                         onClick={removeLink}
                                     >
-                                        {<Unlink size={13} />}
+                                        {<LinkBreakIcon size={13} />}
                                         {t("common.remove")}
                                     </Button>
                                 ) : (
@@ -530,7 +516,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                             className={`${btnClass(false, false, layout)} !w-auto gap-0.5 px-1`}
                         >
                             <TableIcon size={14} />
-                            <ChevronDown size={12} />
+                            <CaretDownIcon size={12} />
                         </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">

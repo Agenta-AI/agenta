@@ -3,7 +3,7 @@ import * as React from "react"
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {Slot} from "@radix-ui/react-slot"
-import {MoreHorizontal} from "lucide-react"
+import {DotsThreeIcon} from "@phosphor-icons/react"
 
 import {cn} from "./utils"
 
@@ -47,11 +47,11 @@ function BreadcrumbList({className, ...props}: React.ComponentProps<"ol">) {
     return (
         <ol
             data-slot="breadcrumb-list"
-            // antd: fontSize 12px + lineHeight 1.6667 = text-field-md; base crumb colour =
+            // text-label (13px, single-line UI); base crumb colour =
             // itemColor (colorTextDescription). Separator spacing lives on the separator (mx-2),
             // so the list has no inter-item gap. m-0/p-0/list-none reset UA <ol> (preflight off).
             className={cn(
-                "m-0 flex list-none flex-wrap items-center p-0 text-field-md text-colorTextDescription",
+                "m-0 flex list-none flex-wrap items-center p-0 text-label text-muted-foreground",
                 className,
             )}
             {...props}
@@ -82,11 +82,11 @@ function BreadcrumbLink({
             // antd linkColor (colorTextDescription) → linkHoverColor (colorText). Dropping antd's
             // `colorBgTextHover` pill is the one deliberate deviation — the layout call-site
             // strips it from antd too (`hover:!bg-transparent`), and it needs no new token.
-            // h-[22px] = antd fontHeight: antd's `a` is inline-block height:fontHeight, which
+            // h-5.5 = antd fontHeight: antd's `a` is inline-block height:fontHeight, which
             // makes the whole row 22px (line-height 20 top-aligns the text, 2px below) — matched
             // so the crop dimensions equal antd's (a 20px row misregisters ~9% in the pixel VRT).
             className={cn(
-                "inline-block h-[22px] cursor-pointer text-colorTextDescription transition-colors hover:text-colorText",
+                "inline-block h-5.5 cursor-pointer text-muted-foreground transition-colors hover:text-foreground",
                 className,
             )}
             {...props}
@@ -102,8 +102,8 @@ function BreadcrumbPage({className, ...props}: React.ComponentProps<"span">) {
             role="link"
             aria-disabled="true"
             aria-current="page"
-            // h-[22px] = antd fontHeight (see BreadcrumbLink) — keeps the row 22px + text top-aligned.
-            className={cn("inline-block h-[22px] text-colorText", className)}
+            // h-5.5 = antd fontHeight (see BreadcrumbLink) — keeps the row 22px + text top-aligned.
+            className={cn("inline-block h-5.5 text-foreground", className)}
             {...props}
         />
     )
@@ -117,10 +117,10 @@ function BreadcrumbSeparator({children, className, ...props}: React.ComponentPro
             data-slot="breadcrumb-separator"
             role="presentation"
             aria-hidden="true"
-            // h-[22px] = antd fontHeight (see BreadcrumbLink); mx-2 = separatorMargin (8px each
+            // h-5.5 = antd fontHeight (see BreadcrumbLink); mx-2 = separatorMargin (8px each
             // side); text top-aligns like antd's separator (glyph top 2). svg separator = 12px.
             className={cn(
-                "inline-block h-[22px] mx-2 text-colorTextDescription [&>svg]:size-3",
+                "inline-block h-5.5 mx-2 text-muted-foreground [&>svg]:size-3",
                 className,
             )}
             {...props}
@@ -138,16 +138,16 @@ function BreadcrumbEllipsis({className, ...props}: React.ComponentProps<"span">)
             role="presentation"
             aria-hidden="true"
             // antd renders an icon crumb top-aligned in the 22px row (icon top 2 / centerY 8),
-            // NOT centered. h-[22px] keeps the item from being centre-shifted by the list;
+            // NOT centered. h-5.5 keeps the item from being centre-shifted by the list;
             // items-start + [&>svg]:mt-0.5 (2px = the size-4→size-3 inset) puts the 12px icon at
             // top 2 to match antd. w-4 = antd's size-4 box width.
             className={cn(
-                "inline-flex h-[22px] w-4 items-start justify-center text-colorTextDescription [&>svg]:mt-0.5",
+                "inline-flex h-5.5 w-4 items-start justify-center text-muted-foreground [&>svg]:mt-0.5",
                 className,
             )}
             {...props}
         >
-            <MoreHorizontal className="size-3" />
+            <DotsThreeIcon className="size-3" />
             <span className="sr-only">{t("ui.controls.more")}</span>
         </span>
     )

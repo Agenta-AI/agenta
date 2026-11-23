@@ -1,10 +1,10 @@
 import * as React from "react"
 
-import {CaretUpDown} from "@phosphor-icons/react"
+import {CaretDownIcon, CaretUpDown, CaretUpIcon, CheckIcon} from "@phosphor-icons/react"
 import * as SelectPrimitive from "@radix-ui/react-select"
 import {cva, type VariantProps} from "class-variance-authority"
-import {Check, ChevronDown, ChevronUp} from "lucide-react"
 
+import {MENU_ITEM} from "./menu-item"
 import {cn} from "./utils"
 
 /**
@@ -38,15 +38,14 @@ const selectTriggerVariants = cva(
         // slot: a bare `[&>span]` also stretched the trailing adornment span (Combobox/Cascader wrap
         // their chevron + clear in one), floating the chevron mid-trigger instead of at its edge.
         "[&>[data-slot=select-value]]:min-w-0 [&>[data-slot=select-value]]:flex-1",
-        "cursor-pointer disabled:cursor-not-allowed disabled:bg-disabled-bg disabled:text-disabled disabled:border-disabled-border",
+        "cursor-pointer disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground disabled:border-border-muted",
         // antd greys only the placeholder TEXT; the root keeps the foreground colour.
-        "[&[data-placeholder]_[data-slot=select-value]]:text-placeholder",
-        // antd's error state colours the border AND the text/arrow/placeholder, + red focus glow.
-        "aria-[invalid=true]:border-error aria-[invalid=true]:text-error aria-[invalid=true]:shadow-[0_0_0_3px_var(--ag-errorOutline)]",
+        "[&[data-placeholder]_[data-slot=select-value]]:text-muted-foreground",
+        // antd's error state colours the border AND the text/arrow/placeholder; no glow (FORM-02).
+        "aria-[invalid=true]:border-destructive aria-[invalid=true]:text-destructive",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0",
         // Below md, 16px like Input (iOS Safari zooms the page on a smaller focused control), so
         // a phone form does not mix two text sizes. The size variants set the desktop ramp.
-        "max-md:text-base",
     ],
     {
         variants: {
@@ -54,8 +53,8 @@ const selectTriggerVariants = cva(
                 // Focus glow (the neutral ring) on: Radix Select button (focus / data-open)
                 // AND the Combobox div-trigger (has a focused input inside).
                 default:
-                    "bg-background border-border focus:border-ring data-[state=open]:border-ring focus:shadow-[0_0_0_3px_var(--ag-controlOutline)] data-[state=open]:shadow-[0_0_0_3px_var(--ag-controlOutline)] [&:has(:focus)]:border-ring [&:has(:focus)]:shadow-[0_0_0_3px_var(--ag-controlOutline)]",
-                filled: "bg-muted border-transparent hover:bg-secondary focus:bg-background focus:border-ring focus:shadow-[0_0_0_3px_var(--ag-controlOutline)] data-[state=open]:shadow-[0_0_0_3px_var(--ag-controlOutline)] [&:has(:focus)]:shadow-[0_0_0_3px_var(--ag-controlOutline)]",
+                    "bg-background border-border focus-ring-field data-[state=open]:border-foreground",
+                filled: "bg-muted border-transparent hover:bg-accent focus:bg-background focus-ring-field data-[state=open]:border-foreground",
                 // Transparent, not `border-0`: antd keeps a 1px transparent border so the
                 // content box stays identical to the outlined variant.
                 ghost: "bg-transparent border-transparent",
@@ -66,9 +65,9 @@ const selectTriggerVariants = cva(
                 sm: "h-control px-input-sm text-field-md rounded-control-sm",
                 default: "h-control px-input text-field-md rounded-control",
                 lg: "h-control-lg px-input-lg text-field-lg rounded-control-lg",
-                // The canvas select: 34px, radius 6, 13px, an up-down icon. A button does not
+                // The canvas select: control height, radius 6, 13px, an up-down icon. A button does not
                 // make iOS zoom, so 14px below md, as the phone design draws it.
-                compact: "h-[34px] px-2.5 text-[13px] rounded-[6px] max-md:text-sm",
+                compact: "h-control px-2.5 text-[13px] rounded-control",
             },
         },
         defaultVariants: {variant: "default", size: "default"},
@@ -99,9 +98,9 @@ export interface SelectTriggerProps
 function SelectTrigger({className, variant, size, icon, children, ...props}: SelectTriggerProps) {
     const defaultIcon =
         size === "compact" ? (
-            <CaretUpDown aria-hidden size={14} className="text-colorTextTertiary" />
+            <CaretUpDown aria-hidden size={14} className="text-muted-foreground" />
         ) : (
-            <ChevronDown className="size-3 text-placeholder" />
+            <CaretDownIcon className="size-3 text-muted-foreground" />
         )
     return (
         <SelectPrimitive.Trigger
@@ -137,7 +136,7 @@ function SelectContent({
                     // box-border: preflight is off, so width must include the p-1 padding
                     // (else the panel renders 8px wider than the trigger / antd dropdown).
                     "relative z-50 box-border max-h-96 min-w-[8rem] overflow-hidden bg-popover text-popover-foreground shadow-overlay font-portal",
-                    "rounded-control-lg p-1",
+                    "rounded-lg p-1",
                     // Pin the panel to the trigger width (antd matches dropdown to trigger). With
                     // box-border the border-box equals the trigger width; the p-1 padding stays inside.
                     position === "popper" &&
@@ -166,7 +165,7 @@ function SelectLabel({className, ...props}: React.ComponentProps<typeof SelectPr
     return (
         <SelectPrimitive.Label
             data-slot="select-label"
-            className={cn("px-input-sm py-input-y-sm text-field-sm text-placeholder", className)}
+            className={cn("px-input-sm py-input-y-sm text-field-sm text-muted-foreground", className)}
             {...props}
         />
     )
@@ -175,37 +174,17 @@ function SelectLabel({className, ...props}: React.ComponentProps<typeof SelectPr
 function SelectItem({
     className,
     children,
-    size = "default",
     ...props
-}: React.ComponentProps<typeof SelectPrimitive.Item> & {
-    /** `compact` is the canvas menu row: 32px, 13px, the selected row has no fill (only hover
-     *  fills a row), a medium weight and a 14px check. Pair it with a compact trigger. */
-    size?: "default" | "compact"
-}) {
-    const compact = size === "compact"
+}: React.ComponentProps<typeof SelectPrimitive.Item>) {
     return (
         <SelectPrimitive.Item
             data-slot="select-item"
             className={cn(
-                "relative flex w-full cursor-pointer select-none items-center justify-between gap-2 outline-none",
+                MENU_ITEM,
+                "justify-between",
                 // Radix's ItemText span doesn't take a className, so shrink it from here —
                 // without this a long option overflows the panel instead of truncating.
                 "[&>span]:min-w-0 [&>span]:flex-1",
-                compact
-                    ? [
-                          "box-border min-h-8 rounded-[6px] px-2 py-1 text-[13px]",
-                          "data-[highlighted]:bg-controlItemBgHover data-[state=checked]:font-medium",
-                      ]
-                    : [
-                          // antd option geometry: min-h 28px, 4px×12px padding, 6px radius, selected weight 600.
-                          "box-border min-h-control-sm rounded-control-sm px-3 py-1 text-field-md",
-                          // antd colours: highlighted-but-not-selected = controlItemBgHover; selected =
-                          // controlItemBgActive (a cool bluish tint, not the neutral accent gray). The
-                          // `:not()` keeps the selected row's active bg from being overridden by hover.
-                          "[&[data-highlighted]:not([data-state=checked])]:bg-controlItemBgHover",
-                          "data-[state=checked]:bg-controlItemBgActive data-[state=checked]:font-semibold",
-                      ],
-                "data-[disabled]:pointer-events-none data-[disabled]:text-disabled",
                 className,
             )}
             {...props}
@@ -216,10 +195,9 @@ function SelectItem({
                 had. We keep the check as an explicit affordance — sits where antd reserves the
                 state slot (right side), colorPrimary. See Select.md §Deliberate deviations. */}
             <SelectPrimitive.ItemIndicator asChild>
-                <Check
+                <CheckIcon
                     className={cn(
-                        "shrink-0",
-                        compact ? "size-3.5 text-colorText" : "size-3 text-primary",
+                        "size-4 shrink-0 text-foreground",
                     )}
                 />
             </SelectPrimitive.ItemIndicator>
@@ -235,7 +213,7 @@ function SelectSeparator({
         <SelectPrimitive.Separator
             data-slot="select-separator"
             // Matches the antd menu divider: 1px colorSplit, `marginXXS 0`, inset by the p-1.
-            className={cn("my-1 h-px bg-colorSplit", className)}
+            className={cn("my-1 h-px bg-border-muted", className)}
             {...props}
         />
     )
@@ -251,7 +229,7 @@ function SelectScrollUpButton({
             className={cn("flex cursor-default items-center justify-center py-1", className)}
             {...props}
         >
-            <ChevronUp className="size-3" />
+            <CaretUpIcon className="size-3" />
         </SelectPrimitive.ScrollUpButton>
     )
 }
@@ -266,7 +244,7 @@ function SelectScrollDownButton({
             className={cn("flex cursor-default items-center justify-center py-1", className)}
             {...props}
         >
-            <ChevronDown className="size-3" />
+            <CaretDownIcon className="size-3" />
         </SelectPrimitive.ScrollDownButton>
     )
 }

@@ -32,18 +32,18 @@ export const DrawerViewChrome = ({
     const close = useContext(DrawerCloseContext)
     return (
         <div className="flex h-full min-h-0 flex-col">
-            <div className="flex h-12 shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary px-3">
-                <nav className="flex min-w-0 flex-1 items-center gap-1 text-sm">
+            <div className="flex h-12 shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted px-3">
+                <nav className="flex min-w-0 flex-1 items-center gap-1 text-label">
                     {crumbs.map((crumb, index) => (
                         <span key={index} className="flex min-w-0 items-center gap-1">
                             {index > 0 ? (
-                                <CaretRight size={12} className="shrink-0 text-colorTextTertiary" />
+                                <CaretRight size={12} className="shrink-0 text-muted-foreground" />
                             ) : null}
                             {crumb.onSelect ? (
                                 <button
                                     type="button"
                                     title={crumb.title}
-                                    className="truncate text-colorTextSecondary hover:text-colorText"
+                                    className="truncate text-muted-foreground hover:text-foreground"
                                     onClick={crumb.onSelect}
                                 >
                                     {crumb.title}
@@ -53,7 +53,7 @@ export const DrawerViewChrome = ({
                                     title={crumb.title}
                                     className={cn(
                                         "truncate",
-                                        index === crumbs.length - 1 && "font-medium text-colorText",
+                                        index === crumbs.length - 1 && "font-medium text-foreground",
                                     )}
                                 >
                                     {crumb.title}
@@ -75,7 +75,7 @@ export const DrawerViewChrome = ({
             </div>
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
             {hideActionRow ? null : (
-                <div className="shrink-0 border-0 border-t border-solid border-colorBorderSecondary px-4 py-3">
+                <div className="shrink-0 border-0 border-t border-solid border-border-muted px-4 py-3">
                     <ViewFormActions
                         apply={apply}
                         form={form}

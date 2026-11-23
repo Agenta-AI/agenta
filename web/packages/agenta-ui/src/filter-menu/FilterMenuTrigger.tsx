@@ -5,7 +5,6 @@ import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 
 import {Button} from "../components/ui/button"
 import {PopoverTrigger} from "../components/ui/popover"
-import {PHONE_TOUCH_TARGET_CLASS} from "../components/ui/touch-target"
 import {cn} from "../components/ui/utils"
 
 import type {FilterMenuTriggerProps} from "./types"
@@ -44,8 +43,7 @@ export const FilterMenuTrigger = ({
                 size={iconOnly ? iconSize : size}
                 aria-label={triggerAriaLabel ?? (iconOnly ? defaultLabel : undefined)}
                 className={cn(
-                    "relative gap-1.5 font-normal",
-                    PHONE_TOUCH_TARGET_CLASS,
+                    "relative gap-1.5",
                     triggerClassName,
                 )}
             >
@@ -58,7 +56,7 @@ export const FilterMenuTrigger = ({
                             showing everything". What is applied is one click away. */}
                         <span
                             aria-hidden
-                            className="absolute right-1 top-1 size-1.5 rounded-full bg-primary"
+                            className="absolute right-1 top-1 size-1.5 rounded-xs bg-primary"
                         />
                         <span className="sr-only">{t("ui.controls.filtersApplied")}</span>
                     </>

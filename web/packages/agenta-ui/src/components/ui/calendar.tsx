@@ -36,7 +36,7 @@ function Calendar({className, classNames, showOutsideDays = true, ...props}: Cal
                 months: "flex flex-col sm:flex-row gap-4",
                 month: "flex flex-col gap-4",
                 month_caption: "flex justify-center pt-1 relative items-center h-7",
-                caption_label: "text-sm font-medium text-[var(--ag-colorText)]",
+                caption_label: "text-label text-foreground",
                 // z-10 is load-bearing: `nav` is absolute but precedes the (relative)
                 // month_caption in the DOM, so without it the caption paints over the arrows
                 // and eats their clicks.
@@ -52,20 +52,18 @@ function Calendar({className, classNames, showOutsideDays = true, ...props}: Cal
                 month_grid: "w-full border-collapse space-y-1",
                 weekdays: "flex",
                 weekday:
-                    "w-8 rounded-md text-[0.75rem] font-normal text-[var(--ag-colorTextDescription)]",
+                    "w-8 rounded-md text-meta text-muted-foreground",
                 week: "flex w-full mt-1.5",
-                day: "relative h-8 w-8 p-0 text-center text-sm",
+                day: "relative h-8 w-8 p-0 text-center text-label",
                 day_button: cn(
                     buttonVariants({variant: "ghost"}),
                     "h-8 w-8 p-0 font-normal aria-selected:opacity-100",
                 ),
                 // Selected has to beat the ghost button's hover skin, hence the restated hover.
-                // `btn-primary-fg` (not colorTextLightSolid) because dark mode flips primary to
-                // brand yellow — white on it fails contrast; this token tracks the mode.
                 selected:
-                    "[&>button]:bg-primary [&>button]:text-btn-primary-fg [&>button:hover]:bg-btn-primary-hover [&>button:hover]:text-btn-primary-fg",
-                today: "[&>button]:border [&>button]:border-solid [&>button]:border-[var(--ag-colorPrimary)]",
-                outside: "[&>button]:text-[var(--ag-colorTextDisabled)]",
+                    "[&>button]:bg-primary [&>button]:text-primary-foreground [&>button:hover]:bg-primary-hover [&>button:hover]:text-primary-foreground",
+                today: "[&>button]:border [&>button]:border-solid [&>button]:border-primary",
+                outside: "[&>button]:text-muted-foreground",
                 disabled: "[&>button]:pointer-events-none [&>button]:opacity-40",
                 hidden: "invisible",
                 ...classNames,

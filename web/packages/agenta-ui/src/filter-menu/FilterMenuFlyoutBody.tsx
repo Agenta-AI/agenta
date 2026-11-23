@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
-import {Search} from "lucide-react"
+import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 import {cn} from "../components/ui/utils"
 
@@ -48,7 +48,7 @@ export const FilterMenuFlyoutBody = ({
         <>
             {section.searchable ? (
                 <label className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3 py-2">
-                    <Search size={14} className="shrink-0 text-muted-foreground" aria-hidden />
+                    <MagnifyingGlassIcon size={14} className="shrink-0 text-muted-foreground" aria-hidden />
                     <input
                         ref={inputRef}
                         value={term}
@@ -67,7 +67,7 @@ export const FilterMenuFlyoutBody = ({
                         }}
                         className={cn(
                             "box-border w-full appearance-none border-0 bg-transparent p-0 font-[inherit]",
-                            "text-[13px] text-foreground outline-none placeholder:text-placeholder",
+                            "text-label text-foreground outline-none placeholder:text-muted-foreground",
                         )}
                     />
                 </label>

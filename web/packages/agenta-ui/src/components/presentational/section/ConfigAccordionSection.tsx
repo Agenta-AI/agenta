@@ -74,12 +74,12 @@ export type SectionIndicatorTone = "draft" | "invalid" | "incomplete" | "agent"
  */
 export function sectionIndicatorColor(tone: SectionIndicatorTone): string {
     return tone === "invalid"
-        ? "var(--ag-colorError)"
+        ? "var(--destructive)"
         : tone === "incomplete"
-          ? "var(--ag-colorWarning)"
+          ? "var(--warning)"
           : tone === "agent"
             ? "light-dark(#113955, #8CCFFF)"
-            : "var(--ag-colorInfo)"
+            : "var(--info)"
 }
 
 export interface ConfigAccordionSectionProps {
@@ -233,20 +233,15 @@ export function ConfigAccordionSection({
     highlight = false,
     children,
 }: ConfigAccordionSectionProps) {
-    const divider =
-        canvas === "pane"
-            ? "border-colorBorderSecondary"
-            : canvas
-              ? "border-[var(--ag-colorSplit)]"
-              : "border-[var(--ag-c-EAEFF5)]"
+    const divider = "border-border-muted"
     const titleSize =
         size === "compact"
-            ? "text-xs"
+            ? "text-label"
             : canvas === "pane"
-              ? "text-sm leading-5"
+              ? "text-body leading-5"
               : canvas
-                ? "text-[13px] leading-5"
-                : "text-sm"
+                ? "text-label leading-5"
+                : "text-body"
     // Height (0→auto via the grid `0fr`→`1fr` trick) + opacity reveal on mount (opt-in). `revealed`
     // flips one tick after mount (staggered by `revealDelayMs`) to play the transition; `done` fires
     // after it settles and drops the grid/overflow wrapper so nothing (e.g. an indicator dot) can clip.
@@ -270,12 +265,12 @@ export function ConfigAccordionSection({
     const dotColor = indicatorColor ?? lastIndicatorColorRef.current
     // The glyph gets a soft, desaturated tint; the full accent lives on the dot so it still reads.
     const iconColor = indicatorColor
-        ? `color-mix(in srgb, ${indicatorColor} 45%, var(--ag-colorTextTertiary))`
+        ? `color-mix(in srgb, ${indicatorColor} 45%, var(--muted-foreground))`
         : status === "complete"
-          ? "var(--ag-colorSuccess)"
+          ? "var(--success)"
           : status === "warning"
-            ? "var(--ag-colorWarning)"
-            : "var(--ag-c-586673)"
+            ? "var(--warning)"
+            : "var(--muted-foreground)"
     const isControlled = open !== undefined
     // With `animateInitialOpen`, a default-open section still MOUNTS closed and expands via the
     // effect below, so its first paint is the collapsed row (matching skeletons), not the content.
@@ -318,7 +313,7 @@ export function ConfigAccordionSection({
                 caller holds `pulse` true (e.g. a change from another pane). */}
             {indicator?.pulse ? (
                 <motion.span
-                    className="absolute -right-1 -top-0.5 h-2 w-2 rounded-full"
+                    className="absolute -right-1 -top-0.5 h-2 w-2 rounded-sm"
                     style={{background: dotColor ?? undefined}}
                     initial={{opacity: 0, scale: 1}}
                     animate={{opacity: [0, 0.5, 0], scale: [1, 2, 3]}}
@@ -329,7 +324,7 @@ export function ConfigAccordionSection({
                 transitions instead of the dot popping in and out. */}
             <span
                 className={cn(
-                    "absolute -right-1 -top-0.5 box-border h-2 w-2 rounded-full border-[1.5px] border-solid border-[var(--ag-colorBgContainer)]",
+                    "absolute -right-1 -top-0.5 box-border h-2 w-2 rounded-sm border-[1.5px] border-solid border-background",
                     "motion-safe:transition-[transform,opacity,background-color] motion-safe:duration-300 motion-safe:ease-out",
                     indicator ? "scale-100 opacity-100" : "scale-0 opacity-0",
                 )}
@@ -370,7 +365,7 @@ export function ConfigAccordionSection({
                           headerBand,
                           "border-0 border-b border-solid transition-colors duration-300 ease-out",
                           banded
-                              ? "border-transparent bg-[var(--ag-colorFillQuaternary)]"
+                              ? "border-transparent bg-secondary"
                               : cn("bg-transparent", noDivider ? "border-transparent" : divider),
                       )
                     : !noDivider && cn("border-0 border-b border-solid", divider),
@@ -386,7 +381,7 @@ export function ConfigAccordionSection({
                     // The section's 1 px divider is outside the row: 39 + 1 makes the canvas'
                     // 40 px row (F01); the pane's row is 45 px plus the divider (B03).
                     canvas === "pane" ? "h-[45px] px-4" : canvas ? "h-[39px] px-1" : "py-3",
-                    highlight && "bg-[var(--ag-colorInfoBg)]",
+                    highlight && "bg-info/10",
                     locked && "cursor-not-allowed opacity-60",
                     headerActs && "cursor-pointer",
                     // Header fill: bled to the section edges and layered over the section's body fill so
@@ -395,7 +390,7 @@ export function ConfigAccordionSection({
                         cn(
                             headerBand,
                             "transition-colors duration-300 ease-out",
-                            banded ? "bg-[var(--ag-colorFillQuaternary)]" : "bg-transparent",
+                            banded ? "bg-secondary" : "bg-transparent",
                         ),
                 )}
             >
@@ -492,10 +487,10 @@ export function ConfigAccordionSection({
                             className={cn(
                                 "text-right",
                                 canvas === "pane"
-                                    ? "text-[13px] leading-5 text-colorTextSecondary"
+                                    ? "text-label leading-5 text-muted-foreground"
                                     : canvas
-                                      ? "text-[12px] leading-4 text-colorTextSecondary"
-                                      : "text-xs text-colorTextDescription",
+                                      ? "text-meta text-muted-foreground"
+                                      : "text-meta text-muted-foreground",
                                 preserveTitle ? "min-w-0 truncate" : "shrink-0 whitespace-nowrap",
                             )}
                         >

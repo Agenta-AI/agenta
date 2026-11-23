@@ -4,8 +4,7 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {dayjs} from "@agenta/shared/utils/dateTime"
-import {CalendarBlank, X} from "@phosphor-icons/react"
-import {ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight} from "lucide-react"
+import {CalendarBlank, CaretDoubleLeftIcon, CaretDoubleRightIcon, CaretLeftIcon, CaretRightIcon, X} from "@phosphor-icons/react"
 
 import {Button} from "./button"
 import {inputVariants} from "./input"
@@ -291,7 +290,7 @@ export function DateRangeCalendar({
                                     aria-label={t("ui.listControls.previousYear")}
                                     onClick={() => setViewMonth((m) => m.subtract(1, "year"))}
                                 >
-                                    <ChevronsLeft className="size-3" />
+                                    <CaretDoubleLeftIcon className="size-3" />
                                 </Button>
                                 <Button
                                     type="button"
@@ -300,7 +299,7 @@ export function DateRangeCalendar({
                                     aria-label={t("ui.listControls.previousMonth")}
                                     onClick={() => setViewMonth((m) => m.subtract(1, "month"))}
                                 >
-                                    <ChevronLeft className="size-3" />
+                                    <CaretLeftIcon className="size-3" />
                                 </Button>
                             </>
                         ) : null}
@@ -318,7 +317,7 @@ export function DateRangeCalendar({
                                     aria-label={t("ui.listControls.nextMonth")}
                                     onClick={() => setViewMonth((m) => m.add(1, "month"))}
                                 >
-                                    <ChevronRight className="size-3" />
+                                    <CaretRightIcon className="size-3" />
                                 </Button>
                                 <Button
                                     type="button"
@@ -327,7 +326,7 @@ export function DateRangeCalendar({
                                     aria-label={t("ui.listControls.nextYear")}
                                     onClick={() => setViewMonth((m) => m.add(1, "year"))}
                                 >
-                                    <ChevronsRight className="size-3" />
+                                    <CaretDoubleRightIcon className="size-3" />
                                 </Button>
                             </>
                         ) : null}
@@ -346,7 +345,7 @@ export function DateRangeCalendar({
                             <span
                                 key={index}
                                 role="columnheader"
-                                className="flex h-6 items-center justify-center text-field-sm text-placeholder"
+                                className="flex h-6 items-center justify-center text-field-sm text-muted-foreground"
                             >
                                 {label}
                             </span>
@@ -401,15 +400,15 @@ export function DateRangeCalendar({
                                                 "box-border border-0 border-solid bg-transparent p-0 font-[inherit]",
                                                 "flex size-6 cursor-pointer items-center justify-center rounded-control-sm text-field-sm text-foreground transition-colors",
                                                 "hover:bg-accent",
-                                                outside && "text-placeholder",
+                                                outside && "text-muted-foreground",
                                                 day.isSame(dayjs(), "day") &&
                                                     !endpoint &&
                                                     !outside &&
                                                     "border border-solid border-primary",
                                                 endpoint &&
-                                                    "bg-primary text-primary-foreground hover:bg-btn-primary-hover",
+                                                    "bg-primary text-primary-foreground hover:bg-primary-hover",
                                                 disabled &&
-                                                    "cursor-not-allowed bg-transparent text-disabled hover:bg-transparent",
+                                                    "cursor-not-allowed bg-transparent text-muted-foreground hover:bg-transparent",
                                             )}
                                         >
                                             {day.date()}
@@ -461,7 +460,7 @@ export function DateRangeCalendar({
 
             {hideClear ? null : (
                 <div className="flex items-center justify-between gap-2 border-0 border-t border-solid border-border pt-2">
-                    <span className="text-field-sm text-placeholder">
+                    <span className="text-field-sm text-muted-foreground">
                         {awaitingEnd
                             ? t("ui.listControls.pickEndDate")
                             : t("ui.listControls.pickStartDate")}
@@ -545,7 +544,7 @@ export function DateRangePicker({
         ? `${start ? start.format(format) : "…"} → ${end ? end.format(format) : "…"}`
         : null
 
-    const adornmentColor = invalid ? "text-error" : "text-placeholder"
+    const adornmentColor = invalid ? "text-destructive" : "text-muted-foreground"
     const showClear = allowClear && hasValue && !disabled
 
     return (
@@ -579,7 +578,7 @@ export function DateRangePicker({
                         // A div gets none of the variant's `disabled:` classes (they only fire on
                         // real form controls), so the disabled skin is set here — same as Cascader.
                         disabled &&
-                            "pointer-events-none cursor-not-allowed border-disabled-border bg-disabled-bg text-disabled",
+                            "pointer-events-none cursor-not-allowed border-border-muted bg-secondary text-muted-foreground",
                         className,
                     )}
                     onClick={(event) => {
@@ -602,7 +601,7 @@ export function DateRangePicker({
                         data-slot="date-range-picker-value"
                         className={cn(
                             "min-w-0 flex-1 truncate text-left",
-                            !hasValue && "text-placeholder",
+                            !hasValue && "text-muted-foreground",
                         )}
                     >
                         {hasValue ? display : placeholder}

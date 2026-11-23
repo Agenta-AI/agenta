@@ -415,10 +415,10 @@ const SharedEditor = ({
                     // typing happens in a descendant <ContentEditable>, so
                     // the `isEditorFocused` rule below carries the styling
                     // through to descendant-focus.
-                    "border-[var(--ag-c-BDC7D1)]": editorType === "border",
-                    "hover:border-[var(--ag-c-394857)] focus:border-[var(--ag-c-394857)]":
+                    "border-border": editorType === "border",
+                    "hover:border-border-strong focus:border-border-strong":
                         editorType === "border",
-                    "cursor-not-allowed bg-[var(--ag-rgba-051729-04)] border-none":
+                    "cursor-not-allowed bg-secondary border-none":
                         ["readOnly", "disabled"].includes(state) && editorType === "border",
                     // Removed: `"hover:border-[394857] focus:border-[394857]"`
                     // override for `state === "filled" && editorType === "border"`.
@@ -429,9 +429,9 @@ const SharedEditor = ({
                     // var, so this branch is redundant.
                 },
                 {
-                    "border-[transparent] hover:!border-[var(--ag-c-BDC7D1)] focus:border-[var(--ag-c-BDC7D1)]":
+                    "border-[transparent] hover:!border-border focus:border-border":
                         editorType === "borderless",
-                    "cursor-not-allowed bg-[var(--ag-rgba-051729-04)] border-none":
+                    "cursor-not-allowed bg-secondary border-none":
                         ["readOnly", "disabled"].includes(state) && editorType === "borderless",
                     "hover:border-[transparent] focus:border-[transparent]":
                         state === "filled" && editorType === "borderless",
@@ -447,7 +447,7 @@ const SharedEditor = ({
                 // focused. Previously this reverted the border to the
                 // default light colour with `!important` — the visible
                 // bug Kaosiso reported.
-                isEditorFocused && "!border-[var(--ag-c-394857)]",
+                isEditorFocused && "!border-border-strong",
                 className,
             ),
         [
@@ -501,9 +501,9 @@ const SharedEditor = ({
             {header}
 
             {isHandlingLargePaste ? (
-                <div className="absolute inset-0 z-10 flex items-center justify-center gap-3 bg-[var(--ag-rgba-fff-78)] backdrop-blur-[1px]">
+                <div className="absolute inset-0 z-10 flex items-center justify-center gap-3 bg-background/80">
                     <Spinner size="small" />
-                    <span className="text-[13px] text-[var(--ag-rgba-051729-72)]">
+                    <span className="text-label text-muted-foreground">
                         {t("ui.chatInput.pastingLarge")}
                     </span>
                 </div>
@@ -578,7 +578,7 @@ const SharedEditor = ({
             )}
 
             {pasteLimitError ? (
-                <div className="mt-2 text-[13px] leading-5 text-[var(--ag-c-D61010)]">
+                <div className="mt-2 text-label leading-5 text-destructive">
                     {pasteLimitError}
                 </div>
             ) : null}

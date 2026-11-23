@@ -90,8 +90,8 @@ const ImagePreview = ({
                     alt={alt}
                     className="w-full h-full object-cover group-hover:opacity-80 transition duration-200"
                 />
-                <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition duration-200" />
-                <div className="absolute inset-0 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition duration-200">
+                <div className="absolute inset-0 bg-overlay/0 group-hover:bg-overlay transition duration-200" />
+                <div className="absolute inset-0 flex items-center justify-center text-background opacity-0 group-hover:opacity-100 transition duration-200 pointer-coarse:opacity-100">
                     <MagnifyingGlassPlus size={16} weight="bold" />
                 </div>
             </div>
@@ -103,7 +103,7 @@ const ImagePreview = ({
                         <img
                             src={imageURL}
                             alt={alt}
-                            className="h-full max-h-[600px] w-full max-w-full object-contain"
+                            className="h-full max-h-150 w-full max-w-full object-contain"
                         />
                     )}
                 </DialogContent>

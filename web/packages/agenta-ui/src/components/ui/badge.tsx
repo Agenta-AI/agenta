@@ -4,52 +4,21 @@ import {cva, type VariantProps} from "class-variance-authority"
 
 import {cn} from "./utils"
 
-/**
- * Badge — an @agenta/ui component re-skinned to the app theme via the shared
- * `--ag-*` token bridge (oss/tailwind.config.ts `shadcnTokens`). Consolidates the
- * antd tag/status presets (DraftTag / SyncStateTag / StatusTag / SourceIndicator /
- * VersionBadge / MappingStatusTag / TypeChip) into one component + semantic variants.
- *
- * Geometry matches antd Tag exactly and comes from the `control-*` theme scale (12px
- * font, 22.4px line-height, 0×7px padding, 6px radius, 1px border) — retune it there, not
- * here. `border-solid` is required because the app runs Tailwind with preflight OFF (the
- * `border` utility sets width but style defaults to `none`). Colors resolve through the
- * palette-derived layer, so they
- * flip light↔dark with the app theme and do not depend on antd being mounted.
- */
+// A short status or label. Five tones only: neutral and the four statuses (DESIGN.md, Badge).
 const badgeVariants = cva(
     [
-        // CONTROL_RESET — see button.tsx (preflight is off app-wide for antd's sake).
-        "box-border border-solid",
-        "inline-flex items-center gap-1 whitespace-nowrap border border-transparent transition-colors",
-        // Geometry from the control scale, never raw pixels.
-        "rounded-control-sm px-input-sm text-badge-md",
+        "box-border border-solid border-0",
+        "inline-flex h-5 items-center gap-1 whitespace-nowrap rounded-control-check px-1.5",
+        "text-caption [&_svg]:size-3 [&_svg]:shrink-0",
     ],
     {
         variants: {
             variant: {
-                default: "bg-chip text-foreground",
-                success: "bg-success-bg text-success",
-                warning: "bg-warning-bg text-warning",
-                error: "bg-error-bg text-error",
-                info: "bg-info-bg text-info",
-                processing: "bg-info-bg text-info",
-                draft: "bg-draft-bg border-draft-border text-draft font-normal",
-                // antd preset Tag colors (color="blue"/"green").
-                blue: "bg-tag-blue-bg text-tag-blue",
-                green: "bg-tag-green-bg text-tag-green",
-                orange: "bg-tag-orange-bg text-tag-orange",
-                red: "bg-tag-red-bg text-tag-red",
-                purple: "bg-tag-purple-bg text-tag-purple",
-                cyan: "bg-tag-cyan-bg text-tag-cyan",
-                magenta: "bg-tag-magenta-bg text-tag-magenta",
-                pink: "bg-tag-pink-bg text-tag-pink",
-                yellow: "bg-tag-yellow-bg text-tag-yellow",
-                volcano: "bg-tag-volcano-bg text-tag-volcano",
-                geekblue: "bg-tag-geekblue-bg text-tag-geekblue",
-                lime: "bg-tag-lime-bg text-tag-lime",
-                gold: "bg-tag-gold-bg text-tag-gold",
-                outlined: "bg-chip border-border text-foreground",
+                default: "bg-secondary text-muted-foreground",
+                success: "bg-success/10 text-success",
+                warning: "bg-warning/10 text-warning",
+                destructive: "bg-destructive/10 text-destructive",
+                info: "bg-info/10 text-info",
             },
         },
         defaultVariants: {variant: "default"},
@@ -68,6 +37,22 @@ export function Badge({className, variant, icon, children, ...props}: BadgeProps
             {children}
         </span>
     )
+}
+
+export type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>["variant"]>
+
+const STATUS_VARIANT: Record<string, BadgeVariant> = {
+    success: "success",
+    processing: "info",
+    running: "info",
+    warning: "warning",
+    error: "destructive",
+    failed: "destructive",
+}
+
+/** Maps a domain status tone ("processing", "error", ...) to a Badge variant. */
+export function statusBadgeVariant(tone: string | null | undefined): BadgeVariant {
+    return (tone && STATUS_VARIANT[tone]) || "default"
 }
 
 export {badgeVariants}

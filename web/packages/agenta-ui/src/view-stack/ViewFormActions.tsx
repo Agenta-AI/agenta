@@ -10,7 +10,7 @@ import type {ViewChromeProps} from "./types"
  * The action row a chrome puts under the top view: Cancel and Save for an "on_save" view, Done
  * for an "immediate" one. Chromes place it (and leave it out for a view shown to read only); the
  * stack owns what each button does. `startRef` is the slot at the left of the same row, where the
- * view's `ViewFooterStart` renders ("Remove from agent", canvas F02). `phone` makes the buttons 44 px high; Cancel and Save share the row,
+ * view's `ViewFooterStart` renders ("Remove from agent", canvas F02). `phone` lets Cancel and Save share the row,
  * Done keeps its width at the right (M09).
  */
 export const ViewFormActions = ({
@@ -27,8 +27,8 @@ export const ViewFormActions = ({
 }) => {
     const t = useT(viewStackCatalog)
     const start = <span ref={startRef} className="mr-auto flex empty:hidden" />
-    const button = phone ? "h-11 flex-1 rounded-[10px] text-[15px]" : undefined
-    // The canvas scale on the desktop (h28, r6, 13 px); a phone keeps 44 px buttons.
+    const button = phone ? "flex-1" : undefined
+    // The canvas scale on the desktop (h28, r6, 13 px); a phone uses the kit default.
     const size = phone ? undefined : "compact"
     if (apply === "immediate") {
         return (
@@ -36,7 +36,7 @@ export const ViewFormActions = ({
                 {start}
                 <Button
                     size={size}
-                    className={phone ? "h-11 w-24 rounded-[10px] text-[15px]" : undefined}
+                    className={phone ? "w-24" : undefined}
                     onClick={onBack}
                 >
                     {t("ui.viewStack.done")}
@@ -47,7 +47,7 @@ export const ViewFormActions = ({
     return (
         <div className="flex flex-col gap-2">
             {form?.saveFailed ? (
-                <span role="alert" className="text-xs text-colorError">
+                <span role="alert" className="text-meta text-destructive">
                     {t("ui.viewStack.saveFailed")}
                 </span>
             ) : null}

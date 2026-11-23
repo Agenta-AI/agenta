@@ -120,6 +120,22 @@ describe("ModelPickerList", () => {
         expect(head.querySelector("svg")).not.toBeNull()
     })
 
+    it("draws each model as one menu row, with the raw id on the name's line (ROW-01)", () => {
+        renderList({layout: "popover"})
+        const row = screen.getByText("Gemini 3.8 Flash").closest("button") as HTMLElement
+        expect(row.className).toContain("min-h-8")
+        expect(screen.getByText("google/gemini-3.8-flash").parentElement).toBe(
+            screen.getByText("Gemini 3.8 Flash").parentElement,
+        )
+    })
+
+    it("draws Manage model providers as one more menu row, not an outlined button", () => {
+        renderList({layout: "popover"})
+        const manage = screen.getByRole("button", {name: "Manage model providers"})
+        expect(manage.className).toContain("min-h-8")
+        expect(manage.getAttribute("data-variant")).toBeNull()
+    })
+
     it("Manage model providers is a button under the list", () => {
         const {onManage} = renderList()
         fireEvent.click(screen.getByRole("button", {name: "Manage model providers"}))

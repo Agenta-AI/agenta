@@ -51,8 +51,8 @@ const inputNumberVariants = cva(
             state: {
                 // Matches Input's `default` variant border/hover/focus exactly.
                 enabled:
-                    "bg-background border-border focus-within:border-ring focus-within:shadow-[0_0_0_3px_var(--ag-controlOutline)]",
-                disabled: "cursor-not-allowed bg-disabled-bg border-disabled-border text-disabled",
+                    "bg-background border-border focus-ring-field",
+                disabled: "cursor-not-allowed bg-secondary border-border-muted text-muted-foreground",
             },
             size: {
                 small: "rounded-control-sm",
@@ -199,7 +199,7 @@ export function InputNumber({
     }
 
     const stepperButton =
-        "flex flex-1 items-center justify-center border-0 border-solid bg-transparent p-0 text-colorTextDescription transition-colors"
+        "flex flex-1 items-center justify-center border-0 border-solid bg-transparent p-0 text-muted-foreground transition-colors"
 
     return (
         <span
@@ -224,7 +224,7 @@ export function InputNumber({
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
                 className={cn(
-                    "min-w-0 flex-1 border-0 bg-transparent font-[inherit] text-inherit outline-none placeholder:text-placeholder disabled:cursor-not-allowed",
+                    "min-w-0 flex-1 border-0 bg-transparent font-[inherit] text-inherit outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed",
                     innerBySize[size],
                 )}
                 {...rest}
@@ -236,7 +236,7 @@ export function InputNumber({
                     // ABSOLUTE like antd's `.ant-input-number-handler-wrap` — in flow it would
                     // permanently steal 22px of the field's inner width, pushing a centred value
                     // (`[&_input]:text-center`) 11px off-centre and shrinking the typing room.
-                    "absolute inset-y-0 right-0 flex w-[22px] flex-col border-0 border-l border-solid border-colorBorderSecondary bg-background opacity-0 transition-opacity",
+                    "absolute inset-y-0 right-0 flex w-[22px] flex-col border-0 border-l border-solid border-border-muted bg-background opacity-0 transition-opacity",
                     !disabled && "group-hover:opacity-100 group-focus-within:opacity-100",
                 )}
             >
@@ -248,8 +248,8 @@ export function InputNumber({
                     onClick={() => applyStep(1)}
                     className={cn(
                         stepperButton,
-                        "border-b border-colorBorderSecondary",
-                        !disabled && "cursor-pointer hover:text-colorText",
+                        "border-b border-border-muted",
+                        !disabled && "cursor-pointer hover:text-foreground",
                         disabled && "cursor-not-allowed",
                     )}
                 >
@@ -263,7 +263,7 @@ export function InputNumber({
                     onClick={() => applyStep(-1)}
                     className={cn(
                         stepperButton,
-                        !disabled && "cursor-pointer hover:text-colorText",
+                        !disabled && "cursor-pointer hover:text-foreground",
                         disabled && "cursor-not-allowed",
                     )}
                 >

@@ -1,0 +1,49 @@
+/* Touch rules every control gets for free: readable fields and phone sheets (DESIGN.md, TOUCH-02, TOUCH-04).
+   Nothing here changes a control's size: small screens and touch never get bigger UI. */
+@media (pointer: coarse) {
+    /* iOS zooms the page when a field under 16px gets focus. */
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    textarea,
+    select,
+    [contenteditable="true"] {
+        font-size: max(16px, 1em);
+    }
+}
+
+/* Compact window on touch: menus and selects open as a bottom sheet (DESIGN.md, TOUCH-04). */
+@media (max-width: 639px) and (pointer: coarse) {
+    [data-radix-popper-content-wrapper]:has(> [data-slot="dropdown-menu-content"]),
+    [data-radix-popper-content-wrapper]:has(> [data-slot="dropdown-menu-sub-content"]),
+    [data-radix-popper-content-wrapper]:has(> [data-slot="select-content"]) {
+        position: fixed !important;
+        inset: auto 0 0 0 !important;
+        transform: none !important;
+        min-width: 0 !important;
+    }
+    [data-slot="dropdown-menu-content"],
+    [data-slot="dropdown-menu-sub-content"],
+    [data-slot="select-content"] {
+        width: 100% !important;
+        max-width: none !important;
+        max-height: 70svh !important;
+        border-radius: 12px 12px 0 0 !important;
+        padding: 6px 8px calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+        box-shadow: 0 0 0 100vmax var(--overlay) !important;
+    }
+}
+
+/* Compact window: dialogs dock to the bottom edge, full width, clear of the home indicator. */
+@media (max-width: 639px) {
+    [data-slot="dialog-positioner"] {
+        align-items: flex-end !important;
+        padding: 0 !important;
+    }
+    [data-slot="dialog-content"] {
+        width: 100% !important;
+        max-width: none !important;
+        max-height: 90svh;
+        overflow-y: auto;
+        border-radius: 12px 12px 0 0 !important;
+        padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    }
+}

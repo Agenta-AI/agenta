@@ -35,18 +35,18 @@ const tabsTriggerVariants = cva(
         // CONTROL_RESET — preflight is off; triggers are <button>s, so the UA face is reset.
         "box-border border border-solid border-transparent font-[inherit] bg-transparent",
         "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 whitespace-nowrap",
-        "rounded-control-sm px-1.5 py-0.5 text-sm font-medium text-muted-foreground",
+        "rounded-control-sm px-1.5 py-0.5 text-label text-muted-foreground",
         "cursor-pointer outline-none transition-[color,background-color,box-shadow]",
         "hover:text-foreground data-[state=active]:text-foreground",
-        "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-[color:var(--ag-controlOutline)]",
+        "focus-ring",
         "disabled:pointer-events-none disabled:opacity-50",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
     ],
     {
         variants: {
             variant: {
-                // Raised on the surface while active (a hairline + tint in dark).
-                pill: "data-[state=active]:bg-background data-[state=active]:shadow-sm dark:data-[state=active]:border-input dark:data-[state=active]:bg-[color:color-mix(in_srgb,var(--ag-colorBorder)_30%,transparent)]",
+                // Raised on the surface while active, like the Segmented thumb.
+                pill: "data-[state=active]:bg-background data-[state=active]:shadow-raised",
                 // A 2px underline at the bottom edge of the list, shown while active.
                 line: "after:absolute after:inset-x-0 after:-bottom-[4px] after:h-0.5 after:bg-foreground after:opacity-0 after:transition-opacity data-[state=active]:after:opacity-100",
             },

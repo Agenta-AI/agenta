@@ -8,7 +8,6 @@ import {Stop} from "@phosphor-icons/react"
 
 import {Button} from "../../components/ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../components/ui/tooltip"
-import {PHONE_TOUCH_TARGET_CLASS} from "../../components/ui/touch-target"
 import {$isBlankMessage, submitEditorAsMarkdown, type SubmitHandler} from "../assets/submit"
 import {ComposerSendButton} from "../ComposerSendButton"
 import type {ComposerSurface} from "../RichChatInput"
@@ -87,23 +86,23 @@ export function SendButton({
                     <span className="relative inline-flex">
                         <span
                             aria-hidden
-                            className="pointer-events-none absolute inset-0 rounded-full border-[1.5px] border-solid border-[var(--ag-colorFillSecondary)]"
+                            className="pointer-events-none absolute inset-0 rounded-md border-[1.5px] border-solid border-border-muted"
                         />
                         <span
                             aria-hidden
                             className="pointer-events-none absolute inset-0 animate-spin rounded-full border-[1.5px] border-solid border-transparent"
                             style={{
                                 borderTopColor:
-                                    "color-mix(in srgb, var(--ag-colorPrimary) 60%, var(--ag-colorBgContainer))",
+                                    "color-mix(in srgb, var(--primary) 60%, var(--background))",
                             }}
                         />
                         <Button
                             size="icon"
                             variant="ghost"
                             // A phone: 36 px drawn and a 44 px area, as Send.
-                            className={`rounded-control-round max-md:size-9 ${
-                                surface === "canvas" ? "size-7" : ""
-                            } ${PHONE_TOUCH_TARGET_CLASS}`}
+                            className={`rounded-control-round ${
+                                surface === "canvas" ? "size-control-sm" : ""
+                            }`}
                             aria-label={
                                 stopping ? t("ui.chatInput.stopping") : t("ui.chatInput.stop")
                             }
@@ -114,7 +113,7 @@ export function SendButton({
                             <Stop
                                 size={13}
                                 weight="fill"
-                                className="text-[var(--ag-colorTextSecondary)]"
+                                className="text-muted-foreground"
                             />
                         </Button>
                     </span>

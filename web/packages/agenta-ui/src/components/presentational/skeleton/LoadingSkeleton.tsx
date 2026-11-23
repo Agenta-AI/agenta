@@ -11,7 +11,7 @@
  *  - `paragraph` = `TableLoadingState` = `<Skeleton active paragraph={{rows}} />`. antd's
  *    default `title` bar is part of that render (38% wide, above the rows) and is kept, so
  *    the placeholder is unchanged from what the app shipped pre-migration.
- *  - `list` = `ListItemSkeleton` = per row `p-3 rounded-md bg-zinc-1` with
+ *  - `list` = `ListItemSkeleton` = per row `p-3 rounded-md bg-muted` with
  *    `Skeleton.Avatar active size="small"` → `SkeletonAvatar` and
  *    `Skeleton.Input active size="small" block !w-3/4 mb-1` → `SkeletonBlock h-6 !w-3/4 mb-1`
  *    (antd's small element height is the app's `controlHeightSM` = 24px = `h-6`).

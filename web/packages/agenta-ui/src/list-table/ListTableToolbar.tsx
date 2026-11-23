@@ -2,7 +2,7 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {Search, X} from "lucide-react"
+import {MagnifyingGlassIcon, XIcon} from "@phosphor-icons/react"
 
 import {
     InputGroup,
@@ -43,9 +43,9 @@ export const ListTableToolbar = ({
         <div className={cn("mb-3 flex flex-wrap items-center gap-2", className)}>
             {/* 46 px high on a phone, so the field inside its 1 px border is 44 px (tap rule); the
                 desktop keeps the control height. */}
-            <InputGroup className="min-w-[160px] max-w-[340px] flex-1 bg-transparent max-md:h-[46px] dark:bg-transparent">
+            <InputGroup className="min-w-[160px] max-w-[340px] flex-1 bg-transparent dark:bg-transparent">
                 <InputGroupAddon>
-                    <Search size={14} aria-hidden />
+                    <MagnifyingGlassIcon size={14} aria-hidden />
                 </InputGroupAddon>
                 <InputGroupInput
                     value={search}
@@ -53,7 +53,7 @@ export const ListTableToolbar = ({
                     placeholder={searchPlaceholder}
                     aria-label={searchAriaLabel ?? searchPlaceholder}
                     // Fills the group on a phone, so a tap anywhere in it lands on the field.
-                    className="text-[13px] max-md:h-full md:text-[13px]"
+                    className="text-label"
                 />
                 {search ? (
                     <InputGroupAddon align="inline-end">
@@ -62,7 +62,7 @@ export const ListTableToolbar = ({
                             aria-label={t("common.clearSearch")}
                             onClick={() => onSearchChange("")}
                         >
-                            <X size={14} aria-hidden />
+                            <XIcon size={14} aria-hidden />
                         </InputGroupButton>
                     </InputGroupAddon>
                 ) : null}

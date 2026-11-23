@@ -217,7 +217,6 @@ export {
     FilterRailLayout,
     NumberedStep,
     PanelFooter,
-    ModalContentLayout,
     PanelSurface,
     PanelScroll,
     PanelSection,
@@ -226,7 +225,6 @@ export {
     type FilterRailLayoutProps,
     type NumberedStepProps,
     type PanelFooterProps,
-    type ModalContentLayoutProps,
     type PanelSectionProps,
 } from "./layout"
 

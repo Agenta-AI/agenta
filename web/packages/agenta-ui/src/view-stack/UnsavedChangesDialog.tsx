@@ -40,7 +40,7 @@ export const UnsavedChangesDialog = ({
                     <AlertDialogTitle>{t("ui.viewStack.unsavedChanges")}</AlertDialogTitle>
                     <AlertDialogDescription>{description}</AlertDialogDescription>
                     {saveFailed ? (
-                        <span role="alert" className="text-sm text-colorError">
+                        <span role="alert" className="text-body text-destructive">
                             {t("ui.viewStack.saveFailed")}
                         </span>
                     ) : null}

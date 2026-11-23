@@ -42,7 +42,7 @@ export const PhoneViewChrome = ({
         {/* Edge to edge: each view pads itself. */}
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
         {hideActionRow ? null : (
-            <div className="shrink-0 border-0 border-t border-solid border-colorBorderSecondary px-4 pb-6 pt-3">
+            <div className="shrink-0 border-0 border-t border-solid border-border-muted px-4 pb-6 pt-3">
                 <ViewFormActions
                     phone
                     apply={apply}
