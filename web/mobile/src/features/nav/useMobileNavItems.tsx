@@ -40,7 +40,6 @@ import {
 } from "@agenta/sessions-ui"
 import {betaDeveloperModeActiveAtom, userAtom} from "@agenta/shared/state"
 import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
-import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {useIsMacPlatform} from "@agenta/ui/shortcuts"
 import {Spinner} from "@agenta/ui/ui"
 import {
@@ -53,13 +52,15 @@ import {
     LightningIcon,
     PaperPlaneIcon,
     QuestionIcon,
+    RobotIcon,
     ScrollIcon,
     SlackLogoIcon,
+    SparkleIcon,
     SquaresFourIcon,
 } from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
-import {Bot, UnfoldVertical} from "lucide-react"
+import {UnfoldVertical} from "lucide-react"
 import {useRouter} from "next/router"
 
 import {sessionBullet} from "@/features/agent-sidebar/agentSidebarItems"
@@ -346,7 +347,7 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
         () => ({
             key: "mobile-builder",
             title: tBuilder("builder.page.builder"),
-            icon: createElement(BuilderIcon, {size: 16}),
+            icon: createElement(SparkleIcon, {size: 16}),
             link: `${projectURL}/builder`,
             // After "Back" on a new chat the link goes nowhere new, so the click itself
             // brings the builder sidebar back.
@@ -367,8 +368,7 @@ export const useMobileNavItems = (projectURL: string): MobileNavItems => {
             {
                 key: AGENTS_SIDEBAR_KEY,
                 title: t("navigation.items.agents"),
-                // The canvas Agents glyph is an outline robot (Lucide); Phosphor's robot has a filled face.
-                icon: createElement(Bot, {size: 16}),
+                icon: createElement(RobotIcon, {size: 16}),
                 link: `${projectURL}/agents`,
                 // Start or open an agent without leaving the page: a "+" on the row, the same
                 // panel as a hover flyout on the collapsed rail.

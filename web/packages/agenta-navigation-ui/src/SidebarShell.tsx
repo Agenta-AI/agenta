@@ -301,7 +301,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         [persistedOrDefaultOpenGroups, setPersistedOpenGroups],
     )
 
-    const renderSection = (section: SidebarSection) => {
+    const renderSection = (section: SidebarSection, index: number) => {
         const isInlineSection = (section.mode ?? "inline") === "inline"
 
         return (
@@ -319,7 +319,11 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     // A bottom section is anchored from below, so it needs the trailing 4px to
                     // hold its own height; a top section must not have it, or it pushes every
                     // section after it down the rail.
-                    className={section.placement === "bottom" ? "pb-1" : undefined}
+                    // Rows end in a 4px margin, so a following section needs no top pad of its own.
+                    className={clsx(
+                        section.placement === "bottom" && "pb-1",
+                        index > 0 && !section.dividerBefore && !shown && "!pt-0",
+                    )}
                     items={section.items}
                     arrange={section.arrange}
                     collapsed={shown}

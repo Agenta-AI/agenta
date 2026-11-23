@@ -4,7 +4,6 @@ import {useT} from "@agenta/i18n"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import {SidebarLayoutContext} from "@agenta/navigation-ui"
-import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -12,8 +11,13 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {CaretUpDownIcon, CheckIcon, PlusIcon} from "@phosphor-icons/react"
-import {Bot} from "lucide-react"
+import {
+    CaretUpDownIcon,
+    CheckIcon,
+    PlusIcon,
+    RobotIcon,
+    SparkleIcon,
+} from "@phosphor-icons/react"
 
 import {SWITCHER_TILE, SwitcherTile, type SwitcherTileSize} from "./SwitcherTile"
 
@@ -36,7 +40,7 @@ const BuilderTile = ({size}: {size: SwitcherTileSize}) => (
     <span
         className={`flex shrink-0 items-center justify-center bg-colorSplit text-colorText ${SWITCHER_TILE[size].box}`}
     >
-        <BuilderIcon size={SWITCHER_TILE[size].glyph} />
+        <SparkleIcon size={SWITCHER_TILE[size].glyph} />
     </span>
 )
 
@@ -213,7 +217,7 @@ export const AgentSidebarSwitcher = ({
                 ))}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={onAllAgents}>
-                    <Bot aria-hidden size={14} className="shrink-0" />
+                    <RobotIcon aria-hidden size={14} className="shrink-0" />
                     <span className="flex-1">{t("agentSidebar.allAgents")}</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={onNewAgent}>
