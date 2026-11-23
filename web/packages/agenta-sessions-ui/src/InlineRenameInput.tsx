@@ -39,7 +39,7 @@ const InlineRenameInput = ({
             }}
             className={
                 className ??
-                "h-5 w-full min-w-0 rounded border border-solid border-colorBorder bg-colorBgContainer px-1 text-[13px] leading-5 text-colorText outline-none [font-family:inherit] focus:border-colorPrimary"
+                "h-5 w-full min-w-0 rounded border border-solid border-border bg-background px-1 text-label leading-5 text-foreground outline-none [font-family:inherit] focus-ring-field"
             }
         />
     )

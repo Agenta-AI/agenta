@@ -176,7 +176,7 @@ const spaceIcon = (kind: ChannelSpaceKind, platform: ChannelPlatform) => {
     return type === "channel" ? <Hash size={15} /> : <UsersThree size={15} />
 }
 
-const SECTION_TITLE = "pb-1 text-[13px] font-semibold text-foreground"
+const SECTION_TITLE = "pb-1 text-label font-semibold text-foreground"
 const ROW = "border-0 border-b border-solid border-border py-3"
 
 export const ChannelManagePanel = ({
@@ -570,17 +570,17 @@ export const ChannelManagePanel = ({
         off && onTurnOn ? (
             <div className="flex flex-col gap-3" data-testid="channels-off">
                 <div className="flex items-center gap-3 px-1">
-                    <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-muted">
+                    <span className="flex size-8 flex-none items-center justify-center rounded-md bg-secondary">
                         {platformLogo(connection.platform, 16)}
                     </span>
                     <span className="flex min-w-0 flex-1 flex-col gap-px">
-                        <span className="truncate text-sm font-medium text-foreground">
+                        <span className="truncate text-label text-foreground">
                             {channelSharingCopy.connectionRow(
                                 name,
                                 (isSlack ? connection.workspaceName : null) || handle,
                             )}
                         </span>
-                        <span className="text-[12.5px] text-muted-foreground">
+                        <span className="text-label text-muted-foreground">
                             {offPlaces.length
                                 ? channelSharingCopy.offIn(offPlaces)
                                 : channelSharingCopy.off}
@@ -615,11 +615,11 @@ export const ChannelManagePanel = ({
             {tokenFields ? (
                 tokenFields.map((field, index) => (
                     <label key={field.name} className="flex flex-col gap-1.5">
-                        <span className="text-[13px] font-medium text-foreground">
+                        <span className="text-label font-medium text-foreground">
                             {field.label}
                         </span>
                         {index > 0 ? (
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-meta text-muted-foreground">
                                 {t("channels.manage.leaveEmpty")}
                             </span>
                         ) : null}
@@ -631,13 +631,13 @@ export const ChannelManagePanel = ({
                                     [field.name]: e.target.value,
                                 }))
                             }
-                            className="font-mono text-xs"
+                            className="text-code"
                             data-testid={`channels-token-${field.name}`}
                         />
                     </label>
                 ))
             ) : (
-                <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+                <div className="flex items-center gap-2 text-label text-muted-foreground">
                     <Spinner size="small" /> {t("channels.manage.loadingSetup", {platform: name})}
                 </div>
             )}
@@ -669,13 +669,13 @@ export const ChannelManagePanel = ({
         const choice = canOwn ? conflictChoice : "move"
         return (
             <div
-                className="flex min-h-full flex-1 flex-col gap-[22px]"
+                className="flex min-h-full flex-1 flex-col gap-6"
                 data-testid="channels-connect-here"
             >
-                <div className="flex gap-3 rounded-lg bg-colorWarningBg p-3.5">
+                <div className="flex gap-3 rounded-lg bg-warning/10 p-3.5">
                     <ArrowsLeftRight size={18} className="mt-px flex-none text-muted-foreground" />
-                    <div className="flex min-w-0 flex-col gap-[3px]">
-                        <span className="text-sm font-medium text-foreground">
+                    <div className="flex min-w-0 flex-col gap-1">
+                        <span className="text-label text-foreground">
                             {unassigned
                                 ? t("channels.manage.unassignedTitle", {title})
                                 : t("channels.manage.elsewhereTitle", {
@@ -683,7 +683,7 @@ export const ChannelManagePanel = ({
                                       agent: otherAgent,
                                   })}
                         </span>
-                        <span className="text-[13px] text-muted-foreground">
+                        <span className="text-label text-muted-foreground">
                             {unassigned
                                 ? t("channels.manage.unassignedHelp", {agent: agentName})
                                 : t("channels.manage.elsewhereHelp")}
@@ -695,7 +695,7 @@ export const ChannelManagePanel = ({
                 ) : null}
                 {canOwn ? (
                     <div className="flex flex-col gap-2">
-                        <span className="text-[13px] font-semibold text-foreground">
+                        <span className="text-label font-semibold text-foreground">
                             {t("channels.manage.howConnect", {agent: agentName})}
                         </span>
                         <RadioGroup
@@ -754,10 +754,10 @@ export const ChannelManagePanel = ({
                                 >
                                     <RadioGroupItem value={option.value} className="mt-0.5" />
                                     <span className="flex flex-col gap-0.5">
-                                        <span className="text-sm font-medium text-foreground">
+                                        <span className="text-label text-foreground">
                                             {option.title}
                                         </span>
-                                        <span className="text-[13px] text-muted-foreground">
+                                        <span className="text-label text-muted-foreground">
                                             {option.desc}
                                         </span>
                                     </span>
@@ -787,33 +787,33 @@ export const ChannelManagePanel = ({
     }
 
     return (
-        <div className="flex min-h-full flex-1 flex-col gap-[26px]">
+        <div className="flex min-h-full flex-1 flex-col gap-6">
             {/* --- what is connected --- */}
             <div className="flex items-center gap-3 border-0 border-b border-solid border-border pb-5">
                 <span className="relative box-border flex size-10 flex-none items-center justify-center rounded-lg border border-solid border-border">
                     {platformLogo(connection.platform, 24)}
                     <span
-                        className={`absolute -right-0.5 -top-0.5 size-2 rounded-full border-[1.5px] border-solid border-background ${
+                        className={`absolute -right-0.5 -top-0.5 size-2 rounded-xs border-[1.5px] border-solid border-background ${
                             revoked
-                                ? "bg-colorError"
+                                ? "bg-destructive"
                                 : off
-                                  ? "bg-colorTextQuaternary"
-                                  : "bg-colorSuccess"
+                                  ? "bg-border-strong"
+                                  : "bg-success"
                         }`}
                     />
                 </span>
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="truncate text-[15px] font-semibold text-foreground">
+                    <span className="truncate text-title text-foreground">
                         {title}
                     </span>
-                    <span className="truncate text-[13px] text-muted-foreground">
+                    <span className="truncate text-label text-muted-foreground">
                         <span
                             className={
                                 revoked
-                                    ? "text-error"
+                                    ? "text-destructive"
                                     : off
                                       ? "text-muted-foreground"
-                                      : "text-colorSuccess"
+                                      : "text-success"
                             }
                         >
                             {revoked
@@ -844,12 +844,12 @@ export const ChannelManagePanel = ({
 
             {revoked ? (
                 <div
-                    className="flex items-start gap-2.5 rounded-lg border border-solid border-colorErrorBorder bg-colorErrorBg p-3"
+                    className="flex items-start gap-2.5 rounded-lg border border-solid border-destructive/40 bg-destructive/10 p-3"
                     data-testid="channels-revoked"
                 >
-                    <Warning size={16} className="mt-0.5 flex-none text-error" />
+                    <Warning size={16} className="mt-0.5 flex-none text-destructive" />
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                        <span className="text-[13px] font-medium text-foreground">
+                        <span className="text-label font-medium text-foreground">
                             {isWhatsApp
                                 ? t("channels.manage.metaRejectedToken")
                                 : isTeams
@@ -860,7 +860,7 @@ export const ChannelManagePanel = ({
                                         : t("channels.manage.telegramRevokedToken")
                                     : t("channels.manage.appUninstalled", {platform: name})}
                         </span>
-                        <span className="text-[13px] text-muted-foreground">
+                        <span className="text-label text-muted-foreground">
                             {isWhatsApp
                                 ? t("channels.manage.revokedHelpWhatsApp", {
                                       agent: agentName,
@@ -910,8 +910,8 @@ export const ChannelManagePanel = ({
                 {behaviorRows.map((row) => (
                     <div key={row.key} className={`flex items-start gap-4 ${ROW}`}>
                         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <span className="text-sm text-foreground">{row.title}</span>
-                            <span className="text-[13px] text-muted-foreground">{row.help}</span>
+                            <span className="text-body text-foreground">{row.title}</span>
+                            <span className="text-label text-muted-foreground">{row.help}</span>
                         </span>
                         {behaviorSaving === row.key ? <Spinner size="small" /> : null}
                         <Switch
@@ -928,7 +928,7 @@ export const ChannelManagePanel = ({
                 {/* --- where it answers --- */}
                 <div className="flex flex-col pt-5">
                     <div className="flex items-center justify-between pb-1">
-                        <span className="text-[13px] font-semibold text-foreground">
+                        <span className="text-label font-semibold text-foreground">
                             {isTeams
                                 ? t("channels.manage.channelsAndGroupChats")
                                 : channels
@@ -982,7 +982,7 @@ export const ChannelManagePanel = ({
                     {spacesError ? <Alert type="error" showIcon message={spacesError} /> : null}
                     {places === null ? (
                         <div
-                            className={`flex items-center gap-2 text-[13px] text-muted-foreground ${ROW}`}
+                            className={`flex items-center gap-2 text-label text-muted-foreground ${ROW}`}
                         >
                             <Spinner size="small" /> {t("channels.labels.loading")}
                         </div>
@@ -997,7 +997,7 @@ export const ChannelManagePanel = ({
                                     {spaceIcon(space.kind, connection.platform)}
                                 </span>
                                 <span
-                                    className={`flex-1 truncate text-sm ${
+                                    className={`flex-1 truncate text-label ${
                                         placeOff(space)
                                             ? "text-muted-foreground"
                                             : "text-foreground"
@@ -1005,7 +1005,7 @@ export const ChannelManagePanel = ({
                                 >
                                     {space.name}
                                 </span>
-                                <span className="flex-none text-[13px] text-muted-foreground">
+                                <span className="flex-none text-label text-muted-foreground">
                                     {placeOff(space)
                                         ? t("channels.manage.off")
                                         : space.kind === "private"
@@ -1021,7 +1021,7 @@ export const ChannelManagePanel = ({
                             className="mt-3 flex flex-col gap-2 rounded-lg bg-muted p-3"
                             data-testid="channels-space-picker"
                         >
-                            <span className="text-[13px] text-muted-foreground">
+                            <span className="text-label text-muted-foreground">
                                 {t("channels.manage.pickerHint", {handle: inviteHandle})}
                             </span>
                             {pickerError ? (
@@ -1031,13 +1031,13 @@ export const ChannelManagePanel = ({
                                 value={pickerQuery}
                                 onChange={(e) => setPickerQuery(e.target.value)}
                                 placeholder={t("channels.manage.searchChannels")}
-                                className="text-[13px]"
+                                className="text-label"
                                 data-testid="channels-space-search"
                             />
                             {(() => {
                                 if (candidates === null)
                                     return (
-                                        <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+                                        <div className="flex items-center gap-2 text-label text-muted-foreground">
                                             <Spinner size="small" /> {t("channels.labels.looking")}
                                         </div>
                                     )
@@ -1053,7 +1053,7 @@ export const ChannelManagePanel = ({
                                     : fresh
                                 if (!shown.length)
                                     return (
-                                        <span className="text-[13px] text-muted-foreground">
+                                        <span className="text-label text-muted-foreground">
                                             {query
                                                 ? t("channels.manage.noChannelMatches", {
                                                       query: pickerQuery.trim(),
@@ -1094,15 +1094,15 @@ export const ChannelManagePanel = ({
                                                             connection.platform,
                                                         )}
                                                     </span>
-                                                    <span className="flex-1 truncate text-[13px] text-foreground">
+                                                    <span className="flex-1 truncate text-label text-foreground">
                                                         {candidate.displayName}
                                                     </span>
                                                     {blocked ? (
-                                                        <span className="flex-none text-xs text-muted-foreground">
+                                                        <span className="flex-none text-meta text-muted-foreground">
                                                             {t("channels.manage.runInviteFirst")}
                                                         </span>
                                                     ) : candidate.membership === "member" ? (
-                                                        <span className="flex-none text-xs text-muted-foreground">
+                                                        <span className="flex-none text-meta text-muted-foreground">
                                                             {t("channels.manage.inChannel")}
                                                         </span>
                                                     ) : null}
@@ -1139,7 +1139,7 @@ export const ChannelManagePanel = ({
                     ) : null}
 
                     {isWhatsApp || places?.length !== 0 ? null : (
-                        <span className="py-3 text-[13px] text-muted-foreground">
+                        <span className="py-3 text-label text-muted-foreground">
                             {emptyPlaces[connection.platform]}
                         </span>
                     )}
@@ -1178,7 +1178,7 @@ export const ChannelManagePanel = ({
                     {canUpdateToken ? (
                         <div className={`flex items-center gap-4 ${ROW}`}>
                             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                <span className="text-sm text-foreground">
+                                <span className="text-body text-foreground">
                                     {isSlack
                                         ? t("channels.manage.appCredentials")
                                         : isWhatsApp
@@ -1187,7 +1187,7 @@ export const ChannelManagePanel = ({
                                             ? t("channels.manage.clientSecret")
                                             : t("channels.manage.botToken")}
                                 </span>
-                                <span className="tracking-widest text-[13px] text-muted-foreground">
+                                <span className="tracking-widest text-label text-muted-foreground">
                                     ••••••••••••
                                 </span>
                             </span>
@@ -1216,7 +1216,7 @@ export const ChannelManagePanel = ({
 
             {onAdd ? (
                 <div className="flex items-center justify-between gap-3">
-                    <span className="text-[13px] text-muted-foreground">
+                    <span className="text-label text-muted-foreground">
                         {isSlack
                             ? t("channels.manage.addAnotherWorkspace")
                             : isWhatsApp
@@ -1257,7 +1257,7 @@ export const ChannelManagePanel = ({
                 ) : null}
                 {confirming ? (
                     <div className="flex w-full flex-col gap-2.5">
-                        <span className="text-[13px] text-foreground">
+                        <span className="text-label text-foreground">
                             {t("channels.manage.disconnectConfirm", {
                                 subject: disconnectSubject(connection),
                                 agent: agentName,
@@ -1272,7 +1272,7 @@ export const ChannelManagePanel = ({
                                 {t("common.cancel")}
                             </Button>
                             <Button
-                                variant="destructive"
+                                variant="destructive-ghost"
                                 disabled={busy !== null}
                                 onClick={() => void run("disconnect", onDisconnect)}
                                 data-testid="channels-disconnect-confirm"
@@ -1285,7 +1285,7 @@ export const ChannelManagePanel = ({
                 ) : (
                     <div className="flex w-full items-center justify-end">
                         <Button
-                            variant="destructive"
+                            variant="destructive-ghost"
                             disabled={busy !== null}
                             onClick={() => setConfirming(true)}
                             data-testid="channels-disconnect"

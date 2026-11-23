@@ -64,7 +64,7 @@ export const SessionSearchControl = ({
             value={draft}
             placeholder={placeholder ?? t("sessions.filters.searchSessions")}
             className={className}
-            prefix={<MagnifyingGlassIcon size={14} className="text-colorTextTertiary" />}
+            prefix={<MagnifyingGlassIcon size={14} className="text-muted-foreground" />}
             onChange={(event) => {
                 const value = event.target.value
                 setDraft(value)
@@ -91,7 +91,7 @@ export const SessionStatusControl = ({waitingCount}: {waitingCount?: number}) =>
             onChange={(value) => setStatus(value as SessionStatusFilter)}
             // The default track is colorBgLayout, which this palette paints white — on a white
             // toolbar the track and its thumb both disappear.
-            className="bg-colorFillTertiary"
+            className="bg-secondary"
             options={[
                 {value: "all", label: t("sessions.filters.all")},
                 {value: "live", label: t("sessions.filters.live")},
@@ -138,15 +138,15 @@ export const SessionStatusListControl = ({waitingCount}: {waitingCount?: number}
                     type="button"
                     aria-pressed={option.value === status}
                     onClick={() => setStatus(option.value)}
-                    className={`box-border flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 px-3 py-2 text-left text-sm transition-colors ${
+                    className={`box-border flex w-full cursor-pointer items-center gap-2 rounded-md border-0 px-3 py-2 text-left text-label transition-colors ${
                         option.value === status
-                            ? "bg-colorFillSecondary text-colorText"
-                            : "bg-transparent text-colorTextSecondary hover:bg-colorFillQuaternary"
+                            ? "bg-secondary text-foreground"
+                            : "bg-transparent text-muted-foreground hover:bg-accent"
                     }`}
                 >
                     <span className="min-w-0 flex-1 truncate">{option.label}</span>
                     {option.value === "waiting" && waitingCount ? (
-                        <span className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText">
+                        <span className="shrink-0 rounded bg-warning/10 px-1.5 py-0.5 text-meta leading-none text-warning">
                             {waitingCount}
                         </span>
                     ) : null}
@@ -183,15 +183,15 @@ export const SessionStatusChipsControl = ({
                     type="button"
                     onClick={() => setStatus(option.value)}
                     aria-pressed={option.value === status}
-                    className={`box-border flex shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 px-2 py-1 text-xs leading-tight transition-colors ${
+                    className={`box-border flex shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 px-2 py-1 text-label leading-tight transition-colors ${
                         option.value === status
-                            ? "bg-colorFillSecondary text-colorText"
-                            : "bg-colorFillQuaternary text-colorTextSecondary"
+                            ? "bg-secondary text-foreground"
+                            : "bg-secondary text-muted-foreground"
                     }`}
                 >
                     {option.label}
                     {option.value === "waiting" && waitingCount ? (
-                        <span className="rounded bg-colorWarningBg px-1 py-0.5 text-[11px] leading-none text-colorWarningText">
+                        <span className="rounded bg-warning/10 px-1 py-0.5 text-caption leading-none text-warning">
                             {waitingCount}
                         </span>
                     ) : null}
@@ -245,8 +245,8 @@ const ToggleRow = ({
 }) => (
     <Tip title={tooltip} side="right">
         <label
-            className={`flex cursor-pointer items-center text-colorTextSecondary ${
-                size === "sm" ? "gap-1.5 text-xs" : "gap-2 text-sm"
+            className={`flex cursor-pointer items-center text-muted-foreground ${
+                size === "sm" ? "gap-1.5 text-label" : "gap-2 text-body"
             }`}
         >
             <Switch checked={checked} onCheckedChange={onChange} size={size} />

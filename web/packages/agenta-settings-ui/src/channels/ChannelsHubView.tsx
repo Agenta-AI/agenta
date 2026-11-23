@@ -92,7 +92,7 @@ export const ChannelsHubView = ({
             {loadError ? (
                 <div
                     role="alert"
-                    className="flex items-center justify-between gap-3 rounded-lg border border-solid border-border px-3 py-2.5 text-[13px] text-error"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-solid border-border px-3 py-2.5 text-label text-destructive"
                 >
                     <span className="min-w-0">{loadError}</span>
                     <Button
@@ -123,7 +123,7 @@ export const ChannelsHubView = ({
                                 key={platform}
                                 className="flex items-center gap-3 rounded-lg border border-solid border-border px-3 py-2.5"
                             >
-                                <SkeletonBlock active className="size-[34px] rounded-lg" />
+                                <SkeletonBlock active className="size-8 rounded-md" />
                                 <div className="flex flex-1 flex-col gap-1.5">
                                     <SkeletonBlock active className="h-3.5 w-20" />
                                     <SkeletonBlock active className="h-3 w-36" />
@@ -142,7 +142,7 @@ export const ChannelsHubView = ({
                     const canExpand = mine.length > 0 && !unavailable
                     // Answering as another agent is a choice to make here, so it reads as a warning.
                     const dotClass =
-                        summary.action === "connect-here" ? "bg-colorWarning" : summary.dotClass
+                        summary.action === "connect-here" ? "bg-warning" : summary.dotClass
                     const open = canExpand && !!expanded[platform]
                     const toggle = () => {
                         if (canExpand) setExpanded((e) => ({...e, [platform]: !e[platform]}))
@@ -175,20 +175,20 @@ export const ChannelsHubView = ({
                                     className={`${ROW_BUTTON} min-w-0 flex-1 gap-3 rounded-none py-2.5 pl-3 pr-1 hover:bg-transparent disabled:opacity-100`}
                                     data-testid={`channels-hub-${platform}`}
                                 >
-                                    <span className="relative flex size-[34px] flex-none items-center justify-center rounded-lg bg-muted">
+                                    <span className="relative flex size-8 flex-none items-center justify-center rounded-md bg-secondary">
                                         {platformLogo(platform, 16)}
                                         {dotClass && !unavailable ? (
                                             <span
-                                                className={`absolute -right-[3px] -top-[3px] size-2.5 rounded-full border-2 border-solid border-background ${dotClass}`}
+                                                className={`absolute -right-[3px] -top-[3px] size-2.5 rounded-xs border-2 border-solid border-background ${dotClass}`}
                                             />
                                         ) : null}
                                     </span>
                                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                        <span className="text-sm font-medium text-foreground">
+                                        <span className="text-label text-foreground">
                                             {platformLabel(platform)}
                                         </span>
                                         <span
-                                            className={`truncate text-[12.5px] ${
+                                            className={`truncate text-label ${
                                                 summary.needsAttention
                                                     ? summary.subClass
                                                     : "text-muted-foreground"
@@ -224,7 +224,7 @@ export const ChannelsHubView = ({
                                             : t("common.open")
                                     }
                                     onClick={toggle}
-                                    className={`rounded-full text-muted-foreground ${open ? "bg-muted" : ""}`}
+                                    className={`rounded-md text-muted-foreground ${open ? "bg-muted" : ""}`}
                                 >
                                     {canExpand ? (
                                         open ? (
@@ -251,28 +251,28 @@ export const ChannelsHubView = ({
                                                 variant="ghost"
                                                 disabled={!id}
                                                 onClick={() => id && onOpenConnection(platform, id)}
-                                                className={`${ROW_BUTTON} w-full gap-2.5 py-2 pl-2.5 pr-2`}
+                                                className={`${ROW_BUTTON} w-full gap-2 py-2 pl-2.5 pr-2`}
                                                 data-testid={`channels-hub-connection-${id}`}
                                             >
-                                                <span className="flex size-[22px] flex-none items-center justify-center rounded-md border border-solid border-border bg-muted text-[10.5px] font-semibold text-muted-foreground">
+                                                <span className="flex size-6 flex-none items-center justify-center rounded-md bg-secondary text-caption font-semibold text-muted-foreground">
                                                     {title
                                                         .replace(/^@/, "")
                                                         .charAt(0)
                                                         .toUpperCase()}
                                                 </span>
-                                                <span className="max-w-[50%] flex-none truncate text-[13px] font-medium text-foreground">
+                                                <span className="max-w-[50%] flex-none truncate text-label font-medium text-foreground">
                                                     {title}
                                                 </span>
-                                                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                                                <span className="min-w-0 flex-1 truncate text-meta text-muted-foreground">
                                                     {detail}
                                                 </span>
                                                 <span
-                                                    className={`size-1.5 flex-none rounded-full ${
+                                                    className={`size-1.5 flex-none rounded-xs ${
                                                         connection.status === "revoked"
-                                                            ? "bg-colorError"
+                                                            ? "bg-destructive"
                                                             : connection.agentOff
-                                                              ? "bg-colorTextQuaternary"
-                                                              : "bg-colorSuccess"
+                                                              ? "bg-border-strong"
+                                                              : "bg-success"
                                                     }`}
                                                 />
                                                 <CaretRight
@@ -295,15 +295,15 @@ export const ChannelsHubView = ({
                         className={`${ROW_BUTTON} w-full gap-3 rounded-lg py-2.5 pl-3 pr-2.5`}
                         data-testid="channels-hub-api"
                     >
-                        <span className="relative flex size-[34px] flex-none items-center justify-center rounded-lg bg-muted text-foreground">
-                            <Code size={16} weight="bold" />
+                        <span className="relative flex size-8 flex-none items-center justify-center rounded-md bg-secondary text-muted-foreground">
+                            <Code size={16} />
                             {apiLive ? (
-                                <span className="absolute -right-[3px] -top-[3px] size-2.5 rounded-full border-2 border-solid border-background bg-colorSuccess" />
+                                <span className="absolute -right-[3px] -top-[3px] size-2.5 rounded-xs border-2 border-solid border-background bg-success" />
                             ) : null}
                         </span>
                         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <span className="text-sm font-medium text-foreground">API</span>
-                            <span className="truncate text-[12.5px] text-muted-foreground">
+                            <span className="text-label text-foreground">API</span>
+                            <span className="truncate text-label text-muted-foreground">
                                 {apiLive
                                     ? t("channels.hub.apiAlwaysOn")
                                     : t("channels.hub.apiSaveFirst")}
@@ -322,14 +322,14 @@ export const ChannelsHubView = ({
                         className={`${ROW_BUTTON} w-full gap-3 rounded-lg py-2.5 pl-3 pr-2.5`}
                         data-testid="channels-hub-embed"
                     >
-                        <span className="flex size-[34px] flex-none items-center justify-center rounded-lg bg-muted text-foreground">
+                        <span className="flex size-8 flex-none items-center justify-center rounded-md bg-secondary text-muted-foreground">
                             <ChatCircleText size={16} />
                         </span>
                         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <span className="text-sm font-medium text-foreground">
+                            <span className="text-label text-foreground">
                                 {t("channels.hub.embed")}
                             </span>
-                            <span className="truncate text-[12.5px] text-muted-foreground">
+                            <span className="truncate text-label text-muted-foreground">
                                 {t("channels.hub.embedDescription")}
                             </span>
                         </span>

@@ -14,7 +14,7 @@ import {useAtom, useAtomValue} from "jotai"
 import Link from "next/link"
 
 const Hint = ({children}: {children: ReactNode}) => (
-    <span className="rounded border border-solid border-colorBorderSecondary px-1.5 py-0.5 font-mono text-[11px] leading-none text-colorTextTertiary">
+    <span className="rounded border border-solid border-border-muted px-1.5 py-0.5 font-mono text-caption leading-none text-muted-foreground">
         {children}
     </span>
 )
@@ -55,11 +55,11 @@ const SessionSearchPalette = ({projectURL}: {projectURL: string}) => {
                 showCloseButton={false}
                 // self-start over the positioner's centring: a palette belongs under the pointer
                 // that opened it, not in the middle of the screen.
-                className="box-border w-[440px] max-w-[calc(100%-48px)] gap-0 self-start overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary p-0 mt-[15vh]"
+                className="box-border w-[440px] max-w-[calc(100%-48px)] gap-0 self-start overflow-hidden rounded-[10px] border border-solid border-border-muted p-0 mt-[15vh]"
             >
                 <DialogTitle className="sr-only">Search sessions</DialogTitle>
-                <div className="flex h-11 items-center gap-[10px] border-0 border-b border-solid border-colorBorderSecondary px-3.5">
-                    <MagnifyingGlass size={16} className="shrink-0 text-colorTextTertiary" />
+                <div className="flex h-11 items-center gap-[10px] border-0 border-b border-solid border-border-muted px-3.5">
+                    <MagnifyingGlass size={16} className="shrink-0 text-muted-foreground" />
                     {/* Ghost: the palette row is the field's frame, so the input draws no border
                         and no focus ring of its own. */}
                     <Input
@@ -72,17 +72,17 @@ const SessionSearchPalette = ({projectURL}: {projectURL: string}) => {
                     />
                     <Hint>esc</Hint>
                 </div>
-                <div className="ag-scroll-quiet max-h-[340px] overflow-y-auto p-1.5">
+                <div className="ag-scroll-quiet max-h-85 overflow-y-auto p-1.5">
                     {!typed ? (
-                        <p className="m-0 px-2 py-3 text-[13px] text-colorTextTertiary">
+                        <p className="m-0 px-2 py-3 text-label text-muted-foreground">
                             Type to search this project&apos;s sessions.
                         </p>
                     ) : loading ? (
-                        <p className="m-0 px-2 py-3 text-[13px] text-colorTextTertiary">
+                        <p className="m-0 px-2 py-3 text-label text-muted-foreground">
                             Searching…
                         </p>
                     ) : results.length === 0 ? (
-                        <p className="m-0 px-2 py-3 text-[13px] text-colorTextTertiary">
+                        <p className="m-0 px-2 py-3 text-label text-muted-foreground">
                             No sessions match
                         </p>
                     ) : (
@@ -90,7 +90,7 @@ const SessionSearchPalette = ({projectURL}: {projectURL: string}) => {
                             <Link
                                 key={ref.sessionId}
                                 href={entity.childLink(ref, projectURL)}
-                                className="flex h-[34px] items-center gap-[10px] rounded-md px-2 text-[13px] !text-colorText no-underline hover:bg-colorFillQuaternary"
+                                className="flex h-[34px] items-center gap-[10px] rounded-md px-2 text-label !text-foreground no-underline hover:bg-accent"
                                 onClick={() => {
                                     entity.getOnClick?.(ref)?.()
                                     handleOpenChange(false)
@@ -103,7 +103,7 @@ const SessionSearchPalette = ({projectURL}: {projectURL: string}) => {
                                     {entity.getLabel(ref)}
                                 </span>
                                 {ref.agentName ? (
-                                    <span className="shrink-0 truncate text-[12px] text-colorTextTertiary">
+                                    <span className="shrink-0 truncate text-meta text-muted-foreground">
                                         {ref.agentName}
                                     </span>
                                 ) : null}

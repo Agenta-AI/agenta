@@ -1,7 +1,7 @@
 import {agentNeedsSetupTitle, modelNeedsSetupMessage} from "@agenta/entity-ui/needs-setup"
 import {useT} from "@agenta/i18n"
 import chatModelSetupBannerCatalog from "@agenta/i18n/catalogs/chat.modelSetupBanner"
-import {Alert, Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
+import {Alert, Button} from "@agenta/ui/ui"
 import {Lock} from "@phosphor-icons/react"
 
 import {useAgentModelSetup} from "../hooks/useAgentModelSetup"
@@ -30,7 +30,7 @@ export const ModelSetupBanner = ({
     const {blocked, canFix} = useAgentModelSetup(revisionId)
     const action =
         onSetUp && canFix ? (
-            <Button size="sm" className={`shrink-0 ${PHONE_TOUCH_TARGET_CLASS}`} onClick={onSetUp}>
+            <Button size="sm" className={`shrink-0`} onClick={onSetUp}>
                 {t("chat.modelSetupBanner.setUp")}
             </Button>
         ) : null
@@ -55,9 +55,9 @@ export const ModelSetupBanner = ({
         <RevealCollapse open={blocked}>
             <div
                 role="status"
-                className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-solid border-colorWarning/30 bg-colorWarningBg px-3 py-2"
+                className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-solid border-warning/30 bg-warning/10 px-3 py-2"
             >
-                <span className="flex min-w-0 items-center gap-2 text-xs text-colorWarningText">
+                <span className="flex min-w-0 items-center gap-2 text-meta text-warning">
                     <Lock size={14} className="shrink-0" />
                     <span className="min-w-0">
                         <span className="block truncate font-medium">{agentNeedsSetupTitle()}</span>

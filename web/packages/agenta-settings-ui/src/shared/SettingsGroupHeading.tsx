@@ -1,16 +1,16 @@
 import type {ReactNode} from "react"
 
-import {cn, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
+import {cn} from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
 
-const HEADING = "m-0 text-[13px] font-medium leading-[18px] text-muted-foreground"
+const HEADING = "m-0 text-label font-medium text-muted-foreground"
 
 const FOCUS_RING =
-    "outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px]"
+    "outline-none focus-ring"
 
 const Count = ({count}: {count: number | null}) =>
     count === null ? null : (
-        <span className="text-[13px] font-normal text-muted-foreground/60">{count}</span>
+        <span className="text-label font-normal text-muted-foreground/60">{count}</span>
     )
 
 export interface SettingsGroupHeadingProps {
@@ -43,7 +43,6 @@ export const SettingsGroupHeading = ({
                     className={cn(
                         "flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent p-0 font-[inherit] text-inherit hover:text-foreground",
                         FOCUS_RING,
-                        PHONE_TOUCH_TARGET_CLASS,
                     )}
                 >
                     {label}

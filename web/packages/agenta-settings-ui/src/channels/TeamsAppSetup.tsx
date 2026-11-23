@@ -9,8 +9,8 @@ import {downloadSetupDocument, errorMessage} from "./helpers"
 import type {ChannelConnection, ChannelsActions} from "./types"
 import {CopyField} from "./WhatsAppWebhook"
 
-const TITLE = "text-[13px] font-medium text-foreground"
-const BODY = "m-0 text-xs leading-relaxed text-colorTextSecondary"
+const TITLE = "text-label font-medium text-foreground"
+const BODY = "m-0 text-meta leading-relaxed text-muted-foreground"
 
 /** The messaging endpoint and the app package download of a Teams connection. */
 export const TeamsAppSetup = ({

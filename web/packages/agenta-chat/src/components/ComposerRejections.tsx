@@ -29,7 +29,7 @@ export const ComposerRejections = ({rejections, onDismiss}: ComposerRejectionsPr
         <MotionConfig transition={SESSION_SPRING}>
             {/* max-h: four rows, then it scrolls — a bad multi-select must not push the input off screen. */}
             <div
-                className="mb-2 flex max-h-[134px] flex-col gap-0.5 overflow-y-auto rounded-md border border-solid border-colorWarningBorder bg-colorWarningBg px-2 py-1.5"
+                className="mb-2 flex max-h-[134px] flex-col gap-0.5 overflow-y-auto rounded-md border border-solid border-warning/30 bg-warning/10 px-2 py-1.5"
                 role="status"
             >
                 <AnimatePresence initial={false} mode="popLayout">
@@ -45,10 +45,10 @@ export const ComposerRejections = ({rejections, onDismiss}: ComposerRejectionsPr
                             <WarningCircle
                                 size={16}
                                 weight="fill"
-                                className="shrink-0 text-colorWarning"
+                                className="shrink-0 text-warning"
                             />
                             <span
-                                className="min-w-0 flex-1 truncate text-xs text-colorWarning"
+                                className="min-w-0 flex-1 truncate text-meta text-warning"
                                 title={`${rejection.name} ${rejection.reason}`}
                             >
                                 <span className="font-medium">{rejection.name}</span>{" "}
@@ -62,7 +62,7 @@ export const ComposerRejections = ({rejections, onDismiss}: ComposerRejectionsPr
                                     name: rejection.name,
                                 })}
                                 onClick={() => onDismiss(index)}
-                                className="shrink-0 text-colorWarning opacity-70 transition-opacity hover:opacity-100"
+                                className="shrink-0 text-warning opacity-70 transition-opacity hover:opacity-100"
                             >
                                 <X weight="bold" />
                             </Button>

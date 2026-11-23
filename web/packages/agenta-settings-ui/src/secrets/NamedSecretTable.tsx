@@ -18,7 +18,7 @@ import {getSettingsSidebarIcon} from "@agenta/settings"
 import type {LlmProvider} from "@agenta/shared/types"
 import {LoadError, Tag} from "@agenta/ui/components/presentational"
 import {formatListDateTime, ListTable, type ListTableColumn} from "@agenta/ui/list-table"
-import {Button, IconTile, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
+import {Button, IconTile} from "@agenta/ui/ui"
 import {LockKey, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {atom, useAtom, useAtomValue} from "jotai"
 import {atomWithStorage} from "jotai/utils"
@@ -102,7 +102,7 @@ const UsedBy = ({agentIds}: {agentIds: string[]}) => {
     )
     const line = usedByLine(useAtomValue(namesAtom))
     return line ? (
-        <span className="truncate text-[12.5px] text-muted-foreground">{line}</span>
+        <span className="truncate text-label text-muted-foreground">{line}</span>
     ) : null
 }
 
@@ -141,7 +141,7 @@ const SecretsList = ({rows, loading, usedBy, empty, onOpen, onDelete}: SecretsLi
                 <>
                     <span className="flex min-w-0 items-center gap-2.5">
                         <IconTile
-                            size={28}
+                            size={24}
                             tone="muted"
                             aria-hidden="true"
                             className="border border-solid border-border bg-muted text-muted-foreground"
@@ -150,7 +150,7 @@ const SecretsList = ({rows, loading, usedBy, empty, onOpen, onDelete}: SecretsLi
                         </IconTile>
                         <span className="flex min-w-0 flex-col">
                             <span className="truncate font-medium">{record.name}</span>
-                            <span className="truncate font-mono text-[12.5px] text-muted-foreground">
+                            <span className="truncate text-code text-muted-foreground">
                                 {record.slug}
                             </span>
                             {usedBy ? (
@@ -159,7 +159,7 @@ const SecretsList = ({rows, loading, usedBy, empty, onOpen, onDelete}: SecretsLi
                         </span>
                     </span>
                     {shows("content") ? (
-                        <span className="ph-no-capture truncate font-mono text-[13px]">
+                        <span className="ph-no-capture truncate text-code">
                             {maskContent(record)}
                         </span>
                     ) : null}
@@ -260,7 +260,7 @@ export const NamedSecretTable = ({
 
     // The form is the host's; without one this would open nothing, so it is absent rather than dead.
     const create = renderConfigureDialog ? (
-        <Button disabled={loading} className={PHONE_TOUCH_TARGET_CLASS} onClick={openCreate}>
+        <Button disabled={loading} onClick={openCreate}>
             <Plus size={14} />
             {t("settings.secrets.createSecret")}
         </Button>

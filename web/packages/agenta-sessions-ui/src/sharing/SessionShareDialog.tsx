@@ -227,7 +227,7 @@ export const SessionShareDialog = ({
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="text-error sm:mr-auto"
+                    className="text-destructive sm:mr-auto"
                     onClick={() => setStopOpen(true)}
                 >
                     {copy.stopSharing}
@@ -279,7 +279,7 @@ export const SessionShareDialog = ({
                         ) : null}
 
                         {usesPersonalAccounts && isOwner ? (
-                            <p className="m-0 text-xs text-muted-foreground">
+                            <p className="m-0 text-meta text-muted-foreground">
                                 {copy.personalAccountsNote}
                             </p>
                         ) : null}
@@ -339,7 +339,7 @@ export const SessionShareDialog = ({
                                 </div>
                                 {inviteRole === "participant" &&
                                 picked.some((p) => p.can_run_sessions === false) ? (
-                                    <span className="text-xs text-muted-foreground">
+                                    <span className="text-meta text-muted-foreground">
                                         {copy.inviteViewOnly(
                                             joinNames(
                                                 picked
@@ -350,7 +350,7 @@ export const SessionShareDialog = ({
                                     </span>
                                 ) : null}
                                 {invalidIds.map((userId) => (
-                                    <p key={userId} className="m-0 text-xs text-error">
+                                    <p key={userId} className="m-0 text-meta text-destructive">
                                         {copy.invalidGrantee(nameOf(userId))}
                                     </p>
                                 ))}
@@ -358,7 +358,7 @@ export const SessionShareDialog = ({
                         ) : null}
 
                         <section className="flex flex-col gap-1">
-                            <span className="text-xs font-medium text-muted-foreground">
+                            <span className="text-label text-muted-foreground">
                                 {copy.peopleSection}
                             </span>
                             {owner || ownerId ? (
@@ -367,7 +367,7 @@ export const SessionShareDialog = ({
                                         person={owner ?? {user_id: ownerId ?? "", email: ""}}
                                     />
                                     <div className="flex min-w-0 flex-1 flex-col">
-                                        <span className="truncate text-sm font-medium">
+                                        <span className="truncate text-label">
                                             {owner ? personName(owner) : ownerId}{" "}
                                             {isOwner ? (
                                                 <span className="font-normal text-muted-foreground">
@@ -376,18 +376,18 @@ export const SessionShareDialog = ({
                                             ) : null}
                                         </span>
                                         {owner?.name ? (
-                                            <span className="truncate text-xs text-muted-foreground">
+                                            <span className="truncate text-meta text-muted-foreground">
                                                 {owner.email}
                                             </span>
                                         ) : null}
                                     </div>
-                                    <span className={`${ROLE_COLUMN_CLASS} px-1.5 text-sm`}>
+                                    <span className={`${ROLE_COLUMN_CLASS} px-1.5 text-label`}>
                                         {copy.ownerRole}
                                     </span>
                                 </div>
                             ) : null}
                             {grants.length === 0 ? (
-                                <p className="m-0 py-1 pl-9 text-xs text-muted-foreground">
+                                <p className="m-0 py-1 pl-9 text-meta text-muted-foreground">
                                     {copy.emptyGrants}
                                 </p>
                             ) : (
@@ -404,17 +404,17 @@ export const SessionShareDialog = ({
                                         >
                                             <PersonAvatar person={person} />
                                             <div className="flex min-w-0 flex-1 flex-col">
-                                                <span className="truncate text-sm font-medium">
+                                                <span className="truncate text-label">
                                                     {nameOf(grant.user_id)}
                                                 </span>
                                                 {person.name ? (
-                                                    <span className="truncate text-xs text-muted-foreground">
+                                                    <span className="truncate text-meta text-muted-foreground">
                                                         {person.email}
                                                     </span>
                                                 ) : null}
                                                 {grant.role === "participant" &&
                                                 person.can_run_sessions === false ? (
-                                                    <span className="text-xs text-muted-foreground">
+                                                    <span className="text-meta text-muted-foreground">
                                                         {copy.grantViewOnlyByRole}
                                                     </span>
                                                 ) : null}
@@ -448,7 +448,7 @@ export const SessionShareDialog = ({
                                                         }
                                                     />
                                                 ) : (
-                                                    <span className="px-1.5 text-sm">
+                                                    <span className="px-1.5 text-label">
                                                         {
                                                             sessionRoleCopy[
                                                                 person.can_run_sessions === false
@@ -466,11 +466,11 @@ export const SessionShareDialog = ({
                         </section>
 
                         <section className="flex flex-col gap-2">
-                            <span className="text-xs font-medium text-muted-foreground">
+                            <span className="text-label text-muted-foreground">
                                 {copy.generalSection}
                             </span>
                             <div className="flex items-center gap-2.5">
-                                <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
+                                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted">
                                     {visibility === "private" ? (
                                         <LockSimpleIcon size={14} aria-hidden />
                                     ) : (
@@ -503,13 +503,13 @@ export const SessionShareDialog = ({
                                             </SelectContent>
                                         </Select>
                                     ) : (
-                                        <span className="text-sm font-medium">
+                                        <span className="text-label">
                                             {visibility === "private"
                                                 ? copy.generalPrivate
                                                 : copy.generalProject}
                                         </span>
                                     )}
-                                    <p className="m-0 text-xs text-muted-foreground">
+                                    <p className="m-0 text-meta text-muted-foreground">
                                         {visibility === "private"
                                             ? copy.generalPrivateDescription
                                             : copy.generalProjectDescription(projectName)}
@@ -519,7 +519,7 @@ export const SessionShareDialog = ({
                         </section>
 
                         {onCopyLink && nobodyAdded ? (
-                            <p className="m-0 flex items-start gap-1.5 text-xs text-muted-foreground">
+                            <p className="m-0 flex items-start gap-1.5 text-meta text-muted-foreground">
                                 <LinkIcon size={13} className="mt-px shrink-0" aria-hidden />
                                 {copy.linkNobodyYet}
                             </p>

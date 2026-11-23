@@ -11,7 +11,6 @@ const {RadioChange} = vi.hoisted(() => {
     return {RadioChange: createContext<(value: string) => void>(() => undefined)}
 })
 vi.mock("@agenta/ui/ui", () => ({
-    PHONE_TOUCH_TARGET_CLASS: "",
     RadioGroup: ({
         children,
         onValueChange,

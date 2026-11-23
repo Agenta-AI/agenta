@@ -92,7 +92,7 @@ export const HomeOverview = ({
                         generates no `--ant-*` vars at all. Below `sm` it drops to the 16px body
                         ramp, like every other page title on a phone — classes rather than the
                         old inline style, which no breakpoint can override. */}
-                        <h1 className="m-0 font-semibold text-colorText text-[16px] leading-[1.5] sm:text-[length:var(--ant-font-size-heading-3,24px)] sm:leading-[var(--ant-line-height-heading-3,1.3333333333333333)]">
+                        <h1 className="m-0 text-foreground text-heading">
                             {title}
                         </h1>
                         {action}
@@ -110,7 +110,7 @@ export const HomeOverview = ({
                         withPinned
                         title={t("home.overview.sessions")}
                         limit={SESSIONS_LIMIT}
-                        minHeightClassName="min-h-[220px]"
+                        minHeightClassName="min-h-55"
                         emptyText={t("home.overview.sessionsEmpty")}
                         viewAllHref={sessionsHref}
                         onOpenRow={onOpenSession}
@@ -134,7 +134,7 @@ export const HomeOverview = ({
                         origin="trigger"
                         title={t("home.overview.automationRuns")}
                         limit={AUTOMATIONS_LIMIT}
-                        minHeightClassName="min-h-[100px]"
+                        minHeightClassName="min-h-25"
                         emptyText={t("home.overview.automationRunsEmpty")}
                         viewAllHref={sessionsHref}
                         onOpenRow={onOpenSession}

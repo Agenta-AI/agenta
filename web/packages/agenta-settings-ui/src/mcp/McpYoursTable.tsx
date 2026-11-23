@@ -13,7 +13,7 @@ import settingsMcpCatalog from "@agenta/i18n/catalogs/settings.mcp"
 import {McpServerMark} from "@agenta/ui/agent-icon"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
-import {Button, cn, touchTargetExpansion} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {SignOut} from "@phosphor-icons/react"
 
 import type {ConfirmDestructive} from "../confirm"
@@ -114,7 +114,7 @@ export const McpYoursTable = ({
             ) : (
                 <>
                     {error && !tokenFor ? (
-                        <p className="m-0 text-xs text-colorError">{error}</p>
+                        <p className="m-0 text-meta text-destructive">{error}</p>
                     ) : null}
                     <ListTable<MCPEndpoint>
                         columns={columns}
@@ -136,7 +136,7 @@ export const McpYoursTable = ({
                                 <>
                                     <span className="flex min-w-0 items-center gap-2.5">
                                         <McpServerMark
-                                            size={28}
+                                            size={24}
                                             name={record.name || record.slug}
                                         />
                                         <span
@@ -148,7 +148,7 @@ export const McpYoursTable = ({
                                     </span>
                                     {shows("url") ? (
                                         <span
-                                            className="truncate text-[13px] text-muted-foreground"
+                                            className="truncate text-label text-muted-foreground"
                                             title={record.data.route.base_url ?? undefined}
                                         >
                                             {record.data.route.base_url}
@@ -161,17 +161,14 @@ export const McpYoursTable = ({
                                         <StatusIndicator
                                             tone={signedIn ? "success" : "default"}
                                             label={statusLabel}
-                                            className="min-w-0 text-[13px]"
+                                            className="min-w-0 text-label"
                                         />
                                         {signedIn ? null : (
                                             <Button
                                                 variant="link"
                                                 size="xs"
                                                 disabled={pending}
-                                                className={cn(
-                                                    "p-0 text-xs",
-                                                    touchTargetExpansion(24),
-                                                )}
+                                                className="p-0 text-label"
                                                 onClick={(event) => {
                                                     event.stopPropagation()
                                                     startSignIn(record)

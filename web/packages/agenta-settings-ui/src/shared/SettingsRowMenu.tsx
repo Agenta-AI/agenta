@@ -9,7 +9,6 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    PHONE_TOUCH_TARGET_CLASS,
     Switch,
 } from "@agenta/ui/ui"
 import {DotsThreeVertical} from "@phosphor-icons/react"
@@ -60,15 +59,15 @@ export const SettingsRowMenu = ({items, label}: {items: SettingsRowMenuItem[]; l
                         size="icon"
                         variant="ghost"
                         aria-label={label ?? t("settings.shared.rowActions")}
-                        // The row already hovers to accent; an accent button on it would not show.
-                        className={`hover:bg-foreground/10 dark:hover:bg-foreground/15 ${PHONE_TOUCH_TARGET_CLASS}`}
+                        // Accent is translucent, so on the row's accent hover it still shows.
+                        className={`hover:bg-accent`}
                     >
                         <DotsThreeVertical aria-hidden weight="bold" />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                     align="end"
-                    className="min-w-[180px]"
+                    className="min-w-60"
                     onCloseAutoFocus={(event) => {
                         const deferred = deferredRef.current
                         deferredRef.current = null

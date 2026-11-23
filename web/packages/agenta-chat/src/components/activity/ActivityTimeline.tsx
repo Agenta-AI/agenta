@@ -3,7 +3,6 @@ import {useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} f
 import {createT} from "@agenta/i18n"
 import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
 import {AgentActivityDots, HeightCollapse, type AgentActivityFormat} from "@agenta/ui"
-import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {CaretRight, FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -156,7 +155,7 @@ const SwapLabel = ({
                 {shown}
             </span>
             {/* `pre`: the leading space would otherwise collapse at the flex item's start. */}
-            <span className="shrink-0 whitespace-pre text-colorTextTertiary tabular-nums">
+            <span className="shrink-0 whitespace-pre text-muted-foreground tabular-nums">
                 {suffix}
             </span>
         </span>
@@ -453,7 +452,7 @@ export const ActivityTimeline = ({
         title = <SwapLabel shimmer suffix={clock} text={line.text} />
     } else if (failed && !count) {
         // Failed before any step: there is no work to name, only the failure.
-        title = <span className="text-colorError">{failed.label}</span>
+        title = <span className="text-destructive">{failed.label}</span>
     } else {
         title =
             elapsed === null
@@ -463,8 +462,8 @@ export const ActivityTimeline = ({
             title = (
                 <>
                     {title}
-                    <span className="whitespace-pre text-colorTextTertiary"> · </span>
-                    <span className="text-colorError">{failed.label}</span>
+                    <span className="whitespace-pre text-muted-foreground"> · </span>
+                    <span className="text-destructive">{failed.label}</span>
                 </>
             )
         }
@@ -478,18 +477,18 @@ export const ActivityTimeline = ({
                 // Nothing to open yet (no step, no raw failure): a plain line, not a toggle.
                 disabled={!nodes}
                 aria-expanded={nodes ? open : undefined}
-                className={`-ml-1.5 flex w-fit max-w-full cursor-pointer disabled:cursor-default items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary max-md:leading-5 group/row ${PHONE_TOUCH_TARGET_CLASS}`}
+                className={`-ml-1.5 flex w-fit max-w-full cursor-pointer disabled:cursor-default items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-label text-muted-foreground pointer-coarse:leading-5 group/row`}
             >
                 {awaiting ? (
                     <WaitingGlyph kind={waitingKind(steps)} />
                 ) : line ? (
                     <AgentActivityDots format={line.format} />
                 ) : null}
-                <span className="flex min-w-0 items-center whitespace-nowrap transition-colors group-hover/row:text-colorText">
+                <span className="flex min-w-0 items-center whitespace-nowrap transition-colors group-hover/row:text-foreground">
                     {title}
                 </span>
                 {!live && files.length ? (
-                    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-colorTextTertiary">
+                    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-muted-foreground">
                         <span>·</span>
                         <FileText size={13} />
                         {tNow("chat.activity.fileCount", {count: files.length})}
@@ -500,7 +499,7 @@ export const ActivityTimeline = ({
                     <CaretRight
                         size={10}
                         weight="bold"
-                        className={`shrink-0 text-colorTextSecondary transition-transform ${
+                        className={`shrink-0 text-muted-foreground transition-transform ${
                             open ? "rotate-90" : ""
                         }`}
                     />
@@ -512,7 +511,7 @@ export const ActivityTimeline = ({
                     {nodes > 1 ? (
                         <div
                             aria-hidden
-                            className={`absolute bottom-3.5 top-3.5 w-px bg-colorBorderSecondary ${
+                            className={`absolute bottom-3.5 top-3.5 w-px bg-border-muted ${
                                 live ? "ag-activity-wire-live" : ""
                             }`}
                             style={{left: 11.5}}
@@ -544,10 +543,10 @@ export const ActivityTimeline = ({
                     ))}
                     {detail ? (
                         <div
-                            className={`flex min-w-0 items-start gap-3.5 ${count ? "pt-4.5" : ""}`}
+                            className={`flex min-w-0 items-start gap-2 ${count ? "pt-4.5" : ""}`}
                         >
                             <ActivityNode icon="platform" state="failed" />
-                            <pre className="m-0 max-h-60 min-w-0 flex-1 overflow-auto whitespace-pre-wrap break-words ag-surface-inset rounded-md px-3 py-2 font-mono text-xs leading-relaxed text-colorTextSecondary">
+                            <pre className="m-0 max-h-60 min-w-0 flex-1 overflow-auto whitespace-pre-wrap break-words ag-surface-inset rounded-md px-3 py-2 font-mono text-code text-muted-foreground">
                                 {detail}
                             </pre>
                         </div>

@@ -1,6 +1,6 @@
 import {useT} from "@agenta/i18n"
 import sessionsListStatesCatalog from "@agenta/i18n/catalogs/sessions.listStates"
-import {Button, PHONE_TOUCH_TARGET_CLASS, SkeletonBlock} from "@agenta/ui/ui"
+import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 /** Mirrors a row's geometry so real rows replace it without shifting the list. */
@@ -11,9 +11,9 @@ export const SessionListSkeleton = ({rows = 8}: {rows?: number}) => {
             {Array.from({length: rows}, (_, index) => (
                 <div
                     key={index}
-                    className="flex items-center gap-3 px-3 py-2 border-solid border-0 border-b border-colorBorderSecondary"
+                    className="flex items-center gap-3 px-3 py-2 border-solid border-0 border-b border-border-muted"
                 >
-                    <span className="shrink-0 w-2 h-2 rounded-full bg-colorFillSecondary" />
+                    <span className="shrink-0 w-2 h-2 rounded-sm bg-secondary" />
                     <SkeletonBlock active className="h-4 min-w-0 flex-1" />
                     {/* Hidden below `sm`, mirroring the two columns SessionRow drops there. */}
                     <SkeletonBlock active className="hidden h-4 w-40 flex-none sm:block" />
@@ -34,8 +34,8 @@ export const SessionListEmpty = ({
     const t = useT(sessionsListStatesCatalog)
     return (
         <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
-            <MagnifyingGlassIcon size={24} className="text-colorTextQuaternary" />
-            <p className="m-0 text-xs text-colorTextSecondary">
+            <MagnifyingGlassIcon size={24} className="text-muted-foreground" />
+            <p className="m-0 text-meta text-muted-foreground">
                 {filtered ? t("sessions.listStates.noMatch") : t("sessions.listStates.noSessions")}
             </p>
             {filtered ? (
@@ -43,7 +43,7 @@ export const SessionListEmpty = ({
                     {t("sessions.listStates.clearFilters")}
                 </Button>
             ) : (
-                <p className="m-0 text-xs text-colorTextTertiary">
+                <p className="m-0 text-meta text-muted-foreground">
                     {t("sessions.listStates.startConversation")}
                 </p>
             )}
@@ -65,7 +65,6 @@ export const SessionListLoadMore = ({
             <Button
                 variant="outline"
                 disabled={loading}
-                className={PHONE_TOUCH_TARGET_CLASS}
                 onClick={onClick}
             >
                 {loading ? t("sessions.listStates.loadingMore") : t("sessions.listStates.loadMore")}
@@ -76,8 +75,8 @@ export const SessionListLoadMore = ({
 
 /** A list group's heading. Plain (non-motion) so `sticky` is never fighting a transform. */
 export const SessionGroupHeader = ({label}: {label: string}) => (
-    <div className="sticky top-0 z-20 bg-colorBgContainer pb-1 pt-4">
-        <p className="m-0 px-2 pt-1 text-xs uppercase tracking-wide text-colorTextTertiary">
+    <div className="sticky top-0 z-20 bg-background pb-1 pt-4">
+        <p className="m-0 px-2 pt-1 text-meta text-muted-foreground">
             {label}
         </p>
     </div>

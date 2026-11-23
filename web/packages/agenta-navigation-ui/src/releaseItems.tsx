@@ -27,20 +27,20 @@ const ReleaseGlyph = ({first, last}: {first?: boolean; last?: boolean}): ReactNo
             cannot see. The 10px height leaves 16px clear in the middle, which the 14px package
             icon fits inside. */}
         {first ? null : (
-            <span className="absolute left-1/2 -top-1.5 h-[10px] w-px -translate-x-1/2 bg-colorBorder" />
+            <span className="absolute left-1/2 -top-1.5 h-[10px] w-px -translate-x-1/2 bg-border" />
         )}
         {last ? null : (
-            <span className="absolute -bottom-1.5 left-1/2 h-[10px] w-px -translate-x-1/2 bg-colorBorder" />
+            <span className="absolute -bottom-1.5 left-1/2 h-[10px] w-px -translate-x-1/2 bg-border" />
         )}
         <span className="relative flex items-center justify-center">
             {last ? (
-                <PackageIcon size={14} className="text-colorTextSecondary" />
+                <PackageIcon size={14} className="text-muted-foreground" />
             ) : (
                 <CircleIcon
                     size={8}
                     weight="fill"
                     // size-2: the menu item scales unsized svgs to 16px.
-                    className="size-2 text-colorTextQuaternary"
+                    className="size-2 text-muted-foreground"
                 />
             )}
         </span>
@@ -72,7 +72,7 @@ export const buildReleaseNavItems = (
         icon: <ReleaseGlyph last />,
         rowClassName: RELEASE_ROW,
         suffix: version ? (
-            <span className="text-[11px] leading-none text-colorTextTertiary">v{version}</span>
+            <span className="text-caption leading-none text-muted-foreground">v{version}</span>
         ) : undefined,
     },
 ]

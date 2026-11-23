@@ -47,7 +47,7 @@ const SidebarIconMenu = ({item}: {item: SidebarConfig}) => (
         <DropdownMenuContent
             side="top"
             align="start"
-            className="max-h-[min(70vh,560px)] w-[228px] overflow-y-auto"
+            className="max-h-[min(70vh,560px)] w-popover-sm overflow-y-auto"
         >
             <FlyoutChildren items={item.submenu ?? []} selectedKeys={[]} />
         </DropdownMenuContent>

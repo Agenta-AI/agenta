@@ -97,7 +97,7 @@ export const AgentsPanel = ({
                     {[0, 1, 2].map((row) => (
                         <div
                             key={row}
-                            className="h-12 animate-pulse rounded bg-colorFillTertiary"
+                            className="h-12 animate-pulse rounded bg-secondary"
                         />
                     ))}
                 </div>

@@ -92,7 +92,7 @@ export const providerTitle = (kind: string, title: string, t: ReturnType<typeof 
     kind === "custom" ? t("settings.providers.customEndpoint") : title
 
 export const ProviderLogo = ({kind}: {kind: string}) =>
-    createElement(providerIconFor(kind), {className: "size-[18px]"})
+    createElement(providerIconFor(kind), {className: "size-4"})
 
 const SUBSCRIPTION_PROVIDERS: SubscriptionProvider[] = ["chatgpt", "claude"]
 /** The line of a sign-in not made yet. */
@@ -258,7 +258,7 @@ export const ProvidersPanel = ({
                 groups={groups}
                 notice={
                     removeError ? (
-                        <span className="flex items-center gap-1 text-xs text-destructive">
+                        <span className="flex items-center gap-1 text-meta text-destructive">
                             <WarningCircle size={14} />
                             {removeError}
                         </span>

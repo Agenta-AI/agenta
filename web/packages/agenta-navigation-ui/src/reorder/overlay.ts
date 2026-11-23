@@ -16,7 +16,7 @@ export interface ReorderOverlay {
 // carries the row's asymmetric padding, and `leading-none` stops the copied font size from
 // dragging the row's line-height (28px on a leaf row) along with it.
 const CHIP_CLASS =
-    "fixed left-0 top-0 z-[1100] box-border pointer-events-none flex items-center rounded-md bg-colorBgElevated px-3 py-1.5 leading-none text-colorText shadow-overlay opacity-90"
+    "fixed left-0 top-0 z-[1100] box-border pointer-events-none flex items-center rounded-md bg-background px-3 py-1.5 leading-none text-foreground shadow-overlay opacity-90"
 
 /** The type the chip lifts off the row it came from. Line-height is deliberately NOT among them. */
 const TYPE_PROPS = [
@@ -28,7 +28,7 @@ const TYPE_PROPS = [
     "textTransform",
 ] as const
 const LINE_CLASS =
-    "fixed left-0 top-0 z-[1100] h-0.5 pointer-events-none bg-colorPrimary before:absolute before:-left-[3px] before:-top-[2px] before:size-1.5 before:rounded-full before:bg-colorPrimary before:content-['']"
+    "fixed left-0 top-0 z-[1100] h-0.5 pointer-events-none bg-primary before:absolute before:-left-[3px] before:-top-[2px] before:size-1.5 before:rounded-full before:bg-primary before:content-['']"
 
 let liveRegion: HTMLElement | null = null
 

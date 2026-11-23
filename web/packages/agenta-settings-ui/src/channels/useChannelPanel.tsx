@@ -503,7 +503,7 @@ export const useChannelPanel = ({
                     variant="ghost"
                     size="sm"
                     aria-label={t("channels.panel.agent")}
-                    className="h-auto w-auto max-w-full px-0 text-xs text-muted-foreground"
+                    className="h-auto w-auto max-w-full px-0 text-meta text-muted-foreground"
                     data-testid="channels-panel-agent"
                 >
                     <SelectValue />

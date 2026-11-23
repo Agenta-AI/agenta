@@ -248,9 +248,8 @@ describe("the registry table", () => {
     it("leads each row with the server tile and the connection name", () => {
         const {container} = show([LINEAR])
         expect(screen.getByTestId("mcp-connection-name").textContent).toBe("Linear")
-        // One generic tile per row, at the 28px size the Name cell draws.
         const tile = container.querySelector('[data-slot="icon-tile"]')
-        expect(tile?.getAttribute("data-size")).toBe("28")
+        expect(tile?.getAttribute("data-size")).toBe("24")
     })
 
     it("shows the server URL", () => {
@@ -291,7 +290,7 @@ describe("the status cell", () => {
         show([LINEAR])
         const cell = screen.getByTestId("mcp-connection-status")
         expect(within(cell).getByText("Connected")).toBeTruthy()
-        expect(statusTone(cell)).toContain("text-colorSuccess")
+        expect(statusTone(cell)).toContain("text-success")
     })
 
     it("reads Not signed in for a connection the person disconnected", () => {
@@ -307,15 +306,15 @@ describe("the status cell", () => {
         expect(within(cell).getByText("Login expired")).toBeTruthy()
         // The dot has to agree with the word. A row saying "Login expired" in the healthy
         // colour is read as healthy, because the colour is what a scan picks up first.
-        expect(statusTone(cell)).toContain("text-colorWarning")
-        expect(statusTone(cell)).not.toContain("text-colorSuccess")
+        expect(statusTone(cell)).toContain("text-warning")
+        expect(statusTone(cell)).not.toContain("text-success")
     })
 
     it("reads Not signed in for a connection whose first sign-in is under way", () => {
         show([PENDING])
         const cell = screen.getByTestId("mcp-connection-status")
         expect(within(cell).getByText("Not signed in")).toBeTruthy()
-        expect(statusTone(cell)).toContain("text-colorWarning")
+        expect(statusTone(cell)).toContain("text-warning")
     })
 
     it("reads Login expired for a key the server stopped accepting", () => {

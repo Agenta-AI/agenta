@@ -32,7 +32,7 @@ const CONTACT_URL = "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
 
 /** The padded body of a section card that is not a list of setting rows. */
 const CardBody = ({children}: {children: ReactNode}) => (
-    <div className="flex flex-col items-start gap-3 px-[18px] py-4">{children}</div>
+    <div className="flex flex-col items-start gap-3 px-4 py-4">{children}</div>
 )
 
 const METRIC_GRID = "grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
@@ -61,7 +61,7 @@ const PlanSummary = ({
 }) => {
     const t = useT(billingPageCatalog)
     const name = planTitle || planName(subscription?.plan)
-    if (!name) return <span className="text-colorTextTertiary">—</span>
+    if (!name) return <span className="text-muted-foreground">—</span>
 
     const end = periodEnd(subscription)
     const trialText =
@@ -155,12 +155,12 @@ export const BillingPage = ({
             {showPlanCard ? (
                 <SettingsSection title={t("billing.page.currentPlan")}>
                     <CardBody>
-                        <span className="text-base font-semibold capitalize text-colorText">
+                        <span className="text-label font-semibold capitalize text-foreground">
                             <PlanSummary subscription={subscription} planTitle={planTitle} />
                         </span>
                         {/* Only with a real boundary: plans that never renew leave `period_end` unset. */}
                         {!isOnFreePlan && renewsAt ? (
-                            <span className="text-colorTextSecondary">
+                            <span className="text-muted-foreground">
                                 {richText(
                                     t(
                                         subscription?.free_trial
@@ -182,7 +182,7 @@ export const BillingPage = ({
                                     ),
                                     {
                                         date: (text) => (
-                                            <span className="font-medium text-colorText">
+                                            <span className="font-medium text-foreground">
                                                 {text}
                                             </span>
                                         ),
@@ -192,7 +192,7 @@ export const BillingPage = ({
                         ) : null}
 
                         {isCustomPlan ? (
-                            <span className="text-colorTextSecondary">
+                            <span className="text-muted-foreground">
                                 {richText(t("billing.page.contactForPlan"), {
                                     link: (text) => (
                                         <a href={CONTACT_URL} target="_blank" rel="noreferrer">

@@ -28,17 +28,17 @@ export const AttachmentDropOverlay = ({
         <div
             className={`pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed ${
                 atMax
-                    ? "border-colorError bg-colorErrorBg"
-                    : "border-colorWarning bg-colorWarningBg"
+                    ? "border-destructive bg-destructive/10"
+                    : "border-warning bg-warning/10"
             } ${className ?? ""}`}
         >
-            <DownloadSimple size={24} className={atMax ? "text-colorError" : "text-colorText"} />
-            <span className={`text-sm font-medium ${atMax ? "text-colorError" : "text-colorText"}`}>
+            <DownloadSimple size={24} className={atMax ? "text-destructive" : "text-foreground"} />
+            <span className={`text-label ${atMax ? "text-destructive" : "text-foreground"}`}>
                 {atMax
                     ? t("chat.attachmentDropOverlay.limitReached")
                     : t("chat.attachmentDropOverlay.dropToAttach")}
             </span>
-            {hint && <span className="text-xs text-colorTextSecondary">{hint}</span>}
+            {hint && <span className="text-meta text-muted-foreground">{hint}</span>}
         </div>
     )
 }

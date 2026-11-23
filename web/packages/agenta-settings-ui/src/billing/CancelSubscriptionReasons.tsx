@@ -39,13 +39,13 @@ export const CancelSubscriptionReasons = ({
     const t = useT(billingPageCatalog)
     return (
         <section className="mt-5 flex flex-col gap-2">
-            <span className="font-medium text-colorText">{t("billing.page.selectReason")}</span>
+            <span className="font-medium text-foreground">{t("billing.page.selectReason")}</span>
 
             <RadioGroup value={value} onValueChange={onChange} className="flex flex-col gap-2">
                 {CANCEL_REASONS.map((reason) => (
                     <Label key={reason.value} className="flex cursor-pointer items-center gap-2">
                         <RadioGroupItem value={reason.value} />
-                        <span className="text-colorText">{t(reason.label)}</span>
+                        <span className="text-foreground">{t(reason.label)}</span>
                     </Label>
                 ))}
             </RadioGroup>

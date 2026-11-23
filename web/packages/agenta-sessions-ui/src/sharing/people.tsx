@@ -22,7 +22,7 @@ const initials = (person: SharingPerson): string => {
 
 export const PersonAvatar = ({person}: {person: SharingPerson}) => (
     <Avatar size="small" aria-hidden className="shrink-0">
-        <AvatarFallback className="bg-muted text-[11px] font-medium text-muted-foreground">
+        <AvatarFallback className="bg-muted text-caption font-medium text-muted-foreground">
             {initials(person)}
         </AvatarFallback>
     </Avatar>

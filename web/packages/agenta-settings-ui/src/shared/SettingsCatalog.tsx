@@ -48,7 +48,7 @@ export interface SettingsCatalogGroup {
 }
 
 const FOCUS_RING =
-    "outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px]"
+    "outline-none focus-ring"
 
 /** Rows sit in two columns where they fit, one on a phone. */
 const ROW_GRID = "grid grid-cols-[repeat(auto-fill,minmax(min(100%,320px),1fr))] gap-x-8 gap-y-0.5"
@@ -88,30 +88,32 @@ const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
             }
             aria-disabled={item.disabled || undefined}
             className={cn(
-                "-mx-3 flex min-w-0 items-center gap-3.5 rounded-[10px] px-3 py-2.5",
+                // One row height per list (SPACE-02): row-double with a description, row-single without.
+                "-mx-3 box-border flex min-w-0 items-center gap-3 rounded-md px-3",
+                item.description ? "h-row-double" : "h-row-single",
                 item.disabled && "cursor-not-allowed opacity-60",
-                open && "cursor-pointer hover:bg-accent/60",
+                open && "cursor-pointer hover:bg-accent",
                 open && FOCUS_RING,
             )}
         >
-            <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-background shadow-xs [&_img]:size-[18px] [&_img]:object-contain [&_svg]:size-[18px]">
+            <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-solid border-border bg-background [&_img]:size-4 [&_img]:object-contain [&_svg]:size-4">
                 {item.logo}
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-px">
                 <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate text-[14.5px] font-medium leading-5 text-foreground">
+                    <span className="truncate text-body font-medium leading-5 text-foreground">
                         {item.name}
                     </span>
                     {/* Beside the name and never truncated, so the problem always shows. */}
                     {attention ? (
-                        <span className="flex shrink-0 items-center gap-1.5 text-[12px] font-medium text-colorWarning">
-                            <span aria-hidden className="size-1.5 rounded-full bg-current" />
+                        <span className="flex shrink-0 items-center gap-1.5 text-meta font-medium text-warning">
+                            <span aria-hidden className="size-1.5 rounded-xs bg-current" />
                             {item.statusLabel}
                         </span>
                     ) : null}
                 </span>
                 {item.description ? (
-                    <span className="truncate text-[13px] leading-[18px] text-muted-foreground">
+                    <span className="truncate text-label text-muted-foreground">
                         {item.description}
                     </span>
                 ) : null}
@@ -126,7 +128,7 @@ const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
 
 /** A row's shape while it loads: the tile, the name, the subtitle. */
 const SkeletonRow = () => (
-    <div className="flex items-center gap-3.5 py-2.5" aria-hidden>
+    <div className="box-border flex h-row-double items-center gap-3" aria-hidden>
         <SkeletonBlock active className="size-8 shrink-0 rounded-lg" />
         <div className="flex flex-1 flex-col gap-1.5">
             <SkeletonBlock active className="h-4 w-1/3 rounded" />
@@ -141,7 +143,7 @@ const skeletonRows = (count: number) =>
 /** A group's heading while it loads, the label's width roughly. */
 const SkeletonGroup = ({rows}: {rows: number}) => (
     <section className="flex flex-col gap-3" aria-hidden>
-        <SkeletonBlock active className="h-[18px] w-24 rounded" />
+        <SkeletonBlock active className="h-4.5 w-24 rounded-sm" />
         <div className={ROW_GRID}>{skeletonRows(rows)}</div>
     </section>
 )

@@ -208,7 +208,7 @@ export const WebhooksPage = ({
                         <>
                             <span className="flex min-w-0 items-center gap-2.5">
                                 <IconTile
-                                    size={28}
+                                    size={24}
                                     tone="muted"
                                     aria-hidden="true"
                                     className="border border-solid border-border bg-muted text-muted-foreground"
@@ -219,7 +219,7 @@ export const WebhooksPage = ({
                                     <span className="truncate font-medium">
                                         {record.name || "-"}
                                     </span>
-                                    <span className="truncate text-[12.5px] text-muted-foreground">
+                                    <span className="truncate text-label text-muted-foreground">
                                         {/* Product names: the glossaries keep "Webhook" in every language. */}
                                         {/* eslint-disable-next-line agenta-i18n/no-hardcoded-text */}
                                         {github ? "GitHub" : "Webhook"}
@@ -243,7 +243,7 @@ export const WebhooksPage = ({
                                         ? t("common.active")
                                         : t("settings.webhooks.pausedStatus")
                                 }
-                                className="min-w-0 text-[13px]"
+                                className="min-w-0 text-label"
                             />
                             <SettingsRowMenu
                                 label={t("settings.webhooks.webhookActions")}

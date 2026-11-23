@@ -298,7 +298,7 @@ export const ProjectsPage = ({
                                 <StatusIndicator
                                     tone="success"
                                     label={t("settings.projects.current")}
-                                    className="text-[13px]"
+                                    className="text-label"
                                 />
                             ) : (
                                 <span className="text-muted-foreground">—</span>

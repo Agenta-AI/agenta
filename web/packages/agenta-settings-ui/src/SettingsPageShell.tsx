@@ -1,6 +1,6 @@
 import {createContext, useContext, useState, type ReactNode, type Ref} from "react"
 
-import {Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {ArrowSquareOut, PlayCircle} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {createPortal} from "react-dom"
@@ -37,8 +37,8 @@ export const SettingsPageActions = ({children}: {children: ReactNode}) => {
 const columnClassName = (variant: SettingsPageShellProps["variant"]) =>
     clsx(
         // `box-border` because preflight is off: `w-full` plus padding would overflow.
-        "box-border w-full px-4 sm:px-8 lg:px-14",
-        variant !== "full" && "mx-auto max-w-[1040px]",
+        "box-border w-full px-4 sm:px-6",
+        variant !== "full" && "mx-auto max-w-content-lg",
     )
 
 /** The walkthrough beside the primary action; on a phone it folds to its icon. */
@@ -65,7 +65,7 @@ const SettingsPageShell = ({
             className={clsx(
                 "flex h-full min-h-0 w-full flex-col self-stretch",
                 // Mobile has no antd base font, so the body scale is stated here.
-                "text-[14px] leading-[1.4285714285714286]",
+                "text-body leading-[1.4285714285714286]",
             )}
         >
             <header
@@ -77,7 +77,7 @@ const SettingsPageShell = ({
                 <div className="flex min-w-0 items-center justify-between gap-4">
                     {/* Below `sm` the title drops to the 16px body ramp, like every page title on a
                     phone. `m-0` kills the UA margin (preflight is off). */}
-                    <h1 className="m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] tracking-[-0.01em] text-colorText sm:text-[24px] sm:leading-8">
+                    <h1 className="m-0 min-w-0 truncate text-heading text-foreground">
                         {title}
                     </h1>
 
@@ -89,7 +89,7 @@ const SettingsPageShell = ({
                         />
                     </div>
                 </div>
-                <p className="m-0 text-[14px] leading-5 text-colorTextSecondary">
+                <p className="m-0 text-body leading-5 text-muted-foreground">
                     {description}
                     {docs ? (
                         <>
@@ -98,7 +98,7 @@ const SettingsPageShell = ({
                                 href={docs.href}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className={`inline-flex items-center gap-1 whitespace-nowrap text-inherit no-underline underline-offset-4 hover:text-colorText hover:underline ${PHONE_TOUCH_TARGET_CLASS}`}
+                                className={`inline-flex items-center gap-1 whitespace-nowrap text-inherit no-underline underline-offset-4 hover:text-foreground hover:underline`}
                             >
                                 {docs.label}
                                 <ArrowSquareOut size={12} />

@@ -76,8 +76,8 @@ const SessionRowImpl = ({
         <div
             onClick={handleOpen}
             className={clsx(
-                "group flex items-start gap-3 px-2 py-3 border-solid border-0 border-b border-colorBorderSecondary",
-                openable ? "cursor-pointer hover:bg-colorFillQuaternary" : "cursor-default",
+                "group flex items-start gap-3 px-2 py-3 border-solid border-0 border-b border-border-muted",
+                openable ? "cursor-pointer hover:bg-accent" : "cursor-default",
             )}
         >
             <SessionStatusIcon status={row.status} automation={row.isAutomation} />
@@ -107,23 +107,23 @@ const SessionRowImpl = ({
                         >
                             <InlineRenameInput
                                 rename={rename}
-                                className="h-5 w-full min-w-0 rounded border border-solid border-colorBorder bg-colorBgContainer px-1 text-sm leading-5 text-colorText outline-none [font-family:inherit] focus:border-colorPrimary"
+                                className="h-5 w-full min-w-0 rounded border border-solid border-border bg-background px-1 text-label leading-5 text-foreground outline-none [font-family:inherit] focus-ring-field"
                             />
                         </span>
                     ) : (
-                        <span className="min-w-0 flex-1 truncate text-sm text-colorText">
+                        <span className="min-w-0 flex-1 truncate text-label text-foreground">
                             {row.title}
                         </span>
                     )}
                     {row.automation ? <SessionAutomationKind kind={row.automation.kind} /> : null}
                 </span>
-                {/* `leading-4` on the subtitle is load-bearing: an arbitrary `text-[13px]` emits a
+                {/* `leading-4` on the subtitle is load-bearing: an arbitrary `text-label` emits a
                     font-size and NO line-height, so the line box fell through to whatever the host
                     app's base layer left on this button — `normal` (~15.7px) where preflight is off,
                     19.5px where it is on. That rendered the same row at two different heights in the
                     two apps. 16px states it once, and matches the height oss already renders. */}
                 {row.subtitle ? (
-                    <span className="w-full truncate text-[13px] leading-4 text-colorTextTertiary">
+                    <span className="w-full truncate text-label leading-4 text-muted-foreground">
                         {row.subtitle}
                     </span>
                 ) : null}
@@ -135,7 +135,7 @@ const SessionRowImpl = ({
                 {row.status.chipLabel ? (
                     <span
                         className={clsx(
-                            "shrink-0 rounded px-1.5 py-0.5 text-xs leading-none",
+                            "shrink-0 rounded-sm px-1.5 py-0.5 text-caption leading-none",
                             row.status.chipClassName,
                         )}
                     >
@@ -160,7 +160,7 @@ const SessionRowImpl = ({
                     </span>
                 ) : null}
 
-                <span className="shrink-0 text-right text-xs text-colorTextTertiary sm:w-24">
+                <span className="shrink-0 text-right text-meta text-muted-foreground sm:w-24">
                     {row.activityAt ? timeAgo(Date.parse(row.activityAt)) : "—"}
                 </span>
 

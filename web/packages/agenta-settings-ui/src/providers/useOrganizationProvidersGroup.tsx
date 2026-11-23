@@ -72,11 +72,11 @@ const EmptyNote = ({manage}: {manage: boolean}) => {
     const t = useT(settingsProvidersCatalog)
     return (
         <div className="flex flex-col gap-0.5">
-            <span className="text-[14.5px] font-medium leading-5 text-foreground">
+            <span className="text-body font-medium leading-5 text-foreground">
                 {t("settings.providers.orgEmptyTitle")}
             </span>
             {manage ? (
-                <span className="text-[13px] leading-[18px] text-muted-foreground">
+                <span className="text-label text-muted-foreground">
                     {t("settings.providers.orgEmptyBody")}
                 </span>
             ) : null}

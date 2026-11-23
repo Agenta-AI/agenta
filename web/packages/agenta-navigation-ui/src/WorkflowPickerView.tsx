@@ -60,7 +60,7 @@ export const WorkflowPickerView = ({
                     type="button"
                     aria-label={ariaLabel ?? t("navigation.items.switchWorkflow")}
                     className={clsx(
-                        "flex cursor-pointer items-center justify-between overflow-hidden rounded-md border-0 bg-transparent text-colorText transition-[width,height,padding,gap,border-color] duration-300 ease-in-out hover:bg-colorFillTertiary",
+                        "flex cursor-pointer items-center justify-between overflow-hidden rounded-md border-0 bg-transparent text-foreground transition-[width,height,padding,gap,border-color] duration-300 ease-in-out hover:bg-accent",
                         // No border when expanded: the header row it sits in is already
                         // framed by the rail's own line, so a box inside a box reads wrong.
                         collapsed ? "!h-8 !w-8 gap-0 !p-1" : "h-full w-full gap-2 pl-1.5 pr-2",

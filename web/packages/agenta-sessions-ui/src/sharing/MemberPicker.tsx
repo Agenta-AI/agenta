@@ -126,8 +126,8 @@ export const MemberPicker = ({
                                 key={person.user_id}
                                 data-invalid={invalid || undefined}
                                 className={cn(
-                                    "inline-flex items-center gap-1 rounded-full bg-muted py-0.5 pl-0.5 pr-1.5 text-xs",
-                                    invalid && "bg-error-bg text-error",
+                                    "inline-flex items-center gap-1 rounded-sm bg-secondary py-0.5 pl-0.5 pr-1.5 text-label",
+                                    invalid && "bg-destructive/10 text-destructive",
                                 )}
                             >
                                 <PersonAvatar person={person} />
@@ -168,7 +168,7 @@ export const MemberPicker = ({
                             // A click, typing or the arrow key opens it.
                             onClick={() => setOpen(true)}
                             onKeyDown={onKeyDown}
-                            className="min-w-[80px] flex-1 border-0 bg-transparent p-0 text-sm text-foreground outline-none [font-family:inherit] placeholder:text-muted-foreground"
+                            className="min-w-20 flex-1 border-0 bg-transparent p-0 text-label text-foreground outline-none [font-family:inherit] placeholder:text-muted-foreground"
                         />
                     ) : null}
                 </div>
@@ -181,7 +181,7 @@ export const MemberPicker = ({
                     if (fieldRef.current?.contains(event.target as Node)) event.preventDefault()
                 }}
             >
-                <span className="px-2.5 pb-1 pt-1.5 text-xs text-muted-foreground">
+                <span className="px-2.5 pb-1 pt-1.5 text-meta text-muted-foreground">
                     {memberPickerCopy.heading(projectName)}
                 </span>
                 <div id={listId} role="listbox" aria-label={memberPickerCopy.heading(projectName)}>
@@ -192,11 +192,11 @@ export const MemberPicker = ({
                             <SkeletonBlock className="h-7 w-full" />
                         </div>
                     ) : error ? (
-                        <span className="block px-2.5 py-1.5 text-sm text-error">
+                        <span className="block px-2.5 py-1.5 text-label text-destructive">
                             {memberPickerCopy.error}
                         </span>
                     ) : options.length === 0 && query ? (
-                        <span className="block px-2.5 py-1.5 text-sm text-muted-foreground">
+                        <span className="block px-2.5 py-1.5 text-label text-muted-foreground">
                             {memberPickerCopy.noMatch(query)}
                         </span>
                     ) : (
@@ -219,17 +219,17 @@ export const MemberPicker = ({
                                 >
                                     <PersonAvatar person={member} />
                                     <span className="flex min-w-0 flex-1 flex-col">
-                                        <span className="truncate text-sm font-medium">
+                                        <span className="truncate text-label">
                                             {personName(member)}
                                         </span>
                                         {member.name ? (
-                                            <span className="truncate text-xs text-muted-foreground">
+                                            <span className="truncate text-meta text-muted-foreground">
                                                 {member.email}
                                             </span>
                                         ) : null}
                                     </span>
                                     {enabled ? null : (
-                                        <span className="text-xs text-muted-foreground">
+                                        <span className="text-meta text-muted-foreground">
                                             {memberPickerCopy.hasAccess}
                                         </span>
                                     )}
@@ -239,7 +239,7 @@ export const MemberPicker = ({
                     )}
                 </div>
                 <div className="my-1 h-px bg-border" />
-                <span className="px-2.5 pb-1.5 pt-1 text-xs text-muted-foreground">
+                <span className="px-2.5 pb-1.5 pt-1 text-meta text-muted-foreground">
                     {memberPickerCopy.footer}
                 </span>
             </PopoverContent>

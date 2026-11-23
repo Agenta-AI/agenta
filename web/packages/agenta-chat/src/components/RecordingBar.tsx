@@ -4,7 +4,7 @@ import {useT} from "@agenta/i18n"
 import chatRecordingBarCatalog from "@agenta/i18n/catalogs/chat.recordingBar"
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {ComposerSendButton} from "@agenta/ui/rich-chat-input"
-import {Button, PHONE_TOUCH_TARGET_CLASS, SimpleTooltip} from "@agenta/ui/ui"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Check, X} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"
 
@@ -73,28 +73,28 @@ const RecordingBar = ({
         <div
             role="status"
             aria-live="polite"
-            // Matches the composer box exactly (radius / border token / bg / shadow) so the
+            // Matches the composer box exactly (radius / border token / bg) so the
             // cross-fade reads as the input changing state — a different radius leaves the
             // composer's corners poking out from under this one mid-transition.
             //
             // Brand, not error: an error border is the form-validation signal, and nothing here is
             // invalid. Red is reserved for the record light alone.
-            className={`pointer-events-auto flex h-full items-center gap-4 rounded-lg border border-solid border-colorPrimary bg-[var(--ag-colorBgContainer)] px-4 shadow-[var(--ag-surface-chat-shadow)] ${className ?? ""}`}
+            className={`pointer-events-auto flex h-full items-center gap-4 rounded-lg border border-solid border-primary bg-background px-4 ${className ?? ""}`}
         >
             <span className="relative flex h-3 w-3 shrink-0 items-center justify-center">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-colorError opacity-60" />
-                <span className="inline-flex h-3 w-3 rounded-full bg-colorError" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-md bg-destructive opacity-60" />
+                <span className="inline-flex h-3 w-3 rounded-sm bg-destructive" />
             </span>
 
             <span
-                className={`text-sm tabular-nums transition-colors duration-300 ${
-                    nearLimit ? "text-colorError" : "text-colorText"
+                className={`text-label tabular-nums transition-colors duration-300 ${
+                    nearLimit ? "text-destructive" : "text-foreground"
                 }`}
             >
                 {mmss(seconds)}
             </span>
 
-            <RecordingWaveform analyserRef={analyserRef} className="flex-1 text-colorPrimary" />
+            <RecordingWaveform analyserRef={analyserRef} className="flex-1 text-primary" />
 
             <AnimatePresence initial={false}>
                 {nearLimit && (
@@ -104,7 +104,7 @@ const RecordingBar = ({
                         animate={{opacity: 1}}
                         exit={{opacity: 0}}
                         transition={{duration: 0.15}}
-                        className="text-xs text-colorError"
+                        className="text-meta text-destructive"
                     >
                         {t("chat.recordingBar.timeLeft", {time: mmss(remainingSeconds)})}
                     </motion.span>
@@ -112,12 +112,12 @@ const RecordingBar = ({
             </AnimatePresence>
 
             {/* On a phone the two exits are 36 px with a 44 px area, 8 px apart, as the composer's. */}
-            <div className="flex shrink-0 items-center gap-1 max-md:gap-2">
+            <div className="flex shrink-0 items-center gap-1">
                 <SimpleTooltip title={t("chat.recordingBar.deleteTooltip")}>
                     <Button
                         variant="ghost"
                         size="icon"
-                        className={`max-md:size-9 ${PHONE_TOUCH_TARGET_CLASS}`}
+                        className={``}
                         onClick={cancel}
                         aria-label={t("chat.recordingBar.delete")}
                     >

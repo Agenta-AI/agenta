@@ -36,8 +36,8 @@ export const SidebarSelectionButton = ({
         <button
             type="button"
             className={clsx(
-                "flex h-9 cursor-pointer items-center justify-between overflow-hidden rounded-md border-0 bg-transparent text-colorText transition-[width,padding,gap] duration-300 ease-in-out",
-                "hover:bg-colorFillTertiary disabled:cursor-default disabled:opacity-60",
+                "flex h-9 cursor-pointer items-center justify-between overflow-hidden rounded-md border-0 bg-transparent text-foreground transition-[width,padding,gap] duration-300 ease-in-out",
+                "hover:bg-accent disabled:cursor-default disabled:opacity-60",
                 collapsed ? "!w-8 gap-0 !p-1" : "w-full gap-2 px-1.5 py-3",
                 className,
             )}

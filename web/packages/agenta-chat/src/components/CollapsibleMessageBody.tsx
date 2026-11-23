@@ -97,7 +97,7 @@ export const CollapsibleMessageBody = ({
                     onClick={() => setExpanded({key: stateKey, value: !expanded})}
                     aria-expanded={expanded}
                     aria-controls={regionId}
-                    className="-ml-1 mt-1 w-fit cursor-pointer rounded border-0 bg-transparent px-1 py-0.5 text-xs font-medium text-colorTextSecondary transition-colors hover:bg-colorFillQuaternary hover:text-colorText"
+                    className="-ml-1 mt-1 w-fit cursor-pointer rounded-sm border-0 bg-transparent px-1 py-0.5 text-meta font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                     {expanded
                         ? t("chat.collapsibleMessageBody.showLess")

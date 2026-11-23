@@ -24,7 +24,7 @@ import type {
     RichChatInputHandle,
     SlashCommandSection,
 } from "@agenta/ui/rich-chat-input"
-import {Button, PHONE_TOUCH_TARGET_CLASS, SimpleTooltip} from "@agenta/ui/ui"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
 import {acceptAttrFor} from "../assets/attachmentRules"
@@ -255,10 +255,10 @@ export const ChatComposer = ({
                     dictationAnalyserRef ? (
                         <RecordingWaveform
                             analyserRef={dictationAnalyserRef}
-                            className="h-5 flex-1 text-colorPrimary"
+                            className="h-5 flex-1 text-primary"
                         />
                     ) : (
-                        <span role="status" className="text-xs text-colorTextSecondary">
+                        <span role="status" className="text-meta text-muted-foreground">
                             {t("chat.chatComposer.listening")}
                         </span>
                     )
@@ -315,7 +315,7 @@ export const ChatComposer = ({
                 prefix={
                     // Tight: these are one cluster of composer tools, not separate controls. On a
                     // phone 8 px apart, so the 44 px areas do not reach a neighbour.
-                    <div className="flex items-center gap-0.5 max-md:gap-2">
+                    <div className="flex items-center gap-0.5">
                         {extraPrefix}
                         {/* Gone while dictating: the row belongs to the wave, and attaching a file
                             mid-utterance is not a thing anyone is doing. */}
@@ -336,14 +336,14 @@ export const ChatComposer = ({
                                     size="icon"
                                     // A phone: 36 px drawn and a 44 px area (4 px reach), as the
                                     // design canvas.
-                                    className={`max-md:size-9 ${
+                                    className={` ${
                                         // The canvas draws a bare glyph in a 24 px box.
                                         surface === "canvas"
                                             ? smallAttach
-                                                ? "size-6 text-colorTextSecondary"
-                                                : "size-6 text-colorTextTertiary"
+                                                ? "size-6 text-muted-foreground"
+                                                : "size-6 text-muted-foreground"
                                             : ""
-                                    } ${PHONE_TOUCH_TARGET_CLASS}`}
+                                    }`}
                                     disabled={!uploadsEnabled || composerDisabled}
                                     onClick={() => fileInputRef.current?.click()}
                                     // The closing picker's focus has no relatedTarget; no tooltip.
@@ -360,8 +360,8 @@ export const ChatComposer = ({
                                             surface !== "canvas"
                                                 ? undefined
                                                 : smallAttach
-                                                  ? "size-3.5 max-md:size-5"
-                                                  : "size-4 max-md:size-5"
+                                                  ? "size-3.5"
+                                                  : "size-4"
                                         }
                                     />
                                 </Button>
@@ -369,7 +369,7 @@ export const ChatComposer = ({
                         )}
                         {/* Design puts the quote count on the action row, not over the chips. */}
                         {quotes.length > 0 ? (
-                            <span className="ml-1 text-[11px] text-colorTextTertiary">
+                            <span className="ml-1 text-caption text-muted-foreground">
                                 {t("chat.chatComposer.quotesAttached", {count: quotes.length})}
                             </span>
                         ) : null}

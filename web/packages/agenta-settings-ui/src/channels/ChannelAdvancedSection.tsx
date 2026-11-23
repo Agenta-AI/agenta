@@ -140,9 +140,9 @@ export interface ChannelAdvancedSectionProps {
 
 type Choice = "all" | "only"
 
-const CARD = "overflow-hidden rounded-lg border border-solid border-colorBorderSecondary"
-const DIVIDED = "border-0 border-t border-solid border-colorBorderSecondary"
-const HELP = "text-xs leading-normal text-colorTextSecondary"
+const CARD = "overflow-hidden rounded-lg border border-solid border-border-muted"
+const DIVIDED = "border-0 border-t border-solid border-border-muted"
+const HELP = "text-meta leading-normal text-muted-foreground"
 
 /**
  * "Channels it answers in" ("Groups it answers in" on Telegram): every channel the bot is in, or
@@ -212,12 +212,12 @@ const AnswersInRow = ({
             data-testid="channels-advanced-answers"
         >
             <span className="flex flex-col gap-0.5">
-                <span className="text-[13px] font-medium text-colorText">{title}</span>
+                <span className="text-label font-medium text-foreground">{title}</span>
                 <span className={HELP}>{t(keys.answersInHelp)}</span>
             </span>
             {error ? <Alert type="error" showIcon message={error} /> : null}
             {behavior === null ? (
-                <div className="flex items-center gap-2 text-xs text-colorTextSecondary">
+                <div className="flex items-center gap-2 text-meta text-muted-foreground">
                     <Spinner size="small" /> {t("channels.labels.loading")}
                 </div>
             ) : !behavior.group ? (
@@ -238,7 +238,7 @@ const AnswersInRow = ({
                         ).map(([value, label]) => (
                             <label
                                 key={value}
-                                className="flex cursor-pointer items-center gap-2 text-[13px] text-colorText"
+                                className="flex cursor-pointer items-center gap-2 text-label text-foreground"
                             >
                                 <RadioGroupItem
                                     value={value}
@@ -250,18 +250,18 @@ const AnswersInRow = ({
                     </RadioGroup>
                     {choice === "only" ? (
                         <div
-                            className="flex flex-col gap-2 rounded-md bg-colorFillQuaternary p-2.5"
+                            className="flex flex-col gap-2 rounded-md bg-secondary p-2.5"
                             data-testid="channels-advanced-answers-checklist"
                         >
                             {channels.length === 0 ? (
-                                <span className="text-xs text-colorTextTertiary">
+                                <span className="text-meta text-muted-foreground">
                                     {t(keys.noneYet)}
                                 </span>
                             ) : (
                                 channels.map((channel) => (
                                     <label
                                         key={channel.id}
-                                        className="flex min-w-0 cursor-pointer items-center gap-2 text-[13px] text-colorText"
+                                        className="flex min-w-0 cursor-pointer items-center gap-2 text-label text-foreground"
                                     >
                                         <Checkbox
                                             checked={draft.includes(channel.id)}
@@ -391,7 +391,7 @@ export const ChannelAdvancedSection = ({
         <div className="flex flex-col gap-2" data-testid="channels-advanced">
             <button
                 type="button"
-                className="flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-[13px] font-semibold text-colorText"
+                className="flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-label text-foreground"
                 onClick={() => setOpen((value) => !value)}
                 aria-expanded={open}
                 data-testid="channels-advanced-toggle"
@@ -405,7 +405,7 @@ export const ChannelAdvancedSection = ({
                     {error ? <Alert type="error" showIcon message={error} /> : null}
                     {settings === null ? (
                         error ? null : (
-                            <div className="flex items-center gap-2 text-xs text-colorTextSecondary">
+                            <div className="flex items-center gap-2 text-meta text-muted-foreground">
                                 <Spinner size="small" /> {t("channels.labels.loading")}
                             </div>
                         )
@@ -413,7 +413,7 @@ export const ChannelAdvancedSection = ({
                         <div className={CARD}>
                             <div className="flex items-center gap-3 px-3 py-3">
                                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                    <span className="text-[13px] font-medium text-colorText">
+                                    <span className="text-label font-medium text-foreground">
                                         {t("channels.advanced.canPostOutside")}
                                     </span>
                                     <span className={HELP}>{t(keys.canPostHelp)}</span>
@@ -432,7 +432,7 @@ export const ChannelAdvancedSection = ({
 
                             <div className={`flex flex-col gap-2.5 px-3 py-3 ${DIVIDED}`}>
                                 <span className="flex flex-col gap-0.5">
-                                    <span className="text-[13px] font-medium text-colorText">
+                                    <span className="text-label font-medium text-foreground">
                                         {t(keys.readTitle)}
                                     </span>
                                     {platform === "telegram" ? (
@@ -458,7 +458,7 @@ export const ChannelAdvancedSection = ({
                                     ).map(([value, label]) => (
                                         <label
                                             key={value}
-                                            className="flex cursor-pointer items-center gap-2 text-[13px] text-colorText"
+                                            className="flex cursor-pointer items-center gap-2 text-label text-foreground"
                                         >
                                             <RadioGroupItem
                                                 value={value}
@@ -471,20 +471,20 @@ export const ChannelAdvancedSection = ({
 
                                 {choice === "only" ? (
                                     <div
-                                        className="flex flex-col gap-2 rounded-md bg-colorFillQuaternary p-2.5"
+                                        className="flex flex-col gap-2 rounded-md bg-secondary p-2.5"
                                         data-testid="channels-advanced-checklist"
                                     >
                                         {channelsError ? (
                                             <Alert type="error" showIcon message={channelsError} />
                                         ) : null}
                                         {channels === null ? (
-                                            <div className="flex items-center gap-2 text-xs text-colorTextSecondary">
+                                            <div className="flex items-center gap-2 text-meta text-muted-foreground">
                                                 <Spinner size="small" />{" "}
                                                 {t("channels.labels.loading")}
                                             </div>
                                         ) : channels.length === 0 ? (
                                             channelsError ? null : (
-                                                <span className="text-xs text-colorTextTertiary">
+                                                <span className="text-meta text-muted-foreground">
                                                     {t(keys.noneYet)}
                                                 </span>
                                             )
@@ -492,7 +492,7 @@ export const ChannelAdvancedSection = ({
                                             channels.map((channel) => (
                                                 <label
                                                     key={channel.key}
-                                                    className="flex min-w-0 cursor-pointer items-center gap-2 text-[13px] text-colorText"
+                                                    className="flex min-w-0 cursor-pointer items-center gap-2 text-label text-foreground"
                                                 >
                                                     <Checkbox
                                                         checked={draft.includes(channel.key)}

@@ -107,7 +107,7 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
             data-testid="agent-channels"
         >
             <p
-                className={`m-0 text-[13px] leading-5 text-muted-foreground ${phone ? "px-4 pb-1 pt-3.5" : ""}`}
+                className={`m-0 text-body-sm text-muted-foreground ${phone ? "px-4 pb-1 pt-3.5" : ""}`}
             >
                 {t("agentPages.channels.intro", {agent: agentName})}
             </p>
@@ -115,7 +115,7 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
             {loadError ? (
                 <div
                     role="alert"
-                    className={`flex items-center justify-between gap-3 rounded-lg border border-solid border-border px-3 py-2.5 text-[13px] text-error ${phone ? "mx-4 mt-3" : ""}`}
+                    className={`flex items-center justify-between gap-3 rounded-lg border border-solid border-border px-3 py-2.5 text-label text-destructive ${phone ? "mx-4 mt-3" : ""}`}
                 >
                     <span className="min-w-0">{loadError}</span>
                     <Button variant="outline" size="sm" disabled={retrying} onClick={retry}>
@@ -152,13 +152,13 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                             <ChannelRow
                                 key={platform}
                                 testId={`agent-channels-${platform}`}
-                                icon={platformLogo(platform, phone ? 22 : 32)}
+                                icon={platformLogo(platform, 24)}
                                 label={platformLabel(platform)}
                                 sub={sub}
                                 subClass={broken ? broken.subClass : "text-muted-foreground"}
                                 tag={
                                     broken ? (
-                                        <span className="rounded bg-colorErrorBg px-1.5 py-0.5 text-xs text-colorError">
+                                        <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-meta text-destructive">
                                             {t("common.needsAttention")}
                                         </span>
                                     ) : null
@@ -180,7 +180,7 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                               <ChannelRow
                                   key={platform}
                                   testId={`agent-channels-${platform}`}
-                                  icon={platformLogo(platform, phone ? 22 : 32)}
+                                  icon={platformLogo(platform, 24)}
                                   label={platformLabel(platform)}
                                   sub={summary.sub}
                                   subClass={
@@ -242,27 +242,27 @@ const ChannelGroup = ({
 }) =>
     phone ? (
         <section className="flex flex-col">
-            <h3 className="m-0 px-4 pb-1.5 pt-4 text-[12px] font-medium leading-5 text-colorTextTertiary">
+            <h3 className="m-0 px-4 pb-1.5 pt-4 text-meta font-medium leading-5 text-muted-foreground">
                 {title}
             </h3>
             <div className="flex flex-col">{children}</div>
         </section>
     ) : (
         <section className="flex flex-col gap-2">
-            <h3 className="m-0 text-[12px] font-medium leading-4 text-muted-foreground">{title}</h3>
+            <h3 className="m-0 text-subtitle text-foreground">{title}</h3>
             {children}
         </section>
     )
 
 const ROW_DESKTOP =
-    "box-border flex w-full items-center gap-2.5 rounded-md border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-left text-sm leading-5"
+    "box-border flex min-h-row-double w-full items-center gap-3 rounded-md border border-solid border-border-muted bg-background px-3 py-1.5 text-left text-label leading-5"
 const ROW_PHONE =
-    "box-border flex min-h-14 w-full items-center gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer py-1.5 pl-4 pr-2 text-left text-[15px] leading-5"
+    "box-border flex min-h-row-double w-full items-center gap-3 border-0 border-b border-solid border-border-muted bg-background py-1.5 pl-4 pr-2 text-left text-label leading-5"
 
 /** The mark of API and Embed: their production icon on a muted square, a platform logo's size. */
-const PublishMark = ({icon, phone}: {icon: React.ReactElement; phone: boolean}) => (
+const PublishMark = ({icon}: {icon: React.ReactElement; phone: boolean}) => (
     <span
-        className={`flex items-center justify-center bg-muted text-foreground ${phone ? "size-[22px] rounded text-[14px]" : "size-8 rounded-md text-base"}`}
+        className="flex size-6 items-center justify-center rounded-md bg-secondary text-body text-foreground"
     >
         {icon}
     </span>
@@ -308,7 +308,7 @@ const ChannelRow = ({
                     {label}
                     {tag}
                 </span>
-                <span className={`text-[12px] leading-4 ${phone ? "" : "truncate"} ${subClass}`}>
+                <span className={`text-meta ${phone ? "" : "truncate"} ${subClass}`}>
                     {sub}
                 </span>
             </span>
@@ -318,7 +318,7 @@ const ChannelRow = ({
         return (
             <button
                 type="button"
-                className={`${phone ? ROW_PHONE : ROW_DESKTOP} cursor-pointer font-[inherit] hover:bg-muted/40`}
+                className={`${phone ? ROW_PHONE : ROW_DESKTOP} cursor-pointer font-[inherit] hover:bg-accent`}
                 data-testid={testId}
                 onClick={onClick}
             >
@@ -326,7 +326,7 @@ const ChannelRow = ({
                 {!action ? null : phone ? (
                     <span className="sr-only">{action}</span>
                 ) : (
-                    <span className="flex-none text-[13px] text-muted-foreground">{action}</span>
+                    <span className="flex-none text-label text-muted-foreground">{action}</span>
                 )}
                 <CaretRight
                     size={phone ? 16 : 10}
@@ -346,7 +346,7 @@ const ChannelRow = ({
                 // On a phone 36 px high with a 44 px hit area, as drawn (M13).
                 className={
                     phone
-                        ? "relative mr-2 h-9 rounded-md text-sm after:absolute after:-inset-1 after:content-['']"
+                        ? "relative mr-2 h-control rounded-md text-body after:absolute after:-inset-1 after:content-['']"
                         : undefined
                 }
                 onClick={onClick}
@@ -363,7 +363,7 @@ const ChannelRowsSkeleton = ({phone}: {phone: boolean}) => (
             <div key={platform} className={phone ? ROW_PHONE : ROW_DESKTOP}>
                 <SkeletonBlock
                     active
-                    className={phone ? "size-[22px] rounded" : "size-8 rounded-md"}
+                    className="size-6 rounded-md"
                 />
                 <div className="flex flex-1 flex-col gap-1.5">
                     <SkeletonBlock active className="h-3.5 w-20" />
@@ -387,7 +387,7 @@ const InlineChannelView = ({title, icon, onClose, onBack, children}: ChannelsPan
                 <SheetContent
                     side="right"
                     aria-describedby={undefined}
-                    className="inset-0 w-full max-w-none rounded-none bg-colorBgContainer pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-none sm:max-w-none"
+                    className="inset-0 w-full max-w-none rounded-none bg-background pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-none sm:max-w-none"
                     data-testid="agent-channels-open-view-phone"
                 >
                     <SheetTitle className="sr-only">{title}</SheetTitle>
@@ -403,7 +403,7 @@ const InlineChannelView = ({title, icon, onClose, onBack, children}: ChannelsPan
     }
     return (
         <div className="flex flex-col gap-4" data-testid="agent-channels-open-view">
-            <nav className="flex min-w-0 items-center gap-1.5 text-sm">
+            <nav className="flex min-w-0 items-center gap-1.5 text-body">
                 {onBack ? (
                     <Button
                         variant="ghost"

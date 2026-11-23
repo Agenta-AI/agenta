@@ -37,7 +37,7 @@ const SessionSearchButton = ({
                 size="icon-sm"
                 aria-label={name}
                 aria-keyshortcuts={shortcut?.aria}
-                className="mr-0.5 size-6 rounded-[6px] p-0 text-colorTextSecondary hover:text-colorText"
+                className="mr-0.5 size-6 rounded-md p-0 text-muted-foreground hover:text-foreground"
                 onClick={(event) => {
                     // Off the group row's stretched link anchor, as the filter trigger keeps its own.
                     event.preventDefault()

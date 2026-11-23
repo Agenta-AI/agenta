@@ -45,8 +45,8 @@ export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
     if (embeds.isPending) {
         return (
             <div className="flex flex-col gap-2.5" data-testid="agent-embed-loading">
-                <SkeletonBlock active className="h-[52px] w-full rounded-lg" />
-                <SkeletonBlock active className="h-[52px] w-full rounded-lg" />
+                <SkeletonBlock active className="h-13 w-full rounded-lg" />
+                <SkeletonBlock active className="h-13 w-full rounded-lg" />
             </div>
         )
     }
@@ -106,7 +106,7 @@ export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
     return (
         <div className="flex min-w-0 flex-col gap-3" data-testid="agent-embed-panel">
             <div className="flex items-center justify-between gap-3">
-                <span className="text-[13px] text-muted-foreground">
+                <span className="text-label text-muted-foreground">
                     {t("publish.embedsDescription")}
                 </span>
                 {createButton}
@@ -122,10 +122,10 @@ export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
                         data-testid={`agent-embed-${embed.id}`}
                     >
                         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <span className="truncate text-sm font-medium text-foreground">
+                            <span className="truncate text-label text-foreground">
                                 {embed.name || t("publish.embed")}
                             </span>
-                            <span className="truncate text-[12.5px] text-muted-foreground">
+                            <span className="truncate text-label text-muted-foreground">
                                 {embed.restricted
                                     ? parseOrigins(embed.origins).origins.join(", ")
                                     : t("publish.anyWebsite")}

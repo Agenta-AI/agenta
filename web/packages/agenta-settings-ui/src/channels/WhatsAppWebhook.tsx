@@ -36,9 +36,9 @@ export const CopyField = ({
     }, [copied])
     return (
         <label className="flex flex-col gap-1.5">
-            <span className="text-[13px] font-medium text-colorText">{label}</span>
+            <span className="text-label font-medium text-foreground">{label}</span>
             <span className="flex gap-2">
-                <Input readOnly value={value} className="font-mono text-xs" data-testid={testId} />
+                <Input readOnly value={value} className="text-code" data-testid={testId} />
                 <Button
                     variant="outline"
                     size="sm"
@@ -64,7 +64,7 @@ export const WhatsAppWebhook = ({connection}: {connection: ChannelConnection}) =
     const t = useT(channelsWhatsappCatalog, commonCatalog)
     return (
         <div className="flex flex-col gap-3" data-testid="channels-whatsapp-webhook">
-            <p className="m-0 text-xs leading-relaxed text-colorTextSecondary">
+            <p className="m-0 text-meta leading-relaxed text-muted-foreground">
                 {richText(t("channels.whatsapp.webhookHint"), {
                     code: (text) => <code>{text}</code>,
                 })}

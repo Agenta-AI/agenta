@@ -41,11 +41,11 @@ export const SettingToggleRow = ({
     const t = useT(commonCatalog, settingsAccessCatalog)
     return (
         <div
-            className={`flex items-center justify-between gap-6 px-[18px] py-4 ${disabled ? "opacity-60" : ""}`}
+            className={`flex items-center justify-between gap-6 px-4 py-4 ${disabled ? "opacity-60" : ""}`}
         >
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                    <span className="font-medium text-colorText">{title}</span>
+                    <span className="font-medium text-foreground">{title}</span>
                     {/* Its own provider, like every other tooltip in this package: a host without
                     a global one (the mobile app) would otherwise throw on render. */}
                     {tooltip ? (
@@ -58,7 +58,7 @@ export const SettingToggleRow = ({
                                     <button
                                         type="button"
                                         aria-label={t("settings.access.aboutSetting", {title})}
-                                        className="flex cursor-help items-center border-0 bg-transparent p-0 text-colorTextTertiary outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring"
+                                        className="flex cursor-help items-center border-0 bg-transparent p-0 text-muted-foreground outline-none focus-ring"
                                     >
                                         <Info size={16} />
                                     </button>
@@ -68,7 +68,7 @@ export const SettingToggleRow = ({
                         </TooltipProvider>
                     ) : null}
                     {showSuccess ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-colorSuccess">
+                        <span className="inline-flex items-center gap-1 text-meta text-success">
                             <CheckCircle size={14} />
                             {t("common.saved")}
                         </span>
@@ -76,9 +76,9 @@ export const SettingToggleRow = ({
                     {/* antd's Switch drew its own loading spinner; the Radix one does not. */}
                     {loading ? <Spinner size="small" aria-label={t("common.saving")} /> : null}
                 </div>
-                <p className="m-0 mt-0.5 text-[13px] text-colorTextSecondary">{description}</p>
+                <p className="m-0 mt-0.5 text-label text-muted-foreground">{description}</p>
                 {disabled && disabledReason ? (
-                    <p className="m-0 mt-1 flex items-center gap-1 text-xs text-colorWarning">
+                    <p className="m-0 mt-1 flex items-center gap-1 text-meta text-warning">
                         <Lock size={14} />
                         {disabledReason}
                     </p>

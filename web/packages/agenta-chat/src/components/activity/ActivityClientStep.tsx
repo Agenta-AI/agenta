@@ -44,7 +44,7 @@ export const ActivityClientStep = ({
     const widget = render?.(part)
     // min-h-9: the height of a StepRow step, so a widget row (24px, or 32px with Retry) keeps the rail's rhythm.
     return (
-        <div className="flex min-h-9 min-w-0 items-center gap-3.5">
+        <div className="flex min-h-9 min-w-0 items-center gap-2">
             <AppNode
                 sourceKey={display.sourceKey}
                 icon={display.icon}
@@ -53,7 +53,7 @@ export const ActivityClientStep = ({
             />
             <div className="min-w-0 flex-1">
                 {widget ?? (
-                    <span className={`text-sm ${failed ? "text-colorError" : "text-colorText"}`}>
+                    <span className={`text-label ${failed ? "text-destructive" : "text-foreground"}`}>
                         {failed
                             ? t("chat.activity.actionFailed", {action: display.activity.running})
                             : settled

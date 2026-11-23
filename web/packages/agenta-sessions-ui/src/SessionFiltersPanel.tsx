@@ -14,7 +14,7 @@ import {
 } from "./controls/SessionFilterControls"
 
 const RailLabel = ({children}: {children: ReactNode}) => (
-    <h2 className="m-0 text-xs font-semibold uppercase tracking-wide text-colorTextTertiary">
+    <h2 className="m-0 text-label text-muted-foreground">
         {children}
     </h2>
 )
@@ -49,7 +49,7 @@ export const SessionFiltersPanel = ({
                 <div className="flex min-w-0 items-center gap-2">
                     {leading}
                     {title ? (
-                        <h1 className="m-0 min-w-0 flex-1 truncate text-[24px] font-semibold leading-tight text-colorText">
+                        <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                             {title}
                         </h1>
                     ) : null}

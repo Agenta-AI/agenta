@@ -32,11 +32,11 @@ const formatPercent = (value: number | null | undefined) =>
 const Stat = ({label, value, loading}: {label: string; value: string; loading: boolean}) => (
     // min-w-0 + truncate: a grid cell is ~136px on a phone, and a long figure overflowed it.
     <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-xs text-colorTextSecondary">{label}</span>
+        <span className="text-meta text-muted-foreground">{label}</span>
         {loading ? (
             <SkeletonBlock className="h-4 w-12" />
         ) : (
-            <span className="truncate text-xs font-semibold text-colorText">{value}</span>
+            <span className="truncate text-label font-semibold tabular-nums text-foreground">{value}</span>
         )}
     </div>
 )
@@ -106,7 +106,7 @@ export const UsageCard = ({appId = null, expandedContent}: UsageCardProps) => {
                 ))}
             </div>
             {errorMessage && !loading ? (
-                <span role="alert" className="text-xs text-colorError">
+                <span role="alert" className="text-meta text-destructive">
                     {errorMessage}
                 </span>
             ) : null}
@@ -114,7 +114,7 @@ export const UsageCard = ({appId = null, expandedContent}: UsageCardProps) => {
             {/* Stacked, not gridded: the grid's breakpoints read the viewport, and this column is
                 340px on any of them. */}
             <HeightCollapse open={expanded}>
-                <div className="flex flex-col gap-3 border-0 border-t border-solid border-colorBorderSecondary pt-3">
+                <div className="flex flex-col gap-3 border-0 border-t border-solid border-border-muted pt-3">
                     <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                         {details.map((stat) => (
                             <Stat key={stat.label} {...stat} loading={loading} />

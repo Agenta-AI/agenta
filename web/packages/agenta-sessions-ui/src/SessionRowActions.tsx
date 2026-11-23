@@ -21,7 +21,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {DotsThreeVerticalIcon} from "@phosphor-icons/react"
+import {DotsThreeIcon} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
 import InlineRenameInput from "./InlineRenameInput"
@@ -293,13 +293,13 @@ const SessionRowActions = ({
                                     data-open={open || undefined}
                                     className={KEBAB_CLASS}
                                 >
-                                    <DotsThreeVerticalIcon size={16} weight="bold" />
+                                    <DotsThreeIcon size={16} weight="bold" />
                                 </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent
                                 align="end"
                                 side="bottom"
-                                className="min-w-[168px]"
+                                className="min-w-60"
                             >
                                 {entries.map((entry, index) =>
                                     isMenuDivider(entry) ? (
@@ -340,7 +340,7 @@ const SessionRowActions = ({
                                 if (event.key === "Enter" || event.key === " ") arm()
                             }}
                         >
-                            <DotsThreeVerticalIcon size={16} weight="bold" />
+                            <DotsThreeIcon size={16} weight="bold" />
                         </button>
                     )}
                 </span>

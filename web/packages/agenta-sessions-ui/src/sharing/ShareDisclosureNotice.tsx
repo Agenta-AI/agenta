@@ -73,7 +73,7 @@ export const ShareDisclosureNotice = ({
                         {bodyOf(target, accounts)}
                     </AlertDialogDescription>
                     {personalAccounts.length ? (
-                        <ul className="m-0 list-none p-0 text-sm text-muted-foreground">
+                        <ul className="m-0 list-none p-0 text-body text-muted-foreground">
                             {personalAccounts.map((account) => (
                                 <li key={account}>{copy.personalAccount(account)}</li>
                             ))}

@@ -4,7 +4,6 @@ import {richText, useT, createT} from "@agenta/i18n"
 import channelsConnectCatalog from "@agenta/i18n/catalogs/channels.connect"
 import channelsTeamsCatalog from "@agenta/i18n/catalogs/channels.teams"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {
     Alert,
     Button,
@@ -123,7 +122,7 @@ const FIELD_PLACEHOLDERS: Partial<Record<ChannelPlatform, Record<string, string>
 /** How long the hosted Slack install wait runs before giving up, ms. */
 const SLACK_INSTALL_TIMEOUT_MS = 5 * 60 * 1000
 
-const SECTION_TITLE = "text-[13px] font-semibold text-foreground"
+const SECTION_TITLE = "text-label font-semibold text-foreground"
 
 const META_APPS_URL = "https://developers.facebook.com/apps"
 const DISCORD_APPS_URL = "https://discord.com/developers/applications"
@@ -133,7 +132,7 @@ const WHATSAPP_PRICING_URL =
 /** A step's number in a small square: filled for the current step, outlined for the rest. */
 const StepNumber = ({index, state}: {index: number; state: "current" | "done" | "upcoming"}) => (
     <span
-        className={`flex size-5 flex-none items-center justify-center rounded-[5px] text-[11px] font-semibold ${
+        className={`flex size-5 flex-none items-center justify-center rounded-sm text-caption font-semibold ${
             state === "upcoming"
                 ? "border border-solid border-border bg-background text-muted-foreground"
                 : "bg-primary text-primary-foreground"
@@ -169,12 +168,12 @@ const StepRow = ({
             </div>
             <div className={`flex min-w-0 flex-1 flex-col gap-2.5 ${last ? "" : "pb-6"}`}>
                 <div className="flex flex-col gap-1">
-                    <span className="pt-0.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    <span className="pt-0.5 text-meta text-muted-foreground">
                         {t("channels.connect.stepLabel", {index})}
                     </span>
-                    <span className="text-sm font-medium text-foreground">{title}</span>
+                    <span className="text-label text-foreground">{title}</span>
                     {body ? (
-                        <span className="text-[13px] text-muted-foreground">{body}</span>
+                        <span className="text-label text-muted-foreground">{body}</span>
                     ) : null}
                 </div>
                 {children}
@@ -185,7 +184,7 @@ const StepRow = ({
 
 /** An inline command, e.g. /newbot. */
 const Command = ({children}: {children: React.ReactNode}) => (
-    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[12px] text-foreground">
+    <code className="rounded bg-muted px-1.5 py-0.5 text-code-sm text-foreground">
         {children}
     </code>
 )
@@ -223,24 +222,24 @@ const MethodCards = <T extends string>({
                 return (
                     <label
                         key={option.value}
-                        className={`flex items-center gap-3 rounded-lg border border-solid bg-background px-3 py-2.5 transition-[border-color,box-shadow] ${
+                        className={`flex items-center gap-3 rounded-lg border border-solid bg-background px-3 py-2.5 transition-[border-color] ${
                             option.disabled ? "cursor-default opacity-70" : "cursor-pointer"
-                        } ${selected ? "border-foreground shadow-md" : "border-border shadow-[0_1px_2px_0_rgb(0_0_0/0.05)]"}`}
+                        } ${selected ? "border-foreground" : "border-border"}`}
                     >
-                        <span className="flex size-[30px] flex-none items-center justify-center rounded-lg bg-muted text-foreground">
+                        <span className="flex size-8 flex-none items-center justify-center rounded-md bg-secondary text-muted-foreground">
                             {option.icon}
                         </span>
                         <span className="flex min-w-0 flex-1 flex-col gap-px">
-                            <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+                            <span className="flex items-center gap-2 text-label text-foreground">
                                 {option.title}
                                 {option.recommended ? (
-                                    <span className="rounded-full bg-colorSuccessBg px-[7px] text-[11px] font-medium leading-[18px] text-colorSuccess">
+                                    <span className="rounded-sm bg-success/10 px-1.5 text-caption leading-5 text-success">
                                         {t("channels.connect.recommended")}
                                     </span>
                                 ) : null}
                             </span>
                             <span
-                                className="truncate text-[12.5px] text-muted-foreground"
+                                className="truncate text-label text-muted-foreground"
                                 title={option.desc}
                             >
                                 {option.desc}
@@ -272,8 +271,8 @@ const StepsBar = ({steps, current}: {steps: string[]; current: number}) => (
                     state={i < current ? "done" : i === current ? "current" : "upcoming"}
                 />
                 <span
-                    className={`truncate text-sm ${
-                        i === current ? "font-medium text-foreground" : "text-muted-foreground"
+                    className={`truncate text-label ${
+                        i === current ? "text-foreground" : "text-muted-foreground"
                     }`}
                 >
                     {step}
@@ -728,7 +727,7 @@ export const ChannelConnectFlow = ({
         <div className="flex flex-col gap-4">
             {/* Only before the fields exist: a later load must not push them down. */}
             {setupLoading && !fields.length ? (
-                <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+                <div className="flex items-center gap-2 text-label text-muted-foreground">
                     <Spinner size="small" /> {t("channels.connect.loadingSetup", {platform: name})}
                 </div>
             ) : null}
@@ -781,17 +780,17 @@ export const ChannelConnectFlow = ({
         }
         return (
             <ViewTransition viewKey={screen} direction={screenDirection.current}>
-                <div className="flex min-h-full flex-1 flex-col gap-[22px]">
+                <div className="flex min-h-full flex-1 flex-col gap-6">
                     {steps ? <StepsBar steps={steps} current={current} /> : null}
                     {errorAlert}
 
                     {slackStep === "name" ? (
                         <div className="flex flex-col gap-4" data-testid="channels-slack-identity">
                             <div className="flex flex-col gap-0.5">
-                                <span className="text-sm font-semibold text-foreground">
+                                <span className="text-label font-semibold text-foreground">
                                     {t("channels.connect.identityTitle")}
                                 </span>
-                                <span className="text-[13px] text-muted-foreground">
+                                <span className="text-label text-muted-foreground">
                                     {t("channels.connect.identityMention", {
                                         handle:
                                             slackIdentity.handle ||
@@ -865,10 +864,10 @@ export const ChannelConnectFlow = ({
                     {slackStep === "guide" ? (
                         <div className="flex flex-col gap-3.5">
                             <div className="flex flex-col gap-0.5">
-                                <span className="text-sm font-semibold text-foreground">
+                                <span className="text-label font-semibold text-foreground">
                                     {t("channels.connect.manifestTitle")}
                                 </span>
-                                <span className="text-[13px] text-muted-foreground">
+                                <span className="text-label text-muted-foreground">
                                     {t("channels.connect.manifestBody")}
                                 </span>
                             </div>
@@ -884,7 +883,7 @@ export const ChannelConnectFlow = ({
                                     data-testid="channels-manifest"
                                 />
                             ) : (
-                                <span className="text-[13px] text-colorWarning">
+                                <span className="text-label text-warning">
                                     {t("channels.connect.noManifest")}
                                 </span>
                             )}
@@ -906,10 +905,10 @@ export const ChannelConnectFlow = ({
                     {slackStep === "creds" ? (
                         <div className="flex flex-col gap-4">
                             <div className="flex flex-col gap-0.5">
-                                <span className="text-sm font-semibold text-foreground">
+                                <span className="text-label font-semibold text-foreground">
                                     {t("channels.connect.credsTitle")}
                                 </span>
-                                <span className="text-[13px] text-muted-foreground">
+                                <span className="text-label text-muted-foreground">
                                     {t("channels.connect.credsBody")}
                                 </span>
                             </div>
@@ -967,7 +966,6 @@ export const ChannelConnectFlow = ({
                     disabled={authorizing}
                     onClick={() => void startSlackInstall()}
                     data-testid="channels-add-to-slack"
-                    className={PHONE_TOUCH_TARGET_CLASS}
                 >
                     {authorizing
                         ? t("channels.connect.waitingForSlack")
@@ -1076,7 +1074,7 @@ export const ChannelConnectFlow = ({
 
     return (
         <ViewTransition viewKey={screen} direction={screenDirection.current}>
-            <div className="flex min-h-full flex-1 flex-col gap-[22px]">
+            <div className="flex min-h-full flex-1 flex-col gap-6">
                 {errorAlert}
 
                 {customOnly ? null : (
@@ -1089,7 +1087,7 @@ export const ChannelConnectFlow = ({
                             testId="channels-method"
                         />
                         <span
-                            className="px-0.5 text-xs text-muted-foreground"
+                            className="px-0.5 text-meta text-muted-foreground"
                             data-testid="channels-connect-note"
                         >
                             {note}
@@ -1124,16 +1122,16 @@ export const ChannelConnectFlow = ({
                             ].map((fact) => (
                                 <div
                                     key={fact.title}
-                                    className="flex items-start gap-3 border-0 border-b border-solid border-border py-[11px]"
+                                    className="flex items-start gap-3 border-0 border-b border-solid border-border-muted py-3"
                                 >
                                     <span className="mt-px flex flex-none text-muted-foreground">
                                         {fact.icon}
                                     </span>
                                     <span className="flex min-w-0 flex-1 flex-col gap-px">
-                                        <span className="text-sm text-foreground">
+                                        <span className="text-body text-foreground">
                                             {fact.title}
                                         </span>
-                                        <span className="text-[13px] text-muted-foreground">
+                                        <span className="text-label text-muted-foreground">
                                             {fact.body}
                                         </span>
                                     </span>
@@ -1144,7 +1142,7 @@ export const ChannelConnectFlow = ({
                 ) : null}
 
                 {isSlack && mode === "hosted" && authorizing ? (
-                    <div className="flex flex-col gap-1.5 text-[13px] text-muted-foreground">
+                    <div className="flex flex-col gap-1.5 text-label text-muted-foreground">
                         <div className="flex items-center gap-2">
                             <Spinner size="small" /> {t("channels.connect.finishInSlack")}
                             <Button
@@ -1163,7 +1161,7 @@ export const ChannelConnectFlow = ({
                                 href={slackInstallUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-[13px] text-foreground underline underline-offset-2"
+                                className="text-label text-foreground underline underline-offset-2"
                             >
                                 {t("channels.connect.slackDidNotOpen")}
                             </a>
@@ -1201,10 +1199,10 @@ export const ChannelConnectFlow = ({
 
                 {/* TELEGRAM · hosted */}
                 {isTelegram && mode === "hosted" ? (
-                    <div className="overflow-hidden rounded-2xl border border-solid border-border">
-                        <div className="relative flex flex-col items-center gap-[18px] bg-muted bg-[radial-gradient(var(--ag-colorBorder)_1px,transparent_1px)] bg-[size:14px_14px] px-5 pb-[22px] pt-7">
+                    <div className="overflow-hidden rounded-lg border border-solid border-border">
+                        <div className="relative flex flex-col items-center gap-4 bg-muted bg-[radial-gradient(var(--border)_1px,transparent_1px)] bg-[size:14px_14px] px-5 pb-6 pt-7">
                             {tgStep === "preparing" ? (
-                                <div className="flex h-[200px] items-center justify-center gap-2 text-[13px] text-muted-foreground">
+                                <div className="flex h-50 items-center justify-center gap-2 text-label text-muted-foreground">
                                     <Spinner size="small" /> {t("channels.connect.preparingLink")}
                                 </div>
                             ) : null}
@@ -1213,10 +1211,10 @@ export const ChannelConnectFlow = ({
                                     <div className="relative p-3.5">
                                         {(
                                             [
-                                                "left-0 top-0 border-l-2 border-t-2 rounded-tl-lg",
-                                                "right-0 top-0 border-r-2 border-t-2 rounded-tr-lg",
-                                                "bottom-0 left-0 border-b-2 border-l-2 rounded-bl-lg",
-                                                "bottom-0 right-0 border-b-2 border-r-2 rounded-br-lg",
+                                                "left-0 top-0 border-l border-t rounded-tl-md",
+                                                "right-0 top-0 border-r border-t rounded-tr-md",
+                                                "bottom-0 left-0 border-b border-l rounded-bl-md",
+                                                "bottom-0 right-0 border-b border-r rounded-br-md",
                                             ] as const
                                         ).map((corner) => (
                                             <span
@@ -1226,7 +1224,7 @@ export const ChannelConnectFlow = ({
                                         ))}
                                         <div
                                             ref={qrRef}
-                                            className="relative box-border size-[172px] rounded-xl bg-white p-3.5 text-black shadow-lg"
+                                            className="relative box-border size-[172px] rounded-lg bg-white p-3.5 text-black"
                                         >
                                             <QrCode
                                                 value={tgLink.url}
@@ -1235,12 +1233,12 @@ export const ChannelConnectFlow = ({
                                                     handle: telegramHandle,
                                                 })}
                                             />
-                                            <span className="absolute left-1/2 top-1/2 flex size-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white">
+                                            <span className="absolute left-1/2 top-1/2 flex size-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md bg-white">
                                                 {platformLogo("telegram", 26)}
                                             </span>
                                         </div>
                                     </div>
-                                    <span className="inline-flex h-[26px] items-center gap-1.5 rounded-full border border-solid border-border bg-background px-2.5 text-xs text-muted-foreground">
+                                    <span className="inline-flex h-6 items-center gap-1.5 rounded-md border border-solid border-border bg-background px-2.5 text-meta text-muted-foreground">
                                         <Clock size={13} />
                                         {richText(
                                             t("channels.connect.expiresIn", {
@@ -1292,7 +1290,7 @@ export const ChannelConnectFlow = ({
                                 </>
                             ) : null}
                             {tgStep === "expired" ? (
-                                <div className="flex h-[200px] w-full items-center">
+                                <div className="flex h-50 w-full items-center">
                                     <Alert
                                         type="warning"
                                         showIcon
@@ -1303,12 +1301,12 @@ export const ChannelConnectFlow = ({
                                 </div>
                             ) : null}
                             {tgStep === "unavailable" ? (
-                                <div className="flex h-[200px] items-center">
+                                <div className="flex h-50 items-center">
                                     <a
                                         href={TELEGRAM_HOSTED_DOCS}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="flex items-center gap-1 text-[13px] text-foreground"
+                                        className="flex items-center gap-1 text-label text-foreground"
                                     >
                                         {t("channels.connect.hostedDocsLink")}
                                         <ArrowSquareOut size={12} />
@@ -1317,10 +1315,10 @@ export const ChannelConnectFlow = ({
                             ) : null}
                             {tgStep === "linked" ? (
                                 <div
-                                    className="flex h-[200px] items-center gap-2 text-[13px] text-foreground"
+                                    className="flex h-50 items-center gap-2 text-label text-foreground"
                                     data-testid="channels-telegram-linked"
                                 >
-                                    <Check size={14} weight="bold" className="text-colorSuccess" />
+                                    <Check size={14} weight="bold" className="text-success" />
                                     {t("channels.connect.telegramLinked", {
                                         agent: agentName,
                                     })}
@@ -1328,10 +1326,10 @@ export const ChannelConnectFlow = ({
                             ) : null}
                         </div>
                         <div className="flex flex-col gap-1 border-0 border-t border-solid border-border bg-background px-5 py-4 text-center">
-                            <span className="text-sm font-semibold text-foreground">
+                            <span className="text-label font-semibold text-foreground">
                                 {t("channels.connect.scanTitle")}
                             </span>
-                            <span className="text-[13px] text-muted-foreground">
+                            <span className="text-label text-muted-foreground">
                                 {t("channels.connect.scanBody", {
                                     handle: telegramHandle,
                                     agent: agentName,
@@ -1342,7 +1340,7 @@ export const ChannelConnectFlow = ({
                                     className="flex flex-col items-center gap-1.5 pt-1.5"
                                     data-testid="channels-telegram-waiting"
                                 >
-                                    <span className="flex items-center gap-2 text-[13px] text-muted-foreground">
+                                    <span className="flex items-center gap-2 text-label text-muted-foreground">
                                         <Spinner size="small" />{" "}
                                         {t("channels.connect.waitingTelegram")}
                                     </span>
@@ -1446,7 +1444,7 @@ export const ChannelConnectFlow = ({
                             ) : null}
                         </StepRow>
                         <span
-                            className="px-0.5 pt-2 text-xs text-muted-foreground"
+                            className="px-0.5 pt-2 text-meta text-muted-foreground"
                             data-testid="channels-connect-note"
                         >
                             {note}
@@ -1456,15 +1454,15 @@ export const ChannelConnectFlow = ({
 
                 {isDiscord && discordConnectionId ? (
                     <div className="flex flex-col gap-4" data-testid="channels-discord-invite">
-                        <div className="flex items-center gap-2 rounded-lg bg-colorSuccessBg p-3 text-[13px] text-foreground">
-                            <Check size={14} weight="bold" className="text-colorSuccess" />
+                        <div className="flex items-center gap-2 rounded-lg bg-success/10 p-3 text-label text-foreground">
+                            <Check size={14} weight="bold" className="text-success" />
                             {t("channels.connect.discordConnected")}
                         </div>
                         <div className="flex flex-col gap-2">
-                            <span className="text-[13px] text-muted-foreground">
+                            <span className="text-label text-muted-foreground">
                                 {t("channels.connect.discordInviteSteps")}
                             </span>
-                            <span className="text-[13px] text-muted-foreground">
+                            <span className="text-label text-muted-foreground">
                                 {t("channels.connect.discordPrivateChannelHint")}
                             </span>
                             {discordInviteError ? (
@@ -1581,7 +1579,7 @@ export const ChannelConnectFlow = ({
                             ) : null}
                         </StepRow>
                         <span
-                            className="px-0.5 pt-2 text-xs text-muted-foreground"
+                            className="px-0.5 pt-2 text-meta text-muted-foreground"
                             data-testid="channels-connect-note"
                         >
                             {note}
@@ -1592,10 +1590,10 @@ export const ChannelConnectFlow = ({
                 {isTeams && created ? (
                     <div className="flex flex-col gap-4">
                         <div
-                            className="flex items-center gap-2 rounded-lg bg-colorSuccessBg p-3 text-[13px] text-foreground"
+                            className="flex items-center gap-2 rounded-lg bg-success/10 p-3 text-label text-foreground"
                             data-testid="channels-teams-connected"
                         >
-                            <Check size={14} weight="bold" className="text-colorSuccess" />
+                            <Check size={14} weight="bold" className="text-success" />
                             {t("channels.teams.connected")}
                         </div>
                         <TeamsAppSetup connection={created} actions={actions} />
@@ -1604,7 +1602,7 @@ export const ChannelConnectFlow = ({
 
                 {/* WHATSAPP · your own number */}
                 {isWhatsApp && !created ? (
-                    <div className="flex flex-col gap-[22px]">
+                    <div className="flex flex-col gap-6">
                         <Alert
                             type="info"
                             showIcon
@@ -1677,10 +1675,10 @@ export const ChannelConnectFlow = ({
                 {isWhatsApp && created ? (
                     <div className="flex flex-col gap-4">
                         <div
-                            className="flex items-center gap-2 rounded-lg bg-colorSuccessBg p-3 text-[13px] text-foreground"
+                            className="flex items-center gap-2 rounded-lg bg-success/10 p-3 text-label text-foreground"
                             data-testid="channels-whatsapp-connected"
                         >
-                            <Check size={14} weight="bold" className="text-colorSuccess" />
+                            <Check size={14} weight="bold" className="text-success" />
                             {t("channels.connect.whatsappConnected")}
                         </div>
                         <WhatsAppWebhook connection={created} />
@@ -1708,13 +1706,13 @@ const IdentityField = ({
 }) => (
     <label className="flex flex-col gap-1.5">
         <span className="flex items-baseline justify-between">
-            <span className="text-[13px] font-medium text-foreground">{label}</span>
-            <span className="text-xs tabular-nums text-muted-foreground">
+            <span className="text-label font-medium text-foreground">{label}</span>
+            <span className="text-meta tabular-nums text-muted-foreground">
                 {length}/{max}
             </span>
         </span>
         {children}
-        {help ? <span className="text-xs text-muted-foreground">{help}</span> : null}
+        {help ? <span className="text-meta text-muted-foreground">{help}</span> : null}
     </label>
 )
 
@@ -1737,9 +1735,9 @@ const SetupFieldInput = ({
         <label className="flex flex-col gap-1.5" aria-label={hideLabel ? field.label : undefined}>
             {hideLabel ? null : (
                 <span className="flex items-baseline justify-between">
-                    <span className="text-[13px] font-medium text-foreground">{field.label}</span>
+                    <span className="text-label font-medium text-foreground">{field.label}</span>
                     {field.required ? (
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-meta text-muted-foreground">
                             {t("common.required")}
                         </span>
                     ) : null}
@@ -1750,7 +1748,7 @@ const SetupFieldInput = ({
                     value={value}
                     placeholder={placeholder}
                     onChange={(e) => onChange(e.target.value)}
-                    className="font-mono text-xs"
+                    className="text-code"
                     data-testid={`channels-field-${field.name}`}
                 />
             ) : (
@@ -1758,20 +1756,20 @@ const SetupFieldInput = ({
                     value={value}
                     placeholder={placeholder}
                     onChange={(e) => onChange(e.target.value)}
-                    className="font-mono text-xs"
+                    className="text-code"
                     data-testid={`channels-field-${field.name}`}
                     aria-invalid={patternError ? true : undefined}
                 />
             )}
             {patternError ? (
                 <span
-                    className="text-xs text-error"
+                    className="text-meta text-destructive"
                     data-testid={`channels-field-${field.name}-error`}
                 >
                     {patternError}
                 </span>
             ) : field.help ? (
-                <span className="text-xs text-muted-foreground">{field.help}</span>
+                <span className="text-meta text-muted-foreground">{field.help}</span>
             ) : null}
         </label>
     )

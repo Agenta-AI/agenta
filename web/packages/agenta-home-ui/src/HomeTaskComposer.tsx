@@ -100,7 +100,7 @@ const DockLabel = ({
     clearLabel?: string
 }) => (
     <>
-        <span className="flex min-w-0 items-center gap-1.5 pl-1 text-[12px] text-foreground">
+        <span className="flex min-w-0 items-center gap-1.5 pl-1 text-meta text-foreground">
             {tile}
             <span className="min-w-0 truncate">{name}</span>
         </span>
@@ -179,7 +179,7 @@ export const HomeTaskComposer = ({
         <DockLabel
             tile={
                 <span
-                    className="flex size-5 shrink-0 items-center justify-center rounded-control-sm text-[10px] font-medium text-white"
+                    className="flex size-5 shrink-0 items-center justify-center rounded-control-sm text-caption font-medium text-white"
                     style={{background: template.color}}
                 >
                     {template.initials}
@@ -209,7 +209,7 @@ export const HomeTaskComposer = ({
             onCreateAgent={creating ? undefined : onClear}
             triggerAriaLabel={t("home.composer.agent")}
             // The dock is already a surface; a filled pill on it is a box within a box.
-            triggerClassName="bg-transparent px-1 text-[12px] font-normal hover:bg-accent"
+            triggerClassName="bg-transparent px-1 hover:bg-accent"
         />
     )
 
@@ -235,7 +235,7 @@ export const HomeTaskComposer = ({
                             className="animate-composer-ring absolute left-1/2 top-1/2 w-[170%] pb-[170%]"
                             style={{
                                 background:
-                                    "conic-gradient(from 0deg, transparent 0 58%, color-mix(in oklab, var(--ag-colorText) 50%, transparent) 80%, transparent 100%)",
+                                    "conic-gradient(from 0deg, transparent 0 58%, color-mix(in oklab, var(--foreground) 50%, transparent) 80%, transparent 100%)",
                             }}
                         />
                     </div>
@@ -245,7 +245,7 @@ export const HomeTaskComposer = ({
                 <div
                     className={
                         ringed
-                            ? "relative flex flex-col overflow-hidden rounded-lg bg-[var(--ag-colorBgContainer)]"
+                            ? "relative flex flex-col overflow-hidden rounded-lg bg-background"
                             : "relative flex flex-col"
                     }
                 >
@@ -305,11 +305,7 @@ export const HomeTaskComposer = ({
                         // RichChatInput composes with clsx, so a plain class would be left to
                         // stylesheet order against its own `focus-within:border-*`.
                         className={
-                            ringed
-                                ? "!border-transparent"
-                                : creating
-                                  ? "!bg-[var(--ag-colorBgContainer)]"
-                                  : undefined
+                            ringed ? "!border-transparent" : creating ? "!bg-background" : undefined
                         }
                     />
                 </div>
@@ -333,7 +329,7 @@ export const HomeTaskComposer = ({
                 opaque, so a line tucked under it shows straight THROUGH rather than behind, and
                 its own bottom edge is the rule between them. */}
             {dock ? (
-                <div className="-mt-6 mx-px flex items-center gap-2 rounded-b-lg border border-t-0 border-solid border-[var(--ag-colorSplit)] bg-transparent px-2.5 pb-1 pt-7">
+                <div className="-mt-6 mx-px flex items-center gap-2 rounded-b-lg border border-t-0 border-solid border-border-muted bg-transparent px-2.5 pb-1 pt-7">
                     {dock}
                 </div>
             ) : null}

@@ -40,7 +40,7 @@ import {McpServerMark} from "@agenta/ui/agent-icon"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
-import {Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {ViewDrawerHost} from "@agenta/ui/view-stack"
 import {
     ArrowsClockwise,
@@ -318,7 +318,6 @@ export default function McpServersSection({
     const connect = (
         <Button
             data-testid="mcp-connect-open"
-            className={PHONE_TOUCH_TARGET_CLASS}
             onClick={openConnect}
         >
             <Plus size={14} />
@@ -355,7 +354,7 @@ export default function McpServersSection({
                     <>
                         <span className="flex min-w-0 items-center gap-2.5">
                             {/* One glyph for every server; the tile color follows the name. */}
-                            <McpServerMark size={28} name={record.name || record.slug} />
+                            <McpServerMark size={24} name={record.name || record.slug} />
                             <InlineName
                                 value={record.name || record.slug || ""}
                                 editing={!readOnly && renamingKey === rowKey(record)}
@@ -393,7 +392,7 @@ export default function McpServersSection({
                         </span>
                         {shows("url") ? (
                             <span
-                                className="truncate text-[13px] text-muted-foreground"
+                                className="truncate text-label text-muted-foreground"
                                 title={record.data.route.base_url ?? undefined}
                             >
                                 {record.data.route.base_url}
@@ -407,7 +406,7 @@ export default function McpServersSection({
                             // Never the credential itself, only what it is filed under.
                             <span className="flex min-w-0 items-center gap-1">
                                 <span>{t("settings.mcp.apiKeyPrefix")}</span>
-                                <span className="truncate font-mono text-xs">{secretName}</span>
+                                <span className="truncate text-code">{secretName}</span>
                             </span>
                         ) : (
                             <span className="truncate">{t("settings.mcp.apiKey")}</span>
@@ -421,12 +420,12 @@ export default function McpServersSection({
                                     tone={STATUS_TONE[status]}
                                     label={getMcpConnectionStatusLabel(status)}
                                     // min-w-0 lets the label truncate instead of pushing the menu out.
-                                    className="min-w-0 text-[13px]"
+                                    className="min-w-0 text-label"
                                 />
                                 {checkLabel ? (
                                     <span
                                         data-testid="mcp-connection-check"
-                                        className="truncate text-xs text-muted-foreground"
+                                        className="truncate text-meta text-muted-foreground"
                                         title={checkLabel}
                                     >
                                         {checkLabel}

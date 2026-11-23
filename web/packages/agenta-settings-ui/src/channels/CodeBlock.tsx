@@ -51,7 +51,7 @@ export const CodeBlock = ({
 
     return (
         <div className="min-w-0 overflow-hidden rounded-lg border border-solid border-border">
-            <div className="flex items-center justify-between border-0 border-b border-solid border-border bg-muted py-1.5 pl-3 pr-2 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between border-0 border-b border-solid border-border bg-muted py-1.5 pl-3 pr-2 text-meta text-muted-foreground">
                 {label}
                 <div className="flex items-center gap-1">
                     {actions}
@@ -68,7 +68,7 @@ export const CodeBlock = ({
             {/* The scroll sits on a div: a global rule gives every <pre> a wide scrollbar. */}
             <div className={`ag-scroll-quiet overflow-auto ${maxHeightClass}`}>
                 <pre
-                    className={`m-0 p-3 font-mono text-xs leading-relaxed text-foreground ${
+                    className={`m-0 p-3 text-code leading-relaxed text-foreground ${
                         wrap ? "whitespace-pre-wrap" : "w-max min-w-full whitespace-pre"
                     }`}
                     data-testid={testId}

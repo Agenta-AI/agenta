@@ -41,7 +41,7 @@ export const ChannelAgentPicker = ({
                     data-testid="channels-picker-audience"
                 />
             ) : null}
-            <span className="px-0.5 text-[13px] font-semibold text-foreground">
+            <span className="px-0.5 text-label font-semibold text-foreground">
                 {t("channels.agentPicker.agents")}
             </span>
             {agents.length ? (
@@ -58,10 +58,10 @@ export const ChannelAgentPicker = ({
                             >
                                 <AgentMark agentId={agent.id} />
                                 <span className="flex min-w-0 flex-1 flex-col gap-px">
-                                    <span className="truncate text-sm font-medium text-foreground">
+                                    <span className="truncate text-label text-foreground">
                                         {agent.name}
                                     </span>
-                                    <span className="truncate text-[12.5px] text-muted-foreground">
+                                    <span className="truncate text-label text-muted-foreground">
                                         {live
                                             ? t("channels.agentPicker.channelsLive", {
                                                   count: live,
@@ -75,7 +75,7 @@ export const ChannelAgentPicker = ({
                     })}
                 </div>
             ) : (
-                <p className="m-0 px-0.5 text-sm text-muted-foreground">
+                <p className="m-0 px-0.5 text-body text-muted-foreground">
                     {t("channels.agentPicker.noAgents")}
                 </p>
             )}

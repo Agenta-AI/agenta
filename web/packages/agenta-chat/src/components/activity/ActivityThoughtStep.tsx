@@ -33,7 +33,8 @@ export const ActivityThoughtStep = ({
             <StepRow open={open} onToggle={() => setOpen((v) => !v)}>
                 <ActivityNode icon="brain" />
                 <span
-                    className={`min-w-0 max-w-[44ch] truncate text-sm text-colorText transition-colors group-hover/row:text-colorTextSecondary ${
+                    // The agent's own words: prose, `text-body` (CHAT-01).
+                    className={`min-w-0 max-w-[44ch] truncate text-body text-foreground transition-colors group-hover/row:text-muted-foreground ${
                         live || streaming ? LIVE_TEXT_CLASS : ""
                     }`}
                 >
@@ -42,7 +43,7 @@ export const ActivityThoughtStep = ({
                 <StepCaret open={open} />
             </StepRow>
             <RevealCollapse open={open}>
-                <div className="whitespace-pre-wrap break-words pl-[38px] text-[13px] italic leading-relaxed text-colorTextTertiary">
+                <div className="whitespace-pre-wrap break-words pl-8 text-body text-muted-foreground">
                     {text}
                 </div>
             </RevealCollapse>

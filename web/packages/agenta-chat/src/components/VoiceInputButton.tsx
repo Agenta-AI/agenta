@@ -4,7 +4,6 @@ import {useT} from "@agenta/i18n"
 import chatVoiceInputButtonCatalog from "@agenta/i18n/catalogs/chat.voiceInputButton"
 import {pushToTalkLabel} from "@agenta/shared/utils"
 import type {ComposerSurface, RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {
     Button,
     DropdownMenu,
@@ -199,7 +198,7 @@ const VoiceInputButton = ({
             m.key === "audio" && audioNotHeard ? (
                 <span className="flex flex-col">
                     <span>{modeLabel(m.key)}</span>
-                    <span className="text-xs text-colorTextTertiary">
+                    <span className="text-meta text-muted-foreground">
                         {t("chat.voiceInputButton.cannotListen")}
                     </span>
                 </span>
@@ -235,9 +234,9 @@ const VoiceInputButton = ({
                     // A phone: 36 px drawn and a 44 px area (4 px reach), as the design canvas.
                     className={`${
                         surface === "canvas"
-                            ? `size-6 ${dictating ? "" : "text-colorTextTertiary"}`
+                            ? `size-6 ${dictating ? "" : "text-muted-foreground"}`
                             : ""
-                    } max-md:size-9 ${PHONE_TOUCH_TARGET_CLASS}`}
+                    }`}
                     onClick={toggle}
                     // A second press while the prompt is open would only queue another request.
                     disabled={disabled || (!dictating && (audioPending || audioBlocked))}

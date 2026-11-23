@@ -99,15 +99,15 @@ export const SessionTab = ({
                 // Label-sized between a floor (clickable zone left of the hover actions) and a ceiling.
                 // `select-none`: a second click on the chip you are already on must not start
                 // painting its label — a tab is a control, not text (#6379).
-                "group relative flex h-7 w-fit min-w-20 max-w-[180px] shrink-0 cursor-pointer select-none items-center gap-1.5 rounded px-2 text-xs transition-colors",
+                "group relative flex h-7 w-fit min-w-20 max-w-[180px] shrink-0 cursor-pointer select-none items-center gap-1.5 rounded px-2 text-label transition-colors",
                 // No card, no border — plain labels on the canvas, separated by the host's
                 // hairline divider. Selected reads by FILL alone: `colorFill` is the antd
                 // "pressed/active" step, ink-tinted in light and translucent white in dark,
                 // clearly stronger than the whisper-of-fill hover an unselected tag gets, held
                 // at 90% so the chip sits a touch lighter on the canvas.
                 active
-                    ? "bg-[color-mix(in_srgb,var(--ag-colorFill)_90%,transparent)] text-colorText"
-                    : "text-colorTextSecondary hover:bg-colorFillTertiary",
+                    ? "bg-selected/90 text-foreground"
+                    : "text-muted-foreground hover:bg-accent",
                 className,
             )}
         >
@@ -117,7 +117,7 @@ export const SessionTab = ({
                     size={10}
                     weight="fill"
                     aria-hidden
-                    className="shrink-0 text-colorTextTertiary"
+                    className="shrink-0 text-muted-foreground"
                 />
             )}
             <span

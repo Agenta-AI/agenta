@@ -53,8 +53,7 @@ export interface ApprovalCardProps {
     entityId?: string
     /** Show the Redirect (deny + note) entry point — hosts gate it by their own flag. */
     steerEnabled?: boolean
-    /** Touch mode: identical chrome with an invisibly extended ~44px tap area per action. A phone
-     *  width draws the actions 44 px high instead, whatever this says. */
+    /** @deprecated Kept for callers; touch draws the same actions as a mouse (SIZE-03). */
     touch?: boolean
     /** A host-side failure to surface under the actions (e.g. the detached resume failed). */
     errorText?: string | null
@@ -102,7 +101,6 @@ export const ApprovalCard = ({
     recoverable = false,
     entityId,
     steerEnabled = false,
-    touch = false,
     errorText,
     onRespond,
     onApproveAll,
@@ -112,7 +110,7 @@ export const ApprovalCard = ({
     ownsShortcut,
     alwaysAllowOffered = true,
     alwaysApprove,
-    className = "gap-2.5 border border-solid border-colorBorderSecondary bg-colorBgContainer p-3.5",
+    className = "gap-2.5 bg-muted p-3.5",
 }: ApprovalCardProps) => {
     const current = approvals[0]
     const count = approvals.length
@@ -253,16 +251,10 @@ export const ApprovalCard = ({
         return info.eligible && !info.alreadyAllowed
     })
     const canAlwaysAllow = (alwaysApprove ? true : alwaysAllowOffered) && grantableTools.length > 0
-    // On a phone the actions are drawn 44 px high (M05). Touch elsewhere keeps the chrome and
-    // extends the tap target invisibly.
     const phone = useIsPhone()
     // A change card: the C01 chrome, with its parts from edge to edge and a footer band.
     const changeCard = Boolean(changes || grouped)
-    const actionCls = phone
-        ? `h-11 rounded-[10px] px-4 text-[15px] ${changeCard ? "min-w-[92px]" : ""}`
-        : touch
-          ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
-          : ""
+    const actionCls = phone ? `px-4 ${changeCard ? "min-w-23" : ""}` : ""
     // The keycaps ride on the actions themselves, so the gesture reads without a hover. Gated on
     // the keyboard, not on `touch`: that prop sizes the buttons, and /m serves desktop browsers too.
     const showKeys = hasKeyboard
@@ -270,9 +262,9 @@ export const ApprovalCard = ({
     const denyCls = !changeCard
         ? ""
         : phone
-          ? "text-colorTextSecondary"
-          : "bg-colorBgContainer text-colorTextSecondary"
-    // A change card's buttons are the canvas's 28 px ones (C01); a phone sets 44 px above.
+          ? "text-muted-foreground"
+          : "bg-background text-muted-foreground"
+    // A change card's buttons are the canvas's 28 px ones (C01).
     const buttonSize = changeCard ? "compact" : undefined
 
     const approve = () => {
@@ -347,14 +339,14 @@ export const ApprovalCard = ({
         return (
             <div
                 ref={rootRef}
-                className="flex flex-col gap-1 rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgContainer py-1 shadow-[var(--ag-surface-card-shadow)]"
+                className="flex flex-col gap-1 rounded-lg border border-solid border-border-muted bg-background py-1"
             >
                 <ChangeResultRow state={cardState} />
                 {errorText ? (
                     <p
                         role="alert"
                         aria-live="assertive"
-                        className="m-0 px-3 pb-1 text-xs text-colorError"
+                        className="m-0 px-3 pb-1 text-meta text-destructive"
                     >
                         {errorText}
                     </p>
@@ -368,16 +360,16 @@ export const ApprovalCard = ({
             ref={rootRef}
             className={`flex flex-col ${
                 changeCard
-                    ? "overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgContainer shadow-[var(--ag-surface-card-shadow)]"
+                    ? "overflow-hidden rounded-lg border border-solid border-border-muted bg-background"
                     : `rounded-lg ${className}`
-            } ${risky ? "!border-colorWarningBorder" : ""}`}
+            } ${risky ? "border border-solid !border-warning/30" : ""}`}
         >
             {/* Eyebrow: a quiet cue that a decision is owed, not an error tint. A change card's
                 header is the change itself, so it shows the eyebrow only once answered. */}
             {(changes || grouped) && !answered ? null : (
                 <div className="flex items-center gap-1.5">
-                    <ShieldCheck size={14} weight="fill" className="shrink-0 text-colorText" />
-                    <span className="text-xs font-medium text-colorText">
+                    <ShieldCheck size={14} weight="fill" className="shrink-0 text-foreground" />
+                    <span className="text-label text-foreground">
                         {answered
                             ? t("chat.approvalCard.answerSavedRetry")
                             : t("chat.approvalCard.needsApproval")}
@@ -401,7 +393,7 @@ export const ApprovalCard = ({
                 />
             ) : (
                 <span
-                    className="text-[13px] leading-relaxed text-colorTextSecondary [text-wrap:pretty]"
+                    className="text-label leading-relaxed text-muted-foreground [text-wrap:pretty]"
                     title={current.toolName}
                 >
                     {preview.sentence}
@@ -425,7 +417,7 @@ export const ApprovalCard = ({
                         type="button"
                         onClick={() => setDetailsOpen((s) => !s)}
                         aria-expanded={detailsOpen}
-                        className="flex cursor-pointer items-center gap-1.5 self-start border-0 bg-transparent p-0 text-xs text-colorTextSecondary transition-colors hover:text-colorText"
+                        className="flex cursor-pointer items-center gap-1.5 self-start border-0 bg-transparent p-0 text-label text-muted-foreground transition-colors hover:text-foreground"
                     >
                         <CaretRight
                             size={11}
@@ -443,15 +435,13 @@ export const ApprovalCard = ({
                               )}
                     </button>
                     <HeightCollapse open={detailsOpen}>
-                        <div className="flex max-h-[196px] flex-col overflow-y-auto rounded-md border border-solid border-colorBorderSecondary bg-colorFillQuaternary">
+                        <div className="flex max-h-49 flex-col overflow-y-auto rounded-md bg-secondary">
                             {items.map((item, index) => {
                                 const rowOpen = expandedRows.has(index)
                                 const rowClass =
-                                    "flex min-w-0 flex-col gap-0.5 border-0 border-b border-solid border-colorBorderSecondary px-3 py-2 text-left last:border-b-0"
+                                    "box-border flex min-h-row-double min-w-0 flex-col justify-center border-0 border-b border-solid border-border-muted px-3 py-1.5 text-left last:border-b-0"
                                 const title = (
-                                    <span className="text-xs font-medium text-colorText">
-                                        {item.title}
-                                    </span>
+                                    <span className="text-label text-foreground">{item.title}</span>
                                 )
                                 // A row with a detail is one clickable target — the whole row (title,
                                 // text, padding) toggles between the one-line preview and full text.
@@ -466,7 +456,7 @@ export const ApprovalCard = ({
                                         >
                                             {title}
                                             <span
-                                                className={`w-full text-xs leading-relaxed text-colorTextSecondary ${
+                                                className={`w-full text-meta leading-relaxed text-muted-foreground ${
                                                     rowOpen
                                                         ? "whitespace-pre-wrap break-words"
                                                         : "truncate"
@@ -494,7 +484,7 @@ export const ApprovalCard = ({
                 <ChangeResultRow
                     state={cardState}
                     readOnlyNote={readOnlyNote}
-                    className={`rounded-md bg-colorFillQuaternary px-2.5 py-2 ${
+                    className={`rounded-md bg-secondary px-2.5 py-2 ${
                         changeCard ? "mx-2 mb-2" : "-mx-1"
                     }`}
                 />
@@ -512,30 +502,26 @@ export const ApprovalCard = ({
                     <div
                         className={`flex flex-wrap items-center gap-2 ${
                             changeCard
-                                ? `border-0 border-t border-solid border-colorBorderSecondary bg-[var(--ag-surface-raised)] ${
+                                ? `border-0 border-t border-solid border-border-muted bg-[var(--ag-surface-raised)] ${
                                       phone ? "px-3 py-2" : "py-2 pl-3 pr-2.5"
                                   }`
                                 : ""
                         }`}
                     >
                         {grouped ? (
-                            <span className="text-[12px] leading-4 text-colorTextSecondary">
+                            <span className="text-meta text-muted-foreground">
                                 {tStates("chat.changeCardStates.openRow")}
                             </span>
                         ) : changes && baseVersion !== undefined ? (
                             <span
-                                className="text-[12px] leading-4 text-colorTextSecondary"
+                                className="text-meta text-muted-foreground"
                                 data-testid="change-saves-as"
                             >
                                 {tChange("chat.changeCard.savesAs", {version: baseVersion + 1})}
                             </span>
                         ) : null}
                         {canAlwaysAllow ? (
-                            <label
-                                className={`flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap text-xs text-colorTextSecondary ${
-                                    phone ? "min-h-11" : ""
-                                }`}
-                            >
+                            <label className="flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap text-label text-muted-foreground">
                                 <Checkbox
                                     checked={alwaysAllowArmed}
                                     disabled={responding}
@@ -561,7 +547,7 @@ export const ApprovalCard = ({
                                     variant="ghost"
                                     size={buttonSize}
                                     disabled={responding}
-                                    className={`text-colorTextSecondary ${actionCls}`}
+                                    className={`text-muted-foreground ${actionCls}`}
                                     onClick={() => setSteerOpen(true)}
                                 >
                                     {t("chat.approvalCard.redirect")}
@@ -621,11 +607,11 @@ export const ApprovalCard = ({
             {steerEnabled && !answered && !readOnly ? (
                 <HeightCollapse open={steerOpen} fade inert>
                     <div
-                        className={`flex flex-col gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-2.5 ${
+                        className={`flex flex-col gap-2 border-0 border-t border-solid border-border-muted pt-2.5 ${
                             changeCard ? "px-3 pb-3" : ""
                         }`}
                     >
-                        <span className="text-xs text-colorTextSecondary">
+                        <span className="text-meta text-muted-foreground">
                             {t("chat.approvalCard.steerHint")}
                         </span>
                         <AutosizeTextarea
@@ -636,7 +622,7 @@ export const ApprovalCard = ({
                             onChange={(e) => setSteerMessage(e.target.value)}
                             placeholder={t("chat.approvalCard.steerPlaceholder")}
                             disabled={responding}
-                            className="text-xs hover:border-colorBorder focus:border-colorBorder focus:shadow-none"
+                            className="text-label"
                         />
                         <div className="flex items-center justify-end gap-1.5">
                             <Button
@@ -672,7 +658,7 @@ export const ApprovalCard = ({
                 <p
                     role="status"
                     aria-live="polite"
-                    className={`m-0 text-xs text-colorTextSecondary ${changeCard ? "px-3 pb-3" : ""}`}
+                    className={`m-0 text-meta text-muted-foreground ${changeCard ? "px-3 pb-3" : ""}`}
                 >
                     {t("chat.approvalCard.answerSavedRetryHint")}
                 </p>
@@ -681,7 +667,7 @@ export const ApprovalCard = ({
                 <p
                     role="alert"
                     aria-live="assertive"
-                    className={`m-0 text-xs text-colorError ${changeCard ? "px-3 py-2" : ""}`}
+                    className={`m-0 text-meta text-destructive ${changeCard ? "px-3 py-2" : ""}`}
                 >
                     {errorText}
                 </p>

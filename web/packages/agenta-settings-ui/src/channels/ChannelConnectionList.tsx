@@ -29,14 +29,14 @@ export const ChannelConnectionList = ({
     return (
         <div className="flex flex-col gap-2.5" data-testid="channels-connection-list">
             <div className="flex items-baseline justify-between px-0.5">
-                <span className="text-[13px] font-semibold text-foreground">
+                <span className="text-label font-semibold text-foreground">
                     {isSlack
                         ? t("channels.list.workspaces")
                         : platform === "whatsapp"
                           ? t("channels.list.numbers")
                           : t("channels.list.bots")}
                 </span>
-                <span className="text-[12.5px] text-muted-foreground">
+                <span className="text-label text-muted-foreground">
                     {t("channels.list.connectedCount", {count: connections.length})}
                 </span>
             </div>
@@ -53,22 +53,22 @@ export const ChannelConnectionList = ({
                             data-testid={`channels-connection-${id}`}
                             className={`${ROW_BUTTON} w-full gap-3 rounded-none border-0 border-b border-solid border-border px-1 py-3`}
                         >
-                            <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-muted text-[13px] font-semibold text-muted-foreground">
+                            <span className="flex size-8 flex-none items-center justify-center rounded-md bg-secondary text-label font-semibold text-muted-foreground">
                                 {title.replace(/^@/, "").charAt(0).toUpperCase()}
                             </span>
                             <span className="flex min-w-0 flex-1 flex-col gap-px">
-                                <span className="truncate text-sm font-medium text-foreground">
+                                <span className="truncate text-label text-foreground">
                                     {title}
                                 </span>
-                                <span className="truncate text-[12.5px] text-muted-foreground">
+                                <span className="truncate text-label text-muted-foreground">
                                     {detail}
                                 </span>
                             </span>
                             <span
-                                className={`size-1.5 flex-none rounded-full ${
+                                className={`size-1.5 flex-none rounded-xs ${
                                     connection.status === "revoked"
-                                        ? "bg-colorError"
-                                        : "bg-colorSuccess"
+                                        ? "bg-destructive"
+                                        : "bg-success"
                                 }`}
                             />
                             <CaretRight size={12} className="flex-none text-muted-foreground" />
@@ -84,7 +84,7 @@ export const ChannelConnectionList = ({
                     <span className="flex size-8 flex-none items-center justify-center rounded-lg border border-dashed border-border">
                         <Plus size={14} />
                     </span>
-                    <span className="text-sm">
+                    <span className="text-body">
                         {isSlack
                             ? t("channels.list.addWorkspace")
                             : platform === "whatsapp"
