@@ -5,7 +5,7 @@ import {SectionTitle} from "./SectionTitle"
 export function TypeSection() {
     return (
         <section>
-            <SectionTitle title="Type" description="Ten interface styles and two for code. Weight 600 is the heaviest, and weight never changes with state." />
+            <SectionTitle title="Type" description="The interface styles and the code styles. Weight 600 is the heaviest, and weight never changes with state." />
             <div className="flex flex-col">
                 {textStyles.map((t) => (
                     <div key={t.name} className="grid grid-cols-1 gap-1 border-t border-border-muted py-3 sm:grid-cols-[180px_1fr]">

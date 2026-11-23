@@ -56,7 +56,7 @@ one is in DESIGN.md, "Working with the system".
 Install or update registry components with `pnpm dlx shadcn@latest add <name>`
 run from `web/mobile/`. Installed components live in `src/components/ui/` and
 are owned code — adapt them, but keep diffs from upstream minimal and
-token-driven. The `mobile-shadcn-conventions` skill has the full workflow.
+expressed in theme variables. The `mobile-shadcn-conventions` skill has the full workflow.
 
 ## Skills to load when working here
 

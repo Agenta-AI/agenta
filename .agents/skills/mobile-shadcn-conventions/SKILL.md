@@ -21,7 +21,7 @@ description: How the Agenta mobile app (web/mobile) installs and extends shadcn/
   `pnpm dlx shadcn@latest add <component>`.
 - Components land in `src/components/ui/` (aliases in `components.json`). They
   are owned code: you may adapt them, but keep diffs minimal and expressed in
-  semantic tokens so upstream refreshes stay cheap.
+  theme variables so upstream refreshes stay cheap.
 - The CLI adds any peer deps (e.g. `@radix-ui/react-slot`) to
   `web/mobile/package.json` — commit the manifest and `web/pnpm-lock.yaml`
   changes together with the component.

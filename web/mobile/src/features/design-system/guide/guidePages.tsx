@@ -52,7 +52,7 @@ export function guidePages(mode: "light" | "dark"): GuidePage[] {
             id: "colors",
             group: "Foundations",
             title: "Color",
-            tagline: "23 UI colors, each with one job, plus data colors for charts and categories and media colors for images. Tints are a color at low opacity, never a new color.",
+            tagline: "Each UI color has one job. There are also data colors for charts and categories and media colors for images. Tints are a color at low opacity, never a new color.",
             specimen: (
                 <>
                     <ColorSection />
@@ -61,18 +61,18 @@ export function guidePages(mode: "light" | "dark"): GuidePage[] {
             ),
             rules: [...colorRules, ...moreColorExamples],
         },
-        {id: "type", group: "Foundations", title: "Typography", tagline: "One font, ten interface styles, two text levels. Weight shows rank, never state.", specimen: <TypeSection />, rules: [...typeRules, ...moreTypeExamples]},
-        {id: "size", group: "Foundations", title: "Space and size", tagline: "A 4px grid, four control heights that step down on a compact window, and one gap for each place.", specimen: <ScaleSection />, rules: [...spacingRules, ...gapRules, ...moreSpaceExamples]},
-        {id: "shape", group: "Foundations", title: "Shape", tagline: "Five radii. Nothing is round.", rules: shapeRules},
+        {id: "type", group: "Foundations", title: "Typography", tagline: "One font, one set of text styles, two text levels. Weight shows rank, never state.", specimen: <TypeSection />, rules: [...typeRules, ...moreTypeExamples]},
+        {id: "size", group: "Foundations", title: "Space and size", tagline: "A 4px grid, control heights that step down on a compact window, and one gap for each place.", specimen: <ScaleSection />, rules: [...spacingRules, ...gapRules, ...moreSpaceExamples]},
+        {id: "shape", group: "Foundations", title: "Shape", tagline: "One radius scale. Nothing is round.", rules: shapeRules},
         {id: "icons", group: "Foundations", title: "Icons", tagline: "Phosphor only, one icon per product term.", rules: [...iconRules, ...moreIconExamples]},
         {id: "surfaces", group: "Foundations", title: "Surfaces", tagline: "Tone separates areas, one fill marks hover, and shadows are only for things that float.", rules: [...surfaceRules, ...moreSurfaceExamples, ...hoverRules]},
-        {id: "motion", group: "Foundations", title: "Motion", tagline: "Short, calm, and only when something changed. 120, 200 and 320ms; no bounce.", rules: motionRules},
+        {id: "motion", group: "Foundations", title: "Motion", tagline: "Short, calm, and only when something changed. No bounce.", rules: motionRules},
         {id: "micro", group: "Foundations", title: "Microinteractions", tagline: "The control answers in its own place, at once, with one small change: a caret turns, an icon swaps, a panel unfolds from its trigger.", rules: microRules},
         {id: "voice", group: "Foundations", title: "Content and voice", tagline: "Sentence case, the words users see, and past-tense confirmations.", rules: contentRules},
         {id: "kit", group: "Components", title: "All components", tagline: "The real @agenta/ui/ui components, as every screen renders them.", specimen: <KitComponentsSection />, rules: moreKitExamples},
         {id: "buttons", group: "Components", title: "Buttons", tagline: "One primary button per view; quiet variants for the rest.", rules: buttonRules},
         {id: "forms", group: "Components", title: "Fields and focus", tagline: "Short labels, help on demand, one focus style.", rules: [...formRules, ...moreFormExamples]},
-        {id: "badges", group: "Components", title: "Badges", tagline: "Five variants: neutral and the four statuses.", rules: badgeRules},
+        {id: "badges", group: "Components", title: "Badges", tagline: "Neutral and the statuses. No other colors.", rules: badgeRules},
         {
             id: "tabs",
             group: "Components",
@@ -170,7 +170,7 @@ export function guidePages(mode: "light" | "dark"): GuidePage[] {
             tagline: "The user's turn is a bubble; the agent's reply is a document.",
             rules: chatRules,
         },
-        {id: "marks", group: "Components", title: "Marks", tagline: "The neutral Mark (IconTile): five sizes, each for a place.", rules: [...markRules, ...moreMarkExamples]},
+        {id: "marks", group: "Components", title: "Marks", tagline: "The neutral Mark (IconTile): one size for each place.", rules: [...markRules, ...moreMarkExamples]},
         {
             id: "overlays",
             group: "Components",

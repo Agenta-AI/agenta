@@ -228,8 +228,6 @@ interface DesignRule {
     id: string
     rule: string
     why: string
-    avoid: string
-    do: string
     checkedBy: ("ratchet" | "lint" | "review")[]
 }
 
@@ -264,13 +262,13 @@ function rulesJson(markdown: string): string {
         const rows = lines.filter((l) => /^\| `[A-Z]+-\d+` \|/.test(l))
         if (!rows.length) continue
         const rules = rows.map((l) => {
-            const [id, rule, why, avoid, doInstead] = cells(l)
+            const [id, rule, why] = cells(l)
             const bare = id.replace(/`/g, "")
             const checkedBy: DesignRule["checkedBy"] = []
             if (ratchet.has(bare)) checkedBy.push("ratchet")
             if (lint.has(bare)) checkedBy.push("lint")
             checkedBy.push("review")
-            return {id: bare, rule, why, avoid, do: doInstead, checkedBy}
+            return {id: bare, rule, why, checkedBy}
         })
         const prefixes = new Set(rules.map((r) => r.id.split("-")[0]))
         if (prefixes.size !== 1)
@@ -295,6 +293,29 @@ function rulesJson(markdown: string): string {
     return JSON.stringify({principles, groups}, null, 4) + "\n"
 }
 
+/** DESIGN.md follows its own Glossary: no word from the "Do not say" column outside that table. */
+function checkGlossary(markdown: string): void {
+    const start = markdown.indexOf("\n## Glossary\n")
+    const end = markdown.indexOf("\n## Principles\n")
+    if (start < 0 || end < 0) throw new Error("DESIGN.md is missing the Glossary or the Principles section")
+    const banned = markdown
+        .slice(start, end)
+        .split("\n")
+        .filter((l) => l.startsWith("| ") && !/^\| (Word|---) /.test(l))
+        .flatMap((l) => (l.slice(1, -1).split(" | ")[2] ?? "").replace(/\(.*?\)/g, "").split(","))
+        .map((w) => w.trim())
+        .filter(Boolean)
+    const hits: string[] = []
+    const body = markdown.slice(0, start) + markdown.slice(end)
+    body.split("\n").forEach((line) => {
+        const text = line.replace(/`[^`]*`/g, "")
+        for (const word of banned) {
+            if (new RegExp(`\\b${word}s?\\b`, "i").test(text)) hits.push(`"${word}" in: ${line.trim().slice(0, 90)}`)
+        }
+    })
+    if (hits.length) throw new Error(`DESIGN.md uses words its Glossary bans:\n  ${hits.join("\n  ")}`)
+}
+
 function withTables(markdown: string): string {
     let out = markdown
     for (const [name, table] of Object.entries(designTables())) {
@@ -314,10 +335,8 @@ const outputs: [string, string][] = [
 ]
 if (existsSync(DESIGN_MD)) {
     const markdown = readFileSync(DESIGN_MD, "utf8")
-    outputs.push(
-        [DESIGN_MD, withTables(markdown)],
-        [resolve(DESIGN, "rules.json"), rulesJson(markdown)],
-    )
+    checkGlossary(markdown)
+    outputs.push([DESIGN_MD, withTables(markdown)], [resolve(DESIGN, "rules.json"), rulesJson(markdown)])
 }
 
 const check = process.argv.includes("--check")
