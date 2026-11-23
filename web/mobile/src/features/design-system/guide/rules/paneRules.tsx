@@ -11,7 +11,7 @@ export const paneRules: GuideRule[] = [
     {
         id: "PANE-01",
         title: "The agent pane sits next to the item it talks about",
-        why: "The user asks the agent about the item that is open, so the item stays in view. On a wide window the chat is a panel-side pane on the right. On a phone it is a full-height sheet: closing it returns to the item, and the draft stays. The header names the item, so the user knows what the agent sees.",
+        why: "The user asks the agent about the item that is open, so the item stays in view. On a wide window the chat is the 320px right column. On a phone it is a drill-in: it opens its own screen with Back, which returns to the item, and the draft stays. The header names the item, so the user knows what the agent sees.",
         do: {
             example: (
                 <div className="flex w-72 overflow-hidden rounded-lg text-left shadow-[inset_0_0_0_1px_var(--border-muted)]">
