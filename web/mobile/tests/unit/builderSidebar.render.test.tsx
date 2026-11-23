@@ -108,12 +108,16 @@ describe("the sidebar switcher", () => {
                 collapsed={false}
                 onPick={onPick}
                 onPickBuilder={vi.fn()}
+                onAllAgents={vi.fn()}
+                onNewAgent={vi.fn()}
             />,
         )
         const items = screen.getAllByRole("menuitem")
         expect(items.map((item) => item.textContent)).toEqual([
             "Builder",
             ...agents.map((agent) => agent.name),
+            "All agents",
+            "New agent",
         ])
         expect(items[0].getAttribute("aria-current")).toBe("true")
         expect(items.slice(1).some((item) => item.getAttribute("aria-current"))).toBe(false)
@@ -123,28 +127,33 @@ describe("the sidebar switcher", () => {
         expect(onPick).toHaveBeenCalledWith("a2")
     })
 
-    it("in the agent sidebar: Builder first, the agent checked, Builder opens the builder", () => {
-        const onPickBuilder = vi.fn()
+    it("in the agent sidebar: the project's agents, the agent checked, then All agents and New agent", () => {
         const onPick = vi.fn()
+        const onAllAgents = vi.fn()
+        const onNewAgent = vi.fn()
         render(
             <AgentSidebarSwitcher
                 agents={agents}
                 current={{kind: "agent", agentId: "a1"}}
                 collapsed={false}
+                projectName="Production"
                 onPick={onPick}
-                onPickBuilder={onPickBuilder}
+                onPickBuilder={vi.fn()}
+                onAllAgents={onAllAgents}
+                onNewAgent={onNewAgent}
             />,
         )
-        const builder = screen.getByTestId("agent-sidebar-switcher-builder")
-        expect(builder.getAttribute("aria-current")).toBeNull()
-        const current = screen
-            .getAllByRole("menuitem")
-            .find((item) => item.textContent === "Agent 1")!
+        expect(screen.queryByTestId("agent-sidebar-switcher-builder")).toBeNull()
+        expect(screen.getByText("Agents in Production")).toBeTruthy()
+        const items = screen.getAllByRole("menuitem")
+        const current = items.find((item) => item.textContent === "Agent 1")!
         expect(current.getAttribute("aria-current")).toBe("true")
         fireEvent.click(current)
         expect(onPick).not.toHaveBeenCalled()
-        fireEvent.click(builder)
-        expect(onPickBuilder).toHaveBeenCalledOnce()
+        fireEvent.click(items.find((item) => item.textContent === "All agents")!)
+        expect(onAllAgents).toHaveBeenCalledOnce()
+        fireEvent.click(items.find((item) => item.textContent === "New agent")!)
+        expect(onNewAgent).toHaveBeenCalledOnce()
         // The agent sidebar keeps its agent search above 8 agents.
         expect(screen.getByRole("textbox")).toBeTruthy()
     })

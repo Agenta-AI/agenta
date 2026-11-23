@@ -4,7 +4,10 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {orderAgentsLikeMainSidebar} from "../../src/features/agent-sidebar/agentOrder"
 import {agentSessionsNarrowing} from "../../src/features/agent-sidebar/agentSessionsQuery"
-import {agentSidebarItems} from "../../src/features/agent-sidebar/agentSidebarItems"
+import {
+    agentSidebarItems,
+    agentSidebarSelectedKey,
+} from "../../src/features/agent-sidebar/agentSidebarItems"
 import {sidebarAfterRoute} from "../../src/features/agent-sidebar/agentSidebarRoute"
 import {groupByDay} from "../../src/features/agent-sidebar/dayGroups"
 import {
@@ -140,12 +143,13 @@ describe("the agent sidebar's session rows", () => {
     const base = {
         projectURL: "/w/w1/p/p1",
         agentId: "a1",
+        newSessionHref: "/w/w1/p/p1/agents/a1",
+        onNewSession: () => undefined,
         sessions: [],
         total: null,
         t,
     }
-    const sessionsGroup = (items: ReturnType<typeof agentSidebarItems>) =>
-        items.find((item) => item.key === "agent-sidebar-sessions")!
+    const sessionsGroup = (items: ReturnType<typeof agentSidebarItems>) => items.sessions
 
     it("shows the error and a Retry row after a failed first load, and Retry reads again", () => {
         const onRetry = vi.fn()
@@ -158,22 +162,41 @@ describe("the agent sidebar's session rows", () => {
         expect(onRetry).toHaveBeenCalledOnce()
     })
 
-    it("draws Configuration, Channels, Analytics and the Sessions heading, with no New session row", () => {
+    it("lists New session first, then Configuration, Channels and Analytics, then Sessions", () => {
         const items = agentSidebarItems(base)
-        expect(items.map((item) => item.key)).toEqual([
+        expect(items.pages.map((item) => item.key)).toEqual([
+            "agent-sidebar-new-session",
             "agent-sidebar-configuration",
             "agent-sidebar-channels",
             "agent-sidebar-analytics",
-            "agent-sidebar-sessions",
         ])
-        // No icon and always open: the rail draws it as a heading link.
-        const group = sessionsGroup(items)
-        expect(group.icon).toBeUndefined()
-        expect(group.alwaysOpen).toBe(true)
+        expect(items.sessions.key).toBe("agent-sidebar-sessions")
+        expect(items.sessions.alwaysOpen).toBe(true)
     })
 
-    it("links Sessions to the Sessions page and puts the host's search control on the heading", () => {
-        const sessionsActions = "search control"
+    it("starts a session in place on a plain New session click", () => {
+        const onNewSession = vi.fn()
+        const preventDefault = vi.fn()
+        const row = agentSidebarItems({...base, onNewSession}).pages[0]
+        expect(row.link).toBe("/w/w1/p/p1/agents/a1")
+        row.onClick!({preventDefault} as never)
+        expect(preventDefault).toHaveBeenCalledOnce()
+        expect(onNewSession).toHaveBeenCalledOnce()
+    })
+
+    it("selects New session for this agent's session that the list does not show yet", () => {
+        const query = {session_id: "s1", agent: "a1"}
+        expect(agentSidebarSelectedKey(query, "a1", new Set())).toBe("agent-sidebar-new-session")
+        expect(agentSidebarSelectedKey(query, "a1", new Set(["s1"]))).toBe(
+            "agent-sidebar-session-s1",
+        )
+        expect(agentSidebarSelectedKey({session_id: "s1"}, "a1", new Set())).toBe(
+            "agent-sidebar-session-s1",
+        )
+    })
+
+    it("links Sessions to the Sessions page and puts the host's filter control on it", () => {
+        const sessionsActions = "filter control"
         const group = sessionsGroup(agentSidebarItems({...base, sessionsActions}))
         expect(group.link).toBe("/w/w1/p/p1/agents/a1?view=sessions")
         expect(group.groupAction).toBe(sessionsActions)
@@ -198,8 +221,7 @@ describe("the agent sidebar's session rows", () => {
         expect(narrowed.submenu!.some((row) => row.key === "agent-sidebar-older")).toBe(false)
     })
 
-    it("shows Sessions without a number until the count loads, then the older sessions row", () => {
-        expect(sessionsGroup(agentSidebarItems(base)).suffix).toBeUndefined()
+    it("shows Sessions without a number, and the older sessions row once the count loads", () => {
         const session = {
             sessionId: "s1",
             appId: "a1",
@@ -211,7 +233,7 @@ describe("the agent sidebar's session rows", () => {
             isAutomation: false,
         }
         const group = sessionsGroup(agentSidebarItems({...base, sessions: [session], total: 42}))
-        expect(group.suffix).toBe("42")
+        expect(group.suffix).toBeUndefined()
         expect(group.submenu!.at(-1)!.title).toBe("agentSidebar.showOlderSessions:41")
         // The phone sheet writes the row without the count.
         const phone = sessionsGroup(

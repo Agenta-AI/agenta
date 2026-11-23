@@ -5,19 +5,26 @@ import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import Router, {useRouter} from "next/router"
 
+import {useNewAgentAction} from "../agents/useNewAgentAction"
 import {startBlankSession} from "../chat/useStartBlankSession"
+import {useCurrentProject} from "../context/useCurrentProject"
 
 import {orderAgentsLikeMainSidebar, useMainSidebarAgentOrder} from "./agentOrder"
 import {agentSessionsQuery} from "./agentSessionsQuery"
 import {AgentSidebarSwitcher, type SwitcherCurrent} from "./AgentSidebarSwitcher"
-import {currentSidebar, openAgentSidebar, useSelectedSidebar} from "./selectedSidebar"
+import {
+    currentSidebar,
+    openAgentSidebar,
+    openMainSidebar,
+    useSelectedSidebar,
+} from "./selectedSidebar"
 import {switchTarget} from "./switchAgent"
 
 /**
  * The switcher, connected: the agents the person can see, in the main sidebar's order, and a
  * pick that keeps the same kind of page (see `switchTarget`) and shows the picked agent's
- * sidebar. "Builder" opens the builder page. The agent sidebar and the builder sidebar both use
- * it.
+ * sidebar. "All agents" returns to the main sidebar on the agents list; "New agent" creates a
+ * blank agent. The agent sidebar and the builder sidebar both use it.
  */
 export const ConnectedAgentSwitcher = ({
     projectURL,
@@ -33,6 +40,8 @@ export const ConnectedAgentSwitcher = ({
     const router = useRouter()
     const queryClient = useQueryClient()
     const selected = useSelectedSidebar()
+    const projectName = useCurrentProject("", projectId)?.project_name
+    const newAgent = useNewAgentAction(projectURL)
     const catalog = useAtomValue(agentWorkflowsListQueryStateAtom).data
     const {chatCounts, manualOrder} = useMainSidebarAgentOrder()
     const agents = useMemo(
@@ -77,8 +86,14 @@ export const ConnectedAgentSwitcher = ({
             agents={agents}
             current={current}
             collapsed={collapsed}
+            projectName={projectName}
             onPick={(id) => void onPick(id)}
             onPickBuilder={() => void router.push(`${projectURL}/builder`)}
+            onAllAgents={() => {
+                openMainSidebar()
+                void router.push(`${projectURL}/agents`)
+            }}
+            onNewAgent={() => void newAgent.create()}
         />
     )
 }

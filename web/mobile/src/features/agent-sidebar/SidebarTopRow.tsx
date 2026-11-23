@@ -2,10 +2,10 @@ import {useContext, type ReactNode} from "react"
 
 import {SidebarLayoutContext} from "@agenta/navigation-ui"
 
-const ROW =
-    "flex w-full shrink-0 items-center border-0 border-b border-solid border-[var(--ag-shell-line)]"
-
-/** The top row of a scope's sidebar: Back and the collapse toggle (the phone sheet: its close). */
+/**
+ * The top row of a scope's sidebar: Back and the collapse toggle, as the Settings sidebar draws
+ * them (the phone sheet: its close). Collapsed, the toggle sits above Back.
+ */
 export const SidebarTopRow = ({
     collapsed,
     back,
@@ -16,15 +16,19 @@ export const SidebarTopRow = ({
     toggle: ReactNode
 }) => {
     const phone = useContext(SidebarLayoutContext) === "phone"
-    return (
-        <>
-            <div
-                className={`${ROW} ${phone ? "h-[52px]" : "h-12"} ${collapsed ? "justify-center" : phone ? "justify-between pl-1.5 pr-1" : "justify-between px-1.5"}`}
-            >
-                {collapsed ? toggle : back}
-                {!collapsed && toggle}
+    if (collapsed)
+        return (
+            <div className="flex w-full shrink-0 flex-col items-center justify-center gap-1 py-1">
+                {toggle}
+                {back}
             </div>
-            {collapsed && <div className={`${ROW} h-12 justify-center`}>{back}</div>}
-        </>
+        )
+    return (
+        <div
+            className={`flex w-full shrink-0 items-center justify-between gap-0.5 ${phone ? "h-[52px] pl-1.5 pr-1" : "h-12 px-2"}`}
+        >
+            {back}
+            {toggle}
+        </div>
     )
 }

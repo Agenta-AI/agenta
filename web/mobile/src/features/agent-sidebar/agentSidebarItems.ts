@@ -1,6 +1,5 @@
 import {createElement, type ReactElement, type ReactNode} from "react"
 
-import {formatNumber} from "@agenta/i18n"
 import type {SidebarConfig} from "@agenta/navigation"
 import type {SessionRowStatus} from "@agenta/sessions/row"
 import type {SessionRowTarget} from "@agenta/sessions-ui"
@@ -8,7 +7,9 @@ import {Spinner} from "@agenta/ui/ui"
 import {
     ArrowClockwiseIcon,
     BroadcastIcon,
+    ChatsIcon,
     LightningIcon,
+    PlusIcon,
     SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
 import {ChartColumn} from "lucide-react"
@@ -27,6 +28,7 @@ export interface AgentSidebarSession extends SessionRowTarget {
 
 export type AgentSidebarText = (
     key:
+        | "agentSidebar.newSession"
         | "agentSidebar.configuration"
         | "agentSidebar.channels"
         | "agentSidebar.analytics"
@@ -46,22 +48,29 @@ export type AgentSidebarText = (
 
 export const AGENT_SIDEBAR_SESSIONS_KEY = "agent-sidebar-sessions"
 
+export const AGENT_SIDEBAR_NEW_SESSION_KEY = "agent-sidebar-new-session"
+
 export const agentSidebarSessionKey = (sessionId: string) => `agent-sidebar-session-${sessionId}`
 
 /** The row that marks an agent page as the current one. */
 const pageRowKey = (view: AgentPageView) =>
     view === "sessions" ? AGENT_SIDEBAR_SESSIONS_KEY : `agent-sidebar-${view}`
 
-/** The current row: the agent page on screen, else the open session. */
+/**
+ * The current row: the agent page on screen, else the open session. A session this agent's
+ * "New session" opened (`?agent=`) that the list does not show yet is "New session".
+ */
 export const agentSidebarSelectedKey = (
     query: Record<string, string | string[] | undefined>,
     agentId: string,
+    listed: ReadonlySet<string>,
 ): string | undefined => {
     if (query.agent_id === agentId && typeof query.view === "string")
         return isAgentPageView(query.view) ? pageRowKey(query.view) : undefined
-    return typeof query.session_id === "string"
-        ? agentSidebarSessionKey(query.session_id)
-        : undefined
+    if (typeof query.session_id !== "string") return undefined
+    if (query.agent === agentId && !listed.has(query.session_id))
+        return AGENT_SIDEBAR_NEW_SESSION_KEY
+    return agentSidebarSessionKey(query.session_id)
 }
 
 export type SessionBulletState = "idle" | "live" | "waiting"
@@ -99,14 +108,15 @@ const sessionIcon = (session: AgentSidebarSession) => {
 }
 
 /**
- * The rows of one agent's sidebar (A01): Configuration, Channels, Analytics, then the heading
- * link "Sessions" with the count and its search and filter controls, the latest sessions grouped by day, and
+ * The rows of one agent's sidebar: `pages` is New session, Configuration, Channels and Analytics;
+ * `sessions` is the "Sessions" row with its filter, the latest sessions grouped by day, and
  * "Show N older sessions" when the agent has more. `total` is null until the count loads.
- * "New session" is a button in the sidebar's header, not a row.
  */
 export const agentSidebarItems = ({
     projectURL,
     agentId,
+    newSessionHref,
+    onNewSession,
     sessions,
     total,
     status = "ready",
@@ -119,6 +129,9 @@ export const agentSidebarItems = ({
 }: {
     projectURL: string
     agentId: string
+    /** Where "New session" links; a plain click runs `onNewSession` in its place. */
+    newSessionHref: string
+    onNewSession: () => void
     sessions: AgentSidebarSession[]
     total: number | null
     /** The session list's state. A failed refresh keeps the sessions it had. */
@@ -130,12 +143,12 @@ export const agentSidebarItems = ({
     phone?: boolean
     /** The row menu and inline rename, as the main sidebar has them. */
     wrapSessionRow?: (session: SessionRowTarget, node: ReactNode) => ReactElement
-    /** The controls at the right of the "Sessions" heading: search, then filter. */
+    /** The control at the right of the "Sessions" row: the filter. */
     sessionsActions?: ReactNode
     /** The filter menu narrows the list: an empty list says so, and the "older" row, which
      * opens the unfiltered Sessions page, is left out. */
     filtered?: boolean
-}): SidebarConfig[] => {
+}): {pages: SidebarConfig[]; sessions: SidebarConfig} => {
     const sessionsHref = agentPageHref(projectURL, agentId, "sessions")
     const pageRow = (view: AgentPageView, title: string, icon: ReactNode): SidebarConfig => ({
         key: pageRowKey(view),
@@ -203,31 +216,52 @@ export const agentSidebarItems = ({
             rowClassName: `text-[13px] ${phone ? "leading-[44px] text-colorTextTertiary" : "text-colorTextSecondary"}`,
         })
 
-    return [
-        pageRow(
-            "configuration",
-            t("agentSidebar.configuration"),
-            createElement(SlidersHorizontalIcon, {size: 16}),
-        ),
-        pageRow("channels", t("agentSidebar.channels"), createElement(BroadcastIcon, {size: 16})),
-        // The canvas draws Analytics as a bar chart with axes (Lucide); Phosphor has none.
-        pageRow("analytics", t("agentSidebar.analytics"), createElement(ChartColumn, {size: 16})),
-        {
+    return {
+        pages: [
+            {
+                key: AGENT_SIDEBAR_NEW_SESSION_KEY,
+                title: t("agentSidebar.newSession"),
+                icon: createElement(PlusIcon, {size: 16}),
+                link: newSessionHref,
+                matchLinks: [],
+                prefetch: false,
+                // The shell skips modified clicks, so those still open the link in a new tab.
+                onClick: (event) => {
+                    event.preventDefault()
+                    onNewSession()
+                },
+            },
+            pageRow(
+                "configuration",
+                t("agentSidebar.configuration"),
+                createElement(SlidersHorizontalIcon, {size: 16}),
+            ),
+            pageRow(
+                "channels",
+                t("agentSidebar.channels"),
+                createElement(BroadcastIcon, {size: 16}),
+            ),
+            // The canvas draws Analytics as a bar chart with axes (Lucide); Phosphor has none.
+            pageRow(
+                "analytics",
+                t("agentSidebar.analytics"),
+                createElement(ChartColumn, {size: 16}),
+            ),
+        ],
+        sessions: {
             key: AGENT_SIDEBAR_SESSIONS_KEY,
             title: t("agentSidebar.sessions"),
             tooltip: t("agentSidebar.seeAllSessions"),
+            icon: createElement(ChatsIcon, {size: 16}),
             link: sessionsHref,
             matchLinks: [],
             prefetch: false,
             hideChildrenWhenCollapsed: true,
-            // Always open with no icon: the rail draws it as a small heading link, not a row.
+            // No caret: the filter is this group's control.
             alwaysOpen: true,
             scrollChildren: true,
-            // No number until the count loads; the phone sheet draws none.
-            suffix: total !== null && !phone ? formatNumber(total) : undefined,
-            // Search and filter, as on the main sidebar's Sessions row (the host builds them).
             groupAction: sessionsActions,
             submenu: rows,
         },
-    ]
+    }
 }

@@ -149,21 +149,21 @@ const agentScope = {
     useSelection: () => ROUTE,
     useSections: () => {
         const t = useT(agentSidebarCatalog)
-        return useMemo(
-            () => [
-                {
-                    key: "agent",
-                    items: agentSidebarItems({
-                        projectURL: P,
-                        agentId: SUPPORT_TRIAGE.id,
-                        sessions: SUPPORT_TRIAGE_SESSIONS,
-                        total: SUPPORT_TRIAGE_TOTAL,
-                        t,
-                    }),
-                },
-            ],
-            [t],
-        )
+        return useMemo(() => {
+            const {pages, sessions} = agentSidebarItems({
+                projectURL: P,
+                agentId: SUPPORT_TRIAGE.id,
+                newSessionHref: `${P}/agents/${SUPPORT_TRIAGE.id}`,
+                onNewSession: noop,
+                sessions: SUPPORT_TRIAGE_SESSIONS,
+                total: SUPPORT_TRIAGE_TOTAL,
+                t,
+            })
+            return [
+                {key: "agent", items: pages},
+                {key: "sessions", items: [sessions], dividerBefore: true},
+            ]
+        }, [t])
     },
     header: ({collapsed}: {collapsed: boolean}) => (
         <AgentSidebarHeader
@@ -173,12 +173,15 @@ const agentScope = {
             switcher={
                 <AgentSidebarSwitcher
                     agents={SIDEBARS_AGENTS}
-                    agentId={SUPPORT_TRIAGE.id}
+                    current={{kind: "agent", agentId: SUPPORT_TRIAGE.id}}
                     collapsed={collapsed}
+                    projectName="Production"
                     onPick={noop}
+                    onPickBuilder={noop}
+                    onAllAgents={noop}
+                    onNewAgent={noop}
                 />
             }
-            onFold={noop}
         />
     ),
 }
