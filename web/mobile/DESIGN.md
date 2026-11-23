@@ -160,8 +160,8 @@ There are 23 UI colors: 12 neutrals, 7 brand colors and 4 statuses. A separate g
 | `spacing-3` | `12px` | List row side padding. Mark to text for 32–40px Marks. Gap between a label and its field group. |
 | `spacing-4` | `16px` | Page gutter on compact windows; card padding. |
 | `spacing-5` | `20px` | Dialog padding. |
-| `spacing-6` | `24px` | Page gutter on medium and expanded windows; section gap on compact. |
-| `spacing-8` | `32px` | Section gap on medium and expanded windows. |
+| `spacing-6` | `24px` | Gap between the page top band and the body; the right column's own margins; section gap on compact. |
+| `spacing-8` | `32px` | Top of every page above the page top band; section gap on medium and expanded windows. |
 | `spacing-10` | `40px` | Space above an empty state. |
 | `spacing-12` | `48px` | Page top padding on expanded windows. |
 | `spacing-16` | `64px` | Largest layout gap. |
@@ -186,15 +186,18 @@ There are 23 UI colors: 12 neutrals, 7 brand colors and 4 statuses. A separate g
 | `mark-md` | `24px` | Mark in list rows (default). Radius radius-md, icon 14. |
 | `mark-lg` | `32px` | Mark in page and dialog headers, cards. Radius radius-md, icon 16. |
 | `mark-xl` | `40px` | Mark in empty states. Radius radius-lg, icon 20. |
-| `header-h` | `48px` | Page header height. |
-| `sidebar-w` | `240px` | Sidebar width on expanded windows. |
+| `header-h` | `44px` | The phone header bar. Medium and expanded windows have no header bar: the page top band holds the title. |
+| `sidebar-w` | `240px` | Sidebar width on medium and expanded windows. |
+| `sidebar-w-closed` | `48px` | Sidebar width when it is closed. |
+| `page-margin` | `80px` | Smallest margin on each side of the content column on medium and expanded windows. More room grows both margins equally. |
+| `page-band` | `148px` | The page top band: the title and the page actions, the same height on every page. |
 | `popover-sm` | `240px` | Menus. |
 | `popover-md` | `320px` | Pickers and popovers with search. |
 | `popover-lg` | `400px` | Rich popovers. |
 | `content-sm` | `560px` | Dialogs, forms, settings. |
 | `content-md` | `760px` | Chat column, documents. |
 | `content-lg` | `1040px` | Lists and tables. |
-| `panel-side` | `360px` | Side panel next to the main content (run details, files) on expanded windows. |
+| `panel-side` | `320px` | The right column on item pages: Activity, or the agent pane in the same slot. Its own 24px margins and alignment line. |
 | `row-dense` | `28px` | Height of a tree row or a rail row. |
 | `row-single` | `36px` | Height of a one-line list row. |
 | `row-double` | `48px` | Height of a two-line list row (title + meta). |
@@ -302,10 +305,18 @@ A product term always has this icon: in the nav, list rows, page headers, picker
 ## Layout and windows
 
 - Three window classes: compact (under `breakpoint-sm`, 640px), medium (640–1023px) and expanded (from `breakpoint-lg`, 1024px). Do not add a third breakpoint.
-- On an expanded window a screen has a sidebar (`sidebar-w`, on `muted`), a sticky header (`header-h`), the content column, and an optional side panel (`panel-side`). On a medium window the side panel opens as an overlay. On a compact window it depends on what the panel holds: a panel that holds a conversation (the agent pane) becomes a full-height Sheet, so the chat keeps the item in view; every other side panel becomes its own route with Back (`LAYOUT-04`).
+- On medium and expanded windows a screen has a sidebar (`sidebar-w`, on `muted`), the content column, and on item pages an optional right column (`panel-side`). There is no header bar. When the window is too narrow for the right column next to an 80px-margin content column, the right column opens as an overlay with the scrim. On a compact window the right column is a drill-in, whatever it holds (Activity or the agent pane): the item page shows an entry for it, and opening it pushes its own screen with Back, which returns to the item (`LAYOUT-04`).
+- The page frame on medium and expanded windows:
+  - The sidebar is 240px (`sidebar-w`), or 48px when closed (`sidebar-w-closed`). Item pages may have a right column of 320px (Activity, or the agent pane in the same slot) with its own 24px margins and its own alignment line.
+  - The content column sits between them with at least 80px on each side (`page-margin`). Its maximum width depends on the page: `content-lg` (1040) for lists, `content-md` (760) for item pages, sessions and Home, `content-sm` (560) for settings. Workbench pages (Builder, Playground, the trace view) use the full width.
+  - When there is more room, the column stays centered and both margins grow equally. At 1440px with the right column open, an item column is 720px.
+  - From the top: a 32px gap (`spacing-8`), the page top band (`page-band`, 148px: the title and the page actions), a 24px gap (`spacing-6`), then the body. Every page uses this rhythm, so the title never moves.
+  - There is no breadcrumb bar. The alignment line is the left edge of the content column, with padded boxes outdented (`ALIGN-01`).
+  - Only the body scrolls.
+- On a compact window the gutters are 16px (`spacing-4`). The 44px header (`header-h`) starts with the menu button, which opens the sidebar as a drawer, on top-level pages, and with Back on detail pages and drill-ins (`PHONE-03`).
 - Every page has the same header height and the same top padding. No page invents its own header (`LAYOUT-03`).
 - One scroll container per pane. Never nest two scroll areas that scroll the same way (`LAYOUT-01`).
-- Cap the content width and center the column in its pane: `content-lg` for lists and tables, `content-md` for chat and documents, `content-sm` for forms, dialogs and settings (`LAYOUT-02`). Widths such as 880, 920, 960 and 1120 are not allowed. Open work: these pages still use them: the agent list (`AgentListScreen`, 960), the first-run screen (`FirstRunScreen`, 880), the agent configuration pages (`configurationTabs`, 920), and the agent sessions page (`AgentListPageHeader`, 1120).
+- Cap the content width and center the column in its pane: `content-lg` for lists and tables, `content-md` for chat and documents, `content-sm` for forms, dialogs and settings, and the full width for workbench pages (Builder, Playground, the trace view) (`LAYOUT-02`). Widths such as 880, 920, 960 and 1120 are not allowed. Open work: these pages still use them: the agent list (`AgentListScreen`, 960), the first-run screen (`FirstRunScreen`, 880), the agent configuration pages (`configurationTabs`, 920), and the agent sessions page (`AgentListPageHeader`, 1120).
 - Each page has one alignment line: the left edge of its title. The line aligns content, not boxes. The text, and the first icon or Mark, of every element sit on it: the search icon and placeholder, the tab labels, the section headings, the column header text and the Marks of the list rows (`ALIGN-01`).
 - A padded component lets its box hang outside the line by its own padding. This is an outdent: a negative margin equal to the padding, so a row's hover fill and an input's border reach left of the line while the content stays on it. Outdents: list row 12px, group header 12px, input 8px, nav item 8px, segmented control by its inner padding. Open work: the kit does not apply outdents yet, so a screen sets the negative margin itself.
 - The sidebar follows the same rule. The text of the nav items, the group labels and the workspace name sit on one line, and the nav item boxes hang outside it by 8px. The nav icons sit on the center line of the workspace Mark (`ALIGN-02`).
@@ -354,7 +365,7 @@ How the components combine on Agenta screens. "Mark" in this file is the neutral
 3. `Tabs`, if the page has sibling views.
 4. The content: a list, a settings form, or a session.
 
-Everything from the title down shares the title's left edge. Page gutter: `spacing-4` on compact windows, `spacing-6` above. Section gap: `spacing-6` on compact windows, `spacing-8` above.
+Everything from the title down shares the title's left edge, the left edge of the content column. Page margins: `spacing-4` on compact windows, at least `page-margin` (80px) above. Section gap: `spacing-6` on compact windows, `spacing-8` above.
 
 ### List
 
@@ -390,9 +401,8 @@ Everything from the title down shares the title's left edge. Page gutter: `spaci
 
 A chat with the agent about the item that is open (an agent, a skill, an automation). It is a side panel that holds a conversation (`PANE-01`).
 
-- Expanded and medium windows: a right side pane, `panel-side` (360px) wide, on `muted`. Its header names the item ("Ask about Weekly report"). It holds the same Composer as a session.
-- Compact window: a full-height Sheet with the same Composer, and the item named in its header. It is not a stacked route: the user goes back to the item by closing the sheet, and the draft stays.
-- This is the one side panel that does not become a stacked route on a compact window (`LAYOUT-04`).
+- Expanded and medium windows: the right column, `panel-side` (320px) wide, on `muted`, in the same slot as Activity. Its header names the item ("Ask about Weekly report"). It holds the same Composer as a session.
+- Compact window: a drill-in, like the rest of the right column. The item page shows an entry ("Ask about Weekly report"); opening it pushes a screen with Back, the item named in the header and the same Composer. Back returns to the item, and the draft stays.
 
 ### Marketing surfaces
 
@@ -425,9 +435,10 @@ A chat with the agent about the item that is open (an agent, a skill, an automat
 
 ### Compact window (phone)
 
-- The phone header is one 44px bar: Back (a 16px caret), one title, and at most two actions. Everything else goes in More. Its icon buttons are the kit's compact size (`PHONE-02`).
-- One item owns the bottom edge of a screen: the composer entry, or one primary action, or the nav bar. Never two of them stacked. When the bottom edge is taken, a primary action goes in the header or in the content (`PHONE-01`).
-- Main navigation is a bottom bar with four items; the fourth is More.
+- The phone header is one 44px bar: one leading button, one title, and at most two actions. Everything else goes in More. Its icon buttons are the kit's compact size (`PHONE-02`).
+- The leading button is the menu on top-level pages (Home, Agents, Automations, Skills, Sessions, Settings). On a detail page (an agent, an automation, a skill) and in any drill-in it is Back, with a 16px caret, and the menu button is hidden. Never show both (`PHONE-03`).
+- One item owns the bottom edge of a screen: the composer entry on chat pages, or one primary action. Never two of them stacked, and never a nav bar. When the bottom edge is taken, a primary action goes in the header or in the content (`PHONE-01`).
+- Main navigation is the sidebar. On a compact window the menu button at the start of the 44px header opens it as a drawer. There is no bottom nav bar.
 - Controls are the compact sizes (`control-md-compact` 28, `control-lg-compact` 32), from the kit. A toolbar with search, a filter, a view switcher and New fits one row.
 - Secondary screens (files, run details, settings pages) open as their own routes with Back.
 - The composer is pinned to the visual viewport, so it stays above the keyboard.
@@ -454,7 +465,7 @@ The same thing has the same size everywhere. When you place an element, find its
 | Mark to text | 8 for 16–24px Marks · 12 for 32–40px Marks (`GAP-02`) |
 | Between controls | 4 in a group, 8 at most (`SIZE-02`) |
 | Between sections | 24 on compact windows · 32 above |
-| Header | `header-h` 48 on every page |
+| Header | No header bar on medium and expanded windows: the page top band (`page-band` 148) holds the title. `header-h` 44 on phones |
 
 The same goes for everything else (`CONS-02`):
 
@@ -568,12 +579,13 @@ Review checks every other rule.
 | ID | Avoid | Do instead |
 | --- | --- | --- |
 | `LAYOUT-01` | Nested scroll areas that scroll the same way | One scroll container per pane |
-| `LAYOUT-02` | Text and lists stretched across a wide window; a width of its own (880, 920, 960, 1120) | `content-sm`, `content-md` or `content-lg`, centered |
-| `LAYOUT-03` | A page with its own header height or top padding | The shared header and padding |
-| `LAYOUT-04` | A side panel squeezed into a medium or compact window | An overlay on medium. On compact, its own route; a panel that holds a conversation becomes a full-height Sheet |
-| `PANE-01` | An agent chat that opens as a stacked route or a dialog, or that does not name the item | A `panel-side` pane on the right; a full-height Sheet on compact; the item named in the header; the same Composer |
-| `PHONE-01` | Two things on the phone's bottom edge (a composer and a floating New, a nav bar and a sticky action) | One item on the bottom edge; a primary action goes in the header or the content |
-| `PHONE-02` | A tall phone header; 44px icon buttons; two titles | A 44px bar, the kit's compact icon buttons, Back with a 16px caret, one title |
+| `LAYOUT-02` | Text and lists stretched across a wide window; a width of its own (880, 920, 960, 1120) | `content-sm`, `content-md` or `content-lg`, centered with at least `page-margin` on each side; full width only for workbench pages |
+| `LAYOUT-03` | A page with its own header height or top padding; a breadcrumb bar | 32px, the 148px page top band, 24px, then the body, on every page |
+| `LAYOUT-04` | A side panel squeezed into a medium or compact window; the right column stacked under the body on a phone | An overlay with the scrim on medium. On compact, a drill-in with Back, whatever it holds |
+| `PANE-01` | An agent chat that opens as a stacked route or a dialog, or that does not name the item | The 320px right column (`panel-side`); a drill-in with Back on compact; the item named in the header; the same Composer |
+| `PHONE-01` | Two things on the phone's bottom edge (a composer and a floating New); a bottom nav bar | One item on the bottom edge; a primary action goes in the header or the content |
+| `PHONE-02` | A tall phone header; 44px icon buttons; two titles | A 44px bar, the kit's compact icon buttons, one leading button, one title |
+| `PHONE-03` | Back and the menu button together in a phone header; the menu on a detail page | The menu on top-level pages; Back alone on detail pages and drill-ins |
 
 ### Content and voice
 
