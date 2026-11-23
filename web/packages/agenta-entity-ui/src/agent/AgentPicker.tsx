@@ -290,7 +290,7 @@ export const AgentPickerPanel = ({
         <>
             {/* A 20px box, not the rows' 28px chip width: a 14px glass centred in 28px read
                 as a gap between icon and field, and a search field is not a row. */}
-            <label className="flex items-center gap-2 border-0 border-b border-solid border-border px-3 py-2">
+            <label className="flex items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3 py-2">
                 <span className="flex w-5 shrink-0 items-center justify-center">
                     <MagnifyingGlass size={14} aria-hidden className="text-muted-foreground" />
                 </span>
@@ -386,13 +386,13 @@ export const AgentPickerPanel = ({
             </div>
 
             {onCreateAgent ? (
-                <div className="flex flex-col border-0 border-t border-solid border-border p-1">
+                <div className="flex flex-col border-0 border-t border-solid border-colorBorderSecondary px-1 pb-1 pt-1">
                     <button
                         type="button"
                         onClick={onCreateAgent}
                         disabled={creating}
                         aria-busy={creating || undefined}
-                        className="box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1.5 text-left font-[inherit] text-[13px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent disabled:cursor-default disabled:hover:bg-transparent"
+                        className="box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1 text-left font-[inherit] text-[13px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent disabled:cursor-default disabled:hover:bg-transparent"
                     >
                         {/* The agent tile's slot, so the label lines up with the names. */}
                         <span
