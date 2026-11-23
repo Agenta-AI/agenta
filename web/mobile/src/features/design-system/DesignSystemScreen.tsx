@@ -10,14 +10,19 @@ import {GuideNav} from "./guide/GuideNav"
 import {GuideOverview} from "./guide/GuideOverview"
 import {GuidePagePicker} from "./guide/GuidePagePicker"
 import {guidePages} from "./guide/guidePages"
+import {designRules} from "./guide/ruleIndex"
 import {PropsTable} from "./guide/PropsTable"
 import {RuleBlock} from "./guide/RuleBlock"
 import {ThemeToggle} from "./ThemeToggle"
 
+// Rules show in DESIGN.md order on every page.
+const ruleOrder = new Map(designRules.map((r, i) => [r.id, i]))
+const byRuleOrder = (a: {id: string}, b: {id: string}) => (ruleOrder.get(a.id) ?? 0) - (ruleOrder.get(b.id) ?? 0)
+
 export function DesignSystemScreen() {
     const router = useRouter()
     const {resolved: mode, setMode} = useThemeMode()
-    const pages = useMemo(() => guidePages(mode), [mode])
+    const pages = useMemo(() => guidePages(mode).map((p) => ({...p, rules: [...p.rules].sort(byRuleOrder)})), [mode])
     const current = router.isReady && typeof router.query.page === "string" ? router.query.page : "overview"
     const page = pages.find((p) => p.id === current) ?? pages[0]
 
@@ -26,20 +31,20 @@ export function DesignSystemScreen() {
 
     return (
         <div className="ag-ds min-h-dvh bg-background text-foreground">
-            <div className="mx-auto grid max-w-[1200px] gap-8 px-4 py-6 sm:px-6 lg:grid-cols-[200px_minmax(0,1fr)]">
+            <div className="mx-auto grid max-w-[1200px] gap-8 px-4 py-6 sm:px-6 lg:grid-cols-[232px_minmax(0,1fr)]">
                 <aside className="lg:sticky lg:top-6 lg:self-start">
                     <div className="mb-4 flex items-center justify-between gap-2 px-2">
-                        <span className="text-label">Agenta design</span>
+                        <span className="whitespace-nowrap text-label">Agenta design</span>
                         <ThemeToggle mode={mode} onChange={setMode} />
                     </div>
                     <div className="lg:hidden">
                         <GuidePagePicker pages={pages} current={page.id} onSelect={(id) => open(id)} />
                     </div>
                     <div className="hidden lg:block">
-                        <GuideNav pages={pages} current={page.id} onSelect={(id) => open(id)} />
+                        <GuideNav pages={pages} current={router.isReady ? page.id : ""} onSelect={(id) => open(id)} />
                     </div>
                 </aside>
-                <main className="min-w-0">
+                <main className="min-w-0" hidden={!router.isReady}>
                     <header className="mb-8">
                         <div className="text-meta text-muted-foreground">{page.group}</div>
                         <h1 className="m-0 text-heading">{page.title}</h1>

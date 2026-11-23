@@ -278,14 +278,14 @@ export const composerRules: RuleExample[] = [
         do: {
             example: (
                 <div className="w-72 rounded-xl bg-background p-2 text-left shadow-[inset_0_0_0_1px_var(--border)]">
-                    <div className="min-h-10 px-1 text-body text-muted-foreground">Ask the agent anything</div>
+                    <div className="min-h-10 px-1 text-body">Summarize the runs of this week</div>
                     <div className="flex items-center justify-between">
                         <Button variant="ghost" size="icon-sm" aria-label="Attach"><PaperclipIcon /></Button>
                         <Button size="icon-sm" aria-label="Send"><ArrowUpIcon /></Button>
                     </div>
                 </div>
             ),
-            caption: "One box; send is the one filled button.",
+            caption: "One box with a draft in it; Send is the one filled button.",
             code: `import {ChatComposer} from "@agenta/chat"
 
 <ChatComposer onSubmit={send} attachments={attachments} />`,

@@ -5,7 +5,6 @@ import {Alert, Badge, Button, Checkbox, EmptyState, Field, IconTile, Input, Kbd,
 import {CompassIcon, MagnifyingGlassIcon, PlusIcon, RobotIcon} from "@phosphor-icons/react"
 
 import {OverlaysRow} from "./OverlaysRow"
-import {SectionTitle} from "./SectionTitle"
 
 const buttonVariants = ["default", "secondary", "outline", "ghost", "destructive-ghost", "destructive", "brand", "link"] as const
 const buttonSizes = ["xs", "sm", "default", "lg"] as const
@@ -23,10 +22,6 @@ function Row({label, children}: {label: string; children: ReactNode}) {
 export function KitComponentsSection() {
     return (
         <section className="flex flex-col gap-6">
-            <SectionTitle
-                title="Kit components"
-                description="The real @agenta/ui/ui components, as every screen renders them."
-            />
             <Row label="Button variants">
                 {buttonVariants.map((v) => (
                     <Button key={v} variant={v}>
@@ -82,7 +77,7 @@ export function KitComponentsSection() {
                     D
                 </IconTile>
             </Row>
-            <Row label="Menu, Select, Dialog · bottom sheets on a phone">
+            <Row label="Menu, Select, Dialog · bottom sheets on a compact window">
                 <OverlaysRow />
             </Row>
             <Row label="Tabs">

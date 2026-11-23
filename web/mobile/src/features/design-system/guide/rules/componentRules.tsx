@@ -252,8 +252,8 @@ export const stateRules: RuleExample[] = [
                         <div key={w} className="flex items-center gap-2">
                             <SkeletonBlock className="size-6 rounded-md" />
                             <div className="flex flex-1 flex-col gap-1.5">
-                                <SkeletonBlock className="h-2.5" style={{width: `${w}%`}} />
-                                <SkeletonBlock className="h-2" style={{width: `${w + 25}%`}} />
+                                <SkeletonBlock className="h-2.5 rounded-xs" style={{width: `${w}%`}} />
+                                <SkeletonBlock className="h-2 rounded-xs" style={{width: `${w + 25}%`}} />
                             </div>
                         </div>
                     ))}

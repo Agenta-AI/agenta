@@ -36,10 +36,10 @@ export const quietRules: RuleExample[] = [
             example: (
                 <div className={card}>
                     <div className="text-meta text-muted-foreground">Credits left</div>
-                    <div className="text-heading tabular-nums">12,480</div>
+                    <div className="text-metric tabular-nums">12,480</div>
                 </div>
             ),
-            caption: "A metric in text-heading with a muted label.",
+            caption: "A metric in text-metric with a muted label.",
         },
         avoid: {
             example: (

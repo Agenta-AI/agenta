@@ -7,7 +7,7 @@ const statuses = ["destructive", "success", "warning", "info"]
 export function ColorSection() {
     return (
         <section>
-            <SectionTitle title="Color" description="23 colors, each with one job. Tints are a color at low opacity, never a new color." />
+            <SectionTitle title="Color" description="Every theme color and its job: the UI colors first, then the data and media colors." />
             <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-x-4 gap-y-3">
                 {colors.map((c) => (
                     <div key={c.name} className="flex min-w-0 items-start gap-3">
@@ -17,7 +17,7 @@ export function ColorSection() {
                         />
                         <div className="min-w-0">
                             <div className="truncate font-mono text-code-sm">{c.name}</div>
-                            <div className="line-clamp-2 text-meta text-muted-foreground">{c.usage}</div>
+                            <div className="text-meta text-muted-foreground">{c.usage}</div>
                         </div>
                     </div>
                 ))}

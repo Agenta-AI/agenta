@@ -16,7 +16,7 @@ export function TypeSection() {
                             </div>
                         </div>
                         <div
-                            className="min-w-0 truncate"
+                            className="min-w-0"
                             style={{
                                 fontFamily: `var(--font-${t.family})`,
                                 fontSize: t.fontSize,

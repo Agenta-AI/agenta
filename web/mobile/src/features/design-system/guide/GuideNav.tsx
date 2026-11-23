@@ -21,10 +21,10 @@ export function GuideNav({pages, current, onSelect}: GuideNavProps) {
                                 type="button"
                                 aria-current={p.id === current ? "page" : undefined}
                                 onClick={() => onSelect(p.id)}
-                                className="focus-ring flex h-7 items-center justify-between rounded-md px-2 text-left text-label text-muted-foreground hover:bg-accent hover:text-foreground aria-[current=page]:bg-selected aria-[current=page]:text-foreground pointer-coarse:h-11"
+                                className="focus-ring flex h-7 items-center justify-between gap-2 rounded-md px-2 text-left text-label text-muted-foreground hover:bg-accent hover:text-foreground aria-[current=page]:bg-selected aria-[current=page]:text-foreground"
                             >
-                                {p.title}
-                                {p.rules.length ? <span className="text-meta">{p.rules.length}</span> : null}
+                                <span className="min-w-0 truncate">{p.title}</span>
+                                {p.rules.length ? <span className="shrink-0 text-meta">{p.rules.length}</span> : null}
                             </button>
                         ))}
                 </div>

@@ -88,16 +88,20 @@ export const paneRules: RuleExample[] = [
             example: (
                 <div className={compactFrame} style={{height: 176}}>
                     <div className={body}>
-                        <div className="text-label">Agents</div>
+                        <div className="flex items-center justify-between">
+                            <div className="text-label">Agents</div>
+                            <PlusIcon className="text-muted-foreground" aria-label="New agent" />
+                        </div>
                         <div className={bar} />
                         <div className={bar} />
                     </div>
-                    <div className="flex justify-around border-t border-border-muted py-2 text-muted-foreground">
-                        <HouseIcon /> <RobotIcon /> <DotsThreeIcon />
+                    <div className="m-2 flex items-center justify-between rounded-lg bg-background py-1 pl-3 pr-1 shadow-[inset_0_0_0_1px_var(--border)]">
+                        <span className="text-body text-muted-foreground">Ask anything</span>
+                        <Button size="icon-sm" aria-label="Send" disabled><ArrowUpIcon /></Button>
                     </div>
                 </div>
             ),
-            caption: "The nav bar owns the edge; New is in the header.",
+            caption: "The composer entry owns the edge; New is in the compact header.",
         },
         avoid: {
             example: (
@@ -117,7 +121,7 @@ export const paneRules: RuleExample[] = [
                     </div>
                 </div>
             ),
-            caption: "A button, a composer and the nav stacked on the edge.",
+            caption: "A button, a composer and a nav bar stacked on the edge.",
         },
     },
     {

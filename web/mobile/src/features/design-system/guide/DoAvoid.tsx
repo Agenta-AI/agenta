@@ -10,11 +10,11 @@ interface DoAvoidProps {
 export function DoAvoid({kind, example, caption}: DoAvoidProps) {
     const isDo = kind === "do"
     return (
-        <figure className="m-0 flex min-w-0 flex-col gap-2">
-            <div className="flex min-h-40 items-center justify-center rounded-lg bg-muted p-6 shadow-[inset_0_0_0_1px_var(--border-muted)]">
+        <figure className="m-0 row-span-2 grid min-w-0 grid-rows-subgrid gap-2">
+            <div className="flex min-h-40 min-w-0 items-center justify-center rounded-lg bg-muted p-6 shadow-[inset_0_0_0_1px_var(--border-muted)]">
                 {example}
             </div>
-            <figcaption className="flex gap-2 text-label">
+            <figcaption className="flex items-baseline gap-2 text-label">
                 <span
                     className={`inline-flex shrink-0 items-center gap-1 ${isDo ? "text-success" : "text-destructive"}`}
                 >

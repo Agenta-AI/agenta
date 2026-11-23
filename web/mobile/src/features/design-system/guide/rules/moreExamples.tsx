@@ -386,7 +386,7 @@ export const moreTooltipExamples: RuleExample[] = [
         id: "KIT-04",
         do: {
             example: (
-                <div className="relative w-56">
+                <div className="relative mr-30 w-56">
                     <div className="mb-1 text-label">Schedule</div>
                     <Input placeholder="Every Monday" />
                     <div className={`${tip} absolute left-[calc(100%+8px)] top-0 w-28`}>When the automation runs</div>

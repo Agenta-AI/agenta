@@ -79,7 +79,7 @@ export function guidePages(mode: "light" | "dark"): GuidePage[] {
             title: "Tabs",
             tagline: "Sibling views of one object.",
             api: [
-                {prop: "TabsList variant", values: `"line" | "pill"`, note: "line on pages; pill only inside a small panel"},
+                {prop: "TabsList variant", values: `"line" | "pill"`, note: "line on pages; pill is the muted track, only inside a small panel"},
                 {prop: "Tabs value / onValueChange", values: "string", note: "controlled; mirror it in the URL"},
                 {prop: "TabsTrigger value", values: "string"},
             ],
@@ -147,7 +147,7 @@ export function guidePages(mode: "light" | "dark"): GuidePage[] {
                 {prop: "CommandItem onSelect", values: "() => void", note: "verb + object label"},
                 {prop: "CommandShortcut", values: "children", note: "right-aligned keys"},
             ],
-            code: `import {CommandDialog, CommandGroup, CommandInput, CommandItem, CommandList} from "@agenta/ui/ui"`,
+            code: `import {\n    CommandDialog,\n    CommandGroup,\n    CommandInput,\n    CommandItem,\n    CommandList,\n} from "@agenta/ui/ui"`,
             rules: commandRules,
         },
         {

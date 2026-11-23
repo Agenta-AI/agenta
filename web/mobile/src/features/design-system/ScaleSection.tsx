@@ -20,7 +20,7 @@ export function ScaleSection() {
                 </div>
             </div>
             <div>
-                <SectionTitle title="Controls" description="Below 640px control-md is 28 and control-lg is 32. Nothing is bigger on touch or a phone." />
+                <SectionTitle title="Controls" description="Below 640px control-md is 28 and control-lg is 32. Nothing is bigger on touch or on a compact window." />
                 <div className="flex flex-wrap items-end gap-2">
                     {controls.map((s) => (
                         <span
