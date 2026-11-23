@@ -214,6 +214,9 @@ export interface AgentPickerPanelProps {
     searchPlaceholder?: string
     onCreateAgent?: () => void
     createLabel?: string
+    /** A create is in flight: the footer row spins and says `creatingLabel`. */
+    creating?: boolean
+    creatingLabel?: string
     /** Take the caret on mount. On by default: the panel opens to be typed into. */
     autoFocusSearch?: boolean
 }
@@ -231,6 +234,8 @@ export const AgentPickerPanel = ({
     searchPlaceholder: searchPlaceholderProp,
     onCreateAgent,
     createLabel: createLabelProp,
+    creating = false,
+    creatingLabel,
     autoFocusSearch = true,
 }: AgentPickerPanelProps) => {
     const t = useT(agentPickerCatalog)
@@ -381,21 +386,23 @@ export const AgentPickerPanel = ({
             </div>
 
             {onCreateAgent ? (
-                // Its own footer padding rather than a rule: the plus and the shorter row
-                // already say this is an action, and a hairline over it read as a seam. The
-                // top padding is the separation the rule used to provide.
-                <div className="flex flex-col px-1 pb-1 pt-2">
+                <div className="flex flex-col border-0 border-t border-solid border-border p-1">
                     <button
                         type="button"
                         onClick={onCreateAgent}
-                        // Tighter than a list row: this is a footer action, not one of the
-                        // choices, and at row height it read as an eighth agent.
-                        className="box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1 text-left font-[inherit] text-[13px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
+                        disabled={creating}
+                        aria-busy={creating || undefined}
+                        className="box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1.5 text-left font-[inherit] text-[13px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent disabled:cursor-default disabled:hover:bg-transparent"
                     >
-                        <span className="box-border flex size-7 shrink-0 items-center justify-center rounded-control-sm border border-solid border-border">
-                            <Plus aria-hidden size={14} className="text-muted-foreground" />
+                        {/* The agent tile's slot, so the label lines up with the names. */}
+                        <span
+                            className={`flex shrink-0 items-center justify-center text-muted-foreground ${density === "relaxed" ? "size-7" : "size-6"}`}
+                        >
+                            {creating ? <Spinner size="small" /> : <Plus aria-hidden size={16} />}
                         </span>
-                        <span className="min-w-0 truncate font-medium">{createLabel}</span>
+                        <span className="min-w-0 truncate">
+                            {creating ? (creatingLabel ?? createLabel) : createLabel}
+                        </span>
                     </button>
                 </div>
             ) : null}
