@@ -1,42 +1,42 @@
 {
     "hover-fill-not-accent": {
-        "mobile": 63,
-        "packages": 178
+        "mobile": 3,
+        "packages": 26
     },
     "legacy-hex-shims": {
         "mobile": 0,
-        "packages": 340
+        "packages": 0
     },
     "weight-by-state": {
-        "mobile": 2,
-        "packages": 2
+        "mobile": 0,
+        "packages": 0
     },
     "antd-color-names": {
-        "mobile": 305,
-        "packages": 3060
+        "mobile": 14,
+        "packages": 171
     },
     "var(--ag-color": {
-        "mobile": 4,
-        "packages": 731
+        "mobile": 3,
+        "packages": 0
     },
     "text-[Npx]": {
-        "mobile": 399,
-        "packages": 850
+        "mobile": 0,
+        "packages": 12
     },
     "h-[Npx]": {
-        "mobile": 102,
-        "packages": 210
+        "mobile": 15,
+        "packages": 40
     },
     "rounded-full": {
-        "mobile": 62,
-        "packages": 162
+        "mobile": 1,
+        "packages": 2
     },
     "font-bold": {
         "mobile": 0,
-        "packages": 7
+        "packages": 0
     },
     "lucide-react": {
-        "mobile": 39,
-        "packages": 51
+        "mobile": 0,
+        "packages": 0
     }
 }
