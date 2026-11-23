@@ -159,7 +159,7 @@ export const NavDrawer = ({
                 reads as the rail sliding in, so only its open side is rounded. */}
             <SheetContent
                 side="left"
-                className="inset-y-0 left-0 w-[236px] gap-0 rounded-none rounded-r-xl p-0"
+                className="inset-y-0 left-0 w-60 gap-0 rounded-none rounded-r-xl p-0"
             >
                 {/* The sheet's own X is off: the rail's header already has the button, and
                     `onDismiss` turns it into this sheet's close. */}

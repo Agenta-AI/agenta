@@ -3,7 +3,7 @@ import {useEffect, useRef, useState} from "react"
 import {useT} from "@agenta/i18n"
 import walletCreditsCatalog from "@agenta/i18n/catalogs/wallet.credits"
 import {isWalletsEnabled} from "@agenta/shared/api"
-import {AlertTriangle, XCircle, type LucideIcon} from "lucide-react"
+import {type Icon, WarningIcon, XCircleIcon} from "@phosphor-icons/react"
 import Link from "next/link"
 
 import {creditAlert, type CreditAlert} from "./creditAlert"
@@ -32,7 +32,7 @@ export const CreditsRemainingWidget = ({
 interface MeterTone {
     text: string
     bar: string
-    Icon: LucideIcon | null
+    Icon: Icon | null
 }
 
 const DEFAULT_TONE: MeterTone = {

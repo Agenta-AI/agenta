@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import {CircleCheck, Info, LoaderCircle, OctagonX, TriangleAlert, X} from "lucide-react"
+import {CheckCircleIcon, CircleNotchIcon, InfoIcon, WarningIcon, WarningOctagonIcon, XIcon} from "@phosphor-icons/react"
 import {Toaster as Sonner, type ToasterProps} from "sonner"
 
 import {buttonVariants} from "./button"
@@ -68,12 +68,12 @@ function Toaster({
             closeButton={closeButton}
             className="toaster group"
             icons={{
-                success: <CircleCheck />,
-                info: <Info />,
-                warning: <TriangleAlert />,
-                error: <OctagonX className="text-error" />,
-                loading: <LoaderCircle className="animate-spin" />,
-                close: <X />,
+                success: <CheckCircleIcon />,
+                info: <InfoIcon />,
+                warning: <WarningIcon />,
+                error: <WarningOctagonIcon className="text-error" />,
+                loading: <CircleNotchIcon className="animate-spin" />,
+                close: <XIcon />,
             }}
             toastOptions={{
                 unstyled: true,

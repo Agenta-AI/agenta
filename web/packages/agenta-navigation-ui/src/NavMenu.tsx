@@ -467,7 +467,7 @@ const LeafRow = memo(function LeafRow({
                 item.trailing && "pr-0",
                 item.rowClassName,
                 isControl &&
-                    "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring",
+                    "outline-none focus-ring",
             )}
             onClick={onClick}
             role={isControl ? "menuitem" : undefined}
