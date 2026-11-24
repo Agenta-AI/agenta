@@ -9,6 +9,7 @@ import {Checkbox} from "../components/ui/checkbox"
 import {CollapseCaret} from "../components/ui/collapse-caret"
 import {SkeletonBlock} from "../components/ui/skeleton"
 import {cn} from "../components/ui/utils"
+import {COMPACT_WINDOW_QUERY, useWindowMatch} from "../hooks/useWindowMatch"
 
 import {ListTableSelectionBar} from "./ListTableSelectionBar"
 import type {ListTableColumn, ListTableProps} from "./types"
@@ -97,7 +98,9 @@ export const ListTable = <Row,>({
     className,
 }: ListTableProps<Row>) => {
     const t = useT(uiControlsCatalog)
-    const isGrid = view === "grid"
+    // A phone shows the list only: one view that is easy to scan and tap (the switch hides too).
+    const compact = useWindowMatch(COMPACT_WINDOW_QUERY)
+    const isGrid = view === "grid" && !compact
     const selecting = Boolean(selection) && !isGrid
     const allColumns = selecting ? [SELECT_COLUMN, ...columns] : columns
     const grid = gridTemplate(allColumns)

@@ -48,7 +48,8 @@ export const ListTableViewToggle = ({
             options={options}
             value={value}
             onChange={(next) => onChange(next as ListTableView)}
-            className={cn("shrink-0", className)}
+            // Hidden on a phone, where the list is the only view.
+            className={cn("shrink-0 max-sm:hidden", className)}
         />
     )
 }
