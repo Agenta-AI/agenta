@@ -19,7 +19,7 @@ import {
 } from "@agenta/sessions/state"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
-import {ListTableArchiveToggle, ListTableToolbar} from "@agenta/ui/list-table"
+import {ListTableArchiveLink, ListTableToolbar} from "@agenta/ui/list-table"
 import {useIsPhone} from "@agenta/ui/phone"
 import {Button} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
@@ -262,10 +262,6 @@ const SessionListBody = ({
                         {lockedAgent ? (
                             <LockedAgentChip agentId={lockedAgent.id} variant="inline" />
                         ) : null}
-                        <ListTableArchiveToggle
-                            archived={sessionFilters.archivedOnly}
-                            onChange={sessionFilters.setArchivedOnly}
-                        />
                     </>
                 }
             />
@@ -280,6 +276,10 @@ const SessionListBody = ({
                 lockedAgentId={lockedAgentId}
                 onClearSearch={clearSearch}
                 onResetView={resetView}
+            />
+            <ListTableArchiveLink
+                archived={sessionFilters.archivedOnly}
+                onChange={sessionFilters.setArchivedOnly}
             />
         </>
     )

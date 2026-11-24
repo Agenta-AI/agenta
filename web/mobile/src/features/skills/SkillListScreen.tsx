@@ -20,7 +20,7 @@ import {
 } from "@agenta/skills-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
-import {ListTableArchiveToggle, ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
+import {ListTableArchiveLink, ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -220,21 +220,21 @@ export const SkillListScreen = ({
                             onSearchChange={setTyped}
                             searchPlaceholder={t("skills.list.searchPlaceholder")}
                             actions={
-                                <>
-                                    <SkillFilterMenu
-                                        view={view}
-                                        onChange={setView}
-                                        repositories={repositories}
-                                    />
-                                    <ListTableArchiveToggle
-                                        archived={view.archived}
-                                        onChange={(archived) => setView({...view, archived})}
-                                    />
-                                </>
+                                <SkillFilterMenu
+                                    view={view}
+                                    onChange={setView}
+                                    repositories={repositories}
+                                />
                             }
                             end={<ListTableViewToggle value={view.mode} onChange={setMode} />}
                         />
                         {body}
+                        {isLoading ? null : (
+                            <ListTableArchiveLink
+                                archived={view.archived}
+                                onChange={(archived) => setView({...view, archived})}
+                            />
+                        )}
                     </>
                 )}
             </PageLayout>

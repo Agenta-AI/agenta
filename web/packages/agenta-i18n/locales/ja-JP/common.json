@@ -82,5 +82,6 @@
     "yourRole": "あなたのロール",
     "dialog": "ダイアログ",
     "resizePane": "パネルのサイズを変更",
-    "archived": "アーカイブ済み"
+    "viewArchived": "アーカイブ済みを表示",
+    "backToActive": "アクティブに戻る"
 }

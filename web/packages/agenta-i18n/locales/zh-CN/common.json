@@ -82,5 +82,6 @@
     "yourRole": "你的角色",
     "dialog": "对话框",
     "resizePane": "调整面板大小",
-    "archived": "已归档"
+    "viewArchived": "查看已归档",
+    "backToActive": "返回活跃项"
 }

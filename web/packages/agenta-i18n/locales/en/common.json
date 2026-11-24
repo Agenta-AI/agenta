@@ -82,5 +82,6 @@
     "yourRole": "Your role",
     "dialog": "Dialog",
     "resizePane": "Resize pane",
-    "archived": "Archived"
+    "viewArchived": "View archived",
+    "backToActive": "Back to active"
 }
