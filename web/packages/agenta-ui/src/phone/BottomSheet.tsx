@@ -24,8 +24,8 @@ export interface BottomSheetProps {
     trigger?: ReactNode
     /** Buttons above "Cancel" (for example "New session"). Use `PHONE_BUTTON_CLASS`. */
     actions?: ReactNode
-    /** The closing button's text. "Cancel" by default; "Done" when changes already applied. */
-    closeLabel?: string
+    /** No "Cancel": for a sheet whose choices apply as they are tapped (swipe or tap out closes it). */
+    hideClose?: boolean
     /** Leaves the focus off the first field on open, so a phone keyboard stays down. */
     keepKeyboardClosed?: boolean
     "data-testid"?: string
@@ -42,7 +42,7 @@ export const BottomSheet = ({
     title,
     showTitle = true,
     actions,
-    closeLabel,
+    hideClose = false,
     keepKeyboardClosed = false,
     trigger,
     "data-testid": testId = "bottom-sheet",
@@ -68,17 +68,21 @@ export const BottomSheet = ({
                     {title}
                 </SheetTitle>
                 <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
-                <div className="flex shrink-0 flex-col gap-2 px-4 pt-2">
-                    {actions}
-                    <Button
-                        variant="outline"
-                        // fg2 text, as the canvas draws Cancel (M11).
-                        className={cn(PHONE_BUTTON_CLASS, "text-muted-foreground")}
-                        onClick={() => onOpenChange(false)}
-                    >
-                        {closeLabel ?? t("ui.phone.cancel")}
-                    </Button>
-                </div>
+                {hideClose && !actions ? null : (
+                    <div className="flex shrink-0 flex-col gap-2 px-4 pt-2">
+                        {actions}
+                        {hideClose ? null : (
+                            <Button
+                                variant="outline"
+                                // fg2 text, as the canvas draws Cancel (M11).
+                                className={cn(PHONE_BUTTON_CLASS, "text-muted-foreground")}
+                                onClick={() => onOpenChange(false)}
+                            >
+                                {t("ui.phone.cancel")}
+                            </Button>
+                        )}
+                    </div>
+                )}
             </SheetContent>
         </Sheet>
     )

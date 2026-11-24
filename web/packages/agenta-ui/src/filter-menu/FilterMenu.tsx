@@ -1,7 +1,6 @@
 import {useState} from "react"
 
 import {useT} from "@agenta/i18n"
-import commonCatalog from "@agenta/i18n/catalogs/common"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {SlidersHorizontalIcon} from "@phosphor-icons/react"
 
@@ -75,7 +74,6 @@ export const FilterMenu = ({
     active,
 }: FilterMenuProps) => {
     const t = useT(uiControlsCatalog)
-    const tCommon = useT(commonCatalog)
     const [uncontrolled, setUncontrolled] = useState(false)
     const open = openProp ?? uncontrolled
     const setOpen = (next: boolean) => {
@@ -124,8 +122,8 @@ export const FilterMenu = ({
                     open={open}
                     onOpenChange={setOpen}
                     title={t("ui.controls.filterSortGroup")}
-                    // Each choice applies as it is tapped, so the sheet closes with Done.
-                    closeLabel={tCommon("common.done")}
+                    // Each choice applies as it is tapped: swipe down or tap out to close.
+                    hideClose
                     keepKeyboardClosed
                     data-testid="filter-menu-sheet"
                 >
