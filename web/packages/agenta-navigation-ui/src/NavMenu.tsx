@@ -830,7 +830,7 @@ const NavMenuImpl = ({
             ref={navRef}
             role="menu"
             className={clsx(
-                "flex w-full flex-col gap-0.5 pt-1",
+                "flex w-full flex-col gap-1 pt-1",
                 // Claim the spare height, but keep room for a few rows; past that the rail scrolls.
                 items.some((item) => item.scrollChildren) && "min-h-40 flex-1",
                 className,

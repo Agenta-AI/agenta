@@ -6,5 +6,5 @@ export const ROW_INTERACTIVE = "cursor-pointer text-foreground hover:bg-accent"
 // Opaque selected fill; the hover paints accent over it as an image.
 export const ROW_SELECTED =
     "bg-selected text-foreground hover:bg-[image:linear-gradient(var(--accent),var(--accent))]"
-/** The list of rail rows: 2px between rows (ROW-04). */
-export const ROW_LIST = "flex flex-col gap-0.5"
+/** The list of rail rows: 4px between rows (ROW-04). */
+export const ROW_LIST = "flex flex-col gap-1"

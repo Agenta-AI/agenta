@@ -134,7 +134,7 @@ const SortableRow = ({
             whileDrag={reduced ? undefined : {scale: 1.02}}
             data-page-key={value}
             className={cn(
-                "relative flex flex-col gap-0.5 [-webkit-touch-callout:none]",
+                "relative flex flex-col gap-1 [-webkit-touch-callout:none]",
                 lifted && LIFTED,
             )}
             onPointerDown={(event) => {
@@ -463,7 +463,7 @@ export const ArrangeablePages = ({
 
     return (
         <div
-            className="flex flex-col gap-0.5"
+            className="flex flex-col gap-1"
             onClickCapture={(event) => {
                 if (!live.current.suppressClick) return
                 live.current.suppressClick = false
@@ -477,8 +477,8 @@ export const ArrangeablePages = ({
                 axis="y"
                 values={order}
                 onReorder={setDraft}
-                // Dense rail rows sit 2px apart (ROW-04).
-                className="flex flex-col gap-0.5"
+                // Dense rail rows sit 4px apart (ROW-04).
+                className="flex flex-col gap-1"
             >
                 <AnimatePresence initial={false}>
                     {order.map((key) => {
