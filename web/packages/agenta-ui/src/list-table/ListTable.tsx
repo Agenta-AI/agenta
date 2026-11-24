@@ -248,7 +248,7 @@ export const ListTable = <Row,>({
                         // so the cards arrive into the slots the skeleton was already holding.
                         <div
                             aria-hidden
-                            className="grid gap-3 sm:-mx-4"
+                            className="grid gap-3"
                             style={{gridTemplateColumns: cardGrid}}
                         >
                             {Array.from({length: skeletonRows}, (_, tile) => (
@@ -406,11 +406,9 @@ export const ListTable = <Row,>({
 
                                 {isGrid ? (
                                     rows.length ? (
-                                        // The grid hangs 16px past the content edge, the cards'
-                                        // own padding, so card text sits on the title's line
-                                        // (ALIGN-01). Not on a phone, where the gutter is 16px.
+                                        // The card boxes sit on the content edge, like the toolbar.
                                         <div
-                                            className="grid gap-3 pb-2 sm:-mx-4"
+                                            className="grid gap-3 pb-2"
                                             style={{gridTemplateColumns: cardGrid}}
                                         >
                                             {rows.map((row) => {
