@@ -21,8 +21,6 @@ export const AutomationKindMark = ({
         <span
             role="img"
             aria-label={automationTypeLabel(kind)}
-            data-slot="icon-tile"
-            data-tone="neutral"
             className={`flex ${size === 32 ? "size-8" : "size-6"} shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground`}
         >
             {kind === "event" ? (
