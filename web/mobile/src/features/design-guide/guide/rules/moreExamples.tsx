@@ -222,34 +222,44 @@ export const moreLayoutExamples: RuleExample[] = [
         id: "ALIGN-02",
         do: {
             example: (
-                <div className="flex w-48 flex-col gap-1 rounded-lg bg-muted p-2">
-                    <div className="flex items-center gap-2 text-label">
-                        <IconTile size={20}>A</IconTile>Acme
+                <div className="flex w-48 flex-col gap-0.5 rounded-lg bg-muted p-2 text-label">
+                    <div className="flex h-7 items-center gap-2">
+                        <IconTile size={16} tone="brand">
+                            A
+                        </IconTile>
+                        Acme
                     </div>
-                    <div className="flex items-center gap-2 text-label">
-                        <span className="flex w-5 justify-center">
-                            <HouseIcon className="size-4 text-muted-foreground" />
-                        </span>
-                        Home
-                    </div>
-                </div>
-            ),
-            caption: "The nav icon sits on the Mark's center line; the texts share one line.",
-        },
-        avoid: {
-            example: (
-                <div className="flex w-48 flex-col gap-1 rounded-lg bg-muted p-2">
-                    <div className="flex items-center gap-2 text-label">
-                        <IconTile size={20}>A</IconTile>Acme
-                    </div>
-                    <div className="flex items-center gap-2 text-label">
+                    <div className="flex h-7 items-center gap-2">
                         <HouseIcon className="size-4 text-muted-foreground" />
                         Home
                     </div>
+                    <div className="flex h-7 items-center text-meta text-muted-foreground">
+                        Weekly report
+                    </div>
+                    <div className="flex h-7 items-center">Draft for Monday</div>
                 </div>
             ),
             caption:
-                "The icon on the Mark's left edge: the Mark looks off and the texts do not line up.",
+                "The Mark, the icons, the group label and the session share the icon line; the labels of icon rows share the text line.",
+        },
+        avoid: {
+            example: (
+                <div className="flex w-48 flex-col gap-0.5 rounded-lg bg-muted p-2 text-label">
+                    <div className="flex h-7 items-center gap-2">
+                        <IconTile size={20}>A</IconTile>
+                        Acme
+                    </div>
+                    <div className="flex h-7 items-center gap-2.5 pl-1">
+                        <HouseIcon className="size-4 text-muted-foreground" />
+                        Home
+                    </div>
+                    <div className="flex h-7 items-center pl-3 text-meta text-muted-foreground">
+                        Weekly report
+                    </div>
+                    <div className="flex h-7 items-center pl-5">Draft for Monday</div>
+                </div>
+            ),
+            caption: "Every row starts on a line of its own: the rail reads as a staircase.",
         },
     },
     {

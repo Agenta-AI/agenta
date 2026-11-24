@@ -1,5 +1,4 @@
 import {
-    useContext,
     useRef,
     useState,
     type KeyboardEvent,
@@ -11,7 +10,16 @@ import {
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import type {SidebarArrange, SidebarConfig} from "@agenta/navigation"
-import {Popover, PopoverContent, PopoverTrigger, cn} from "@agenta/ui/ui"
+import {
+    Button,
+    MENU_ITEM,
+    MENU_ITEM_INSET,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    SimpleTooltip,
+    cn,
+} from "@agenta/ui/ui"
 import {ArrowCounterClockwise, DotsThree, PushPin} from "@phosphor-icons/react"
 import {
     AnimatePresence,
@@ -19,25 +27,27 @@ import {
     useDragControls,
     useReducedMotion,
     type PanInfo,
+    type Transition,
 } from "motion/react"
 import Link from "next/link"
 
+import {CAPTION_CLASS, PANEL_CLASS} from "./ProjectOrgSwitcher"
 import {ROW_BASE, ROW_INTERACTIVE, ROW_SELECTED} from "./rowStyles"
-import {PHONE_ROW_CLASS, SidebarLayoutContext} from "./sidebarLayout"
 
-const MORE_PANEL_CLASS =
-    "z-[2000] w-[248px] rounded-[10px] border border-solid border-border-muted bg-popover p-0 shadow-md"
+const MORE_PANEL_CLASS = PANEL_CLASS
 
 const MOUSE_SLOP_PX = 4
 const TOUCH_HOLD_MS = 350
 const TOUCH_SLOP_PX = 8
-const SETTLE = {type: "spring", stiffness: 500, damping: 40, mass: 0.8} as const
+// duration-base and ease-in-out from theme.config.ts (motion needs numbers, not CSS variables).
+const SETTLE: Transition = {duration: 0.2, ease: [0.4, 0, 0.2, 1]}
 const LIFTED =
-    "z-20 rounded-[6px] bg-[var(--ag-sidebar-bg)] [&>div:first-child]:bg-popover [&>div:first-child]:shadow-overlay [&>div:first-child]:cursor-grabbing"
-const DROP_TARGET =
-    "bg-[var(--ag-shell-selected-bg)] !text-foreground shadow-[inset_0_0_0_1px_currentColor]"
-const MENU_ROW =
-    "flex h-8 w-full cursor-pointer items-center gap-[10px] rounded-[6px] border-0 bg-transparent px-2 text-left text-sm text-foreground no-underline [font-family:inherit] select-none hover:bg-accent"
+    "z-20 rounded-md bg-muted [&>div:first-child]:bg-popover [&>div:first-child]:shadow-raised [&>div:first-child]:cursor-grabbing"
+const DROP_TARGET = "bg-selected !text-foreground shadow-[inset_0_0_0_1px_var(--border-strong)]"
+const MENU_ROW = cn(
+    MENU_ITEM,
+    "border-0 bg-transparent text-left text-foreground no-underline [font-family:inherit] hover:bg-accent focus-ring-inset",
+)
 
 /** Starts a drag after a small mouse move or a touch long-press, so taps click and swipes scroll. */
 const pressToDrag = (press: ReactPointerEvent, begin: (event: PointerEvent) => void) => {
@@ -123,7 +133,10 @@ const SortableRow = ({
             exit={reduced ? {opacity: 0} : {opacity: 0, height: 0, overflow: "hidden"}}
             whileDrag={reduced ? undefined : {scale: 1.02}}
             data-page-key={value}
-            className={cn("relative flex flex-col [-webkit-touch-callout:none]", lifted && LIFTED)}
+            className={cn(
+                "relative flex flex-col gap-0.5 [-webkit-touch-callout:none]",
+                lifted && LIFTED,
+            )}
             onPointerDown={(event) => {
                 const header = event.currentTarget.firstElementChild
                 if (!header?.contains(event.target as Node)) return
@@ -141,6 +154,14 @@ const SortableRow = ({
             {children}
         </Reorder.Item>
     )
+}
+
+/** Opening focuses the first page row, not its pin button, so the pin's tooltip stays shut. */
+const focusFirstPage = (event: Event) => {
+    const row = (event.currentTarget as HTMLElement | null)?.querySelector<HTMLElement>("a[href]")
+    if (!row) return
+    event.preventDefault()
+    row.focus()
 }
 
 const MoreMenu = ({
@@ -163,16 +184,15 @@ const MoreMenu = ({
     }
     return (
         <div className="flex flex-col p-1">
-            <div className="px-2 pb-1 pt-1.5 text-xs text-muted-foreground">
-                {t("navigation.arrange.morePages")}
-            </div>
+            <div className={CAPTION_CLASS}>{t("navigation.arrange.morePages")}</div>
             {hidden.length ? (
                 hidden.map((item) => {
                     // A group has no page of its own: its title heads its pages.
                     const group = !item.link && Boolean(item.submenu?.length)
                     return (
-                        <div key={item.key} className="flex flex-col">
-                            <div className="flex items-center rounded-[6px] hover:bg-accent">
+                        <div key={item.key} className="flex flex-col [&+&]:mt-0.5">
+                            {/* ag-menu-row: the child rows below keep MENU_ITEM's 2px gap to it. */}
+                            <div className="ag-menu-row flex items-center rounded-sm hover:bg-accent">
                                 <Link
                                     href={item.link ?? "#"}
                                     draggable={false}
@@ -194,17 +214,20 @@ const MoreMenu = ({
                                     <span className="flex shrink-0 items-center">{item.icon}</span>
                                     <span className="min-w-0 flex-1 truncate">{item.title}</span>
                                 </Link>
-                                <button
-                                    type="button"
-                                    aria-label={t("navigation.arrange.pinPage", {
-                                        title: item.title,
-                                    })}
-                                    title={t("navigation.arrange.pinToSidebar")}
-                                    className="mr-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
-                                    onClick={() => onPin(item.key)}
-                                >
-                                    <PushPin size={12} />
-                                </button>
+                                <SimpleTooltip title={t("navigation.arrange.pinToSidebar")}>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon-xs"
+                                        aria-label={t("navigation.arrange.pinPage", {
+                                            title: item.title,
+                                        })}
+                                        className="mr-1 shrink-0 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                                        onClick={() => onPin(item.key)}
+                                    >
+                                        <PushPin />
+                                    </Button>
+                                </SimpleTooltip>
                             </div>
                             {group
                                 ? item.submenu
@@ -215,7 +238,7 @@ const MoreMenu = ({
                                               href={child.link ?? "#"}
                                               draggable={false}
                                               prefetch={child.prefetch}
-                                              className={cn(MENU_ROW, "pl-9")}
+                                              className={cn(MENU_ROW, MENU_ITEM_INSET)}
                                               onClick={go(child)}
                                           >
                                               <span className="min-w-0 flex-1 truncate">
@@ -234,7 +257,7 @@ const MoreMenu = ({
             )}
             <div className="my-1 h-px bg-border-muted" />
             <button type="button" className={MENU_ROW} onClick={onReset}>
-                <ArrowCounterClockwise size={16} className="shrink-0" />
+                <ArrowCounterClockwise className="shrink-0" />
                 <span>{t("navigation.arrange.reset")}</span>
             </button>
         </div>
@@ -255,7 +278,6 @@ export const ArrangeablePages = ({
 }) => {
     const t = useT(navigationCatalog)
     const reduced = Boolean(useReducedMotion())
-    const phone = useContext(SidebarLayoutContext) === "phone"
     const [moreOpen, setMoreOpen] = useState(false)
     const [draft, setDraft] = useState<string[] | null>(null)
     const [pulled, setPulled] = useState<SidebarConfig | null>(null)
@@ -395,26 +417,32 @@ export const ArrangeablePages = ({
             <>
                 {items.map(renderItem)}
                 <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-                    <PopoverTrigger asChild>
-                        <button
-                            type="button"
-                            aria-label={t("navigation.arrange.more")}
-                            className={cn(
-                                "relative mx-auto flex size-7 items-center justify-center rounded-[6px] border-0 bg-transparent",
-                                ROW_INTERACTIVE,
-                                moreOpen && ROW_SELECTED,
-                            )}
-                        >
-                            <span data-row-icon className="flex">
-                                <DotsThree size={16} weight="bold" />
-                            </span>
-                        </button>
-                    </PopoverTrigger>
+                    {/* The span takes the tooltip, so two asChild triggers do not share one element. */}
+                    <SimpleTooltip title={t("navigation.arrange.more")} side="right">
+                        <span className="mx-auto inline-flex">
+                            <PopoverTrigger asChild>
+                                <button
+                                    type="button"
+                                    aria-label={t("navigation.arrange.more")}
+                                    className={cn(
+                                        "relative flex size-7 items-center justify-center rounded-md border-0 bg-transparent focus-ring",
+                                        ROW_INTERACTIVE,
+                                        moreOpen && ROW_SELECTED,
+                                    )}
+                                >
+                                    <span data-row-icon className="flex">
+                                        <DotsThree size={16} />
+                                    </span>
+                                </button>
+                            </PopoverTrigger>
+                        </span>
+                    </SimpleTooltip>
                     <PopoverContent
                         side="right"
                         align="start"
                         sideOffset={8}
                         className={MORE_PANEL_CLASS}
+                        onOpenAutoFocus={focusFirstPage}
                     >
                         <MoreMenu
                             hidden={arrange.hidden}
@@ -435,7 +463,7 @@ export const ArrangeablePages = ({
 
     return (
         <div
-            className="flex flex-col"
+            className="flex flex-col gap-0.5"
             onClickCapture={(event) => {
                 if (!live.current.suppressClick) return
                 live.current.suppressClick = false
@@ -449,7 +477,8 @@ export const ArrangeablePages = ({
                 axis="y"
                 values={order}
                 onReorder={setDraft}
-                className="flex flex-col"
+                // Dense rail rows sit 2px apart (ROW-04).
+                className="flex flex-col gap-0.5"
             >
                 <AnimatePresence initial={false}>
                     {order.map((key) => {
@@ -480,18 +509,13 @@ export const ArrangeablePages = ({
                         type="button"
                         className={cn(
                             ROW_BASE,
-                            phone && `${PHONE_ROW_CLASS} mb-0`,
                             ROW_INTERACTIVE,
-                            "border-0 bg-transparent text-left [font-family:inherit] !text-muted-foreground transition-[background-color,box-shadow] duration-150",
+                            "border-0 bg-transparent text-left [font-family:inherit] !text-muted-foreground transition-[background-color,box-shadow] focus-ring-inset",
                             moreOpen && ROW_SELECTED,
                             dropping && DROP_TARGET,
                         )}
                     >
-                        <DotsThree
-                            size={16}
-                            weight="bold"
-                            className="shrink-0 text-[var(--ag-zinc-8)]"
-                        />
+                        <DotsThree size={16} className="shrink-0 text-muted-foreground" />
                         <span className="min-w-0 flex-1 truncate">
                             {keepsLast
                                 ? t("navigation.arrange.keepOne")
@@ -507,6 +531,7 @@ export const ArrangeablePages = ({
                     align="start"
                     sideOffset={2}
                     className={MORE_PANEL_CLASS}
+                    onOpenAutoFocus={focusFirstPage}
                 >
                     <MoreMenu
                         hidden={menuHidden}

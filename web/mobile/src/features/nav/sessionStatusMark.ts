@@ -2,7 +2,7 @@ import {createElement, type ReactElement, type ReactNode} from "react"
 
 import {createT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
-import {Spinner} from "@agenta/ui/ui"
+import {SimpleTooltip, Spinner} from "@agenta/ui/ui"
 
 const tNow = createT(navigationCatalog)
 
@@ -18,15 +18,18 @@ export const sessionMarkOf = (session: {
 
 /** A spinner while a turn runs, amber while it waits on you, dark while the session is live. */
 export const sessionStatusMark = (mark: SessionMark): ReactNode => {
-    if (mark === "running") return createElement(Spinner, {className: "size-2.5"})
+    if (mark === "running") return createElement(Spinner, {className: "size-3"})
     if (!mark) return null
-    return createElement("span", {
+    const label = tNow(
+        mark === "waiting" ? "navigation.items.sessionWaiting" : "navigation.items.sessionLive",
+    )
+    // COLOR-03: the dot's word shows in a tooltip.
+    const dot = createElement("span", {
         role: "img",
-        "aria-label": tNow(
-            mark === "waiting" ? "navigation.items.sessionWaiting" : "navigation.items.sessionLive",
-        ),
+        "aria-label": label,
         className: `size-1.5 rounded-round ${mark === "waiting" ? "bg-warning" : "bg-foreground"}`,
     })
+    return createElement(SimpleTooltip, {title: label, children: dot})
 }
 
 /** A row with no menu (a builder chat, the phone sheet): the title, then the mark on the right. */
@@ -38,12 +41,9 @@ export const withStatusMark = (node: ReactNode, status: ReactNode): ReactElement
         status
             ? createElement(
                   "span",
-                  {className: "-mr-1 flex w-4 shrink-0 items-center justify-center"},
+                  // Above the row's stretched link, so the dot's tooltip can open.
+                  {className: "relative z-[1] -mr-1 flex w-4 shrink-0 items-center justify-center"},
                   status,
               )
             : null,
     )
-
-/** A running session's title shimmers, the same live-text sweep the chat uses. */
-export const RUNNING_TITLE =
-    "[&_span[title]]:bg-[linear-gradient(90deg,var(--colorTextQuaternary)_0%,var(--foreground)_50%,var(--colorTextQuaternary)_100%)] [&_span[title]]:bg-clip-text motion-safe:[&_span[title]]:animate-text-shimmer motion-safe:[&_span[title]]:bg-[length:200%_100%] motion-safe:[&_span[title]]:text-transparent"

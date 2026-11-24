@@ -12,7 +12,7 @@ export const SidebarTopRow = ({
 }) => {
     if (collapsed)
         return (
-            <div className="flex w-full shrink-0 flex-col items-center justify-center gap-1 pb-1 pt-2.5">
+            <div className="flex w-full shrink-0 flex-col items-center justify-center gap-1 pb-1 pt-2">
                 {toggle}
                 {back}
             </div>

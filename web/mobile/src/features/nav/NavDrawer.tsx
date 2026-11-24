@@ -7,7 +7,16 @@ import type {SidebarScope} from "@agenta/navigation"
 import {sidebarOpenGroupsAtomFamily, sidebarSessionSearchOpenAtom} from "@agenta/navigation"
 import {SidebarLayoutContext, SidebarShell} from "@agenta/navigation-ui"
 import {SidebarSheet, useIsPhone} from "@agenta/ui/phone"
-import {Button, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger} from "@agenta/ui/ui"
+import {
+    Button,
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
+    SimpleTooltip,
+} from "@agenta/ui/ui"
+import {SidebarSimpleIcon} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -34,9 +43,9 @@ const showAgentSidebar = (agentId: string) => {
 }
 
 /**
- * The app drawer: the SAME `SidebarShell` the lg+ NavRail docks, inside a sheet. Below 768 px
- * it is the phone's 300 px sidebar sheet with 44 px rows; up to lg it is sized to the rail's own
- * width. The hamburger hides at lg where the rail takes over, so a viewport never shows both
+ * The app drawer: the SAME `SidebarShell` the lg+ NavRail docks, inside a sheet. On a phone it
+ * is the phone sidebar sheet, with the rail's own row sizes (SIZE-02); up to lg it is sized to
+ * the rail's own width. The hamburger hides at lg where the rail takes over, so a viewport never shows both
  * entries to the same nav.
  */
 export const NavDrawer = ({
@@ -52,7 +61,7 @@ export const NavDrawer = ({
     const t = useT(navigationCatalog)
     const tPhone = useT(phoneCatalog)
     const [open, setOpen] = useState(false)
-    // A phone gets the 300 px sidebar sheet with 44 px rows; wider windows keep the rail's sheet.
+    // A phone gets the phone sidebar sheet; wider windows keep the rail's sheet.
     const phone = useIsPhone()
     // The search palette is a dialog of its own, mounted outside this sheet: opening it from the
     // rail inside the sheet closes the sheet, or the pick would land under it.
@@ -117,23 +126,9 @@ export const NavDrawer = ({
             variant="ghost"
             size="icon-compact"
             aria-label={label}
-            // The canvas menu button (M01, M02, M13): a panel-with-lines glyph in secondary text, 44 x 44 with
-            // radius 8 and a 20 px glyph on a phone (the size gives it). From md, where it is
-            // 28 px, the ::after reaches 8 px past each edge for the touch target.
             className="relative lg:hidden"
         >
-            <svg
-                aria-hidden
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.75}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            >
-                <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
-                <path d="M6.5 8.5h4M6.5 12h4M6.5 15.5h4" />
-            </svg>
+            <SidebarSimpleIcon aria-hidden />
         </Button>
     )
 
@@ -154,7 +149,13 @@ export const NavDrawer = ({
 
     return (
         <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>{menuButton(t("navigation.chrome.openNavigation"))}</SheetTrigger>
+            <SimpleTooltip title={t("navigation.chrome.openNavigation")}>
+                <span className="inline-flex lg:hidden">
+                    <SheetTrigger asChild>
+                        {menuButton(t("navigation.chrome.openNavigation"))}
+                    </SheetTrigger>
+                </span>
+            </SimpleTooltip>
             {/* Flush to the viewport's left edge, unlike the kit's floating panel: a nav drawer
                 reads as the rail sliding in, so only its open side is rounded. */}
             <SheetContent

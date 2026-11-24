@@ -55,10 +55,20 @@ import {
     SlackLogoIcon,
     SparkleIcon,
     SquaresFourIcon,
+    TextboxIcon,
 } from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
 import {useRouter} from "next/router"
+
+import {useProjectPermission} from "../context/useProjectPermission"
+
+import {AgentsNavAction} from "./AgentsNavAction"
+import {AgentsQuickPanel} from "./AgentsQuickPanel"
+import {developerNavSlots, PROMPTS_ROW_KEY} from "./developerNavSlots"
+import {useSyncLocalSessionRefs} from "./localSessionRefs"
+import {sessionMarkOf, sessionStatusMark, withStatusMark} from "./sessionStatusMark"
+import {SupportActions} from "./SupportActions"
 
 import {openAgentSidebar} from "@/features/agent-sidebar/selectedSidebar"
 import {agentEntryHref} from "@/features/agents/agentEntry"
@@ -70,15 +80,6 @@ import {useLeaveSession} from "@/features/chat/useLeaveSession"
 import {startBlankSession} from "@/features/chat/useStartBlankSession"
 import {useEnabledDeveloperViews} from "@/features/developer/developerViewAccess"
 import {whatsNewAtom} from "@/features/education/whatsNewAtom"
-
-import {useProjectPermission} from "../context/useProjectPermission"
-
-import {AgentsNavAction} from "./AgentsNavAction"
-import {AgentsQuickPanel} from "./AgentsQuickPanel"
-import {developerNavSlots, PROMPTS_ROW_KEY} from "./developerNavSlots"
-import {useSyncLocalSessionRefs} from "./localSessionRefs"
-import {RUNNING_TITLE, sessionMarkOf, sessionStatusMark, withStatusMark} from "./sessionStatusMark"
-import {SupportActions} from "./SupportActions"
 
 /** Outside React: the row-level labels the entity registry builds at call time. */
 const tNow = createT(navigationCatalog)
@@ -103,7 +104,7 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
     SESSIONS_SIDEBAR_KEY,
     {
         kind: "app",
-        icon: createElement(ChatsIcon, {size: 14}),
+        icon: createElement(ChatsIcon, {size: 16}),
         // Its OWN scope: the source reads that scope's filters, so the desktop rail's filters
         // cannot narrow this drawer. Mobile has no filter UI, so this scope keeps the defaults.
         listAtom: sidebarSessionsListAtomFamily(MOBILE_NAV_SCOPE_ID),
@@ -113,7 +114,7 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
             isBuilderAgent(session.agentId)
                 ? builderChatPath(session.sessionId)
                 : `/sessions/${session.sessionId}`,
-        emptyLabel: "No sessions yet",
+        emptyLabel: tNow("navigation.items.noSessionsYet"),
         // No caret on this row to protect, and "No sessions yet" under a heading that already
         // says Sessions is the same sentence twice.
         hideWhenEmpty: true,
@@ -124,8 +125,7 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         getIcon: () => null,
         // Archived rows read as second-class: same row, dimmed. The archived view is the only
         // place they appear, so this says WHICH list you are looking at as much as which row.
-        getRowClassName: (session) =>
-            session.archived ? "opacity-60" : session.running ? RUNNING_TITLE : undefined,
+        getRowClassName: (session) => (session.archived ? "opacity-60" : undefined),
         // Grouped by owning agent, pins in their own heading on top (#6125).
         getGroupKey: sidebarSessionGroupKey,
         groupsAtom: sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
@@ -185,12 +185,12 @@ export const mobilePromptsEntity = defineSidebarEntity<Workflow>(
     PROMPTS_ROW_KEY,
     {
         kind: "app",
-        icon: createElement(SquaresFourIcon, {size: 14}),
+        icon: createElement(TextboxIcon, {size: 16}),
         listAtom: promptWorkflowsListQueryStateAtom,
         getLabel: (workflow) =>
             workflow.name || workflow.slug || tNow("navigation.items.untitledPrompt"),
         childPath: (workflow) => `/apps/${workflow.id}/playground`,
-        emptyLabel: "No prompts",
+        emptyLabel: tNow("navigation.items.noPromptsYet"),
         showAllPath: "/prompts",
     },
 )
@@ -438,7 +438,7 @@ export const useMobileBottomNavItems = (projectURL: string): SidebarConfig[] => 
                 suffix: version
                     ? createElement(
                           "span",
-                          {className: "text-caption leading-none text-muted-foreground"},
+                          {className: "text-caption text-muted-foreground"},
                           `v${version}`,
                       )
                     : undefined,
@@ -467,15 +467,15 @@ export const useMobileHelpItem = ({
         const help = buildHelpDocsNavItem({
             icons: {
                 help: createElement(QuestionIcon, {size: 16}),
-                docs: createElement(ScrollIcon, {size: 14}),
-                github: createElement(GithubLogoIcon, {size: 14}),
-                slack: createElement(SlackLogoIcon, {size: 14}),
+                docs: createElement(ScrollIcon, {size: 16}),
+                github: createElement(GithubLogoIcon, {size: 16}),
+                slack: createElement(SlackLogoIcon, {size: 16}),
             },
             extraItems: [
                 {
                     key: "keyboard-shortcuts",
                     title: t("navigation.items.keyboardShortcuts"),
-                    icon: createElement(KeyboardIcon, {size: 14}),
+                    icon: createElement(KeyboardIcon, {size: 16}),
                     isHidden: !onOpenShortcuts,
                     onClick: () => onOpenShortcuts?.(),
                     // The rule between the destinations and the release list.

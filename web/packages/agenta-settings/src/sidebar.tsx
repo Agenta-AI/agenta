@@ -9,17 +9,17 @@ import {
     ChartLineUp,
     Coins,
     ClockCounterClockwise,
+    Cpu,
     FolderSimple,
     HardDrives,
     Key,
-    Link,
     Receipt,
     ShieldCheck,
     SlidersHorizontal,
-    Sparkle,
     User,
     UsersThree,
     Vault,
+    WebhooksLogo,
     Wrench,
 } from "@phosphor-icons/react"
 
@@ -35,7 +35,7 @@ export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {
         case "secrets":
             return <Vault size={16} />
         case "llms":
-            return <Sparkle size={16} />
+            return <Cpu size={16} />
         case "analytics":
             return <ChartLineUp size={16} />
         case "tools":
@@ -43,7 +43,7 @@ export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {
         case "channels":
             return <Broadcast size={16} />
         case "webhooks":
-            return <Link size={16} />
+            return <WebhooksLogo size={16} />
         case "mcpEndpoints":
             return <HardDrives size={16} />
         case "workspace":
@@ -116,12 +116,12 @@ export const buildSettingsSidebarSections = (
         dividerBefore: false,
         before: ({collapsed}: SidebarSlotContext) =>
             collapsed ? (
-                <div className="my-1 h-px w-full shrink-0 bg-[var(--ag-shell-line)]" />
+                <div className="my-1 h-px w-full shrink-0 bg-border-muted" />
             ) : (
-                // pl-5 = the rows' 8px inset + their 12px padding.
+                // pl-4: a label with no icon starts on the nav icons' line (16px).
                 <div
                     className={[
-                        "pl-5 pr-3 pb-1 text-meta leading-5 text-muted-foreground",
+                        "pl-4 pr-3 pb-1 text-meta text-muted-foreground",
                         index === 0 ? "pt-1" : "pt-4",
                     ].join(" ")}
                 >

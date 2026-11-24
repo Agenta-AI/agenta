@@ -37,7 +37,7 @@ interface MeterTone {
 
 const DEFAULT_TONE: MeterTone = {
     text: "text-muted-foreground",
-    bar: "bg-muted-foreground/70",
+    bar: "bg-border-strong",
     Icon: null,
 }
 const METER_TONES: Partial<Record<CreditAlert["kind"], MeterTone>> = {
@@ -80,7 +80,7 @@ const CreditsMeter = ({projectId, settingsURL}: {projectId: string; settingsURL:
                         remaining: formatCredits(remaining),
                         total: formatCredits(total),
                     })}
-                    className="hover:bg-accent mx-2 mb-1 flex flex-col gap-1 rounded-md px-3 py-1 text-xs no-underline"
+                    className="focus-ring hover:bg-accent mx-2 mb-1 flex flex-col gap-1 rounded-md px-2 py-1 text-meta no-underline"
                 >
                     <span className="flex items-center justify-between gap-2">
                         <span className="min-w-0 truncate text-muted-foreground">
@@ -98,7 +98,7 @@ const CreditsMeter = ({projectId, settingsURL}: {projectId: string; settingsURL:
                             </span>
                         </span>
                     </span>
-                    <span className="block h-[3px] overflow-hidden rounded-xs bg-border">
+                    <span className="block h-1 overflow-hidden rounded-xs bg-border">
                         <span
                             className={`block h-full rounded-xs ${tone.bar}`}
                             style={{width: `${ratio * 100}%`}}

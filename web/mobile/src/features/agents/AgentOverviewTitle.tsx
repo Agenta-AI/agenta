@@ -85,7 +85,14 @@ export const AgentOverviewTitle = ({
             <AgentIconPopover workflowId={agentId}>
                 {/* The playground bar's 24px below `lg`, the roster's 32 beside the rail. `mt-1` puts
                     its top on the title's cap height, not on the line box above it. */}
-                <AgentChip workflowId={agentId} box="mt-1 size-6 lg:size-8" glyph={16} />
+                <span className="mt-1 flex">
+                    <span className="flex lg:hidden">
+                        <AgentChip workflowId={agentId} size={24} />
+                    </span>
+                    <span className="hidden lg:flex">
+                        <AgentChip workflowId={agentId} size={32} />
+                    </span>
+                </span>
             </AgentIconPopover>
             <div className="flex min-w-0 flex-1 flex-col gap-0.5 pt-1 lg:pt-0">
                 {pending ? (

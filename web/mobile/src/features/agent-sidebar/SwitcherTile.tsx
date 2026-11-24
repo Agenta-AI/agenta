@@ -1,18 +1,9 @@
 import {AgentChip} from "@agenta/entity-ui/agent"
 
-/** `sm` in the switcher row, `md` in its panel and the collapsed rail. */
-export type SwitcherTileSize = "sm" | "md"
+/** 16 in the switcher row (a rail row), 20 in its panel (a picker). */
+export type SwitcherTileSize = 16 | 20
 
-export const SWITCHER_TILE: Record<SwitcherTileSize, {box: string; glyph: number}> = {
-    sm: {box: "size-5 !rounded", glyph: 12},
-    md: {box: "size-6 !rounded-[6px]", glyph: 14},
-}
-
-/** The agent's tile in the switcher: the app's one agent chip, at the switcher's sizes. */
+/** The agent's Mark in the switcher: the app's one agent Mark, at the switcher's sizes. */
 export const SwitcherTile = ({agentId, size}: {agentId: string; size: SwitcherTileSize}) => (
-    <AgentChip
-        workflowId={agentId}
-        box={SWITCHER_TILE[size].box}
-        glyph={SWITCHER_TILE[size].glyph}
-    />
+    <AgentChip workflowId={agentId} size={size} />
 )

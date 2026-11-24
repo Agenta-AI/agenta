@@ -4,6 +4,7 @@ import {useT} from "@agenta/i18n"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {CommandPalette, type CommandPaletteGroup} from "@agenta/navigation-ui"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
@@ -87,17 +88,18 @@ export const BuilderChatSearch = ({
     const [open, setOpen] = useState(false)
     return (
         <>
-            <button
-                type="button"
-                aria-label={t("navigation.items.searchChats")}
-                title={t("navigation.items.searchChats")}
-                data-testid="builder-chats-search"
-                onClick={() => setOpen(true)}
-                // The same 24 px target and 12 px glyph as the agent sidebar's Sessions filter.
-                className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 text-muted-foreground [font-family:inherit] hover:bg-accent hover:text-foreground"
-            >
-                <MagnifyingGlassIcon aria-hidden size={12} />
-            </button>
+            <SimpleTooltip title={t("navigation.items.searchChats")}>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={t("navigation.items.searchChats")}
+                    data-testid="builder-chats-search"
+                    onClick={() => setOpen(true)}
+                >
+                    <MagnifyingGlassIcon aria-hidden />
+                </Button>
+            </SimpleTooltip>
             {open ? (
                 <BuilderChatSearchWindow
                     workspaceId={workspaceId}

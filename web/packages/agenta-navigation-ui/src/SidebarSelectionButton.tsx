@@ -1,8 +1,10 @@
 import type {ButtonHTMLAttributes} from "react"
 
-import {InitialsAvatar} from "@agenta/ui/components/presentational"
+import {IconTile} from "@agenta/ui/ui"
 import {CaretDown} from "@phosphor-icons/react"
 import clsx from "clsx"
+
+import {ROW_HEIGHT} from "./rowStyles"
 
 export interface SidebarSelectionButtonProps extends Omit<
     ButtonHTMLAttributes<HTMLButtonElement>,
@@ -15,10 +17,13 @@ export interface SidebarSelectionButtonProps extends Omit<
     showCaret: boolean
 }
 
+// Width, padding and gap follow the rail's own width transition.
+const MOTION =
+    "duration-[var(--duration-slow)] ease-[var(--ease-in-out)] motion-reduce:transition-none"
+
 /**
- * The rail's selection trigger (org/project, workflow): avatar + label + caret, collapsing
- * to the avatar alone with the rail. Ported from the OSS antd Button verbatim, styling and
- * transitions included.
+ * The rail's selection trigger (org/project, workflow): a rail row with the workspace Mark, the
+ * label and a caret, collapsing to the Mark alone with the rail.
  */
 export const SidebarSelectionButton = ({
     collapsed,
@@ -31,14 +36,18 @@ export const SidebarSelectionButton = ({
     ...buttonProps
 }: SidebarSelectionButtonProps) => {
     const displayLabel = label || placeholder
+    const letter = displayLabel.trim().charAt(0).toUpperCase()
 
     return (
         <button
             type="button"
             className={clsx(
-                "flex h-9 cursor-pointer items-center justify-between overflow-hidden rounded-md border-0 bg-transparent text-foreground transition-[width,padding,gap] duration-300 ease-in-out",
-                "hover:bg-accent disabled:cursor-default disabled:opacity-60",
-                collapsed ? "!w-8 gap-0 !p-1" : "w-full gap-2 px-1.5 py-3",
+                // [font-family:inherit]: preflight is off, so a bare <button> renders Arial.
+                "flex cursor-pointer items-center justify-between overflow-hidden rounded-md border-0 bg-transparent [font-family:inherit] text-foreground outline-none focus-ring transition-[width,padding,gap]",
+                ROW_HEIGHT,
+                MOTION,
+                "hover:bg-accent disabled:cursor-default disabled:opacity-50",
+                collapsed ? "!w-7 justify-center gap-0 !px-0" : "w-full gap-2 px-2",
                 className,
             )}
             disabled={disabled}
@@ -46,14 +55,18 @@ export const SidebarSelectionButton = ({
         >
             <div
                 className={clsx(
-                    "flex min-w-0 items-center transition-[gap] duration-300 ease-in-out",
+                    "flex min-w-0 items-center transition-[gap]",
+                    MOTION,
                     collapsed ? "gap-0" : "gap-2",
                 )}
             >
-                <InitialsAvatar size="small" name={displayLabel} />
+                <IconTile size={16} tone="brand">
+                    {letter}
+                </IconTile>
                 <span
                     className={clsx(
-                        "max-w-[150px] overflow-hidden truncate transition-[max-width,opacity] duration-300 ease-in-out",
+                        "max-w-40 overflow-hidden truncate transition-[max-width,opacity]",
+                        MOTION,
                         collapsed ? "!max-w-0 opacity-0" : "opacity-100",
                     )}
                     title={displayLabel}
@@ -64,15 +77,13 @@ export const SidebarSelectionButton = ({
             </div>
             <span
                 className={clsx(
-                    "flex shrink-0 items-center overflow-hidden transition-[width,opacity] duration-300 ease-in-out",
-                    !collapsed && showCaret ? "w-3.5 opacity-100" : "w-0 opacity-0",
+                    "flex shrink-0 items-center overflow-hidden text-muted-foreground transition-[width,opacity]",
+                    MOTION,
+                    !collapsed && showCaret ? "w-4 opacity-100" : "w-0 opacity-0",
                 )}
                 aria-hidden={collapsed || !showCaret}
             >
-                <CaretDown
-                    size={14}
-                    className={clsx("transition-transform", isOpen && "rotate-180")}
-                />
+                <CaretDown size={16} className="ag-caret" data-open={isOpen} />
             </span>
         </button>
     )

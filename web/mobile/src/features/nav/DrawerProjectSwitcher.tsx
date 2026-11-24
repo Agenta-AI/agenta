@@ -10,7 +10,6 @@ import {
     type SwitcherEntry,
     type SwitcherThemeControl,
 } from "@agenta/navigation-ui"
-import {message} from "@agenta/ui/app-message"
 import {themeIcon, useThemeMode, useThemeOptions} from "@agenta/ui/theme"
 import {useMutation} from "@tanstack/react-query"
 import dynamic from "next/dynamic"
@@ -89,7 +88,12 @@ export const DrawerProjectSwitcher = ({
         [groups, currentGroup?.key],
     )
 
-    const [createOpen, setCreateOpen] = useState(false)
+    const [createOpen, setCreateOpenState] = useState(false)
+    const [createError, setCreateError] = useState<string | null>(null)
+    const setCreateOpen = (next: boolean) => {
+        setCreateError(null)
+        setCreateOpenState(next)
+    }
     // Same shared mutation the desktop rail calls; the row it feeds is already in the shared
     // view, gated on `onCreateProject`, and was invisible here only because nothing passed it.
     const createProject = useMutation({
@@ -104,11 +108,12 @@ export const DrawerProjectSwitcher = ({
             await query.refetch()
             goTo(created.organization_id ?? created.workspace_id ?? workspaceId, created.project_id)
         },
-        // The API's refusal is written for people (e.g. the plan's project limit).
+        // The API's refusal is written for people (e.g. the plan's project limit); it shows in
+        // the dialog, next to the field.
         onError: (error) => {
             const detail = (error as {response?: {data?: {detail?: unknown}}})?.response?.data
                 ?.detail
-            message.error(typeof detail === "string" ? detail : t("shell.createProject.failed"))
+            setCreateError(typeof detail === "string" ? detail : t("shell.createProject.failed"))
         },
     })
 
@@ -163,8 +168,12 @@ export const DrawerProjectSwitcher = ({
             <CreateProjectSheet
                 open={createOpen}
                 onOpenChange={setCreateOpen}
-                onSubmit={(name) => createProject.mutate(name)}
+                onSubmit={(name) => {
+                    setCreateError(null)
+                    createProject.mutate(name)
+                }}
                 isPending={createProject.isPending}
+                error={createError}
             />
         </div>
     )

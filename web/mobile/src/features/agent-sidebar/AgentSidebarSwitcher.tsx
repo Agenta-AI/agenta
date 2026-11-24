@@ -3,17 +3,22 @@ import {useContext, useEffect, useMemo, useRef, useState, type ReactNode} from "
 import {useT} from "@agenta/i18n"
 import agentSidebarCatalog from "@agenta/i18n/catalogs/agentSidebar"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
+import {SidebarLayoutContext} from "@agenta/navigation-ui"
+import {BottomSheet} from "@agenta/ui/phone"
 import {
-    SidebarLayoutContext,
-    SWITCHER_CAPTION_CLASS,
-    SWITCHER_ITEM_ROW_CLASS,
-    SWITCHER_PANEL_CLASS,
-    SWITCHER_ROW_CLASS,
-} from "@agenta/navigation-ui"
-import {Popover, PopoverContent, PopoverTrigger, Spinner} from "@agenta/ui/ui"
-import {CaretUpDownIcon, CheckIcon, PlusIcon, RobotIcon, SparkleIcon} from "@phosphor-icons/react"
+    cn,
+    IconTile,
+    Input,
+    MENU_ITEM,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    SimpleTooltip,
+    Spinner,
+} from "@agenta/ui/ui"
+import {CaretDownIcon, CheckIcon, PlusIcon, RobotIcon, SparkleIcon} from "@phosphor-icons/react"
 
-import {SWITCHER_TILE, SwitcherTile, type SwitcherTileSize} from "./SwitcherTile"
+import {SwitcherTile, type SwitcherTileSize} from "./SwitcherTile"
 
 /** Above this many agents the panel gets a search field. */
 const SEARCH_FROM = 8
@@ -29,16 +34,17 @@ const agentName = (agent: SwitcherAgent | undefined) => agent?.name || agent?.sl
 /** What the switcher shows: one agent (the agent sidebar) or the builder (the builder sidebar). */
 export type SwitcherCurrent = {kind: "agent"; agentId: string} | {kind: "builder"}
 
-/** The builder's tile in the switcher: the agent tile's size, on the neutral fill. */
+/** The builder's Mark in the switcher: the agent Mark's size, neutral. */
 const BuilderTile = ({size}: {size: SwitcherTileSize}) => (
-    <span
-        className={`flex shrink-0 items-center justify-center bg-border-muted text-foreground ${SWITCHER_TILE[size].box}`}
-    >
-        <SparkleIcon size={SWITCHER_TILE[size].glyph} />
-    </span>
+    <IconTile size={size}>
+        <SparkleIcon />
+    </IconTile>
 )
 
-/** One row of the panel, as the project switcher draws it: the current one filled and checked. */
+/** Written durations come from the theme (MOTION-01). */
+const COLOR_MOTION = "transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)]"
+
+/** One row of the panel: a menu row (ROW-02), the current one selected and checked. */
 const PanelRow = ({
     current = false,
     item = false,
@@ -58,14 +64,19 @@ const PanelRow = ({
         data-testid={testId}
         aria-current={current ? "true" : undefined}
         onClick={onClick}
-        className={`${SWITCHER_ROW_CLASS} ${item ? SWITCHER_ITEM_ROW_CLASS : ""} ${current ? "bg-secondary" : ""}`}
+        className={cn(
+            MENU_ITEM,
+            "focus-ring-inset border-0 bg-transparent text-left text-foreground [font-family:inherit] hover:bg-accent",
+            item && "shrink-0",
+            current && "bg-selected",
+        )}
     >
         {children}
-        {current ? <CheckIcon aria-hidden size={14} className="shrink-0 text-foreground" /> : null}
+        {current ? <CheckIcon aria-hidden size={16} className="shrink-0 text-foreground" /> : null}
     </button>
 )
 
-/** The sidebar's agent switcher: a boxed row, and a panel in the project switcher's look. */
+/** The sidebar's agent switcher: a rail row, and a panel of menu rows (a bottom sheet on a phone). */
 export const AgentSidebarSwitcher = ({
     agents,
     current,
@@ -94,13 +105,11 @@ export const AgentSidebarSwitcher = ({
     const phone = useContext(SidebarLayoutContext) === "phone"
     const [open, setOpen] = useState(false)
     const [search, setSearch] = useState("")
-    const anchorRef = useRef<HTMLDivElement>(null)
     const builder = current.kind === "builder"
     const agentId = current.kind === "agent" ? current.agentId : null
     const name = builder
         ? tBuilder("builder.page.builder")
         : agentName(agents.find((agent) => agent.id === agentId))
-    const tileSize: SwitcherTileSize = collapsed ? "md" : "sm"
 
     const shown = useMemo(() => {
         const needle = search.trim().toLowerCase()
@@ -115,6 +124,7 @@ export const AgentSidebarSwitcher = ({
         setOpen(next)
     }
     // A create that lands closes the panel; one that fails keeps it open with its error.
+    const anchorRef = useRef<HTMLDivElement>(null)
     const wasCreating = useRef(creating)
     useEffect(() => {
         if (wasCreating.current && !creating && !createError) setOpen(false)
@@ -127,127 +137,152 @@ export const AgentSidebarSwitcher = ({
         action()
     }
 
+    const caption = projectName
+        ? t("agentSidebar.agentsIn", {project: projectName})
+        : t("agentSidebar.agents")
+
+    const panel = (
+        <div className="flex flex-col p-1">
+            {!builder && agents.length > SEARCH_FROM ? (
+                <Input
+                    autoFocus
+                    size="sm"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder={t("agentSidebar.searchAgents")}
+                    aria-label={t("agentSidebar.searchAgents")}
+                    className="mb-1"
+                />
+            ) : null}
+            {builder ? (
+                <>
+                    <PanelRow
+                        current
+                        onClick={() => onOpenChange(false)}
+                        testId="agent-sidebar-switcher-builder"
+                    >
+                        <BuilderTile size={20} />
+                        <span className="min-w-0 flex-1 truncate">
+                            {tBuilder("builder.page.builder")}
+                        </span>
+                    </PanelRow>
+                    <div className="my-1 h-px bg-border-muted" />
+                </>
+            ) : null}
+            {phone ? null : (
+                <div className="truncate px-2 pb-1 pt-1.5 text-meta text-muted-foreground">
+                    {caption}
+                </div>
+            )}
+            <div className="ag-scroll-quiet flex max-h-56 flex-col overflow-y-auto">
+                {shown.map((agent) => (
+                    <PanelRow
+                        key={agent.id}
+                        item
+                        current={agent.id === agentId}
+                        onClick={run(() => {
+                            if (agent.id !== agentId) onPick(agent.id)
+                        })}
+                    >
+                        <SwitcherTile agentId={agent.id} size={20} />
+                        <span className="min-w-0 flex-1 truncate">{agentName(agent)}</span>
+                    </PanelRow>
+                ))}
+            </div>
+            <div className="my-1 h-px bg-border-muted" />
+            <div className="flex flex-col">
+                <PanelRow onClick={run(onAllAgents)}>
+                    <span className="flex size-5 shrink-0 items-center justify-center">
+                        <RobotIcon aria-hidden size={16} />
+                    </span>
+                    <span className="flex-1">{t("agentSidebar.allAgents")}</span>
+                </PanelRow>
+                <PanelRow onClick={() => !creating && onNewAgent()}>
+                    <span className="flex size-5 shrink-0 items-center justify-center">
+                        {creating ? <Spinner size="small" /> : <PlusIcon aria-hidden size={16} />}
+                    </span>
+                    <span className="flex-1">
+                        {creating ? t("agentSidebar.creatingAgent") : t("agentSidebar.newAgent")}
+                    </span>
+                </PanelRow>
+                {createError ? (
+                    <p role="alert" className="m-0 px-2 pb-1 text-meta text-destructive">
+                        {createError}
+                    </p>
+                ) : null}
+            </div>
+        </div>
+    )
+
+    // One rail row (ALIGN-02): a 16px Mark on the icon line, one label line, a turning caret.
+    const trigger = (
+        <button
+            type="button"
+            aria-label={name || t("agentSidebar.agent")}
+            data-testid="agent-sidebar-switcher"
+            className={cn(
+                "focus-ring flex h-row-dense cursor-pointer items-center rounded-md border-0 bg-transparent p-0 text-foreground [font-family:inherit] hover:bg-accent data-[state=open]:bg-accent",
+                COLOR_MOTION,
+                collapsed ? "w-row-dense justify-center" : "w-full min-w-0 gap-2 px-2 text-left",
+            )}
+        >
+            {agentId ? <SwitcherTile agentId={agentId} size={16} /> : <BuilderTile size={16} />}
+            {collapsed ? null : (
+                <>
+                    <span className="min-w-0 flex-1 truncate text-label">{name}</span>
+                    <CaretDownIcon
+                        aria-hidden
+                        size={12}
+                        className="ag-caret shrink-0 text-muted-foreground"
+                    />
+                </>
+            )}
+        </button>
+    )
+
+    if (phone)
+        return (
+            <div className="flex w-full min-w-0">
+                <BottomSheet
+                    open={open}
+                    onOpenChange={onOpenChange}
+                    title={caption}
+                    trigger={trigger}
+                    data-testid="agent-sidebar-switcher-sheet"
+                >
+                    {panel}
+                </BottomSheet>
+            </div>
+        )
+
     return (
         <div ref={anchorRef} className={collapsed ? "flex justify-center" : "flex w-full min-w-0"}>
             <Popover open={open} onOpenChange={onOpenChange} modal={false}>
-                <PopoverTrigger asChild>
-                    <button
-                        type="button"
-                        aria-label={name || t("agentSidebar.agent")}
-                        title={collapsed ? name : undefined}
-                        data-testid="agent-sidebar-switcher"
-                        className={
-                            collapsed
-                                ? "flex size-7 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 [font-family:inherit] hover:bg-accent"
-                                : "flex h-8 w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-[6px] border border-solid border-border-muted bg-transparent pl-2.5 pr-3 text-left text-foreground transition-colors [font-family:inherit] hover:bg-accent data-[state=open]:bg-accent"
-                        }
-                    >
-                        {agentId ? (
-                            <SwitcherTile agentId={agentId} size={tileSize} />
-                        ) : (
-                            <BuilderTile size={tileSize} />
-                        )}
-                        {collapsed ? null : (
-                            <>
-                                <span className="min-w-0 flex-1 truncate text-sm font-medium leading-5">
-                                    {name}
-                                </span>
-                                <CaretUpDownIcon
-                                    size={12}
-                                    className="shrink-0 text-muted-foreground"
-                                />
-                            </>
-                        )}
-                    </button>
-                </PopoverTrigger>
+                {collapsed ? (
+                    <SimpleTooltip title={name} side="right">
+                        <span className="inline-flex">
+                            <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+                        </span>
+                    </SimpleTooltip>
+                ) : (
+                    <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+                )}
                 <PopoverContent
-                    side="bottom"
-                    align="start"
-                    sideOffset={4}
-                    // Inside the phone sheet, or the sheet's scroll lock blocks the list's scroll.
+                    // Inside the tablet drawer the panel portals into the sheet, or its scroll lock
+                    // blocks the list's scroll.
                     container={anchorRef.current?.closest<HTMLElement>(
                         '[data-slot="sheet-content"]',
                     )}
-                    // Expanded, the panel spans the switcher row, as the project panel spans the header.
-                    className={`${SWITCHER_PANEL_CLASS} ${collapsed ? "" : "!w-[var(--radix-popover-trigger-width)]"}`}
+                    side="bottom"
+                    align="start"
+                    sideOffset={4}
+                    // Expanded, the panel spans the switcher row.
+                    className={cn(
+                        "w-popover-sm p-0",
+                        !collapsed && "!w-[var(--radix-popover-trigger-width)]",
+                    )}
                 >
-                    <div className="flex flex-col p-1">
-                        {builder ? (
-                            <>
-                                <PanelRow
-                                    current
-                                    onClick={() => onOpenChange(false)}
-                                    testId="agent-sidebar-switcher-builder"
-                                >
-                                    <BuilderTile size="md" />
-                                    <span className="min-w-0 flex-1 truncate">
-                                        {tBuilder("builder.page.builder")}
-                                    </span>
-                                </PanelRow>
-                                <div className="my-1 h-px bg-border-muted" />
-                            </>
-                        ) : null}
-                        <div className={SWITCHER_CAPTION_CLASS}>
-                            {projectName
-                                ? t("agentSidebar.agentsIn", {project: projectName})
-                                : t("agentSidebar.agents")}
-                        </div>
-                        {!builder && agents.length > SEARCH_FROM ? (
-                            <input
-                                autoFocus
-                                value={search}
-                                onChange={(event) => setSearch(event.target.value)}
-                                placeholder={t("agentSidebar.searchAgents")}
-                                aria-label={t("agentSidebar.searchAgents")}
-                                className="mx-1 mb-1 h-8 w-[calc(100%-8px)] rounded-md border border-solid border-border bg-transparent px-2 text-sm text-foreground outline-none [font-family:inherit] focus:border-primary"
-                            />
-                        ) : null}
-                        <div className="ag-scroll-quiet flex max-h-56 flex-col gap-0.5 overflow-y-auto">
-                            {shown.map((agent) => (
-                                <PanelRow
-                                    key={agent.id}
-                                    item
-                                    current={agent.id === agentId}
-                                    onClick={run(() => {
-                                        if (agent.id !== agentId) onPick(agent.id)
-                                    })}
-                                >
-                                    <SwitcherTile agentId={agent.id} size="md" />
-                                    <span className="min-w-0 flex-1 truncate">
-                                        {agentName(agent)}
-                                    </span>
-                                </PanelRow>
-                            ))}
-                        </div>
-                        <div className="my-1 h-px bg-border-muted" />
-                        <div className="flex flex-col gap-0.5">
-                            <PanelRow onClick={run(onAllAgents)}>
-                                <span className="flex size-6 shrink-0 items-center justify-center">
-                                    <RobotIcon aria-hidden size={14} />
-                                </span>
-                                <span className="flex-1">{t("agentSidebar.allAgents")}</span>
-                            </PanelRow>
-                            <PanelRow onClick={() => !creating && onNewAgent()}>
-                                <span className="flex size-6 shrink-0 items-center justify-center">
-                                    {creating ? (
-                                        <Spinner size="small" />
-                                    ) : (
-                                        <PlusIcon aria-hidden size={14} />
-                                    )}
-                                </span>
-                                <span className="flex-1">
-                                    {creating
-                                        ? t("agentSidebar.creatingAgent")
-                                        : t("agentSidebar.newAgent")}
-                                </span>
-                            </PanelRow>
-                            {createError ? (
-                                <p className="m-0 px-2 pb-1 text-meta text-destructive">
-                                    {createError}
-                                </p>
-                            ) : null}
-                        </div>
-                    </div>
+                    {panel}
                 </PopoverContent>
             </Popover>
         </div>

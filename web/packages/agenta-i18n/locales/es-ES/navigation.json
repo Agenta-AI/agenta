@@ -1,5 +1,5 @@
 {
-    "chrome.closeNavigation": "Cerrar navegación",
+    "chrome.closeNavigation": "Cerrar la barra lateral",
     "chrome.collapseGroup": "Contraer {{title}}",
     "chrome.collapseSidebar": "Contraer la barra lateral",
     "chrome.expandGroup": "Expandir {{title}}",
@@ -27,7 +27,7 @@
     "items.home": "Inicio",
     "items.inviteTeammate": "Invitar a un compañero",
     "items.keyboardShortcuts": "Atajos de teclado",
-    "items.newAgentOrOpen": "Nuevo agente o abrir un agente",
+    "items.newAgentOrOpen": "Nuevo agente",
     "items.newSessionWith": "Nueva sesión con {{agent}}",
     "items.observability": "Observabilidad",
     "items.overview": "Resumen",
@@ -36,7 +36,7 @@
     "items.prompts": "Prompts",
     "items.registry": "Registro",
     "items.search": "Buscar",
-    "items.searchChats": "Buscar chats",
+    "items.searchChats": "Buscar sesiones",
     "items.sessions": "Sesiones",
     "items.skills": "Skills",
     "items.slackSupport": "Soporte en Slack",
@@ -97,5 +97,8 @@
     "arrange.undo": "Deshacer",
     "items.sessionWaiting": "Esperándote",
     "items.sessionLive": "En curso",
-    "chrome.backFrom": "Volver desde {{label}}"
+    "chrome.backFrom": "Volver desde {{label}}",
+    "items.noSessionsYet": "Aún no hay sesiones",
+    "items.noPromptsYet": "Aún no hay prompts. Crea uno en Prompts.",
+    "chrome.sidebarError": "No se pudo cargar la barra lateral. Recarga la página."
 }

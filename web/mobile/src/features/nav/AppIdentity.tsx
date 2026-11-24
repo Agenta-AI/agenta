@@ -1,45 +1,55 @@
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
-import {CheckIcon, Gavel, SquaresFourIcon} from "@phosphor-icons/react"
-import clsx from "clsx"
+import {IconTile} from "@agenta/ui/ui"
+import {CheckIcon, Gavel, TextboxIcon} from "@phosphor-icons/react"
 
-/** An app's or evaluator's square, name and type, as the old app's app menu shows it. */
+/**
+ * An app's or evaluator's Mark, name and type, as the old app's app menu shows it. `trigger` is the
+ * sidebar's top-row switcher: a 16px Mark and one line, as the agent switcher draws it (ALIGN-02).
+ */
 export const AppIdentity = ({
     name,
     evaluator = false,
     showDetails = true,
     selected,
+    trigger = false,
 }: {
     name: string
     evaluator?: boolean
     showDetails?: boolean
     selected?: boolean
+    trigger?: boolean
 }) => {
     const t = useT(navigationCatalog)
-    const Icon = evaluator ? Gavel : SquaresFourIcon
-    return (
-        <div className={clsx("flex w-full min-w-0 items-center", showDetails ? "gap-2" : "gap-0")}>
-            <span
-                className={clsx(
-                    "flex shrink-0 items-center justify-center",
-                    "bg-secondary text-muted-foreground",
-                    showDetails ? "size-8 rounded-md" : "size-6 rounded-md",
-                )}
-            >
-                <Icon size={showDetails ? 16 : 14} />
-            </span>
-            {showDetails ? (
-                <span className="flex min-w-0 flex-1 flex-col text-left">
-                    <span className="truncate text-label" title={name}>
+    const Icon = evaluator ? Gavel : TextboxIcon
+    if (trigger)
+        return (
+            <div className="flex w-full min-w-0 items-center gap-2">
+                <IconTile size={16}>
+                    <Icon />
+                </IconTile>
+                {showDetails ? (
+                    <span className="min-w-0 flex-1 truncate text-left text-label" title={name}>
                         {name}
                     </span>
-                    <span className="text-meta text-muted-foreground">
-                        {evaluator
-                            ? t("navigation.items.evaluatorKind")
-                            : t("navigation.items.promptKind")}
-                    </span>
+                ) : null}
+            </div>
+        )
+    return (
+        <div className="flex w-full min-w-0 items-center gap-3">
+            <IconTile size={32}>
+                <Icon />
+            </IconTile>
+            <span className="flex min-w-0 flex-1 flex-col text-left">
+                <span className="truncate text-label" title={name}>
+                    {name}
                 </span>
-            ) : null}
+                <span className="text-meta text-muted-foreground">
+                    {evaluator
+                        ? t("navigation.items.evaluatorKind")
+                        : t("navigation.items.promptKind")}
+                </span>
+            </span>
             {selected ? <CheckIcon size={16} className="shrink-0" /> : null}
         </div>
     )

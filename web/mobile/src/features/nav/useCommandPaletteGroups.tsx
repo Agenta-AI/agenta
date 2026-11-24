@@ -23,7 +23,7 @@ import type {CommandPaletteEntry, CommandPaletteGroup} from "@agenta/navigation-
 import {getSettingsSidebarTabs} from "@agenta/settings"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {
-    ChatsCircleIcon,
+    ChatsIcon,
     GavelIcon,
     GearIcon,
     CompassIcon,
@@ -32,20 +32,21 @@ import {
     PlusIcon,
     RobotIcon,
     SquaresFourIcon,
+    TextboxIcon,
 } from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
-
-import {agentEntryHref} from "@/features/agents/agentEntry"
-import {useEnabledDeveloperViews} from "@/features/developer/developerViewAccess"
-import type {DeveloperView} from "@/features/developer/developerViews"
-import {AVAILABLE_SETTINGS_TABS, useMobileSettingsAccess} from "@/features/settings/settingsTabs"
-import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
 
 import {playgroundHref} from "../playground/playgroundUrl"
 
 import {developerNavSlots} from "./developerNavSlots"
 import type {NavTranslate} from "./observabilityNavItems"
 import {mobileSessionsEntity} from "./useMobileNavItems"
+
+import {agentEntryHref} from "@/features/agents/agentEntry"
+import {useEnabledDeveloperViews} from "@/features/developer/developerViewAccess"
+import type {DeveloperView} from "@/features/developer/developerViews"
+import {AVAILABLE_SETTINGS_TABS, useMobileSettingsAccess} from "@/features/settings/settingsTabs"
+import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
 
 /** Case-insensitive substring over the label and any extra words. */
 const matches = (query: string, label: string, keywords: string[] = []) =>
@@ -57,7 +58,7 @@ const RECENT_AGENTS = 5
 /** Hits per group once a query narrows them; the list scrolls past this anyway. */
 const MATCH_CAP = 8
 
-const icon = (Icon: typeof HouseIcon) => createElement(Icon, {size: 14})
+const icon = (Icon: typeof HouseIcon) => createElement(Icon, {size: 16})
 
 const evaluatorsHref = (projectURL: string, human: boolean) =>
     `${projectURL}/evaluators?tab=${human ? "human" : "automatic"}`
@@ -112,7 +113,7 @@ export const useCommandPaletteGroups = (
         const sessionRow = (ref: SessionSidebarRef): CommandPaletteEntry => ({
             key: ref.sessionId,
             label: mobileSessionsEntity.getLabel(ref),
-            // At the rail's own size (an 8px dot, a 12px bolt): the row's svg rule would
+            // At the rail's own size (a 6px dot, a 12px spinner): the row's svg rule would
             // otherwise scale the status glyph up to 16px. `!`, since that rule wins on
             // specificity. Sized svgs (the running spinner) keep their class, not a 24px default.
             icon: createElement(
@@ -140,7 +141,7 @@ export const useCommandPaletteGroups = (
                 key: agent.id,
                 label: agent.name || t("shell.commandPalette.agentFallback"),
                 // The agent's own avatar, as its rows draw it everywhere else.
-                icon: createElement(AgentChip, {workflowId: agent.id, box: "size-5", glyph: 13}),
+                icon: createElement(AgentChip, {workflowId: agent.id, size: 20}),
                 href: agentEntryHref(projectURL, agent.id),
             }))
         const pages: CommandPaletteEntry[] = [
@@ -171,7 +172,7 @@ export const useCommandPaletteGroups = (
             {
                 key: "sessions",
                 label: t("navigation.items.sessions"),
-                icon: icon(ChatsCircleIcon),
+                icon: icon(ChatsIcon),
                 href: `${projectURL}/sessions`,
             },
             {
@@ -187,7 +188,10 @@ export const useCommandPaletteGroups = (
                 href: `${projectURL}/settings`,
             },
             ...(developerMode ? developerPages(projectURL, views, t) : []),
-        ].filter((page) => !typed || matches(q, page.label))
+        ]
+            // KIT-08: palette rows read as actions.
+            .map((page) => ({...page, label: t("shell.commandPalette.goTo", {page: page.label})}))
+            .filter((page) => !typed || matches(q, page.label))
 
         const workflowRows = (
             list: readonly Workflow[],
@@ -206,7 +210,7 @@ export const useCommandPaletteGroups = (
                     href: href(workflow),
                 }))
         const promptRows = findWorkflows
-            ? workflowRows(prompts.data, t("navigation.items.promptKind"), SquaresFourIcon, (app) =>
+            ? workflowRows(prompts.data, t("navigation.items.promptKind"), TextboxIcon, (app) =>
                   playgroundHref(projectURL, app.id),
               )
             : []
@@ -230,7 +234,7 @@ export const useCommandPaletteGroups = (
                   .filter((tab) => matches(q, tab.title, ["settings"]))
                   .map((tab) => ({
                       key: tab.key,
-                      label: tab.title,
+                      label: t("shell.commandPalette.goTo", {page: tab.title}),
                       icon: icon(GearIcon),
                       hint: t("common.settings"),
                       href: `${projectURL}/settings?tab=${tab.key}`,

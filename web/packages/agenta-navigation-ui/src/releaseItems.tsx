@@ -1,14 +1,10 @@
 import type {ReactNode} from "react"
 
 import {ALL_RELEASES_LINK, RELEASES, type SidebarConfig} from "@agenta/navigation"
-import {CircleIcon, PackageIcon} from "@phosphor-icons/react"
+import {PackageIcon} from "@phosphor-icons/react"
 
 /** Newest first, capped: the menu says what changed lately, not the whole changelog. */
 const RECENT_RELEASE_COUNT = 3
-
-/** The list breathes a little more than the destinations above it: four titles read down as a
- * timeline, and at the destinations' rhythm they ran together. */
-const RELEASE_ROW = "py-1"
 
 /**
  * The glyph column, drawn as a timeline: a hairline runs between the entries and each one
@@ -24,8 +20,8 @@ const ReleaseGlyph = ({first, last}: {first?: boolean; last?: boolean}): ReactNo
         {/* Overshoot the glyph box at each end: segments that stopped at its edge left a gap at
             every row boundary and the timeline read as four detached ticks. `colorBorder`, not
             the secondary step: in dark that is #303030 against a #242424 popover, a hairline you
-            cannot see. The 10px height leaves 16px clear in the middle, which the 14px package
-            icon fits inside. */}
+            cannot see. The 10px height leaves 16px clear in the middle, which the 16px package
+            icon fills. */}
         {first ? null : (
             <span className="absolute left-1/2 -top-1.5 h-[10px] w-px -translate-x-1/2 bg-border" />
         )}
@@ -34,14 +30,10 @@ const ReleaseGlyph = ({first, last}: {first?: boolean; last?: boolean}): ReactNo
         )}
         <span className="relative flex items-center justify-center">
             {last ? (
-                <PackageIcon size={14} className="text-muted-foreground" />
+                <PackageIcon size={16} className="text-muted-foreground" />
             ) : (
-                <CircleIcon
-                    size={8}
-                    weight="fill"
-                    // size-2: the menu item scales unsized svgs to 16px.
-                    className="size-2 text-muted-foreground"
-                />
+                // A timeline node, not a filled icon (ICON-01; radius-xs is for timeline nodes).
+                <span className="size-2 rounded-xs bg-muted-foreground" />
             )}
         </span>
     </span>
@@ -63,14 +55,12 @@ export const buildReleaseNavItems = (
         title: release.features[0]?.title ?? release.id,
         link: release.features[0]?.link ?? ALL_RELEASES_LINK,
         icon: <ReleaseGlyph first={index === 0} />,
-        rowClassName: RELEASE_ROW,
     })),
     {
         key: "all-releases",
         title: labels.viewAll,
         link: ALL_RELEASES_LINK,
         icon: <ReleaseGlyph last />,
-        rowClassName: RELEASE_ROW,
         suffix: version ? (
             <span className="text-caption leading-none text-muted-foreground">v{version}</span>
         ) : undefined,

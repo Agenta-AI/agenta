@@ -2,8 +2,8 @@ import * as React from "react"
 
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
-import {Command as CommandPrimitive} from "cmdk"
 import {CheckIcon, MagnifyingGlassIcon} from "@phosphor-icons/react"
+import {Command as CommandPrimitive} from "cmdk"
 
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from "./dialog"
 import {MENU_ITEM} from "./menu-item"
@@ -32,6 +32,10 @@ function Command({className, ...props}: React.ComponentProps<typeof CommandPrimi
     )
 }
 
+// 1ms, not `animation: none`: Radix still gets the animationend it waits for on close.
+const INSTANT =
+    "data-[state=open]:![animation-duration:1ms] data-[state=closed]:![animation-duration:1ms]"
+
 function CommandDialog({
     title: titleProp,
     description: descriptionProp,
@@ -39,6 +43,7 @@ function CommandDialog({
     className,
     showCloseButton = false,
     shouldFilter,
+    instant = false,
     ...props
 }: React.ComponentProps<typeof Dialog> & {
     /** Screen-reader name for the dialog. */
@@ -49,6 +54,8 @@ function CommandDialog({
     showCloseButton?: boolean
     /** cmdk's own fuzzy filter; off when the host already matched (server search). */
     shouldFilter?: boolean
+    /** Opens and closes at once, for a palette used many times an hour (MICRO-04). */
+    instant?: boolean
 }) {
     const t = useT(uiControlsCatalog)
     const title = titleProp ?? t("ui.controls.commandPalette")
@@ -60,7 +67,8 @@ function CommandDialog({
                 <DialogDescription>{description}</DialogDescription>
             </DialogHeader>
             <DialogContent
-                className={cn("overflow-hidden rounded-xl p-0", className)}
+                className={cn("overflow-hidden rounded-xl p-0", instant && INSTANT, className)}
+                overlayClassName={instant ? INSTANT : undefined}
                 showCloseButton={showCloseButton}
                 // The search field takes focus on open, whatever else is focusable in the list.
                 onOpenAutoFocus={(event) => {

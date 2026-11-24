@@ -9,7 +9,7 @@
     "creatingAgent": "エージェントを作成中…",
     "earlier": "それ以前",
     "loadError": "セッションを読み込めませんでした",
-    "loading": "読み込み中",
+    "loading": "チャットを読み込んでいます…",
     "newAgent": "新しいエージェント",
     "newSession": "新しいセッション",
     "noSessionsMatch": "このフィルターに一致するセッションはありません",

@@ -587,10 +587,10 @@
                 },
                 {
                     "id": "ALIGN-02",
-                    "rule": "Sidebar text on one line, icons on the Mark's center",
-                    "why": "Icons on the workspace Mark's left edge make the Mark look off.",
-                    "avoid": "Sidebar icons on the Mark's left edge; nav text, group labels and the workspace name on different lines",
-                    "do": "Icons on the Mark's center line; all sidebar text on one line",
+                    "rule": "Sidebar rows share two lines: the icon line and the text line",
+                    "why": "The eye reads the rail down its edges. Icons, the Mark and icon-less rows on one edge, and the labels of icon rows on a second, keep the rail one column instead of a staircase.",
+                    "avoid": "Sidebar icons off the workspace Mark's edge; group labels or session rows indented to their own line; nav text and the workspace name on different lines",
+                    "do": "The 16px workspace Mark and every 16px icon on the icon line (16px from the rail edge); their labels on the text line (40px); rows and labels with no icon (group labels, sessions) start on the icon line",
                     "checkedBy": [
                         "review"
                     ]

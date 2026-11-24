@@ -20,23 +20,25 @@ import {
     type SidebarSessionTypeFilter,
 } from "@agenta/navigation"
 import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
+import {SimpleTooltip} from "@agenta/ui/ui"
 import {
-    ClockIcon,
-    LightningIcon,
+    FunnelSimpleIcon,
+    HourglassIcon,
     ListBulletsIcon,
     PulseIcon,
     RobotIcon,
-    SlidersHorizontalIcon,
+    ShapesIcon,
 } from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 /** The "back to all" row. Never a real workflow id, so it cannot collide with one. */
 const ALL_AGENTS = "__all__"
 
-const ICON = 14
+/** Menu rows take 16px icons (ROW-02). */
+const ICON = 16
 
-/** The filter glyph: the "+" icon's 12px on the rail; the phone keeps its larger tap glyph. */
-const FilterGlyph = () => <SlidersHorizontalIcon aria-hidden size={12} />
+/** The filter glyph; the icon-xs trigger sizes it to 12px. */
+const FilterGlyph = () => <FunnelSimpleIcon aria-hidden />
 
 type FilterTextKey = CatalogKey<typeof sessionFilterCatalog> | CatalogKey<typeof commonCatalog>
 
@@ -165,9 +167,8 @@ export const SessionFilterMenu = ({
                     {
                         key: "type",
                         label: t("shell.sessionFilter.type"),
-                        // A bolt, not the robot: the robot means AGENT throughout the rail, and an
-                        // automation is a trigger that ran one — reusing it would conflate the two.
-                        icon: <LightningIcon size={ICON} />,
+                        // Not a term icon: the facet covers chats and automations alike (ICON-05).
+                        icon: <ShapesIcon size={ICON} />,
                         value: filters.type,
                         options: withLabels(TYPE_OPTIONS),
                         onChange: (value) => setFilters({type: value as SidebarSessionTypeFilter}),
@@ -207,7 +208,8 @@ export const SessionFilterMenu = ({
                     {
                         key: "activity",
                         label: t("shell.sessionFilter.lastActivity"),
-                        icon: <ClockIcon size={ICON} />,
+                        // Not a clock: clock icons mean History (ICON-05).
+                        icon: <HourglassIcon size={ICON} />,
                         value: filters.activity,
                         options: withLabels(ACTIVITY_OPTIONS),
                         onChange: (value) =>
@@ -251,25 +253,28 @@ export const SessionFilterMenu = ({
         // handled here on the way past. Bubble phase, and stop only: Radix toggles the panel from
         // the trigger's own click, so capturing here swallowed the open. This just keeps the
         // click off the group row's stretched link anchor.
-        <span className="flex items-center" onClick={(event) => event.stopPropagation()}>
-            <FilterMenu
-                sections={sections}
-                // Reports open/closed to the gated agent catalog above.
-                onOpenChange={onOpenChange}
-                label={null}
-                triggerAriaLabel={t("shell.sessionFilter.filterSessions")}
-                icon={<FilterGlyph />}
-                variant="ghost"
-                // The rail's 22px square action, not the toolbar button.
-                triggerClassName="size-[22px] rounded-[6px] p-0 text-muted-foreground hover:text-foreground"
-                // No applied-dot: on the Sessions row it read as the row's status.
-                onReset={onReset}
-                resetDisabled={!dirty}
-                // Start-aligned, always: the panel is wider than the rail, so anchoring it to the
-                // trigger's right edge ran it off the left of the screen. It overhangs the
-                // content area instead, which is empty space beside a nav.
-                align="start"
-            />
-        </span>
+        <SimpleTooltip title={t("shell.sessionFilter.filterSessions")}>
+            <span className="flex items-center" onClick={(event) => event.stopPropagation()}>
+                <FilterMenu
+                    sections={sections}
+                    // Reports open/closed to the gated agent catalog above.
+                    onOpenChange={onOpenChange}
+                    label={null}
+                    triggerAriaLabel={t("shell.sessionFilter.filterSessions")}
+                    icon={<FilterGlyph />}
+                    variant="ghost"
+                    // The rail's small icon action, the same size as the search button beside it.
+                    size="icon-xs"
+                    triggerClassName="text-muted-foreground hover:text-foreground"
+                    // No applied-dot: on the Sessions row it read as the row's status.
+                    onReset={onReset}
+                    resetDisabled={!dirty}
+                    // Start-aligned, always: the panel is wider than the rail, so anchoring it to the
+                    // trigger's right edge ran it off the left of the screen. It overhangs the
+                    // content area instead, which is empty space beside a nav.
+                    align="start"
+                />
+            </span>
+        </SimpleTooltip>
     )
 }

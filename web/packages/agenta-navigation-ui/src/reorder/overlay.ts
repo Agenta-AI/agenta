@@ -2,8 +2,7 @@
  * The chip and the insertion line, as plain DOM appended to `<body>`.
  *
  * Not React: these move every frame, and the whole point of the interaction is that nothing
- * re-renders while a drag is in flight. `colorPrimary` is the app's accent — warm ink in light,
- * brand yellow in dark — not the reference video's macOS blue.
+ * re-renders while a drag is in flight. The line is ink (`foreground`), never brand yellow.
  */
 export interface ReorderOverlay {
     moveChip: (x: number, y: number) => void
@@ -12,11 +11,9 @@ export interface ReorderOverlay {
     destroy: () => void
 }
 
-// A compact pill sized by its own symmetric padding, not by the row's box: the row's height
-// carries the row's asymmetric padding, and `leading-none` stops the copied font size from
-// dragging the row's line-height (28px on a leaf row) along with it.
+// The dragged row, lifted: sized by its own padding; `leading-none` keeps the row's 28px line out.
 const CHIP_CLASS =
-    "fixed left-0 top-0 z-[1100] box-border pointer-events-none flex items-center rounded-md bg-background px-3 py-1.5 leading-none text-foreground shadow-overlay opacity-90"
+    "fixed left-0 top-0 z-[var(--z-tooltip)] box-border pointer-events-none flex items-center rounded-md bg-background px-2 py-1.5 leading-none text-foreground shadow-raised opacity-90"
 
 /** The type the chip lifts off the row it came from. Line-height is deliberately NOT among them. */
 const TYPE_PROPS = [
@@ -28,7 +25,7 @@ const TYPE_PROPS = [
     "textTransform",
 ] as const
 const LINE_CLASS =
-    "fixed left-0 top-0 z-[1100] h-0.5 pointer-events-none bg-primary before:absolute before:-left-[3px] before:-top-[2px] before:size-1.5 before:rounded-full before:bg-primary before:content-['']"
+    "fixed left-0 top-0 z-[var(--z-tooltip)] h-px pointer-events-none bg-foreground before:absolute before:-left-[3px] before:-top-[2.5px] before:size-1.5 before:rounded-round before:bg-foreground before:content-['']"
 
 let liveRegion: HTMLElement | null = null
 

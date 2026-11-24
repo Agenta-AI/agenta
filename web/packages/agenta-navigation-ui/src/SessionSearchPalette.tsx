@@ -1,5 +1,7 @@
-import {memo, useCallback, type ReactNode} from "react"
+import {memo, useCallback, type MouseEvent} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionFilterCatalog from "@agenta/i18n/catalogs/shell.sessionFilter"
 import {
     SESSIONS_SIDEBAR_KEY,
     SIDEBAR_ENTITIES,
@@ -8,16 +10,19 @@ import {
     sidebarSessionSearchQueryAtom,
     sidebarSessionSearchResultsAtom,
 } from "@agenta/navigation"
-import {Dialog, DialogContent, DialogTitle, Input} from "@agenta/ui/ui"
-import {MagnifyingGlass} from "@phosphor-icons/react"
+import {
+    CommandDialog,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+    SkeletonRows,
+} from "@agenta/ui/ui"
 import {useAtom, useAtomValue} from "jotai"
 import Link from "next/link"
+import {useRouter} from "next/router"
 
-const Hint = ({children}: {children: ReactNode}) => (
-    <span className="rounded border border-solid border-border-muted px-1.5 py-0.5 font-mono text-caption leading-none text-muted-foreground">
-        {children}
-    </span>
-)
+const NOTE_CLASS = "m-0 px-2 py-3 text-label text-muted-foreground"
 
 /**
  * Search the project's sessions from the rail.
@@ -27,6 +32,8 @@ const Hint = ({children}: {children: ReactNode}) => (
  * open behaviour of the row it stands for.
  */
 const SessionSearchPalette = ({projectURL}: {projectURL: string}) => {
+    const router = useRouter()
+    const t = useT(sessionFilterCatalog)
     const [open, setOpen] = useAtom(sidebarSessionSearchOpenAtom)
     const [query, setQuery] = useAtom(sidebarSessionSearchQueryAtom)
     const results = useAtomValue(sidebarSessionSearchResultsAtom)
@@ -41,76 +48,91 @@ const SessionSearchPalette = ({projectURL}: {projectURL: string}) => {
         [setOpen, setQuery],
     )
 
-    // The registry is not a fixed set — Agents was removed from it — and this renders inside the
-    // rail's footer slot, OUTSIDE the shell's error boundary. Absent means no palette, not a
-    // crashed rail.
+    // The registry is not a fixed set, and this renders outside the shell's error boundary.
     const entity = SIDEBAR_ENTITIES[SESSIONS_SIDEBAR_KEY]
     if (!entity) return null
 
     const typed = query.trim().length > 0
 
     return (
-        <Dialog open={open} onOpenChange={handleOpenChange}>
-            <DialogContent
-                showCloseButton={false}
-                // self-start over the positioner's centring: a palette belongs under the pointer
-                // that opened it, not in the middle of the screen.
-                className="box-border w-[440px] max-w-[calc(100%-48px)] gap-0 self-start overflow-hidden rounded-[10px] border border-solid border-border-muted p-0 mt-[15vh]"
-            >
-                <DialogTitle className="sr-only">Search sessions</DialogTitle>
-                <div className="flex h-11 items-center gap-[10px] border-0 border-b border-solid border-border-muted px-3.5">
-                    <MagnifyingGlass size={16} className="shrink-0 text-muted-foreground" />
-                    {/* Ghost: the palette row is the field's frame, so the input draws no border
-                        and no focus ring of its own. */}
-                    <Input
-                        autoFocus
-                        variant="ghost"
-                        value={query}
-                        onChange={(event) => setQuery(event.target.value)}
-                        placeholder="Search sessions"
-                        className="h-auto min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:outline-none"
-                    />
-                    <Hint>esc</Hint>
-                </div>
-                <div className="ag-scroll-quiet max-h-85 overflow-y-auto p-1.5">
-                    {!typed ? (
-                        <p className="m-0 px-2 py-3 text-label text-muted-foreground">
-                            Type to search this project&apos;s sessions.
-                        </p>
-                    ) : loading ? (
-                        <p className="m-0 px-2 py-3 text-label text-muted-foreground">Searching…</p>
-                    ) : results.length === 0 ? (
-                        <p className="m-0 px-2 py-3 text-label text-muted-foreground">
-                            No sessions match
-                        </p>
-                    ) : (
-                        results.map((ref) => (
-                            <Link
-                                key={ref.sessionId}
-                                href={entity.childLink(ref, projectURL)}
-                                className="flex h-[34px] items-center gap-[10px] rounded-md px-2 text-label !text-foreground no-underline hover:bg-accent"
-                                onClick={() => {
-                                    entity.getOnClick?.(ref)?.()
-                                    handleOpenChange(false)
-                                }}
-                            >
-                                <span className="flex shrink-0 items-center">
-                                    {entity.getIcon?.(ref)}
-                                </span>
-                                <span className="min-w-0 flex-1 truncate">
-                                    {entity.getLabel(ref)}
-                                </span>
-                                {ref.agentName ? (
-                                    <span className="shrink-0 truncate text-meta text-muted-foreground">
-                                        {ref.agentName}
-                                    </span>
-                                ) : null}
-                            </Link>
-                        ))
-                    )}
-                </div>
-            </DialogContent>
-        </Dialog>
+        <CommandDialog
+            open={open}
+            onOpenChange={handleOpenChange}
+            title={t("shell.sessionFilter.searchSessions")}
+            description={t("shell.sessionFilter.searchDescription")}
+            // The host already matched the hits on the server.
+            shouldFilter={false}
+            // Opens at once: it is used many times an hour (MICRO-04).
+            instant
+        >
+            <CommandInput
+                autoFocus
+                value={query}
+                onValueChange={setQuery}
+                placeholder={t("shell.sessionFilter.searchSessions")}
+            />
+            <CommandList>
+                {!typed ? (
+                    <p className={NOTE_CLASS}>{t("shell.sessionFilter.searchHint")}</p>
+                ) : loading ? (
+                    <SkeletonRows count={3} className="gap-0.5 p-1" rowClassName="h-8" />
+                ) : results.length === 0 ? (
+                    <p className={NOTE_CLASS}>{t("shell.sessionFilter.noSessionsMatch")}</p>
+                ) : (
+                    <CommandGroup>
+                        {results.map((ref) => {
+                            const href = entity.childLink(ref, projectURL)
+                            const go = () => {
+                                entity.getOnClick?.(ref)?.()
+                                handleOpenChange(false)
+                            }
+                            return (
+                                <CommandItem
+                                    key={ref.sessionId}
+                                    value={ref.sessionId}
+                                    // Enter and a plain click open the session here.
+                                    onSelect={() => {
+                                        go()
+                                        void router.push(href)
+                                    }}
+                                >
+                                    {/* The anchor keeps middle-click and ctrl+click for a new tab. */}
+                                    <Link
+                                        href={href}
+                                        className="flex min-w-0 flex-1 items-center gap-2 !text-inherit no-underline"
+                                        onClick={(event: MouseEvent) => {
+                                            if (
+                                                event.metaKey ||
+                                                event.ctrlKey ||
+                                                event.shiftKey ||
+                                                event.altKey
+                                            ) {
+                                                event.stopPropagation()
+                                                go()
+                                                return
+                                            }
+                                            event.preventDefault()
+                                        }}
+                                    >
+                                        <span className="flex shrink-0 items-center">
+                                            {entity.getIcon?.(ref)}
+                                        </span>
+                                        <span className="min-w-0 flex-1 truncate">
+                                            {entity.getLabel(ref)}
+                                        </span>
+                                        {ref.agentName ? (
+                                            <span className="max-w-[40%] shrink-0 truncate text-meta text-muted-foreground">
+                                                {ref.agentName}
+                                            </span>
+                                        ) : null}
+                                    </Link>
+                                </CommandItem>
+                            )
+                        })}
+                    </CommandGroup>
+                )}
+            </CommandList>
+        </CommandDialog>
     )
 }
 

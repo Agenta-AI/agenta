@@ -9,7 +9,7 @@
     "creatingAgent": "Creating agent…",
     "earlier": "Earlier",
     "loadError": "Could not load sessions",
-    "loading": "Loading",
+    "loading": "Loading sessions…",
     "newAgent": "New agent",
     "newSession": "New session",
     "noSessionsMatch": "No sessions match these filters",

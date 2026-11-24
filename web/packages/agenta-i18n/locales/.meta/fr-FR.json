@@ -19,7 +19,7 @@
         "creatingAgent": "c9024c798211",
         "earlier": "e10ae9907401",
         "loadError": "c1ee751240f0",
-        "loading": "dc380888c4e2",
+        "loading": "c4141f554a0c",
         "newAgent": "98a23e6db343",
         "newSession": "cffdba22adf2",
         "retry": "942087cc2d41",
@@ -816,8 +816,8 @@
         "newChat": "db18382a249e",
         "chats": "ef5b4049bb36",
         "chatsLoading": "c275c298d1c7",
-        "chatsFailed": "aededb82a994",
-        "retry": "d8b8392e2c54",
+        "chatsFailed": "c1ee751240f0",
+        "retry": "942087cc2d41",
         "untitledChat": "4d4e126c2185",
         "today": "2b065c7c9ce4",
         "yesterday": "566181254b29",
@@ -900,7 +900,8 @@
         "kindTool": "2e53bdcd0740",
         "kindApp": "0d04bfeb7d64",
         "itemNotShown": "a6382de19987",
-        "changedByBuilder": "00cdc1e80250"
+        "changedByBuilder": "00cdc1e80250",
+        "noChatsYet": "2750ae048620"
     },
     "builder.panel": {
         "newChat": "db18382a249e",
@@ -5126,7 +5127,7 @@
         "openAgent": "c3ef85408c55"
     },
     "navigation": {
-        "chrome.closeNavigation": "99904db30de4",
+        "chrome.closeNavigation": "17e28e230217",
         "chrome.collapseGroup": "70c216244f05",
         "chrome.collapseSidebar": "044eaf90532d",
         "chrome.expandGroup": "be9b82ddf915",
@@ -5144,12 +5145,12 @@
         "items.documentation": "c205924de0fe",
         "items.evaluations": "b25cc6989b4f",
         "items.evaluatorKind": "f2a57bad3d4b",
-        "items.githubSupport": "0c337063c9da",
-        "items.helpDocs": "ef9125a876f8",
+        "items.githubSupport": "b03e6ea749ec",
+        "items.helpDocs": "5ccab93e1c7f",
         "items.home": "3a78695388b3",
-        "items.inviteTeammate": "41e2681609b5",
+        "items.inviteTeammate": "3e14c44747ea",
         "items.keyboardShortcuts": "e9bef0b0f3c2",
-        "items.newAgentOrOpen": "5992bfc38674",
+        "items.newAgentOrOpen": "98a23e6db343",
         "items.newSessionWith": "29f7cf206b3f",
         "items.observability": "a37c93100e7c",
         "items.overview": "d4b1ea5708dd",
@@ -5159,7 +5160,7 @@
         "items.search": "49c266baaaa7",
         "items.sessions": "6fa3cbf451b2",
         "items.skills": "66d0f523a379",
-        "items.slackSupport": "195d7ecd37f0",
+        "items.slackSupport": "c29705cfcb7c",
         "items.switchApp": "abd639c7fd7b",
         "items.switchWorkflow": "85bce1d12c62",
         "items.templates": "56b564b75c7f",
@@ -5168,7 +5169,7 @@
         "items.viewAllReleases": "fd37943859cc",
         "items.whatsNew": "623aab5c4dfa",
         "projectMenu.createOrganization": "f14e1b22393c",
-        "projectMenu.logout": "d0527e4b3d65",
+        "projectMenu.logout": "49616145514e",
         "projectMenu.newProject": "a41eb2bf7245",
         "projectMenu.organizationSettings": "4fd62541803a",
         "projectMenu.organizations": "2730183d6b77",
@@ -5216,7 +5217,11 @@
         "arrange.undo": "a8283ade3185",
         "items.sessionWaiting": "57dccc5db9b0",
         "items.sessionLive": "b64ac05f17e6",
-        "chrome.backFrom": "24173b53e54d"
+        "chrome.backFrom": "24173b53e54d",
+        "items.searchChats": "8cb650539ec8",
+        "items.noSessionsYet": "f502267deff4",
+        "items.noPromptsYet": "583810452706",
+        "chrome.sidebarError": "26d98aa37e1d"
     },
     "observability.addToTestset": {
         "sheetTitle": "12880f2e402e",
@@ -7219,9 +7224,10 @@
         "groupPages": "9046da16aea9",
         "groupPrompts": "5f2e66e65397",
         "newAgent": "98a23e6db343",
-        "nothingMatches": "965b516df3ba",
+        "nothingMatches": "7dc5bbc34889",
         "placeholder": "c9dfe973a9f5",
-        "searching": "c31723ab3302"
+        "searching": "c31723ab3302",
+        "goTo": "9548b0e087a2"
     },
     "shell.createProject": {
         "creating": "c79ed9492e3c",
@@ -7249,7 +7255,10 @@
         "running": "f4ccae29e1bb",
         "searchSessions": "8cb650539ec8",
         "today": "2b065c7c9ce4",
-        "type": "baaddf70fb5d"
+        "type": "baaddf70fb5d",
+        "searchDescription": "407689258fe2",
+        "searchHint": "19be868544f7",
+        "noSessionsMatch": "08205827c246"
     },
     "skills.gallery": {
         "newSkill": "9bf06a86c934",
@@ -7908,5 +7917,8 @@
         "title": "8d59829c1e15",
         "total": "5bbb1a1259e6",
         "unattributed": "a5c4e03c56e0"
+    },
+    "ui.phone": {
+        "closeSidebar": "17e28e230217"
     }
 }

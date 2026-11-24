@@ -209,10 +209,10 @@ describe("the search next to Chats", () => {
     it("opens the search window over the builder chats, searches on the server, and opens a pick", async () => {
         render(<Sidebar />)
         expect(screen.queryByRole("dialog")).toBeNull()
-        fireEvent.click(screen.getByRole("button", {name: "Search chats"}))
+        fireEvent.click(screen.getByRole("button", {name: "Search sessions"}))
 
         const dialog = await screen.findByRole("dialog")
-        const field = within(dialog).getByPlaceholderText("Search chats")
+        const field = within(dialog).getByPlaceholderText("Search sessions")
         expect(within(dialog).getByText("Weekly report")).toBeTruthy()
 
         fireEvent.change(field, {target: {value: "refund"}})
@@ -225,9 +225,9 @@ describe("the search next to Chats", () => {
 
     it("does not show the previous term's rows as matches while the new search loads", async () => {
         render(<Sidebar />)
-        fireEvent.click(screen.getByRole("button", {name: "Search chats"}))
+        fireEvent.click(screen.getByRole("button", {name: "Search sessions"}))
         const dialog = await screen.findByRole("dialog")
-        fireEvent.change(within(dialog).getByPlaceholderText("Search chats"), {
+        fireEvent.change(within(dialog).getByPlaceholderText("Search sessions"), {
             target: {value: "slow"},
         })
         await waitFor(() => expect(chatsCalls.at(-1)).toBe("slow"))

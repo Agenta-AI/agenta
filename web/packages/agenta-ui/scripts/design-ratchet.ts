@@ -10,8 +10,9 @@ const BASELINE = resolve(HERE, "design-ratchet.json")
 
 const PATTERNS: Record<string, RegExp> = {
     // SURF-05: every hover fill is bg-accent (or accent layered over an opaque ground).
+    // SURF-06: `secondary` is the fill of a control inside a hovered row.
     "hover-fill-not-accent":
-        /\bhover:bg-(?!accent\b|transparent\b|destructive\b|\[image:linear-gradient\(var\(--accent\))/g,
+        /\bhover:bg-(?!accent\b|secondary\b|transparent\b|destructive\b|\[image:linear-gradient\(var\(--accent\))/g,
     // Old hex shims outside the legacy alias block; several never resolved in /m.
     "legacy-hex-shims": /var\(--(?:ag-c-|ag-rgba-|ant-color-)/g,
     // TYPE-05: a control's weight never changes with its state.

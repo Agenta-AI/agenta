@@ -1,5 +1,5 @@
 {
-    "chrome.closeNavigation": "ナビゲーションを閉じる",
+    "chrome.closeNavigation": "サイドバーを閉じる",
     "chrome.collapseGroup": "{{title}}を折りたたむ",
     "chrome.collapseSidebar": "サイドバーを折りたたむ",
     "chrome.expandGroup": "{{title}}を展開",
@@ -27,7 +27,7 @@
     "items.home": "ホーム",
     "items.inviteTeammate": "チームメンバーを招待",
     "items.keyboardShortcuts": "キーボードショートカット",
-    "items.newAgentOrOpen": "新しいエージェントを作成、または開く",
+    "items.newAgentOrOpen": "新しいエージェント",
     "items.newSessionWith": "{{agent}} との新しいセッション",
     "items.observability": "オブザーバビリティ",
     "items.overview": "概要",
@@ -36,7 +36,7 @@
     "items.prompts": "プロンプト",
     "items.registry": "レジストリ",
     "items.search": "検索",
-    "items.searchChats": "チャットを検索",
+    "items.searchChats": "セッションを検索",
     "items.sessions": "セッション",
     "items.skills": "スキル",
     "items.slackSupport": "Slack サポート",
@@ -97,5 +97,8 @@
     "arrange.undo": "元に戻す",
     "items.sessionWaiting": "あなたの操作待ち",
     "items.sessionLive": "実行中",
-    "chrome.backFrom": "{{label}} から戻る"
+    "chrome.backFrom": "{{label}} から戻る",
+    "items.noSessionsYet": "まだセッションはありません",
+    "items.noPromptsYet": "まだプロンプトはありません。「プロンプト」で作成してください。",
+    "chrome.sidebarError": "サイドバーを読み込めませんでした。ページを再読み込みしてください。"
 }

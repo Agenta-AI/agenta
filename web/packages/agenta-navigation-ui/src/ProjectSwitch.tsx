@@ -3,9 +3,9 @@ import {useCallback, useState} from "react"
 import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {Popover, PopoverContent, PopoverTrigger, cn} from "@agenta/ui/ui"
-import {CaretUpDown} from "@phosphor-icons/react"
+import {CaretDown} from "@phosphor-icons/react"
 
-import {CAPTION_CLASS, EntryList, type SwitcherEntry} from "./ProjectOrgSwitcher"
+import {CAPTION_CLASS, EntryList, PANEL_CLASS, type SwitcherEntry} from "./ProjectOrgSwitcher"
 
 export interface ProjectSwitchProps {
     /** The current project's name, the button's text. */
@@ -22,7 +22,7 @@ export interface ProjectSwitchProps {
 const FOCUS_RING = "outline-none focus-ring"
 
 /**
- * The project name as a switch, for a group heading: the name and a CaretUpDown open the sidebar
+ * The project name as a switch, for a group heading: the name and a caret open the sidebar
  * switcher's project panel (its caption and its list). Picking a project is the host's move.
  */
 export const ProjectSwitch = ({
@@ -48,7 +48,7 @@ export const ProjectSwitch = ({
                     )}
                 >
                     <span className="truncate">{label}</span>
-                    <CaretUpDown size={12} className="shrink-0" />
+                    <CaretDown size={12} className="ag-caret shrink-0" />
                 </button>
             </PopoverTrigger>
             <PopoverContent
@@ -56,7 +56,7 @@ export const ProjectSwitch = ({
                 onOpenAutoFocus={(event) => event.preventDefault()}
                 side="bottom"
                 align="start"
-                className="z-[2000] w-[220px] overflow-hidden rounded-lg border border-solid border-border-muted bg-background p-0 shadow-md"
+                className={PANEL_CLASS}
             >
                 <div className="flex flex-col p-1">
                     <div className={CAPTION_CLASS}>

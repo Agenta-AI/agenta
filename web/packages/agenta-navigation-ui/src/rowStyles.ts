@@ -1,8 +1,10 @@
-// leading-7: `truncate` clips to the line box, and a tighter one cuts descenders.
-export const ROW_HEIGHT = "h-7 text-label leading-7"
+// A rail row: 28px, 13px label, 8px padding and gap: a 16px icon at 16–32px, its text at 40px.
+export const ROW_HEIGHT = "h-row-dense text-label"
 // shrink-0: only the Sessions group scrolls; every other row holds its height.
-export const ROW_BASE = `relative box-border mb-1 flex ${ROW_HEIGHT} shrink-0 w-[calc(100%-16px)] mx-auto items-center gap-[10px] rounded-sm px-3 select-none`
+export const ROW_BASE = `relative box-border flex ${ROW_HEIGHT} shrink-0 w-[calc(100%-16px)] mx-auto items-center gap-2 rounded-md px-2 select-none`
 export const ROW_INTERACTIVE = "cursor-pointer text-foreground hover:bg-accent"
-// An inset ring, not a border, so the row's box never changes size between states.
+// Opaque selected fill; the hover paints accent over it as an image.
 export const ROW_SELECTED =
-    "bg-[var(--ag-shell-selected-bg)] hover:bg-[image:linear-gradient(var(--accent),var(--accent))] !text-[var(--ag-shell-selected-text)] shadow-[inset_0_0_0_1px_var(--ag-shell-selected-border)]"
+    "bg-selected text-foreground hover:bg-[image:linear-gradient(var(--accent),var(--accent))]"
+/** The list of rail rows: 2px between rows (ROW-04). */
+export const ROW_LIST = "flex flex-col gap-0.5"

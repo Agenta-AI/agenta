@@ -17,7 +17,7 @@ import {AgentSidebarHeader} from "../agent-sidebar/AgentSidebarHeader"
 import {ConnectedAgentSwitcher} from "../agent-sidebar/ConnectedAgentSwitcher"
 import {dayGroupedRows} from "../agent-sidebar/dayGroups"
 import {builderChatHref} from "../builder/builderChatHref"
-import {RUNNING_TITLE, sessionStatusMark, withStatusMark} from "../nav/sessionStatusMark"
+import {sessionStatusMark, withStatusMark} from "../nav/sessionStatusMark"
 import {useMobileBottomNavItems} from "../nav/useMobileNavItems"
 import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 
@@ -60,7 +60,6 @@ export const createBuilderSidebarScope = (
                         key: builderChatRowKey(row.session_id),
                         title,
                         tooltip: title,
-                        rowClassName: row.flags?.is_running ? RUNNING_TITLE : undefined,
                         // The state shows as a quiet mark on the right, as on the agent sidebar.
                         wrapRow: (node) =>
                             withStatusMark(

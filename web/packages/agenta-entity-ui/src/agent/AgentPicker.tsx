@@ -4,13 +4,17 @@ import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/
 import {createT, useT} from "@agenta/i18n"
 import agentPickerCatalog from "@agenta/i18n/catalogs/entityUi.agentPicker"
 import {
+    Button,
     cn,
+    EmptyState,
+    IconTile,
     MENU_ITEM,
     Popover,
     PopoverContent,
     PopoverTrigger,
     SkeletonBlock,
     Spinner,
+    type IconTileSize,
 } from "@agenta/ui/ui"
 import {Check, MagnifyingGlass, Plus, Robot} from "@phosphor-icons/react"
 import {CaretDown} from "@phosphor-icons/react"
@@ -63,10 +67,7 @@ const agentLabel = (agent: Workflow): string =>
 
 const agentDescription = (agent: Workflow): string => agent.description?.trim() ?? ""
 
-/**
- * The panel with nothing to list — the same frame the other pickers in this codebase use: a
- * glyph in a rounded tile, a line that names the fact, a line that says what to do next.
- */
+/** The panel with nothing to list: the kit empty state with a 40px Mark (STATE-01). */
 const AgentPickerEmpty = ({
     icon,
     title,
@@ -78,53 +79,63 @@ const AgentPickerEmpty = ({
     body: string
     action?: React.ReactNode
 }) => (
-    <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center">
-        <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-            {icon}
-        </span>
-        <p className="m-0 text-label font-medium text-foreground">{title}</p>
-        <p className="m-0 max-w-[34ch] text-meta leading-snug text-muted-foreground">{body}</p>
+    <EmptyState
+        className="gap-3 p-6"
+        image={<IconTile size={40}>{icon}</IconTile>}
+        title={title}
+        description={body}
+    >
         {action}
-    </div>
+    </EmptyState>
 )
 
+/** A legacy `box` size class, read as an IconTile size. */
+const BOX_SIZE: Record<string, IconTileSize> = {
+    "size-4": 16,
+    "size-5": 20,
+    "size-6": 24,
+    "size-8": 32,
+    "size-10": 40,
+}
+
+/** The glyph size each Mark size takes (theme `mark-*` usage). */
+const GLYPH_SIZE: Record<IconTileSize, number> = {16: 10, 20: 12, 24: 14, 32: 16, 40: 20}
+
 /**
- * The agent's mark as a tile: its own colour when it has an icon, a neutral fill when not.
- *
- * Exported because the tile is not the picker's — any list that names agents wants the same one,
- * and a second implementation is how two columns of the same agents stop matching. `colorFillSecondary`
- * for the neutral case: `muted` sits within a hair of a popover's own surface in dark mode.
+ * The agent's Mark: an `IconTile` in the agent's own colour, neutral when it has no icon.
+ * Exported so every list that names agents draws the same Mark.
  */
 export const AgentChip = ({
     workflowId,
-    box = "size-6",
-    glyph = 16,
+    size,
+    box,
+    className,
 }: {
     workflowId: string | null
-    /** Tile size. A row can afford a 28px tile; a field control sits better at 20px. */
+    /** The Mark size, by place: 16 nav and menus, 20 pickers, 24 rows, 32 headers. */
+    size?: IconTileSize
+    /** @deprecated Pass `size`. A `size-*` class here maps to it; other classes are layout. */
     box?: string
+    /** @deprecated The glyph size comes from `size`. */
     glyph?: number
+    className?: string
 }) => {
+    const legacy = box?.split(/\s+/).filter(Boolean) ?? []
+    const tile = size ?? legacy.map((name) => BOX_SIZE[name]).find(Boolean) ?? 24
+    const layout = legacy.filter((name) => !BOX_SIZE[name] && !name.startsWith("!rounded"))
+    const glyph = GLYPH_SIZE[tile]
     const chrome = useAgentIconChrome(workflowId, {
         size: glyph,
         fallbackGlyph: <Robot aria-hidden size={glyph} />,
     })
     return (
-        <span
-            className={[
-                "flex shrink-0 items-center justify-center rounded-control-sm",
-                box,
-                // An agent with no icon of its own still gets a tile: a column where some rows
-                // have one and some do not reads as a rendering fault, not as a distinction.
-                // `colorFillSecondary`, not `muted`: muted sits within a hair of the popover's own
-                // surface in dark mode, so the neutral tiles vanished while the coloured ones
-                // stayed. This is the fill the agent chrome itself uses for an unpicked icon.
-                chrome.customised ? chrome.className : "bg-secondary text-muted-foreground",
-            ].join(" ")}
+        <IconTile
+            size={tile}
+            className={cn(chrome.customised && chrome.className, layout, className)}
             style={chrome.style}
         >
             {chrome.glyph}
-        </span>
+        </IconTile>
     )
 }
 
@@ -158,19 +169,16 @@ const AgentPickerRow = ({
             onClick={onSelect}
             className={[
                 MENU_ITEM,
-                "appearance-none border-0 text-left font-[inherit] text-foreground transition-colors",
+                "focus-ring-inset appearance-none border-0 text-left font-[inherit] text-foreground",
+                "transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)]",
                 // The bound agent keeps a tint of its own, so "which one is this set to" survives
                 // the pointer moving down the list — a selected row that only differs by a check
                 // mark loses its answer the moment something else is hovered.
-                selected ? "bg-selected" : "bg-transparent hover:bg-accent focus-visible:bg-accent",
+                selected ? "bg-selected" : "bg-transparent hover:bg-accent",
             ].join(" ")}
         >
-            {/* A one-line row takes a 24px tile; a two-line row keeps 28px. */}
-            {density === "relaxed" ? (
-                <AgentChip workflowId={String(agent.id)} />
-            ) : (
-                <AgentChip workflowId={String(agent.id)} box="size-6 !rounded-md" glyph={14} />
-            )}
+            {/* Pickers take a 20px Mark; the two-line row a 32px one. */}
+            <AgentChip workflowId={String(agent.id)} size={density === "relaxed" ? 32 : 20} />
             <span className="flex min-w-0 flex-1 flex-col">
                 {/* One weight down the column: bolding the bound agent made the list look like
                     it had a heading in the middle of it. The tint and the check say enough. */}
@@ -193,7 +201,7 @@ const AgentPickerRow = ({
             </span>
             {trailing ??
                 (selected ? (
-                    <Check aria-hidden size={14} className="shrink-0 text-foreground" />
+                    <Check aria-hidden size={16} className="shrink-0 text-foreground" />
                 ) : null)}
         </button>
     )
@@ -303,7 +311,7 @@ export const AgentPickerPanel = ({
             <div
                 role="listbox"
                 aria-label={searchPlaceholder}
-                className="flex max-h-[280px] flex-col overflow-y-auto p-1"
+                className="flex max-h-72 flex-col overflow-y-auto p-1"
             >
                 {agentsQuery.isPending ? (
                     // Row geometry, not a spinner — the list replaces this without shifting.
@@ -318,38 +326,40 @@ export const AgentPickerPanel = ({
                     // five sit behind a typo sends them looking for a fault that is not there.
                     agents.length === 0 ? (
                         <AgentPickerEmpty
-                            icon={<Robot aria-hidden size={19} />}
+                            icon={<Robot aria-hidden size={20} />}
                             title={t("entityUi.agentPicker.noAgentsYet")}
                             body={t("entityUi.agentPicker.noAgentsYetBody")}
                             action={
                                 onCreateAgent ? (
-                                    <button
+                                    <Button
                                         type="button"
+                                        variant="secondary"
+                                        size="sm"
                                         onClick={onCreateAgent}
-                                        className="mt-1 box-border inline-flex cursor-pointer appearance-none items-center gap-1.5 rounded-control-sm border-0 bg-muted px-2.5 py-1.5 font-[inherit] text-meta font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
                                     >
-                                        <Plus aria-hidden size={13} />
+                                        <Plus aria-hidden />
                                         {createLabel}
-                                    </button>
+                                    </Button>
                                 ) : null
                             }
                         />
                     ) : (
                         <AgentPickerEmpty
-                            icon={<MagnifyingGlass aria-hidden size={19} />}
+                            icon={<MagnifyingGlass aria-hidden size={20} />}
                             title={t("entityUi.agentPicker.noAgentsMatch", {query: query.trim()})}
                             body={t("entityUi.agentPicker.searchCovers")}
                             action={
-                                <button
+                                <Button
                                     type="button"
+                                    variant="secondary"
+                                    size="sm"
                                     onClick={() => {
                                         setQuery("")
                                         searchRef.current?.focus()
                                     }}
-                                    className="mt-1 box-border inline-flex cursor-pointer appearance-none items-center rounded-control-sm border-0 bg-muted px-2.5 py-1.5 font-[inherit] text-meta font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
                                 >
                                     {t("entityUi.agentPicker.clearSearch")}
-                                </button>
+                                </Button>
                             }
                         />
                     )
@@ -387,11 +397,14 @@ export const AgentPickerPanel = ({
                         onClick={onCreateAgent}
                         disabled={creating}
                         aria-busy={creating || undefined}
-                        className="box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1 text-left font-[inherit] text-label text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent disabled:cursor-default disabled:hover:bg-transparent"
+                        className={cn(
+                            MENU_ITEM,
+                            "focus-ring-inset appearance-none border-0 bg-transparent text-left font-[inherit] text-foreground hover:bg-accent disabled:cursor-default disabled:hover:bg-transparent",
+                        )}
                     >
-                        {/* The agent tile's slot, so the label lines up with the names. */}
+                        {/* The Mark's slot, so the label lines up with the names. */}
                         <span
-                            className={`flex shrink-0 items-center justify-center text-muted-foreground ${density === "relaxed" ? "size-7" : "size-6"}`}
+                            className={`flex shrink-0 items-center justify-center text-muted-foreground ${density === "relaxed" ? "size-8" : "size-5"}`}
                         >
                             {creating ? <Spinner size="small" /> : <Plus aria-hidden size={16} />}
                         </span>
@@ -490,15 +503,20 @@ export const AgentPicker = ({
                 // stylesheet order.
                 className={cn(
                     "box-border cursor-pointer appearance-none border-0 font-[inherit]",
-                    "inline-flex min-w-0 items-center gap-2 rounded-control bg-muted px-2 py-1",
-                    "text-label font-medium text-foreground outline-none transition-colors",
-                    "hover:bg-accent focus-visible:bg-accent disabled:cursor-default",
+                    "inline-flex min-w-0 items-center gap-2 rounded-md bg-secondary px-2 py-1",
+                    "text-label text-foreground outline-none focus-ring",
+                    "transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)]",
+                    "hover:bg-accent disabled:cursor-default",
                     triggerClassName,
                 )}
             >
-                <AgentChip workflowId={value} box="size-5" glyph={13} />
+                <AgentChip workflowId={value} size={20} />
                 <span className="flex min-w-0 items-center truncate">{labelNode}</span>
-                <CaretDown aria-hidden size={12} className="shrink-0 text-muted-foreground" />
+                <CaretDown
+                    aria-hidden
+                    size={12}
+                    className="ag-caret shrink-0 text-muted-foreground"
+                />
             </button>
         ) : (
             // Same geometry as the app's own Select trigger, so this sits level with the fields
@@ -513,8 +531,9 @@ export const AgentPicker = ({
                 className={cn(
                     "box-border border-solid font-[inherit]",
                     "flex w-full cursor-pointer items-center justify-between gap-1 border text-left",
-                    "px-input py-input-y text-field-md rounded-control text-foreground",
-                    "bg-background border-border outline-none transition-colors",
+                    "px-input py-input-y text-field-md rounded-md text-foreground",
+                    "bg-background border-border outline-none",
+                    "transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)]",
                     "hover:border-border-strong focus-ring-field",
                     "data-[state=open]:border-foreground",
                     // Read-only reads as read-only: dimmed, no hover border, no caret. A bound
@@ -526,7 +545,7 @@ export const AgentPicker = ({
                 )}
             >
                 <span className="flex min-w-0 flex-1 items-center gap-2">
-                    <AgentChip workflowId={value} box="size-5" glyph={13} />
+                    <AgentChip workflowId={value} size={20} />
                     <span
                         className={[
                             "flex min-w-0 items-center truncate",
@@ -537,7 +556,11 @@ export const AgentPicker = ({
                     </span>
                 </span>
                 {disabled ? null : (
-                    <CaretDown aria-hidden size={12} className="shrink-0 text-muted-foreground" />
+                    <CaretDown
+                        aria-hidden
+                        size={12}
+                        className="ag-caret shrink-0 text-muted-foreground"
+                    />
                 )}
             </button>
         )

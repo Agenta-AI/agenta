@@ -1,10 +1,10 @@
 import {
     Fragment,
     memo,
-    useContext,
     useRef,
     type KeyboardEvent,
     type MouseEvent,
+    type ReactElement,
     type ReactNode,
 } from "react"
 
@@ -19,17 +19,17 @@ import type {
 } from "@agenta/navigation"
 import {HeightCollapse} from "@agenta/ui/components/presentational"
 import {
+    Badge,
+    Button,
+    CollapseCaret,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
+    SimpleTooltip,
     SkeletonBlock,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
     cn,
 } from "@agenta/ui/ui"
 import {CaretRight, Plus} from "@phosphor-icons/react"
@@ -40,8 +40,7 @@ import {ArrangeablePages} from "./ArrangeablePages"
 import {FadeScrollBox} from "./FadeScrollBox"
 import {HoverFlyout} from "./HoverFlyout"
 import {SidebarReorderLayer} from "./reorder"
-import {ROW_BASE, ROW_HEIGHT, ROW_INTERACTIVE, ROW_SELECTED} from "./rowStyles"
-import {SidebarLayoutContext, PHONE_ROW_CLASS} from "./sidebarLayout"
+import {ROW_BASE, ROW_INTERACTIVE, ROW_LIST, ROW_SELECTED} from "./rowStyles"
 
 /**
  * The antd-free nav renderer: one `@agenta/navigation` model, any shell. Inline mode expands
@@ -66,18 +65,22 @@ export interface NavMenuProps {
 }
 
 const ROW_DISABLED = "cursor-default text-muted-foreground"
-// Guide line marks the group's extent, the way the old inline menu did.
-const GROUP_CHILDREN =
-    "ml-[22px] flex flex-col border-0 border-l border-solid border-border-muted pl-1"
-// A group with no collapse control is a SECTION of the rail, not a submenu you opened: its rows
-// are rail rows. No indent and no guide line, so their glyphs sit in the nav icons' own column.
-const SECTION_CHILDREN = "flex flex-col"
+// Guide line on the parent icon's center (24px), marking the group's extent.
+const GROUP_CHILDREN = `ml-6 ${ROW_LIST} border-0 border-l border-solid border-border-muted`
+// A section's rows are rail rows: no indent, no guide line.
+const SECTION_CHILDREN = ROW_LIST
 // Hidden at rest; shows on row hover or focus, while its popover is open, and on touch.
 const ROW_ACTION =
     "relative z-[1] mr-1 flex shrink-0 items-center opacity-0 transition-opacity group-hover/navrow:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100 pointer-coarse:opacity-100"
+// A small icon button inside a row: muted, 24px, its hover stacks on the row's (SURF-06).
+const SMALL_ICON_BUTTON =
+    "shrink-0 text-muted-foreground no-underline hover:bg-secondary hover:text-foreground"
+// The same button in a heading, which has no hover of its own: the one hover fill (SURF-05).
+const HEADING_ICON_BUTTON =
+    "shrink-0 text-muted-foreground no-underline hover:bg-accent hover:text-foreground"
 // Stretches the anchor over the whole row so middle-click / ctrl+click work anywhere on it.
 const LINK_CLASS =
-    "!text-inherit no-underline before:absolute before:inset-0 before:content-[''] min-w-0 flex-1 truncate"
+    "!text-inherit no-underline before:absolute before:inset-0 before:content-[''] min-w-0 flex-1 truncate rounded-sm focus-ring"
 
 /** Three static attributes; the engine reads them off the DOM. No per-row handlers. */
 const dragAttrs = (item?: SidebarDragItem) =>
@@ -114,18 +117,15 @@ const onMoveKey = (event: KeyboardEvent<HTMLElement>): boolean => {
 
 const TagChip = ({tag}: {tag?: string}) =>
     tag ? (
-        <span className="shrink-0 rounded bg-success/10 px-1 py-0.5 text-meta leading-none text-success">
+        <Badge variant="success" className="shrink-0">
             {tag}
-        </span>
+        </Badge>
     ) : null
 
-const Tip = ({title, children}: {title: ReactNode; children: ReactNode}) => (
-    <TooltipProvider delayDuration={600}>
-        <Tooltip>
-            <TooltipTrigger asChild>{children}</TooltipTrigger>
-            <TooltipContent side="right">{title}</TooltipContent>
-        </Tooltip>
-    </TooltipProvider>
+const Tip = ({title, children}: {title: ReactNode; children: ReactElement}) => (
+    <SimpleTooltip title={title} side="right">
+        {children}
+    </SimpleTooltip>
 )
 
 const isExternal = (link?: string) => Boolean(link?.startsWith("http"))
@@ -213,32 +213,28 @@ const RowLabel = memo(function RowLabel({
     return item.wrapRow ? item.wrapRow(label) : label
 })
 
-/** A group heading inside a submenu — a label over the rows below it, never a row itself.
- * With `onClick` it folds the rows under it away, and grows a caret to say so. */
+/** A group heading inside a submenu: a label over its rows; with `onClick` it folds them. */
 // Sticky only inside the scrolling list; the opaque fill hides rows that pass under it.
 const STICKY_HEADING =
-    "[[data-nav-scroll]_&]:sticky [[data-nav-scroll]_&]:top-0 [[data-nav-scroll]_&]:z-10 [[data-nav-scroll]_&]:bg-[var(--ag-sidebar-bg)]"
+    "[[data-nav-scroll]_&]:sticky [[data-nav-scroll]_&]:top-0 [[data-nav-scroll]_&]:z-10 [[data-nav-scroll]_&]:bg-muted"
 
 /** A heading's actions when it has an open button: shown on hover or focus, always on touch. */
 const HEADING_HOVER_ACTION =
     "opacity-0 transition-opacity group-hover/heading:opacity-100 group-focus-within/heading:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
 
+/** Every full-width sidebar label: 12px meta text starting on the icon line (16px). */
+const HEADING_TEXT =
+    "w-full shrink-0 pb-1 pl-4 pr-3 pt-3 text-meta text-muted-foreground select-none"
+
 const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
     const t = useT(navigationCatalog)
-    // In the phone sheet the heading is a 44 px target too.
-    const phone = useContext(SidebarLayoutContext) === "phone"
     const toggle = item.onClick
     if (!toggle)
         return (
             <p
                 {...dragAttrs(item.dragItem)}
                 data-sticky-heading="true"
-                className={clsx(
-                    // Sentence case, as the design writes the day labels ("Today", "Yesterday").
-                    `m-0 w-full shrink-0 pb-1 pl-5 pr-5 ${CAPTION_TEXT} select-none`,
-                    "pt-1.5 text-muted-foreground",
-                    STICKY_HEADING,
-                )}
+                className={clsx("m-0", HEADING_TEXT, STICKY_HEADING)}
             >
                 {item.title}
             </p>
@@ -249,17 +245,14 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
             tabIndex={0}
             aria-expanded={!item.isCollapsed}
             {...dragAttrs(item.dragItem)}
-            // Not uppercase, unlike the static heading above: a collapsible heading labels an
-            // ENTITY (an agent), and shouting a proper noun misspells it.
             data-sticky-heading="true"
             className={clsx(
-                `group/heading flex w-full shrink-0 cursor-pointer select-none items-center gap-1 pb-1 pl-5 pr-2 pt-3 ${CAPTION_TEXT} text-muted-foreground hover:text-foreground`,
+                "group/heading flex cursor-pointer items-center gap-1 rounded-md hover:text-foreground focus-ring-inset",
+                HEADING_TEXT,
                 STICKY_HEADING,
             )}
             onClick={(event) => {
-                // The "+" is an anchor and its click must reach the shell frame (the drawer
-                // closes itself on any anchor click), so it bubbles — and must not fold the group.
-                // The open button must not fold it either.
+                // The "+" link must bubble to the shell frame (drawer close) but not fold the group.
                 if ((event.target as HTMLElement).closest("a, button")) return
                 toggle(event)
             }}
@@ -271,7 +264,6 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
             }}
         >
             <span className="min-w-0 truncate">{item.title}</span>
-            {/* The caret sits right after the title, so the fold reads as one control. */}
             <span
                 aria-label={t(
                     item.isCollapsed
@@ -283,80 +275,75 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                 )}
                 className="flex shrink-0 items-center justify-center"
             >
-                <CaretRight
-                    size={11}
-                    className={clsx(
-                        "transition-transform duration-200 ease-in-out",
-                        !item.isCollapsed && "rotate-90",
-                    )}
-                />
+                <CollapseCaret open={!item.isCollapsed} className="text-inherit" />
             </span>
             {/* A real link, so a long-press / middle-click can open it in another tab. */}
             {item.groupAdd ? (
-                <Link
-                    href={item.groupAdd.link}
-                    aria-label={item.groupAdd.label}
-                    title={item.groupAdd.label}
-                    className={clsx(
-                        "ml-auto flex size-[22px] shrink-0 items-center justify-center rounded-[6px] !text-muted-foreground no-underline hover:bg-accent hover:!text-foreground",
-                        item.groupEnter ? HEADING_HOVER_ACTION : "mr-1",
-                    )}
-                    onClick={(event) => {
-                        // A modified click opens the bare page in another tab; the click work
-                        // belongs to THIS tab only.
-                        if (isModifiedClick(event)) return
-                        item.groupAdd?.onClick?.(event)
-                    }}
-                    // Enter on the link is its own activation; the heading must not also toggle.
-                    onKeyDown={(event) => event.stopPropagation()}
-                >
-                    <Plus size={12} />
-                </Link>
+                <SimpleTooltip title={item.groupAdd.label}>
+                    <Button
+                        asChild
+                        variant="ghost"
+                        size="icon-xs"
+                        className={clsx(
+                            "ml-auto",
+                            HEADING_ICON_BUTTON,
+                            item.groupEnter && HEADING_HOVER_ACTION,
+                        )}
+                    >
+                        <Link
+                            href={item.groupAdd.link}
+                            aria-label={item.groupAdd.label}
+                            onClick={(event) => {
+                                // A modified click opens another tab; the click work stays in this one.
+                                if (isModifiedClick(event)) return
+                                item.groupAdd?.onClick?.(event)
+                            }}
+                            // Enter on the link is its own activation; the heading must not also toggle.
+                            onKeyDown={(event) => event.stopPropagation()}
+                        >
+                            <Plus />
+                        </Link>
+                    </Button>
+                </SimpleTooltip>
             ) : null}
             {item.groupEnter ? (
-                <button
-                    type="button"
-                    aria-label={item.groupEnter.label}
-                    title={item.groupEnter.label}
-                    className={clsx(
-                        "mr-1 flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 text-muted-foreground [font-family:inherit] hover:bg-accent hover:text-foreground",
-                        !item.groupAdd && "ml-auto",
-                        HEADING_HOVER_ACTION,
-                    )}
-                    onClick={() => item.groupEnter?.onClick()}
-                    // Enter on the button is its own activation; the heading must not also toggle.
-                    onKeyDown={(event) => event.stopPropagation()}
-                >
-                    {item.groupEnter.icon}
-                </button>
+                <SimpleTooltip title={item.groupEnter.label}>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={item.groupEnter.label}
+                        className={clsx(
+                            HEADING_ICON_BUTTON,
+                            !item.groupAdd && "ml-auto",
+                            HEADING_HOVER_ACTION,
+                        )}
+                        onClick={() => item.groupEnter?.onClick()}
+                        // Enter on the button is its own activation; the heading must not also toggle.
+                        onKeyDown={(event) => event.stopPropagation()}
+                    >
+                        {item.groupEnter.icon}
+                    </Button>
+                </SimpleTooltip>
             ) : null}
         </div>
     )
 })
 
-/**
- * A group's idle / empty / error line. Prose, not a row: given the icon and the row geometry it
- * read as a broken session, and at the rail's width its sentence was truncated to nowhere.
- */
+/** A group's idle / empty / error line: prose on the icon line, not a row. */
 const PlaceholderRow = ({item}: {item: NavItem}) => (
-    <p className="m-0 mx-auto w-[calc(100%-16px)] shrink-0 px-3 pb-1 pt-0.5 text-meta leading-snug text-muted-foreground select-none">
+    <p className="m-0 w-full shrink-0 pb-1 pl-4 pr-4 pt-0.5 text-meta text-muted-foreground select-none">
         {item.title}
     </p>
 )
 
-/**
- * The leading glyph of a top-level rail row. The design draws them a step lighter than the label
- * (`zinc-8`), the selected row's in the label's own ink; in the phone sheet 18 px and tertiary.
- * Rows inside a group (sessions, chats) keep their own glyph colour: it carries the run state.
- */
-const iconClass = (topLevel: boolean, selected: boolean, phone: boolean) =>
-    clsx("flex shrink-0 items-center", topLevel && !selected && "text-[var(--ag-zinc-8)]")
+/** A top-level row's glyph is muted until selected; grouped rows keep their run-state colour. */
+const iconClass = (topLevel: boolean, selected: boolean) =>
+    clsx("flex shrink-0 items-center", topLevel && !selected && "text-muted-foreground")
 
 /**
- * A section heading: an always-open group with no icon ("Sessions" in the agent sidebar, "Chats"
- * in the builder sidebar). A small 12 px label, a link when the group has one, its count right
- * after it (`suffix`), and its controls (`groupAction`) at the right. The current page marks the
- * label, not a whole row. `rowClassName` tunes the heading's own spacing.
+ * A section heading: an always-open group with no icon ("Sessions", "Chats"): a label (a link
+ * when it has one), its count (`suffix`) and its controls (`groupAction`) on the right.
  */
 const SectionHeading = ({
     item,
@@ -376,12 +363,7 @@ const SectionHeading = ({
         </>
     )
     return (
-        <div
-            className={cn(
-                "mx-auto flex w-[calc(100%-16px)] shrink-0 items-center gap-1 px-3 pb-1 pt-3.5 text-meta leading-4 text-muted-foreground select-none",
-                item.rowClassName,
-            )}
-        >
+        <div className={cn("flex items-center gap-1", HEADING_TEXT, item.rowClassName)}>
             {item.link && !item.disabled ? (
                 <Link
                     href={item.link}
@@ -390,16 +372,16 @@ const SectionHeading = ({
                     draggable={false}
                     onClick={linkClickHandler(item, onItemSelect)}
                     className={clsx(
-                        "-ml-1 inline-flex min-w-0 items-center rounded px-1 py-0.5 no-underline",
+                        "-ml-1 inline-flex min-w-0 items-center rounded-sm px-1 py-0.5 no-underline focus-ring",
                         selected
-                            ? "bg-accent !text-foreground"
+                            ? "bg-selected !text-foreground"
                             : "!text-muted-foreground hover:bg-accent hover:!text-foreground",
                     )}
                 >
                     {label}
                 </Link>
             ) : (
-                <span className="min-w-0 truncate leading-5 text-muted-foreground">{label}</span>
+                <span className="min-w-0 truncate text-muted-foreground">{label}</span>
             )}
             <span className="min-w-0 flex-1" />
             {item.groupAction ? (
@@ -410,22 +392,19 @@ const SectionHeading = ({
 }
 
 /** Row widths for the loading list, varied so it reads as titles rather than a block. */
-/** The 12px caption line every group heading and section caption shares. */
-const CAPTION_TEXT = "text-meta leading-5"
-
 const LOADING_WIDTHS = ["w-[72%]", "w-[58%]", "w-[80%]", "w-[46%]", "w-[66%]", "w-[54%]"]
 
 /** A group's loading state, shaped like the list it stands in for: a caption, then rows. */
 const LoadingRows = () => {
     const t = useT(commonCatalog)
     return (
-        <div className="flex shrink-0 flex-col" aria-busy="true" aria-label={t("common.loading")}>
-            <div className="flex h-6 items-center pl-5 pr-3 pt-2">
-                <SkeletonBlock active className="h-2.5 w-24 rounded-sm" />
+        <div className={`${ROW_LIST} shrink-0`} aria-busy="true" aria-label={t("common.loading")}>
+            <div className="flex h-6 items-center pl-4 pr-3 pt-2">
+                <SkeletonBlock active className="h-2.5 w-24 rounded-xs" />
             </div>
             {LOADING_WIDTHS.map((width) => (
                 <div key={width} className={`${ROW_BASE} pointer-events-none`}>
-                    <SkeletonBlock active className={`h-3 rounded-sm ${width}`} />
+                    <SkeletonBlock active className={`h-3 rounded-xs ${width}`} />
                 </div>
             ))}
         </div>
@@ -443,7 +422,6 @@ const LeafRow = memo(function LeafRow({
     topLevel: boolean
     onItemSelect?: NavMenuProps["onItemSelect"]
 }) {
-    const phone = useContext(SidebarLayoutContext) === "phone"
     if (item.isLoading) return <LoadingRows />
     if (item.isPlaceholder) return <PlaceholderRow item={item} />
     const onClick = rowClickHandler(item, onItemSelect)
@@ -454,20 +432,15 @@ const LeafRow = memo(function LeafRow({
     return (
         <div
             {...dragAttrs(item.dragItem)}
-            // cn, not clsx: a row can carry its own size or colour (an archived session is dimmed) and
-            // plain concatenation leaves it beside ROW_BASE's, where the stylesheet's order
-            // decides the winner rather than this list does.
+            // cn, not clsx: a row's own class (a dimmed archived session) must win over ROW_BASE.
             className={cn(
                 ROW_BASE,
-                // The phone sheet's 44 px rows sit edge to edge, as the design draws them.
-                phone && `${PHONE_ROW_CLASS} mb-0`,
                 item.disabled || item.isPlaceholder ? ROW_DISABLED : ROW_INTERACTIVE,
                 selected && ROW_SELECTED,
                 item.rowAction && "group/navrow pr-0",
                 item.trailing && "pr-0",
                 item.rowClassName,
-                isControl &&
-                    "outline-none focus-ring",
+                isControl && "outline-none focus-ring",
             )}
             onClick={onClick}
             role={isControl ? "menuitem" : undefined}
@@ -482,9 +455,7 @@ const LeafRow = memo(function LeafRow({
                 onClick?.(event as unknown as MouseEvent)
             }}
         >
-            {item.icon ? (
-                <span className={iconClass(topLevel, selected, phone)}>{item.icon}</span>
-            ) : null}
+            {item.icon ? <span className={iconClass(topLevel, selected)}>{item.icon}</span> : null}
             <RowLabel item={item} onItemSelect={onItemSelect} />
             {/* Above the stretched link anchor, like a group's action. */}
             {item.rowAction ? <span className={ROW_ACTION}>{item.rowAction}</span> : null}
@@ -566,32 +537,20 @@ export const FlyoutChildren = ({
     selectedKeys: string[]
     onItemSelect?: NavMenuProps["onItemSelect"]
 }) => {
-    // The flyout renders in a portal, outside the phone sheet, but the context still reaches it.
-    const phone = useContext(SidebarLayoutContext) === "phone"
     return (
         <>
             {items.map((child) => {
                 if (child.isPlaceholder || child.isGroupLabel) {
-                    return (
-                        <DropdownMenuLabel
-                            key={child.key}
-                            className="text-xs text-muted-foreground"
-                        >
-                            {child.title}
-                        </DropdownMenuLabel>
-                    )
+                    return <DropdownMenuLabel key={child.key}>{child.title}</DropdownMenuLabel>
                 }
-                // The icon is the row's leading glyph on every other path (LeafRow, the group row,
-                // the collapsed trigger). The flyout has to draw it too, or Help & Docs loses the
-                // icons the antd menu always rendered through its own `icon` slot.
+                // The row's leading glyph, as on every other path.
                 const body = (
                     <>
                         {child.icon ? (
                             <span className="flex shrink-0 items-center">{child.icon}</span>
                         ) : null}
                         <span className="min-w-0 flex-1 truncate">{child.title}</span>
-                        {/* The version rides the row it describes; the inline path draws it through
-                        RowLabel, so this path has to draw it too or it disappears. */}
+                        {/* The version rides the row it describes, as RowLabel draws it inline. */}
                         {child.suffix ? (
                             <span className="ml-auto shrink-0 pl-2">{child.suffix}</span>
                         ) : null}
@@ -601,17 +560,14 @@ export const FlyoutChildren = ({
                     <Fragment key={child.key}>
                         <DropdownMenuItem
                             disabled={child.disabled}
-                            // gap-[10px] over the item's default gap-2: antd's Menu icon margin.
-                            // It rides on `className` (which goes through tailwind-merge) rather
-                            // than on the Link, because `asChild` merges classes by concatenation
-                            // and would leave both gaps in the list.
+                            // MENU_ITEM owns the geometry (ROW-02); selection shows as a fill, not weight.
                             className={clsx(
-                                "gap-[10px]",
-                                selectedKeys.includes(child.key) && "font-medium",
-                                // Same field the inline rows read, so a row that tunes its own
-                                // geometry does it once for both paths.
+                                selectedKeys.includes(child.key) &&
+                                    "bg-selected data-[highlighted]:bg-selected data-[highlighted]:bg-[image:linear-gradient(var(--accent),var(--accent))]",
+                                // A row's own tone (an archived session is dimmed) on this path too.
                                 child.rowClassName,
                             )}
+                            aria-current={selectedKeys.includes(child.key) ? "page" : undefined}
                             asChild={Boolean(child.link)}
                             onSelect={
                                 child.link
@@ -634,9 +590,7 @@ export const FlyoutChildren = ({
                                 body
                             )}
                         </DropdownMenuItem>
-                        {/* `divider` means "a rule FOLLOWS this row", which is the contract the
-                        inline path and the old antd menu both implement. Treating it as "this
-                        row IS a rule" replaced the Documentation item with a hairline. */}
+                        {/* `divider` means a rule FOLLOWS this row. */}
                         {child.divider ? <DropdownMenuSeparator /> : null}
                     </Fragment>
                 )
@@ -658,7 +612,6 @@ const NavMenuImpl = ({
     className,
 }: NavMenuProps) => {
     const t = useT(navigationCatalog)
-    const phone = useContext(SidebarLayoutContext) === "phone"
     const inline = mode === "inline" && !collapsed
     const navRef = useRef<HTMLElement>(null)
 
@@ -679,9 +632,8 @@ const NavMenuImpl = ({
                 const icon = (
                     <div
                         className={cn(
-                            // size-7, not size-8: on a 48px rail a 32px hit box leaves 8px a
-                            // side and the icons read as tiles rather than as a nav.
-                            "relative mx-auto flex size-7 items-center justify-center rounded-[6px]",
+                            // A 28px square centered on the 48px rail (icon center at 24px).
+                            "relative mx-auto flex size-7 shrink-0 items-center justify-center rounded-md",
                             item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                             selected && ROW_SELECTED,
                         )}
@@ -704,7 +656,7 @@ const NavMenuImpl = ({
                     <Fragment key={item.key}>
                         {leaf}
                         {collapsed && item.trailing ? (
-                            <div className="mx-auto flex flex-col items-center gap-1">
+                            <div className="mx-auto flex flex-col items-center gap-0.5">
                                 {item.trailing}
                             </div>
                         ) : null}
@@ -722,14 +674,13 @@ const NavMenuImpl = ({
                             aria-label={item.title}
                             disabled={item.disabled}
                             className={cn(
-                                // [font-family:inherit]: preflight is off, so a bare <button>
-                                // renders Arial while the <div> rows around it render Inter.
-                                "mx-auto flex min-w-0 shrink-0 items-center rounded-md border-0 bg-transparent [font-family:inherit]",
+                                // [font-family:inherit]: preflight is off, so a bare <button> renders Arial.
+                                "group/flyout border-0 bg-transparent [font-family:inherit] outline-none focus-ring",
+                                collapsed
+                                    ? "relative mx-auto flex size-7 shrink-0 items-center justify-center rounded-md"
+                                    : `${ROW_BASE} justify-start`,
                                 item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                                 selected && ROW_SELECTED,
-                                collapsed
-                                    ? "size-7 justify-center"
-                                    : `${phone ? PHONE_ROW_CLASS : ROW_HEIGHT} w-[calc(100%-16px)] justify-start gap-[10px] px-3`,
                             )}
                         >
                             {item.icon}
@@ -739,15 +690,11 @@ const NavMenuImpl = ({
                                     {item.title}
                                 </span>
                             ) : null}
-                            {/* A group in a vertical section (the bottom rail) renders HERE, not
-                                through RowLabel — the suffix has to be drawn on both paths or
-                                Help & Docs loses its version label. The caret stands in for
-                                antd's submenu arrow, which the expanded rail has always shown
-                                (and the collapsed one hidden). */}
+                            {/* The suffix is drawn here too (RowLabel does not render this row); the caret points at the side panel, as a submenu does. */}
                             {!collapsed ? (
                                 <span className="ml-auto flex shrink-0 items-center gap-2 pl-2 text-muted-foreground">
                                     {item.suffix}
-                                    <CaretRight size={12} />
+                                    <CaretRight size={12} aria-hidden />
                                 </span>
                             ) : null}
                         </button>
@@ -756,7 +703,7 @@ const NavMenuImpl = ({
                         side="right"
                         align="start"
                         // A set width, so truncated release titles do not shrink the menu.
-                        className="max-h-[min(70vh,560px)] w-72 max-w-[calc(100vw-16px)] overflow-y-auto"
+                        className="max-h-[min(70dvh,560px)] w-popover-sm max-w-[calc(100vw-16px)] overflow-y-auto"
                     >
                         <FlyoutChildren
                             items={item.submenu ?? []}
@@ -785,12 +732,9 @@ const NavMenuImpl = ({
                         />
                     ) : (
                         <div
-                            // cn, as LeafRow does: `pr-0` has to beat ROW_BASE's `px-3` on this list
-                            // rather than on Tailwind's emission order, and a group row carries its
-                            // own class like any other row.
+                            // cn, as LeafRow does: `pr-0` must beat ROW_BASE's padding.
                             className={cn(
                                 ROW_BASE,
-                                phone && `${PHONE_ROW_CLASS} mb-0`,
                                 item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                                 selected && ROW_SELECTED,
                                 "pr-0",
@@ -798,7 +742,7 @@ const NavMenuImpl = ({
                             )}
                         >
                             {item.icon ? (
-                                <span className={iconClass(depth === 0, selected, phone)}>
+                                <span className={iconClass(depth === 0, selected)}>
                                     {item.icon}
                                 </span>
                             ) : null}
@@ -811,42 +755,36 @@ const NavMenuImpl = ({
                                 </span>
                             ) : null}
                             {item.alwaysOpen ? null : (
-                                <span
-                                    role="button"
-                                    tabIndex={0}
-                                    aria-label={t(
+                                <SimpleTooltip
+                                    title={t(
                                         open
                                             ? "navigation.chrome.collapseGroup"
                                             : "navigation.chrome.expandGroup",
                                         {title: String(item.title)},
                                     )}
-                                    // z-[1] keeps the toggle clickable above the stretched link anchor.
-                                    // A 44 px target in the phone sheet; the 12 px caret keeps its size.
-                                    className={clsx(
-                                        "relative z-[1] mr-1 flex shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground",
-                                        "size-[22px]",
-                                    )}
-                                    onClick={(event) => {
-                                        event.preventDefault()
-                                        event.stopPropagation()
-                                        onToggleOpenKey?.(item.key)
-                                    }}
-                                    onKeyDown={(event) => {
-                                        if (event.target !== event.currentTarget) return
-                                        if (event.key !== "Enter" && event.key !== " ") return
-                                        event.preventDefault()
-                                        event.stopPropagation()
-                                        onToggleOpenKey?.(item.key)
-                                    }}
                                 >
-                                    <CaretRight
-                                        size={12}
-                                        className={clsx(
-                                            "transition-transform duration-200 ease-in-out",
-                                            open && "rotate-90",
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon-xs"
+                                        aria-expanded={open}
+                                        aria-label={t(
+                                            open
+                                                ? "navigation.chrome.collapseGroup"
+                                                : "navigation.chrome.expandGroup",
+                                            {title: String(item.title)},
                                         )}
-                                    />
-                                </span>
+                                        // z-[1] keeps the toggle clickable above the stretched link anchor.
+                                        className={clsx("relative z-[1] mr-1", SMALL_ICON_BUTTON)}
+                                        onClick={(event) => {
+                                            event.preventDefault()
+                                            event.stopPropagation()
+                                            onToggleOpenKey?.(item.key)
+                                        }}
+                                    >
+                                        <CollapseCaret open={open} className="text-inherit" />
+                                    </Button>
+                                </SimpleTooltip>
                             )}
                         </div>
                     )}
@@ -887,17 +825,12 @@ const NavMenuImpl = ({
         )
     }
 
-    // pt only: each row carries its own 4px trailing margin, so a bottom pad paid it twice
-    // and pushed every section after the first 4px further down the rail.
     return (
         <nav
             ref={navRef}
             role="menu"
             className={clsx(
-                "flex w-full flex-col pt-1",
-                // Collapsed rows carry no margin of their own (ROW_BASE's `mb-1` belongs to the
-                // expanded rail), so without this the icon buttons touch edge to edge.
-                collapsed && "gap-1",
+                "flex w-full flex-col gap-0.5 pt-1",
                 // Claim the spare height, but keep room for a few rows; past that the rail scrolls.
                 items.some((item) => item.scrollChildren) && "min-h-40 flex-1",
                 className,
@@ -928,7 +861,7 @@ const RowLabelCollapsed = ({
 }) => (
     <Link
         aria-label={item.title}
-        className="absolute inset-0"
+        className="absolute inset-0 rounded-md focus-ring"
         href={item.link ?? "#"}
         prefetch={item.prefetch}
         target={isExternal(item.link) ? "_blank" : undefined}

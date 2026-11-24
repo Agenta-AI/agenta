@@ -15,11 +15,13 @@ import {
 import {useT} from "@agenta/i18n"
 import sessionsRowsCatalog from "@agenta/i18n/catalogs/sessions.rows"
 import {
+    Button,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
+    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {DotsThreeIcon} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
@@ -51,10 +53,9 @@ const RENAME = "rename"
 let renameOnMount: {sessionId: string; at: number} | null = null
 const RENAME_ON_MOUNT_MS = 3000
 
-// [font-family:inherit]: preflight is off, so a bare <button> renders Arial, not Inter.
-// Themed focus ring, not the UA blue: Radix returns focus to the trigger on close.
+// The kit's icon-xs ghost button; `secondary` fills it, since the row's own hover is `accent` (SURF-06).
 const KEBAB_CLASS =
-    "flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-muted-foreground opacity-0 outline-none transition-opacity [font-family:inherit] hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring group-hover/row:opacity-100 data-[open]:opacity-100 pointer-coarse:opacity-100"
+    "shrink-0 text-muted-foreground opacity-0 hover:bg-secondary hover:text-foreground aria-expanded:bg-secondary focus-visible:opacity-100 group-hover/row:opacity-100 data-[open]:opacity-100 pointer-coarse:opacity-100"
 
 /**
  * Per-row session verbs in the nav rail — rename, pin, archive, delete.
@@ -272,31 +273,39 @@ const SessionRowActions = ({
                     </span>
                 ) : null}
                 <span
-                    // -mr-2 pulls the kebab out past ROW_BASE's px-3 so it sits at the row's
-                    // right edge. Only session rows are wrapped, so no other nav row shifts.
-                    // w-6, not w-7: at 28 the 20px button sat 2px left of the group carets and the
-                    // filter trigger above it, and the rail's right-hand controls read as a column.
-                    // With a fine pointer the kebab floats over the title's faded tail (placed
-                    // against the nav row, the link overlay's own box, at the same spot), so the
-                    // title keeps the whole row at rest and nothing moves when it shows (N10).
-                    className="relative z-[1] -mr-2 flex h-5 w-6 shrink-0 items-center justify-center pointer-fine:absolute pointer-fine:right-1 pointer-fine:top-1/2 pointer-fine:mr-0 pointer-fine:-translate-y-1/2"
+                    // -mr-1 leaves the kebab 4px from the row edge, as pointer-fine's right-1 does.
+                    className="relative z-[1] -mr-1 flex h-6 w-6 shrink-0 items-center justify-center pointer-fine:absolute pointer-fine:right-1 pointer-fine:top-1/2 pointer-fine:mr-0 pointer-fine:-translate-y-1/2"
                     onClick={swallow}
                 >
                     {armed ? (
                         <DropdownMenu open={open} onOpenChange={setOpen}>
-                            <DropdownMenuTrigger asChild>
-                                <button
-                                    type="button"
-                                    aria-label={t("sessions.rows.actionsFor", {
-                                        name: session.name || t("sessions.rows.untitledSession"),
-                                    })}
-                                    data-open={open || undefined}
-                                    className={KEBAB_CLASS}
-                                >
-                                    <DotsThreeIcon size={16} weight="bold" />
-                                </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" side="bottom" className="min-w-60">
+                            {/* The span takes the tooltip, so two asChild triggers do not share one element. */}
+                            <SimpleTooltip title={t("sessions.rows.sessionActions")}>
+                                <span className="inline-flex">
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon-xs"
+                                            aria-label={t("sessions.rows.actionsFor", {
+                                                name:
+                                                    session.name ||
+                                                    t("sessions.rows.untitledSession"),
+                                            })}
+                                            data-open={open || undefined}
+                                            className={KEBAB_CLASS}
+                                        >
+                                            <DotsThreeIcon />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                </span>
+                            </SimpleTooltip>
+                            <DropdownMenuContent
+                                align="end"
+                                side="bottom"
+                                collisionPadding={8}
+                                className="w-popover-sm"
+                            >
                                 {entries.map((entry, index) =>
                                     isMenuDivider(entry) ? (
                                         <DropdownMenuSeparator key={`divider-${index}`} />
@@ -319,25 +328,31 @@ const SessionRowActions = ({
                             </DropdownMenuContent>
                         </DropdownMenu>
                     ) : (
-                        <button
-                            type="button"
-                            aria-label={t("sessions.rows.actionsFor", {
-                                name: session.name || t("sessions.rows.untitledSession"),
-                            })}
-                            aria-haspopup="menu"
-                            aria-expanded={false}
-                            className={KEBAB_CLASS}
-                            onPointerDown={(event) => {
-                                // Radix's trigger opens on pointer-down; the first press matches it.
-                                if (event.button !== 0 || event.ctrlKey) return
-                                arm()
-                            }}
-                            onKeyDown={(event) => {
-                                if (event.key === "Enter" || event.key === " ") arm()
-                            }}
-                        >
-                            <DotsThreeIcon size={16} weight="bold" />
-                        </button>
+                        <SimpleTooltip title={t("sessions.rows.sessionActions")}>
+                            <span className="inline-flex">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    aria-label={t("sessions.rows.actionsFor", {
+                                        name: session.name || t("sessions.rows.untitledSession"),
+                                    })}
+                                    aria-haspopup="menu"
+                                    aria-expanded={false}
+                                    className={KEBAB_CLASS}
+                                    onPointerDown={(event) => {
+                                        // Radix's trigger opens on pointer-down; the first press matches it.
+                                        if (event.button !== 0 || event.ctrlKey) return
+                                        arm()
+                                    }}
+                                    onKeyDown={(event) => {
+                                        if (event.key === "Enter" || event.key === " ") arm()
+                                    }}
+                                >
+                                    <DotsThreeIcon />
+                                </Button>
+                            </span>
+                        </SimpleTooltip>
                     )}
                 </span>
             </span>

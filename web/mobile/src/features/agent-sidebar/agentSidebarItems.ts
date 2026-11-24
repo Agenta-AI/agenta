@@ -12,12 +12,7 @@ import {
     SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
 
-import {
-    RUNNING_TITLE,
-    sessionStatusMark,
-    withStatusMark,
-    type SessionMark,
-} from "../nav/sessionStatusMark"
+import {sessionStatusMark, withStatusMark, type SessionMark} from "../nav/sessionStatusMark"
 
 import {agentPageHref, isAgentPageView, type AgentPageView} from "./agentPages"
 import {dayGroupedRows} from "./dayGroups"
@@ -142,7 +137,6 @@ export const agentSidebarItems = ({
             key: agentSidebarSessionKey(session.sessionId),
             title: session.title,
             tooltip: session.title,
-            rowClassName: session.status === "running" ? RUNNING_TITLE : undefined,
             link: `${projectURL}/sessions/${session.sessionId}`,
             prefetch: false,
             // The state shows as a quiet mark on the right, as on the main sidebar.
@@ -193,8 +187,7 @@ export const agentSidebarItems = ({
             link: sessionsHref,
             matchLinks: [],
             prefetch: false,
-            // The phone row keeps its 44 px line box, so the text sits in the middle (M02).
-            rowClassName: `text-label ${"text-muted-foreground"}`,
+            rowClassName: "text-label text-muted-foreground",
         })
 
     return {

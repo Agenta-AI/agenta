@@ -3,7 +3,7 @@
     "newChat": "Nouveau chat",
     "chats": "Chats",
     "chatsLoading": "Chargement des chats…",
-    "chatsFailed": "Impossible de charger les chats.",
+    "chatsFailed": "Impossible de charger les sessions",
     "retry": "Réessayer",
     "untitledChat": "Chat sans titre",
     "today": "Aujourd’hui",
@@ -88,5 +88,6 @@
     "kindTool": "Outil",
     "kindApp": "App",
     "itemNotShown": "Cet élément ne peut pas encore s’afficher ici.",
-    "changedByBuilder": "Modifié par le Builder"
+    "changedByBuilder": "Modifié par le Builder",
+    "noChatsYet": "Aucune session pour le moment. Démarrez-en une avec Nouvelle session."
 }

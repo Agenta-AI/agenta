@@ -1,5 +1,5 @@
 {
-    "chrome.closeNavigation": "Navigation schließen",
+    "chrome.closeNavigation": "Seitenleiste schließen",
     "chrome.collapseGroup": "{{title}} einklappen",
     "chrome.collapseSidebar": "Seitenleiste einklappen",
     "chrome.expandGroup": "{{title}} ausklappen",
@@ -27,7 +27,7 @@
     "items.home": "Startseite",
     "items.inviteTeammate": "Teammitglied einladen",
     "items.keyboardShortcuts": "Tastenkürzel",
-    "items.newAgentOrOpen": "Neuen Agent erstellen oder einen Agent öffnen",
+    "items.newAgentOrOpen": "Neuer Agent",
     "items.newSessionWith": "Neue Sitzung mit {{agent}}",
     "items.observability": "Observability",
     "items.overview": "Übersicht",
@@ -36,7 +36,7 @@
     "items.prompts": "Prompts",
     "items.registry": "Registry",
     "items.search": "Suchen",
-    "items.searchChats": "Chats durchsuchen",
+    "items.searchChats": "Sitzungen durchsuchen",
     "items.sessions": "Sitzungen",
     "items.skills": "Skills",
     "items.slackSupport": "Slack-Support",
@@ -97,5 +97,8 @@
     "arrange.undo": "Rückgängig",
     "items.sessionWaiting": "Wartet auf dich",
     "items.sessionLive": "Aktiv",
-    "chrome.backFrom": "Zurück aus {{label}}"
+    "chrome.backFrom": "Zurück aus {{label}}",
+    "items.noSessionsYet": "Noch keine Sitzungen",
+    "items.noPromptsYet": "Noch keine Prompts. Erstelle einen unter Prompts.",
+    "chrome.sidebarError": "Die Seitenleiste konnte nicht geladen werden. Lade die Seite neu."
 }

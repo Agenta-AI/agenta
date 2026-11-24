@@ -30,11 +30,13 @@ export const FilterMenuTrigger = ({
     const text = label === undefined ? defaultLabel : label
     const iconOnly = text === null || text === "" || text === false
     const iconSize =
-        size === "compact" || size === "icon-compact"
-            ? "icon-compact"
-            : size === "sm" || size === "icon-sm"
-              ? "icon-sm"
-              : "icon"
+        size === "icon-xs"
+            ? "icon-xs"
+            : size === "compact" || size === "icon-compact"
+              ? "icon-compact"
+              : size === "sm" || size === "icon-sm"
+                ? "icon-sm"
+                : "icon"
 
     return (
         <PopoverTrigger asChild>

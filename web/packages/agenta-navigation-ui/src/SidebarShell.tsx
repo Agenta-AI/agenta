@@ -23,6 +23,7 @@ import {
     type SidebarShellProps,
     useSidebarResize,
 } from "@agenta/navigation"
+import {Alert} from "@agenta/ui/ui"
 import clsx from "clsx"
 import {useAtom, useSetAtom} from "jotai"
 import {useReducedMotion} from "motion/react"
@@ -30,8 +31,21 @@ import {useReducedMotion} from "motion/react"
 import {NavMenu} from "./NavMenu"
 import {SidebarLayoutContext} from "./sidebarLayout"
 
-/** Matches the rail's `duration-300` width transition. */
-const RAIL_MS = 300
+/** Fallback for the rail's width transition, which runs on `--duration-slow`. */
+const RAIL_MS = 320
+
+/** What a crashed sidebar shows: the cause and the fix, not an empty rail. */
+const SidebarErrorNotice = () => {
+    const t = useT(navigationCatalog)
+    return (
+        <Alert
+            type="error"
+            showIcon
+            className="m-2"
+            message={t("navigation.chrome.sidebarError")}
+        />
+    )
+}
 
 class SidebarErrorBoundary extends React.Component<React.PropsWithChildren, {hasError: boolean}> {
     state = {hasError: false}
@@ -41,7 +55,7 @@ class SidebarErrorBoundary extends React.Component<React.PropsWithChildren, {has
     }
 
     render() {
-        if (this.state.hasError) return <div />
+        if (this.state.hasError) return <SidebarErrorNotice />
         return this.props.children
     }
 }
@@ -189,18 +203,21 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     const railRef = useRef<HTMLDivElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
     const {width, handleProps} = useSidebarResize({railRef, contentRef, collapsed, setCollapsed})
-    // A scope change the person asked for (focus on one agent, or back) slides the new rail's
-    // content in from that side, 0.2 s. Only on mount: the host remounts the shell per scope.
+    // A scope change the person asked for slides the new rail in, 4px, on the theme's timing.
     useEffect(() => {
         const content = contentRef.current
         if (!enterFrom || !content?.animate) return
         if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return
+        const theme = getComputedStyle(content)
         content.animate(
             [
-                {transform: `translateX(${enterFrom === "end" ? 16 : -16}px)`, opacity: 0},
+                {transform: `translateX(${enterFrom === "end" ? 4 : -4}px)`, opacity: 0},
                 {transform: "none", opacity: 1},
             ],
-            {duration: 200, easing: "cubic-bezier(.2,.8,.2,1)"},
+            {
+                duration: parseFloat(theme.getPropertyValue("--duration-base")) || 200,
+                easing: theme.getPropertyValue("--ease-out").trim() || "ease-out",
+            },
         )
         // Mount only: the host remounts the shell per scope.
     }, [])
@@ -307,19 +324,14 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         return (
             <React.Fragment key={section.key}>
                 {section.dividerBefore && (
-                    <hr
-                        className={clsx(
-                            "w-full shrink-0 border-0 border-t border-solid border-[var(--ag-shell-line)]",
-                            shown ? "my-1" : "my-2",
-                        )}
-                    />
+                    <hr className="my-2 w-full shrink-0 border-0 border-t border-solid border-border-muted" />
                 )}
                 {renderSlot(section.before, shown)}
                 <NavMenu
-                    // Rows end in a 4px margin, so a following section needs no top pad of its own.
+                    // A following section continues the list: the 2px row gap, not a new top pad.
                     className={clsx(
                         section.placement === "bottom" && "pb-1",
-                        index > 0 && !section.dividerBefore && !shown && "!pt-0",
+                        index > 0 && !section.dividerBefore && !shown && "!pt-0.5",
                     )}
                     items={section.items}
                     arrange={section.arrange}
@@ -363,7 +375,8 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
             // Width lives in --ag-sidebar-w so a drag can repaint it without a React render;
             // data-resizing kills CSS transitions while the drag's own rAF loop paints the width.
             className={[
-                "group/rail relative border-0 border-r border-solid border-[var(--ag-shell-line)] [&[data-resizing=true]_*]:!transition-none",
+                // No border: the muted surface already sets the rail apart (SURF-01).
+                "group/rail relative [&[data-resizing=true]_*]:!transition-none",
                 // Claim the sheet's height; left to its content the frame collapses to the column.
                 // The corners follow the floating sheet's, so the rail's surface cannot square them.
                 isOverlay ? "h-full rounded-[inherit]" : "",
@@ -395,10 +408,9 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     // overflow-hidden clips to those corners; the switcher's panel portals into
                     // the sheet, outside this element, so it is not cut off.
                     isOverlay
-                        ? "h-full w-[var(--ag-sidebar-w)] overflow-hidden rounded-[inherit] bg-[var(--ag-sidebar-bg)] transition-[width] duration-300 motion-reduce:transition-none"
-                        : // --ag-top-bars-h: the app's fixed top bars would cover the brand row on
-                          // document-scrolling routes; 0px everywhere else.
-                          "sticky top-[var(--ag-top-bars-h,0px)] bottom-0 h-[calc(100vh-var(--ag-top-bars-h,0px))] w-[var(--ag-sidebar-w)] bg-[var(--ag-sidebar-bg)] transition-[width] duration-300 motion-reduce:transition-none group-data-[snap]/rail:overflow-hidden",
+                        ? "h-full w-[var(--ag-sidebar-w)] overflow-hidden rounded-[inherit] bg-muted transition-[width] duration-[var(--duration-slow)] ease-[var(--ease-in-out)] motion-reduce:transition-none"
+                        : // --ag-top-bars-h: the app's fixed top bars, 0px on most routes.
+                          "sticky top-[var(--ag-top-bars-h,0px)] bottom-0 h-[calc(100dvh-var(--ag-top-bars-h,0px))] w-[var(--ag-sidebar-w)] bg-muted transition-[width] duration-[var(--duration-slow)] ease-[var(--ease-in-out)] motion-reduce:transition-none group-data-[snap]/rail:overflow-hidden",
                     moving ? "overflow-hidden" : "",
                 ].join(" ")}
             >
@@ -408,7 +420,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     style={moving && !shown ? {width} : undefined}
                     className={clsx(
                         // A drag-collapse pins the column (--ag-snap-w) so the gliding rail clips it.
-                        "flex flex-col w-[var(--ag-sidebar-w)] transition-opacity duration-150 motion-reduce:transition-none group-data-[snap]/rail:w-[var(--ag-snap-w)]",
+                        "flex flex-col w-[var(--ag-sidebar-w)] transition-opacity duration-[var(--duration-fast)] motion-reduce:transition-none group-data-[snap]/rail:w-[var(--ag-snap-w)]",
                         moving && collapsed && "opacity-0",
                         // `vh` is a phone's toolbars-HIDDEN height; the var also narrows for a keyboard.
                         // Capped at the sheet's height: the sheet floats 8px in from the top and
@@ -418,11 +430,11 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                 >
                     {renderSlot(scope.header, shown, scope.lastPath, onDismiss)}
                     <SidebarErrorBoundary>
-                        <div className="flex flex-col justify-between items-center h-full overflow-y-auto">
+                        {/* One scroller: the top section (the scrolling group owns it when there is one). */}
+                        <div className="flex flex-col justify-between items-center h-full min-h-0">
                             <div
                                 className={clsx(
                                     "w-full min-h-0 flex-1",
-                                    // The scrolling group owns the spare height; the rail scrolls only on a short window.
                                     scrollsWithinAGroup
                                         ? "flex flex-col overflow-y-auto"
                                         : "overflow-y-auto",
@@ -433,8 +445,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                             <div
                                 className={clsx(
                                     "w-full flex flex-col shrink-0",
-                                    !shown &&
-                                        "border-0 border-t border-solid border-[var(--ag-shell-line)] pt-2",
+                                    !shown && "pt-2",
                                     // The home indicator sits inside `dvh`; reserve it.
                                     isOverlay && "pb-[env(safe-area-inset-bottom)]",
                                 )}
@@ -454,7 +465,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     // Invisible 9px grab strip straddling the hairline; the ::after IS the
                     // hairline, tinted only while hovering or dragging. Also on the icon rail: dragging
                     // it out opens the rail.
-                    className="absolute inset-y-0 -right-1 z-10 w-[9px] cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent after:transition-colors hover:after:bg-border group-data-[resizing=true]/rail:after:bg-primary"
+                    className="absolute inset-y-0 -right-1 z-10 w-[9px] cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent after:transition-colors hover:after:bg-border group-data-[resizing=true]/rail:after:bg-border-strong"
                     role="separator"
                     aria-orientation="vertical"
                     aria-label={t("navigation.chrome.resizeSidebar")}

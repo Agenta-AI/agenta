@@ -1,4 +1,4 @@
-import {useEffect, useId, useState} from "react"
+import {useEffect, useState} from "react"
 
 import {
     Button,
@@ -7,6 +7,8 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
+    Field,
+    Input,
     LoadingButton,
 } from "@agenta/ui/ui"
 
@@ -18,10 +20,11 @@ export interface NamePromptModalProps {
     onCancel: () => void
     onSubmit: (name: string) => void
     isPending?: boolean
-    okText?: string
+    /** Verb + object, e.g. "Create project" (ACT-02). */
+    okText: string
 }
 
-/** One-field create modal (project, organization): a Dialog + a plain input. */
+/** One-field create modal (project, organization): a Dialog with one Field. */
 export const NamePromptModal = ({
     title,
     label,
@@ -30,9 +33,8 @@ export const NamePromptModal = ({
     onCancel,
     onSubmit,
     isPending,
-    okText = "Create",
+    okText,
 }: NamePromptModalProps) => {
-    const inputId = useId()
     const [name, setName] = useState("")
     const [touched, setTouched] = useState(false)
     useEffect(() => {
@@ -54,26 +56,25 @@ export const NamePromptModal = ({
                     <DialogTitle>{title}</DialogTitle>
                 </DialogHeader>
                 <form
-                    className="flex flex-col gap-1 py-2"
+                    className="flex flex-col py-2"
                     onSubmit={(event) => {
                         event.preventDefault()
                         submit()
                     }}
                 >
-                    <label className="text-xs text-muted-foreground" htmlFor={inputId}>
-                        {label}
-                    </label>
-                    <input
-                        autoFocus
-                        id={inputId}
-                        value={name}
-                        placeholder={placeholder}
-                        onChange={(event) => setName(event.target.value)}
-                        className="box-border h-8 w-full rounded-md border border-solid border-border bg-background px-2 text-label text-foreground outline-none focus:border-primary"
-                    />
-                    {touched && !name.trim() ? (
-                        <span className="text-xs text-destructive">{`Please enter a ${label.toLowerCase()}`}</span>
-                    ) : null}
+                    <Field
+                        label={label}
+                        error={
+                            touched && !name.trim() ? `Enter a ${label.toLowerCase()}` : undefined
+                        }
+                    >
+                        <Input
+                            autoFocus
+                            value={name}
+                            placeholder={placeholder}
+                            onChange={(event) => setName(event.target.value)}
+                        />
+                    </Field>
                 </form>
                 <DialogFooter>
                     <Button variant="ghost" onClick={onCancel}>
