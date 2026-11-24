@@ -215,10 +215,10 @@
             "rules": [
                 {
                     "id": "SHAPE-01",
-                    "rule": "Nothing is round",
-                    "why": "One shape family makes every component look like one product. A pill or a circle next to a 6px control reads as a second system.",
-                    "avoid": "`rounded-full`, `50%`, pills, circle Marks, round dots, round switch knobs",
-                    "do": "`radius-sm` or `radius-md`; at most a quarter of the short side; icons are drawings and keep their own curves",
+                    "rule": "Only things round by nature are round",
+                    "why": "One shape family makes every component look like one product. A pill button or a circle Mark next to a 6px control reads as a second system. A status dot, a switch and a radio are round by nature, and a square one looks wrong.",
+                    "avoid": "A round button, input, badge, chip, tag, Mark, card or menu; a pill; `rounded-full` or `50%` anywhere; a square status dot, switch, radio or slider handle",
+                    "do": "Controls and containers: `radius-sm` or `radius-md`, at most a quarter of the short side. Status dots, typing dots, the switch, the radio and the slider handle: `rounded-round`. Icons are drawings and keep their own curves",
                     "checkedBy": [
                         "ratchet",
                         "review"

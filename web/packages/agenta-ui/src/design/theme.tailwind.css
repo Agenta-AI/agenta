@@ -111,6 +111,7 @@
     --radius-md: var(--radius-md);
     --radius-lg: var(--radius-lg);
     --radius-xl: var(--radius-xl);
+    --radius-round: var(--radius-round);
     --shadow-raised: var(--shadow-raised);
     --shadow-overlay: var(--shadow-overlay);
     --shadow-modal: var(--shadow-modal);

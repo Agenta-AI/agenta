@@ -34,7 +34,7 @@ export function ScaleSection() {
                 </div>
             </div>
             <div>
-                <SectionTitle title="Radius" description="Nothing is round: a radius is at most a quarter of the short side." />
+                <SectionTitle title="Radius" description="Controls and containers are square: a radius is at most a quarter of the short side. Only things round by nature (status dots, the switch, the radio, the slider handle) use radius-round." />
                 <div className="flex flex-wrap gap-4">
                     {radius.map((r) => (
                         <div key={r.name} className="flex flex-col items-center gap-1 font-mono text-xs">

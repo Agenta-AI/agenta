@@ -24,7 +24,7 @@ const switchVariants = cva(
     [
         // CONTROL_RESET — preflight is off app-wide (antd ships its own reset); see button.tsx.
         "box-border border-0 font-[inherit]",
-        "inline-flex shrink-0 cursor-pointer select-none items-center rounded-control-check align-middle transition-colors",
+        "inline-flex shrink-0 cursor-pointer select-none items-center rounded-round align-middle transition-colors",
         "p-0.5", // 2px inset the thumb sits within.
         // antd track: unchecked=colorTextQuaternary, checked=colorPrimary.
         "data-[state=unchecked]:bg-border-strong data-[state=checked]:bg-foreground",
@@ -68,7 +68,7 @@ const switchVariants = cva(
 
 const switchThumbVariants = cva(
     [
-        "pointer-events-none block rounded-xs bg-background",
+        "pointer-events-none block rounded-round bg-background",
         // antd handle shadow (`handleShadow`, theme-invariant) — `switch-handle` bridge token.
         "shadow-switch-handle",
         "transition-transform data-[state=unchecked]:[transform:translateX(0)]",

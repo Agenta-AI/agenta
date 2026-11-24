@@ -13,9 +13,9 @@ export const WorkingDots = () => {
             aria-label={t("chat.turnActivity.working")}
             className="flex items-center gap-1 px-1 py-0.5"
         >
-            <span className="inline-block size-1 animate-pulse rounded-sm bg-muted-foreground [animation-duration:1.2s]" />
-            <span className="inline-block size-1 animate-pulse rounded-sm bg-muted-foreground [animation-delay:0.2s] [animation-duration:1.2s]" />
-            <span className="inline-block size-1 animate-pulse rounded-sm bg-muted-foreground [animation-delay:0.4s] [animation-duration:1.2s]" />
+            <span className="inline-block size-1 animate-pulse rounded-round bg-muted-foreground [animation-duration:1.2s]" />
+            <span className="inline-block size-1 animate-pulse rounded-round bg-muted-foreground [animation-delay:0.2s] [animation-duration:1.2s]" />
+            <span className="inline-block size-1 animate-pulse rounded-round bg-muted-foreground [animation-delay:0.4s] [animation-duration:1.2s]" />
         </span>
     )
 }

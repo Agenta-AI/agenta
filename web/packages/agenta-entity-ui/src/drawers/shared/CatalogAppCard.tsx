@@ -98,7 +98,7 @@ export function AppCard({
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <span className="size-1.5 shrink-0 rounded-sm bg-success" />
+                                <span className="size-1.5 shrink-0 rounded-round bg-success" />
                             </TooltipTrigger>
                             <TooltipContent>
                                 {t("entityUi.catalogAppCard.connected")}
@@ -109,7 +109,7 @@ export function AppCard({
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <span className="size-1.5 shrink-0 rounded-sm bg-warning" />
+                                <span className="size-1.5 shrink-0 rounded-round bg-warning" />
                             </TooltipTrigger>
                             <TooltipContent>
                                 {t("entityUi.catalogAppCard.connectionPending")}

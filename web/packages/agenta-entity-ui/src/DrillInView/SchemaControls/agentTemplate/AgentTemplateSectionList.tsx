@@ -189,7 +189,7 @@ const IndicatorDot = ({indicator}: {indicator: AgentTemplateSectionDescriptor["i
         <span
             aria-hidden
             data-section-indicator={indicator.tone}
-            className="size-1.5 shrink-0 rounded-sm"
+            className="size-1.5 shrink-0 rounded-round"
             style={{background: sectionIndicatorColor(indicator.tone)}}
         />
     ) : null

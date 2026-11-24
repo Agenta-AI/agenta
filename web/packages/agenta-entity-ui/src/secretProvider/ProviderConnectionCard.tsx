@@ -852,7 +852,7 @@ const ProviderConnectionCard = ({
                 {statusLine.tone === "error" ? (
                     <WarningCircle size={14} className="mt-0.5 shrink-0" />
                 ) : statusLine.tone === "success" ? (
-                    <span className="mt-1.5 size-1.5 shrink-0 rounded-xs bg-success" />
+                    <span className="mt-1.5 size-1.5 shrink-0 rounded-round bg-success" />
                 ) : null}
                 <span id={statusId} className="min-w-0 flex-1">
                     {statusLine.text}

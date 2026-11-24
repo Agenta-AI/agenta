@@ -31,7 +31,7 @@ import {cn} from "./utils"
  *     NOTE: antd's RESTING track is `colorPrimaryBorder` (a light primary tint), NOT full
  *     `colorPrimary` — using colorPrimary at rest would render a dark bar unlike antd. Primary
  *     only appears on the HANDLE RING when hovered/focused/dragged. This is the faithful match.
- *   - handle = 10px square (`rounded-xs`, SHAPE-01) with a 1px `border-strong` ring drawn as a
+ *   - handle = 10px circle (`rounded-round`, round by nature: SHAPE-01) with a 1px `border-strong` ring drawn as a
  *     box-shadow outside the fill; `primary` on hover; the shared `focus-ring` on keyboard focus.
  *   - rail/track radius 1px, a quarter of the 4px rail (SHAPE-01).
  *
@@ -105,7 +105,7 @@ function Slider({
                         aria-labelledby={ariaLabelledby}
                         className={cn(
                             // 10px handle; the 1px ring is a box-shadow outside the fill, so the fill stays 10px.
-                            "block box-border size-2.5 shrink-0 rounded-xs bg-background outline-none focus-ring",
+                            "block box-border size-2.5 shrink-0 rounded-round bg-background outline-none focus-ring",
                             // Re-enables hits the wrapper turns off, so the hit surface is unchanged.
                             "pointer-events-auto",
                             "shadow-[0_0_0_1px_var(--border-strong)]",

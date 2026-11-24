@@ -383,7 +383,7 @@ function ConnectedRow({
                 ) : attention ? (
                     // Beside the name and never truncated, so the problem always shows.
                     <span className="flex shrink-0 items-center gap-1.5 text-label font-medium text-warning">
-                        <span aria-hidden className="size-1.5 rounded-sm bg-current" />
+                        <span aria-hidden className="size-1.5 rounded-round bg-current" />
                         {attention === "inactive"
                             ? t("entityUi.integrationDrawer.inactive")
                             : t("entityUi.integrationDrawer.pending")}

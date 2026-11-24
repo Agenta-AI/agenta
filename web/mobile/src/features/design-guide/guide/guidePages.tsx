@@ -64,7 +64,7 @@ export function guidePages(mode: "light" | "dark"): GuidePage[] {
         },
         {id: "type", group: "Foundations", title: "Typography", tagline: "One font, one set of text styles, two text levels. Weight shows rank, never state.", specimen: <TypeSection />, rules: [...typeRules, ...moreTypeExamples]},
         {id: "size", group: "Foundations", title: "Space and size", tagline: "A 4px grid, control heights that step down on a compact window, and one gap for each place.", specimen: <ScaleSection />, rules: [...spacingRules, ...gapRules, ...moreSpaceExamples]},
-        {id: "shape", group: "Foundations", title: "Shape", tagline: "One radius scale. Nothing is round.", rules: shapeRules},
+        {id: "shape", group: "Foundations", title: "Shape", tagline: "One radius scale. Only things round by nature are round.", rules: shapeRules},
         {id: "icons", group: "Foundations", title: "Icons", tagline: "Phosphor only, one icon per product term.", specimen: <IconTermsSection />, rules: [...iconRules, ...moreIconExamples]},
         {id: "surfaces", group: "Foundations", title: "Surfaces", tagline: "Tone separates areas, one fill marks hover, and shadows are only for things that float.", rules: [...surfaceRules, ...moreSurfaceExamples, ...hoverRules]},
         {id: "motion", group: "Foundations", title: "Motion", tagline: "Short, calm, and only when something changed. No bounce.", rules: motionRules},

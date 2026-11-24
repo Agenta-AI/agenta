@@ -152,7 +152,7 @@ export function EventSourcePicker({
                             // about a wait measured in minutes rather than a spinner's seconds.
                             <span className="relative mt-1 flex size-2 shrink-0 items-center justify-center">
                                 <span className="absolute inline-flex size-full rounded-md bg-info opacity-60 motion-safe:animate-ping" />
-                                <span className="relative inline-flex size-1.5 rounded-sm bg-info" />
+                                <span className="relative inline-flex size-1.5 rounded-round bg-info" />
                             </span>
                         ) : (
                             <ClockCountdown

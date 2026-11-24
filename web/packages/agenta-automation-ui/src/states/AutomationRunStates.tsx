@@ -29,7 +29,7 @@ export const AutomationRunListSkeleton = ({
                 </div>
                 {Array.from({length: rows}, (_, row) => (
                     <div key={row} className="flex items-center gap-2 px-2.5 py-2">
-                        <SkeletonBlock active className="size-2 shrink-0 rounded-xs" />
+                        <SkeletonBlock active className="size-2 shrink-0 rounded-round" />
                         <SkeletonBlock active className="h-3.5 flex-1" />
                         <SkeletonBlock active className="h-3 w-10 shrink-0" />
                     </div>

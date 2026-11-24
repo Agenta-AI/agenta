@@ -103,7 +103,7 @@ const SubscriptionPairCard = ({
         <div className="flex min-h-full flex-1 flex-col gap-4 text-meta">
             <div className="flex items-start justify-between gap-3">
                 <span className="flex items-center gap-1.5 text-success">
-                    <span aria-hidden className="size-1.5 shrink-0 rounded-xs bg-success" />
+                    <span aria-hidden className="size-1.5 shrink-0 rounded-round bg-success" />
                     {t("entityUi.providerDrawer.detected", {name: pair.name})}
                 </span>
                 <a

@@ -23,7 +23,7 @@ const radioItemVariants = cva([
     // CONTROL_RESET — preflight is off app-wide (antd ships its own reset); see button.tsx.
     "box-border border-solid font-[inherit] p-0",
     // antd radio circle: 16px, 1px border colorBorder, bg colorBgContainer.
-    "size-control-check shrink-0 rounded-control-check border bg-background border-border",
+    "size-control-check shrink-0 rounded-round border bg-background border-border",
     "inline-flex items-center justify-center cursor-pointer transition-colors",
     // hover (enabled): border → colorPrimary.
     "enabled:hover:border-foreground/60",
@@ -63,7 +63,7 @@ function RadioGroupItem({
             <RadioGroupPrimitive.Indicator
                 data-slot="radio-group-indicator"
                 // antd v6 centered dot: white (colorTextLightSolid) on the filled circle; → colorTextDisabled when disabled.
-                className="size-control-dot rounded-[2px] bg-background [[data-slot=radio-group-item]:disabled_&]:bg-border-strong"
+                className="size-control-dot rounded-round bg-background [[data-slot=radio-group-item]:disabled_&]:bg-border-strong"
             />
         </RadioGroupPrimitive.Item>
     )

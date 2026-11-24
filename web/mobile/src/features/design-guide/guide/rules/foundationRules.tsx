@@ -1,4 +1,4 @@
-import {Badge, Button, IconTile} from "@agenta/ui/ui"
+import {Badge, Button, IconTile, Switch} from "@agenta/ui/ui"
 import {CheckIcon, GearIcon, HouseIcon, MagnifyingGlassIcon, RobotIcon, XIcon} from "@phosphor-icons/react"
 
 import type {RuleExample} from "../types"
@@ -216,13 +216,20 @@ export const shapeRules: RuleExample[] = [
         id: "SHAPE-01",
         do: {
             example: (
-                <div className="flex items-center gap-2">
-                    <IconTile>AC</IconTile>
-                    <Button variant="outline">Share</Button>
-                    <Badge>Draft</Badge>
+                <div className="flex flex-col items-start gap-3">
+                    <div className="flex items-center gap-2">
+                        <IconTile>AC</IconTile>
+                        <Button variant="outline">Share</Button>
+                        <Badge>Draft</Badge>
+                    </div>
+                    <div className="flex items-center gap-2 text-label">
+                        <span aria-hidden className="size-1.5 rounded-round bg-success" />
+                        Live
+                        <Switch defaultChecked aria-label="Run on schedule" className="ml-2" />
+                    </div>
                 </div>
             ),
-            caption: "6px on controls and the 24px Mark, 4px on badges.",
+            caption: "Square controls, Marks and badges; a round status dot and a round switch.",
         },
         avoid: {
             example: (
@@ -230,9 +237,10 @@ export const shapeRules: RuleExample[] = [
                     <span style={{width: 24, height: 24, borderRadius: 999, background: "var(--secondary)", display: "grid", placeItems: "center", fontSize: 11}}>AC</span>
                     <button type="button" style={{borderRadius: 999, border: "1px solid var(--border)", padding: "4px 12px", background: "var(--background)"}}>Share</button>
                     <span style={{borderRadius: 999, background: "var(--secondary)", padding: "2px 8px", fontSize: 11}}>Draft</span>
+                    <span aria-hidden className="ml-2 size-1.5 rounded-xs bg-success" />
                 </div>
             ),
-            caption: "A circle Mark, a pill button and a pill badge.",
+            caption: "A circle Mark, a pill button and a pill badge, next to a square status dot.",
         },
     },
     {

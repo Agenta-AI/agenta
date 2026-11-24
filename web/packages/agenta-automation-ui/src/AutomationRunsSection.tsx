@@ -144,7 +144,7 @@ export const AutomationRunsSection = ({
                     >
                         <span
                             aria-hidden
-                            className={cn("size-2 shrink-0 rounded-xs", runDotClass(newest))}
+                            className={cn("size-2 shrink-0 rounded-round", runDotClass(newest))}
                         />
                         <span className="min-w-0 truncate">
                             {[

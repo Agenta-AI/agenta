@@ -138,7 +138,7 @@ export const spacing: ThemeVariable[] = [
 ]
 
 export const radius: ThemeVariable[] = [
-    {name: "radius-xs", value: "2px", usage: "Status dots, timeline nodes, skeleton bars and thin bars of 4–8px."},
+    {name: "radius-xs", value: "2px", usage: "Timeline nodes, skeleton bars, legend swatches and thin bars of 4–8px."},
     {name: "radius-sm", value: "4px", usage: "Badges, kbd, chips, menu items, checkboxes, 16 and 20px Marks."},
     {name: "radius-md", value: "6px", usage: "Controls, inputs, nav items, 24 and 32px Marks."},
     {
@@ -150,6 +150,11 @@ export const radius: ThemeVariable[] = [
         name: "radius-xl",
         value: "12px",
         usage: "Dialogs and sheets. Inner parts use radius-lg (12 − 4 padding).",
+    },
+    {
+        name: "radius-round",
+        value: "9999px",
+        usage: "Only for things that are round by nature: status dots, typing dots, the switch track and thumb, the radio and its dot, the slider handle.",
     },
 ]
 

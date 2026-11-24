@@ -29,7 +29,7 @@ export const SectionMarksContext = createContext<SectionMarks | null>(null)
 
 const Mark = ({label}: {label: string}) => (
     <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-meta font-normal text-info">
-        <span aria-hidden className="size-2 rounded-xs bg-info" />
+        <span aria-hidden className="size-2 rounded-round bg-info" />
         {label}
     </span>
 )

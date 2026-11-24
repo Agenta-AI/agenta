@@ -380,7 +380,7 @@ export const AgentRevisionStatus = ({
                                     {/* Save state as a badge on the icon, so it never trails the
                                         text. */}
                                     <span
-                                        className={`absolute -right-[2px] -top-[2px] size-1.5 rounded-xs ring-1 ring-muted ${dot.tone}`}
+                                        className={`absolute -right-[2px] -top-[2px] size-1.5 rounded-round ring-1 ring-muted ${dot.tone}`}
                                     />
                                 </span>
                             )}

@@ -120,7 +120,7 @@ const Sidebar = () => {
                                 key={session}
                                 className="flex h-7 items-center gap-2.5 overflow-hidden whitespace-nowrap px-2.5 text-label"
                             >
-                                <span className="auth-preview-ring-dot size-1.5 flex-none rounded-sm" />
+                                <span className="auth-preview-ring-dot size-1.5 flex-none rounded-round" />
                                 <span className="truncate">{t(`auth.previewDemo.${session}`)}</span>
                             </div>
                         ))}

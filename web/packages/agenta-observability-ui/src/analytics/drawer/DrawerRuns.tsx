@@ -370,7 +370,7 @@ const RunRow = ({
                 )}
             >
                 <span
-                    className="size-2 rounded-xs"
+                    className="size-2 rounded-round"
                     style={{background: analyticsColor(run.failed ? "dotFailed" : "dotOk")}}
                 />
                 <span className="flex min-w-0 flex-col">

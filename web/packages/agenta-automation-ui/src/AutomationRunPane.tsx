@@ -80,7 +80,7 @@ export const AutomationRunPane = ({
                 ) : null}
                 <span
                     aria-hidden
-                    className={cn("size-2 shrink-0 rounded-xs", runDotClass(delivery))}
+                    className={cn("size-2 shrink-0 rounded-round", runDotClass(delivery))}
                 />
                 {/* One line: the run's name and when it ran are one fact, and stacking them
                     made a two-line header for two short strings. */}

@@ -56,7 +56,7 @@ const SectionLabel = ({children, hint}: {children: string; hint?: string}) => (
 /** The green dot and chevron every openable row on this surface ends with. */
 const RowAffordance = () => (
     <>
-        <span aria-hidden className="size-2 shrink-0 rounded-xs bg-success" />
+        <span aria-hidden className="size-2 shrink-0 rounded-round bg-success" />
         <CaretRight size={14} className="shrink-0 text-muted-foreground" />
     </>
 )

@@ -107,7 +107,7 @@ const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
                     {/* Beside the name and never truncated, so the problem always shows. */}
                     {attention ? (
                         <span className="flex shrink-0 items-center gap-1.5 text-meta font-medium text-warning">
-                            <span aria-hidden className="size-1.5 rounded-xs bg-current" />
+                            <span aria-hidden className="size-1.5 rounded-round bg-current" />
                             {item.statusLabel}
                         </span>
                     ) : null}

@@ -60,7 +60,7 @@ const OpenCheck = ({show}: {show: boolean}) =>
 
 const EditedDot = ({show}: {show: boolean}) =>
     show ? (
-        <span aria-hidden className="size-1.5 shrink-0 rounded-sm bg-primary" />
+        <span aria-hidden className="size-1.5 shrink-0 rounded-round bg-primary" />
     ) : null
 
 export function SkillFileMenu({
