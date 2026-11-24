@@ -13,7 +13,7 @@ import type {ListTableView} from "./types"
  * The switch between a {@link ListTable}'s two views. Icon-only: the rows beside it are already
  * the subject, and "List" / "Cards" in words would be a second label in a toolbar that has one.
  *
- * The control height (32px) with a hairline ring, so it matches the Filter button beside it.
+ * The control height (32px), the same as the search field and the Filter button beside it.
  */
 /** On a phone each option is 44 px wide in a 44 px track, with a 44 px tap area (tap rule). */
 
@@ -48,7 +48,7 @@ export const ListTableViewToggle = ({
             options={options}
             value={value}
             onChange={(next) => onChange(next as ListTableView)}
-            className={cn("shrink-0 shadow-[inset_0_0_0_1px_var(--border)]", className)}
+            className={cn("shrink-0", className)}
         />
     )
 }
