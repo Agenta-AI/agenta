@@ -25,14 +25,49 @@ const badgeVariants = cva(
     },
 )
 
-export interface BadgeProps
-    extends React.HTMLAttributes<HTMLSpanElement>, VariantProps<typeof badgeVariants> {
+/**
+ * The desktop app's antd tag colours, each drawn as one of the five tones. Kept only so
+ * `web/oss` still compiles; new code passes one of the five.
+ */
+const LEGACY_VARIANT = {
+    error: "destructive",
+    processing: "info",
+    draft: "default",
+    outlined: "default",
+    blue: "info",
+    geekblue: "info",
+    cyan: "info",
+    purple: "info",
+    green: "success",
+    lime: "success",
+    orange: "warning",
+    gold: "warning",
+    yellow: "warning",
+    volcano: "warning",
+    red: "destructive",
+    magenta: "destructive",
+    pink: "destructive",
+} as const satisfies Record<string, NonNullable<VariantProps<typeof badgeVariants>["variant"]>>
+
+/** @deprecated The antd colour names; use one of the five tones. */
+export type LegacyBadgeVariant = keyof typeof LEGACY_VARIANT
+
+export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
+    variant?: VariantProps<typeof badgeVariants>["variant"] | LegacyBadgeVariant
     icon?: React.ReactNode
 }
 
 export function Badge({className, variant, icon, children, ...props}: BadgeProps) {
+    const tone =
+        variant && variant in LEGACY_VARIANT
+            ? LEGACY_VARIANT[variant as LegacyBadgeVariant]
+            : (variant as VariantProps<typeof badgeVariants>["variant"])
     return (
-        <span data-slot="badge" className={cn(badgeVariants({variant}), className)} {...props}>
+        <span
+            data-slot="badge"
+            className={cn(badgeVariants({variant: tone}), className)}
+            {...props}
+        >
             {icon}
             {children}
         </span>

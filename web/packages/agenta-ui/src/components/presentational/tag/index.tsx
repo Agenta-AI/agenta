@@ -30,8 +30,6 @@ import {Badge, type BadgeProps} from "../../ui/badge"
 import {type EnvironmentName, type ExecutionStatus, type QueryStatus} from "../status"
 
 type Tone = BadgeProps["variant"]
-/** Tones a caller may pass: the five Badge variants, plus antd's "processing" (shown as info). */
-type TagTone = Tone | "processing"
 type StatusTextKey = CatalogKey<typeof uiStatusCatalog> | CatalogKey<typeof commonCatalog>
 
 /** Testcase sync state (was `SyncStateTag`'s `SyncState`; `Tag` now owns it). */
@@ -90,7 +88,7 @@ function mappingIcon(status: MappingStatus, size: number): ReactNode {
 
 export interface TagProps extends Omit<BadgeProps, "variant" | "icon" | "children"> {
     /** Generic semantic tone (→ a Badge variant). Ignored when a preset prop is set. */
-    tone?: TagTone
+    tone?: Tone
     /** Visible label (overrides a preset's default label). */
     label?: ReactNode
     /** Leading icon. */
@@ -138,7 +136,7 @@ function TagImpl({
 }: TagProps) {
     const t = useT(uiStatusCatalog, commonCatalog)
     const iconSize = size === "small" ? 10 : 12
-    let variant: Tone = tone === "processing" ? "info" : tone
+    let variant = tone
     let content: ReactNode = label ?? children
     let leadingIcon = icon
     let style: CSSProperties | undefined
