@@ -55,7 +55,7 @@ export const FilterMenuTrigger = ({
                             showing everything". What is applied is one click away. */}
                         <span
                             aria-hidden
-                            className="absolute right-1 top-1 size-1.5 rounded-xs bg-primary"
+                            className="absolute right-1 top-1 size-1.5 rounded-round bg-primary"
                         />
                         <span className="sr-only">{t("ui.controls.filtersApplied")}</span>
                     </>

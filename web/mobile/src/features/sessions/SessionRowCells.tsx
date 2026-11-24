@@ -99,7 +99,7 @@ const KindIcon = ({vm}: {vm: SessionRowVm}) => {
                 <span
                     aria-hidden
                     className={cn(
-                        "absolute -right-0.5 -top-0.5 size-1.5 rounded-full ring-2 ring-background",
+                        "absolute -right-0.5 -top-0.5 size-1.5 rounded-round ring-2 ring-background",
                         vm.status.dotClassName,
                         vm.status.pulse && "motion-safe:animate-pulse",
                     )}
