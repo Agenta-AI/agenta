@@ -6,6 +6,8 @@
     "chatsFailed": "Die Chats konnten nicht geladen werden.",
     "retry": "Erneut versuchen",
     "untitledChat": "Chat ohne Titel",
+    "today": "Heute",
+    "yesterday": "Gestern",
     "heroTitle": "Was sollen wir bauen?",
     "heroLine": "Beschreib die Aufgabe in einfachen Worten. Ich baue den Agent, teste ihn mit dir und verbessere ihn.",
     "placeholderNew": "Beschreib die Aufgabe oder wähl unten einen Start",

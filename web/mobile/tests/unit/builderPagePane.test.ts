@@ -17,6 +17,7 @@ import {
     writeBuilderPaneLayout,
 } from "@/features/builder-page/builderLayout"
 import {parseTabParam} from "@/features/builder-page/builderTabs"
+import {chatDayLabel} from "@/features/builder-page/chatDayLabel"
 import {filterIdeas} from "@/features/builder-page/ideas"
 import {agentResults, latestContextAgent} from "@/features/builder-page/paneAgent"
 
@@ -162,5 +163,16 @@ describe("filterIdeas", () => {
         expect(filterIdeas(ideas, "all", "TICKETS")).toEqual([ideas[0]])
         expect(filterIdeas(ideas, "all", "inbox")).toEqual([ideas[0]])
         expect(filterIdeas(ideas, "support", "emails")).toEqual([])
+    })
+})
+
+describe("chatDayLabel", () => {
+    const words = {today: "Today", yesterday: "Yesterday"}
+    const now = new Date(2026, 10, 20, 12, 0)
+    it("says Today, Yesterday, a weekday in the last week, else a date", () => {
+        expect(chatDayLabel(new Date(2026, 10, 20, 8).toISOString(), now, words)).toBe("Today")
+        expect(chatDayLabel(new Date(2026, 10, 19, 23).toISOString(), now, words)).toBe("Yesterday")
+        expect(chatDayLabel(new Date(2026, 10, 16, 9).toISOString(), now, words)).toMatch(/Mon/)
+        expect(chatDayLabel(null, now, words)).toBe("")
     })
 })

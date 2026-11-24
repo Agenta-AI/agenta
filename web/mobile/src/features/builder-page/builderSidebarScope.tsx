@@ -21,6 +21,7 @@ import {RUNNING_TITLE, sessionStatusMark, withStatusMark} from "../nav/sessionSt
 import {useMobileBottomNavItems} from "../nav/useMobileNavItems"
 import {CreditsRemainingWidget} from "../wallet/CreditsRemainingWidget"
 
+import {BuilderChatSearch} from "./BuilderChatSearch"
 import {useBuilderChats} from "./useBuilderChats"
 
 export const builderChatRowKey = (sessionId: string) => `builder-chat-${sessionId}`
@@ -125,6 +126,11 @@ export const createBuilderSidebarScope = (
                             scrollChildren: true,
                             hideChildrenWhenCollapsed: true,
                             onReachEnd: chats.loadMore,
+                            // The search window over every builder chat, on the server.
+                            groupAction: createElement(BuilderChatSearch, {
+                                workspaceId,
+                                projectId,
+                            }),
                             submenu: [...rows, ...states],
                         },
                     ],

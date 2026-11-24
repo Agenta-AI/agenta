@@ -6,6 +6,8 @@
     "chatsFailed": "Impossible de charger les chats.",
     "retry": "Réessayer",
     "untitledChat": "Chat sans titre",
+    "today": "Aujourd’hui",
+    "yesterday": "Hier",
     "heroTitle": "Que construisons-nous ?",
     "heroLine": "Décrivez la tâche avec des mots simples. Je construis l’agent, je le teste avec vous et je l’améliore.",
     "placeholderNew": "Décrivez la tâche ou choisissez un point de départ ci-dessous",

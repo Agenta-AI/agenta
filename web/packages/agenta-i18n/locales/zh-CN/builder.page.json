@@ -6,6 +6,8 @@
     "chatsFailed": "无法加载对话。",
     "retry": "重试",
     "untitledChat": "未命名对话",
+    "today": "今天",
+    "yesterday": "昨天",
     "heroTitle": "我们要构建什么？",
     "heroLine": "用简单的话描述这项工作。我来构建 Agent，和你一起测试并改进它。",
     "placeholderNew": "描述这项工作，或在下方选择一个起点",
