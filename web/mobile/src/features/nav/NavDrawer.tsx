@@ -16,7 +16,6 @@ import {
     SheetTrigger,
     SimpleTooltip,
 } from "@agenta/ui/ui"
-import {EqualsIcon} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -28,6 +27,7 @@ import {
 import {usePageAgentId} from "../agent-sidebar/useAgentSidebarSync"
 import {liveChatOpenAtom} from "../support/crispChat"
 
+import {MenuIcon} from "./MenuIcon"
 import {useRailScope} from "./railScope"
 
 /**
@@ -128,7 +128,7 @@ export const NavDrawer = ({
             aria-label={label}
             className="relative lg:hidden"
         >
-            <EqualsIcon aria-hidden />
+            <MenuIcon aria-hidden className="size-5" />
         </Button>
     )
 
