@@ -46,6 +46,8 @@ export interface ListTableGroup<Row> {
     key: string
     label: string | null
     rows: Row[]
+    /** The number beside the label under `showGroupCount`. `rows.length` by default; set it when rows are paged. */
+    count?: number
 }
 
 /** How the rows are drawn: cells under a column header, or cards in a grid. */
@@ -167,6 +169,8 @@ export interface ListTableBaseProps<Row> {
      * light down chevron the agent pages draw (A02), turned to the right when collapsed.
      */
     groupCaret?: "fill" | "chevron"
+    /** Show each group's row count beside its label. */
+    showGroupCount?: boolean
     /** Extra classes for each list row, merged over its defaults (the Agents list, A03). */
     rowClassName?: string
     /** Extra classes for the column header row, merged over its defaults. */

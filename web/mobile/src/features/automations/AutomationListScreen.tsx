@@ -22,6 +22,7 @@ import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {
     ListTable,
+    ListTableNameCell,
     ListTableToolbar,
     ListTableViewToggle,
     type ListTableColumn,
@@ -43,11 +44,11 @@ import {AutomationKindMark} from "./AutomationKindMark"
 import {AutomationStatusMark} from "./AutomationStatusMark"
 
 /**
- * The four columns, shared by the header row and every body row so the two can never drift.
+ * The columns, shared by the header row and every body row so the two can never drift.
  *
- * Identity takes the largest share; Runs when and Agent get room for their usual text. The last
+ * Identity takes the largest share and carries Runs when as its meta line. The last
  * column is the row's kebab, fixed at the button's own width so the reading columns keep their
- * proportions. The minima plus gaps sum to 572 — the width below
+ * proportions. The minima plus gaps sum to 620 — the width below
  * which the table scrolls sideways rather than crushing five columns into a phone.
  */
 
@@ -56,7 +57,6 @@ type ScreenText = ReturnType<typeof useT<[typeof automationsScreensCatalog]>>
 const wideColumns = (t: ScreenText): ListTableColumn[] => [
     nameColumn(t),
     {key: "status", label: t("automations.screens.columnStatus"), width: "minmax(100px,0.8fr)"},
-    {key: "runsWhen", label: t("automations.screens.columnRunsWhen"), width: "minmax(160px,1.2fr)"},
     lastRunColumn(t),
     {key: "agent", label: t("automations.screens.columnAgent"), width: "minmax(140px,1.2fr)"},
     actionsColumn(t),
@@ -71,7 +71,7 @@ const narrowColumns = (t: ScreenText): ListTableColumn[] => [
 const nameColumn = (t: ScreenText): ListTableColumn => ({
     key: "name",
     label: t("automations.screens.columnAutomation"),
-    width: "minmax(140px,1.4fr)",
+    width: "minmax(200px,2fr)",
 })
 const lastRunColumn = (t: ScreenText): ListTableColumn => ({
     key: "lastRun",
@@ -87,7 +87,7 @@ const actionsColumn = (t: ScreenText): ListTableColumn => ({
 
 /** The sessions table's line, so the two nav entries slim down at the same width. */
 const WIDE_QUERY = "(min-width: 640px)"
-const WIDE_MIN_WIDTH = 680
+const WIDE_MIN_WIDTH = 620
 const NARROW_MIN_WIDTH = 300
 
 /**
@@ -199,6 +199,7 @@ export const AutomationListScreen = ({
                 onOpenRow={(automation) => void router.push(`${base}/automations/${automation.id}`)}
                 collapsedKeys={collapsed}
                 onToggleGroup={toggleGroup}
+                showGroupCount
                 empty={
                     // The project has automations; the search or the filters hid them.
                     <AutomationListNoMatch
@@ -233,26 +234,13 @@ export const AutomationListScreen = ({
 
                     return (
                         <>
-                            <span className="flex min-w-0 items-center gap-3">
-                                <AutomationKindMark kind={automation.kind} size={32} />
-                                <span
-                                    className="truncate text-body font-medium text-foreground"
-                                    title={automation.name}
-                                >
-                                    {automation.name}
-                                </span>
-                            </span>
+                            <ListTableNameCell
+                                mark={<AutomationKindMark kind={automation.kind} size={32} />}
+                                title={automation.name}
+                                meta={runsWhen}
+                            />
 
                             {narrow ? null : <AutomationStatusMark status={status} />}
-
-                            {narrow ? null : (
-                                <span
-                                    className="block truncate text-body-sm text-muted-foreground"
-                                    title={runsWhen}
-                                >
-                                    {runsWhen}
-                                </span>
-                            )}
 
                             <AutomationLastRunCell automation={automation} />
 
@@ -335,19 +323,13 @@ export const AutomationListScreen = ({
                             onSearchChange={setSearch}
                             searchPlaceholder={t("automations.screens.searchPlaceholder")}
                             actions={
-                                <>
-                                    <AutomationFilterMenu
-                                        view={view}
-                                        onChange={setView}
-                                        agents={agents}
-                                    />
-                                    <ListTableViewToggle
-                                        value={view.mode}
-                                        onChange={setMode}
-                                        className="ml-auto"
-                                    />
-                                </>
+                                <AutomationFilterMenu
+                                    view={view}
+                                    onChange={setView}
+                                    agents={agents}
+                                />
                             }
+                            end={<ListTableViewToggle value={view.mode} onChange={setMode} />}
                         />
                         {body}
                     </>

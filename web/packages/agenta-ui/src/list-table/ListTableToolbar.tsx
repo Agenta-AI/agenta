@@ -13,43 +13,46 @@ import {
 import {cn} from "../components/ui/utils"
 
 /**
- * The row above a {@link ListTable}: a search field, then whatever narrows the list.
+ * The row above a {@link ListTable}: search, then filters, then the view switch at the far edge.
  *
- * The field is part of the page rather than a raised control on it, so it drops the input
- * group's own tinted fill, and it sits at the toolbar's 32px rather than a form field's 36 —
- * next to a filter button, a taller field reads as the odd one out.
- *
- * `actions` is a slot, not a filter prop: this row does not know what narrows the list, only
- * that something does. A filter menu, a segmented control, a "New" button all belong there.
+ * Every part is optional, and the row draws nothing when no part is set (LAYOUT-07).
+ * `actions` is a slot: this row does not know what narrows the list, only that something does.
  */
 export const ListTableToolbar = ({
-    search,
+    search = "",
     onSearchChange,
     searchPlaceholder = "Search",
     searchAriaLabel,
     actions,
+    end,
     className,
 }: {
-    search: string
-    onSearchChange: (next: string) => void
+    search?: string
+    /** Absent ⇒ no search field. */
+    onSearchChange?: (next: string) => void
     searchPlaceholder?: string
     searchAriaLabel?: string
+    /** Filters, sort, group: drawn after the search field. */
     actions?: ReactNode
+    /** Drawn at the far edge: the view switch. */
+    end?: ReactNode
     className?: string
 }) => {
     const t = useT(commonCatalog)
+    if (!onSearchChange && !actions && !end) return null
     return (
         // Wraps on a narrow screen, so the actions never squeeze the search to nothing.
         <div className={cn("mb-3 flex flex-wrap items-center gap-2", className)}>
             {/* 46 px high on a phone, so the field inside its 1 px border is 44 px (tap rule); the
                 desktop keeps the control height. */}
+            {onSearchChange ? (
             <InputGroup className="min-w-[160px] max-w-[340px] flex-1 bg-transparent dark:bg-transparent">
                 <InputGroupAddon>
                     <MagnifyingGlassIcon size={14} aria-hidden />
                 </InputGroupAddon>
                 <InputGroupInput
                     value={search}
-                    onChange={(event) => onSearchChange(event.target.value)}
+                    onChange={(event) => onSearchChange?.(event.target.value)}
                     placeholder={searchPlaceholder}
                     aria-label={searchAriaLabel ?? searchPlaceholder}
                     // Fills the group on a phone, so a tap anywhere in it lands on the field.
@@ -60,14 +63,16 @@ export const ListTableToolbar = ({
                         <InputGroupButton
                             size="icon-xs"
                             aria-label={t("common.clearSearch")}
-                            onClick={() => onSearchChange("")}
+                            onClick={() => onSearchChange?.("")}
                         >
                             <XIcon size={14} aria-hidden />
                         </InputGroupButton>
                     </InputGroupAddon>
                 ) : null}
             </InputGroup>
+            ) : null}
             {actions}
+            {end ? <div className="ml-auto flex items-center gap-2">{end}</div> : null}
         </div>
     )
 }

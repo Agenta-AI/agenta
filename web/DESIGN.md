@@ -59,6 +59,12 @@ One word for one thing. Use these words in code, comments, docs and reviews.
 
 One row shape: a Mark, a title, an optional meta line, an optional status badge, and up to two row actions.
 
+A page body is one of three types (LAYOUT-07):
+
+- **List**: a toolbar (search, filters, the view switch), then groups with a label and a count, then rows. Every part is optional: a page shows only the parts it needs. `ListTableToolbar` and `ListTable` draw it; `ListTableNameCell` draws the Mark, the title and the meta line.
+- **Form**: sections at `content-sm`, each with a heading, a description and its fields.
+- **Detail**: sections at `content-md`.
+
 ### Form and settings
 
 - `Field` around every control: the label above (forms) or on the left (settings rows), the error below.

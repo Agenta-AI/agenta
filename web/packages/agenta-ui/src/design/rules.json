@@ -661,6 +661,16 @@
                     "checkedBy": [
                         "review"
                     ]
+                },
+                {
+                    "id": "LAYOUT-07",
+                    "rule": "A page body is a list, a form or a detail",
+                    "why": "When each page builds its own body, the toolbar, the groups and the rows move between pages.",
+                    "avoid": "A page that draws its own search row, group heading or row frame; a part shown with nothing in it",
+                    "do": "A list: `ListTableToolbar` and `ListTable` (search, filters, view switch, groups, counts and columns are each optional; `ListTableNameCell` for the Mark, title and meta line). A form: sections at `content-sm`. A detail: sections at `content-md`",
+                    "checkedBy": [
+                        "review"
+                    ]
                 }
             ]
         },

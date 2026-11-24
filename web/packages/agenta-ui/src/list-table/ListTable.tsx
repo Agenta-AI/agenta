@@ -94,6 +94,7 @@ export const ListTable = <Row,>({
     hideHeader: hideHeaderProp = false,
     density = "default",
     groupCaret = "fill",
+    showGroupCount = false,
     rowClassName,
     headerClassName,
     selection,
@@ -321,6 +322,11 @@ export const ListTable = <Row,>({
                     groups.map((group, groupIndex) => {
                         const collapsed = collapsedKeys?.has(group.key) ?? false
                         const actions = groupActions?.(group)
+                        const count = showGroupCount ? (
+                            <span className="shrink-0 tabular-nums text-muted-foreground">
+                                {group.count ?? group.rows.length}
+                            </span>
+                        ) : null
                         const rows = collapsed ? [] : group.rows
                         return (
                             // A box per group, not a Fragment: `sticky` is bounded by the
@@ -374,6 +380,7 @@ export const ListTable = <Row,>({
                                                     long repository truncates so the group's
                                                     action keeps its place on the right. */}
                                                 <span className="truncate">{group.label}</span>
+                                                {count}
                                                 {groupCaret === "chevron" ? (
                                                     <CaretDownIcon
                                                         aria-hidden
@@ -388,8 +395,9 @@ export const ListTable = <Row,>({
                                                 )}
                                             </button>
                                         ) : (
-                                            <p className="m-0 min-w-0 truncate text-label text-muted-foreground">
-                                                {group.label}
+                                            <p className="m-0 flex min-w-0 items-center gap-1.5 text-label text-muted-foreground">
+                                                <span className="truncate">{group.label}</span>
+                                                {count}
                                             </p>
                                         )}
                                         {actions ? (
