@@ -4,6 +4,16 @@ import type {ReactNode} from "react"
  * One column of the frame. The label is the consumer's — this package never learns what an
  * automation or a session is, only that a list has columns of some width in some order.
  */
+/** Column widths for a list: the first column takes three shares, the others one each. */
+export const LIST_COLUMN_WIDTH = {
+    /** The first column: the Mark, the title and the meta line. */
+    primary: "minmax(160px,3fr)",
+    /** A text column: a status, an owner, an agent. */
+    secondary: "minmax(96px,1fr)",
+    /** The row menu. */
+    actions: "24px",
+} as const
+
 export interface ListTableColumn {
     key: string
     /** Header text. Set `srOnly` when the column carries controls rather than a heading. */
@@ -153,7 +163,7 @@ export interface ListTableBaseProps<Row> {
      */
     flushFirstRows?: boolean
     /**
-     * Keep the column names for screen readers only. For a list whose surroundings already say
+     * Keep the column names for screen readers only. True by default: show them with `false`. For a list whose surroundings already say
      * what the rows are — a tab named "Sessions" over a single-column list — where a header row
      * only repeats the tab. Ignored with `selection`, whose controls live in the header row.
      */

@@ -7,7 +7,12 @@ import {useSessionFilterAtoms, useSessionPins, useSessionsList} from "@agenta/se
 import {SessionListLoadMore, type SessionMenuEntry} from "@agenta/sessions-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {ListTable, type ListTableColumn, type ListTableGroup} from "@agenta/ui/list-table"
+import {
+    LIST_COLUMN_WIDTH,
+    ListTable,
+    type ListTableColumn,
+    type ListTableGroup,
+} from "@agenta/ui/list-table"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {PlusIcon} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -35,7 +40,7 @@ const SESSION_COLUMN: ListTableColumn = {
     get label() {
         return tNow("sessions.mobileList.columnSession")
     },
-    width: "minmax(160px,2fr)",
+    width: LIST_COLUMN_WIDTH.primary,
 }
 /**
  * Right-aligned, so the timestamp sits against the kebab at the row's end rather than floating in

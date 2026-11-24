@@ -45,5 +45,6 @@
     "leaveMessage": "This automation has changes you haven't saved. Leaving discards them.",
     "noLongerExists": "This automation no longer exists.",
     "cancel": "Cancel",
-    "createAutomation": "Create automation"
+    "createAutomation": "Create automation",
+    "pageDescription": "Agents that run on a schedule or when something happens in a connected app."
 }

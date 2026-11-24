@@ -40,5 +40,6 @@
     "untitledAgent": "未命名 Agent",
     "viewArchived": "查看已归档的 Agent",
     "waitingBadge": "{{n}} 个等待中",
-    "waitingOnYou": "{{n}} 个等待你处理"
+    "waitingOnYou": "{{n}} 个等待你处理",
+    "pageDescription": "你创建并与之对话的 Agent。每个 Agent 都有自己的指令、工具和 Skill。"
 }

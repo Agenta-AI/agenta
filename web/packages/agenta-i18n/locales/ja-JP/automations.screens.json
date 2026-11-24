@@ -45,5 +45,6 @@
     "leaveMessage": "この自動化には保存されていない変更があります。移動すると変更は破棄されます。",
     "noLongerExists": "この自動化はもう存在しません。",
     "cancel": "キャンセル",
-    "createAutomation": "自動化を作成"
+    "createAutomation": "自動化を作成",
+    "pageDescription": "スケジュールに沿って、または接続したアプリで何かが起きたときに実行されるエージェントです。"
 }

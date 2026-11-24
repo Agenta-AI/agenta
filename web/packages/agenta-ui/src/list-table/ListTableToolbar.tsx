@@ -46,30 +46,30 @@ export const ListTableToolbar = ({
             {/* 46 px high on a phone, so the field inside its 1 px border is 44 px (tap rule); the
                 desktop keeps the control height. */}
             {onSearchChange ? (
-            <InputGroup className="min-w-[160px] max-w-[340px] flex-1 bg-transparent dark:bg-transparent">
-                <InputGroupAddon>
-                    <MagnifyingGlassIcon size={14} aria-hidden />
-                </InputGroupAddon>
-                <InputGroupInput
-                    value={search}
-                    onChange={(event) => onSearchChange?.(event.target.value)}
-                    placeholder={searchPlaceholder}
-                    aria-label={searchAriaLabel ?? searchPlaceholder}
-                    // Fills the group on a phone, so a tap anywhere in it lands on the field.
-                    className="text-body"
-                />
-                {search ? (
-                    <InputGroupAddon align="inline-end">
-                        <InputGroupButton
-                            size="icon-xs"
-                            aria-label={t("common.clearSearch")}
-                            onClick={() => onSearchChange?.("")}
-                        >
-                            <XIcon size={14} aria-hidden />
-                        </InputGroupButton>
+                <InputGroup className="min-w-[160px] max-w-[340px] flex-1 bg-transparent dark:bg-transparent">
+                    <InputGroupAddon>
+                        <MagnifyingGlassIcon size={14} aria-hidden />
                     </InputGroupAddon>
-                ) : null}
-            </InputGroup>
+                    <InputGroupInput
+                        value={search}
+                        onChange={(event) => onSearchChange?.(event.target.value)}
+                        placeholder={searchPlaceholder}
+                        aria-label={searchAriaLabel ?? searchPlaceholder}
+                        // Fills the group on a phone, so a tap anywhere in it lands on the field.
+                        className="text-body"
+                    />
+                    {search ? (
+                        <InputGroupAddon align="inline-end">
+                            <InputGroupButton
+                                size="icon-xs"
+                                aria-label={t("common.clearSearch")}
+                                onClick={() => onSearchChange?.("")}
+                            >
+                                <XIcon size={14} aria-hidden />
+                            </InputGroupButton>
+                        </InputGroupAddon>
+                    ) : null}
+                </InputGroup>
             ) : null}
             {actions}
             {end ? <div className="ml-auto flex items-center gap-2">{end}</div> : null}

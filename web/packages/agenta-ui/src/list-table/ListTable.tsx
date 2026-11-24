@@ -91,7 +91,7 @@ export const ListTable = <Row,>({
     empty,
     stickyHeader = false,
     flushFirstRows = false,
-    hideHeader: hideHeaderProp = false,
+    hideHeader: hideHeaderProp = true,
     density = "default",
     groupCaret = "fill",
     showGroupCount = false,

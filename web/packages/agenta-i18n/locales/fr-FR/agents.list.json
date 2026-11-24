@@ -40,5 +40,6 @@
     "untitledAgent": "Agent sans titre",
     "viewArchived": "Voir les agents archivés",
     "waitingBadge": "{{n}} en attente",
-    "waitingOnYou": "{{n}} en attente de votre réponse"
+    "waitingOnYou": "{{n}} en attente de votre réponse",
+    "pageDescription": "Les agents que vous créez et avec qui vous parlez. Chacun a ses propres instructions, outils et skills."
 }

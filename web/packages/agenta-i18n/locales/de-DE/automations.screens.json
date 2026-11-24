@@ -45,5 +45,6 @@
     "leaveMessage": "Diese Automatisierung hat ungespeicherte Änderungen. Beim Verlassen werden sie verworfen.",
     "noLongerExists": "Diese Automatisierung existiert nicht mehr.",
     "cancel": "Abbrechen",
-    "createAutomation": "Automatisierung erstellen"
+    "createAutomation": "Automatisierung erstellen",
+    "pageDescription": "Agents, die nach Zeitplan laufen oder wenn in einer verbundenen App etwas passiert."
 }

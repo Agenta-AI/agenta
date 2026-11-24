@@ -80,5 +80,6 @@
     "skillsUpdated_other": "{{count}} habilidades atualizadas",
     "updateFailed_one": "Não foi possível atualizar {{count}} habilidade",
     "updateFailed_many": "Não foi possível atualizar {{count}} habilidades",
-    "updateFailed_other": "Não foi possível atualizar {{count}} habilidades"
+    "updateFailed_other": "Não foi possível atualizar {{count}} habilidades",
+    "pageDescription": "Instruções e ferramentas que você pode adicionar a qualquer agente."
 }

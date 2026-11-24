@@ -21,6 +21,7 @@ import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {
+    LIST_COLUMN_WIDTH,
     ListTable,
     ListTableNameCell,
     ListTableToolbar,
@@ -48,7 +49,7 @@ import {AutomationStatusMark} from "./AutomationStatusMark"
  *
  * Identity takes the largest share and carries Runs when as its meta line. The last
  * column is the row's kebab, fixed at the button's own width so the reading columns keep their
- * proportions. The minima plus gaps sum to 620 — the width below
+ * proportions. The minima plus gaps sum to 598 — the width below
  * which the table scrolls sideways rather than crushing five columns into a phone.
  */
 
@@ -56,9 +57,13 @@ type ScreenText = ReturnType<typeof useT<[typeof automationsScreensCatalog]>>
 
 const wideColumns = (t: ScreenText): ListTableColumn[] => [
     nameColumn(t),
-    {key: "status", label: t("automations.screens.columnStatus"), width: "minmax(100px,0.8fr)"},
+    {
+        key: "status",
+        label: t("automations.screens.columnStatus"),
+        width: LIST_COLUMN_WIDTH.secondary,
+    },
     lastRunColumn(t),
-    {key: "agent", label: t("automations.screens.columnAgent"), width: "minmax(140px,1.2fr)"},
+    {key: "agent", label: t("automations.screens.columnAgent"), width: "minmax(160px,1.4fr)"},
     actionsColumn(t),
 ]
 // A phone keeps the name and whether it is doing anything; the kind tile already says schedule
@@ -71,18 +76,18 @@ const narrowColumns = (t: ScreenText): ListTableColumn[] => [
 const nameColumn = (t: ScreenText): ListTableColumn => ({
     key: "name",
     label: t("automations.screens.columnAutomation"),
-    width: "minmax(200px,2fr)",
+    width: LIST_COLUMN_WIDTH.primary,
 })
 const lastRunColumn = (t: ScreenText): ListTableColumn => ({
     key: "lastRun",
     label: t("automations.screens.columnLastRun"),
-    width: "minmax(110px,0.9fr)",
+    width: "minmax(110px,1fr)",
 })
 const actionsColumn = (t: ScreenText): ListTableColumn => ({
     key: "actions",
     label: t("automations.screens.columnActions"),
     srOnly: true,
-    width: "24px",
+    width: LIST_COLUMN_WIDTH.actions,
 })
 
 /** The sessions table's line, so the two nav entries slim down at the same width. */
@@ -292,6 +297,7 @@ export const AutomationListScreen = ({
                 workspaceId={workspaceId}
                 projectId={projectId}
                 title={t("automations.screens.pageTitle")}
+                description={t("automations.screens.pageDescription")}
                 actions={
                     <>
                         {/* Hidden on a phone, where the title needs the width. */}

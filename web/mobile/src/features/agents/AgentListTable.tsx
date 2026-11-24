@@ -4,7 +4,12 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {ListTable, type ListTableColumn, type ListTableView} from "@agenta/ui/list-table"
+import {
+    LIST_COLUMN_WIDTH,
+    ListTable,
+    type ListTableColumn,
+    type ListTableView,
+} from "@agenta/ui/list-table"
 
 import {AgentCardBody} from "./AgentCardBody"
 import type {AgentListGroup, AgentListRow} from "./agentListView"
@@ -30,12 +35,12 @@ const columnsFor = (narrow: boolean, t: Translate): ListTableColumn[] => {
     const agent: ListTableColumn = {
         key: "agent",
         label: t("agents.list.columnAgent"),
-        width: "minmax(160px,2fr)",
+        width: LIST_COLUMN_WIDTH.primary,
     }
     const owner: ListTableColumn = {
         key: "owner",
         label: t("agents.list.columnOwner"),
-        width: "minmax(96px,1fr)",
+        width: LIST_COLUMN_WIDTH.secondary,
     }
     const lastActive: ListTableColumn = {
         key: "lastActive",

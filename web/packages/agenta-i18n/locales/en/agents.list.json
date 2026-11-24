@@ -40,5 +40,6 @@
     "untitledAgent": "Untitled agent",
     "viewArchived": "View archived agents",
     "waitingBadge": "{{n}} waiting",
-    "waitingOnYou": "{{n}} waiting on you"
+    "waitingOnYou": "{{n}} waiting on you",
+    "pageDescription": "The agents you build and talk to. Each one has its own instructions, tools and skills."
 }

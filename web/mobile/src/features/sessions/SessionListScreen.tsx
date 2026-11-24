@@ -309,6 +309,7 @@ const SessionListBody = ({
                     workspaceId={workspaceId}
                     projectId={projectId}
                     title={t("sessions.mobileList.sessions")}
+                    description={t("sessions.mobileList.pageDescription")}
                     actions={
                         <>
                             {projectEmpty ? null : (

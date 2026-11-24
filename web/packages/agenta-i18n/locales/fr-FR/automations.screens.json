@@ -45,5 +45,6 @@
     "leaveMessage": "Cette automatisation comporte des modifications non enregistrées. Si vous quittez, elles seront perdues.",
     "noLongerExists": "Cette automatisation n’existe plus.",
     "cancel": "Annuler",
-    "createAutomation": "Créer l’automatisation"
+    "createAutomation": "Créer l’automatisation",
+    "pageDescription": "Des agents qui s'exécutent selon un planning ou quand quelque chose se passe dans une app connectée."
 }

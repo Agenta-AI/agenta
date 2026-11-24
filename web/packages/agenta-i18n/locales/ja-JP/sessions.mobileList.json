@@ -47,5 +47,6 @@
     "untitledSession": "無題のセッション",
     "waiting": "待機中",
     "waitingCount": "待機中 {{count}}",
-    "yesterday": "昨日"
+    "yesterday": "昨日",
+    "pageDescription": "エージェントとの会話です。開くと、中断したところから続けられます。"
 }

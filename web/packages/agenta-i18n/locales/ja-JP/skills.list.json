@@ -70,5 +70,6 @@
     "updatesAvailable_other": "{{count}} 件の更新があります",
     "allUpToDate": "すべて最新の状態です",
     "skillsUpdated_other": "{{count}} 個のスキルを更新しました",
-    "updateFailed_other": "{{count}} 個のスキルを更新できませんでした"
+    "updateFailed_other": "{{count}} 個のスキルを更新できませんでした",
+    "pageDescription": "どのエージェントにも追加できる指示とツールです。"
 }

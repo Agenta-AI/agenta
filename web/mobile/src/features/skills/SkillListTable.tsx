@@ -4,7 +4,12 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {ListTable, type ListTableColumn, type ListTableView} from "@agenta/ui/list-table"
+import {
+    LIST_COLUMN_WIDTH,
+    ListTable,
+    type ListTableColumn,
+    type ListTableView,
+} from "@agenta/ui/list-table"
 
 import {SkillCardBody} from "./SkillCardBody"
 import type {SkillGrouping, SkillListGroup, SkillListRow} from "./skillListView"
@@ -25,7 +30,7 @@ type ListText = ReturnType<typeof useT<[typeof skillsListCatalog]>>
 const nameColumn = (t: ListText): ListTableColumn => ({
     key: "name",
     label: t("skills.list.columnName"),
-    width: "minmax(160px,2fr)",
+    width: LIST_COLUMN_WIDTH.primary,
 })
 /** Grouped by source, the heading already names it, so the column names the author instead. */
 const provenanceColumn = (t: ListText, group: SkillGrouping): ListTableColumn => ({

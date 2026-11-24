@@ -187,6 +187,7 @@ export const SkillListScreen = ({
                 workspaceId={workspaceId}
                 projectId={projectId}
                 title={t("skills.list.pageTitle")}
+                description={t("skills.list.pageDescription")}
                 actions={
                     <>
                         {projectEmpty ? null : (

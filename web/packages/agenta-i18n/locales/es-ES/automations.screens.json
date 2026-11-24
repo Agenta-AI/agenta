@@ -45,5 +45,6 @@
     "leaveMessage": "Esta automatización tiene cambios sin guardar. Si sales, se descartarán.",
     "noLongerExists": "Esta automatización ya no existe.",
     "cancel": "Cancelar",
-    "createAutomation": "Crear automatización"
+    "createAutomation": "Crear automatización",
+    "pageDescription": "Agentes que se ejecutan según una programación o cuando ocurre algo en una app conectada."
 }

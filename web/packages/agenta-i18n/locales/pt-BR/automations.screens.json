@@ -45,5 +45,6 @@
     "leaveMessage": "Esta automação tem alterações não salvas. Se você sair, elas serão descartadas.",
     "noLongerExists": "Esta automação não existe mais.",
     "cancel": "Cancelar",
-    "createAutomation": "Criar automação"
+    "createAutomation": "Criar automação",
+    "pageDescription": "Agentes que rodam em um horário definido ou quando algo acontece em um app conectado."
 }

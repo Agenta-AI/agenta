@@ -175,6 +175,7 @@ export const AgentListScreen = ({
                 workspaceId={workspaceId}
                 projectId={projectId}
                 title={t("agents.list.pageTitle")}
+                description={t("agents.list.pageDescription")}
                 actions={
                     <>
                         {projectEmpty ? null : (
