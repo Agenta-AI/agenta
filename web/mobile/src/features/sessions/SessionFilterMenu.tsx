@@ -284,6 +284,7 @@ export const SessionFilterMenu = ({
     }, [
         agentId,
         agents,
+        defaultView.activity,
         archivedOnly,
         lockedAgent,
         mode,

@@ -9,7 +9,6 @@ import type {AppProps} from "next/app"
 import Head from "next/head"
 
 import {AppFonts} from "@/features/app/AppFonts"
-import {useIsIos} from "@/lib/useIsIos"
 import {AppProviders} from "@/features/app/AppProviders"
 import {BareProviders} from "@/features/app/BareProviders"
 import {GlobalDrawers} from "@/features/app/GlobalDrawers"
@@ -17,6 +16,7 @@ import {TabRunFavicon} from "@/features/app/TabRunFavicon"
 import {DriveMarkdownRenderer} from "@/features/chat/DriveMarkdownRenderer"
 import {isEmbedPath} from "@/features/embed/embedRoute"
 import {MaintenanceNoticeBar} from "@/features/maintenance/MaintenanceNoticeBar"
+import {useIsIos} from "@/lib/useIsIos"
 
 // Side effect: binds projectIdAtom from the URL before React renders. See the module.
 import "@/lib/seedProjectContext"

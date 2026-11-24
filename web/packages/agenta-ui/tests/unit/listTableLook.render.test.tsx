@@ -34,6 +34,8 @@ const renderTable = (props: Partial<React.ComponentProps<typeof ListTable<Row>>>
             renderRow={(row) => <span>{row.name}</span>}
             onToggleGroup={() => undefined}
             onOpenRow={() => undefined}
+            // These cases check the header's look, so they show it (it is hidden by default).
+            hideHeader={false}
             {...props}
         />,
     )
@@ -42,6 +44,11 @@ const rowOf = (name: string) => screen.getByText(name).closest("[role='button']"
 const headerRow = () => screen.getByRole("columnheader").parentElement as HTMLElement
 
 describe("ListTable look options", () => {
+    it("keeps the column names for screen readers only by default", () => {
+        renderTable({hideHeader: undefined})
+        expect(headerRow().className).toContain("sr-only")
+    })
+
     it("keeps the default rendering when no option is passed", () => {
         renderTable()
         const row = rowOf("First")

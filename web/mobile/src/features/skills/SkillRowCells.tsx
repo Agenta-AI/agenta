@@ -3,7 +3,6 @@ import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {SkillMark} from "@agenta/ui/agent-icon"
 
 import {SkillActionsMenu} from "./SkillActionsMenu"
-import {SkillUsedByCell} from "./SkillUsedByCell"
 import {SkillArchivedTag} from "./SkillArchivedTag"
 import {
     lastUpdatedLabel,
@@ -13,6 +12,7 @@ import {
     type SkillListRow,
 } from "./skillListView"
 import {SkillUpdateCell} from "./SkillUpdateCell"
+import {SkillUsedByCell} from "./SkillUsedByCell"
 
 /**
  * One skill's cells, in column order.

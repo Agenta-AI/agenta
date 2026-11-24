@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import phoneCatalog from "@agenta/i18n/catalogs/ui.phone"
 import {BackLink} from "@agenta/ui/ui"
 import Link from "next/link"
 
@@ -16,15 +18,19 @@ export const PageBackControl = ({
     back: PageBack
     size?: "default" | "bar"
     className?: string
-}) =>
-    back.onBack ? (
-        <BackLink size={size} className={className} onClick={back.onBack}>
+}) => {
+    const t = useT(phoneCatalog)
+    // The visible text names the parent; the accessible name says it goes back there.
+    const name = t("ui.phone.backTo", {title: back.label})
+    return back.onBack ? (
+        <BackLink size={size} className={className} onClick={back.onBack} aria-label={name}>
             <span className="truncate">{back.label}</span>
         </BackLink>
     ) : (
         <BackLink asChild size={size} className={className}>
-            <Link href={back.href}>
+            <Link href={back.href} aria-label={name}>
                 <span className="truncate">{back.label}</span>
             </Link>
         </BackLink>
     )
+}
