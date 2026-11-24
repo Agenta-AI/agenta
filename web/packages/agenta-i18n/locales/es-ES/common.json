@@ -81,7 +81,5 @@
     "working": "Trabajando…",
     "yourRole": "Tu rol",
     "dialog": "Diálogo",
-    "resizePane": "Cambiar el tamaño del panel",
-    "viewArchived": "Ver archivados",
-    "backToActive": "Volver a activos"
+    "resizePane": "Cambiar el tamaño del panel"
 }

@@ -1,5 +1,4 @@
 export {ListTable} from "./ListTable"
-export {ListTableArchiveLink} from "./ListTableArchiveLink"
 export {ListTableColumnsMenu} from "./ListTableColumnsMenu"
 export {ListTableExportButton} from "./ListTableExportButton"
 export {ListTableLoadMore} from "./ListTableLoadMore"

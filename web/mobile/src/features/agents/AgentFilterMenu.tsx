@@ -3,7 +3,16 @@ import {useMemo} from "react"
 import {useT} from "@agenta/i18n"
 import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {FilterMenu, type FilterMenuItem} from "@agenta/ui/filter-menu"
-import {Clock, Minus, Rows, SquaresFour, User, Users, Waveform} from "@phosphor-icons/react"
+import {
+    Archive,
+    Clock,
+    Minus,
+    Rows,
+    SquaresFour,
+    User,
+    Users,
+    Waveform,
+} from "@phosphor-icons/react"
 
 import {
     ALL_OWNERS,
@@ -12,6 +21,7 @@ import {
     type AgentGrouping,
     type AgentListView,
     type AgentStatusFilter,
+    type AgentTypeFilter,
 } from "./agentListView"
 import type {AgentOwner} from "./useAgentOwners"
 
@@ -26,7 +36,8 @@ const StatusDot = ({className}: {className: string}) => (
  * The agents roster's single view control: which roster is on screen and who made it, then how
  * the rows are cut.
  *
- * Archived is not here: the toolbar's Active/Archived segment picks the set.
+ * Archived is a switch, the way the sessions menu's is: on, it shows the agents that were put away
+ * INSTEAD of the ones in use, never alongside them, so the page always answers a single question.
  *
  * Status is the ONE state an agent has here: Waiting when a session of its own is blocked on a
  * person, Idle otherwise. No Running — nothing this client reads says an agent is mid-turn, and a
@@ -96,6 +107,15 @@ export const AgentFilterMenu = ({
                 onChange: (value) => onChange({...view, status: value as AgentStatusFilter}),
             },
             {
+                kind: "toggle",
+                key: "archived",
+                label: t("agents.list.filterOnlyArchived"),
+                icon: <Archive size={ICON} />,
+                checked: view.type === "archived",
+                onChange: (checked) =>
+                    onChange({...view, type: (checked ? "archived" : "active") as AgentTypeFilter}),
+            },
+            {
                 key: "group",
                 label: t("agents.list.filterGroupBy"),
                 icon: <Rows size={ICON} />,
@@ -134,11 +154,11 @@ export const AgentFilterMenu = ({
             sections={sections}
             align="start"
             size="default"
-            active={!isDefaultAgentListView({...view, type: DEFAULT_AGENT_LIST_VIEW.type})}
+            active={!isDefaultAgentListView(view)}
             // The mode survives a reset: it is how the reader chose to read the list, not what
             // they narrowed it to.
-            onReset={() => onChange({...DEFAULT_AGENT_LIST_VIEW, mode: view.mode, type: view.type})}
-            resetDisabled={isDefaultAgentListView({...view, type: DEFAULT_AGENT_LIST_VIEW.type})}
+            onReset={() => onChange({...DEFAULT_AGENT_LIST_VIEW, mode: view.mode})}
+            resetDisabled={isDefaultAgentListView(view)}
         />
     )
 }

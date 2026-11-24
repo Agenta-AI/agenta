@@ -11,7 +11,7 @@ import {useWaitingByAgent} from "@agenta/sessions/state"
 import {userAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
-import {ListTableArchiveLink, ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
+import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
@@ -213,22 +213,21 @@ export const AgentListScreen = ({
                             onSearchChange={setSearch}
                             searchPlaceholder={t("agents.list.searchPlaceholder")}
                             actions={
-                                <AgentFilterMenu view={view} onChange={setView} owners={owners} />
+                                <>
+                                    <AgentFilterMenu
+                                        view={view}
+                                        onChange={setView}
+                                        owners={owners}
+                                    />
+                                    <ListTableViewToggle
+                                        value={view.mode}
+                                        onChange={setMode}
+                                        className="ml-auto"
+                                    />
+                                </>
                             }
-                            end={<ListTableViewToggle value={view.mode} onChange={setMode} />}
                         />
                         {body}
-                        {isLoading ? null : (
-                            <ListTableArchiveLink
-                                archived={view.type === "archived"}
-                                onChange={(archived) =>
-                                    setView({
-                                        ...view,
-                                        type: archived ? "archived" : "active",
-                                    })
-                                }
-                            />
-                        )}
                     </>
                 )}
             </PageLayout>

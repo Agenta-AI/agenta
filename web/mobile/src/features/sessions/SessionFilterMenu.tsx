@@ -12,6 +12,7 @@ import {
     ChatCircle,
     Clock,
     ClockCounterClockwise,
+    Folder,
     Lightning,
     ListBullets,
     Minus,
@@ -42,8 +43,8 @@ const StatusDot = ({className}: {className: string}) => (
  * the other.
  *
  * Type names the ONE set on screen — Chat or Automation — the way the sidebar's Type facet does.
- * Archived is the toolbar's Active/Archived segment: it shows the archived sessions INSTEAD of the
- * live ones, so the page always answers a single question.
+ * Archived is a switch rather than a third type: it is a lens over either set, and on it shows the
+ * archived sessions INSTEAD of the live ones, so the page always answers a single question.
  *
  * No sort row: the server orders sessions by recency everywhere in this app, and a client-side
  * sort would only re-order the pages that happen to have loaded.
@@ -82,10 +83,12 @@ export const SessionFilterMenu = ({
         agentId,
         status,
         mode,
+        archivedOnly,
         showChildSessions,
         setAgentId,
         setStatus,
         setMode,
+        setArchivedOnly,
         setShowChildSessions,
     } = useSessionFilters()
 
@@ -216,6 +219,14 @@ export const SessionFilterMenu = ({
                 ],
                 onChange: (value) => onChange({...view, activity: value as SessionActivityWindow}),
             },
+            {
+                kind: "toggle",
+                key: "archived",
+                label: t("sessions.mobileList.onlyArchived"),
+                icon: <Folder size={ICON} />,
+                checked: archivedOnly,
+                onChange: setArchivedOnly,
+            },
             // Sessions that an agent in another session created. Hidden by default and added to
             // the chat list when on; the automations list is a different set, so it has no switch.
             ...(mode
@@ -269,10 +280,12 @@ export const SessionFilterMenu = ({
     }, [
         agentId,
         agents,
+        archivedOnly,
         lockedAgent,
         mode,
         onChange,
         setAgentId,
+        setArchivedOnly,
         setMode,
         setShowChildSessions,
         setStatus,
@@ -289,6 +302,7 @@ export const SessionFilterMenu = ({
         Boolean(agentId) ||
         status !== "all" ||
         Boolean(mode) ||
+        archivedOnly ||
         (showChildSessions && !mode) ||
         !isDefaultSessionListView(view, defaultView)
 
