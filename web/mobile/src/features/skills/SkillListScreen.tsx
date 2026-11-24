@@ -1,8 +1,10 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {useDebounceInput} from "@agenta/shared/hooks"
+import {userAtom} from "@agenta/shared/state"
 import {
     invalidateSkillsListCache,
     skillsListDataAtom,
@@ -63,7 +65,8 @@ export const SkillListScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
-    const t = useT(skillsListCatalog)
+    const t = useT(skillsListCatalog, commonCatalog)
+    const me = useAtomValue(userAtom)
     const base = `/w/${workspaceId}/p/${projectId}`
     const query = useAtomValue(skillsListQueryAtom)
     const projectSkills = useAtomValue(skillsListDataAtom)
@@ -92,15 +95,19 @@ export const SkillListScreen = ({
     // The registry query already took the search, so every row here matches it. The shared
     // sections do the item mapping — provenance, age, origin — so a row and the desktop's card
     // describe a skill the same way; this screen only re-cuts them.
+    const youLabel = t("common.you")
     const rows = useMemo<SkillListRow[]>(() => {
         // The sections drop the raw item, and the author id lives only there.
         const creators = new Map(
             projectSkills.map((item) => [item.workflow_id ?? item.id ?? "", item.created_by_id]),
         )
+        // The reader's own skills say "You", as every owner and creator column in the app does.
+        const creatorName = (id: string) =>
+            me?.id && id === String(me.id) ? youLabel : (ownerNames.get(id) ?? "")
         return buildRegistrySections(projectSkills)
             .sections.flatMap((section) => section.skills)
-            .map((item) => toSkillListRow(item, ownerNames.get(creators.get(item.id) ?? "")))
-    }, [ownerNames, projectSkills])
+            .map((item) => toSkillListRow(item, creatorName(creators.get(item.id) ?? "")))
+    }, [me?.id, ownerNames, projectSkills, youLabel])
     const repositories = useMemo(() => listRepositories(rows), [rows])
     // The group headings are text, so the groups are cut again when the language changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
