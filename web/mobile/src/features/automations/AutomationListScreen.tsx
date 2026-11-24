@@ -70,7 +70,8 @@ const wideColumns = (t: ScreenText): ListTableColumn[] => [
 // or event, and status, cadence and agent wait on the detail screen.
 const narrowColumns = (t: ScreenText): ListTableColumn[] => [
     nameColumn(t),
-    lastRunColumn(t),
+    // "2d ago" fits; the run count under it truncates, so the name keeps the width.
+    lastRunColumn(t, "76px"),
     actionsColumn(t),
 ]
 const nameColumn = (t: ScreenText): ListTableColumn => ({
@@ -78,10 +79,10 @@ const nameColumn = (t: ScreenText): ListTableColumn => ({
     label: t("automations.screens.columnAutomation"),
     width: LIST_COLUMN_WIDTH.primary,
 })
-const lastRunColumn = (t: ScreenText): ListTableColumn => ({
+const lastRunColumn = (t: ScreenText, width = "128px"): ListTableColumn => ({
     key: "lastRun",
     label: t("automations.screens.columnLastRun"),
-    width: "minmax(96px,128px)",
+    width,
 })
 const actionsColumn = (t: ScreenText): ListTableColumn => ({
     key: "actions",
