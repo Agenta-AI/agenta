@@ -49,9 +49,12 @@ const STICKY = {height: "h-9", groupTop: "top-9"} as const
 /** With no visible header, a stuck group heading sits at the scroller's own top. */
 const groupTop = (hideHeader: boolean) => (hideHeader ? "top-0" : STICKY.groupTop)
 
-/** The card's box, shared by a tile and its skeleton: a soft fill, no border. */
+/**
+ * The card's box, shared by a tile and its skeleton: a soft fill, no border. A grey Mark takes the
+ * page colour so it stands out from the fill; a Mark with its own colour (inline style) keeps it.
+ */
 const CARD_CHROME =
-    "box-border flex min-w-0 flex-col gap-2 rounded-lg border-0 bg-muted p-4 text-left text-foreground"
+    "box-border flex min-w-0 flex-col gap-2 rounded-lg border-0 bg-muted p-4 text-left text-foreground [&_[data-slot=icon-tile][data-tone=neutral]:not([style])]:bg-background"
 
 /**
  * The list frame every table-shaped screen in this app shares: a header row, optional group
