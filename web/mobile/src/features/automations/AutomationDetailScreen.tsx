@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
+    AutomationBackLink,
     AutomationDetailBody,
     AutomationDetailSkeleton,
     AutomationRunHistoryView,
@@ -23,7 +24,6 @@ import {useConfirmModal} from "../settings/useConfirmModal"
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
 import {AutomationRunConversation} from "./AutomationRunConversation"
 import {AutomationRunNowButton} from "./AutomationRunNowButton"
-import {AutomationRunHistoryCrumb} from "./AutomationRunHistoryCrumb"
 import {AutomationScreenHeader} from "./AutomationScreenHeader"
 import {useUnsavedGuard} from "./useUnsavedGuard"
 
@@ -152,12 +152,11 @@ export const AutomationDetailScreen = ({
                             header={
                                 // The view's own 30px grid, so the arrow lines up with
                                 // "Run history" below it.
-                                <div className="w-full shrink-0 pt-6 lg:pb-2 lg:pl-[30px] lg:pr-5 lg:pt-5">
+                                <div className="w-full shrink-0 pt-6 lg:pb-2 lg:pl-[30px] lg:pr-5 lg:pt-8">
                                     <div className="max-lg:hidden">
-                                        <AutomationRunHistoryCrumb
-                                            listHref={listHref}
-                                            name={automationName}
-                                            onAutomation={closeRuns}
+                                        <AutomationBackLink
+                                            label={automationName}
+                                            onBack={closeRuns}
                                         />
                                     </div>
                                 </div>
