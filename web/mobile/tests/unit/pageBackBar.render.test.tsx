@@ -10,6 +10,8 @@ vi.mock("next/link", () => ({
     default: ({href, children, ...rest}: {href: string; children: unknown}) =>
         createElement("a", {href, ...rest}, children as never),
 }))
+;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
+    true
 
 let host: HTMLDivElement
 let root: Root

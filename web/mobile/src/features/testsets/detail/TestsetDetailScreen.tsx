@@ -1,9 +1,9 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {useT} from "@agenta/i18n"
-import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {testcaseDataController, type TestcaseTableRow} from "@agenta/entities/testcase"
 import {useTestcaseDrawerNavigation} from "@agenta/entity-ui/testcase"
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useQueryClient} from "@tanstack/react-query"
