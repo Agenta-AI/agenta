@@ -32,10 +32,10 @@ export const AgentRowCells = ({
 
     return (
         <>
-            <span className="flex min-w-0 items-center gap-2">
+            <span className="flex min-w-0 items-center gap-3">
                 {/* The agent's own mark, not a generic robot — a column of identical icons
                     identifies nothing. */}
-                <AgentChip workflowId={row.id} />
+                <AgentChip workflowId={row.id} box="size-8" />
                 {/* Tight leading and a hairline gap: the frame's own row padding is fixed and
                     shared, so the two lines are where a roster row can give height back. */}
                 <span className="flex min-w-0 flex-1 flex-col gap-px">

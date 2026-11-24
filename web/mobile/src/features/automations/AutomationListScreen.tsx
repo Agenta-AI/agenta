@@ -238,8 +238,8 @@ export const AutomationListScreen = ({
 
                     return (
                         <>
-                            <span className="flex min-w-0 items-center gap-2">
-                                <AutomationKindMark kind={automation.kind} />
+                            <span className="flex min-w-0 items-center gap-3">
+                                <AutomationKindMark kind={automation.kind} size={32} />
                                 <span
                                     className="truncate text-label text-foreground"
                                     title={automation.name}

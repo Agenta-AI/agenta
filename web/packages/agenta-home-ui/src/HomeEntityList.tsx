@@ -220,8 +220,8 @@ export const HomeEntityList = ({
                         <Row
                             key={agent.id}
                             tile={
-                                // A 24px Mark in a list row.
-                                <AgentChip workflowId={agent.id} box="size-6" glyph={16} />
+                                // A 32px Mark in a two-line row.
+                                <AgentChip workflowId={agent.id} box="size-8" glyph={16} />
                             }
                             name={agent.name}
                             description={agent.description}
@@ -237,8 +237,8 @@ export const HomeEntityList = ({
                             <Row
                                 key={template.key}
                                 tile={
-                                    // A neutral 24px Mark with the monogram (LOUD-01).
-                                    <span className="flex size-6 shrink-0 items-center justify-center rounded-control-sm bg-secondary text-caption font-medium text-muted-foreground">
+                                    // A neutral 32px Mark with the monogram (LOUD-01).
+                                    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-label text-muted-foreground">
                                         {template.initials}
                                     </span>
                                 }
@@ -259,7 +259,7 @@ export const HomeEntityList = ({
                         {/* `Link`, not a bare anchor: mobile is served under a basePath, which Link applies and
                             a raw href does not — this 404'd there. */}
                         <Link href={templatesHref} className={`${ROW} no-underline`}>
-                            <span className="flex size-6 shrink-0 items-center justify-center rounded-control-sm bg-secondary text-muted-foreground">
+                            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
                                 <ListBulletsIcon aria-hidden size={16} />
                             </span>
                             <span className="flex-1 text-label text-foreground">

@@ -36,8 +36,8 @@ export const SkillRowCells = ({
     useT(skillsListCatalog)
     return (
         <>
-            <span className={`flex min-w-0 items-center gap-2 ${row.archived ? "opacity-60" : ""}`}>
-                <SkillMark />
+            <span className={`flex min-w-0 items-center gap-3 ${row.archived ? "opacity-60" : ""}`}>
+                <SkillMark size={32} />
                 {/* Tight leading and a hairline gap: the frame's own row padding is fixed and
                 shared, so the two lines are where a row can give height back. */}
                 <span className="flex min-w-0 flex-1 flex-col gap-px">
