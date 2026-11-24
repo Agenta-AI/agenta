@@ -101,7 +101,8 @@ export const FilterMenu = ({
     const panel = (
         <FilterMenuPanel
             sections={sections}
-            searchable={searchable}
+            // A phone sheet holds a few rows: a search field there is one more thing to tap past.
+            searchable={compact ? false : searchable}
             searchPlaceholder={searchPlaceholder}
             defaultSearch={defaultSearch}
             onReset={onReset}
