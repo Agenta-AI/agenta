@@ -18,7 +18,6 @@ import {
     pageColumn,
     type PageWidth,
 } from "./pageFrame"
-import {PageRightPane, type PagePane} from "./PageRightPane"
 import {useIsExpandedWindow} from "./useIsExpandedWindow"
 
 export interface PageLayoutProps {
@@ -41,8 +40,6 @@ export interface PageLayoutProps {
     actions?: ReactNode
     /** The content cap (LAYOUT-02). Lists `lg` (the default), item pages and Home `md`, forms `sm`. */
     width?: PageWidth
-    /** The right pane (LAYOUT-04). */
-    pane?: PagePane
     /** Replaces the whole pinned top (bar and title), for a page whose top is its own. */
     header?: ReactNode
     /** Replaces the body's gutters and column, for a page whose column is its own. */
@@ -57,7 +54,7 @@ export interface PageLayoutProps {
 
 /**
  * The general page (DESIGN.md, "Layout and windows"): the sidebar, the content column and the right
- * pane, with the same top on every page (LAYOUT-03). A workbench page (the session playground, the
+ * pane (the shell's slot: render `<RightPane>` from `@agenta/ui/ui` anywhere), with the same top on every page (LAYOUT-03). A workbench page (the session playground, the
  * Builder) does not use it: it draws its own bar across the top and takes the full width.
  *
  * Only the body scrolls; the compact bar and the title block stay pinned above it.
@@ -72,7 +69,6 @@ export const PageLayout = ({
     back,
     actions,
     width = "lg",
-    pane,
     header: headerOverride,
     bodyClassName,
     scrollRef,
@@ -119,28 +115,21 @@ export const PageLayout = ({
         <>
             <PageTitle title={documentTitle ?? title} />
             <AppShell workspaceId={workspaceId} projectId={projectId} scope={scope}>
-                <div className="flex h-full min-w-0">
-                    <div className="min-w-0 flex-1">
-                        <ScreenScaffold
-                            header={header}
-                            scrollRef={scrollRef}
-                            onScroll={onScroll}
-                            scrollStyle={scrollStyle}
-                            scrollClassName={scrollClassName}
-                        >
-                            {bodyClassName ? (
-                                <div className={bodyClassName}>{children}</div>
-                            ) : (
-                                <div className={PAGE_GUTTERS}>
-                                    <div className={`${pageColumn(width)} ${PAGE_BODY}`}>
-                                        {children}
-                                    </div>
-                                </div>
-                            )}
-                        </ScreenScaffold>
-                    </div>
-                    {pane ? <PageRightPane pane={pane} docked={expanded} /> : null}
-                </div>
+                <ScreenScaffold
+                    header={header}
+                    scrollRef={scrollRef}
+                    onScroll={onScroll}
+                    scrollStyle={scrollStyle}
+                    scrollClassName={scrollClassName}
+                >
+                    {bodyClassName ? (
+                        <div className={bodyClassName}>{children}</div>
+                    ) : (
+                        <div className={PAGE_GUTTERS}>
+                            <div className={`${pageColumn(width)} ${PAGE_BODY}`}>{children}</div>
+                        </div>
+                    )}
+                </ScreenScaffold>
             </AppShell>
         </>
     )

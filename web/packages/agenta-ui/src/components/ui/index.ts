@@ -4,6 +4,7 @@
  * the antd-based presets. Import via `@agenta/ui/ui`.
  */
 export {BackLink} from "./back-link"
+export {RightPane, RightPaneHost, type RightPaneProps} from "./right-pane"
 export {Badge, badgeVariants, statusBadgeVariant, type BadgeProps, type BadgeVariant} from "./badge"
 export {
     Button,

@@ -2123,7 +2123,8 @@
         "view": "dcc839a4015c",
         "working": "5474eef8d0f1",
         "yourRole": "09bdccc5fb69",
-        "dialog": "69b51517d04b"
+        "dialog": "69b51517d04b",
+        "resizePane": "72761d7ab3df"
     },
     "context.resolver": {
         "noProjects": "26e92309ba5b",

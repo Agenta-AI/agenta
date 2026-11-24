@@ -80,5 +80,6 @@
     "view": "Ver",
     "working": "Trabajando…",
     "yourRole": "Tu rol",
-    "dialog": "Diálogo"
+    "dialog": "Diálogo",
+    "resizePane": "Cambiar el tamaño del panel"
 }
