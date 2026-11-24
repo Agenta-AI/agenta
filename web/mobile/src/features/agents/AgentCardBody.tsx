@@ -11,7 +11,7 @@ import {agentMenuProps, type AgentRowActions} from "./useAgentRowActions"
 /**
  * What an agent's card holds — the frame draws the tile around it.
  *
- * The same facts as the row, stacked: identity on top, three lines of description, and the
+ * The same facts as the row, stacked: identity on top, two lines of description, and the
  * creator and date along the bottom, where a reader scanning cards looks last. The kebab is the
  * same shared menu, and Rename edits in place here too.
  */
@@ -89,7 +89,7 @@ export const AgentCardBody = ({
                     </span>
                 )}
             </span>
-            <span className="line-clamp-3 min-h-[3.75rem] text-label leading-5 text-muted-foreground">
+            <span className="line-clamp-2 min-h-10 text-label leading-5 text-muted-foreground">
                 {row.description || t("agents.list.noDescription")}
             </span>
             {/* Creator on the left, date on the right — the card's two corners, the way the
