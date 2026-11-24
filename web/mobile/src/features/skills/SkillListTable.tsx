@@ -66,8 +66,9 @@ const wideColumns = (t: ListText, group: SkillGrouping): ListTableColumn[] => [
 ]
 const narrowColumns = (t: ListText): ListTableColumn[] => [
     nameColumn(t),
-    updatedColumn(t, "84px"),
-    actionsColumn(t),
+    updatedColumn(t, LIST_COLUMN_WIDTH.timeCompact),
+    // The menu alone: the Update mark waits for the skill's own page on a phone.
+    {...actionsColumn(t), width: LIST_COLUMN_WIDTH.actions},
 ]
 
 /** Tailwind's `sm`. Below it Source and Used by go; the minima then fit a 375px screen. */

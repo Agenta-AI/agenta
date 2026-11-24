@@ -17,6 +17,8 @@ export const LIST_COLUMN_WIDTH = {
     name: "176px",
     /** A time: "6d ago", "Never". */
     time: "88px",
+    /** A time on a phone, right-aligned against the menu. */
+    timeCompact: "56px",
     /** The row menu. */
     actions: "24px",
 } as const

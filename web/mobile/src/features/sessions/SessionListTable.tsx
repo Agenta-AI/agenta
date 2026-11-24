@@ -86,7 +86,11 @@ const WIDE_COLUMNS: ListTableColumn[] = [
     updatedColumn(LIST_COLUMN_WIDTH.time),
     ACTIONS_COLUMN,
 ]
-const NARROW_COLUMNS: ListTableColumn[] = [SESSION_COLUMN, updatedColumn("64px"), ACTIONS_COLUMN]
+const NARROW_COLUMNS: ListTableColumn[] = [
+    SESSION_COLUMN,
+    updatedColumn(LIST_COLUMN_WIDTH.timeCompact),
+    ACTIONS_COLUMN,
+]
 /** The Sessions page of one agent: every row has that agent, so there is no Agent column. */
 const LOCKED_AGENT_WIDE_COLUMNS = WIDE_COLUMNS.filter((column) => column.key !== "agent")
 

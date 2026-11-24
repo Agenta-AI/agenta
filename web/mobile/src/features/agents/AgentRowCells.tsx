@@ -93,7 +93,7 @@ export const AgentRowCells = ({
                 </span>
             )}
 
-            <span className="block truncate text-meta tabular-nums text-muted-foreground">
+            <span className="block truncate text-meta tabular-nums text-muted-foreground max-sm:text-right">
                 {lastActiveLabel(row.updatedAt)}
             </span>
 

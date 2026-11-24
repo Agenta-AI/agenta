@@ -45,7 +45,7 @@ const columnsFor = (narrow: boolean, t: Translate): ListTableColumn[] => {
     const lastActive: ListTableColumn = {
         key: "lastActive",
         label: t("agents.list.columnLastActive"),
-        width: narrow ? "76px" : LIST_COLUMN_WIDTH.time,
+        width: narrow ? LIST_COLUMN_WIDTH.timeCompact : LIST_COLUMN_WIDTH.time,
     }
     const actions: ListTableColumn = {
         key: "actions",

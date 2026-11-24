@@ -135,7 +135,9 @@ export const ListTable = <Row,>({
     const cardGrid = `repeat(auto-fill, minmax(min(100%, ${cardMinWidth}px), 1fr))`
     // One value for the rows AND their skeleton, so loading holds the rhythm the rows arrive in.
     // One row height per list (ROW-01), the same on every screen: a meta line fills the row.
-    const rowPad = density === "compact" ? "min-h-row-single py-1" : "min-h-row-double py-1.5"
+    // A phone row is at least 44px, the tap target (one-line rows are shorter on a pointer).
+    const rowPad =
+        density === "compact" ? "min-h-row-single py-1 max-sm:min-h-11" : "min-h-row-double py-1.5"
     // ROW-04: 4px between one-line rows, 8px between two-line rows.
     const rowGap = density === "compact" ? "mb-1 last:mb-0" : "mb-2 last:mb-0"
     const isEmpty = groups.every((group) => group.rows.length === 0)

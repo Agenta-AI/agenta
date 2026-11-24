@@ -72,7 +72,7 @@ export const SkillRowCells = ({
                 </span>
             )}
 
-            <span className="block truncate text-label text-muted-foreground">
+            <span className="block truncate text-label text-muted-foreground max-sm:text-right">
                 {lastUpdatedLabel(row.age)}
             </span>
 
@@ -83,7 +83,7 @@ export const SkillRowCells = ({
                 onClick={(event) => event.stopPropagation()}
                 onKeyDown={(event) => event.stopPropagation()}
             >
-                <SkillUpdateCell workflowId={row.id} compact />
+                {narrow ? null : <SkillUpdateCell workflowId={row.id} compact />}
                 <SkillActionsMenu row={row} onOpen={onOpen} />
             </span>
         </>
