@@ -1,4 +1,4 @@
-import {colors} from "@/design/theme.config"
+import {colors} from "@agenta/ui/design/theme"
 
 import {SectionTitle} from "./SectionTitle"
 

@@ -27,7 +27,7 @@ the detail this file only summarizes.
   checks can pass while `/m` renders nothing; this has happened before.
 - A PR that changes what a user sees (a screen, a component, a label, a state) shows before
   and after screenshots in its body. The `write-pr-description` skill says how.
-- Theme and design changes: see `mobile/DESIGN.md`, "Working with the system", and the "Styling"
+- Theme and design changes: see `DESIGN.md`, "Working with the system", and the "Styling"
   section below.
 - The Fern-generated `@agentaai/api-client` ships as a compiled `dist/` (entry
   `./dist/index.js`). `pnpm install` runs the package's `prepare` script which builds
@@ -316,7 +316,8 @@ class (evaluators showing "default", SDK-created apps showing "--" or hex slugs)
 When adding or changing UI elements, implement appearance and interaction states for both light and dark themes, and verify both before considering the work complete.
 
 **Theme and design rules.** `web/mobile` (and every package screen rendered at `/m`) takes its
-values from `mobile/src/design/theme.config.ts` and its rules from `mobile/src/design/rules.json`; `mobile/DESIGN.md` has the principles and the layout. Use the
+values from `packages/agenta-ui/src/design/theme.config.ts` and its rules from `rules.json` in the same
+folder; `DESIGN.md` (in `web/`) has the principles and the layout. Use the
 theme variable names (`bg-muted`, `text-label`, `border-border-muted`), never raw hex. Old
 antd-era names (`bg-colorBgContainer`, `var(--ag-color*)`) still resolve through `globals.css`;
 replace them when you touch the code. `oss/src/styles/theme/palette.ts` feeds only legacy

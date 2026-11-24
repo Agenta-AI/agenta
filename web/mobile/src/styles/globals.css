@@ -2,9 +2,9 @@
 @import "tw-animate-css";
 
 /* The design system: theme variables on :root and .dark, and their Tailwind mapping. Both are
-   GENERATED from src/design/theme.config.ts (`pnpm generate:theme`). See web/mobile/DESIGN.md. */
-@import "../design/theme.css";
-@import "../design/theme.tailwind.css";
+   GENERATED from @agenta/ui/src/design/theme.config.ts (`pnpm generate:theme`). See web/DESIGN.md. */
+@import "@agenta/ui/design/theme.css";
+@import "@agenta/ui/design/theme.tailwind.css";
 @import "@agenta/auth-ui/auth.css";
 /* Kept only for the `--ag-*` hue presets and hex shims that have no design-system equivalent
    (tag, type, env and chart hues, `--ag-c-*`, `--ag-rgba-*`, `--ag-zinc-*`). Every `--ag-*` name

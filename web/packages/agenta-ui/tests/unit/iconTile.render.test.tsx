@@ -24,7 +24,7 @@ describe("IconTile (the Mark)", () => {
 
     it("never uses a radius over a quarter of its side", () => {
         const quarter = {16: 4, 20: 5, 24: 6, 32: 8, 40: 10}
-        // The /m radius scale (DESIGN.md Shape): sm 4, md 6, lg 8.
+        // The /m radius scale (radius in theme.config.ts): sm 4, md 6, lg 8.
         const scale: Record<string, number> = {sm: 4, md: 6, lg: 8}
         for (const [size, max] of Object.entries(quarter)) {
             render(<IconTile size={Number(size) as 16} />)

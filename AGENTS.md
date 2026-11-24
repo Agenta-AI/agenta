@@ -82,8 +82,8 @@ basics.
 - API or SDK changes: run `ruff format` then `ruff check --fix` within the SDK or API
   folder (from the repo root: `ruff format` then `ruff check`). Fix all errors before
   committing. Details: `api/AGENTS.md`.
-- Theme changes: the app takes every value from `web/mobile/src/design/theme.config.ts`. See
-  `web/mobile/DESIGN.md`, "Working with the system". `web/oss/src/styles/theme/palette.ts`
+- Theme changes: every value comes from `web/packages/agenta-ui/src/design/theme.config.ts`. See
+  `web/DESIGN.md`, "Working with the system". `web/oss/src/styles/theme/palette.ts`
   feeds only legacy generated files (`pnpm generate:tailwind-tokens` in `web`).
 
 ## Local dev loop (deploy + test)

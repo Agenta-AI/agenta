@@ -1,4 +1,4 @@
-/* Touch rules every control gets for free: readable fields and bottom sheets (TOUCH-01 and COMPACT-04 in web/mobile/src/design/rules.json).
+/* Touch rules every control gets for free: readable fields and bottom sheets (TOUCH-01 and COMPACT-04 in src/design/rules.json).
    Nothing here changes a control's size: small screens and touch never get bigger UI. */
 @media (pointer: coarse) {
     /* iOS zooms the page when a field under 16px gets focus. */

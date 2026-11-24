@@ -62,7 +62,7 @@ export const controlScale = {
         "control-dot": "8px",
         "control-check-dash": "7px",
     },
-    // Every control uses radius-md (6px); nothing is round (web/mobile/DESIGN.md, SHAPE-01).
+    // Every control uses radius-md (6px); nothing is round (SHAPE-01).
     borderRadius: {
         "control-xs": "6px",
         "control-sm": "6px",

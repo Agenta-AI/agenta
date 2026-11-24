@@ -34,7 +34,7 @@ import {
 import type {Icon} from "@phosphor-icons/react"
 
 /** The component of every icon the "Icon per term" table names. The guide test checks it is complete. */
-export const termIcons: Record<string, Icon> = {
+export const termIcons: Partial<Record<string, Icon>> = {
     ArrowClockwiseIcon,
     ArrowUpIcon,
     BroadcastIcon,

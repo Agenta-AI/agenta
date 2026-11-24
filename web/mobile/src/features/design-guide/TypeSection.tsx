@@ -1,4 +1,4 @@
-import {textStyles} from "@/design/theme.config"
+import {textStyles} from "@agenta/ui/design/theme"
 
 import {SectionTitle} from "./SectionTitle"
 

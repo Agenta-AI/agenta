@@ -5,20 +5,17 @@ import {dirname, join, relative, resolve} from "path"
 import {fileURLToPath} from "url"
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const WEB = resolve(HERE, "../..")
+const WEB = resolve(HERE, "../../..")
 const BASELINE = resolve(HERE, "design-ratchet.json")
 
 const PATTERNS: Record<string, RegExp> = {
     // SURF-05: every hover fill is bg-accent (or accent layered over an opaque ground).
-    "hover-fill-not-accent":
-        /\bhover:bg-(?!accent\b|transparent\b|destructive\b|\[image:linear-gradient\(var\(--accent\))/g,
+    "hover-fill-not-accent": /\bhover:bg-(?!accent\b|transparent\b|destructive\b|\[image:linear-gradient\(var\(--accent\))/g,
     // Old hex shims outside the legacy alias block; several never resolved in /m.
     "legacy-hex-shims": /var\(--(?:ag-c-|ag-rgba-|ant-color-)/g,
     // TYPE-05: a control's weight never changes with its state.
-    "weight-by-state":
-        /(?:data-\[state=[a-z]+\]|aria-[a-z]+(?:=[a-z]+)?|data-\[(?:active|selected)[^\]]*\]):font-(?:medium|semibold|bold)/g,
-    "antd-color-names":
-        /\bcolor(?:Text|Bg|Fill|Border|Primary|Error|Success|Warning|Info)[A-Za-z]*/g,
+    "weight-by-state": /(?:data-\[state=[a-z]+\]|aria-[a-z]+(?:=[a-z]+)?|data-\[(?:active|selected)[^\]]*\]):font-(?:medium|semibold|bold)/g,
+    "antd-color-names": /\bcolor(?:Text|Bg|Fill|Border|Primary|Error|Success|Warning|Info)[A-Za-z]*/g,
     "var(--ag-color": /var\(--ag-color/g,
     "text-[Npx]": /text-\[\d+(?:\.\d+)?px\]/g,
     "h-[Npx]": /h-\[\d+(?:\.\d+)?px\]/g,
@@ -97,8 +94,6 @@ if (over.length) {
     process.exit(1)
 }
 if (under.length) {
-    console.log(
-        `design-ratchet: counts fell; run \`pnpm run design:ratchet --write\` to lock them in:\n  ${under.join("\n  ")}`,
-    )
+    console.log(`design-ratchet: counts fell; run \`pnpm --filter @agenta/ui exec tsx scripts/design-ratchet.ts --write\` to lock them in:\n  ${under.join("\n  ")}`)
 }
 console.log("design-ratchet: ok")

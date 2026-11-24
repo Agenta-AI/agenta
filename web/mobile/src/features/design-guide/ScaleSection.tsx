@@ -1,4 +1,4 @@
-import {radius, shadows, sizes, spacing} from "@/design/theme.config"
+import {radius, shadows, sizes, spacing} from "@agenta/ui/design/theme"
 
 import {SectionTitle} from "./SectionTitle"
 

@@ -63,7 +63,7 @@ const CONTROL_PAD = [
     "input-y-ghost-lg",
 ]
 
-// Design-system text styles (web/mobile/DESIGN.md); sizes, not colours.
+// Design-system text styles (src/design/theme.config.ts); sizes, not colours.
 const TEXT_STYLES = [
     "display",
     "heading",

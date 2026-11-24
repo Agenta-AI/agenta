@@ -2,7 +2,7 @@
  * Styling Utilities
  *
  * Shared utilities for CSS class names and styling constants.
- * Values are the design-system theme variables (web/mobile/DESIGN.md).
+ * Values are the design-system theme variables (src/design/theme.config.ts).
  *
  * @example
  * ```tsx
@@ -105,7 +105,7 @@ export const flexLayouts = {
 
 /**
  * Text color classes. The design system has two text levels: `foreground` and
- * `muted-foreground` (web/mobile/DESIGN.md, Color). Every quiet role maps to the second.
+ * `muted-foreground` (web/DESIGN.md, principle 6). Every quiet role maps to the second.
  *
  * @example
  * <span className={textColors.secondary}>{secondaryText}</span>

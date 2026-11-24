@@ -1,8 +1,8 @@
 import {describe, expect, it} from "vitest"
 
-import rulesJson from "@/design/rules.json"
-import {guidePages} from "@/features/design-system/guide/guidePages"
-import {termIcons} from "@/features/design-system/termIcons"
+import rulesJson from "@agenta/ui/design/rules.json"
+import {guidePages} from "@/features/design-guide/guide/guidePages"
+import {termIcons} from "@/features/design-guide/termIcons"
 
 describe("design guide follows rules.json", () => {
     const ids = rulesJson.groups.flatMap((g) => g.rules.map((r) => r.id))

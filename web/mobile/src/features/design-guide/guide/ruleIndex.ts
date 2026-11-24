@@ -1,4 +1,4 @@
-import rulesJson from "@/design/rules.json"
+import rulesJson from "@agenta/ui/design/rules.json"
 
 import type {GuideRule, RuleExample} from "./types"
 

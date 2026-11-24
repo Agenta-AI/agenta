@@ -18,6 +18,9 @@
         "test:unit": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
+        "generate:theme": "tsx scripts/generate-theme.ts",
+        "theme:check": "tsx scripts/generate-theme.ts --check",
+        "design:ratchet": "tsx scripts/design-ratchet.ts --check",
         "generate:icons": "tsx scripts/generate-catalog.ts && prettier --write src/agent-icon/catalog.generated.ts"
     },
     "exports": {
@@ -40,6 +43,11 @@
         "./drill-in": "./src/drill-in/index.ts",
         "./editor": "./src/Editor/index.ts",
         "./editor-theme.css": "./src/styles/editor-theme.css",
+        "./design/theme": "./src/design/theme.config.ts",
+        "./design/contrast": "./src/design/contrast.ts",
+        "./design/rules.json": "./src/design/rules.json",
+        "./design/theme.css": "./src/design/theme.css",
+        "./design/theme.tailwind.css": "./src/design/theme.tailwind.css",
         "./focus.css": "./src/styles/focus.css",
         "./touch.css": "./src/styles/touch.css",
         "./filter-menu": "./src/filter-menu/index.ts",

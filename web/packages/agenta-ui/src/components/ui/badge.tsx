@@ -4,7 +4,7 @@ import {cva, type VariantProps} from "class-variance-authority"
 
 import {cn} from "./utils"
 
-// A short status or label. Five tones only: neutral and the four statuses (DESIGN.md, Badge).
+// A short status or label. Five tones only: neutral and the four statuses (KIT-01).
 const badgeVariants = cva(
     [
         "box-border border-solid border-0",

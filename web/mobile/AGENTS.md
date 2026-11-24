@@ -33,15 +33,14 @@ web/mobile/src/
   components/           # app-wide shells (ScreenScaffold, PageTitle, ContentRail, ...)
     ui/                 # local shadcn registry components (installed, then owned)
   lib/                  # motion presets, cn util, api glue — no JSX except tiny helpers
-  design/               # theme.config.ts (the values), rules.json (the rules) + generated theme.css, theme.tailwind.css, tokens.json
   styles/               # globals.css (imports the generated theme; Tailwind v4 CSS-first config)
 ```
 
 ## Design
 
-**Before any UI change, read `DESIGN.md`**: the glossary, the principles, the layout and the patterns.
-The rules are in `src/design/rules.json`, grouped by topic; read the groups your change touches.
-The values are in `src/design/theme.config.ts`. `/m/design-system` shows a Do and an Avoid example for
+**Before any UI change, read `web/DESIGN.md`**: the glossary, the principles, the layout and the patterns.
+The rules and the values are in `web/packages/agenta-ui/src/design/`: `rules.json`, grouped by topic (read
+the groups your change touches), and `theme.config.ts`. `/m/design-system` shows a Do and an Avoid example for
 each rule.
 
 - View states (empty, loading, error) are sibling components in the feature's `states/` folder.
@@ -71,7 +70,7 @@ specifics), `vercel:shadcn`, `vercel:react-best-practices`.
 - Dev: `pnpm dev-mobile` (→ http://localhost:3000/m)
 - Build: `pnpm build-mobile`
 - Lint / types: `pnpm --filter @agenta/mobile lint` / `pnpm --filter @agenta/mobile types:check`
-- Theme: `pnpm --filter @agenta/mobile generate:theme` (check: `theme:check`, `design:ratchet`)
+- Theme: `pnpm --filter @agenta/ui generate:theme` (check: `theme:check`, `design:ratchet`)
 
 ## Translations (i18n)
 

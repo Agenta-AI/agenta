@@ -1,6 +1,6 @@
 // Every theme variable and its job. Names follow shadcn, so the kit and Tailwind read them as they are;
 // an extra name (selected, border-muted, data-1) names a role, never a product entity or a component.
-// The rules are in rules.json; the principles and the layout are in web/mobile/DESIGN.md.
+// The rules are in rules.json; the principles and the layout are in web/DESIGN.md.
 
 export type ThemeMode = "light" | "dark"
 

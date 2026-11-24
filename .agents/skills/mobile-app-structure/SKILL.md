@@ -26,9 +26,7 @@ web/mobile/
                               #   ScreenScaffold, StatusTag
       ui/                     # local shadcn registry components (see mobile-shadcn-conventions)
     lib/                      # cn util, motion presets, api glue, context resolution
-    design/                   # theme.config.ts + generated theme.css / theme.tailwind.css
     styles/                   # globals.css
-  scripts/                    # generate-theme.ts, design-ratchet.ts
 ```
 
 ## Rules
@@ -60,5 +58,5 @@ web/mobile/
 1. Create `src/features/<feature>/` with the screen component.
 2. Create `states/` siblings for every data-bearing component.
 3. Add the route shell in `src/pages/` that renders the screen.
-4. Use `useMotionPresets()` for any transitions (`web/mobile/DESIGN.md`, Motion).
+4. Use `useMotionPresets()` for any transitions (`MOTION-01` in `web/packages/agenta-ui/src/design/rules.json`).
 5. `pnpm --filter @agenta/mobile lint && pnpm --filter @agenta/mobile types:check`.

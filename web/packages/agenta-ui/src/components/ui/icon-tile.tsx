@@ -5,7 +5,7 @@ import {cva, type VariantProps} from "class-variance-authority"
 import {cn} from "./utils"
 
 /**
- * IconTile is the Mark: the square that leads a row, a header or an empty state (DESIGN.md CONS-01).
+ * IconTile is the Mark: the square that leads a row, a header or an empty state (CONS-01).
  * Five sizes by place: 16 inline, nav and menus; 20 pickers and chips; 24 list rows; 32 page and
  * dialog headers; 40 empty states. Neutral by default; `muted` has no fill; `brand` is only for
  * the brand mark on Home. Radius steps with size (4 / 6 / 8). The glyph takes `currentColor` and

@@ -1,5 +1,5 @@
 // Writes theme.css, theme.tailwind.css and tokens.json from theme.config.ts.
-// Also checks DESIGN.md against its own Glossary and rules.json for shape; it writes neither.
+// Also checks web/DESIGN.md against its own Glossary and rules.json for shape; it writes neither.
 import {existsSync, readFileSync, writeFileSync} from "fs"
 import {dirname, resolve} from "path"
 import {fileURLToPath} from "url"
@@ -23,7 +23,7 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const DESIGN = resolve(HERE, "../src/design")
-const DESIGN_MD = resolve(HERE, "../DESIGN.md")
+const DESIGN_MD = resolve(HERE, "../../../DESIGN.md")
 
 // Light on :root; dark on the `.dark` class that _document.tsx sets on <html> before paint.
 const SCOPE = ":root"
@@ -249,6 +249,6 @@ for (const [file, content] of outputs) {
     }
 }
 if (check && stale) {
-    console.error("Run `pnpm generate:theme` in web/mobile and commit the result.")
+    console.error("Run `pnpm --filter @agenta/ui generate:theme` in web and commit the result.")
     process.exit(1)
 }

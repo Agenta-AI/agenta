@@ -1,4 +1,4 @@
-import {contrastPairs, contrastRatio, resolveColor} from "@/design/contrast"
+import {contrastPairs, contrastRatio, resolveColor} from "@agenta/ui/design/contrast"
 
 import {SectionTitle} from "./SectionTitle"
 

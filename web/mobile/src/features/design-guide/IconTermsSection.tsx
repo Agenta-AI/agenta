@@ -1,6 +1,6 @@
 import {IconTile} from "@agenta/ui/ui"
 
-import rulesJson from "@/design/rules.json"
+import rulesJson from "@agenta/ui/design/rules.json"
 
 import {SectionTitle} from "./SectionTitle"
 import {termIcons} from "./termIcons"

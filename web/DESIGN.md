@@ -1,14 +1,14 @@
 # Agenta design system
 
-The design system for `web/mobile` (served at `/m`), the only Agenta frontend. Read this file before any UI change. If a case is not covered, ask; do not invent a rule.
+The design system for the Agenta frontend: the app in `web/mobile` (served at `/m`) and the `@agenta/*` packages. Read this file before any UI change. If a case is not covered, ask; do not invent a rule.
 
 Each fact has one home:
 
 | What | Where |
 | --- | --- |
 | The glossary, the principles, the layout and the patterns | This file |
-| The values: colors, text styles, sizes, radii, shadows, motion, and where each one is used | `src/design/theme.config.ts` |
-| The rules, each with an ID, a reason, an Avoid and a Do, and the icon of each product term | `src/design/rules.json` |
+| The values: colors, text styles, sizes, radii, shadows, motion, and where each one is used | `packages/agenta-ui/src/design/theme.config.ts` |
+| The rules, each with an ID, a reason, an Avoid and a Do, and the icon of each product term | `packages/agenta-ui/src/design/rules.json` |
 | A live Do and Avoid example for each rule | `/m/design-system`, which reads `rules.json` |
 
 ## Glossary
@@ -84,7 +84,7 @@ One title and one illustration. Everything else follows the app rules.
 ## Working with the system
 
 - No theme variable fits? Stop and ask for one. Do not write an arbitrary value.
-- To change a value, edit `theme.config.ts` and run `pnpm generate:theme`. It writes the CSS and `tokens.json` (for design tools; the app does not read it).
+- To change a value, edit `theme.config.ts` and run `pnpm --filter @agenta/ui generate:theme`. It writes the CSS and `tokens.json` (for design tools; the app does not read it).
 - To add or change a rule, edit `rules.json` and add its Do and Avoid example to the guide. The guide test fails when a rule has no example or an example has no rule.
-- Three checks run in `pnpm lint`. `theme:check` fails when the generated CSS is stale, when `rules.json` is malformed, or when this file uses a word from the "Do not say" column. `design:ratchet` counts the patterns that a rule bans and fails when a count rises. ESLint bans a second icon library.
-- Old antd-era names still resolve through the legacy block in `src/styles/globals.css`, which shows the new name for each. Do not add new uses; replace them when you touch the code.
+- Three checks run in the app's `pnpm lint`. `theme:check` fails when the generated CSS is stale, when `rules.json` is malformed, or when this file uses a word from the "Do not say" column. `design:ratchet` counts the patterns that a rule bans and fails when a count rises. ESLint bans a second icon library.
+- Old antd-era names still resolve through the legacy block in `mobile/src/styles/globals.css`, which shows the new name for each. Do not add new uses; replace them when you touch the code.

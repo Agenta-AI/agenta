@@ -1,6 +1,6 @@
 ---
 name: mobile-shadcn-conventions
-description: How the Agenta mobile app (web/mobile) installs and extends shadcn/ui registry components and builds chat UI on @agenta/chat. Use when adding a registry component under web/mobile, editing components.json, or building chat UI. For colors, sizes and design rules, read web/mobile/DESIGN.md instead.
+description: How the Agenta mobile app (web/mobile) installs and extends shadcn/ui registry components and builds chat UI on @agenta/chat. Use when adding a registry component under web/mobile, editing components.json, or building chat UI. For colors, sizes and design rules, read web/DESIGN.md instead.
 ---
 
 # Mobile shadcn conventions
@@ -28,14 +28,14 @@ description: How the Agenta mobile app (web/mobile) installs and extends shadcn/
 - Never copy component source from the shadcn website by hand; the CLI resolves
   the Tailwind v4 variant correctly.
 - Installing a shadcn component that references a new theme variable (e.g. `chart-*`)
-  requires adding it to `src/design/theme.config.ts` (a color, or a
-  `colorAliases` entry) and running `pnpm generate:theme` first — Tailwind v4
+  requires adding it to `web/packages/agenta-ui/src/design/theme.config.ts` (a color, or a
+  `colorAliases` entry) and running `pnpm --filter @agenta/ui generate:theme` first — Tailwind v4
   silently generates nothing for an unmapped name.
 
 ## Theme and design rules
 
-Not here. Values live in `src/design/theme.config.ts`, the rules in `src/design/rules.json`, and the
-principles and the layout in `web/mobile/DESIGN.md`.
+Not here. Values and rules live in `web/packages/agenta-ui/src/design/` (`theme.config.ts`, `rules.json`),
+and the principles and the layout in `web/DESIGN.md`.
 
 ## Extending components
 

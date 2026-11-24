@@ -1,7 +1,7 @@
 import {describe, expect, it} from "vitest"
 
-import {contrastPairs, contrastRatio, resolveColor, statusTints, tint} from "@/design/contrast"
-import {colorAliases, colors} from "@/design/theme.config"
+import {contrastPairs, contrastRatio, resolveColor, statusTints, tint} from "../../src/design/contrast"
+import {colorAliases, colors} from "../../src/design/theme.config"
 
 describe("design theme contrast", () => {
     it("computes known WCAG ratios", () => {
