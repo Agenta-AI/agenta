@@ -262,13 +262,11 @@ const SessionListBody = ({
                         {lockedAgent ? (
                             <LockedAgentChip agentId={lockedAgent.id} variant="inline" />
                         ) : null}
+                        <ListTableArchiveToggle
+                            archived={sessionFilters.archivedOnly}
+                            onChange={sessionFilters.setArchivedOnly}
+                        />
                     </>
-                }
-                end={
-                    <ListTableArchiveToggle
-                        archived={sessionFilters.archivedOnly}
-                        onChange={sessionFilters.setArchivedOnly}
-                    />
                 }
             />
             <SessionListTable

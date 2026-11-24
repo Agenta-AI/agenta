@@ -1,10 +1,11 @@
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import {ArchiveIcon} from "@phosphor-icons/react"
 
-import {Segmented, type SegmentedOption} from "../components/ui/segmented"
+import {Button} from "../components/ui/button"
 import {cn} from "../components/ui/utils"
 
-/** Active or Archived: which set the list shows. Its own control, not a row in the filter menu. */
+/** Archived on or off: a pressed button beside Filter, the same size and style. */
 export const ListTableArchiveToggle = ({
     archived,
     onChange,
@@ -15,17 +16,19 @@ export const ListTableArchiveToggle = ({
     className?: string
 }) => {
     const t = useT(commonCatalog)
-    const options: SegmentedOption[] = [
-        {value: "active", label: t("common.active")},
-        {value: "archived", label: t("common.archived")},
-    ]
     return (
-        <Segmented
-            aria-label={t("common.activeOrArchived")}
-            options={options}
-            value={archived ? "archived" : "active"}
-            onChange={(next) => onChange(next === "archived")}
-            className={cn("shrink-0", className)}
-        />
+        <Button
+            variant="outline"
+            aria-pressed={archived}
+            onClick={() => onChange(!archived)}
+            className={cn(
+                "shrink-0 gap-1.5",
+                archived && "bg-selected hover:bg-selected",
+                className,
+            )}
+        >
+            <ArchiveIcon size={14} aria-hidden />
+            {t("common.archived")}
+        </Button>
     )
 }

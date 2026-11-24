@@ -213,10 +213,12 @@ export const AgentListScreen = ({
                             onSearchChange={setSearch}
                             searchPlaceholder={t("agents.list.searchPlaceholder")}
                             actions={
-                                <AgentFilterMenu view={view} onChange={setView} owners={owners} />
-                            }
-                            end={
                                 <>
+                                    <AgentFilterMenu
+                                        view={view}
+                                        onChange={setView}
+                                        owners={owners}
+                                    />
                                     <ListTableArchiveToggle
                                         archived={view.type === "archived"}
                                         onChange={(archived) =>
@@ -226,9 +228,9 @@ export const AgentListScreen = ({
                                             })
                                         }
                                     />
-                                    <ListTableViewToggle value={view.mode} onChange={setMode} />
                                 </>
                             }
+                            end={<ListTableViewToggle value={view.mode} onChange={setMode} />}
                         />
                         {body}
                     </>

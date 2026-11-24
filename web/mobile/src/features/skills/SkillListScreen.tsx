@@ -220,21 +220,19 @@ export const SkillListScreen = ({
                             onSearchChange={setTyped}
                             searchPlaceholder={t("skills.list.searchPlaceholder")}
                             actions={
-                                <SkillFilterMenu
-                                    view={view}
-                                    onChange={setView}
-                                    repositories={repositories}
-                                />
-                            }
-                            end={
                                 <>
+                                    <SkillFilterMenu
+                                        view={view}
+                                        onChange={setView}
+                                        repositories={repositories}
+                                    />
                                     <ListTableArchiveToggle
                                         archived={view.archived}
                                         onChange={(archived) => setView({...view, archived})}
                                     />
-                                    <ListTableViewToggle value={view.mode} onChange={setMode} />
                                 </>
                             }
+                            end={<ListTableViewToggle value={view.mode} onChange={setMode} />}
                         />
                         {body}
                     </>
