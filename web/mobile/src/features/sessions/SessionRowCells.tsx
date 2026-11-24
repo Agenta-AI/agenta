@@ -68,6 +68,8 @@ const StatusDot = ({status}: {status: SessionRowStatusMeta}) => {
     )
 }
 
+const ACTIVE_STATUSES = new Set<SessionRowStatusMeta["status"]>(["waiting", "running", "alive"])
+
 /**
  * The row's mark: what KIND of session, with its status on the shoulder. The glyph is the pair
  * the Type facet offers. The dot is solid in every state (a hollow ring would be a ring inside a
@@ -92,14 +94,17 @@ const KindIcon = ({vm}: {vm: SessionRowVm}) => {
             <IconTile size={24} aria-hidden>
                 <Glyph aria-hidden />
             </IconTile>
-            <span
-                aria-hidden
-                className={cn(
-                    "absolute -right-0.5 -top-0.5 size-2 rounded-xs",
-                    vm.status.dotClassName,
-                    vm.status.pulse && "motion-safe:animate-pulse",
-                )}
-            />
+            {/* Only an active session gets the dot; a calm one (idle, ended) shows none. */}
+            {ACTIVE_STATUSES.has(vm.status.status) ? (
+                <span
+                    aria-hidden
+                    className={cn(
+                        "absolute -right-0.5 -top-0.5 size-1.5 rounded-full ring-2 ring-background",
+                        vm.status.dotClassName,
+                        vm.status.pulse && "motion-safe:animate-pulse",
+                    )}
+                />
+            ) : null}
         </span>
     )
 }
