@@ -52,6 +52,7 @@ export const SkillFilterMenu = ({
                 label: t("skills.list.filterSource"),
                 icon: <Stack size={ICON} />,
                 value: view.source,
+                defaultValue: DEFAULT_SKILL_LIST_VIEW.source,
                 wide: true,
                 options: [
                     {
@@ -73,6 +74,7 @@ export const SkillFilterMenu = ({
                 label: t("skills.list.filterUsedBy"),
                 icon: <Robot size={ICON} />,
                 value: view.usedBy,
+                defaultValue: DEFAULT_SKILL_LIST_VIEW.usedBy,
                 options: [
                     {
                         value: "any",
@@ -134,7 +136,6 @@ export const SkillFilterMenu = ({
             align="start"
             size="default"
             // The view toggle beside it is 32; a 28px funnel between them read as a mistake.
-            active={!isDefaultSkillFilters(view)}
             onReset={() =>
                 onChange({...DEFAULT_SKILL_LIST_VIEW, group: view.group, mode: view.mode})
             }

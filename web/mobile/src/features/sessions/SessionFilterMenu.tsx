@@ -101,6 +101,7 @@ export const SessionFilterMenu = ({
                 // automation is a trigger that ran one.
                 icon: <Lightning size={ICON} />,
                 value: mode ? "automation" : "chat",
+                defaultValue: "chat",
                 options: [
                     {
                         value: "chat",
@@ -122,6 +123,7 @@ export const SessionFilterMenu = ({
                 label: t("sessions.mobileList.status"),
                 icon: <Broadcast size={ICON} />,
                 value: status,
+                defaultValue: "all",
                 // Ordered by what it costs to miss, and each dot is the one a row of that status
                 // paints. `live` is not offered: "the sandbox is up" is a fact about the
                 // infrastructure, and Running answers the question a reader is actually asking.
@@ -167,6 +169,7 @@ export const SessionFilterMenu = ({
                       label: t("sessions.mobileList.agent"),
                       icon: <Robot size={ICON} />,
                       value: agentId ?? ALL_AGENTS,
+                      defaultValue: ALL_AGENTS,
                       options: [
                           {
                               value: ALL_AGENTS,
@@ -195,6 +198,7 @@ export const SessionFilterMenu = ({
                 label: t("sessions.mobileList.lastActivity"),
                 icon: <ClockCounterClockwise size={ICON} />,
                 value: view.activity,
+                defaultValue: defaultView.activity,
                 options: [
                     {
                         value: "all",
@@ -312,7 +316,8 @@ export const SessionFilterMenu = ({
             align="start"
             size="default"
             // A page locked to one agent is narrowed to it, so the dot shows there too (A02).
-            active={changed || Boolean(lockedAgent)}
+            // The locked agent narrows the list with no choice in the menu.
+            active={Boolean(lockedAgent)}
             onReset={onReset}
             resetDisabled={!changed}
         />

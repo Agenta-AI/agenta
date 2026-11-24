@@ -67,6 +67,7 @@ export const AgentFilterMenu = ({
                 label: t("agents.list.columnOwner"),
                 icon: <User size={ICON} />,
                 value: view.owner,
+                defaultValue: DEFAULT_AGENT_LIST_VIEW.owner,
                 options: [
                     {
                         value: ALL_OWNERS,
@@ -87,6 +88,7 @@ export const AgentFilterMenu = ({
                 label: t("agents.list.filterStatus"),
                 icon: <Waveform size={ICON} />,
                 value: view.status,
+                defaultValue: DEFAULT_AGENT_LIST_VIEW.status,
                 options: [
                     {
                         value: "all",
@@ -154,7 +156,6 @@ export const AgentFilterMenu = ({
             sections={sections}
             align="start"
             size="default"
-            active={!isDefaultAgentListView(view)}
             // The mode survives a reset: it is how the reader chose to read the list, not what
             // they narrowed it to.
             onReset={() => onChange({...DEFAULT_AGENT_LIST_VIEW, mode: view.mode})}

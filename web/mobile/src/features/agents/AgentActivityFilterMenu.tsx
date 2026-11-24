@@ -9,6 +9,7 @@ import {CalendarBlank, Clock, Minus, Rows, SquaresFour, Waveform} from "@phospho
 import type {SessionActivityWindow} from "../sessions/sessionListView"
 
 import {
+    DEFAULT_AGENT_ACTIVITY_VIEW,
     isDefaultAgentActivityView,
     type AgentActivityGrouping,
     type AgentActivityView,
@@ -49,6 +50,7 @@ export const AgentActivityFilterMenu = ({
                 label: t("agents.activity.filterStatus"),
                 icon: <Waveform size={ICON} />,
                 value: status,
+                defaultValue: "all",
                 options: [
                     {
                         value: "all",
@@ -80,6 +82,7 @@ export const AgentActivityFilterMenu = ({
                 label: t("agents.activity.filterLastActivity"),
                 icon: <Clock size={ICON} />,
                 value: view.activity,
+                defaultValue: DEFAULT_AGENT_ACTIVITY_VIEW.activity,
                 options: [
                     {
                         value: "all",
@@ -136,8 +139,7 @@ export const AgentActivityFilterMenu = ({
 
     // The archived atoms narrow this query too, set from the sessions page — so they dot the
     // trigger here, and Reset is the way back.
-    const active =
-        status !== "all" || archivedOnly || includeArchived || !isDefaultAgentActivityView(view)
+    const active = archivedOnly || includeArchived
 
     return (
         <FilterMenu
@@ -146,7 +148,8 @@ export const AgentActivityFilterMenu = ({
             size="icon-sm"
             active={active}
             onReset={onReset}
-            resetDisabled={!active}
+            // Reset also restores the grouping, so it stays on when only that changed.
+            resetDisabled={!active && status === "all" && isDefaultAgentActivityView(view)}
         />
     )
 }

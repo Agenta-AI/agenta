@@ -61,6 +61,7 @@ export const AutomationFilterMenu = ({
                 label: t("automations.screens.filterType"),
                 icon: <Lightning size={ICON} />,
                 value: view.type,
+                defaultValue: DEFAULT_AUTOMATION_LIST_VIEW.type,
                 options: [
                     {
                         value: "all",
@@ -85,6 +86,7 @@ export const AutomationFilterMenu = ({
                 label: t("automations.screens.filterStatus"),
                 icon: <Waveform size={ICON} />,
                 value: view.status,
+                defaultValue: DEFAULT_AUTOMATION_LIST_VIEW.status,
                 options: [
                     {
                         value: "all",
@@ -109,6 +111,7 @@ export const AutomationFilterMenu = ({
                 label: t("automations.screens.filterAgent"),
                 icon: <Robot size={ICON} />,
                 value: view.agent,
+                defaultValue: DEFAULT_AUTOMATION_LIST_VIEW.agent,
                 options: [
                     {
                         value: "all",
@@ -171,7 +174,6 @@ export const AutomationFilterMenu = ({
             sections={sections}
             align="start"
             size="default"
-            active={!isDefaultAutomationListView(view)}
             // The mode survives a reset: it is how the reader chose to read the list, not what
             // they narrowed it to.
             onReset={() => onChange({...DEFAULT_AUTOMATION_LIST_VIEW, mode: view.mode})}

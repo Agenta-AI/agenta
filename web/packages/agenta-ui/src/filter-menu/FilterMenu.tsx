@@ -8,7 +8,12 @@ import {Popover, PopoverContent} from "../components/ui/popover"
 
 import {FilterMenuPanel} from "./FilterMenuPanel"
 import {FilterMenuTrigger} from "./FilterMenuTrigger"
-import type {FilterMenuItem, FilterMenuPlacementProps, FilterMenuTriggerProps} from "./types"
+import {
+    isFilterMenuNarrowed,
+    type FilterMenuItem,
+    type FilterMenuPlacementProps,
+    type FilterMenuTriggerProps,
+} from "./types"
 
 export interface FilterMenuProps extends FilterMenuTriggerProps, FilterMenuPlacementProps {
     /**
@@ -83,7 +88,7 @@ export const FilterMenu = ({
                 variant={variant}
                 triggerClassName={triggerClassName}
                 triggerAriaLabel={triggerAriaLabel}
-                active={active}
+                active={Boolean(active) || isFilterMenuNarrowed(sections)}
                 defaultLabel={t("ui.controls.filter")}
             />
             <PopoverContent

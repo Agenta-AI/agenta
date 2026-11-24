@@ -43,6 +43,11 @@ export interface FilterMenuSection<Value extends string = string> {
     multi?: boolean
     /** Defaults to `"filter"`. Sort and group rows pass `"sort"` and render first. */
     block?: FilterMenuBlock
+    /**
+     * The row's untouched value. A filter row that differs from it dots the trigger; a sort or
+     * group row never does, because ordering and grouping do not narrow the list.
+     */
+    defaultValue?: Value | Value[]
     /** What the flyout says when `options` is empty. */
     emptyText?: string
     /**
@@ -74,6 +79,8 @@ export interface FilterMenuToggle {
     checked: boolean
     onChange: (checked: boolean) => void
     disabled?: boolean
+    /** The untouched state; a switch away from it dots the trigger. Off by default. */
+    defaultChecked?: boolean
 }
 
 /** What the panel takes: an option row or a toggle row, in display order. */
@@ -97,8 +104,9 @@ export interface FilterMenuTriggerProps {
     triggerClassName?: string
     triggerAriaLabel?: string
     /**
-     * The surface is not showing what it shows by default — a dot appears in the trigger's
-     * corner.
+     * Narrowing that has no row in this menu (a locked agent, a filter set elsewhere). The menu
+     * dots its trigger on its own when a filter row leaves its `defaultValue`; sorting and
+     * grouping never dot it.
      *
      * A narrowed table whose control looks untouched is the failure mode this exists for: the
      * rows are missing and nothing on screen says why.
@@ -116,3 +124,18 @@ export interface FilterMenuPlacementProps {
     flyoutAlign?: FilterMenuAlign
     flyoutSideOffset?: number
 }
+
+const sameValue = (a: string | string[], b: string | string[]): boolean =>
+    Array.isArray(a) || Array.isArray(b)
+        ? [a].flat().slice().sort().join("\u0000") === [b].flat().slice().sort().join("\u0000")
+        : a === b
+
+/** Whether any filter row or switch is away from its default. Sort and group rows never count. */
+export const isFilterMenuNarrowed = (items: FilterMenuItem[]): boolean =>
+    items.some((item) =>
+        isFilterMenuToggle(item)
+            ? item.checked !== (item.defaultChecked ?? false)
+            : (item.block ?? "filter") === "filter" &&
+              item.defaultValue !== undefined &&
+              !sameValue(item.value, item.defaultValue),
+    )
