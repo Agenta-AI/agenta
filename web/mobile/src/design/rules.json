@@ -544,7 +544,7 @@
                 },
                 {
                     "id": "LAYOUT-03",
-                    "rule": "Every page has the same top",
+                    "rule": "Every general page has the same top",
                     "why": "When the top changes per page, the title jumps between pages.",
                     "checkedBy": [
                         "review"
