@@ -24,7 +24,7 @@ export const AutomationScreenHeader = ({
     <>
         <PageBackBar back={back} column={className ?? AUTOMATION_COLUMN} />
         {/* On a compact window only its top padding shows: the 24px every page has under the bar. */}
-        <div className={`${className ?? AUTOMATION_COLUMN} shrink-0 pt-6 lg:pb-2.5 lg:pt-8`}>
+        <div className={`${className ?? AUTOMATION_COLUMN} shrink-0 pt-6 lg:pb-1 lg:pt-8`}>
             <div className="flex min-w-0 max-lg:hidden">
                 <AutomationBackLink href={backHref} />
             </div>

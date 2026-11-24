@@ -1,16 +1,7 @@
 import {categorySlug, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
-import {
-    Badge,
-    Breadcrumb,
-    BreadcrumbItem,
-    BreadcrumbLink,
-    BreadcrumbList,
-    BreadcrumbPage,
-    BreadcrumbSeparator,
-    Button,
-} from "@agenta/ui/ui"
+import {BackLink, Badge, Button} from "@agenta/ui/ui"
 import {CheckIcon, LinkSimpleIcon} from "@phosphor-icons/react"
 import Link from "next/link"
 
@@ -62,27 +53,11 @@ export const TemplatePage = ({
 
     return (
         <div className="flex flex-col gap-10">
-            {/* Below lg the bar's Back names the parent, so the crumb is only for wide windows. */}
+            {/* Below lg the bar's Back names the parent, so this back link is for wide windows. */}
             <div className="flex items-center justify-end gap-3 lg:justify-between">
-                <Breadcrumb className="max-lg:hidden">
-                    <BreadcrumbList>
-                        <BreadcrumbItem>
-                            <BreadcrumbLink asChild>
-                                <Link href={marketplaceHref}>{t("marketplace.page.title")}</Link>
-                            </BreadcrumbLink>
-                        </BreadcrumbItem>
-                        <BreadcrumbSeparator />
-                        <BreadcrumbItem>
-                            <BreadcrumbLink asChild>
-                                <Link href={categoryHref}>{categoryText(template.category)}</Link>
-                            </BreadcrumbLink>
-                        </BreadcrumbItem>
-                        <BreadcrumbSeparator />
-                        <BreadcrumbItem>
-                            <BreadcrumbPage>{template.name}</BreadcrumbPage>
-                        </BreadcrumbItem>
-                    </BreadcrumbList>
-                </Breadcrumb>
+                <BackLink asChild className="max-lg:hidden">
+                    <Link href={marketplaceHref}>{t("marketplace.page.title")}</Link>
+                </BackLink>
                 {link.supported ? (
                     <Button variant="outline" size="sm" onClick={() => void link.copy()}>
                         {link.copied ? (

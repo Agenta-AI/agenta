@@ -3,6 +3,7 @@
  * via the shared --ag-* token bridge). These are the consolidation targets that replace
  * the antd-based presets. Import via `@agenta/ui/ui`.
  */
+export {BackLink} from "./back-link"
 export {Badge, badgeVariants, statusBadgeVariant, type BadgeProps, type BadgeVariant} from "./badge"
 export {
     Button,

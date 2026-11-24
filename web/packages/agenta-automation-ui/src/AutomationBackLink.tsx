@@ -1,11 +1,7 @@
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
-import {ArrowLeft} from "@phosphor-icons/react"
+import {BackLink} from "@agenta/ui/ui"
 import Link from "next/link"
-
-import {ICON_LINK} from "./lib/interactive"
-
-const CLASS = `text-muted-foreground -ml-1.5 inline-flex min-w-0 items-center gap-1.5 rounded-md py-1 pr-2 pl-1.5 text-meta no-underline`
 
 /**
  * Back up one level.
@@ -32,18 +28,14 @@ export const AutomationBackLink = ({
     const t = useT(automationsEditorCatalog)
     const text = label ?? t("automations.editor.backToAutomations")
     return onBack ? (
-        <button
-            type="button"
-            onClick={onBack}
-            className={`${CLASS} cursor-pointer border-0 bg-transparent ${ICON_LINK}`}
-        >
-            <ArrowLeft aria-hidden size={13} className="shrink-0" />
+        <BackLink onClick={onBack}>
             <span className="truncate">{text}</span>
-        </button>
+        </BackLink>
     ) : (
-        <Link href={href ?? ""} className={`${CLASS} ${ICON_LINK}`}>
-            <ArrowLeft aria-hidden size={13} className="shrink-0" />
-            <span className="truncate">{text}</span>
-        </Link>
+        <BackLink asChild>
+            <Link href={href ?? ""}>
+                <span className="truncate">{text}</span>
+            </Link>
+        </BackLink>
     )
 }
