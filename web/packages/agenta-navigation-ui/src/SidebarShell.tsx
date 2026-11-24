@@ -454,7 +454,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     // Invisible 9px grab strip straddling the hairline; the ::after IS the
                     // hairline, tinted only while hovering or dragging. Also on the icon rail: dragging
                     // it out opens the rail.
-                    className="absolute inset-y-0 -right-1 z-10 w-[9px] cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent after:transition-colors hover:after:bg-colorBorder group-data-[resizing=true]/rail:after:bg-colorPrimary"
+                    className="absolute inset-y-0 -right-1 z-10 w-[9px] cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent after:transition-colors hover:after:bg-border group-data-[resizing=true]/rail:after:bg-primary"
                     role="separator"
                     aria-orientation="vertical"
                     aria-label={t("navigation.chrome.resizeSidebar")}

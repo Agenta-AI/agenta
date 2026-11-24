@@ -5,10 +5,10 @@ import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import phoneCatalog from "@agenta/i18n/catalogs/ui.phone"
 import {sidebarCollapsedAtom} from "@agenta/navigation"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
+import {SidebarSimple, X} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 import type {PrimitiveAtom} from "jotai"
-import {PanelLeft, X} from "lucide-react"
 
 import {SidebarLayoutContext} from "./sidebarLayout"
 
@@ -38,7 +38,7 @@ export const SidebarToggleButton = ({
             size="small"
             className={clsx(
                 // A 28px square, the same box the rail's icon rows use.
-                "shrink-0 !size-7 !rounded-sm !p-0 !text-colorTextSecondary hover:!text-colorText",
+                "shrink-0 !size-7 !rounded-sm !p-0 !text-muted-foreground hover:!text-foreground",
                 className,
             )}
             aria-label={
@@ -54,7 +54,7 @@ export const SidebarToggleButton = ({
                 onDismiss ? (
                     <X className={phone ? "size-5" : "size-4"} />
                 ) : (
-                    <PanelLeft size={16} strokeWidth={1.75} />
+                    <SidebarSimple size={16} />
                 )
             }
             onClick={() => (onDismiss ? onDismiss() : setCollapsed((c) => !c))}

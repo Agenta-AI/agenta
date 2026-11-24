@@ -34,7 +34,7 @@ export const SidebarBackButton = ({
             onClick={onBack}
             className={clsx(
                 // [font-family:inherit]: preflight is off, so a bare <button> renders Arial.
-                "flex cursor-pointer items-center justify-center gap-2 border-0 bg-transparent [font-family:inherit] text-colorText",
+                "flex cursor-pointer items-center justify-center gap-2 border-0 bg-transparent [font-family:inherit] text-foreground",
                 "hover:bg-colorFillTertiary",
                 collapsed
                     ? "size-7 rounded-[6px]"
@@ -45,7 +45,7 @@ export const SidebarBackButton = ({
                 className,
             )}
         >
-            <ArrowLeft size={16} className="shrink-0 text-colorTextSecondary" />
+            <ArrowLeft size={16} className="shrink-0 text-muted-foreground" />
             {!collapsed && <span className="truncate">{text}</span>}
         </button>
     )

@@ -69,7 +69,7 @@ export interface ProjectOrgSwitcherViewProps {
 type Panel = "projects" | "orgs"
 
 export const ROW_CLASS =
-    "flex w-full items-center gap-2 h-8 px-2 rounded-[6px] text-sm leading-none text-left cursor-pointer border-0 bg-transparent [font-family:inherit] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-colorPrimary text-colorText hover:bg-colorFillSecondary transition-colors"
+    "flex w-full items-center gap-2 h-8 px-2 rounded-[6px] text-sm leading-none text-left cursor-pointer border-0 bg-transparent [font-family:inherit] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary text-foreground hover:bg-colorFillSecondary transition-colors"
 
 /** shrink-0 stops the capped scroll list from compressing rows instead of scrolling. */
 export const ITEM_ROW_CLASS = "shrink-0"
@@ -78,7 +78,7 @@ export const CAPTION_CLASS = "px-2 pt-1.5 pb-1 text-xs font-medium text-colorTex
 
 /** The switcher panel's surface; the agent switcher wears it too. */
 export const PANEL_CLASS =
-    "z-[2000] w-[220px] overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
+    "z-[2000] w-[220px] overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-popover p-0 shadow-md"
 
 const Row = ({
     onClick,
@@ -98,7 +98,7 @@ const Row = ({
 
 // The rule above it is drawn by the row, 8px up, so it matches the panel's own dividers.
 const LOGOUT_ROW =
-    "relative mt-[9px] !text-colorError before:pointer-events-none before:absolute before:inset-x-0 before:-top-[5px] before:h-px before:bg-colorBorderSecondary before:content-['']"
+    "relative mt-[9px] !text-destructive before:pointer-events-none before:absolute before:inset-x-0 before:-top-[5px] before:h-px before:bg-colorBorderSecondary before:content-['']"
 
 /** Theme picker as a hover fly-out row; the Preferences tab offers the same choices. */
 const ThemeFlyout = ({
@@ -117,8 +117,8 @@ const ThemeFlyout = ({
                 <button type="button" className={ROW_CLASS}>
                     {current.icon}
                     <span className="flex-1">{t("navigation.projectMenu.theme")}</span>
-                    <span className="text-colorTextSecondary">{current.short}</span>
-                    <CaretRight size={14} className="shrink-0 text-colorTextSecondary" />
+                    <span className="text-muted-foreground">{current.short}</span>
+                    <CaretRight size={14} className="shrink-0 text-muted-foreground" />
                 </button>
             </PopoverTrigger>
             {/* Same portal as the switcher: a body portal sits outside a drawer's focus trap,
@@ -134,7 +134,7 @@ const ThemeFlyout = ({
                         {icon}
                         <span className="min-w-0 flex-1 truncate">{label}</span>
                         {theme.mode === mode && (
-                            <Check size={14} className="shrink-0 text-colorText" />
+                            <Check size={14} className="shrink-0 text-foreground" />
                         )}
                     </Row>
                 ))}
@@ -161,7 +161,7 @@ export const EntryList = ({entries, close}: {entries: SwitcherEntry[]; close: ()
             >
                 <InitialsAvatar size="small" name={entry.name} className="shrink-0" />
                 <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-                {entry.isActive && <Check size={14} className="shrink-0 text-colorText" />}
+                {entry.isActive && <Check size={14} className="shrink-0 text-foreground" />}
             </Row>
         ))}
     </div>
@@ -271,7 +271,7 @@ export const ProjectOrgSwitcherView = ({
                         aria-label={t("common.close")}
                         title={t("common.close")}
                         onClick={close}
-                        className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillTertiary"
+                        className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-muted-foreground hover:bg-colorFillTertiary"
                     >
                         <X size={14} />
                     </button>
@@ -369,7 +369,7 @@ export const ProjectOrgSwitcherView = ({
                             <>
                                 <span
                                     className={clsx(
-                                        "min-w-0 truncate text-left text-sm leading-5 text-colorText",
+                                        "min-w-0 truncate text-left text-sm leading-5 text-foreground",
                                         compact ? "font-medium" : "flex-1",
                                     )}
                                 >
@@ -384,7 +384,7 @@ export const ProjectOrgSwitcherView = ({
                                     <CaretDown
                                         size={12}
                                         className={clsx(
-                                            "shrink-0 text-colorTextSecondary",
+                                            "shrink-0 text-muted-foreground",
                                             side === "top" && "rotate-180",
                                         )}
                                     />

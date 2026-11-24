@@ -263,7 +263,7 @@ export const SessionFilterMenu = ({
                 icon={<FilterGlyph />}
                 variant="ghost"
                 // The rail's 22px square action, not the toolbar button.
-                triggerClassName="size-[22px] rounded-[6px] p-0 text-colorTextSecondary hover:text-colorText"
+                triggerClassName="size-[22px] rounded-[6px] p-0 text-muted-foreground hover:text-foreground"
                 // No applied-dot: on the Sessions row it read as the row's status.
                 onReset={onReset}
                 resetDisabled={!dirty}

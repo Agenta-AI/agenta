@@ -32,7 +32,7 @@ export type SwitcherCurrent = {kind: "agent"; agentId: string} | {kind: "builder
 /** The builder's tile in the switcher: the agent tile's size, on the neutral fill. */
 const BuilderTile = ({size}: {size: SwitcherTileSize}) => (
     <span
-        className={`flex shrink-0 items-center justify-center bg-colorSplit text-colorText ${SWITCHER_TILE[size].box}`}
+        className={`flex shrink-0 items-center justify-center bg-colorSplit text-foreground ${SWITCHER_TILE[size].box}`}
     >
         <SparkleIcon size={SWITCHER_TILE[size].glyph} />
     </span>
@@ -61,7 +61,7 @@ const PanelRow = ({
         className={`${SWITCHER_ROW_CLASS} ${item ? SWITCHER_ITEM_ROW_CLASS : ""} ${current ? "bg-colorFillSecondary" : ""}`}
     >
         {children}
-        {current ? <CheckIcon aria-hidden size={14} className="shrink-0 text-colorText" /> : null}
+        {current ? <CheckIcon aria-hidden size={14} className="shrink-0 text-foreground" /> : null}
     </button>
 )
 
@@ -140,8 +140,8 @@ export const AgentSidebarSwitcher = ({
                             collapsed
                                 ? "flex size-7 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 [font-family:inherit] hover:bg-colorFillTertiary"
                                 : phone
-                                  ? "flex h-[52px] min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-colorText [font-family:inherit] hover:bg-colorFillTertiary"
-                                  : "flex h-8 w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-[6px] border border-solid border-colorBorderSecondary bg-transparent pl-2.5 pr-3 text-left text-colorText transition-colors [font-family:inherit] hover:bg-colorFillTertiary data-[state=open]:bg-colorFillTertiary"
+                                  ? "flex h-[52px] min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-foreground [font-family:inherit] hover:bg-colorFillTertiary"
+                                  : "flex h-8 w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-[6px] border border-solid border-colorBorderSecondary bg-transparent pl-2.5 pr-3 text-left text-foreground transition-colors [font-family:inherit] hover:bg-colorFillTertiary data-[state=open]:bg-colorFillTertiary"
                         }
                     >
                         {agentId ? (
@@ -156,7 +156,7 @@ export const AgentSidebarSwitcher = ({
                                         {name}
                                     </span>
                                     {builder ? null : (
-                                        <span className="text-[12px] leading-4 text-colorTextSecondary">
+                                        <span className="text-[12px] leading-4 text-muted-foreground">
                                             {t("agentSidebar.agent")}
                                         </span>
                                     )}
@@ -218,7 +218,7 @@ export const AgentSidebarSwitcher = ({
                                 onChange={(event) => setSearch(event.target.value)}
                                 placeholder={t("agentSidebar.searchAgents")}
                                 aria-label={t("agentSidebar.searchAgents")}
-                                className="mx-1 mb-1 h-8 w-[calc(100%-8px)] rounded-md border border-solid border-colorBorder bg-transparent px-2 text-sm text-colorText outline-none [font-family:inherit] focus:border-colorPrimary"
+                                className="mx-1 mb-1 h-8 w-[calc(100%-8px)] rounded-md border border-solid border-border bg-transparent px-2 text-sm text-foreground outline-none [font-family:inherit] focus:border-primary"
                             />
                         ) : null}
                         <div className="ag-scroll-quiet flex max-h-56 flex-col gap-0.5 overflow-y-auto">
@@ -261,7 +261,7 @@ export const AgentSidebarSwitcher = ({
                                 </span>
                             </PanelRow>
                             {createError ? (
-                                <p className="m-0 px-2 pb-1 text-[12px] text-colorError">
+                                <p className="m-0 px-2 pb-1 text-[12px] text-destructive">
                                     {createError}
                                 </p>
                             ) : null}

@@ -25,7 +25,7 @@ export const sessionStatusMark = (mark: SessionMark): ReactNode => {
         "aria-label": tNow(
             mark === "waiting" ? "navigation.items.sessionWaiting" : "navigation.items.sessionLive",
         ),
-        className: `size-1.5 rounded-full ${mark === "waiting" ? "bg-[var(--ag-run-status-warning)]" : "bg-colorText"}`,
+        className: `size-1.5 rounded-full ${mark === "waiting" ? "bg-[var(--ag-run-status-warning)]" : "bg-foreground"}`,
     })
 }
 
@@ -46,4 +46,4 @@ export const withStatusMark = (node: ReactNode, status: ReactNode): ReactElement
 
 /** A running session's title shimmers, the same live-text sweep the chat uses. */
 export const RUNNING_TITLE =
-    "[&_span[title]]:bg-[linear-gradient(90deg,var(--ag-colorTextQuaternary)_0%,var(--ag-colorText)_50%,var(--ag-colorTextQuaternary)_100%)] [&_span[title]]:bg-clip-text motion-safe:[&_span[title]]:animate-text-shimmer motion-safe:[&_span[title]]:bg-[length:200%_100%] motion-safe:[&_span[title]]:text-transparent"
+    "[&_span[title]]:bg-[linear-gradient(90deg,var(--colorTextQuaternary)_0%,var(--foreground)_50%,var(--colorTextQuaternary)_100%)] [&_span[title]]:bg-clip-text motion-safe:[&_span[title]]:animate-text-shimmer motion-safe:[&_span[title]]:bg-[length:200%_100%] motion-safe:[&_span[title]]:text-transparent"

@@ -235,8 +235,8 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                 data-sticky-heading="true"
                 className={clsx(
                     // Sentence case, as the design writes the day labels ("Today", "Yesterday").
-                    "m-0 w-full shrink-0 pb-1 pl-5 pr-5 text-[12px] leading-5 select-none",
-                    phone ? "pt-1 text-colorTextTertiary" : "pt-1.5 text-colorTextSecondary",
+                    `m-0 w-full shrink-0 pb-1 pl-5 pr-5 ${CAPTION_TEXT} select-none`,
+                    phone ? "pt-1 text-colorTextTertiary" : "pt-1.5 text-muted-foreground",
                     STICKY_HEADING,
                 )}
             >
@@ -253,7 +253,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
             // ENTITY (an agent), and shouting a proper noun misspells it.
             data-sticky-heading="true"
             className={clsx(
-                "group/heading flex w-full shrink-0 cursor-pointer select-none items-center gap-1 pb-1 pl-5 pr-2 pt-3 text-[12px] leading-5 text-colorTextSecondary hover:text-colorText",
+                `group/heading flex w-full shrink-0 cursor-pointer select-none items-center gap-1 pb-1 pl-5 pr-2 pt-3 ${CAPTION_TEXT} text-muted-foreground hover:text-foreground`,
                 phone && "min-h-11",
                 STICKY_HEADING,
             )}
@@ -299,7 +299,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                     aria-label={item.groupAdd.label}
                     title={item.groupAdd.label}
                     className={clsx(
-                        "ml-auto flex size-[22px] shrink-0 items-center justify-center rounded-[6px] !text-colorTextTertiary no-underline hover:bg-colorFillTertiary hover:!text-colorText",
+                        "ml-auto flex size-[22px] shrink-0 items-center justify-center rounded-[6px] !text-colorTextTertiary no-underline hover:bg-colorFillTertiary hover:!text-foreground",
                         item.groupEnter ? HEADING_HOVER_ACTION : "mr-1",
                     )}
                     onClick={(event) => {
@@ -320,7 +320,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                     aria-label={item.groupEnter.label}
                     title={item.groupEnter.label}
                     className={clsx(
-                        "mr-1 flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 text-colorTextTertiary [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText",
+                        "mr-1 flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 text-colorTextTertiary [font-family:inherit] hover:bg-colorFillTertiary hover:text-foreground",
                         !item.groupAdd && "ml-auto",
                         HEADING_HOVER_ACTION,
                     )}
@@ -378,14 +378,14 @@ const SectionHeading = ({
         <>
             {item.title}
             {item.suffix != null ? (
-                <span className="ml-1.5 text-colorTextSecondary">{item.suffix}</span>
+                <span className="ml-1.5 text-muted-foreground">{item.suffix}</span>
             ) : null}
         </>
     )
     return (
         <div
             className={cn(
-                "mx-auto flex w-[calc(100%-16px)] shrink-0 items-center gap-1 px-3 pb-1 pt-3.5 text-[12px] leading-4 text-colorTextSecondary select-none",
+                "mx-auto flex w-[calc(100%-16px)] shrink-0 items-center gap-1 px-3 pb-1 pt-3.5 text-[12px] leading-4 text-muted-foreground select-none",
                 item.rowClassName,
             )}
         >
@@ -399,14 +399,14 @@ const SectionHeading = ({
                     className={clsx(
                         "-ml-1 inline-flex min-w-0 items-center rounded px-1 py-0.5 no-underline",
                         selected
-                            ? "bg-colorFillTertiary !text-colorText"
-                            : "!text-colorTextTertiary hover:bg-colorFillTertiary hover:!text-colorText",
+                            ? "bg-colorFillTertiary !text-foreground"
+                            : "!text-colorTextTertiary hover:bg-colorFillTertiary hover:!text-foreground",
                     )}
                 >
                     {label}
                 </Link>
             ) : (
-                <span className="min-w-0 truncate leading-5 text-colorTextSecondary">{label}</span>
+                <span className="min-w-0 truncate leading-5 text-muted-foreground">{label}</span>
             )}
             <span className="min-w-0 flex-1" />
             {item.groupAction ? (
@@ -417,6 +417,9 @@ const SectionHeading = ({
 }
 
 /** Row widths for the loading list, varied so it reads as titles rather than a block. */
+/** The 12px caption line every group heading and section caption shares. */
+const CAPTION_TEXT = "text-[12px] leading-5"
+
 const LOADING_WIDTHS = ["w-[72%]", "w-[58%]", "w-[80%]", "w-[46%]", "w-[66%]", "w-[54%]"]
 
 /** A group's loading state, shaped like the list it stands in for: a caption, then rows. */
@@ -425,11 +428,11 @@ const LoadingRows = () => {
     return (
         <div className="flex shrink-0 flex-col" aria-busy="true" aria-label={t("common.loading")}>
             <div className="flex h-6 items-center pl-5 pr-3 pt-2">
-                <SkeletonBlock active className="h-2.5 w-24 rounded-full" />
+                <SkeletonBlock active className="h-2.5 w-24 rounded-sm" />
             </div>
             {LOADING_WIDTHS.map((width) => (
                 <div key={width} className={`${ROW_BASE} pointer-events-none`}>
-                    <SkeletonBlock active className={`h-3 rounded-full ${width}`} />
+                    <SkeletonBlock active className={`h-3 rounded-sm ${width}`} />
                 </div>
             ))}
         </div>
@@ -828,7 +831,7 @@ const NavMenuImpl = ({
                                     // z-[1] keeps the toggle clickable above the stretched link anchor.
                                     // A 44 px target in the phone sheet; the 12 px caret keeps its size.
                                     className={clsx(
-                                        "relative z-[1] mr-1 flex shrink-0 cursor-pointer items-center justify-center rounded-md text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText",
+                                        "relative z-[1] mr-1 flex shrink-0 cursor-pointer items-center justify-center rounded-md text-colorTextTertiary hover:bg-colorFillTertiary hover:text-foreground",
                                         phone ? "size-11" : "size-[22px]",
                                     )}
                                     onClick={(event) => {

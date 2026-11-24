@@ -42,7 +42,7 @@ const DEFAULT_TONE: MeterTone = {
 }
 const METER_TONES: Partial<Record<CreditAlert["kind"], MeterTone>> = {
     low: {text: "text-colorWarningText", bar: "bg-colorWarning", Icon: AlertTriangle},
-    empty: {text: "text-colorErrorText", bar: "bg-colorError", Icon: XCircle},
+    empty: {text: "text-colorErrorText", bar: "bg-destructive", Icon: XCircle},
 }
 
 const CreditsMeter = ({projectId, settingsURL}: {projectId: string; settingsURL: string}) => {

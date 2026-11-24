@@ -12,8 +12,7 @@ import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import type {SidebarArrange, SidebarConfig} from "@agenta/navigation"
 import {Popover, PopoverContent, PopoverTrigger, cn} from "@agenta/ui/ui"
-import {ArrowCounterClockwise} from "@phosphor-icons/react"
-import {Ellipsis, Pin} from "lucide-react"
+import {ArrowCounterClockwise, DotsThree, PushPin} from "@phosphor-icons/react"
 import {
     AnimatePresence,
     Reorder,
@@ -27,18 +26,18 @@ import {ROW_BASE, ROW_INTERACTIVE, ROW_SELECTED} from "./rowStyles"
 import {PHONE_ROW_CLASS, SidebarLayoutContext} from "./sidebarLayout"
 
 const MORE_PANEL_CLASS =
-    "z-[2000] w-[248px] rounded-[10px] border border-solid border-colorBorderSecondary bg-colorBgElevated p-0 shadow-md"
+    "z-[2000] w-[248px] rounded-[10px] border border-solid border-colorBorderSecondary bg-popover p-0 shadow-md"
 
 const MOUSE_SLOP_PX = 4
 const TOUCH_HOLD_MS = 350
 const TOUCH_SLOP_PX = 8
 const SETTLE = {type: "spring", stiffness: 500, damping: 40, mass: 0.8} as const
 const LIFTED =
-    "z-20 rounded-[6px] bg-[var(--ag-sidebar-bg)] [&>div:first-child]:bg-colorBgElevated [&>div:first-child]:shadow-overlay [&>div:first-child]:cursor-grabbing"
+    "z-20 rounded-[6px] bg-[var(--ag-sidebar-bg)] [&>div:first-child]:bg-popover [&>div:first-child]:shadow-overlay [&>div:first-child]:cursor-grabbing"
 const DROP_TARGET =
-    "bg-[var(--ag-shell-selected-bg)] !text-colorText shadow-[inset_0_0_0_1px_currentColor]"
+    "bg-[var(--ag-shell-selected-bg)] !text-foreground shadow-[inset_0_0_0_1px_currentColor]"
 const MENU_ROW =
-    "flex h-8 w-full cursor-pointer items-center gap-[10px] rounded-[6px] border-0 bg-transparent px-2 text-left text-sm text-colorText no-underline [font-family:inherit] select-none hover:bg-colorFillSecondary"
+    "flex h-8 w-full cursor-pointer items-center gap-[10px] rounded-[6px] border-0 bg-transparent px-2 text-left text-sm text-foreground no-underline [font-family:inherit] select-none hover:bg-accent"
 
 /** Starts a drag after a small mouse move or a touch long-press, so taps click and swipes scroll. */
 const pressToDrag = (press: ReactPointerEvent, begin: (event: PointerEvent) => void) => {
@@ -164,7 +163,7 @@ const MoreMenu = ({
     }
     return (
         <div className="flex flex-col p-1">
-            <div className="px-2 pb-1 pt-1.5 text-xs text-colorTextSecondary">
+            <div className="px-2 pb-1 pt-1.5 text-xs text-muted-foreground">
                 {t("navigation.arrange.morePages")}
             </div>
             {hidden.length ? (
@@ -173,7 +172,7 @@ const MoreMenu = ({
                     const group = !item.link && Boolean(item.submenu?.length)
                     return (
                         <div key={item.key} className="flex flex-col">
-                            <div className="flex items-center rounded-[6px] hover:bg-colorFillSecondary">
+                            <div className="flex items-center rounded-[6px] hover:bg-accent">
                                 <Link
                                     href={item.link ?? "#"}
                                     draggable={false}
@@ -201,10 +200,10 @@ const MoreMenu = ({
                                         title: item.title,
                                     })}
                                     title={t("navigation.arrange.pinToSidebar")}
-                                    className="mr-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillSecondary hover:text-colorText"
+                                    className="mr-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
                                     onClick={() => onPin(item.key)}
                                 >
-                                    <Pin size={12} strokeWidth={1.75} />
+                                    <PushPin size={12} />
                                 </button>
                             </div>
                             {group
@@ -407,7 +406,7 @@ export const ArrangeablePages = ({
                             )}
                         >
                             <span data-row-icon className="flex">
-                                <Ellipsis size={16} strokeWidth={2} />
+                                <DotsThree size={16} weight="bold" />
                             </span>
                         </button>
                     </PopoverTrigger>
@@ -483,14 +482,14 @@ export const ArrangeablePages = ({
                             ROW_BASE,
                             phone && `${PHONE_ROW_CLASS} mb-0`,
                             ROW_INTERACTIVE,
-                            "border-0 bg-transparent text-left [font-family:inherit] !text-colorTextSecondary transition-[background-color,box-shadow] duration-150",
+                            "border-0 bg-transparent text-left [font-family:inherit] !text-muted-foreground transition-[background-color,box-shadow] duration-150",
                             moreOpen && ROW_SELECTED,
                             dropping && DROP_TARGET,
                         )}
                     >
-                        <Ellipsis
+                        <DotsThree
                             size={phone ? 18 : 16}
-                            strokeWidth={2}
+                            weight="bold"
                             className="shrink-0 text-[var(--ag-zinc-8)]"
                         />
                         <span className="min-w-0 flex-1 truncate">

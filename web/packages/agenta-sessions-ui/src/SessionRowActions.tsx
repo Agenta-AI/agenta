@@ -54,7 +54,7 @@ const RENAME_ON_MOUNT_MS = 3000
 // [font-family:inherit]: preflight is off, so a bare <button> renders Arial, not Inter.
 // Themed focus ring, not the UA blue: Radix returns focus to the trigger on close.
 const KEBAB_CLASS =
-    "flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary opacity-0 outline-none transition-opacity [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring group-hover/row:opacity-100 data-[open]:opacity-100 pointer-coarse:opacity-100"
+    "flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary opacity-0 outline-none transition-opacity [font-family:inherit] hover:bg-colorFillTertiary hover:text-foreground focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring group-hover/row:opacity-100 data-[open]:opacity-100 pointer-coarse:opacity-100"
 
 /**
  * Per-row session verbs in the nav rail — rename, pin, archive, delete.

@@ -121,7 +121,7 @@ export const buildSettingsSidebarSections = (
                 // pl-5 = the rows' 8px inset + their 12px padding.
                 <div
                     className={[
-                        "pl-5 pr-3 pb-1 text-[12px] leading-5 text-colorTextSecondary",
+                        "pl-5 pr-3 pb-1 text-[12px] leading-5 text-muted-foreground",
                         index === 0 ? "pt-1" : "pt-4",
                     ].join(" ")}
                 >
