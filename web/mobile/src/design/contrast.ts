@@ -26,15 +26,21 @@ export function resolveColor(name: string, mode: ThemeMode): string {
 function over(rgba: string, ground: string): string {
     const alpha = parseInt(rgba.slice(7, 9), 16) / 255
     const [c, g] = [rgba.slice(0, 7), ground].map((h) => parseInt(h.slice(1), 16))
-    const mix = [16, 8, 0].map((sh) => Math.round(((c >> sh) & 255) * alpha + ((g >> sh) & 255) * (1 - alpha)))
+    const mix = [16, 8, 0].map((sh) =>
+        Math.round(((c >> sh) & 255) * alpha + ((g >> sh) & 255) * (1 - alpha)),
+    )
     return `#${mix.map((v) => v.toString(16).padStart(2, "0")).join("")}`
 }
 
 // The color a `<name>/<percent>` tint paints over a solid ground.
 export function tint(name: string, ground: string, mode: ThemeMode, percent = 10): string {
-    const [c, g] = [resolveColor(name, mode), resolveColor(ground, mode)].map((h) => parseInt(h.slice(1), 16))
+    const [c, g] = [resolveColor(name, mode), resolveColor(ground, mode)].map((h) =>
+        parseInt(h.slice(1), 16),
+    )
     const ch = (v: number, shift: number) => (v >> shift) & 255
-    const mix = [16, 8, 0].map((sh) => Math.round(ch(c, sh) * (percent / 100) + ch(g, sh) * (1 - percent / 100)))
+    const mix = [16, 8, 0].map((sh) =>
+        Math.round(ch(c, sh) * (percent / 100) + ch(g, sh) * (1 - percent / 100)),
+    )
     return `#${mix.map((v) => v.toString(16).padStart(2, "0")).join("")}`
 }
 
@@ -43,11 +49,9 @@ export const contrastPairs: [foreground: string, background: string, min: number
     ["foreground", "background", 12],
     ["foreground", "muted", 12],
     ["foreground", "popover", 12],
-    ...["background", "muted", "secondary", "accent", "selected", "popover"].map((bg): [string, string, number] => [
-        "muted-foreground",
-        bg,
-        4.5,
-    ]),
+    ...["background", "muted", "secondary", "accent", "selected", "popover"].map(
+        (bg): [string, string, number] => ["muted-foreground", bg, 4.5],
+    ),
     ["background", "foreground", 4.5],
     ["background", "primary", 4.5],
     ["brand-foreground", "brand", 4.5],

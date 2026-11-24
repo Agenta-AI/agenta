@@ -11,20 +11,31 @@ describe("design theme contrast", () => {
 
     for (const mode of ["light", "dark"] as const) {
         it.each(contrastPairs)(`${mode}: %s on %s is at least %d:1`, (fg, bg, min) => {
-            expect(contrastRatio(resolveColor(fg, mode), resolveColor(bg, mode))).toBeGreaterThanOrEqual(min)
+            expect(
+                contrastRatio(resolveColor(fg, mode), resolveColor(bg, mode)),
+            ).toBeGreaterThanOrEqual(min)
         })
     }
 
     for (const mode of ["light", "dark"] as const) {
-        it.each(statusTints)(`${mode}: $status text on its 10% tint over $ground is at least 4.5:1`, ({status, ground}) => {
-            expect(contrastRatio(resolveColor(status, mode), tint(status, ground, mode))).toBeGreaterThanOrEqual(4.5)
-        })
+        it.each(statusTints)(
+            `${mode}: $status text on its 10% tint over $ground is at least 4.5:1`,
+            ({status, ground}) => {
+                expect(
+                    contrastRatio(resolveColor(status, mode), tint(status, ground, mode)),
+                ).toBeGreaterThanOrEqual(4.5)
+            },
+        )
     }
 
     it("keeps the palette small, two text levels, and every alias on a core color", () => {
-        expect(colors.filter((c) => /^(muted-)?foreground$|^subtle-foreground$/.test(c.name)).length).toBe(2)
+        expect(
+            colors.filter((c) => /^(muted-)?foreground$|^subtle-foreground$/.test(c.name)).length,
+        ).toBe(2)
         // Data (data-*, on-data) and media (scrim, on-scrim, logo-ground) colors are a separate group.
-        const uiColors = colors.filter((c) => !/^(data-\d|on-data|scrim|on-scrim|logo-ground)$/.test(c.name))
+        const uiColors = colors.filter(
+            (c) => !/^(data-\d|on-data|scrim|on-scrim|logo-ground)$/.test(c.name),
+        )
         expect(uiColors.length).toBeLessThanOrEqual(23)
         const names = new Set(colors.map((c) => c.name))
         for (const to of Object.values(colorAliases)) expect(names.has(to)).toBe(true)
