@@ -25,7 +25,7 @@ export {
     skillRevisionsQueryKey,
     type SkillDetailDrawerProps,
 } from "./SkillDetailDrawer"
-export {SkillAgentPicker} from "./SkillAgentPicker"
+export {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
 export {AddSkillsBody} from "./AddSkillsBody"
 export {
     NewSkillBody,

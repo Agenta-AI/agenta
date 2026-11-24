@@ -76,5 +76,6 @@
     "skillsUpdated_other": "{{count}} Skills aktualisiert",
     "updateFailed_one": "{{count}} Skill konnte nicht aktualisiert werden",
     "updateFailed_other": "{{count}} Skills konnten nicht aktualisiert werden",
-    "pageDescription": "Anweisungen und Tools, die du jedem Agent hinzufügen kannst."
+    "pageDescription": "Anweisungen und Tools, die du jedem Agent hinzufügen kannst.",
+    "usedByNone": "Keine Agents"
 }

@@ -14,7 +14,7 @@ import {
 } from "@agenta/sessions-ui"
 import {userAtom} from "@agenta/shared/state"
 import {timeAgo} from "@agenta/shared/utils"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Button, IconTile, SimpleTooltip} from "@agenta/ui/ui"
 import {
     ArrowBendDownRight,
     ChatCircle,
@@ -86,9 +86,12 @@ const KindIcon = ({vm}: {vm: SessionRowVm}) => {
                 {status: vm.status.label},
             )}
             title={vm.status.label}
-            className="relative flex shrink-0 text-muted-foreground"
+            className="relative flex shrink-0"
         >
-            <Glyph size={14} aria-hidden />
+            {/* A 24px Mark, the one-line row's size (ROW rule), like every list's first cell. */}
+            <IconTile size={24} aria-hidden>
+                <Glyph aria-hidden />
+            </IconTile>
             <span
                 aria-hidden
                 className={cn(
@@ -154,7 +157,7 @@ export const SessionRowCells = ({
 
     return (
         <>
-            <span className={cn("flex min-w-0 items-center gap-2", archived && FADED)}>
+            <span className={cn("flex min-w-0 items-center gap-3", archived && FADED)}>
                 <KindIcon vm={vm} />
                 {rename.renaming ? (
                     <span className="min-w-0 flex-1" onClick={swallow}>
@@ -219,17 +222,6 @@ export const SessionRowCells = ({
                 )}
             </span>
 
-            {narrow ? null : (
-                // A dot and a coloured word, never a pill: the column is read down, and a stack
-                // of pills reads as a stack of buttons. Same shape the automations table uses.
-                <span className={cn("flex min-w-0 items-center gap-1.5", archived && FADED)}>
-                    <StatusDot status={vm.status} />
-                    <span className={cn("truncate text-body-sm", vm.status.textClassName)}>
-                        {vm.status.label}
-                    </span>
-                </span>
-            )}
-
             {narrow || hideAgent ? null : vm.agentId ? (
                 <span className={cn("flex min-w-0 items-center gap-1.5", archived && FADED)}>
                     {/* The agent's own mark, not a generic robot — the same tile the automations
@@ -239,6 +231,17 @@ export const SessionRowCells = ({
                 </span>
             ) : (
                 <SessionAgentName agentId={null} />
+            )}
+
+            {narrow ? null : (
+                // A dot and a coloured word, never a pill: the column is read down, and a stack
+                // of pills reads as a stack of buttons. Same shape the automations table uses.
+                <span className={cn("flex min-w-0 items-center gap-1.5", archived && FADED)}>
+                    <StatusDot status={vm.status} />
+                    <span className={cn("truncate text-body-sm", vm.status.textClassName)}>
+                        {vm.status.label}
+                    </span>
+                </span>
             )}
 
             <span

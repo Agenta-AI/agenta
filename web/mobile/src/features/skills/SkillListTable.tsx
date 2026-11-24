@@ -36,12 +36,12 @@ const nameColumn = (t: ListText): ListTableColumn => ({
 const provenanceColumn = (t: ListText, group: SkillGrouping): ListTableColumn => ({
     key: "provenance",
     label: group === "source" ? t("skills.list.columnCreatedBy") : t("skills.list.columnSource"),
-    width: LIST_COLUMN_WIDTH.name,
+    width: LIST_COLUMN_WIDTH.secondary,
 })
 const usedByColumn = (t: ListText): ListTableColumn => ({
     key: "usedBy",
     label: t("skills.list.columnUsedBy"),
-    width: LIST_COLUMN_WIDTH.secondary,
+    width: LIST_COLUMN_WIDTH.name,
 })
 const updatedColumn = (t: ListText, width: string): ListTableColumn => ({
     key: "updated",
@@ -59,8 +59,8 @@ const actionsColumn = (t: ListText): ListTableColumn => ({
 
 const wideColumns = (t: ListText, group: SkillGrouping): ListTableColumn[] => [
     nameColumn(t),
-    provenanceColumn(t, group),
     usedByColumn(t),
+    provenanceColumn(t, group),
     updatedColumn(t, LIST_COLUMN_WIDTH.time),
     actionsColumn(t),
 ]

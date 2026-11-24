@@ -57,13 +57,13 @@ type ScreenText = ReturnType<typeof useT<[typeof automationsScreensCatalog]>>
 
 const wideColumns = (t: ScreenText): ListTableColumn[] => [
     nameColumn(t),
+    {key: "agent", label: t("automations.screens.columnAgent"), width: LIST_COLUMN_WIDTH.name},
     {
         key: "status",
         label: t("automations.screens.columnStatus"),
         width: LIST_COLUMN_WIDTH.secondary,
     },
     lastRunColumn(t),
-    {key: "agent", label: t("automations.screens.columnAgent"), width: LIST_COLUMN_WIDTH.name},
     actionsColumn(t),
 ]
 // A phone keeps the name and whether it is doing anything; the kind tile already says schedule
@@ -245,10 +245,6 @@ export const AutomationListScreen = ({
                                 meta={runsWhen}
                             />
 
-                            {narrow ? null : <AutomationStatusMark status={status} />}
-
-                            <AutomationLastRunCell automation={automation} />
-
                             {narrow ? null : name ? (
                                 <span className="flex min-w-0 items-center gap-1.5">
                                     {/* The agent's own mark, not a generic robot — a column of
@@ -270,6 +266,10 @@ export const AutomationListScreen = ({
                             ) : (
                                 <span className="text-body-sm text-muted-foreground">—</span>
                             )}
+
+                            {narrow ? null : <AutomationStatusMark status={status} />}
+
+                            <AutomationLastRunCell automation={automation} />
 
                             {/* The menu's own clicks are not the row's: without this every menu
                                 press would also open the detail screen. */}

@@ -70,18 +70,18 @@ const ACTIONS_COLUMN: ListTableColumn = {
 const WIDE_COLUMNS: ListTableColumn[] = [
     SESSION_COLUMN,
     {
-        key: "status",
-        get label() {
-            return tNow("sessions.mobileList.status")
-        },
-        width: LIST_COLUMN_WIDTH.secondary,
-    },
-    {
         key: "agent",
         get label() {
             return tNow("sessions.mobileList.agent")
         },
         width: LIST_COLUMN_WIDTH.name,
+    },
+    {
+        key: "status",
+        get label() {
+            return tNow("sessions.mobileList.status")
+        },
+        width: LIST_COLUMN_WIDTH.secondary,
     },
     updatedColumn(LIST_COLUMN_WIDTH.time),
     ACTIONS_COLUMN,

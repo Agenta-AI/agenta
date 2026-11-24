@@ -71,5 +71,6 @@
     "allUpToDate": "全部已是最新",
     "skillsUpdated_other": "已更新 {{count}} 个 Skill",
     "updateFailed_other": "无法更新 {{count}} 个 Skill",
-    "pageDescription": "可以添加到任何 Agent 的指令和工具。"
+    "pageDescription": "可以添加到任何 Agent 的指令和工具。",
+    "usedByNone": "无 Agent"
 }

@@ -3,12 +3,12 @@ import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {SkillMark} from "@agenta/ui/agent-icon"
 
 import {SkillActionsMenu} from "./SkillActionsMenu"
+import {SkillUsedByCell} from "./SkillUsedByCell"
 import {SkillArchivedTag} from "./SkillArchivedTag"
 import {
     lastUpdatedLabel,
     noDescriptionLabel,
     provenanceLabel,
-    usedByLabel,
     type SkillGrouping,
     type SkillListRow,
 } from "./skillListView"
@@ -42,7 +42,10 @@ export const SkillRowCells = ({
                 shared, so the two lines are where a row can give height back. */}
                 <span className="flex min-w-0 flex-1 flex-col gap-px">
                     <span className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate text-body font-medium text-foreground" title={row.title}>
+                        <span
+                            className="truncate text-body font-medium text-foreground"
+                            title={row.title}
+                        >
                             {row.title}
                         </span>
                         {row.archived ? <SkillArchivedTag /> : null}
@@ -58,18 +61,14 @@ export const SkillRowCells = ({
                 </span>
             </span>
 
+            {narrow ? null : <SkillUsedByCell workflowId={row.id} count={row.usedByCount} />}
+
             {narrow ? null : (
                 <span
                     className="block truncate text-label text-muted-foreground"
                     title={provenanceLabel(row, group)}
                 >
                     {provenanceLabel(row, group)}
-                </span>
-            )}
-
-            {narrow ? null : (
-                <span className="block truncate text-label text-muted-foreground">
-                    {usedByLabel(row.usedByCount)}
                 </span>
             )}
 

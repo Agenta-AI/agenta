@@ -81,5 +81,6 @@
     "updateFailed_one": "Impossible de mettre à jour {{count}} skill",
     "updateFailed_many": "Impossible de mettre à jour {{count}} skills",
     "updateFailed_other": "Impossible de mettre à jour {{count}} skills",
-    "pageDescription": "Des instructions et des outils que vous pouvez ajouter à n'importe quel agent."
+    "pageDescription": "Des instructions et des outils que vous pouvez ajouter à n'importe quel agent.",
+    "usedByNone": "Aucun agent"
 }
