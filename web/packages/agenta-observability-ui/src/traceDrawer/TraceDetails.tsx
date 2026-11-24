@@ -12,8 +12,8 @@ import {
 } from "@agenta/observability"
 import type {TraceSpanNode} from "@agenta/observability"
 import {formatTokens} from "@agenta/shared/utils"
-import {useAtomValue} from "jotai"
 import {PlusCircleIcon, TimerIcon} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
 
 import {statusMapper} from "../cells/AvatarTreeContent"
 import {StatusRenderer} from "../cells/StatusRenderer"

@@ -18,12 +18,12 @@ import {ColumnVisibilityMenuTrigger, type ColumnDefs, type ExtendedColumn} from 
 import {CostCell} from "../cells/CostCell"
 import {DurationCell} from "../cells/DurationCell"
 import EvaluatorMetricsCell from "../cells/EvaluatorMetricsCell"
+import {ONE_LINE_CELL, ONE_LINE_MESSAGE_CELL} from "../cells/oneLineCell"
 import {SpanIdChip} from "../cells/SpanIdChip"
 import {SpanNameCell} from "../cells/SpanNameCell"
 import {StatusRenderer} from "../cells/StatusRenderer"
 import {TimestampCell} from "../cells/TimestampCell"
 import {UsageCell} from "../cells/UsageCell"
-import {ONE_LINE_CELL, ONE_LINE_MESSAGE_CELL} from "../cells/oneLineCell"
 
 type ColumnsKey = CatalogKey<typeof columnsCatalog>
 type ColumnLabel = ColumnsKey extends `observabilityUi.columns.${infer Name}` ? Name : never

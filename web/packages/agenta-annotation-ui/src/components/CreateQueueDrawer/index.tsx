@@ -16,8 +16,8 @@ import {
     useEnsureEvaluatorEnrichment,
 } from "@agenta/entity-ui/selection"
 import {createT, useT} from "@agenta/i18n"
-import commonCatalog from "@agenta/i18n/catalogs/common"
 import queuesCatalog from "@agenta/i18n/catalogs/annotation.queues"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
 import {Button, LoadingButton} from "@agenta/ui/ui"
