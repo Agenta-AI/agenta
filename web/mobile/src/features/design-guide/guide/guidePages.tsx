@@ -6,8 +6,8 @@ import {OverlaysRow} from "../OverlaysRow"
 import {ScaleSection} from "../ScaleSection"
 import {TypeSection} from "../TypeSection"
 
+import {resolveRule} from "./ruleIndex"
 import {badgeRules, buttonRules, formRules, markRules, stateRules} from "./rules/componentRules"
-import {colorRules, iconRules, shapeRules, surfaceRules, typeRules} from "./rules/foundationRules"
 import {
     chatRules,
     codeRules,
@@ -20,6 +20,7 @@ import {
     toastRules,
     tooltipRules,
 } from "./rules/compositeRules"
+import {colorRules, iconRules, shapeRules, surfaceRules, typeRules} from "./rules/foundationRules"
 import {microRules} from "./rules/microRules"
 import {
     moreColorExamples,
@@ -40,7 +41,6 @@ import {layoutRules, touchRules} from "./rules/patternRules"
 import {rowGapRules} from "./rules/rowGapRules"
 import {gapRules, hoverRules, rowRules} from "./rules/rowRules"
 import {contentRules, motionRules, quietRules} from "./rules/voiceRules"
-import {resolveRule} from "./ruleIndex"
 import type {GuidePage, RuleExample} from "./types"
 
 type GuidePageInput = Omit<GuidePage, "rules"> & {rules: RuleExample[]}

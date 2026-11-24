@@ -61,15 +61,6 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
 import {useRouter} from "next/router"
 
-import {useProjectPermission} from "../context/useProjectPermission"
-
-import {AgentsNavAction} from "./AgentsNavAction"
-import {AgentsQuickPanel} from "./AgentsQuickPanel"
-import {developerNavSlots, PROMPTS_ROW_KEY} from "./developerNavSlots"
-import {useSyncLocalSessionRefs} from "./localSessionRefs"
-import {sessionMarkOf, sessionStatusMark, withStatusMark} from "./sessionStatusMark"
-import {SupportActions} from "./SupportActions"
-
 import {openAgentSidebar} from "@/features/agent-sidebar/selectedSidebar"
 import {agentEntryHref} from "@/features/agents/agentEntry"
 import {builderChatPath} from "@/features/builder/builderChatHref"
@@ -80,6 +71,15 @@ import {useLeaveSession} from "@/features/chat/useLeaveSession"
 import {startBlankSession} from "@/features/chat/useStartBlankSession"
 import {useEnabledDeveloperViews} from "@/features/developer/developerViewAccess"
 import {whatsNewAtom} from "@/features/education/whatsNewAtom"
+
+import {useProjectPermission} from "../context/useProjectPermission"
+
+import {AgentsNavAction} from "./AgentsNavAction"
+import {AgentsQuickPanel} from "./AgentsQuickPanel"
+import {developerNavSlots, PROMPTS_ROW_KEY} from "./developerNavSlots"
+import {useSyncLocalSessionRefs} from "./localSessionRefs"
+import {sessionMarkOf, sessionStatusMark, withStatusMark} from "./sessionStatusMark"
+import {SupportActions} from "./SupportActions"
 
 /** Outside React: the row-level labels the entity registry builds at call time. */
 const tNow = createT(navigationCatalog)

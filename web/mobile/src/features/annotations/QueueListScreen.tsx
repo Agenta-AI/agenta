@@ -6,8 +6,8 @@ import {
 import {useT} from "@agenta/i18n"
 import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
 import {Button} from "@agenta/ui/ui"
-import {useSetAtom} from "jotai"
 import {PlusIcon} from "@phosphor-icons/react"
+import {useSetAtom} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"

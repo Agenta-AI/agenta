@@ -24,6 +24,7 @@ import {
 import {
     Button,
     type ButtonProps,
+    type LegacyButtonSize,
     Divider,
     Popover,
     PopoverContent,
@@ -55,7 +56,8 @@ export interface FilterDialogProps {
     /** The annotation evaluator + feedback sub-row. Omit and annotation rows fall back to the generic value input. */
     annotationRow?: AnnotationRowSlot
     /** Props for the default funnel trigger. Ignored when `trigger` is given. */
-    buttonProps?: ButtonProps
+    /** Trigger props; antd's `size` (desktop app only) is ignored: the trigger keeps its icon size. */
+    buttonProps?: Omit<ButtonProps, "size"> & {size?: ButtonProps["size"] | LegacyButtonSize}
     /** Replace the default trigger entirely. */
     trigger?: ReactNode
     className?: string
@@ -306,6 +308,15 @@ export function FilterDialog({
         setIsFilterOpen(false)
     }
 
+    // Legacy antd sizes from the desktop app keep the icon trigger's own size.
+    const {size: triggerSize, ...restButtonProps} = buttonProps ?? {}
+    const triggerButtonProps: ButtonProps = {
+        ...restButtonProps,
+        ...(triggerSize && !["small", "middle", "large"].includes(triggerSize)
+            ? {size: triggerSize as ButtonProps["size"]}
+            : {}),
+    }
+
     const defaultTrigger = (
         // A square icon button like Refresh beside it (SIZE-01); the count rides its corner.
         <Button
@@ -313,7 +324,7 @@ export function FilterDialog({
             size="icon"
             className="relative"
             aria-label={t("observabilityUi.filters.filter")}
-            {...buttonProps}
+            {...triggerButtonProps}
         >
             <FunnelIcon size={14} />
             {appliedCount > 0 ? (

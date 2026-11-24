@@ -1,6 +1,6 @@
+import rulesJson from "@agenta/ui/design/rules.json"
 import {describe, expect, it} from "vitest"
 
-import rulesJson from "@agenta/ui/design/rules.json"
 import {guidePages} from "@/features/design-guide/guide/guidePages"
 import {termIcons} from "@/features/design-guide/termIcons"
 

@@ -36,17 +36,17 @@ import {
 } from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 
-import {playgroundHref} from "../playground/playgroundUrl"
-
-import {developerNavSlots} from "./developerNavSlots"
-import type {NavTranslate} from "./observabilityNavItems"
-import {mobileSessionsEntity} from "./useMobileNavItems"
-
 import {agentEntryHref} from "@/features/agents/agentEntry"
 import {useEnabledDeveloperViews} from "@/features/developer/developerViewAccess"
 import type {DeveloperView} from "@/features/developer/developerViews"
 import {AVAILABLE_SETTINGS_TABS, useMobileSettingsAccess} from "@/features/settings/settingsTabs"
 import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
+
+import {playgroundHref} from "../playground/playgroundUrl"
+
+import {developerNavSlots} from "./developerNavSlots"
+import type {NavTranslate} from "./observabilityNavItems"
+import {mobileSessionsEntity} from "./useMobileNavItems"
 
 /** Case-insensitive substring over the label and any extra words. */
 const matches = (query: string, label: string, keywords: string[] = []) =>

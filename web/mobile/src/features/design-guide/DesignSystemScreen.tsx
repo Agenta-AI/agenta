@@ -1,7 +1,6 @@
 import {useMemo} from "react"
 
 import {useThemeMode} from "@agenta/ui/theme"
-
 import {useRouter} from "next/router"
 
 import {AntiPatternsWall} from "./guide/AntiPatternsWall"
@@ -10,9 +9,9 @@ import {GuideNav} from "./guide/GuideNav"
 import {GuideOverview} from "./guide/GuideOverview"
 import {GuidePagePicker} from "./guide/GuidePagePicker"
 import {guidePages} from "./guide/guidePages"
-import {designRules} from "./guide/ruleIndex"
 import {PropsTable} from "./guide/PropsTable"
 import {RuleBlock} from "./guide/RuleBlock"
+import {designRules} from "./guide/ruleIndex"
 import {ThemeToggle} from "./ThemeToggle"
 
 // Rules show in rules.json order on every page.

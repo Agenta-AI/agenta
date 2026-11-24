@@ -1,5 +1,6 @@
-import {CheckIcon, XIcon} from "@phosphor-icons/react"
 import type {ReactNode} from "react"
+
+import {CheckIcon, XIcon} from "@phosphor-icons/react"
 
 interface DoAvoidProps {
     kind: "do" | "avoid"

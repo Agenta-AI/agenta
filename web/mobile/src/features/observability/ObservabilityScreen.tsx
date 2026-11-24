@@ -12,9 +12,9 @@ import {
 import {AddActionsDropdown, deleteTraceModalAtom} from "@agenta/observability-ui"
 import {PageLayout} from "@agenta/ui"
 import {useIsNarrowScreen} from "@agenta/ui/hooks"
+import {ChatsIcon, NetworkIcon} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {useSetAtom} from "jotai"
-import {ChatsIcon, NetworkIcon} from "@phosphor-icons/react"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 

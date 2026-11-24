@@ -6,7 +6,9 @@ import {ANALYTICS_RANGE_PRESETS, type SortResult, type SortTypes} from "@agenta/
 import {cn} from "@agenta/ui/styles"
 import {
     Button,
+    fromLegacyButton,
     type ButtonProps,
+    type LegacyButtonType,
     DateRangeCalendar,
     Divider,
     Popover,
@@ -42,6 +44,8 @@ export interface RangePickerProps {
     trigger?: "button" | "inline"
     /** Button variant for the `button` trigger. @default "outline" */
     variant?: ButtonProps["variant"]
+    /** @deprecated antd's trigger `type` (desktop app only); mapped to `variant`. */
+    type?: LegacyButtonType
     /** Shown when the applied window carries no label — `DEFAULT_SORT` is a real 24h window. */
     fallbackLabel?: SortTypes
     /** Months side by side in the custom-range calendar. @default 1 */
@@ -96,12 +100,14 @@ export const RangePicker = ({
     disabled,
     ariaLabel,
     trigger = "button",
-    variant = "outline",
+    variant: variantProp,
+    type,
     fallbackLabel = "24 hours",
     calendarMonths = 1,
     container,
     className,
 }: RangePickerProps) => {
+    const variant = variantProp ?? fromLegacyButton(type).variant ?? "outline"
     const t = useT(rangeCatalog)
     const [open, setOpen] = useState(false)
     const [customOpen, setCustomOpen] = useState(false)

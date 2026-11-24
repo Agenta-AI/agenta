@@ -4,7 +4,14 @@
  * the antd-based presets. Import via `@agenta/ui/ui`.
  */
 export {Badge, badgeVariants, statusBadgeVariant, type BadgeProps, type BadgeVariant} from "./badge"
-export {Button, buttonVariants, type ButtonProps} from "./button"
+export {
+    Button,
+    buttonVariants,
+    fromLegacyButton,
+    type ButtonProps,
+    type LegacyButtonSize,
+    type LegacyButtonType,
+} from "./button"
 export {LoadingButton, type LoadingButtonProps} from "./button-composed"
 export {Input, Textarea, inputVariants, type InputProps, type TextareaProps} from "./input"
 export {

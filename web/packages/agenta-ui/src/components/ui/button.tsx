@@ -42,6 +42,11 @@ const buttonVariants = cva(
                 // Brand yellow: only New agent on Home, never beside a default button.
                 brand: "bg-brand text-brand-foreground hover:bg-brand-hover",
                 link: "bg-transparent text-link underline underline-offset-4",
+                /** @deprecated Desktop app only (web/oss); /m uses the variants above. */
+                dashed: "border-dashed border-border bg-background text-foreground hover:bg-accent",
+                /** @deprecated Desktop app only (web/oss); /m uses destructive-ghost. */
+                "destructive-outline":
+                    "border-destructive bg-background text-destructive hover:bg-destructive/10",
             },
             // `has-[[data-icon=…]]` trims the padding on the icon side.
             size: {
@@ -123,4 +128,30 @@ function Button({className, variant = "default", size, asChild = false, ...props
     )
 }
 
-export {Button, ButtonSizeContext, buttonVariants}
+/** @deprecated antd's button `type`; only the desktop app (web/oss) still passes it. */
+export type LegacyButtonType = "primary" | "default" | "dashed" | "text" | "link"
+/** @deprecated antd's button `size`; only the desktop app (web/oss) still passes it. */
+export type LegacyButtonSize = "small" | "middle" | "large"
+
+const LEGACY_TYPE: Record<LegacyButtonType, NonNullable<ButtonProps["variant"]>> = {
+    primary: "default",
+    default: "outline",
+    dashed: "dashed",
+    text: "ghost",
+    link: "link",
+}
+const LEGACY_SIZE: Record<LegacyButtonSize, NonNullable<ButtonProps["size"]>> = {
+    small: "sm",
+    middle: "default",
+    large: "lg",
+}
+
+/** Maps antd button props to the kit's, so desktop call sites compile unchanged. */
+function fromLegacyButton(type?: string, size?: string) {
+    return {
+        variant: type && type in LEGACY_TYPE ? LEGACY_TYPE[type as LegacyButtonType] : undefined,
+        size: size && size in LEGACY_SIZE ? LEGACY_SIZE[size as LegacyButtonSize] : undefined,
+    }
+}
+
+export {Button, ButtonSizeContext, buttonVariants, fromLegacyButton}

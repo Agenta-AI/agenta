@@ -1,3 +1,5 @@
+import type {ReactNode} from "react"
+
 import type {PhoneSection} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
@@ -9,7 +11,6 @@ import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
 import {Button, Tabs, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
-import type {ReactNode} from "react"
 
 import {ConfigPane} from "../chat/ConfigPane"
 import {selectedRevisionAtomFamily} from "../chat/selectedRevision"

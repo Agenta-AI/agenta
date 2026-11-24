@@ -1,7 +1,7 @@
 import type {Visibility} from "@agenta/entities/sharing"
 import type {CommitDeployOption} from "@agenta/entity-ui/modals"
 import type {EnhancedModalProps as ModalProps} from "@agenta/ui"
-import type {ButtonProps} from "@agenta/ui/ui"
+import type {ButtonProps, LegacyButtonSize, LegacyButtonType} from "@agenta/ui/ui"
 
 /** Host side effects a commit triggers that this package has no business knowing about. */
 export interface CommitHostAdapter {
@@ -40,7 +40,10 @@ export interface CommitVariantChangesModalProps extends ModalProps, CommitHostAd
 }
 
 export interface CommitVariantChangesButtonProps
-    extends Omit<ButtonProps, "children">, CommitHostAdapter {
+    extends Omit<ButtonProps, "children" | "type" | "size">, CommitHostAdapter {
+    /** A native button type, or antd's (desktop app only). */
+    type?: ButtonProps["type"] | LegacyButtonType
+    size?: ButtonProps["size"] | LegacyButtonSize
     variantId: string
     label?: React.ReactNode
     icon?: boolean
