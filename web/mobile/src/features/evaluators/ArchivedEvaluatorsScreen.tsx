@@ -1,5 +1,7 @@
 import {useLayoutEffect, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {workflowIncludeArchivedAtom} from "@agenta/entities/workflow"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {LoadError} from "@agenta/ui/components/presentational"
@@ -35,6 +37,7 @@ export const ArchivedEvaluatorsScreen = ({
 }) => {
     const pageWidth = useDeveloperPageWidth()
     useBindWorkspaceMembers()
+    const tNav = useT(navigationCatalog)
     useBindProjectContext(projectId)
     const [category, setCategory] = useEvaluatorCategory()
     const [term, setTerm] = useState("")
@@ -69,7 +72,10 @@ export const ArchivedEvaluatorsScreen = ({
                 projectId={projectId}
                 title={"Archived Evaluators"}
                 width={pageWidth}
-                back={{label: "Evaluators", href: evaluatorsUrl(workspaceId, projectId, category)}}
+                back={{
+                    label: tNav("navigation.items.evaluators"),
+                    href: evaluatorsUrl(workspaceId, projectId, category),
+                }}
             >
                 <div className="mb-3 overflow-x-auto">
                     <EvaluatorCategoryTabs category={category} onChange={setCategory} />

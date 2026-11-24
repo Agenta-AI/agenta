@@ -1,6 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import archivedAppsCatalog from "@agenta/i18n/catalogs/archivedApps.screen"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
@@ -52,6 +53,7 @@ export const ArchivedAppsScreen = ({
     const t = useT(archivedAppsCatalog)
     const pageWidth = useDeveloperPageWidth()
     useBindWorkspaceMembers()
+    const tNav = useT(navigationCatalog)
     useBindProjectContext(projectId)
     const [term, setTerm] = useState("")
     const search = useDebouncedAtomSearch(setTerm, 300)
@@ -126,7 +128,12 @@ export const ArchivedAppsScreen = ({
                 projectId={projectId}
                 title={t("archivedApps.screen.title")}
                 width={pageWidth}
-                back={{label: fromPrompts ? "Prompts" : "Home", href: backHref}}
+                back={{
+                    label: fromPrompts
+                        ? tNav("navigation.items.prompts")
+                        : tNav("navigation.items.home"),
+                    href: backHref,
+                }}
             >
                 <ListTableToolbar
                     search={search.value}

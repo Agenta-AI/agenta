@@ -5,6 +5,8 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import {ArrowLeftIcon, XIcon} from "@phosphor-icons/react"
 import {createPortal} from "react-dom"
 
+import {COMPACT_WINDOW_QUERY, useIsExpandedWindow, useWindowMatch} from "../../hooks/useWindowMatch"
+
 import {Button} from "./button"
 import {Sheet, SheetContent, SheetTitle} from "./sheet"
 import {cn} from "./utils"
@@ -17,50 +19,28 @@ import {cn} from "./utils"
  *
  * One thing at a time: a pane that opens closes the one before it (its `onOpenChange(false)`).
  * Docked beside the content on an expanded window, an overlay with the scrim on a medium one, a
- * full-page drill-in with Back on a compact one. Without a host it is always the overlay.
+ * full-page drill-in with Back on a compact one. Without a host it is always the overlay. The
+ * content lives in one DOM node that moves between those frames, so a window crossing the
+ * breakpoint keeps it (and a draft in it) mounted.
  */
 
-const EXPANDED = "(min-width: 1024px)"
-const COMPACT = "(max-width: 639.98px)"
-
-const subscribeTo = (query: string) => (onChange: () => void) => {
-    if (typeof window === "undefined" || !window.matchMedia) return () => {}
-    const list = window.matchMedia(query)
-    list.addEventListener("change", onChange)
-    return () => list.removeEventListener("change", onChange)
-}
-
-const useMatchMedia = (query: string) =>
-    React.useSyncExternalStore(
-        React.useMemo(() => subscribeTo(query), [query]),
-        () => (typeof window !== "undefined" && window.matchMedia?.(query).matches) || false,
-        () => false,
-    )
-
-interface RightPaneContextValue {
-    slot: HTMLElement | null
-    docked: boolean
-    activeId: string | null
-    /** The pane sliding closed: it keeps its content until the slot has shut. */
-    exitingId: string | null
-    claim: (id: string, close: () => void) => void
-    release: (id: string) => void
-}
-
-const RightPaneContext = React.createContext<RightPaneContextValue | null>(null)
-
-/** `panel-side` is the narrowest the pane goes; the widest leaves the content its room. */
+/** `panel-side` is the narrowest the pane goes. */
 const MIN_WIDTH = 320
 const MAX_WIDTH = 560
+/** The content beside a docked pane keeps at least `content-sm`. */
+const CONTENT_MIN = 560
 const KEY_STEP = 16
+/** A little over the longer closing slide (the sheet's 300ms; the docked pane's 200ms). */
+const LINGER_MS = 340
 const WIDTH_KEY = "agenta:right-pane:width"
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)"
 
-const clampWidth = (width: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(width)))
+const clamp = (width: number, max: number) => Math.min(max, Math.max(MIN_WIDTH, Math.round(width)))
 
 const readStoredWidth = () => {
     try {
         const stored = Number(window.localStorage.getItem(WIDTH_KEY))
-        return stored ? clampWidth(stored) : MIN_WIDTH
+        return stored ? clamp(stored, MAX_WIDTH) : MIN_WIDTH
     } catch {
         return MIN_WIDTH
     }
@@ -74,115 +54,144 @@ const storeWidth = (width: number) => {
     }
 }
 
+const prefersReducedMotion = () =>
+    typeof window !== "undefined" && Boolean(window.matchMedia?.(REDUCED_MOTION).matches)
+
+interface RightPaneContextValue {
+    slot: HTMLElement | null
+    docked: boolean
+    activeId: string | null
+    claim: (id: string, close: () => void) => void
+    release: (id: string) => void
+}
+
+const RightPaneContext = React.createContext<RightPaneContextValue | null>(null)
+
 /**
  * The slot. Wraps the page beside it; the slot opens to the pane's width only while a pane is
  * docked, sliding on the theme's base duration (none with reduced motion). Its left edge is a
  * resize handle: drag it, or focus it and use the arrow keys; a double click resets it. The
- * width is remembered per browser.
+ * width is remembered per browser and never leaves the content under `content-sm`.
  */
 export function RightPaneHost({children}: {children: React.ReactNode}) {
-    const docked = useMatchMedia(EXPANDED)
+    const docked = useIsExpandedWindow()
+    const t = useT(commonCatalog)
     const [slot, setSlot] = React.useState<HTMLDivElement | null>(null)
     const [active, setActive] = React.useState<{id: string; close: () => void} | null>(null)
-    const [exitingId, setExitingId] = React.useState<string | null>(null)
     const [width, setWidth] = React.useState(MIN_WIDTH)
     const [resizing, setResizing] = React.useState(false)
+    const [rowWidth, setRowWidth] = React.useState(0)
+    const row = React.useRef<HTMLDivElement>(null)
+    // Written in `claim`/`release` themselves: two of them can run in one commit.
     const activeRef = React.useRef(active)
-    activeRef.current = active
-    const dockedRef = React.useRef(docked)
-    dockedRef.current = docked
 
     React.useEffect(() => setWidth(readStoredWidth()), [])
+    React.useEffect(() => {
+        const el = row.current
+        if (!el || typeof ResizeObserver === "undefined") return
+        const observer = new ResizeObserver(([entry]) => setRowWidth(entry.contentRect.width))
+        observer.observe(el)
+        return () => observer.disconnect()
+    }, [])
 
     const claim = React.useCallback((id: string, close: () => void) => {
         const previous = activeRef.current
+        activeRef.current = {id, close}
         if (previous && previous.id !== id) previous.close()
-        setExitingId(null)
-        setActive({id, close})
+        setActive(activeRef.current)
     }, [])
     const release = React.useCallback((id: string) => {
         if (activeRef.current?.id !== id) return
+        activeRef.current = null
         setActive(null)
-        // Keep the content while the slot slides shut; with no slide there is nothing to wait for.
-        const still =
-            typeof window !== "undefined" &&
-            window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-        setExitingId(still || !dockedRef.current ? null : id)
     }, [])
     const activeId = active?.id ?? null
     const value = React.useMemo(
-        () => ({slot, docked, activeId, exitingId, claim, release}),
-        [slot, docked, activeId, exitingId, claim, release],
+        () => ({slot, docked, activeId, claim, release}),
+        [slot, docked, activeId, claim, release],
     )
 
+    // The widest the pane may go here: the content keeps `content-sm`.
+    const maxWidth = rowWidth
+        ? Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, rowWidth - CONTENT_MIN))
+        : MAX_WIDTH
+    const shownWidth = Math.min(width, maxWidth)
     const resizeTo = (next: number) => {
-        const clamped = clampWidth(next)
+        const clamped = clamp(next, maxWidth)
         setWidth(clamped)
         storeWidth(clamped)
     }
-    const drag = React.useRef<{x: number; width: number} | null>(null)
+
+    const drag = React.useRef<{x: number; width: number; frame: number} | null>(null)
     const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
         event.currentTarget.setPointerCapture(event.pointerId)
-        drag.current = {x: event.clientX, width}
+        drag.current = {x: event.clientX, width: shownWidth, frame: 0}
         setResizing(true)
     }
     const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-        if (!drag.current) return
-        // The handle is on the left edge: moving left widens the pane.
-        setWidth(clampWidth(drag.current.width + drag.current.x - event.clientX))
+        const current = drag.current
+        if (!current) return
+        const x = event.clientX
+        // One width per frame: a pointer reports faster than the page can lay out.
+        cancelAnimationFrame(current.frame)
+        current.frame = requestAnimationFrame(() =>
+            // The handle is on the left edge: moving left widens the pane.
+            setWidth(clamp(current.width + current.x - x, maxWidth)),
+        )
     }
     const onPointerUp = () => {
-        if (!drag.current) return
+        const current = drag.current
+        if (!current) return
+        cancelAnimationFrame(current.frame)
         drag.current = null
         setResizing(false)
-        setWidth((current) => {
-            storeWidth(current)
-            return current
+        setWidth((latest) => {
+            storeWidth(latest)
+            return latest
         })
     }
     const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-        if (event.key === "ArrowLeft") resizeTo(width + KEY_STEP)
-        else if (event.key === "ArrowRight") resizeTo(width - KEY_STEP)
+        if (event.key === "ArrowLeft") resizeTo(shownWidth + KEY_STEP)
+        else if (event.key === "ArrowRight") resizeTo(shownWidth - KEY_STEP)
         else if (event.key === "Home") resizeTo(MIN_WIDTH)
-        else if (event.key === "End") resizeTo(MAX_WIDTH)
+        else if (event.key === "End") resizeTo(maxWidth)
         else return
         event.preventDefault()
     }
 
     const shown = docked && Boolean(activeId)
-    const t = useT(commonCatalog)
 
     return (
         <RightPaneContext.Provider value={value}>
-            <div className="flex h-full min-w-0">
+            <div ref={row} className="flex h-full min-w-0">
                 <div className="min-w-0 flex-1">{children}</div>
-                {/* Width 0 when shut, so the content beside it gives the room back as it slides. */}
+                {/* Width 0 when shut, so the content beside it gives the room back as it slides.
+                    Not clipped itself, so the resize handle can straddle the edge. */}
                 <div
-                    style={{width: shown ? width : 0}}
-                    onTransitionEnd={(event) => {
-                        if (event.target === event.currentTarget && !shown) setExitingId(null)
-                    }}
+                    style={{width: shown ? shownWidth : 0}}
                     className={cn(
-                        "relative h-full shrink-0 overflow-hidden",
+                        "relative h-full shrink-0",
                         docked ? "block" : "hidden",
                         !resizing &&
                             "transition-[width] duration-[var(--duration-base)] ease-[var(--ease-out)] motion-reduce:transition-none",
                     )}
                 >
-                    <div
-                        ref={setSlot}
-                        data-slot="right-pane-slot"
-                        style={{width}}
-                        className="flex h-full flex-col border-0 border-l border-solid border-border-muted bg-muted"
-                    />
+                    <div className="h-full w-full overflow-hidden">
+                        <div
+                            ref={setSlot}
+                            data-slot="right-pane-slot"
+                            style={{width: shownWidth}}
+                            className="flex h-full flex-col border-0 border-l border-solid border-border-muted bg-muted"
+                        />
+                    </div>
                     {shown ? (
                         <div
                             role="separator"
                             aria-orientation="vertical"
                             aria-label={t("common.resizePane")}
-                            aria-valuenow={width}
+                            aria-valuenow={shownWidth}
                             aria-valuemin={MIN_WIDTH}
-                            aria-valuemax={MAX_WIDTH}
+                            aria-valuemax={maxWidth}
                             tabIndex={0}
                             onPointerDown={onPointerDown}
                             onPointerMove={onPointerMove}
@@ -259,12 +268,23 @@ function RightPaneHeader({
     )
 }
 
+/** Puts the pane's one content node into whichever frame shows it, without remounting it. */
+function ContentMount({node}: {node: HTMLElement}) {
+    const attach = React.useCallback(
+        (el: HTMLDivElement | null) => {
+            if (el && node.parentNode !== el) el.appendChild(node)
+        },
+        [node],
+    )
+    return <div ref={attach} className="flex min-h-0 flex-1 flex-col" />
+}
+
 export interface RightPaneProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     /** Names what the pane shows ("Ask about automations", the item's name). */
     title: React.ReactNode
-    /** Mounted only while the pane is open. */
+    /** Mounted while the pane is open, and through its closing slide. */
     children: React.ReactNode
 }
 
@@ -273,11 +293,19 @@ export function RightPane({open, onOpenChange, title, children}: RightPaneProps)
     const host = React.useContext(RightPaneContext)
     const id = React.useId()
     const titleId = React.useId()
-    const compact = useMatchMedia(COMPACT)
+    const compact = useWindowMatch(COMPACT_WINDOW_QUERY)
     const onOpenChangeRef = React.useRef(onOpenChange)
     onOpenChangeRef.current = onOpenChange
     const claim = host?.claim
     const release = host?.release
+    // One node for the content, created on the client: it moves between the docked and overlay
+    // frames, so the content is never remounted when the window crosses the breakpoint.
+    const [node] = React.useState(() => {
+        if (typeof document === "undefined") return null
+        const el = document.createElement("div")
+        el.className = "flex min-h-0 flex-1 flex-col"
+        return el
+    })
 
     React.useEffect(() => {
         if (!open || !claim || !release) return
@@ -285,49 +313,101 @@ export function RightPane({open, onOpenChange, title, children}: RightPaneProps)
         return () => release(id)
     }, [open, claim, release, id])
 
-    const exiting = !open && host?.docked && host.exitingId === id
-    if (!open && !exiting) return null
+    // The closing pane keeps its content through the slide, then lets it go.
+    const [lingering, setLingering] = React.useState(false)
+    const wasOpen = React.useRef(open)
+    React.useEffect(() => {
+        const closed = wasOpen.current && !open
+        wasOpen.current = open
+        if (!closed || prefersReducedMotion()) {
+            setLingering(false)
+            return
+        }
+        setLingering(true)
+        const timer = window.setTimeout(() => setLingering(false), LINGER_MS)
+        return () => window.clearTimeout(timer)
+    }, [open])
+
+    const docked = Boolean(host?.docked && host.slot)
+    const isActive = !host || host.activeId === id
+    const dockedShown = docked && (isActive || (lingering && host?.activeId === null))
+
+    // Docked, focus moves into the pane when it opens and back to where it was when it closes.
+    const asideRef = React.useRef<HTMLElement>(null)
+    const returnFocus = React.useRef<HTMLElement | null>(null)
+    const dockedOpen = open && dockedShown
+    React.useEffect(() => {
+        if (dockedOpen) {
+            returnFocus.current = document.activeElement as HTMLElement | null
+            asideRef.current?.focus({preventScroll: true})
+            return
+        }
+        if (node?.contains(document.activeElement)) {
+            returnFocus.current?.focus({preventScroll: true})
+        }
+        returnFocus.current = null
+    }, [dockedOpen, node])
+
+    if (!node || (!open && !lingering)) return null
     const close = () => onOpenChange(false)
-    const body = (
+    const content = createPortal(
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-6 sm:px-6">
             {children}
-        </div>
+        </div>,
+        node,
     )
 
-    if (host?.docked && host.slot) {
-        if (host.activeId !== id && !exiting) return null
-        return createPortal(
-            <aside aria-labelledby={titleId} className="flex min-h-0 flex-1 flex-col">
-                <RightPaneHeader titleId={titleId} title={title} back={false} onClose={close} />
-                {body}
-            </aside>,
-            host.slot,
+    if (docked) {
+        if (!dockedShown || !host?.slot) return content
+        return (
+            <>
+                {content}
+                {createPortal(
+                    <aside
+                        ref={asideRef}
+                        tabIndex={-1}
+                        aria-labelledby={titleId}
+                        className="flex min-h-0 flex-1 flex-col outline-none"
+                    >
+                        <RightPaneHeader
+                            titleId={titleId}
+                            title={title}
+                            back={false}
+                            onClose={close}
+                        />
+                        <ContentMount node={node} />
+                    </aside>,
+                    host.slot,
+                )}
+            </>
         )
     }
 
-    // One overlay at a time too: under a host, only the active pane shows.
-    if (host && host.activeId !== null && host.activeId !== id) return null
+    // Under a host, only the active pane shows; the Sheet stays mounted to play its closing slide.
     return (
-        <Sheet open onOpenChange={onOpenChange}>
-            <SheetContent
-                side="right"
-                aria-describedby={undefined}
-                className={
-                    compact
-                        ? "inset-0 w-full max-w-none rounded-none"
-                        : "w-panel-side max-w-none bg-muted"
-                }
-            >
-                <SheetTitle className="sr-only">{title}</SheetTitle>
-                <RightPaneHeader
-                    titleId={titleId}
-                    title={title}
-                    back={compact}
-                    onClose={close}
-                    overlay
-                />
-                {body}
-            </SheetContent>
-        </Sheet>
+        <>
+            {content}
+            <Sheet open={open && isActive} onOpenChange={onOpenChange}>
+                <SheetContent
+                    side="right"
+                    aria-describedby={undefined}
+                    className={
+                        compact
+                            ? "inset-0 w-full max-w-none rounded-none"
+                            : "w-panel-side max-w-none bg-muted"
+                    }
+                >
+                    <SheetTitle className="sr-only">{title}</SheetTitle>
+                    <RightPaneHeader
+                        titleId={titleId}
+                        title={title}
+                        back={compact}
+                        onClose={close}
+                        overlay
+                    />
+                    <ContentMount node={node} />
+                </SheetContent>
+            </Sheet>
+        </>
     )
 }

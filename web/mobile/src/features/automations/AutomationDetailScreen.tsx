@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
-    AutomationBackLink,
     AutomationDetailBody,
     AutomationDetailSkeleton,
     AutomationRunHistoryView,
@@ -19,6 +18,7 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {PageBackBar} from "../page-layout/PageBackBar"
+import {PageBackControl} from "../page-layout/PageBackControl"
 import {useConfirmModal} from "../settings/useConfirmModal"
 
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
@@ -141,7 +141,6 @@ export const AutomationDetailScreen = ({
                         ) : (
                             <AutomationScreenHeader
                                 back={{label: t("automations.screens.pageTitle"), href: listHref}}
-                                backHref={listHref}
                             />
                         )
                     }
@@ -154,9 +153,8 @@ export const AutomationDetailScreen = ({
                                 // "Run history" below it.
                                 <div className="w-full shrink-0 pt-6 lg:pb-2 lg:pl-[30px] lg:pr-5 lg:pt-8">
                                     <div className="max-lg:hidden">
-                                        <AutomationBackLink
-                                            label={automationName}
-                                            onBack={closeRuns}
+                                        <PageBackControl
+                                            back={{label: automationName, onBack: closeRuns}}
                                         />
                                     </div>
                                 </div>

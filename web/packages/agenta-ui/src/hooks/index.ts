@@ -9,6 +9,12 @@ export {useRunAllShortcut, type UseRunAllShortcutParams} from "./useRunAllShortc
 export {useDefaultStoreAtomValue} from "./useDefaultStoreAtomValue"
 export {useMediaQuery, useIsNarrowScreen, NARROW_SCREEN_QUERY} from "./useMediaQuery"
 export {
+    useWindowMatch,
+    useIsExpandedWindow,
+    EXPANDED_WINDOW_QUERY,
+    COMPACT_WINDOW_QUERY,
+} from "./useWindowMatch"
+export {
     useVisualViewportHeight,
     hasCoarsePointer,
     dismissSoftKeyboardAfterSend,

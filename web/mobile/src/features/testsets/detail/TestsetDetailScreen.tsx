@@ -1,5 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {testcaseDataController, type TestcaseTableRow} from "@agenta/entities/testcase"
 import {useTestcaseDrawerNavigation} from "@agenta/entity-ui/testcase"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
@@ -68,6 +70,7 @@ export const TestsetDetailScreen = ({
     const PAGE_FRAME = useDeveloperPageFrame()
     const headerTop = useDetailHeaderTop()
     useBindWorkspaceMembers()
+    const tNav = useT(navigationCatalog)
     useBindProjectContext(projectId)
     const router = useRouter()
     const queryClient = useQueryClient()
@@ -205,7 +208,10 @@ export const TestsetDetailScreen = ({
                     header={
                         <>
                             <PageBackBar
-                                back={{label: "Test sets", href: `${base}/testsets`}}
+                                back={{
+                                    label: tNav("navigation.items.testSets"),
+                                    href: `${base}/testsets`,
+                                }}
                                 column={`box-border px-4 ${PAGE_FRAME}`}
                             />
                             <div

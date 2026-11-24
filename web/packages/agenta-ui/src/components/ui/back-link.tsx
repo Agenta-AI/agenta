@@ -15,22 +15,33 @@ import {cn} from "./utils"
  */
 export const BackLink = ({
     asChild = false,
+    size = "default",
     className,
     children,
     ...props
-}: React.ComponentProps<"button"> & {asChild?: boolean}) => {
+}: React.ComponentProps<"button"> & {
+    asChild?: boolean
+    /** `bar`: the compact bar's Back, 28px and in the text colour, with a 16px arrow. */
+    size?: "default" | "bar"
+}) => {
     const Comp = asChild ? Slot : "button"
     return (
         <Comp
             data-slot="back-link"
             {...(asChild ? {} : {type: "button" as const})}
             className={cn(
-                "-ml-1.5 inline-flex h-control-xs min-w-0 cursor-pointer items-center gap-1.5 rounded-sm border-0 bg-transparent px-1.5 text-label text-muted-foreground no-underline transition-colors hover:bg-accent hover:text-foreground focus-ring",
+                "-ml-1.5 inline-flex min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent px-1.5 text-label no-underline transition-colors hover:bg-accent hover:text-foreground focus-ring",
+                size === "bar"
+                    ? "h-control-sm rounded-md text-foreground"
+                    : "h-control-xs rounded-sm text-muted-foreground",
                 className,
             )}
             {...props}
         >
-            <ArrowLeftIcon aria-hidden className="size-3.5 shrink-0" />
+            <ArrowLeftIcon
+                aria-hidden
+                className={cn("shrink-0", size === "bar" ? "size-4" : "size-3.5")}
+            />
             <Slottable>{children}</Slottable>
         </Comp>
     )

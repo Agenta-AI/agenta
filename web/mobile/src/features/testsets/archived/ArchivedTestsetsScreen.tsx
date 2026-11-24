@@ -1,5 +1,7 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
@@ -34,6 +36,7 @@ export const ArchivedTestsetsScreen = ({
 }) => {
     const pageWidth = useDeveloperPageWidth()
     useBindWorkspaceMembers()
+    const tNav = useT(navigationCatalog)
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
     const [term, setTerm] = useState("")
@@ -53,7 +56,7 @@ export const ArchivedTestsetsScreen = ({
                 projectId={projectId}
                 title={"Archived test sets"}
                 width={pageWidth}
-                back={{label: "Test sets", href: `${base}/testsets`}}
+                back={{label: tNav("navigation.items.testSets"), href: `${base}/testsets`}}
                 description={
                     "Archived test sets are hidden from your workspace but can be restored at any time."
                 }

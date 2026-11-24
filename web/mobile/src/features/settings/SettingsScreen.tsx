@@ -142,11 +142,14 @@ export const SettingsScreen = ({
                 scrollClassName="ag-scroll-fade"
             >
                 <SettingsHeaderActionsProvider value={actionsSlot}>
-                    <SettingsTabContent
-                        tab={active}
-                        workspaceId={workspaceId}
-                        projectId={projectId}
-                    />
+                    {/* The tab body's own frame from SettingsPageShell: a column on the body text. */}
+                    <div className="flex flex-col pb-4 text-body">
+                        <SettingsTabContent
+                            tab={active}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                        />
+                    </div>
                 </SettingsHeaderActionsProvider>
             </PageLayout>
         )

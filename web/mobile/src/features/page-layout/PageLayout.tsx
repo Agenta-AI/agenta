@@ -1,6 +1,7 @@
 import type {CSSProperties, ReactNode, RefObject, UIEventHandler} from "react"
 
 import type {SidebarScope} from "@agenta/navigation"
+import {useIsExpandedWindow} from "@agenta/ui/hooks"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -8,7 +9,7 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {AppShell} from "../nav/AppShell"
 
 import {PageBackBar, type PageBack} from "./PageBackBar"
-import {PageBackLink} from "./PageBackLink"
+import {PageBackControl} from "./PageBackControl"
 import {PageCompactBar} from "./PageCompactBar"
 import {
     PAGE_BODY,
@@ -18,7 +19,6 @@ import {
     pageColumn,
     type PageWidth,
 } from "./pageFrame"
-import {useIsExpandedWindow} from "./useIsExpandedWindow"
 
 export interface PageLayoutProps {
     workspaceId: string
@@ -40,10 +40,6 @@ export interface PageLayoutProps {
     actions?: ReactNode
     /** The content cap (LAYOUT-02). Lists `lg` (the default), item pages and Home `md`, forms `sm`. */
     width?: PageWidth
-    /** Replaces the whole pinned top (bar and title), for a page whose top is its own. */
-    header?: ReactNode
-    /** Replaces the body's gutters and column, for a page whose column is its own. */
-    bodyClassName?: string
     scrollRef?: RefObject<HTMLDivElement | null>
     onScroll?: UIEventHandler<HTMLDivElement>
     scrollStyle?: CSSProperties
@@ -53,9 +49,10 @@ export interface PageLayoutProps {
 }
 
 /**
- * The general page (DESIGN.md, "Layout and windows"): the sidebar, the content column and the right
- * pane (the shell's slot: render `<RightPane>` from `@agenta/ui/ui` anywhere), with the same top on every page (LAYOUT-03). A workbench page (the session playground, the
- * Builder) does not use it: it draws its own bar across the top and takes the full width.
+ * The general page (DESIGN.md, "Layout and windows"): the sidebar, the content column and the
+ * right pane (the shell's slot: render `<RightPane>` from `@agenta/ui/ui` anywhere), with the same
+ * top on every page (LAYOUT-03). A page whose top or column is its own (a workbench page, an
+ * agent's pages) does not use it: it builds on `AppShell` and `ScreenScaffold` directly.
  *
  * Only the body scrolls; the compact bar and the title block stay pinned above it.
  */
@@ -69,8 +66,6 @@ export const PageLayout = ({
     back,
     actions,
     width = "lg",
-    header: headerOverride,
-    bodyClassName,
     scrollRef,
     onScroll,
     scrollStyle,
@@ -79,7 +74,7 @@ export const PageLayout = ({
 }: PageLayoutProps) => {
     const expanded = useIsExpandedWindow()
 
-    const header = headerOverride ?? (
+    const header = (
         <>
             {back ? (
                 <PageBackBar back={back} width={width} actions={expanded ? undefined : actions} />
@@ -94,7 +89,7 @@ export const PageLayout = ({
             )}
             <div className={`${PAGE_TITLE_BLOCK} ${PAGE_GUTTERS}`}>
                 <div className={pageColumn(width)}>
-                    {back && expanded ? <PageBackLink back={back} /> : null}
+                    {back && expanded ? <PageBackControl back={back} className="mb-2" /> : null}
                     <div className={PAGE_TITLE_ROW}>
                         <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                             {title}
@@ -122,13 +117,9 @@ export const PageLayout = ({
                     scrollStyle={scrollStyle}
                     scrollClassName={scrollClassName}
                 >
-                    {bodyClassName ? (
-                        <div className={bodyClassName}>{children}</div>
-                    ) : (
-                        <div className={PAGE_GUTTERS}>
-                            <div className={`${pageColumn(width)} ${PAGE_BODY}`}>{children}</div>
-                        </div>
-                    )}
+                    <div className={PAGE_GUTTERS}>
+                        <div className={`${pageColumn(width)} ${PAGE_BODY}`}>{children}</div>
+                    </div>
                 </ScreenScaffold>
             </AppShell>
         </>
