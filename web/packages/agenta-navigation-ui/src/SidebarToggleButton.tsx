@@ -50,13 +50,7 @@ export const SidebarToggleButton = ({
                               : "navigation.chrome.collapseSidebar",
                       )
             }
-            icon={
-                onDismiss ? (
-                    <X className={phone ? "size-5" : "size-4"} />
-                ) : (
-                    <SidebarSimple size={16} />
-                )
-            }
+            icon={onDismiss ? <X className="size-4" /> : <SidebarSimple size={16} />}
             onClick={() => (onDismiss ? onDismiss() : setCollapsed((c) => !c))}
             // No tooltip on the close: the sheet autofocuses its first focusable child, and a
             // Radix tooltip opens on FOCUS as well as hover — so every open popped a "Close"

@@ -36,9 +36,7 @@ const ALL_AGENTS = "__all__"
 const ICON = 14
 
 /** The filter glyph: the "+" icon's 12px on the rail; the phone keeps its larger tap glyph. */
-const FilterGlyph = () => (
-    <SlidersHorizontalIcon aria-hidden size={12} className="max-md:size-[18px]" />
-)
+const FilterGlyph = () => <SlidersHorizontalIcon aria-hidden size={12} />
 
 type FilterTextKey = CatalogKey<typeof sessionFilterCatalog> | CatalogKey<typeof commonCatalog>
 

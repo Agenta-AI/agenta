@@ -40,7 +40,7 @@ export const SidebarBackButton = ({
                     ? "size-7 rounded-[6px]"
                     : clsx(
                           "min-w-0 justify-start gap-[10px] rounded-[6px] px-3 font-medium",
-                          phone ? "h-11 text-[15px]" : "h-7 text-sm",
+                          phone ? "h-8 text-sm" : "h-7 text-sm",
                       ),
                 className,
             )}

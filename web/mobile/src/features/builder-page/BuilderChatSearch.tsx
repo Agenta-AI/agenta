@@ -96,7 +96,7 @@ export const BuilderChatSearch = ({
                 // The same 24 px target and 12 px glyph as the agent sidebar's Sessions filter.
                 className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 text-muted-foreground [font-family:inherit] hover:bg-colorFillTertiary hover:text-foreground"
             >
-                <MagnifyingGlassIcon aria-hidden size={12} className="max-md:size-[18px]" />
+                <MagnifyingGlassIcon aria-hidden size={12} />
             </button>
             {open ? (
                 <BuilderChatSearchWindow

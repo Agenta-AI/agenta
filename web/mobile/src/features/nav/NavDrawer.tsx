@@ -146,9 +146,6 @@ export const NavDrawer = ({
                 title={t("navigation.chrome.navigationTitle")}
                 showHeader={false}
                 trigger={menuButton(tPhone("ui.phone.openSidebar"))}
-                // Every small button and link of the sidebar (group +, row ⋯, search, help) is 44 x 44 px
-                // here, so a finger reaches it; the icons keep their size.
-                className="[&_a]:min-h-11 [&_a]:min-w-11 [&_button]:min-h-11 [&_button]:min-w-11"
             >
                 <SidebarLayoutContext.Provider value="phone">{shell}</SidebarLayoutContext.Provider>
             </SidebarSheet>

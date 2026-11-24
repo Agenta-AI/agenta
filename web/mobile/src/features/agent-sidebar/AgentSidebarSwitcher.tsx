@@ -100,7 +100,7 @@ export const AgentSidebarSwitcher = ({
     const name = builder
         ? tBuilder("builder.page.builder")
         : agentName(agents.find((agent) => agent.id === agentId))
-    const tileSize: SwitcherTileSize = collapsed ? "md" : phone ? "lg" : "sm"
+    const tileSize: SwitcherTileSize = collapsed ? "md" : "sm"
 
     const shown = useMemo(() => {
         const needle = search.trim().toLowerCase()
@@ -139,9 +139,7 @@ export const AgentSidebarSwitcher = ({
                         className={
                             collapsed
                                 ? "flex size-7 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 [font-family:inherit] hover:bg-colorFillTertiary"
-                                : phone
-                                  ? "flex h-[52px] min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-foreground [font-family:inherit] hover:bg-colorFillTertiary"
-                                  : "flex h-8 w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-[6px] border border-solid border-colorBorderSecondary bg-transparent pl-2.5 pr-3 text-left text-foreground transition-colors [font-family:inherit] hover:bg-colorFillTertiary data-[state=open]:bg-colorFillTertiary"
+                                : "flex h-8 w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-[6px] border border-solid border-colorBorderSecondary bg-transparent pl-2.5 pr-3 text-left text-foreground transition-colors [font-family:inherit] hover:bg-colorFillTertiary data-[state=open]:bg-colorFillTertiary"
                         }
                     >
                         {agentId ? (
@@ -149,24 +147,7 @@ export const AgentSidebarSwitcher = ({
                         ) : (
                             <BuilderTile size={tileSize} />
                         )}
-                        {collapsed ? null : phone ? (
-                            <>
-                                <span className="flex min-w-0 flex-1 flex-col">
-                                    <span className="truncate text-[15px] font-medium leading-5">
-                                        {name}
-                                    </span>
-                                    {builder ? null : (
-                                        <span className="text-[12px] leading-4 text-muted-foreground">
-                                            {t("agentSidebar.agent")}
-                                        </span>
-                                    )}
-                                </span>
-                                <CaretUpDownIcon
-                                    size={14}
-                                    className="shrink-0 text-colorTextTertiary"
-                                />
-                            </>
-                        ) : (
+                        {collapsed ? null : (
                             <>
                                 <span className="min-w-0 flex-1 truncate text-sm font-medium leading-5">
                                     {name}

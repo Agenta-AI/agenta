@@ -267,7 +267,7 @@ const SessionRowActions = ({
                     {link}
                 </span>
                 {status ? (
-                    <span className="pointer-events-none flex w-4 shrink-0 items-center justify-center transition-opacity pointer-fine:absolute pointer-fine:right-1 pointer-fine:top-1/2 pointer-fine:w-6 pointer-fine:-translate-y-1/2 pointer-fine:group-hover/row:opacity-0 pointer-fine:group-has-[button:focus-visible]/row:opacity-0 pointer-fine:group-has-[[data-open]]/row:opacity-0">
+                    <span className="pointer-events-none flex w-4 shrink-0 items-center justify-center transition-opacity pointer-coarse:hidden pointer-fine:absolute pointer-fine:right-1 pointer-fine:top-1/2 pointer-fine:w-6 pointer-fine:-translate-y-1/2 pointer-fine:group-hover/row:opacity-0 pointer-fine:group-has-[button:focus-visible]/row:opacity-0 pointer-fine:group-has-[[data-open]]/row:opacity-0">
                         {status}
                     </span>
                 ) : null}

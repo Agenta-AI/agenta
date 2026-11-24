@@ -45,7 +45,7 @@ const SessionSearchButton = ({
                     setOpen(true)
                 }}
             >
-                <MagnifyingGlass className="size-3.5 max-md:size-[18px]" />
+                <MagnifyingGlass className="size-3.5" />
             </Button>
         </SimpleTooltip>
     )

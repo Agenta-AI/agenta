@@ -488,7 +488,7 @@ export const ArrangeablePages = ({
                         )}
                     >
                         <DotsThree
-                            size={phone ? 18 : 16}
+                            size={16}
                             weight="bold"
                             className="shrink-0 text-[var(--ag-zinc-8)]"
                         />

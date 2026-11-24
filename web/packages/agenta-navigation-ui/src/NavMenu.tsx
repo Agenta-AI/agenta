@@ -236,7 +236,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                 className={clsx(
                     // Sentence case, as the design writes the day labels ("Today", "Yesterday").
                     `m-0 w-full shrink-0 pb-1 pl-5 pr-5 ${CAPTION_TEXT} select-none`,
-                    phone ? "pt-1 text-colorTextTertiary" : "pt-1.5 text-muted-foreground",
+                    "pt-1.5 text-muted-foreground",
                     STICKY_HEADING,
                 )}
             >
@@ -254,7 +254,6 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
             data-sticky-heading="true"
             className={clsx(
                 `group/heading flex w-full shrink-0 cursor-pointer select-none items-center gap-1 pb-1 pl-5 pr-2 pt-3 ${CAPTION_TEXT} text-muted-foreground hover:text-foreground`,
-                phone && "min-h-11",
                 STICKY_HEADING,
             )}
             onClick={(event) => {
@@ -351,13 +350,7 @@ const PlaceholderRow = ({item}: {item: NavItem}) => (
  * Rows inside a group (sessions, chats) keep their own glyph colour: it carries the run state.
  */
 const iconClass = (topLevel: boolean, selected: boolean, phone: boolean) =>
-    clsx(
-        "flex shrink-0 items-center",
-        topLevel &&
-            (phone
-                ? "text-colorTextTertiary [&>svg]:size-[18px]"
-                : !selected && "text-[var(--ag-zinc-8)]"),
-    )
+    clsx("flex shrink-0 items-center", topLevel && !selected && "text-[var(--ag-zinc-8)]")
 
 /**
  * A section heading: an always-open group with no icon ("Sessions" in the agent sidebar, "Chats"
@@ -614,7 +607,6 @@ export const FlyoutChildren = ({
                             // and would leave both gaps in the list.
                             className={clsx(
                                 "gap-[10px]",
-                                phone && "min-h-11",
                                 selectedKeys.includes(child.key) && "font-medium",
                                 // Same field the inline rows read, so a row that tunes its own
                                 // geometry does it once for both paths.
@@ -832,7 +824,7 @@ const NavMenuImpl = ({
                                     // A 44 px target in the phone sheet; the 12 px caret keeps its size.
                                     className={clsx(
                                         "relative z-[1] mr-1 flex shrink-0 cursor-pointer items-center justify-center rounded-md text-colorTextTertiary hover:bg-colorFillTertiary hover:text-foreground",
-                                        phone ? "size-11" : "size-[22px]",
+                                        "size-[22px]",
                                     )}
                                     onClick={(event) => {
                                         event.preventDefault()
