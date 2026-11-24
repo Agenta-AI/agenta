@@ -241,10 +241,7 @@ export const SignInScreen = () => {
     }
 
     return (
-        <AuthShell
-            leaving={leaving}
-            header={<AgentaLogo className="h-6 w-auto text-foreground" />}
-        >
+        <AuthShell leaving={leaving} header={<AgentaLogo className="h-6 w-auto text-foreground" />}>
             <div
                 key={loading ? "loading" : flow.stage}
                 className={`flex flex-col gap-6 auth-step-${step.direction}`}

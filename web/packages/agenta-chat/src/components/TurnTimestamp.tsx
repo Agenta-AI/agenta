@@ -38,7 +38,5 @@ export const TurnTimestamp = ({
     if (!at) {
         return pending ? <SkeletonBlock active className="h-4 w-16 rounded-control-sm" /> : null
     }
-    return (
-        <span className="whitespace-nowrap text-meta text-muted-foreground">{timeAgo(at)}</span>
-    )
+    return <span className="whitespace-nowrap text-meta text-muted-foreground">{timeAgo(at)}</span>
 }

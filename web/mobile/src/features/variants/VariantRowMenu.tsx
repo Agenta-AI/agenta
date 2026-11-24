@@ -39,12 +39,7 @@ export const VariantRowMenu = ({
 }) => (
     <DropdownMenu>
         <DropdownMenuTrigger asChild>
-            <Button
-                type="button"
-                size="icon-xs"
-                variant="ghost"
-                aria-label="Revision actions"
-            >
+            <Button type="button" size="icon-xs" variant="ghost" aria-label="Revision actions">
                 <DotsThreeVertical aria-hidden className="size-3.5" />
             </Button>
         </DropdownMenuTrigger>

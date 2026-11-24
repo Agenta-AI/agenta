@@ -122,9 +122,7 @@ export const WhatsNewDialog = () => {
                                             className={cn(
                                                 // row-double: 48 tall, the two lines centered (ROW-01).
                                                 "box-border flex h-row-double min-w-0 flex-col justify-center gap-0.5 rounded-lg px-2 transition-colors",
-                                                active
-                                                    ? "bg-selected"
-                                                    : "group-hover:bg-accent",
+                                                active ? "bg-selected" : "group-hover:bg-accent",
                                             )}
                                         >
                                             <span className="flex items-center justify-between gap-2 text-caption text-muted-foreground">
@@ -227,10 +225,7 @@ export const WhatsNewDialog = () => {
                             />
                             {t("education.whatsNew.dontShowAgain")}
                         </label>
-                        <Button
-                            asChild
-                            variant="ghost"
-                        >
+                        <Button asChild variant="ghost">
                             <a
                                 href={selected.features[0]?.link ?? ALL_RELEASES_LINK}
                                 target="_blank"

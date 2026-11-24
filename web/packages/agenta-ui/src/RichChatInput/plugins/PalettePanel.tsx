@@ -131,12 +131,7 @@ function ShimmerRows({rows = 3}: {rows?: number}) {
             {SHIMMER_WIDTHS.slice(0, rows).map((width) => (
                 <div key={width} className="flex items-center gap-2 px-3 py-2">
                     <span className="h-3.5 w-3.5 shrink-0 animate-pulse rounded bg-secondary" />
-                    <span
-                        className={clsx(
-                            "h-2.5 animate-pulse rounded bg-secondary",
-                            width,
-                        )}
-                    />
+                    <span className={clsx("h-2.5 animate-pulse rounded bg-secondary", width)} />
                 </div>
             ))}
         </>
@@ -190,9 +185,7 @@ function PaletteRow({
                 <span
                     className={clsx(
                         "flex w-4 shrink-0 justify-start",
-                        active
-                            ? "text-muted-foreground"
-                            : "text-muted-foreground",
+                        active ? "text-muted-foreground" : "text-muted-foreground",
                     )}
                 >
                     {item.icon}
@@ -205,9 +198,7 @@ function PaletteRow({
                         {parts.match ? (
                             // A primary tint, not colorInfoBg — that token sits within a hair of
                             // the row background, so the match read as unmarked.
-                            <span className="rounded-xs bg-primary/20">
-                                {parts.match}
-                            </span>
+                            <span className="rounded-xs bg-primary/20">{parts.match}</span>
                         ) : null}
                         {parts.after}
                     </>

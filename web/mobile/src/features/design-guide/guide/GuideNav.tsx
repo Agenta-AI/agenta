@@ -24,7 +24,9 @@ export function GuideNav({pages, current, onSelect}: GuideNavProps) {
                                 className="focus-ring flex h-7 items-center justify-between gap-2 rounded-md px-2 text-left text-label text-muted-foreground hover:bg-accent hover:text-foreground aria-[current=page]:bg-selected aria-[current=page]:text-foreground"
                             >
                                 <span className="min-w-0 truncate">{p.title}</span>
-                                {p.rules.length ? <span className="shrink-0 text-meta">{p.rules.length}</span> : null}
+                                {p.rules.length ? (
+                                    <span className="shrink-0 text-meta">{p.rules.length}</span>
+                                ) : null}
                             </button>
                         ))}
                 </div>

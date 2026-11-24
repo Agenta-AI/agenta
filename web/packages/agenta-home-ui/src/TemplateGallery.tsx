@@ -83,9 +83,7 @@ const TemplateSection = ({
                 carried HERE rather than on the scroller: a scroll container's padding-top
                 offsets its sticky children and cards then bleed through the band above. */}
             <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-x-0 border-t-0 border-b border-solid border-border-muted bg-background pb-2 pt-6">
-                <span className="text-label text-muted-foreground">
-                    {category}
-                </span>
+                <span className="text-label text-muted-foreground">{category}</span>
                 <span className="shrink-0 text-meta text-muted-foreground">
                     {t("home.templateGallery.sectionCount", {count: templates.length})}
                 </span>

@@ -42,9 +42,7 @@ const ResultTag = memo(({className, bordered, ...rest}: ResultTagProps) => (
     <Pill
         {...rest}
         rootClassName={`${BOX} ${
-            bordered === false
-                ? "border-transparent bg-secondary"
-                : "border-border bg-secondary"
+            bordered === false ? "border-transparent bg-secondary" : "border-border bg-secondary"
         } ${resultTagClass}`}
         className={className}
     />

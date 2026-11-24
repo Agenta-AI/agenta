@@ -65,7 +65,9 @@ export const SessionAccessChip = ({
                         <PersonAvatar person={owner} />
                         <div className="flex flex-col">
                             <span className="text-label">{personName(owner)}</span>
-                            <span className="text-meta text-muted-foreground">{copy.panelOwner}</span>
+                            <span className="text-meta text-muted-foreground">
+                                {copy.panelOwner}
+                            </span>
                         </div>
                     </div>
                 ) : null}
@@ -83,7 +85,9 @@ export const SessionAccessChip = ({
                         <p
                             key={line}
                             className={
-                                index === 0 ? "m-0 text-body" : "m-0 text-body text-muted-foreground"
+                                index === 0
+                                    ? "m-0 text-body"
+                                    : "m-0 text-body text-muted-foreground"
                             }
                         >
                             {line}

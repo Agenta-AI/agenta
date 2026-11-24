@@ -41,9 +41,7 @@ export const OnboardingTemplateApps = ({template}: {template: AgentStarterTempla
                             size="sm"
                             decorative
                         />
-                        <span className="min-w-0 flex-1 truncate text-label">
-                            {app.name}
-                        </span>
+                        <span className="min-w-0 flex-1 truncate text-label">{app.name}</span>
                         {connected.has(app.key) ? (
                             <span className="text-muted-foreground inline-flex items-center gap-1 text-label leading-5">
                                 <Check size={13} />

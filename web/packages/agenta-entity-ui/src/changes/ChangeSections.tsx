@@ -51,11 +51,9 @@ const DEL_BG = "color-mix(in srgb, var(--destructive) 13%, transparent)"
 
 // One subtle surface for the whole card; header inherits it, the diff tints + open divider
 // carry the structure. Avoids stacking two lightening fills (no "darker body" token in dark mode).
-export const CARD =
-    "overflow-hidden rounded-lg border border-border-muted bg-secondary"
+export const CARD = "overflow-hidden rounded-lg border border-border-muted bg-secondary"
 /** Keyboard users need to see where focus lands once these rows are real controls. */
-const FOCUS_RING =
-    "outline-none focus-ring"
+const FOCUS_RING = "outline-none focus-ring"
 
 /** Sections whose edited rows carry field-level detail worth opening. */
 const DRILLABLE = new Set<ChangeSection["id"]>(["tools", "subagents"])
@@ -483,10 +481,7 @@ function SummaryText({hunks}: {hunks: ExtendedDiffLine[]}) {
                         line.type === "added" ? "bg-success/10" : "bg-destructive/10",
                     )}
                     style={{
-                        color:
-                            line.type === "added"
-                                ? "var(--success)"
-                                : "var(--destructive)",
+                        color: line.type === "added" ? "var(--success)" : "var(--destructive)",
                     }}
                 >
                     {/* Read out, as in HunkRows: the sign is what says added or removed. */}
@@ -526,9 +521,7 @@ function SummarySection({section}: {section: ChangeSection}) {
                     {section.title}
                 </span>
                 {status ? (
-                    <span className={cn("shrink-0 text-meta", textColors.tertiary)}>
-                        {status}
-                    </span>
+                    <span className={cn("shrink-0 text-meta", textColors.tertiary)}>{status}</span>
                 ) : null}
             </div>
             <div className="mx-2 overflow-hidden rounded-md border border-solid border-border-muted text-label leading-5">

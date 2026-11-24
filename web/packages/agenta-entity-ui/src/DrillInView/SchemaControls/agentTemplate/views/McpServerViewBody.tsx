@@ -83,9 +83,7 @@ const ServerTitle = ({
         <div className="flex min-w-0 items-center gap-3 px-4 pb-1 pt-3.5">
             <McpServerMark size={24} name={name} />
             <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-label font-semibold leading-5">
-                    {name}
-                </span>
+                <span className="truncate text-label font-semibold leading-5">{name}</span>
                 {host ? (
                     <span className="truncate font-mono text-meta text-muted-foreground">
                         {host}
@@ -94,19 +92,11 @@ const ServerTitle = ({
             </div>
             {status && status !== "connected" ? (
                 <>
-                    <Badge
-                        variant="warning"
-                        className="m-0 shrink-0 px-1.5 text-meta font-normal"
-                    >
+                    <Badge variant="warning" className="m-0 shrink-0 px-1.5 text-meta font-normal">
                         {getMcpConnectionStatusLabel(status)}
                     </Badge>
                     {onReconnect ? (
-                        <Button
-                            variant="outline"
-                            size="compact"
-                            className=""
-                            onClick={onReconnect}
-                        >
+                        <Button variant="outline" size="compact" className="" onClick={onReconnect}>
                             <ArrowClockwise data-icon="inline-start" />
                             {t("entityUi.mcpPermissions.reconnect")}
                         </Button>
@@ -182,9 +172,7 @@ const AgentServer = ({
     if (!entry) {
         return (
             <div className="flex flex-col items-start gap-3 px-4 py-6 text-label">
-                <span className="text-muted-foreground">
-                    {t("entityUi.mcpViews.removedState")}
-                </span>
+                <span className="text-muted-foreground">{t("entityUi.mcpViews.removedState")}</span>
                 <Button variant="outline" size="sm" onClick={() => void nav.back()}>
                     {t("entityUi.integrationViews.back")}
                 </Button>

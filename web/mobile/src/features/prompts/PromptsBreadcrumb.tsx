@@ -143,10 +143,7 @@ export const PromptsBreadcrumb = ({
                                                 <CaretDownIcon size={14} />
                                             </button>
                                         </DropdownMenuTrigger>
-                                        <DropdownMenuContent
-                                            align="start"
-                                            className="min-w-45"
-                                        >
+                                        <DropdownMenuContent align="start" className="min-w-45">
                                             {siblings.length > 1 ? (
                                                 <SiblingItems
                                                     siblings={siblings}

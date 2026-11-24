@@ -26,12 +26,7 @@ export function ProviderLogo({
     className?: string
 }) {
     if (!logo)
-        return (
-            <Plugs
-                size={size}
-                className={`shrink-0 text-muted-foreground ${className ?? ""}`}
-            />
-        )
+        return <Plugs size={size} className={`shrink-0 text-muted-foreground ${className ?? ""}`} />
     return (
         <Image
             src={logo}

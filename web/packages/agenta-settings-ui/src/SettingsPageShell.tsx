@@ -77,9 +77,7 @@ const SettingsPageShell = ({
                 <div className="flex min-w-0 items-center justify-between gap-4">
                     {/* Below `sm` the title drops to the 16px body ramp, like every page title on a
                     phone. `m-0` kills the UA margin (preflight is off). */}
-                    <h1 className="m-0 min-w-0 truncate text-heading text-foreground">
-                        {title}
-                    </h1>
+                    <h1 className="m-0 min-w-0 truncate text-heading text-foreground">{title}</h1>
 
                     <div className="flex shrink-0 items-center gap-2">
                         {video ? <VideoButton video={video} /> : null}

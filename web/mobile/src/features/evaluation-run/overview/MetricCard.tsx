@@ -22,14 +22,10 @@ export const MetricCard = ({metric, runId}: {metric: OverviewMetric; runId: stri
                 <span className="truncate text-meta text-muted-foreground">
                     {metric.evaluatorName ?? "--"}
                 </span>
-                <h3 className="m-0 truncate text-title text-foreground">
-                    {metric.label}
-                </h3>
+                <h3 className="m-0 truncate text-title text-foreground">{metric.label}</h3>
             </header>
             {summary ? (
-                <p className="m-0 text-heading tabular-nums text-foreground">
-                    {summary.formatted}
-                </p>
+                <p className="m-0 text-heading tabular-nums text-foreground">{summary.formatted}</p>
             ) : null}
             {spec.data.length === 0 ? (
                 <OverviewEmpty title="No distribution data available." />

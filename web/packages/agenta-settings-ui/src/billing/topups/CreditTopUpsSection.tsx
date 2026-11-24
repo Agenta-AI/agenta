@@ -137,9 +137,7 @@ export const CreditTopUpsSection = ({
             )}
         >
             {framed ? (
-                <span className="text-label text-foreground">
-                    {t("billing.topups.buyCredits")}
-                </span>
+                <span className="text-label text-foreground">{t("billing.topups.buyCredits")}</span>
             ) : (
                 <h3 className="m-0 text-label">{t("billing.topups.buyCredits")}</h3>
             )}

@@ -62,9 +62,7 @@ export const ReleaseCover = ({cover}: {cover: ReleaseCoverKind}) => (
             cover === "builder" ? "p-0" : "p-3 md:p-5",
         )}
     >
-        {cover === "builder" ? (
-            <BuilderHero state="idle" className="size-35 md:size-55" />
-        ) : null}
+        {cover === "builder" ? <BuilderHero state="idle" className="size-35 md:size-55" /> : null}
         {cover === "channels" ? (
             <>
                 <Tile large>

@@ -41,8 +41,7 @@ import type {QueuedMessage} from "../hooks/useAgentChatQueue"
 import {ChildUpdateNotice} from "./ChildUpdateNotice"
 
 /** The dock family's surface — same geometry as the approval and connect cards. */
-const CARD_SURFACE =
-    "rounded-lg border border-solid border-border-muted bg-background"
+const CARD_SURFACE = "rounded-lg border border-solid border-border-muted bg-background"
 
 /** Five rows at the design's 32px row height. Past that the body scrolls; the card does not grow. */
 const BODY_MAX_H = "max-h-40"
@@ -165,7 +164,10 @@ const Row = ({
                 </>
             )}
             {childUpdate ? null : text ? (
-                <span title={text} className="min-w-0 flex-1 truncate text-label font-normal text-foreground">
+                <span
+                    title={text}
+                    className="min-w-0 flex-1 truncate text-label font-normal text-foreground"
+                >
                     {text}
                 </span>
             ) : excerpt ? (

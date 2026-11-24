@@ -13,7 +13,14 @@ import {
     CommandShortcut,
 } from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {CalculatorIcon, CalendarBlankIcon, CreditCardIcon, GearIcon, SmileyIcon, UserIcon} from "@phosphor-icons/react"
+import {
+    CalculatorIcon,
+    CalendarBlankIcon,
+    CreditCardIcon,
+    GearIcon,
+    SmileyIcon,
+    UserIcon,
+} from "@phosphor-icons/react"
 
 const meta = {
     title: "@agenta/ui/Primitives/Overlays/Command",

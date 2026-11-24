@@ -57,19 +57,13 @@ export const SetupSection = ({
             )}
         >
             {icon === "done" ? (
-                <CheckCircle
-                    size={15}
-                    weight="fill"
-                    className="shrink-0 text-success"
-                />
+                <CheckCircle size={15} weight="fill" className="shrink-0 text-success" />
             ) : (
                 <Circle
                     size={15}
                     className={clsx(
                         "shrink-0",
-                        icon === "warning"
-                            ? "text-warning"
-                            : "text-muted-foreground",
+                        icon === "warning" ? "text-warning" : "text-muted-foreground",
                     )}
                 />
             )}

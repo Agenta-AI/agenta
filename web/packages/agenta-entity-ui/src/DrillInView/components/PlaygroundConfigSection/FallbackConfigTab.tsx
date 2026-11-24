@@ -147,9 +147,7 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                 </HintTooltip>
                 {/* The reason shows on screen too: a disabled button gives no hover hint on touch. */}
                 {!disabled && !fallbackPolicy ? (
-                    <span className="text-meta text-muted-foreground">
-                        {policyRequiredMessage}
-                    </span>
+                    <span className="text-meta text-muted-foreground">{policyRequiredMessage}</span>
                 ) : null}
             </div>
         </div>

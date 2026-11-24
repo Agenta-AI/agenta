@@ -111,7 +111,10 @@ const RunnableOutputValue = memo(function RunnableOutputValue({
     if (effectiveType === "boolean" || typeof value === "boolean") {
         const boolVal = typeof value === "boolean" ? value : value === "true"
         return (
-            <Badge variant={boolVal ? "success" : "default"} className={clsx("text-meta", className)}>
+            <Badge
+                variant={boolVal ? "success" : "default"}
+                className={clsx("text-meta", className)}
+            >
                 {String(value)}
             </Badge>
         )

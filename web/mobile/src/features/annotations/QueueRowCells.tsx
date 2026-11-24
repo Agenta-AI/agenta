@@ -89,10 +89,7 @@ export const QueueRowCells = ({
     return (
         <>
             <span ref={ref} className="flex min-w-0 flex-col gap-1">
-                <span
-                    className="truncate text-label text-foreground"
-                    title={name}
-                >
+                <span className="truncate text-label text-foreground" title={name}>
                     {name}
                 </span>
                 {narrow ? (

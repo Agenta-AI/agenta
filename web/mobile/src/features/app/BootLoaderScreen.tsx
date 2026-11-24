@@ -136,9 +136,7 @@ export const BootLoaderScreen = ({boot, onDone}: BootLoaderScreenProps) => {
                         />
                     </div>
                     <div className="text-muted-foreground flex justify-between text-meta tabular-nums">
-                        <span>
-                            {t("shell.bootLoader.didYouKnow")}
-                        </span>
+                        <span>{t("shell.bootLoader.didYouKnow")}</span>
                         <span>{progress}%</span>
                     </div>
                 </div>

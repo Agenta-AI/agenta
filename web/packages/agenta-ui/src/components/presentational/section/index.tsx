@@ -137,9 +137,7 @@ export function SectionHeaderRow({left, right, align = "center"}: SectionHeaderR
  */
 export function SectionLabel({children, className}: SectionLabelProps) {
     return (
-        <span
-            className={cn("font-medium text-meta text-muted-foreground", className)}
-        >
+        <span className={cn("font-medium text-meta text-muted-foreground", className)}>
             {children}
         </span>
     )

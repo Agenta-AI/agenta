@@ -86,9 +86,7 @@ export const AgentCardBody = ({
                     />
                 </span>
             </span>
-            <span
-                className="line-clamp-3 min-h-[3.75rem] text-label leading-5 text-muted-foreground"
-            >
+            <span className="line-clamp-3 min-h-[3.75rem] text-label leading-5 text-muted-foreground">
                 {row.description || t("agents.list.noDescription")}
             </span>
             {/* Creator on the left, date on the right — the card's two corners, the way the

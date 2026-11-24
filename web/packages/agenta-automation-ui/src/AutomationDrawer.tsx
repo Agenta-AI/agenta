@@ -285,11 +285,7 @@ const AutomationCreateDrawer = ({
             title={t("automations.editor.newAutomation")}
             footer={
                 <div className="flex items-center justify-end gap-2.5">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={onClose}
-                    >
+                    <Button type="button" variant="outline" onClick={onClose}>
                         {t("automations.editor.cancel")}
                     </Button>
                     {/* Always pressable. A press with something missing does not create; it

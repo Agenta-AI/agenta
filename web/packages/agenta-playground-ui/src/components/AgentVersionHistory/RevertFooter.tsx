@@ -42,7 +42,12 @@ export const RevertFooter = ({
     const t = useT(versionCatalog)
     if (phase === "reverting") {
         return (
-            <div className={cn("flex items-center gap-2 text-label font-normal", textColors.secondary)}>
+            <div
+                className={cn(
+                    "flex items-center gap-2 text-label font-normal",
+                    textColors.secondary,
+                )}
+            >
                 <Spinner className="size-3.5" />
                 {t("playground.versionHistory.creating", {
                     next: (latestVersion ?? 0) + 1,

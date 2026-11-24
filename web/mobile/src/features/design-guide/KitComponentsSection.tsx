@@ -1,12 +1,35 @@
 import type {ReactNode} from "react"
 
-
-import {Alert, Badge, Button, Checkbox, EmptyState, Field, IconTile, Input, Kbd, Spinner, Switch, Tabs, TabsList, TabsTrigger} from "@agenta/ui/ui"
+import {
+    Alert,
+    Badge,
+    Button,
+    Checkbox,
+    EmptyState,
+    Field,
+    IconTile,
+    Input,
+    Kbd,
+    Spinner,
+    Switch,
+    Tabs,
+    TabsList,
+    TabsTrigger,
+} from "@agenta/ui/ui"
 import {CompassIcon, MagnifyingGlassIcon, PlusIcon, RobotIcon} from "@phosphor-icons/react"
 
 import {OverlaysRow} from "./OverlaysRow"
 
-const buttonVariants = ["default", "secondary", "outline", "ghost", "destructive-ghost", "destructive", "brand", "link"] as const
+const buttonVariants = [
+    "default",
+    "secondary",
+    "outline",
+    "ghost",
+    "destructive-ghost",
+    "destructive",
+    "brand",
+    "link",
+] as const
 const buttonSizes = ["xs", "sm", "default", "lg"] as const
 const badgeVariants = ["default", "success", "warning", "destructive", "info"] as const
 
@@ -49,7 +72,11 @@ export function KitComponentsSection() {
             </Row>
             <Row label="Field: help on the label, error under the control">
                 <div className="w-64">
-                    <Field label="Agent name" tooltip="Shown in the sidebar and in shared links." error="Use letters, numbers and dashes.">
+                    <Field
+                        label="Agent name"
+                        tooltip="Shown in the sidebar and in shared links."
+                        error="Use letters, numbers and dashes."
+                    >
                         <Input defaultValue="weekly report!" aria-invalid />
                     </Field>
                 </div>
@@ -62,7 +89,8 @@ export function KitComponentsSection() {
                 ))}
             </Row>
             <Row label="Checkbox, Switch, Kbd">
-                <Checkbox defaultChecked /> <Checkbox /> <Switch defaultChecked /> <Switch /> <Kbd>⌘K</Kbd>
+                <Checkbox defaultChecked /> <Checkbox /> <Switch defaultChecked /> <Switch />{" "}
+                <Kbd>⌘K</Kbd>
             </Row>
             <Row label="Mark · 16 / 20 / 24 / 32 / 40">
                 {([16, 20, 24, 32, 40] as const).map((size) => (
@@ -101,7 +129,10 @@ export function KitComponentsSection() {
                 <div className="flex items-center gap-2 text-label">
                     <Spinner /> Loading runs…
                 </div>
-                <EmptyState title="No agents yet" description="Create an agent to automate a task." />
+                <EmptyState
+                    title="No agents yet"
+                    description="Create an agent to automate a task."
+                />
             </Row>
         </section>
     )

@@ -68,7 +68,9 @@ const MetadataSidebar = memo(({revisionId, context, isCompact}: MetadataSidebarP
         >
             {/* Header */}
             <div className="px-4 pt-4 pb-3">
-                <Text className={cn("text-label font-semibold", textColors.secondary)}>Details</Text>
+                <Text className={cn("text-label font-semibold", textColors.secondary)}>
+                    Details
+                </Text>
             </div>
 
             {/* Metadata fields */}

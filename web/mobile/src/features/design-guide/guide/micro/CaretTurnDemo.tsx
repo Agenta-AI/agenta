@@ -15,7 +15,10 @@ export function CaretTurnDemo({turns}: {turns: boolean}) {
             </PopoverTrigger>
             <PopoverContent align="start" className="w-popover-sm p-1">
                 {items.map((item) => (
-                    <div key={item} className="flex h-8 items-center rounded-sm px-2 text-label hover:bg-accent">
+                    <div
+                        key={item}
+                        className="flex h-8 items-center rounded-sm px-2 text-label hover:bg-accent"
+                    >
                         {item}
                     </div>
                 ))}

@@ -43,9 +43,7 @@ export const AnalyticsEmptyState = ({
                     <IconTile size={40}>
                         <ChartBar />
                     </IconTile>
-                    <span className="text-title">
-                        {t("observabilityUi.analytics.emptyTitle")}
-                    </span>
+                    <span className="text-title">{t("observabilityUi.analytics.emptyTitle")}</span>
                     <p className="m-0 text-body text-muted-foreground">
                         {t("observabilityUi.analytics.emptyBody")}
                     </p>

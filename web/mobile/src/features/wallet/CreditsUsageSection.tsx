@@ -149,9 +149,7 @@ export const CreditsUsageSection = ({
     return (
         <section className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="m-0 text-title">
-                    {t("wallet.usage.title")}
-                </h2>
+                <h2 className="m-0 text-title">{t("wallet.usage.title")}</h2>
                 {locked ? null : controls}
             </div>
             {locked ? (

@@ -323,9 +323,7 @@ export const AutomationListScreen = ({
                                         className="max-sm:hidden"
                                     />
                                 )}
-                                <Button
-                                    onClick={() => void router.push(`${base}/automations/new`)}
-                                >
+                                <Button onClick={() => void router.push(`${base}/automations/new`)}>
                                     <Plus />
                                     {t("automations.screens.newAutomation")}
                                 </Button>

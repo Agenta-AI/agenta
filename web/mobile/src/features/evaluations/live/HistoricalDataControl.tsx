@@ -13,21 +13,11 @@ export const HistoricalDataControl = () => (
             </span>
         </SimpleTooltip>
         <span className="flex items-center gap-1.5">
-            <Input
-                aria-label="Start date"
-                placeholder="Start date"
-                disabled
-                className="w-28"
-            />
+            <Input aria-label="Start date" placeholder="Start date" disabled className="w-28" />
             <span aria-hidden className="text-muted-foreground">
                 →
             </span>
-            <Input
-                aria-label="End date"
-                placeholder="End date"
-                disabled
-                className="w-28"
-            />
+            <Input aria-label="End date" placeholder="End date" disabled className="w-28" />
         </span>
     </div>
 )

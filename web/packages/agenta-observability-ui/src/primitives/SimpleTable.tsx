@@ -105,8 +105,7 @@ export const SimpleTable = <T,>({
                                         colSpan={columns.length}
                                         className={clsx(
                                             "p-0 bg-secondary",
-                                            bordered &&
-                                                "border border-solid border-border-muted",
+                                            bordered && "border border-solid border-border-muted",
                                         )}
                                     >
                                         {expandedRowRender(record)}

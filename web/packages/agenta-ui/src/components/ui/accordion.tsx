@@ -31,8 +31,7 @@ const accordionRootVariants = cva("", {
     variants: {
         variant: {
             // overflow-hidden clips item corners to the group radius (antd borderRadiusLG=10px).
-            bordered:
-                "box-border border border-solid border-border rounded-lg overflow-hidden",
+            bordered: "box-border border border-solid border-border rounded-lg overflow-hidden",
             ghost: "border-0 bg-transparent",
         },
     },

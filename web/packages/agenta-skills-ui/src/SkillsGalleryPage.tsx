@@ -72,9 +72,7 @@ function SourceNavRow({
             )}
         >
             <span className="min-w-0 truncate">{entry.label}</span>
-            <span className="shrink-0 tabular-nums text-muted-foreground">
-                {entry.count}
-            </span>
+            <span className="shrink-0 tabular-nums text-muted-foreground">{entry.count}</span>
         </button>
     )
 }
@@ -161,9 +159,7 @@ export function SkillsGalleryPage({
         <FilterRailLayout
             rail={
                 <>
-                    <h1 className="m-0 text-title">
-                        {t("skills.gallery.skillsHeading")}
-                    </h1>
+                    <h1 className="m-0 text-title">{t("skills.gallery.skillsHeading")}</h1>
                     <SearchInput
                         placeholder={t("skills.gallery.searchPlaceholder")}
                         aria-label={t("skills.gallery.searchAria")}

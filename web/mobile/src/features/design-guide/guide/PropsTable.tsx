@@ -16,7 +16,9 @@ export function PropsTable({rows}: {rows: NonNullable<GuidePage["api"]>}) {
                         <tr key={r.prop} className="border-t border-border-muted align-top">
                             <td className="px-3 py-2 text-code-sm">{r.prop}</td>
                             <td className="px-3 py-2 text-code-sm">{r.values}</td>
-                            <td className="px-3 py-2 font-normal text-muted-foreground">{r.note}</td>
+                            <td className="px-3 py-2 font-normal text-muted-foreground">
+                                {r.note}
+                            </td>
                         </tr>
                     ))}
                 </tbody>

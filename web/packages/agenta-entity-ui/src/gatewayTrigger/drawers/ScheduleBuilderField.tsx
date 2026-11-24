@@ -307,9 +307,7 @@ export function ScheduleBuilderPanel({
                 <TimesField times={builder.times} onChange={(times) => emit({...builder, times})} />
             )}
 
-            {nextLine ? (
-                <span className="text-meta text-muted-foreground">{nextLine}</span>
-            ) : null}
+            {nextLine ? <span className="text-meta text-muted-foreground">{nextLine}</span> : null}
         </div>
     )
 }
@@ -357,9 +355,7 @@ export function ScheduleBuilderField({
                 </Popover>
 
                 {nextLine ? (
-                    <span className="text-meta leading-snug text-muted-foreground">
-                        {nextLine}
-                    </span>
+                    <span className="text-meta leading-snug text-muted-foreground">{nextLine}</span>
                 ) : null}
             </div>
         </Field>
@@ -494,9 +490,7 @@ function ChipRow({label, children}: {label: string; children: ReactNode}) {
 }
 
 function FieldLabel({children}: {children: ReactNode}) {
-    return (
-        <span className="text-label text-foreground">{children}</span>
-    )
+    return <span className="text-label text-foreground">{children}</span>
 }
 
 // The chip set, widened to include a stored value the presets don't cover (e.g. a 5-hour step).

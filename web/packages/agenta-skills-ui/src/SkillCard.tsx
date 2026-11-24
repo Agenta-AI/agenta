@@ -7,9 +7,7 @@ import {cn} from "@agenta/ui/styles"
 import {skillTitle} from "./skillTitle"
 import type {SkillListItem} from "./types"
 
-const MetaDot = () => (
-    <span className="size-0.5 shrink-0 bg-border-strong" />
-)
+const MetaDot = () => <span className="size-0.5 shrink-0 bg-border-strong" />
 
 export interface SkillCardProps {
     skill: SkillListItem
@@ -37,9 +35,7 @@ export function SkillCard({skill, onOpen}: SkillCardProps) {
         >
             <span className="flex min-w-0 items-center gap-2">
                 <SkillMark />
-                <span className="min-w-0 flex-1 truncate text-label">
-                    {skillTitle(skill)}
-                </span>
+                <span className="min-w-0 flex-1 truncate text-label">{skillTitle(skill)}</span>
                 {skill.archived ? (
                     <span className="shrink-0 rounded bg-secondary px-1.5 py-px text-caption text-muted-foreground">
                         {t("skills.gallery.archived")}

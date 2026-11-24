@@ -133,8 +133,7 @@ export interface CatalogChooserProps<I, T, C> {
 
 function ItemTrailing({state}: {state: CatalogItemState}) {
     if (state === "pending") return <Spinner size="small" />
-    if (state === "selected")
-        return <Check size={13} className="shrink-0 text-primary" />
+    if (state === "selected") return <Check size={13} className="shrink-0 text-primary" />
     return <Plus size={13} className="shrink-0 text-muted-foreground" />
 }
 
@@ -165,9 +164,7 @@ function CatalogItemList<I, T, C>({
             <InputAffix
                 allowClear
                 placeholder={props.itemsSearchPlaceholder ?? t("entityUi.catalogChooser.search")}
-                prefix={
-                    <MagnifyingGlass size={13} className="text-muted-foreground" />
-                }
+                prefix={<MagnifyingGlass size={13} className="text-muted-foreground" />}
                 value={query}
                 onValueChange={setQuery}
             />
@@ -320,11 +317,7 @@ function ConnectionDetail<I, T, C>({
                     ready ? "text-success" : "text-warning"
                 }`}
             >
-                <span
-                    className={`h-1.5 w-1.5 rounded-sm ${
-                        ready ? "bg-success" : "bg-warning"
-                    }`}
-                />
+                <span className={`h-1.5 w-1.5 rounded-sm ${ready ? "bg-success" : "bg-warning"}`} />
                 {ready
                     ? t("entityUi.catalogAppCard.connected")
                     : t("entityUi.catalogChooser.pending")}
@@ -400,17 +393,13 @@ function ConnectionSwitcher<I, T, C>({
                         >
                             <span
                                 className={`h-1.5 w-1.5 shrink-0 rounded-sm ${
-                                    ready
-                                        ? "bg-success"
-                                        : "bg-warning"
+                                    ready ? "bg-success" : "bg-warning"
                                 }`}
                             />
                             <span className="min-w-0 flex-1">
                                 <span
                                     className={`block truncate text-label font-medium ${
-                                        isCurrent
-                                            ? "text-primary"
-                                            : "text-foreground"
+                                        isCurrent ? "text-primary" : "text-foreground"
                                     }`}
                                 >
                                     {primary}
@@ -427,12 +416,7 @@ function ConnectionSwitcher<I, T, C>({
                                     </span>
                                 )}
                             </span>
-                            {isCurrent && (
-                                <Check
-                                    size={12}
-                                    className="shrink-0 text-primary"
-                                />
-                            )}
+                            {isCurrent && <Check size={12} className="shrink-0 text-primary" />}
                         </button>
                     )
                 })}
@@ -463,26 +447,20 @@ function AppRailItem({
             type="button"
             onClick={onClick}
             className={`ag-drawer-row flex w-full cursor-pointer items-center gap-2 rounded border-0 border-l-2 border-solid border-transparent px-2 py-1.5 text-left ${
-                active
-                    ? "ag-drawer-row-selected bg-selected"
-                    : "bg-transparent hover:bg-accent"
+                active ? "ag-drawer-row-selected bg-selected" : "bg-transparent hover:bg-accent"
             }`}
         >
             <AppLogo logo={logo} size={18} />
             <span className="min-w-0 flex-1">
                 <span
                     className={`block truncate text-label ${
-                        active
-                            ? "font-medium text-primary"
-                            : "text-foreground"
+                        active ? "font-medium text-primary" : "text-foreground"
                     }`}
                 >
                     {name}
                 </span>
                 {sub && (
-                    <span className="block truncate text-meta text-muted-foreground">
-                        {sub}
-                    </span>
+                    <span className="block truncate text-meta text-muted-foreground">{sub}</span>
                 )}
             </span>
             {state && (
@@ -491,9 +469,7 @@ function AppRailItem({
                         <TooltipTrigger asChild>
                             <span
                                 className={`h-1.5 w-1.5 shrink-0 rounded-sm ${
-                                    state === "active"
-                                        ? "bg-success"
-                                        : "bg-warning"
+                                    state === "active" ? "bg-success" : "bg-warning"
                                 }`}
                             />
                         </TooltipTrigger>
@@ -560,16 +536,12 @@ function CategoryRailRow({
             onClick={onClick}
             aria-pressed={active}
             className={`ag-drawer-row flex w-full cursor-pointer items-center rounded border-0 border-l-2 border-solid border-transparent px-2 py-1.5 text-left ${
-                active
-                    ? "ag-drawer-row-selected bg-selected"
-                    : "bg-transparent hover:bg-accent"
+                active ? "ag-drawer-row-selected bg-selected" : "bg-transparent hover:bg-accent"
             }`}
         >
             <span
                 className={`min-w-0 flex-1 truncate text-label ${
-                    active
-                        ? "font-medium text-primary"
-                        : "text-foreground"
+                    active ? "font-medium text-primary" : "text-foreground"
                 }`}
             >
                 {label}
@@ -583,10 +555,7 @@ function CategoryRailSkeleton() {
     return (
         <>
             {Array.from({length: 6}).map((_, i) => (
-                <div
-                    key={i}
-                    className="mx-2 my-1 h-3 animate-pulse rounded bg-secondary"
-                />
+                <div key={i} className="mx-2 my-1 h-3 animate-pulse rounded bg-secondary" />
             ))}
         </>
     )
@@ -597,10 +566,7 @@ function CatalogGridSkeleton() {
     return (
         <>
             {Array.from({length: 8}).map((_, i) => (
-                <div
-                    key={i}
-                    className="h-28 animate-pulse rounded-lg bg-secondary"
-                />
+                <div key={i} className="h-28 animate-pulse rounded-lg bg-secondary" />
             ))}
         </>
     )
@@ -959,12 +925,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                             allowClear
                             autoFocus
                             placeholder={t("entityUi.catalogChooser.searchApps")}
-                            prefix={
-                                <MagnifyingGlass
-                                    size={13}
-                                    className="text-muted-foreground"
-                                />
-                            }
+                            prefix={<MagnifyingGlass size={13} className="text-muted-foreground" />}
                             value={searchInput}
                             onValueChange={setSearchInput}
                             onKeyDown={(e) => {

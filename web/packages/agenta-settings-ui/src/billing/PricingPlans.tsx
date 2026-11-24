@@ -93,7 +93,9 @@ const PricingCard = ({
             </div>
 
             <div className="flex flex-1 flex-col gap-1 p-3">
-                <span className="text-label font-semibold text-foreground">{formatPrice(plan)}</span>
+                <span className="text-label font-semibold text-foreground">
+                    {formatPrice(plan)}
+                </span>
                 <span className="text-label text-foreground">{plan.description}</span>
 
                 <ul className="mt-2 list-disc pl-4">
@@ -105,9 +107,7 @@ const PricingCard = ({
                 </ul>
             </div>
 
-            <div className="border-0 border-t border-solid border-border-muted p-3">
-                {action}
-            </div>
+            <div className="border-0 border-t border-solid border-border-muted p-3">{action}</div>
         </div>
     )
 }

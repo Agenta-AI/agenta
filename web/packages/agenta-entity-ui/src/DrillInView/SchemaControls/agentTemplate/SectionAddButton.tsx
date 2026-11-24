@@ -13,13 +13,7 @@
 import {forwardRef, type ButtonHTMLAttributes, type ReactNode} from "react"
 
 import {cn} from "@agenta/ui/styles"
-import {
-    Button,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@agenta/ui/ui"
+import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 
 export interface SectionAddButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

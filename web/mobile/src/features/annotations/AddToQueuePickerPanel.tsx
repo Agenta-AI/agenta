@@ -75,9 +75,7 @@ export const AddToQueuePickerPanel = ({
                                 onClick={() => onSelect(queue.id)}
                                 className="flex w-full min-h-12 cursor-pointer flex-col items-start justify-center border-0 bg-transparent px-3 py-2 text-left hover:bg-accent focus-visible:bg-accent focus-visible:outline-none disabled:cursor-wait disabled:opacity-50"
                             >
-                                <span className="w-full truncate text-label">
-                                    {queue.name}
-                                </span>
+                                <span className="w-full truncate text-label">{queue.name}</span>
                                 <span className="text-meta text-muted-foreground">
                                     {queue.updated}
                                 </span>

@@ -52,9 +52,7 @@ export const RunSummaryCard = ({
                 ) : null}
             </div>
             <div className="flex min-w-0 flex-col gap-1">
-                <h2 className="m-0 break-words text-title text-foreground">
-                    {name || MISSING}
-                </h2>
+                <h2 className="m-0 break-words text-title text-foreground">{name || MISSING}</h2>
                 {header.description ? (
                     <p className="m-0 break-words text-body text-muted-foreground">
                         {header.description}
@@ -75,10 +73,7 @@ export const RunSummaryCard = ({
                 </ul>
             ) : null}
             <div className="flex min-w-0 items-center gap-1">
-                <code
-                    className="min-w-0 truncate text-code-sm text-muted-foreground"
-                    title={runId}
-                >
+                <code className="min-w-0 truncate text-code-sm text-muted-foreground" title={runId}>
                     {shortId(runId)}
                 </code>
                 <CopyButton

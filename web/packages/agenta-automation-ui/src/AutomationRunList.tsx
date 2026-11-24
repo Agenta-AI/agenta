@@ -141,12 +141,7 @@ export const AutomationRunList = ({
             {error && groups.length ? (
                 <div className="flex items-center gap-2 px-2.5 py-3 text-label text-muted-foreground">
                     <span className="min-w-0 flex-1">{t("automations.editor.loadRunsFailed")}</span>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-label"
-                        onClick={onRetry}
-                    >
+                    <Button variant="outline" size="sm" className="text-label" onClick={onRetry}>
                         {t("automations.editor.tryAgain")}
                     </Button>
                 </div>

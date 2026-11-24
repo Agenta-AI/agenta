@@ -189,11 +189,12 @@ const TraceScenarioContent = memo(function TraceScenarioContent({traceId}: {trac
                     <Typography.Text type="secondary" className="text-label font-normal">
                         Trace:
                     </Typography.Text>
-                    <Typography.Text className="text-label">
-                        {rootSpan.span_name}
-                    </Typography.Text>
+                    <Typography.Text className="text-label">{rootSpan.span_name}</Typography.Text>
                     {rootSpan.span_type && (
-                        <Typography.Text type="secondary" className="text-label font-normal px-1.5 py-0.5 rounded">
+                        <Typography.Text
+                            type="secondary"
+                            className="text-label font-normal px-1.5 py-0.5 rounded"
+                        >
                             {rootSpan.span_type}
                         </Typography.Text>
                     )}

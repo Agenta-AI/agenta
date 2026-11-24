@@ -194,7 +194,9 @@ export function RepoImportDrawer({
                         {/* The field stays on top once scanned; editing the URL is how you scan another. */}
                         {step !== "done" ? (
                             <label className="flex flex-col gap-1.5 text-label">
-                                <span className="font-medium">{t("ui.repoImport.repositoryUrl")}</span>
+                                <span className="font-medium">
+                                    {t("ui.repoImport.repositoryUrl")}
+                                </span>
                                 <Input
                                     ref={urlInput}
                                     value={repoUrl}
@@ -203,7 +205,8 @@ export function RepoImportDrawer({
                                         if (step === "select") setStep("url")
                                     }}
                                     onKeyDown={(e) => {
-                                        if (e.key === "Enter" && repoUrl.trim() && !busy) void runScan()
+                                        if (e.key === "Enter" && repoUrl.trim() && !busy)
+                                            void runScan()
                                     }}
                                     placeholder="https://github.com/owner/repo"
                                     disabled={busy}
@@ -218,14 +221,20 @@ export function RepoImportDrawer({
                                 <SkeletonBlock active className="h-4 w-24 rounded" />
                                 <div className="flex flex-col gap-1">
                                     {[0, 1, 2].map((row) => (
-                                        <div
-                                            key={row}
-                                            className={`${ROW} border-border-muted`}
-                                        >
-                                            <SkeletonBlock active className="mt-0.5 size-4 rounded" />
+                                        <div key={row} className={`${ROW} border-border-muted`}>
+                                            <SkeletonBlock
+                                                active
+                                                className="mt-0.5 size-4 rounded"
+                                            />
                                             <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-                                                <SkeletonBlock active className="h-3.5 w-2/5 rounded" />
-                                                <SkeletonBlock active className="h-3.5 w-4/5 rounded" />
+                                                <SkeletonBlock
+                                                    active
+                                                    className="h-3.5 w-2/5 rounded"
+                                                />
+                                                <SkeletonBlock
+                                                    active
+                                                    className="h-3.5 w-4/5 rounded"
+                                                />
                                             </span>
                                         </div>
                                     ))}
@@ -260,7 +269,9 @@ export function RepoImportDrawer({
                                                 <Checkbox
                                                     className="mt-0.5"
                                                     checked={selected.has(candidate.path)}
-                                                    disabled={Boolean(candidate.unavailable) || busy}
+                                                    disabled={
+                                                        Boolean(candidate.unavailable) || busy
+                                                    }
                                                     onCheckedChange={() => toggle(candidate.path)}
                                                 />
                                                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">

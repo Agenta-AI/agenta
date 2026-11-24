@@ -395,8 +395,7 @@ export const VirtualTable = <RecordType extends object>({
     // Same tone, painted as a gradient layer over an opaque base instead of as a translucent fill.
     const headerCellPaint: CSSProperties = {
         backgroundColor: "var(--background)",
-        backgroundImage:
-            "linear-gradient(var(--secondary), var(--secondary))",
+        backgroundImage: "linear-gradient(var(--secondary), var(--secondary))",
     }
 
     const colGroup = (

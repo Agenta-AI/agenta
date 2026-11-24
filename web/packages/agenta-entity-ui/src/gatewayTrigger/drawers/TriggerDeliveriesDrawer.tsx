@@ -81,10 +81,7 @@ export default function TriggerDeliveriesDrawer({onOpenSession}: TriggerDeliveri
                 if (!next) setState(null)
             }}
         >
-            <SheetContent
-                side="right"
-                style={{width: 720, maxWidth: "calc(100% - 1rem)"}}
-            >
+            <SheetContent side="right" style={{width: 720, maxWidth: "calc(100% - 1rem)"}}>
                 <SheetHeader>
                     <SheetTitle className="min-w-0">
                         {t("entityUi.triggerDeliveries.deliveryDetails")}

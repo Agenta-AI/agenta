@@ -206,8 +206,7 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
             <div
                 className="flex h-10 items-center justify-between gap-2 bg-muted px-3"
                 style={{
-                    borderBottom:
-                        "1px solid var(--border-muted)",
+                    borderBottom: "1px solid var(--border-muted)",
                 }}
             >
                 <div className="flex min-w-0 items-center gap-2">

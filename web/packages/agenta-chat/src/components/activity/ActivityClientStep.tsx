@@ -53,7 +53,9 @@ export const ActivityClientStep = ({
             />
             <div className="min-w-0 flex-1">
                 {widget ?? (
-                    <span className={`text-label ${failed ? "text-destructive" : "text-foreground"}`}>
+                    <span
+                        className={`text-label ${failed ? "text-destructive" : "text-foreground"}`}
+                    >
                         {failed
                             ? t("chat.activity.actionFailed", {action: display.activity.running})
                             : settled

@@ -44,7 +44,6 @@ export const AutomationRunNowButton = ({
                 type="button"
                 size="compact"
                 variant="outline"
-
                 disabled={blocked !== null || starting}
                 title={blockedText ?? t("automations.screens.runNowTitle")}
                 onClick={() => void run()}

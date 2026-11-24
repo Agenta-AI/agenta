@@ -34,9 +34,7 @@ export const TemplateCard = ({template, onSelect, disabled}: TemplateCardProps) 
                 {template.initials}
             </span>
 
-            <span className="truncate text-title text-foreground">
-                {template.name}
-            </span>
+            <span className="truncate text-title text-foreground">{template.name}</span>
 
             <p className="m-0 line-clamp-2 text-label leading-snug text-muted-foreground">
                 {template.description}

@@ -104,10 +104,7 @@ function AnnotationQueuesSearchEmptyState({
         <div className="px-4 py-6">
             <div className="mx-auto flex min-h-55 max-w-2xl items-center justify-center rounded-xl border border-dashed border-border bg-muted px-6 py-8">
                 <div className="flex max-w-lg flex-col items-center text-center">
-                    <Typography.Title
-                        level={4}
-                        className="!mb-2 !text-title !text-foreground"
-                    >
+                    <Typography.Title level={4} className="!mb-2 !text-title !text-foreground">
                         No queues match your search
                     </Typography.Title>
                     <Typography.Paragraph className="!mb-5 !text-body !text-muted-foreground">
@@ -150,9 +147,7 @@ const QueuesFiltersContent = ({onClose}: {onClose: () => void}) => {
     return (
         <div className="flex flex-col gap-4 min-w-[240px]">
             <div className="flex flex-col gap-2">
-                <Typography.Text className="font-medium text-foreground">
-                    Type
-                </Typography.Text>
+                <Typography.Text className="font-medium text-foreground">Type</Typography.Text>
                 <Select
                     value={draftKind ?? ""}
                     onChange={(val) => setDraftKind(val === "" ? null : (val as SimpleQueueKind))}

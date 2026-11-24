@@ -466,7 +466,10 @@ export function EntityCommitContent({
                                 </div>
                             ) : (
                                 <span
-                                    className={cn("text-meta leading-relaxed", textColors.secondary)}
+                                    className={cn(
+                                        "text-meta leading-relaxed",
+                                        textColors.secondary,
+                                    )}
                                 >
                                     {richText(
                                         t("entityUi.commitModal.versionNote", {
@@ -678,12 +681,7 @@ export function EntityCommitContent({
             ) : hasDiffData ? (
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-zinc-2 bg-zinc-1">
                     <div className="flex items-center justify-between border-b border-zinc-2 bg-zinc-1 px-3 py-2 shrink-0">
-                        <span
-                            className={cn(
-                                "text-meta font-medium",
-                                textColors.secondary,
-                            )}
-                        >
+                        <span className={cn("text-meta font-medium", textColors.secondary)}>
                             {t("entityUi.commitModal.changesPreview")}
                         </span>
                         <span className={cn("text-meta", textColors.quaternary)}>

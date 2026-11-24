@@ -33,9 +33,7 @@ export const SetupChoiceCard = ({
         onClick={onClick}
         className={clsx(
             "box-border flex min-h-13 min-w-[148px] shrink-0 cursor-pointer items-center gap-2.5 rounded-lg border border-solid bg-transparent px-3 py-2 text-left transition-colors",
-            inUse
-                ? "border-primary"
-                : "border-border-muted hover:border-muted-foreground",
+            inUse ? "border-primary" : "border-border-muted hover:border-muted-foreground",
         )}
     >
         {logo ? (

@@ -352,9 +352,7 @@ export const FolderView = ({
                                         return (
                                             <motion.div
                                                 className={`min-w-0 rounded-lg ${
-                                                    drop?.hoverPath === n.path
-                                                        ? "bg-selected"
-                                                        : ""
+                                                    drop?.hoverPath === n.path ? "bg-selected" : ""
                                                 }`}
                                                 {...folderDrop}
                                                 {...revealFade(gridRevealNow)}

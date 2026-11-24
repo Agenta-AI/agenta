@@ -29,10 +29,7 @@ export const EvaluatorTemplateRow = ({
     >
         <span className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="flex flex-wrap items-center gap-2">
-                <span
-                    data-slot="template-name"
-                    className="text-label text-foreground"
-                >
+                <span data-slot="template-name" className="text-label text-foreground">
                     {template.name || template.key}
                 </span>
                 {categories.map((category) => (

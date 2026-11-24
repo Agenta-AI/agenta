@@ -391,7 +391,8 @@ export function Combobox({
                                         MENU_ITEM,
                                         "justify-between data-[active=true]:bg-accent",
                                         row.option.value === value && "bg-accent",
-                                        row.option.disabled && "pointer-events-none text-muted-foreground",
+                                        row.option.disabled &&
+                                            "pointer-events-none text-muted-foreground",
                                     )}
                                 >
                                     {row.option.label}

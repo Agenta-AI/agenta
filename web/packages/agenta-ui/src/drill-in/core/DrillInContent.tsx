@@ -585,7 +585,9 @@ export function DrillInContent({
 
             {/* Current level items */}
             {filteredLevelItems.length === 0 && (
-                <div className="text-muted-foreground text-body">{t("ui.drillIn.noItemsToDisplay")}</div>
+                <div className="text-muted-foreground text-body">
+                    {t("ui.drillIn.noItemsToDisplay")}
+                </div>
             )}
 
             <div className={fieldsWrapperClass}>

@@ -70,9 +70,7 @@ function LeadingGlyph({type}: {type: string}) {
         return <span className={` text-code-sm ${TYPE_TINT}`}>[ ]</span>
     }
     // Scalar: a small hollow dot.
-    return (
-        <span className="h-1.5 w-1.5 rounded-sm border border-solid border-border-strong" />
-    )
+    return <span className="h-1.5 w-1.5 rounded-sm border border-solid border-border-strong" />
 }
 
 function AddPropertyRow({
@@ -318,24 +316,18 @@ export function ParameterTree({
                     type="button"
                     onClick={onSelectMeta}
                     className={`flex w-full cursor-pointer appearance-none items-center gap-2 rounded border-0 px-1.5 py-1.5 text-left ${
-                        metaSelected
-                            ? "bg-selected"
-                            : "bg-transparent hover:bg-accent"
+                        metaSelected ? "bg-selected" : "bg-transparent hover:bg-accent"
                     }`}
                 >
                     <Wrench
                         size={14}
                         className={`shrink-0 ${
-                            metaSelected
-                                ? "text-primary"
-                                : "text-muted-foreground"
+                            metaSelected ? "text-primary" : "text-muted-foreground"
                         }`}
                     />
                     <span
                         className={`truncate text-label ${
-                            metaSelected
-                                ? "font-medium text-primary"
-                                : "text-foreground"
+                            metaSelected ? "font-medium text-primary" : "text-foreground"
                         }`}
                     >
                         {t("entityUi.parameterEditor.toolDetails")}

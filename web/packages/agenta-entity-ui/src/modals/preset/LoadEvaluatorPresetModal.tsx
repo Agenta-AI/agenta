@@ -9,14 +9,7 @@ import {memo, useState, useMemo, useEffect} from "react"
 
 import {useT} from "@agenta/i18n"
 import presetModalCatalog from "@agenta/i18n/catalogs/entityUi.presetModal"
-import {
-    Button,
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@agenta/ui/ui"
+import {Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 
 import {PresetContent} from "./PresetContent"
 import type {LoadEvaluatorPresetModalProps} from "./types"

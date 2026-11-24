@@ -85,9 +85,7 @@ const Row = ({block}: {block: ChangeBlock}) => {
                 type="button"
                 onClick={() => setOpen((value) => !value)}
                 aria-expanded={phone ? undefined : open}
-                className={`flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1 text-left hover:bg-accent ${
-                    "py-1.5"
-                }`}
+                className={`flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1 text-left hover:bg-accent ${"py-1.5"}`}
             >
                 <CaretRight
                     size={11}
@@ -161,7 +159,9 @@ const CallGroup = ({preview, showAgent}: {preview: ApprovalPreview; showAgent: b
     return (
         <div className="flex min-w-0 flex-col gap-1" data-testid="change-call-group">
             {showAgent && agentName ? (
-                <span className="truncate text-label font-semibold text-foreground">{agentName}</span>
+                <span className="truncate text-label font-semibold text-foreground">
+                    {agentName}
+                </span>
             ) : null}
             {baseVersion !== undefined ? (
                 <span className="text-meta font-medium text-muted-foreground">

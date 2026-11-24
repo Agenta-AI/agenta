@@ -134,7 +134,10 @@ export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void
     // The line under the key: the check that runs, or what it answered.
     const checkLine =
         checkState.phase === "checking" ? (
-            <span role="status" className="text-muted-foreground flex items-center gap-1.5 text-meta">
+            <span
+                role="status"
+                className="text-muted-foreground flex items-center gap-1.5 text-meta"
+            >
                 <Spinner size="small" />
                 {t("entityUi.providerKeyForm.checking", {provider: providerName})}
                 <Button

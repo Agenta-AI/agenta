@@ -43,7 +43,12 @@ const proseBase = [
 ].join(" ")
 
 // Prose is text-body on every element whose own Streamdown size would win; literals so Tailwind finds them.
-const BODY_SCALE = ["text-body", "[&_p]:text-body", "[&_li]:text-body", "[&_blockquote]:text-body"].join(" ")
+const BODY_SCALE = [
+    "text-body",
+    "[&_p]:text-body",
+    "[&_li]:text-body",
+    "[&_blockquote]:text-body",
+].join(" ")
 const APP_SCALE = BODY_SCALE
 const CHAT_SCALE = BODY_SCALE
 

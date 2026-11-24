@@ -339,7 +339,9 @@ const DrawerBody = ({agentName, keyColor, onOpenTrace}: AnalyticsDrawerProps) =>
                                 className={cn(
                                     // A control: row-double tall, its value at the label weight (TYPE-05).
                                     "box-border flex h-row-double min-w-0 cursor-pointer flex-col justify-center gap-0.5 rounded-md border-0 px-3 text-left disabled:cursor-default disabled:opacity-50",
-                                    m === metric ? "bg-background shadow-raised" : "bg-transparent hover:bg-accent",
+                                    m === metric
+                                        ? "bg-background shadow-raised"
+                                        : "bg-transparent hover:bg-accent",
                                 )}
                             >
                                 <span className="flex min-w-0 items-center gap-1.5 text-meta text-muted-foreground">

@@ -875,9 +875,7 @@ const ProviderConnectionCard = ({
     ) : null
 
     return (
-        <div
-            className="flex min-h-full flex-1 flex-col gap-4 text-meta"
-        >
+        <div className="flex min-h-full flex-1 flex-col gap-4 text-meta">
             {/* A member cannot rename an organization connection, so the field is not offered. */}
             {readOnly ? null : (
                 <div className="flex shrink-0 flex-col gap-1">

@@ -78,9 +78,7 @@ const PHONE_TEXT_BTN = `gap-1.5 rounded-md px-2 text-label text-muted-foreground
  */
 const PhoneRow = ({crumb, children}: {crumb: ReactNode; children: ReactNode}) => (
     <div className="box-border flex h-13 shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted pl-3 pr-1">
-        <div className="flex min-w-0 flex-1 items-center">
-            {crumb}
-        </div>
+        <div className="flex min-w-0 flex-1 items-center">{crumb}</div>
         {children}
     </div>
 )
@@ -140,9 +138,7 @@ const IconPill = ({value, options, onChange, phone}: ToolbarMode & {phone?: bool
                         value={o.value}
                         aria-label={o.label}
                         title={o.label}
-                        className={
-                            phone ? PHONE_PILL_TRIGGER : "h-full rounded-sm px-1.5 py-0"
-                        }
+                        className={phone ? PHONE_PILL_TRIGGER : "h-full rounded-sm px-1.5 py-0"}
                     >
                         {o.icon}
                     </TabsTrigger>
@@ -459,10 +455,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
                             <CaretDown className="size-3" />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                        align="start"
-                        className="min-w-45"
-                    >
+                    <DropdownMenuContent align="start" className="min-w-45">
                         {(Object.keys(SORT_LABELS) as DriveSortKey[]).map((key) => (
                             <DropdownMenuItem key={key} onSelect={() => setSort(key)}>
                                 {SORT_ICONS[key]}

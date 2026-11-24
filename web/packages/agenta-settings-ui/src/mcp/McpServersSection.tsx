@@ -316,10 +316,7 @@ export default function McpServersSection({
     const empty = !isPending && rows.length === 0
 
     const connect = (
-        <Button
-            data-testid="mcp-connect-open"
-            onClick={openConnect}
-        >
+        <Button data-testid="mcp-connect-open" onClick={openConnect}>
             <Plus size={14} />
             {copy.connect}
         </Button>

@@ -179,7 +179,9 @@ export const UseApiDrawer = ({
                         onChange={(value) => setLang(value as AppEndpointLang)}
                     />
                     {snippets.isError ? (
-                        <p className="m-0 text-body text-destructive">Couldn't load this revision.</p>
+                        <p className="m-0 text-body text-destructive">
+                            Couldn't load this revision.
+                        </p>
                     ) : (
                         <>
                             <Snippet

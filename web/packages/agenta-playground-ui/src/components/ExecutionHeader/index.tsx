@@ -146,9 +146,7 @@ const ExecutionHeader = ({entityId, className, renderTestsetActions}: ExecutionH
                     <Typography
                         className={clsx(
                             "text-nowrap",
-                            isComparisonView
-                                ? "text-title"
-                                : "text-title font-[600]",
+                            isComparisonView ? "text-title" : "text-title font-[600]",
                         )}
                     >
                         {isChatMode ? "Chat" : isComparisonView ? "Generations" : "Generations"}

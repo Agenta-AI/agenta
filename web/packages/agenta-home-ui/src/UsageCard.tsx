@@ -36,7 +36,9 @@ const Stat = ({label, value, loading}: {label: string; value: string; loading: b
         {loading ? (
             <SkeletonBlock className="h-4 w-12" />
         ) : (
-            <span className="truncate text-label font-semibold tabular-nums text-foreground">{value}</span>
+            <span className="truncate text-label font-semibold tabular-nums text-foreground">
+                {value}
+            </span>
         )}
     </div>
 )

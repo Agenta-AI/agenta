@@ -69,9 +69,7 @@ export function SecretCreateFields({
                     autoComplete="off"
                     spellCheck={false}
                 />
-                {hint ? (
-                    <span className="text-meta text-muted-foreground">{hint}</span>
-                ) : null}
+                {hint ? <span className="text-meta text-muted-foreground">{hint}</span> : null}
             </div>
         </>
     )

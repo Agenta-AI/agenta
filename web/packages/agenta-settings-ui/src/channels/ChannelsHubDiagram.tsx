@@ -97,9 +97,7 @@ export const ChannelsHubDiagram = ({
                         <span className="flex size-5 items-center justify-center rounded-sm bg-background">
                             {target.icon}
                         </span>
-                        <span className="text-label text-muted-foreground">
-                            {target.name}
-                        </span>
+                        <span className="text-label text-muted-foreground">{target.name}</span>
                     </div>
                 ))}
             </div>

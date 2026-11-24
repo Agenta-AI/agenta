@@ -165,12 +165,7 @@ export function YourSignInLine({endpoint, name}: {endpoint: MCPEndpoint; name: s
                         }
                     >
                         {start ? (
-                            <Button
-                                size="compact"
-                                className=""
-                                disabled={pending}
-                                onClick={start}
-                            >
+                            <Button size="compact" className="" disabled={pending} onClick={start}>
                                 {t("entityUi.mcpAccount.signInTo", {name})}
                             </Button>
                         ) : null}

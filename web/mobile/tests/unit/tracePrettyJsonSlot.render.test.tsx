@@ -87,8 +87,7 @@ describe("the Pretty JSON slot", () => {
 
         const roles = Array.from(host.querySelectorAll("span.capitalize")).map((span) => [
             span.textContent,
-            span.className.includes("text-warning") ||
-                span.className.includes("text-info"),
+            span.className.includes("text-warning") || span.className.includes("text-info"),
         ])
         expect(roles).toEqual([
             ["system", true],

@@ -111,10 +111,7 @@ const segmentedItemVariants = cva(
 const segmentedThumbVariants = cva(
     // left-0 pins the absolute origin to the track's padding box (else left:auto = static
     // position, which double-offsets the translateX slide).
-    [
-        "absolute left-0 z-0 box-border border-0 bg-background",
-        "pointer-events-none",
-    ],
+    ["absolute left-0 z-0 box-border border-0 bg-background", "pointer-events-none"],
     {
         variants: {
             // Thumb radius matches the item radius per size (4/6/8px).

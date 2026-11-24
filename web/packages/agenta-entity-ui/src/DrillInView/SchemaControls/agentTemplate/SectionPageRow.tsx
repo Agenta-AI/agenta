@@ -34,9 +34,7 @@ export const SectionPageRow = ({icon, title, summary, onClick, trailing}: Sectio
             <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-body leading-5 text-foreground">{title}</span>
                 {summary ? (
-                    <span className="truncate text-meta text-muted-foreground">
-                        {summary}
-                    </span>
+                    <span className="truncate text-meta text-muted-foreground">{summary}</span>
                 ) : null}
             </span>
         </>
@@ -45,10 +43,7 @@ export const SectionPageRow = ({icon, title, summary, onClick, trailing}: Sectio
         return (
             <button
                 type="button"
-                className={cn(
-                    ROW,
-                    "cursor-pointer bg-transparent font-[inherit] hover:bg-accent",
-                )}
+                className={cn(ROW, "cursor-pointer bg-transparent font-[inherit] hover:bg-accent")}
                 onClick={onClick}
             >
                 {body}

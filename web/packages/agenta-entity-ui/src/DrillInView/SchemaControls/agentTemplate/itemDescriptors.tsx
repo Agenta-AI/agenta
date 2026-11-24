@@ -124,9 +124,7 @@ export function describeSubagent(
         color: "transparent",
         icon: chrome?.glyph ?? <Robot />,
         // Always chipped: an unchipped avatar paints white on transparent and the glyph vanishes.
-        avatarClassName:
-            chrome?.className ??
-            "bg-secondary text-muted-foreground",
+        avatarClassName: chrome?.className ?? "bg-secondary text-muted-foreground",
         avatarStyle: chrome?.style,
         // No type tag. "workflow" is an internal type and nothing user-meaningful replaces it.
         tags: [],

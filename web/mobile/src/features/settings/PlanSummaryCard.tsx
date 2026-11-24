@@ -71,9 +71,7 @@ export const PlanSummaryCard = ({
                 ) : null}
             </div>
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5">
-                <span className="truncate text-heading capitalize">
-                    {name}
-                </span>
+                <span className="truncate text-heading capitalize">{name}</span>
                 {price ? <span className="text-muted-foreground">{price}</span> : null}
             </div>
             {credits ? (

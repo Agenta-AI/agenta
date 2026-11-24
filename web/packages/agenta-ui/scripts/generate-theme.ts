@@ -104,6 +104,10 @@ function tailwindCss(): string {
             .filter((s) => s.name.startsWith("row-"))
             .map((s) => `--spacing-${s.name}: var(--${s.name});`),
         ...easings.map((e) => `--${e.name}: var(--${e.name});`),
+        // A bare `transition-colors` moves on the theme's hover timing, not Tailwind's 150ms
+        // default (MOTION-01: no duration or easing written in a component).
+        "--default-transition-duration: var(--duration-fast);",
+        "--default-transition-timing-function: var(--ease-out);",
     ]
     // Tailwind's --text-* theme keys cannot carry a font family, so mono styles add it here.
     const monoUtilities = textStyles
@@ -190,15 +194,23 @@ interface DesignRule {
 
 /** rules.json is written by hand: one prefix per group, IDs in order, every field filled. */
 function checkRules(json: string): void {
-    const {groups, terms} = JSON.parse(json) as {groups: {prefix: string; title: string; rules: DesignRule[]}[]; terms: {term: string; icon: string}[]}
+    const {groups, terms} = JSON.parse(json) as {
+        groups: {prefix: string; title: string; rules: DesignRule[]}[]
+        terms: {term: string; icon: string}[]
+    }
     const seen = new Set<string>()
     for (const g of groups) {
-        if (seen.has(g.prefix)) throw new Error(`rules.json: the prefix ${g.prefix} is used by two groups`)
+        if (seen.has(g.prefix))
+            throw new Error(`rules.json: the prefix ${g.prefix} is used by two groups`)
         seen.add(g.prefix)
         g.rules.forEach((r, i) => {
             const id = `${g.prefix}-${String(i + 1).padStart(2, "0")}`
-            if (r.id !== id) throw new Error(`rules.json: ${r.id} is out of order in "${g.title}"; expected ${id}`)
-            for (const k of ["rule", "why", "avoid", "do"] as const) if (!r[k]) throw new Error(`rules.json: ${r.id} has no "${k}"`)
+            if (r.id !== id)
+                throw new Error(
+                    `rules.json: ${r.id} is out of order in "${g.title}"; expected ${id}`,
+                )
+            for (const k of ["rule", "why", "avoid", "do"] as const)
+                if (!r[k]) throw new Error(`rules.json: ${r.id} has no "${k}"`)
         })
     }
     if (!terms.length) throw new Error("rules.json has no icon terms")
@@ -208,7 +220,8 @@ function checkRules(json: string): void {
 function checkGlossary(markdown: string): void {
     const start = markdown.indexOf("\n## Glossary\n")
     const end = markdown.indexOf("\n## Principles\n")
-    if (start < 0 || end < 0) throw new Error("DESIGN.md is missing the Glossary or the Principles section")
+    if (start < 0 || end < 0)
+        throw new Error("DESIGN.md is missing the Glossary or the Principles section")
     const banned = markdown
         .slice(start, end)
         .split("\n")
@@ -221,10 +234,12 @@ function checkGlossary(markdown: string): void {
     body.split("\n").forEach((line) => {
         const text = line.replace(/`[^`]*`/g, "")
         for (const word of banned) {
-            if (new RegExp(`\\b${word}s?\\b`, "i").test(text)) hits.push(`"${word}" in: ${line.trim().slice(0, 90)}`)
+            if (new RegExp(`\\b${word}s?\\b`, "i").test(text))
+                hits.push(`"${word}" in: ${line.trim().slice(0, 90)}`)
         }
     })
-    if (hits.length) throw new Error(`DESIGN.md uses words its Glossary bans:\n  ${hits.join("\n  ")}`)
+    if (hits.length)
+        throw new Error(`DESIGN.md uses words its Glossary bans:\n  ${hits.join("\n  ")}`)
 }
 
 const outputs: [string, string][] = [

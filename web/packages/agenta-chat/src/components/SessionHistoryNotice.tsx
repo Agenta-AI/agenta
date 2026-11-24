@@ -30,9 +30,7 @@ export const SessionHistoryNotice = ({
         <div
             className={cn(
                 "box-border flex items-start gap-2 rounded-lg border border-solid px-3 py-2",
-                reconnecting
-                    ? "border-border bg-secondary"
-                    : "border-warning/30 bg-warning/10",
+                reconnecting ? "border-border bg-secondary" : "border-warning/30 bg-warning/10",
                 className,
             )}
             role="status"
@@ -40,11 +38,7 @@ export const SessionHistoryNotice = ({
             {reconnecting ? (
                 <Spinner aria-hidden className="text-info mt-0.5" />
             ) : (
-                <WarningCircle
-                    aria-hidden
-                    className="text-warning mt-0.5 shrink-0"
-                    size={16}
-                />
+                <WarningCircle aria-hidden className="text-warning mt-0.5 shrink-0" size={16} />
             )}
             <span className="min-w-0">
                 <span className="text-foreground block text-label">{copy.title}</span>

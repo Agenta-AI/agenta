@@ -15,8 +15,7 @@ export const PHONE_ROW_CLASS =
 export const PHONE_NAME_CLASS = "break-words text-label"
 
 /** The automation line on a phone: wraps instead of being cut (phone-layout, "Long line"). */
-export const PHONE_LINE_CLASS =
-    "mt-0.5 break-words text-meta text-muted-foreground"
+export const PHONE_LINE_CLASS = "mt-0.5 break-words text-meta text-muted-foreground"
 
 /**
  * The on/off switch of a row on a phone. It acts at once, as "Activate" and "Deactivate" do in

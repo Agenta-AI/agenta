@@ -27,9 +27,7 @@ export const AttachmentDropOverlay = ({
     return (
         <div
             className={`pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed ${
-                atMax
-                    ? "border-destructive bg-destructive/10"
-                    : "border-warning bg-warning/10"
+                atMax ? "border-destructive bg-destructive/10" : "border-warning bg-warning/10"
             } ${className ?? ""}`}
         >
             <DownloadSimple size={24} className={atMax ? "text-destructive" : "text-foreground"} />

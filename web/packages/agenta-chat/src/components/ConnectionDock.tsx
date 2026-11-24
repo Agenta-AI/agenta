@@ -58,8 +58,7 @@ const DOT_PILL_MAX_STRETCH = 0.35
 /** Travel speed (px/s) that earns the full stretch; the longest hop in a 5-dot row roughly hits it. */
 const DOT_PILL_PEAK_VELOCITY = 420
 
-const CARD_SURFACE =
-    "rounded-lg border border-solid border-border-muted bg-background"
+const CARD_SURFACE = "rounded-lg border border-solid border-border-muted bg-background"
 
 export interface ConnectionDockProps {
     /** The whole dock state from `useConnectionDock` — passed as one object so a new field never

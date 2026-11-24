@@ -26,9 +26,7 @@ export const TemplateToolList = ({
                 <AppTile app={tool.app} size="sm" />
                 <span className="flex min-w-0 flex-col gap-0.5">
                     <code className="text-code-sm text-foreground">{tool.name}</code>
-                    <span className="text-muted-foreground text-meta">
-                        {tool.description}
-                    </span>
+                    <span className="text-muted-foreground text-meta">{tool.description}</span>
                 </span>
             </li>
         ))}

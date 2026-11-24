@@ -7,7 +7,5 @@ export const RunDetailsTitle = ({name}: {name: string | null}) =>
             <SkeletonBlock className="h-6 w-48" />
         </div>
     ) : (
-        <h1 className="m-0 min-w-0 truncate text-heading text-foreground">
-            {name}
-        </h1>
+        <h1 className="m-0 min-w-0 truncate text-heading text-foreground">{name}</h1>
     )

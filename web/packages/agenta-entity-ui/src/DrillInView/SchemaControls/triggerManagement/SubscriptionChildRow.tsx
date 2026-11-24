@@ -98,9 +98,7 @@ export function SubscriptionChildRow({
                     phone
                         ? `${PHONE_ROW_CLASS} ${disabled ? "cursor-default" : "cursor-pointer"}`
                         : `${ROW_CLASS} ${
-                              disabled
-                                  ? "cursor-default"
-                                  : "cursor-pointer hover:border-border"
+                              disabled ? "cursor-default" : "cursor-pointer hover:border-border"
                           }`
                 }
             >

@@ -44,9 +44,7 @@ export const CompareMetricCard = ({runs}: {runs: readonly CompareMetricRun[]}) =
         >
             <header className="flex min-w-0 flex-col">
                 <span className="truncate text-meta text-muted-foreground">{evaluator}</span>
-                <h3 className="m-0 truncate text-title text-foreground">
-                    {first.label}
-                </h3>
+                <h3 className="m-0 truncate text-title text-foreground">{first.label}</h3>
             </header>
             <ul className="m-0 flex list-none flex-wrap gap-x-5 gap-y-2 p-0">
                 {runs.map((run, index) => {

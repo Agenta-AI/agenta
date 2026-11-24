@@ -57,8 +57,12 @@ export const RefineInstructions = ({
             <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-4">
                 {rounds.length === 0 && !busy ? (
                     <div className="flex h-full flex-col items-center justify-center gap-1 text-center text-muted-foreground">
-                        <p className="m-0 text-label font-normal">{t("playground.refine.describeRefine")}</p>
-                        <p className="m-0 text-label font-normal">{t("playground.refine.orPickSuggestion")}</p>
+                        <p className="m-0 text-label font-normal">
+                            {t("playground.refine.describeRefine")}
+                        </p>
+                        <p className="m-0 text-label font-normal">
+                            {t("playground.refine.orPickSuggestion")}
+                        </p>
                     </div>
                 ) : (
                     <div className="flex flex-col gap-3">

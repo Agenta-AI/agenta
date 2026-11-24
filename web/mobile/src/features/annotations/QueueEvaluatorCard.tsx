@@ -86,10 +86,7 @@ export const QueueEvaluatorCard = ({revisionId}: {revisionId: string}) => {
         <div className="flex flex-col">
             <div className="flex min-h-10 items-center justify-between gap-2 bg-muted px-3 py-1.5">
                 <div className="flex min-w-0 items-center gap-2">
-                    <span
-                        className="min-w-0 truncate text-label text-foreground"
-                        title={name}
-                    >
+                    <span className="min-w-0 truncate text-label text-foreground" title={name}>
                         {name}
                     </span>
                     {evaluator?.version ? <Badge>{`v${evaluator.version}`}</Badge> : null}

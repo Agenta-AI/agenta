@@ -128,6 +128,8 @@
     --spacing-row-double: var(--row-double);
     --ease-out: var(--ease-out);
     --ease-in-out: var(--ease-in-out);
+    --default-transition-duration: var(--duration-fast);
+    --default-transition-timing-function: var(--ease-out);
 }
 @utility text-code {
     font-family: var(--font-mono);

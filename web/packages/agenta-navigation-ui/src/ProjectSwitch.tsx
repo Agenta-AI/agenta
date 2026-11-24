@@ -19,8 +19,7 @@ export interface ProjectSwitchProps {
     className?: string
 }
 
-const FOCUS_RING =
-    "outline-none focus-ring"
+const FOCUS_RING = "outline-none focus-ring"
 
 /**
  * The project name as a switch, for a group heading: the name and a CaretUpDown open the sidebar

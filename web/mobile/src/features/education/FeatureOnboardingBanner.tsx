@@ -54,9 +54,7 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
                     </span>
                 ) : null}
                 <div className="flex flex-col gap-2">
-                    <h2 className="m-0 text-balance text-heading text-foreground">
-                        {headline}
-                    </h2>
+                    <h2 className="m-0 text-balance text-heading text-foreground">{headline}</h2>
                     <p className="m-0 max-w-[46ch] text-body text-muted-foreground">
                         {t(guide.body)}
                     </p>
@@ -68,11 +66,7 @@ export const FeatureOnboardingBanner = ({guideKey}: {guideKey: FeatureGuideKey})
                             {t("education.guides.watchVideo")}
                         </Button>
                     ) : null}
-                    <Button
-                        asChild
-                        size="sm"
-                        variant="outline"
-                    >
+                    <Button asChild size="sm" variant="outline">
                         <a href={guide.docsUrl} target="_blank" rel="noopener noreferrer">
                             {t("education.guides.readDocs")}
                             <ArrowSquareOut className="size-3.5" aria-hidden />

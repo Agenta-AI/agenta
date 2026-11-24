@@ -57,11 +57,7 @@ const ConnectToolWidget = ({meta, settle, bare = false}: ClientToolHandlerProps)
     // ── Connecting: a post-settle manual retry's popup is open ───────────────────────────────────
     if (phase === "connecting") {
         return (
-            <ChipRow
-                icon={
-                    bare ? null : <Spinner aria-hidden className="size-3.5 text-primary" />
-                }
-            >
+            <ChipRow icon={bare ? null : <Spinner aria-hidden className="size-3.5 text-primary" />}>
                 <span className="text-meta text-foreground">
                     {t("entityUi.clientTools.connectingLabel", {label})}
                 </span>

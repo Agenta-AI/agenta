@@ -142,13 +142,7 @@ const ElicitationWidget = ({meta, degradedEarlierInTurn}: ClientToolHandlerProps
                 <SubmittedAnswers payload={parsed.payload} content={content} message={message} />
             ) : (
                 <Chip
-                    icon={
-                        <CheckCircle
-                            size={13}
-                            weight="fill"
-                            className="shrink-0 text-success"
-                        />
-                    }
+                    icon={<CheckCircle size={13} weight="fill" className="shrink-0 text-success" />}
                 >
                     {message}
                 </Chip>

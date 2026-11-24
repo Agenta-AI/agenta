@@ -146,7 +146,9 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     if (!schema?.properties || propertyKeys.length === 0) {
         return (
             <div className={clsx("flex flex-col gap-1", className)}>
-                {showHeader && <span className="text-label font-medium text-foreground">{label}</span>}
+                {showHeader && (
+                    <span className="text-label font-medium text-foreground">{label}</span>
+                )}
                 <span className="text-meta text-muted-foreground">
                     {t("entityUi.schemaControls.noProperties")}
                 </span>
@@ -158,7 +160,9 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     if (specialType === "tool_configuration") {
         return (
             <div className={clsx("flex flex-col gap-2", className)}>
-                {showHeader && <span className="text-label font-medium text-foreground">{label}</span>}
+                {showHeader && (
+                    <span className="text-label font-medium text-foreground">{label}</span>
+                )}
                 <div className="bg-muted p-3 rounded-md border border-border">
                     <span className="text-meta text-muted-foreground">
                         {t("entityUi.schemaControls.toolConfigurationJson")}
@@ -175,7 +179,9 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     if (!SchemaPropertyRenderer) {
         return (
             <div className={clsx("flex flex-col gap-2", className)}>
-                {showHeader && <span className="text-label font-medium text-foreground">{label}</span>}
+                {showHeader && (
+                    <span className="text-label font-medium text-foreground">{label}</span>
+                )}
                 <pre className="text-meta bg-muted p-2 rounded overflow-auto max-h-50">
                     {JSON.stringify(value, null, 2)}
                 </pre>

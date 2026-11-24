@@ -106,7 +106,9 @@ const DownstreamNodeCard = ({
                 : "Error"
         return (
             <NodeResultCard name={nodeName} status={rawStatus}>
-                <span className="text-destructive text-label font-normal leading-5">{errorMsg}</span>
+                <span className="text-destructive text-label font-normal leading-5">
+                    {errorMsg}
+                </span>
             </NodeResultCard>
         )
     }
@@ -119,9 +121,7 @@ const DownstreamNodeCard = ({
                 : "Skipped"
         return (
             <NodeResultCard name={nodeName} status={rawStatus}>
-                <span className="text-muted-foreground text-meta leading-5 italic">
-                    {skipMsg}
-                </span>
+                <span className="text-muted-foreground text-meta leading-5 italic">{skipMsg}</span>
             </NodeResultCard>
         )
     }

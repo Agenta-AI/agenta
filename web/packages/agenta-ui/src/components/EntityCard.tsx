@@ -69,9 +69,7 @@ export function EntityCard({
             </div>
 
             {description ? (
-                <p className="m-0 line-clamp-2 text-meta text-muted-foreground">
-                    {description}
-                </p>
+                <p className="m-0 line-clamp-2 text-meta text-muted-foreground">{description}</p>
             ) : (
                 <span className="flex-1" />
             )}

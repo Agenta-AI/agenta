@@ -134,9 +134,7 @@ export function DriveTreeList({
                             data-index={vRow.index}
                             ref={measureRow}
                             className={
-                                drop.hoverPath === node.path
-                                    ? "rounded-md bg-selected"
-                                    : undefined
+                                drop.hoverPath === node.path ? "rounded-md bg-selected" : undefined
                             }
                             style={{
                                 position: "absolute",

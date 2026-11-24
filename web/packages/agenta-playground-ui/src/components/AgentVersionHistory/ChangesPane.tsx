@@ -97,9 +97,7 @@ export const ChangesPane = ({
                     {t("playground.versionHistory.whatVersionChanged", {version: version ?? "—"})}
                 </span>
                 {message ? (
-                    <span className={cn("text-meta", textColors.tertiary)}>
-                        {message}
-                    </span>
+                    <span className={cn("text-meta", textColors.tertiary)}>{message}</span>
                 ) : null}
             </div>
             {sections.length === 0 ? (

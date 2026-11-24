@@ -14,9 +14,7 @@ import {
 } from "./controls/SessionFilterControls"
 
 const RailLabel = ({children}: {children: ReactNode}) => (
-    <h2 className="m-0 text-label text-muted-foreground">
-        {children}
-    </h2>
+    <h2 className="m-0 text-label text-muted-foreground">{children}</h2>
 )
 
 export interface SessionFiltersPanelProps {

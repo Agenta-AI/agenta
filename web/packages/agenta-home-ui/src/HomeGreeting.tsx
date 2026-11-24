@@ -52,9 +52,7 @@ export const HomeGreeting = ({title}: {title: string}) => {
                     {t(`home.greeting.${greetingPart(new Date().getHours())}`, {name})}
                 </span>
             ) : null}
-            <h1 className="m-0 text-display font-medium text-foreground">
-                {title}
-            </h1>
+            <h1 className="m-0 text-display font-medium text-foreground">{title}</h1>
         </div>
     )
 }

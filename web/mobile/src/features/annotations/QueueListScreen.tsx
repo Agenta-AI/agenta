@@ -65,10 +65,7 @@ export const QueueListScreen = ({
                                     Queues
                                 </h1>
                                 {canEdit ? (
-                                    <Button
-                                        size="sm"
-                                        onClick={openCreate}
-                                    >
+                                    <Button size="sm" onClick={openCreate}>
                                         <PlusIcon aria-hidden />
                                         New queue
                                     </Button>

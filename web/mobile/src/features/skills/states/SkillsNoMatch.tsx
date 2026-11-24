@@ -24,7 +24,9 @@ export const SkillsNoMatch = ({
     return (
         <Empty className="py-14">
             <EmptyHeader>
-                <EmptyMedia variant="icon">{term ? <MagnifyingGlassIcon /> : <FunnelIcon />}</EmptyMedia>
+                <EmptyMedia variant="icon">
+                    {term ? <MagnifyingGlassIcon /> : <FunnelIcon />}
+                </EmptyMedia>
                 <EmptyTitle>
                     {term ? t("skills.list.noMatchTerm", {term}) : t("skills.list.noMatchFilters")}
                 </EmptyTitle>

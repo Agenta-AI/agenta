@@ -338,7 +338,9 @@ const DownstreamNodeCard = ({
                 : "Error"
         return (
             <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
-                <span className="text-destructive text-label font-normal leading-5">{errorMsg}</span>
+                <span className="text-destructive text-label font-normal leading-5">
+                    {errorMsg}
+                </span>
             </NodeResultCard>
         )
     }
@@ -351,9 +353,7 @@ const DownstreamNodeCard = ({
                 : "Skipped"
         return (
             <NodeResultCard name={nodeName} status={rawStatus} headerActions={traceActions}>
-                <span className="text-muted-foreground text-meta leading-5 italic">
-                    {skipMsg}
-                </span>
+                <span className="text-muted-foreground text-meta leading-5 italic">{skipMsg}</span>
             </NodeResultCard>
         )
     }
@@ -755,9 +755,7 @@ const SingleView = ({
     const testsetButton = renderTestsetButton?.({
         results: result ? [result] : [],
         icon: false,
-        children: (
-            <AddToTestsetIconButton disabled={!hasResults} />
-        ),
+        children: <AddToTestsetIconButton disabled={!hasResults} />,
     })
 
     return (
@@ -855,10 +853,7 @@ const SingleView = ({
                                         "bg-info/10 border border-solid border-info/30",
                                     )}
                                 >
-                                    <Info
-                                        size={14}
-                                        className="text-info mt-0.5 shrink-0"
-                                    />
+                                    <Info size={14} className="text-info mt-0.5 shrink-0" />
                                     <div className="flex-1 text-body text-foreground">
                                         Fill these with the data the application being evaluated
                                         received and produced. The evaluator will judge this pair —

@@ -165,7 +165,10 @@ function SelectLabel({className, ...props}: React.ComponentProps<typeof SelectPr
     return (
         <SelectPrimitive.Label
             data-slot="select-label"
-            className={cn("px-input-sm py-input-y-sm text-field-sm text-muted-foreground", className)}
+            className={cn(
+                "px-input-sm py-input-y-sm text-field-sm text-muted-foreground",
+                className,
+            )}
             {...props}
         />
     )
@@ -195,11 +198,7 @@ function SelectItem({
                 had. We keep the check as an explicit affordance — sits where antd reserves the
                 state slot (right side), colorPrimary. See Select.md §Deliberate deviations. */}
             <SelectPrimitive.ItemIndicator asChild>
-                <CheckIcon
-                    className={cn(
-                        "size-4 shrink-0 text-foreground",
-                    )}
-                />
+                <CheckIcon className={cn("size-4 shrink-0 text-foreground")} />
             </SelectPrimitive.ItemIndicator>
         </SelectPrimitive.Item>
     )

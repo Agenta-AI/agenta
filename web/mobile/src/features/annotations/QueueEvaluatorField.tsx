@@ -61,7 +61,10 @@ const renderRevisionLabel = (entity: unknown) => {
                 <VersionBadge version={revision.version ?? 0} variant="chip" size="small" />
             </div>
             {labels.length > 0 ? (
-                <span className="truncate text-meta text-muted-foreground" title={labels.join(", ")}>
+                <span
+                    className="truncate text-meta text-muted-foreground"
+                    title={labels.join(", ")}
+                >
                     {metricSummary(labels)}
                 </span>
             ) : null}

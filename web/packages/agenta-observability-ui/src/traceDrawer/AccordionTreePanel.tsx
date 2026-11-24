@@ -461,11 +461,7 @@ const AccordionTreePanel = ({
                     >
                         <ArrowDownIcon size={14} />
                     </Button>
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={closeSearch}
-                    >
+                    <Button size="sm" variant="ghost" onClick={closeSearch}>
                         <XIcon size={14} />
                     </Button>
                 </div>

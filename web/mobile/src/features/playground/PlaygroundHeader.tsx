@@ -25,7 +25,9 @@ export const PlaygroundHeader = ({
         <NavDrawer workspaceId={workspaceId} projectId={projectId} />
         <h1 className="m-0 min-w-16 truncate text-title text-foreground">{appName}</h1>
         {/* On a phone the app name gets the room: the pane switch below says where you are. */}
-        <span className="shrink-0 text-title font-normal text-muted-foreground max-sm:hidden">Playground</span>
+        <span className="shrink-0 text-title font-normal text-muted-foreground max-sm:hidden">
+            Playground
+        </span>
         <div className="ml-auto flex items-center justify-end gap-2">
             {newEvaluation}
             {newEvaluation ? <span aria-hidden className="h-4 w-px shrink-0 bg-border" /> : null}

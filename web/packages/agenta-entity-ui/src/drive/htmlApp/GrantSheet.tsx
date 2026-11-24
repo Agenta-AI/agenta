@@ -123,7 +123,9 @@ export function AccessQuestion({
                 </DialogDescription>
             </DialogHeader>
 
-            <p className="m-0 text-meta text-muted-foreground">{t("entityUi.driveApp.trustNote")}</p>
+            <p className="m-0 text-meta text-muted-foreground">
+                {t("entityUi.driveApp.trustNote")}
+            </p>
 
             <DialogFooter className="gap-2">
                 <Button variant="outline" size="sm" onClick={() => onAnswer("deny")}>
@@ -215,7 +217,9 @@ export function GrantSheet({
                 </RadioGroup>
             </section>
 
-            <p className="m-0 text-meta text-muted-foreground">{t("entityUi.driveApp.trustNote")}</p>
+            <p className="m-0 text-meta text-muted-foreground">
+                {t("entityUi.driveApp.trustNote")}
+            </p>
 
             <DialogFooter className="gap-2">
                 <Button variant="outline" size="sm" onClick={onCancel}>

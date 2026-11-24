@@ -578,9 +578,7 @@ const SharedEditor = ({
             )}
 
             {pasteLimitError ? (
-                <div className="mt-2 text-label leading-5 text-destructive">
-                    {pasteLimitError}
-                </div>
+                <div className="mt-2 text-label leading-5 text-destructive">{pasteLimitError}</div>
             ) : null}
 
             {footer}

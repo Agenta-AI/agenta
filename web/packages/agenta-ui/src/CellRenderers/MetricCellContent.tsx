@@ -81,11 +81,7 @@ const MetricCellContent = memo(function MetricCellContent({
             return (
                 <div className="flex flex-col items-start gap-1">
                     {arrayTags.map((entry, index) => (
-                        <Badge
-                            key={`${entry.label}-${index}`}
-                            variant="default"
-                            className="m-0"
-                        >
+                        <Badge key={`${entry.label}-${index}`} variant="default" className="m-0">
                             {entry.label}
                         </Badge>
                     ))}
@@ -132,7 +128,9 @@ export const MetricValueDisplay = memo(function MetricValueDisplay({
     className?: string
 }) {
     if (value === null || value === undefined) {
-        return <span className={clsx("text-muted-foreground", className)}>{METRIC_PLACEHOLDER}</span>
+        return (
+            <span className={clsx("text-muted-foreground", className)}>{METRIC_PLACEHOLDER}</span>
+        )
     }
 
     // Boolean

@@ -21,9 +21,7 @@ export const SectionTitleBadge = ({label, tone, className}: SectionTitleBadgePro
     <span
         className={cn(
             "whitespace-nowrap rounded-md px-2 py-0.5 text-meta font-medium leading-none",
-            tone === "error"
-                ? "bg-destructive/10 text-destructive"
-                : "bg-warning/10 text-warning",
+            tone === "error" ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning",
             className,
         )}
     >

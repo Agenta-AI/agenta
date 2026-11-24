@@ -280,9 +280,7 @@ describe("the answers", () => {
         // The key field is marked: a red border and aria-invalid.
         const key = field("Paste your OpenAI API key")
         expect(key.getAttribute("aria-invalid")).toBe("true")
-        expect(key.closest("[data-slot=input-affix]")?.className).toContain(
-            "border-destructive/40",
-        )
+        expect(key.closest("[data-slot=input-affix]")?.className).toContain("border-destructive/40")
 
         expect(text()).toContain(
             "OpenAI did not accept this key. Check that you copied all of it, then paste it again.",

@@ -188,9 +188,7 @@ export const MessagesSchemaControl = memo(function MessagesSchemaControl({
     return (
         <div className={clsx("flex flex-col gap-2", className)}>
             {label && <span className="text-label font-medium text-foreground">{label}</span>}
-            {description && (
-                <span className="text-meta text-muted-foreground">{description}</span>
-            )}
+            {description && <span className="text-meta text-muted-foreground">{description}</span>}
             <ChatMessageList
                 messages={normalizedMessages}
                 onChange={handleChange}

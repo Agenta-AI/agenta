@@ -459,9 +459,7 @@ const AnnotationGroupHeader = memo(function AnnotationGroupHeader({
                     <CaretDown size={12} weight="bold" />
                 )}
                 <span className="truncate">{displayName}</span>
-                <span className="text-muted-foreground text-meta font-normal">
-                    ({childCount})
-                </span>
+                <span className="text-muted-foreground text-meta font-normal">({childCount})</span>
             </span>
         </Tooltip>
     )
@@ -698,9 +696,7 @@ const GroupHeaderTitle = memo(function GroupHeaderTitle({
                 <CaretDown size={12} weight="bold" />
             )}
             <span>{title}</span>
-            <span className="text-muted-foreground text-meta font-normal">
-                ({childCount})
-            </span>
+            <span className="text-muted-foreground text-meta font-normal">({childCount})</span>
         </span>
     )
 })
@@ -755,7 +751,11 @@ function mapDefToColumn(
                                         className={`h-2 w-2 rounded-xs ${TAG_DOT_CLASS[tag.color] ?? "bg-muted-foreground"}`}
                                     />
                                 )}
-                                <span className={isComplete ? "text-success" : "text-muted-foreground"}>
+                                <span
+                                    className={
+                                        isComplete ? "text-success" : "text-muted-foreground"
+                                    }
+                                >
                                     {record.scenarioIndex + 1}
                                 </span>
                             </span>

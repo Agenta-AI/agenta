@@ -49,10 +49,7 @@ export const ArchivedTestsetRowCells = ({
 
     return (
         <>
-            <span
-                className="block truncate text-label text-foreground"
-                title={row.name}
-            >
+            <span className="block truncate text-label text-foreground" title={row.name}>
                 {row.name}
             </span>
             {narrow ? null : (

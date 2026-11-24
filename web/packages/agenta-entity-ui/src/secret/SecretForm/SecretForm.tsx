@@ -287,7 +287,9 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                             value={jsonText}
                             onChange={(e) => setJsonText(e.target.value)}
                         />
-                        {jsonError && <span className="text-meta text-destructive">{jsonError}</span>}
+                        {jsonError && (
+                            <span className="text-meta text-destructive">{jsonError}</span>
+                        )}
                     </div>
                 ) : (
                     <div className="flex flex-col gap-2">

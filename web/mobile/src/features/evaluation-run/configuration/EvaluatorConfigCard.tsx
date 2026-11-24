@@ -51,9 +51,7 @@ export const EvaluatorConfigCard = ({
         key,
         label: key,
         value: (
-            <span className="whitespace-pre-wrap break-words text-code">
-                {settingText(value)}
-            </span>
+            <span className="whitespace-pre-wrap break-words text-code">{settingText(value)}</span>
         ),
     }))
 
@@ -94,7 +92,9 @@ export const EvaluatorConfigCard = ({
                         {differs ? <DiffersBadge /> : null}
                     </div>
                     {description && !open ? (
-                        <p className="m-0 truncate text-label text-muted-foreground">{description}</p>
+                        <p className="m-0 truncate text-label text-muted-foreground">
+                            {description}
+                        </p>
                     ) : null}
                 </div>
             </div>

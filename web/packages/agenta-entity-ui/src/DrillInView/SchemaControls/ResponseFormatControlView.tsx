@@ -211,7 +211,9 @@ export const ResponseFormatControlView = memo(function ResponseFormatControlView
                             <Button variant="outline" onClick={handleCancel}>
                                 {tCommon("common.cancel")}
                             </Button>
-                            <Button onClick={handleSave}>{t("entityUi.schemaControls.save")}</Button>
+                            <Button onClick={handleSave}>
+                                {t("entityUi.schemaControls.save")}
+                            </Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>

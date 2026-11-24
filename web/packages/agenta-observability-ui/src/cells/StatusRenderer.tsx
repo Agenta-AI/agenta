@@ -28,12 +28,7 @@ interface Props {
     className?: string
 }
 
-export const StatusRenderer = ({
-    status,
-    message,
-    showMore = false,
-    className,
-}: Props) => {
+export const StatusRenderer = ({status, message, showMore = false, className}: Props) => {
     const t = useT(cellsCatalog)
     const {label, variant, icon} = statusMapper(status || "STATUS_CODE_UNSET")
     // `label` is the stored word ("failure"); only the chip shows it in the active language.

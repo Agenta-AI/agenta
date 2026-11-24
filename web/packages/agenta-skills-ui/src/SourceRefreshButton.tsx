@@ -72,9 +72,7 @@ export function SourceRefreshButton({skillIds}: {skillIds: string[]}) {
 
     return (
         <span className="flex items-center gap-1.5">
-            {summary ? (
-                <span className="text-caption text-muted-foreground">{summary}</span>
-            ) : null}
+            {summary ? <span className="text-caption text-muted-foreground">{summary}</span> : null}
             {pending.length > 0 && !busy ? (
                 <Button
                     variant="ghost"

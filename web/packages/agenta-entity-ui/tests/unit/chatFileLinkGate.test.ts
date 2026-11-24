@@ -259,7 +259,10 @@ describe("rehypeRefuseHostImages", () => {
         rehypeRefuseHostImages()(tree(img) as never)
         expect(img).toMatchObject({
             tagName: "span",
-            properties: {title: "Blocked URL: ..//evil.com/x.png", className: ["text-muted-foreground"]},
+            properties: {
+                title: "Blocked URL: ..//evil.com/x.png",
+                className: ["text-muted-foreground"],
+            },
             children: [{type: "text", value: "diagram [blocked]"}],
         })
     })

@@ -15,7 +15,9 @@ export function InstantOpenDemo({instant}: {instant: boolean}) {
                 style={{
                     opacity: open ? 1 : 0,
                     transform: open || instant ? "none" : "scale(0.9)",
-                    transition: instant ? "none" : "opacity 600ms ease-in-out, transform 600ms ease-in-out",
+                    transition: instant
+                        ? "none"
+                        : "opacity 600ms ease-in-out, transform 600ms ease-in-out",
                 }}
             >
                 Search agents, sessions…

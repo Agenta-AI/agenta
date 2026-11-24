@@ -202,9 +202,7 @@ export const AutomationDetailBody = ({
         >
             {header}
             {onOpenRunHistory ? (
-                <div
-                    className={`flex flex-col ${panel ? "mt-4 gap-4" : "mt-6 gap-6"}`}
-                >
+                <div className={`flex flex-col ${panel ? "mt-4 gap-4" : "mt-6 gap-6"}`}>
                     <AutomationRunsSection
                         automation={automation}
                         runNow={runNow}

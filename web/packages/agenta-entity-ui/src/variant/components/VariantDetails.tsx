@@ -64,12 +64,7 @@ const VariantDetails = ({
                     </DropdownMenu>
                 )
             ) : (
-                isLatest &&
-                showLatestTag && (
-                    <Badge>
-                        {t("entityUi.variant.lastModified")}
-                    </Badge>
-                )
+                isLatest && showLatestTag && <Badge>{t("entityUi.variant.lastModified")}</Badge>
             )}
         </div>
     )

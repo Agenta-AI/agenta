@@ -265,8 +265,7 @@ export const SecretsSectionBody = ({
                                     mono: "",
                                     color: "",
                                     icon: <LockSimple size={14} />,
-                                    avatarClassName:
-                                        "bg-secondary text-muted-foreground",
+                                    avatarClassName: "bg-secondary text-muted-foreground",
                                     tags: [],
                                     typeLabel: "",
                                     subtitle: "",

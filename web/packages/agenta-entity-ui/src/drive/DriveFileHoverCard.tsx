@@ -43,7 +43,9 @@ const Footer = ({path, size}: {path: string; size: string}) => (
         <span className="min-w-0 flex-1 truncate text-label font-medium text-popover-foreground">
             {path.split("/").pop() ?? path}
         </span>
-        {size ? <span className="shrink-0 text-meta tabular-nums text-muted-foreground">{size}</span> : null}
+        {size ? (
+            <span className="shrink-0 text-meta tabular-nums text-muted-foreground">{size}</span>
+        ) : null}
     </div>
 )
 

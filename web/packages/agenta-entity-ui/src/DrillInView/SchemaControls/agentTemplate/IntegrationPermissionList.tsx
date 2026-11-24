@@ -273,9 +273,7 @@ const ToolRow = memo(function ToolRow({
     return (
         <div
             className={`flex flex-col border-0 border-t border-solid border-border-muted px-3 transition-colors first:border-t-0 ${phone ? "py-3" : "py-2.5"} ${
-                expanded
-                    ? "bg-secondary"
-                    : "hover:bg-accent"
+                expanded ? "bg-secondary" : "hover:bg-accent"
             }`}
         >
             {/* Centred while collapsed; open, the select stays on the name line as the row grows. */}
@@ -426,10 +424,7 @@ function ToolGroup({
                 {open ? (
                     <CaretDown size={12} className="shrink-0 text-muted-foreground" />
                 ) : (
-                    <CaretRight
-                        size={12}
-                        className="shrink-0 text-muted-foreground"
-                    />
+                    <CaretRight size={12} className="shrink-0 text-muted-foreground" />
                 )}
                 {/* Sentence case, not the board's uppercase: the house style wins over the spec's
                     typography, and "Read-only · 22" is how every other count reads in the app. */}
@@ -680,9 +675,7 @@ export function PermissionDrawerBody({
                     // an empty one.
                     catalog.errorNode
                 ) : catalogTools.length === 0 ? (
-                    <div className="px-1 py-4 text-meta text-muted-foreground">
-                        {emptyLabel}
-                    </div>
+                    <div className="px-1 py-4 text-meta text-muted-foreground">{emptyLabel}</div>
                 ) : noMatches ? (
                     // Said in place of the groups, headers and all: two empty groups under their
                     // own counts read as a server that stopped advertising its tools, which is a
@@ -808,7 +801,9 @@ export function UnmigratedNotice({target}: {target: GatewayConnectionTarget}) {
     const t = useT(permissionDrawerCatalog)
     return (
         <div className="flex flex-col gap-2 p-4 text-meta text-muted-foreground">
-            <span className="text-label font-medium">{t("entityUi.permissionDrawer.oldFormat")}</span>
+            <span className="text-label font-medium">
+                {t("entityUi.permissionDrawer.oldFormat")}
+            </span>
             <span>
                 {t("entityUi.permissionDrawer.oldFormatDetail", {
                     integration: target.integration,
@@ -859,9 +854,7 @@ export function IntegrationTitle({
             {/* Canvas F02 f6: name 13/20/600, the account 12/16; a phone shows the name alone at
                 15/20 (M09). */}
             <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
-                <span className="truncate text-label font-semibold leading-5">
-                    {displayName}
-                </span>
+                <span className="truncate text-label font-semibold leading-5">{displayName}</span>
                 {showSlug && !phone ? (
                     <span className="shrink-0 text-meta font-normal text-muted-foreground">
                         {target.integration}

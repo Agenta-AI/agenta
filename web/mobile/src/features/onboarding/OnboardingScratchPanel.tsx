@@ -28,9 +28,7 @@ export const OnboardingScratchPanel = ({
             className="bg-muted flex min-w-0 flex-col gap-4 rounded-lg p-5"
         >
             <div className="flex flex-col gap-1">
-                <h2 className="m-0 text-title">
-                    {t("onboarding.creator.title")}
-                </h2>
+                <h2 className="m-0 text-title">{t("onboarding.creator.title")}</h2>
                 <p className="text-muted-foreground m-0 text-body">
                     {t("onboarding.creator.subtitle")}
                 </p>

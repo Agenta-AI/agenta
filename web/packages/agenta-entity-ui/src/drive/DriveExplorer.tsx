@@ -874,9 +874,7 @@ export function DriveExplorer({
                             onValueChange={setSearch}
                             placeholder={t("entityUi.driveBrowser.searchFiles")}
                             className="w-full"
-                            prefix={
-                                <MagnifyingGlass size={12} className="text-muted-foreground" />
-                            }
+                            prefix={<MagnifyingGlass size={12} className="text-muted-foreground" />}
                         />
                     ) : null
                 }

@@ -32,12 +32,7 @@ function getSkeletonWidth(port: RunnablePort): string {
 }
 
 const FieldSkeleton = memo(({port}: {port: RunnablePort}) => (
-    <div
-        className={clsx(
-            "h-4 rounded bg-secondary animate-pulse",
-            getSkeletonWidth(port),
-        )}
-    />
+    <div className={clsx("h-4 rounded bg-secondary animate-pulse", getSkeletonWidth(port))} />
 ))
 FieldSkeleton.displayName = "FieldSkeleton"
 

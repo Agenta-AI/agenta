@@ -62,11 +62,7 @@ const GatewayConnectToolWidget = ({
         return (
             <>
                 <ChipRow
-                    icon={
-                        bare ? null : (
-                            <Spinner aria-hidden className="size-3.5 text-primary" />
-                        )
-                    }
+                    icon={bare ? null : <Spinner aria-hidden className="size-3.5 text-primary" />}
                 >
                     <span className="truncate text-meta text-muted-foreground">
                         {t("entityUi.clientTools.connectingLabel", {label})}
@@ -98,9 +94,7 @@ const GatewayConnectToolWidget = ({
     if (meta.settled || outcome) {
         if (isInteractionEndedOutput(meta.output)) {
             return (
-                <ChipRow
-                    icon={bare ? null : <Plugs size={13} className="text-muted-foreground" />}
-                >
+                <ChipRow icon={bare ? null : <Plugs size={13} className="text-muted-foreground" />}>
                     <span className="truncate text-meta text-muted-foreground">
                         {t("entityUi.clientTools.connectionRequestEnded")}
                     </span>
@@ -125,9 +119,7 @@ const GatewayConnectToolWidget = ({
         }
         return (
             <ChipRow
-                icon={
-                    bare ? null : <Warning size={13} weight="fill" className="text-warning" />
-                }
+                icon={bare ? null : <Warning size={13} weight="fill" className="text-warning" />}
             >
                 <span className="truncate text-meta text-muted-foreground">
                     {t("entityUi.clientTools.connectionNotCompleted")}

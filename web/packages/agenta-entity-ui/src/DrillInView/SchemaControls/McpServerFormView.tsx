@@ -165,7 +165,9 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                 <RailField label={t("entityUi.toolForm.status")} align="center">
                     <div className="flex min-w-0 items-center gap-2">
                         <Tag
-                            tone={getMcpConnectionState(selected) === "ready" ? "success" : "warning"}
+                            tone={
+                                getMcpConnectionState(selected) === "ready" ? "success" : "warning"
+                            }
                             className="m-0 text-meta"
                         >
                             {getMcpConnectionStateLabel(getMcpConnectionState(selected))}
@@ -188,9 +190,7 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     )}
                     align="center"
                 >
-                    <span className="text-field-md text-muted-foreground">
-                        {prefix}
-                    </span>
+                    <span className="text-field-md text-muted-foreground">{prefix}</span>
                 </RailField>
             ) : null}
 

@@ -210,9 +210,7 @@ export const ReferenceChip = ({
                         <div className="text-meta font-medium text-muted-foreground">
                             {kindLabel}
                         </div>
-                        <div className="break-words text-label text-foreground">
-                            {label}
-                        </div>
+                        <div className="break-words text-label text-foreground">{label}</div>
                     </div>
                     <CopyIconButton
                         value={label}

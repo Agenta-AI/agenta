@@ -136,10 +136,7 @@ const BooleanBar = memo(function BooleanBar({
                     className="flex flex-col items-start justify-center min-w-0"
                     style={{width: `${trueSeg.ratio * 100}%`}}
                 >
-                    <span
-                        className="text-meta whitespace-nowrap"
-                        style={{color: TRUE_LABEL_COLOR}}
-                    >
+                    <span className="text-meta whitespace-nowrap" style={{color: TRUE_LABEL_COLOR}}>
                         {t("ui.status.trueValue")}
                     </span>
                     <TooltipProvider delayDuration={100}>

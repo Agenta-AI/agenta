@@ -40,10 +40,7 @@ export const ArchivedEvaluatorRowCells = ({
     return (
         <>
             <span className="flex min-w-0 items-center gap-2">
-                <span
-                    className="truncate text-label text-foreground"
-                    title={name}
-                >
+                <span className="truncate text-label text-foreground" title={name}>
                     {name}
                 </span>
                 {row.version != null ? (

@@ -80,9 +80,7 @@ export const ChannelsPanelSheet = ({
                             {/* A div: the subtitle may be the agent picker, a button. */}
                             {subtitle ? (
                                 <SheetDescription asChild>
-                                    <div className="min-w-0 text-label sm:truncate">
-                                        {subtitle}
-                                    </div>
+                                    <div className="min-w-0 text-label sm:truncate">{subtitle}</div>
                                 </SheetDescription>
                             ) : null}
                         </div>

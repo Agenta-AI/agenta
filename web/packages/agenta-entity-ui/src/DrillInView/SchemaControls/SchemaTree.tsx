@@ -72,9 +72,7 @@ function SchemaRows({node, depth}: {node: Record<string, unknown>; depth: number
                 return (
                     <div key={name} className="py-1.5">
                         <div className="flex items-baseline gap-2">
-                            <span className=" text-code-sm text-foreground">
-                                {name}
-                            </span>
+                            <span className=" text-code-sm text-foreground">{name}</span>
                             <span className="text-meta text-muted-foreground">
                                 {typeLabel(def)}
                             </span>

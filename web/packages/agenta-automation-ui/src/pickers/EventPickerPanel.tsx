@@ -525,10 +525,7 @@ export const EventInlineCard = ({
                     </SelectTrigger>
                     <SelectContent>
                         {apps.map((candidate) => (
-                            <SelectItem
-                                key={candidate.connectionId}
-                                value={candidate.connectionId}
-                            >
+                            <SelectItem key={candidate.connectionId} value={candidate.connectionId}>
                                 <span className="flex min-w-0 flex-col text-left">
                                     <span className="truncate">{candidate.label}</span>
                                     {accountOf(candidate.connectionId) ? (

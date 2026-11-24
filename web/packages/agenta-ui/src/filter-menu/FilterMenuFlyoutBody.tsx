@@ -48,7 +48,11 @@ export const FilterMenuFlyoutBody = ({
         <>
             {section.searchable ? (
                 <label className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3 py-2">
-                    <MagnifyingGlassIcon size={14} className="shrink-0 text-muted-foreground" aria-hidden />
+                    <MagnifyingGlassIcon
+                        size={14}
+                        className="shrink-0 text-muted-foreground"
+                        aria-hidden
+                    />
                     <input
                         ref={inputRef}
                         value={term}

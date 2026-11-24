@@ -4,9 +4,7 @@
 export function FieldHeading({label, note}: {label: string; note: string}) {
     return (
         <div className="flex flex-col gap-px">
-            <span className="text-label font-semibold leading-5 text-foreground">
-                {label}
-            </span>
+            <span className="text-label font-semibold leading-5 text-foreground">{label}</span>
             <span className="text-meta text-muted-foreground">{note}</span>
         </div>
     )

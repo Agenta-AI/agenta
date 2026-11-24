@@ -22,7 +22,8 @@ export function AntiPatternsWall({
                         {rule.avoid.example}
                     </div>
                     <span className="text-label">
-                        <span className="text-destructive">{rule.id}</span> · <InlineCode text={rule.title} />
+                        <span className="text-destructive">{rule.id}</span> ·{" "}
+                        <InlineCode text={rule.title} />
                     </span>
                 </button>
             ))}

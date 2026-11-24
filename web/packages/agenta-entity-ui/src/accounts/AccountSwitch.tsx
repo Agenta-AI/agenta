@@ -57,10 +57,7 @@ export function AccountSwitch<Value extends string>({
             aria-disabled={disabled || undefined}
             onKeyDown={onKeyDown}
             // A segmented track: the secondary fill, 2px inset, concentric corners (SHAPE-02).
-            className={cn(
-                "flex gap-0.5 rounded-lg bg-secondary p-0.5",
-                className,
-            )}
+            className={cn("flex gap-0.5 rounded-lg bg-secondary p-0.5", className)}
         >
             {choices.map((choice, index) => {
                 const selected = index === selectedIndex

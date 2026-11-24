@@ -71,9 +71,7 @@ function Column({
 
     return (
         <div className="flex min-w-0 flex-col">
-            <span className="px-2 pb-1 text-meta font-medium text-muted-foreground">
-                {label}
-            </span>
+            <span className="px-2 pb-1 text-meta font-medium text-muted-foreground">{label}</span>
             <div
                 ref={ref}
                 // A modal host's scroll lock swallows wheel events on portaled content; apply
@@ -156,12 +154,7 @@ function TimePicker({
                     aria-labelledby={ariaLabelledby}
                     className={cn("justify-between font-normal", className)}
                 >
-                    <span
-                        className={cn(
-                            "tabular-nums",
-                            !current && "text-muted-foreground",
-                        )}
-                    >
+                    <span className={cn("tabular-nums", !current && "text-muted-foreground")}>
                         {current ? `${pad2(current.hour)}:${pad2(current.minute)}` : placeholder}
                     </span>
                     <Clock size={14} className="text-muted-foreground" />

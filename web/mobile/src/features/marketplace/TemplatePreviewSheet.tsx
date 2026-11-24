@@ -83,9 +83,7 @@ export const TemplatePreviewSheet = ({
                         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-5 py-5 lg:px-6">
                             <div className="flex flex-col gap-3">
                                 <AppTileStack apps={templateProviders(template)} size="lg" />
-                                <SheetTitle className="text-title">
-                                    {template.name}
-                                </SheetTitle>
+                                <SheetTitle className="text-title">{template.name}</SheetTitle>
                                 <SheetDescription className="text-body">
                                     {template.overview || template.description}
                                 </SheetDescription>

@@ -17,7 +17,9 @@ export const EmbedGreeting = ({
             <span className="text-title text-foreground">{appearance.name}</span>
         </div>
         {appearance.greeting ? (
-            <p className="m-0 whitespace-pre-line text-body text-foreground">{appearance.greeting}</p>
+            <p className="m-0 whitespace-pre-line text-body text-foreground">
+                {appearance.greeting}
+            </p>
         ) : null}
         {appearance.starters.length ? (
             <div className="flex flex-col items-start gap-2">

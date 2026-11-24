@@ -42,10 +42,7 @@ export const FilterMenuTrigger = ({
                 variant={variant}
                 size={iconOnly ? iconSize : size}
                 aria-label={triggerAriaLabel ?? (iconOnly ? defaultLabel : undefined)}
-                className={cn(
-                    "relative gap-1.5",
-                    triggerClassName,
-                )}
+                className={cn("relative gap-1.5", triggerClassName)}
             >
                 {icon}
                 {iconOnly ? null : <span className="truncate">{text}</span>}

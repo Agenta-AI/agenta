@@ -80,9 +80,7 @@ export function ConnectionListRow({
                 <div className="truncate text-label font-medium leading-5 text-foreground">
                     {name}
                 </div>
-                <div className="truncate text-meta text-muted-foreground">
-                    {subtitle}
-                </div>
+                <div className="truncate text-meta text-muted-foreground">{subtitle}</div>
             </div>
 
             <div className="flex shrink-0 items-center gap-2.5">

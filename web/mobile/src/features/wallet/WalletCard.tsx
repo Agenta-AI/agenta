@@ -105,26 +105,20 @@ export const WalletCard = ({
                     </span>
                 </div>
                 {balanceMusd === null ? (
-                    <span className="relative text-label text-muted-foreground">
-                        {emptyHint}
-                    </span>
+                    <span className="relative text-label text-muted-foreground">{emptyHint}</span>
                 ) : (
                     <div className={cn("relative flex flex-col", !compact && "gap-0.5")}>
                         <span className="text-caption text-muted-foreground">
                             {t("wallet.card.balance")}
                         </span>
                         <span className="flex min-w-0 items-baseline gap-2">
-                            <span
-                                className="text-heading tabular-nums"
-                            >
+                            <span className="text-heading tabular-nums">
                                 {figure(formatNumber(Math.round(credits)))}
                             </span>
                             <span
                                 className={cn(
                                     "font-medium",
-                                    compact
-                                        ? "text-label"
-                                        : "text-body leading-5",
+                                    compact ? "text-label" : "text-body leading-5",
                                 )}
                             >
                                 {t("wallet.card.unit")}

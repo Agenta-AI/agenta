@@ -189,11 +189,7 @@ export const AgentListScreen = ({
                                 {projectEmpty ? null : (
                                     <HowThisWorksButton guide="agents" className="max-sm:hidden" />
                                 )}
-                                <NewAgentAction
-                                    newAgent={newAgent}
-                                    base={base}
-                                    align="end"
-                                />
+                                <NewAgentAction newAgent={newAgent} base={base} align="end" />
                             </div>
                         </div>
                     }

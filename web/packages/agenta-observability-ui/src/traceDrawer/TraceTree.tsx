@@ -5,14 +5,7 @@ import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import {filterKeySpans, filterTree} from "@agenta/observability"
 import type {TraceSpanNode} from "@agenta/observability"
 import {useTraceDrawer} from "@agenta/observability/traceDrawer"
-import {
-    Button,
-    Input,
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-    SimpleTooltip,
-} from "@agenta/ui/ui"
+import {Button, Input, Popover, PopoverContent, PopoverTrigger, SimpleTooltip} from "@agenta/ui/ui"
 import {Info, MagnifyingGlass, SlidersHorizontal} from "@phosphor-icons/react"
 import {useLocalStorage} from "usehooks-ts"
 

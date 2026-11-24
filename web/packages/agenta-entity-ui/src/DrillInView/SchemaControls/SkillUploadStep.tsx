@@ -131,7 +131,11 @@ export function SkillUploadStep({fileCount, onUpload, onCancel, onControl}: Skil
                     over && "border-border-strong bg-accent",
                 )}
             >
-                {busy ? <Spinner size="small" /> : <ArrowUp size={16} className="text-foreground" />}
+                {busy ? (
+                    <Spinner size="small" />
+                ) : (
+                    <ArrowUp size={16} className="text-foreground" />
+                )}
                 <span className="text-label font-medium leading-5 text-foreground">
                     {/* ".zip" and ".skill" in the line's own font (F07 f7). */}
                     {richText(t("entityUi.skillTemplate.dragHint"), {mono: (text) => text})}
@@ -210,9 +214,7 @@ export function SkillUploadStep({fileCount, onUpload, onCancel, onControl}: Skil
                             <span className="text-label font-semibold leading-5 text-foreground">
                                 {title}
                             </span>
-                            <span className="text-meta text-muted-foreground">
-                                {hint}
-                            </span>
+                            <span className="text-meta text-muted-foreground">{hint}</span>
                         </span>
                     </label>
                 ))}

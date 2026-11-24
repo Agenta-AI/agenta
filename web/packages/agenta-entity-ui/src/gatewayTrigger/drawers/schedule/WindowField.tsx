@@ -32,10 +32,7 @@ function Row({
     const labelId = useId()
     return (
         <div className="flex items-center gap-3">
-            <span
-                id={labelId}
-                className="w-[86px] shrink-0 text-meta text-muted-foreground"
-            >
+            <span id={labelId} className="w-[86px] shrink-0 text-meta text-muted-foreground">
                 {label}
             </span>
             <DateTimePicker

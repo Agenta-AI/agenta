@@ -46,9 +46,7 @@ const PickRow = ({
             <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-label leading-5 text-foreground">{name}</span>
                 {hint ? (
-                    <span className="truncate text-caption text-muted-foreground">
-                        {hint}
-                    </span>
+                    <span className="truncate text-caption text-muted-foreground">{hint}</span>
                 ) : null}
             </span>
             <CaretRight size={14} aria-hidden className="shrink-0 text-muted-foreground" />

@@ -2,7 +2,11 @@ import {useEffect, useMemo, useRef, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
-import {ArrowCounterClockwiseIcon as ArrowCounterClockwise, ArrowLeftIcon, MagnifyingGlassIcon} from "@phosphor-icons/react"
+import {
+    ArrowCounterClockwiseIcon as ArrowCounterClockwise,
+    ArrowLeftIcon,
+    MagnifyingGlassIcon,
+} from "@phosphor-icons/react"
 
 import {cn} from "../components/ui/utils"
 import {useMediaQuery} from "../hooks/useMediaQuery"
@@ -281,7 +285,11 @@ export const FilterMenuPanel = ({
                     className="flex items-center gap-2 border-0 border-b border-solid border-border px-3 py-2"
                     onMouseEnter={closeNow}
                 >
-                    <MagnifyingGlassIcon size={14} className="shrink-0 text-muted-foreground" aria-hidden />
+                    <MagnifyingGlassIcon
+                        size={14}
+                        className="shrink-0 text-muted-foreground"
+                        aria-hidden
+                    />
                     <input
                         ref={searchRef}
                         value={query}

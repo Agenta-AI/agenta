@@ -296,11 +296,7 @@ const SessionRowActions = ({
                                     <DotsThreeIcon size={16} weight="bold" />
                                 </button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent
-                                align="end"
-                                side="bottom"
-                                className="min-w-60"
-                            >
+                            <DropdownMenuContent align="end" side="bottom" className="min-w-60">
                                 {entries.map((entry, index) =>
                                     isMenuDivider(entry) ? (
                                         <DropdownMenuSeparator key={`divider-${index}`} />

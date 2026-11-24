@@ -17,7 +17,9 @@ export const TemplatesNoMatch = ({term, onClear}: {term?: string; onClear: () =>
     return (
         <Empty className="py-14">
             <EmptyHeader>
-                <EmptyMedia variant="icon">{term ? <MagnifyingGlassIcon /> : <FunnelIcon />}</EmptyMedia>
+                <EmptyMedia variant="icon">
+                    {term ? <MagnifyingGlassIcon /> : <FunnelIcon />}
+                </EmptyMedia>
                 <EmptyTitle>
                     {term
                         ? t("marketplace.page.noMatchTerm", {term})

@@ -37,7 +37,12 @@ const METRIC_CLASS = "flex items-center font-mono gap-0.5"
  * app ships. Desktop renders it inside its tree; mobile renders it as a list row. The metrics
  * come from the packaged span selectors, so both surfaces format a number the same way.
  */
-export const TraceRow = ({span, metrics = {}, resolveAppName = false, className}: TraceRowProps) => {
+export const TraceRow = ({
+    span,
+    metrics = {},
+    resolveAppName = false,
+    className,
+}: TraceRowProps) => {
     const {latency = true, cost = true, tokens = true} = metrics
     const {span_name, span_id, status_code} = span || {}
 

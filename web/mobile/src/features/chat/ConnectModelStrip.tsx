@@ -44,11 +44,7 @@ export const ConnectModelStrip = ({gateActive}: Pick<AgentModelKeyStatus, "gateA
                         <LockSimpleIcon className="size-3.5 shrink-0" />
                         <span className="truncate">{t("chat.mobileComposer.addProviderKey")}</span>
                     </span>
-                    <Button
-                        size="sm"
-                        className="shrink-0"
-                        onClick={() => setOpen(true)}
-                    >
+                    <Button size="sm" className="shrink-0" onClick={() => setOpen(true)}>
                         {t("chat.mobileComposer.setUpProviders")}
                     </Button>
                 </div>

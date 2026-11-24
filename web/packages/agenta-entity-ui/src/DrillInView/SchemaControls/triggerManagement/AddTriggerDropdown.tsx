@@ -147,9 +147,7 @@ export function AddTriggerDropdown({
                         </span>
                         <span className="flex min-w-0 flex-col">
                             <span className="text-label text-foreground">{item.title}</span>
-                            <span className="text-meta text-muted-foreground">
-                                {item.hint}
-                            </span>
+                            <span className="text-meta text-muted-foreground">{item.hint}</span>
                         </span>
                     </DropdownMenuItem>
                 ))}

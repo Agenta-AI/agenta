@@ -34,11 +34,7 @@ export const ViewFormActions = ({
         return (
             <div className="flex items-center justify-end gap-2">
                 {start}
-                <Button
-                    size={size}
-                    className={phone ? "w-24" : undefined}
-                    onClick={onBack}
-                >
+                <Button size={size} className={phone ? "w-24" : undefined} onClick={onBack}>
                     {t("ui.viewStack.done")}
                 </Button>
             </div>

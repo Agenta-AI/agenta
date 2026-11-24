@@ -46,11 +46,7 @@ export const RunsExportButton = ({
             disabled={exporting || runs.length === 0}
             onClick={() => void onExport()}
         >
-            {exporting ? (
-                <Spinner aria-hidden />
-            ) : (
-                <DownloadSimple aria-hidden />
-            )}
+            {exporting ? <Spinner aria-hidden /> : <DownloadSimple aria-hidden />}
             Export CSV
         </Button>
     )

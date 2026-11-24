@@ -53,7 +53,9 @@ export const CompareRunRow = ({
             </span>
             <span className="flex shrink-0 flex-col items-end gap-1">
                 <RunStatusTag status={run.status ?? null} />
-                {created ? <span className="text-meta text-muted-foreground">{created}</span> : null}
+                {created ? (
+                    <span className="text-meta text-muted-foreground">{created}</span>
+                ) : null}
             </span>
         </label>
     )

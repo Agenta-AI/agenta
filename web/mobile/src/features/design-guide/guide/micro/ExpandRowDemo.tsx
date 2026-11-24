@@ -14,7 +14,11 @@ export function ExpandRowDemo({turns}: {turns: boolean}) {
                 onClick={() => setOpen((v) => !v)}
                 className="flex h-8 cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent px-2 text-left text-label text-foreground hover:bg-accent focus-ring"
             >
-                {turns ? <CollapseCaret open={open} /> : <CaretRightIcon className="size-3 shrink-0 text-muted-foreground" />}
+                {turns ? (
+                    <CollapseCaret open={open} />
+                ) : (
+                    <CaretRightIcon className="size-3 shrink-0 text-muted-foreground" />
+                )}
                 <WrenchIcon className="size-4 shrink-0 text-muted-foreground" />
                 <span className="min-w-0 flex-1 truncate">Called search_web</span>
                 <span className="text-meta text-muted-foreground">1.2s</span>

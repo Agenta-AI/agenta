@@ -115,9 +115,7 @@ export function SectionRail({
                             {item.status ? (
                                 <span
                                     className={`h-1.5 w-1.5 shrink-0 rounded-sm ${
-                                        item.status === "invalid"
-                                            ? "bg-destructive"
-                                            : "bg-warning"
+                                        item.status === "invalid" ? "bg-destructive" : "bg-warning"
                                     }`}
                                 />
                             ) : item.count != null ? (

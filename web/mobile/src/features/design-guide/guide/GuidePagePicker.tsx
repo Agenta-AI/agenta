@@ -2,7 +2,15 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@ag
 
 import type {GuidePage} from "./types"
 
-export function GuidePagePicker({pages, current, onSelect}: {pages: GuidePage[]; current: string; onSelect: (id: string) => void}) {
+export function GuidePagePicker({
+    pages,
+    current,
+    onSelect,
+}: {
+    pages: GuidePage[]
+    current: string
+    onSelect: (id: string) => void
+}) {
     return (
         <Select value={current} onValueChange={onSelect}>
             <SelectTrigger aria-label="Guide page" className="w-full">

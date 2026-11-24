@@ -12,7 +12,13 @@ export function CodeSnippet({code}: {code: string}) {
         })
     return (
         <div className="relative overflow-hidden rounded-lg bg-muted shadow-[inset_0_0_0_1px_var(--border-muted)]">
-            <Button variant="ghost" size="icon-sm" aria-label="Copy code" onClick={copy} className="absolute right-1 top-1">
+            <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Copy code"
+                onClick={copy}
+                className="absolute right-1 top-1"
+            >
                 {copied ? <CheckIcon /> : <CopyIcon />}
             </Button>
             <pre className="m-0 overflow-x-auto p-3 pr-10 text-code">

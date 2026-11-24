@@ -14,13 +14,7 @@ export const SectionLabel = ({
     className?: string
     children: ReactNode
 }) => (
-    <Tag
-        id={id}
-        className={cn(
-            "text-muted-foreground m-0 text-meta",
-            className,
-        )}
-    >
+    <Tag id={id} className={cn("text-muted-foreground m-0 text-meta", className)}>
         {children}
     </Tag>
 )

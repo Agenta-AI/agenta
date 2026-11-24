@@ -46,6 +46,8 @@ export const OrganizationLoading = () => {
 export const OrganizationNoFlags = () => {
     const t = useT(settingsStatesCatalog)
     return (
-        <p className="text-muted-foreground p-6 text-body">{t("settings.states.noAccessSettings")}</p>
+        <p className="text-muted-foreground p-6 text-body">
+            {t("settings.states.noAccessSettings")}
+        </p>
     )
 }

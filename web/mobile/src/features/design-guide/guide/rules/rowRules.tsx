@@ -24,7 +24,14 @@ import type {RuleExample} from "../types"
 
 const panel = "w-52 rounded-lg bg-popover p-1 text-left shadow-overlay"
 const legacyRow = (height: number, padX: number, gap: number, fontSize: number) =>
-    ({height, padding: `0 ${padX}px`, gap, fontSize, display: "flex", alignItems: "center"}) as const
+    ({
+        height,
+        padding: `0 ${padX}px`,
+        gap,
+        fontSize,
+        display: "flex",
+        alignItems: "center",
+    }) as const
 
 export const rowRules: RuleExample[] = [
     {
@@ -33,11 +40,17 @@ export const rowRules: RuleExample[] = [
             example: (
                 <div className="flex flex-wrap gap-3">
                     <div className={panel}>
-                        <div className={MENU_ITEM}><PencilSimpleIcon /> Rename</div>
-                        <div className={MENU_ITEM}><CopyIcon /> Duplicate</div>
+                        <div className={MENU_ITEM}>
+                            <PencilSimpleIcon /> Rename
+                        </div>
+                        <div className={MENU_ITEM}>
+                            <CopyIcon /> Duplicate
+                        </div>
                     </div>
                     <div className={panel}>
-                        <div className={`${MENU_ITEM} justify-between`}>claude-sonnet-5-5 <CheckIcon /></div>
+                        <div className={`${MENU_ITEM} justify-between`}>
+                            claude-sonnet-5-5 <CheckIcon />
+                        </div>
                         <div className={MENU_ITEM}>claude-opus-5-5</div>
                     </div>
                 </div>
@@ -52,11 +65,17 @@ export const rowRules: RuleExample[] = [
             example: (
                 <div className="flex flex-wrap gap-3">
                     <div className={panel}>
-                        <div style={legacyRow(28, 6, 6, 14)}><PencilSimpleIcon /> Rename</div>
-                        <div style={legacyRow(28, 6, 6, 14)}><CopyIcon /> Duplicate</div>
+                        <div style={legacyRow(28, 6, 6, 14)}>
+                            <PencilSimpleIcon /> Rename
+                        </div>
+                        <div style={legacyRow(28, 6, 6, 14)}>
+                            <CopyIcon /> Duplicate
+                        </div>
                     </div>
                     <div className={panel}>
-                        <div style={{...legacyRow(28, 12, 8, 14), fontWeight: 600}}>claude-sonnet-5-5</div>
+                        <div style={{...legacyRow(28, 12, 8, 14), fontWeight: 600}}>
+                            claude-sonnet-5-5
+                        </div>
                         <div style={legacyRow(36, 12, 8, 13)}>claude-opus-5-5</div>
                     </div>
                 </div>
@@ -72,12 +91,18 @@ export const rowRules: RuleExample[] = [
                     <CommandInput placeholder="Search connections" />
                     <CommandList>
                         <CommandGroup heading="Connected">
-                            <CommandItem><SlackLogoIcon /> Slack · acme</CommandItem>
-                            <CommandItem><GithubLogoIcon /> GitHub · agenta</CommandItem>
+                            <CommandItem>
+                                <SlackLogoIcon /> Slack · acme
+                            </CommandItem>
+                            <CommandItem>
+                                <GithubLogoIcon /> GitHub · agenta
+                            </CommandItem>
                         </CommandGroup>
                         <CommandSeparator />
                         <CommandGroup>
-                            <CommandItem><PlusIcon /> Connect another account</CommandItem>
+                            <CommandItem>
+                                <PlusIcon /> Connect another account
+                            </CommandItem>
                         </CommandGroup>
                     </CommandList>
                 </Command>
@@ -97,10 +122,18 @@ export const rowRules: RuleExample[] = [
         avoid: {
             example: (
                 <div className="w-64 rounded-lg bg-popover p-3 text-left shadow-overlay">
-                    <div className="mb-2 rounded-md border border-border px-3 py-2 text-body text-muted-foreground">Search...</div>
-                    <div style={legacyRow(28, 4, 4, 14)}><SlackLogoIcon /> Slack · acme</div>
-                    <div style={legacyRow(40, 16, 12, 14)}><GithubLogoIcon /> GitHub · agenta</div>
-                    <Button className="mt-2 w-full"><PlusIcon /> Connect another account</Button>
+                    <div className="mb-2 rounded-md border border-border px-3 py-2 text-body text-muted-foreground">
+                        Search...
+                    </div>
+                    <div style={legacyRow(28, 4, 4, 14)}>
+                        <SlackLogoIcon /> Slack · acme
+                    </div>
+                    <div style={legacyRow(40, 16, 12, 14)}>
+                        <GithubLogoIcon /> GitHub · agenta
+                    </div>
+                    <Button className="mt-2 w-full">
+                        <PlusIcon /> Connect another account
+                    </Button>
                 </div>
             ),
             caption: "A tall search, rows on different edges, a big button as the action.",
@@ -114,9 +147,15 @@ export const gapRules: RuleExample[] = [
         do: {
             example: (
                 <div className="flex flex-col items-start gap-3">
-                    <Badge variant="success" icon={<CheckIcon />}>Passed</Badge>
-                    <Button variant="outline"><PlusIcon /> New agent</Button>
-                    <div className={`${MENU_ITEM} w-48`}><RobotIcon /> Weekly report</div>
+                    <Badge variant="success" icon={<CheckIcon />}>
+                        Passed
+                    </Badge>
+                    <Button variant="outline">
+                        <PlusIcon /> New agent
+                    </Button>
+                    <div className={`${MENU_ITEM} w-48`}>
+                        <RobotIcon /> Weekly report
+                    </div>
                 </div>
             ),
             caption: "Badge 4px, button 6px, row 8px.",
@@ -127,9 +166,15 @@ row                gap-2    8px   (MENU_ITEM, list rows)`,
         avoid: {
             example: (
                 <div className="flex flex-col items-start gap-3 text-label">
-                    <span className="flex items-center" style={{gap: 1}}><CheckIcon /> Passed</span>
-                    <Button variant="outline" style={{gap: 12}}><PlusIcon /> New agent</Button>
-                    <div className="flex w-48 items-center px-2" style={{gap: 10, height: 32}}><RobotIcon /> Weekly report</div>
+                    <span className="flex items-center" style={{gap: 1}}>
+                        <CheckIcon /> Passed
+                    </span>
+                    <Button variant="outline" style={{gap: 12}}>
+                        <PlusIcon /> New agent
+                    </Button>
+                    <div className="flex w-48 items-center px-2" style={{gap: 10, height: 32}}>
+                        <RobotIcon /> Weekly report
+                    </div>
                 </div>
             ),
             caption: "1, 12 and 10px: three gaps picked by hand.",
@@ -141,10 +186,15 @@ row                gap-2    8px   (MENU_ITEM, list rows)`,
             example: (
                 <div className="flex flex-col items-start gap-4 text-left">
                     <div className="flex items-center gap-2 text-label">
-                        <IconTile size={20}><RobotIcon /></IconTile> Weekly report
+                        <IconTile size={20}>
+                            <RobotIcon />
+                        </IconTile>{" "}
+                        Weekly report
                     </div>
                     <div className="flex items-center gap-3">
-                        <IconTile size={32}><RobotIcon /></IconTile>
+                        <IconTile size={32}>
+                            <RobotIcon />
+                        </IconTile>
                         <div>
                             <div className="text-label">Weekly report</div>
                             <div className="text-meta text-muted-foreground">Runs every Monday</div>
@@ -160,10 +210,15 @@ row                gap-2    8px   (MENU_ITEM, list rows)`,
             example: (
                 <div className="flex flex-col items-start gap-4 text-left">
                     <div className="flex items-center text-label" style={{gap: 3}}>
-                        <IconTile size={20}><RobotIcon /></IconTile> Weekly report
+                        <IconTile size={20}>
+                            <RobotIcon />
+                        </IconTile>{" "}
+                        Weekly report
                     </div>
                     <div className="flex items-center" style={{gap: 20}}>
-                        <IconTile size={32}><RobotIcon /></IconTile>
+                        <IconTile size={32}>
+                            <RobotIcon />
+                        </IconTile>
                         <div>
                             <div className="text-label">Weekly report</div>
                             <div className="text-meta text-muted-foreground">Runs every Monday</div>
@@ -186,7 +241,9 @@ export const hoverRules: RuleExample[] = [
                 <div className="flex flex-col gap-2">
                     {["bg-background", "bg-muted", "bg-popover shadow-overlay"].map((surface) => (
                         <div key={surface} className={`rounded-lg p-1 ${surface}`}>
-                            <div className={`${hoverRow} bg-accent`}><RobotIcon /> Weekly report</div>
+                            <div className={`${hoverRow} bg-accent`}>
+                                <RobotIcon /> Weekly report
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -202,7 +259,15 @@ export const hoverRules: RuleExample[] = [
                 <div className="flex flex-col gap-2">
                     {["var(--muted)", "rgba(0,0,0,0.15)", "#e5e7eb"].map((fill) => (
                         <div key={fill} className="rounded-lg bg-background p-1">
-                            <div className={hoverRow} style={{background: fill, color: fill.startsWith("#") ? "#1f1e1c" : undefined}}><RobotIcon /> Weekly report</div>
+                            <div
+                                className={hoverRow}
+                                style={{
+                                    background: fill,
+                                    color: fill.startsWith("#") ? "#1f1e1c" : undefined,
+                                }}
+                            >
+                                <RobotIcon /> Weekly report
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -215,10 +280,14 @@ export const hoverRules: RuleExample[] = [
         do: {
             example: (
                 <div className={`${hoverRow} bg-accent`}>
-                    <IconTile size={24}><RobotIcon /></IconTile>
+                    <IconTile size={24}>
+                        <RobotIcon />
+                    </IconTile>
                     <div>
                         <div>Release notes writer</div>
-                        <div className="text-meta font-normal text-muted-foreground">Drafts release notes</div>
+                        <div className="text-meta font-normal text-muted-foreground">
+                            Drafts release notes
+                        </div>
                     </div>
                 </div>
             ),
@@ -227,10 +296,14 @@ export const hoverRules: RuleExample[] = [
         avoid: {
             example: (
                 <div className={hoverRow} style={{background: "var(--muted)"}}>
-                    <IconTile size={24} style={{background: "var(--muted)"}}><RobotIcon /></IconTile>
+                    <IconTile size={24} style={{background: "var(--muted)"}}>
+                        <RobotIcon />
+                    </IconTile>
                     <div>
                         <div>Release notes writer</div>
-                        <div className="text-meta font-normal text-muted-foreground">Drafts release notes</div>
+                        <div className="text-meta font-normal text-muted-foreground">
+                            Drafts release notes
+                        </div>
                     </div>
                 </div>
             ),

@@ -67,10 +67,7 @@ export const TestsetRowCells = ({
                         {expanded ? <CaretDown aria-hidden /> : <CaretRight aria-hidden />}
                     </Button>
                 ) : null}
-                <span
-                    className="block truncate text-label text-foreground"
-                    title={row.name}
-                >
+                <span className="block truncate text-label text-foreground" title={row.name}>
                     {row.name}
                 </span>
             </span>

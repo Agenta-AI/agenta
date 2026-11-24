@@ -47,8 +47,7 @@ export interface SettingsCatalogGroup {
     keepWhenEmpty?: boolean
 }
 
-const FOCUS_RING =
-    "outline-none focus-ring"
+const FOCUS_RING = "outline-none focus-ring"
 
 /** Rows sit in two columns where they fit, one on a phone. */
 const ROW_GRID = "grid grid-cols-[repeat(auto-fill,minmax(min(100%,320px),1fr))] gap-x-8 gap-y-0.5"

@@ -39,9 +39,7 @@ export const AutomationScreenHeader = ({
             <NavDrawer workspaceId={workspaceId} projectId={projectId} />
             {/* Not an h1: the body below already carries the page's heading (the editable name,
                 or "Run history"), and a second h1 gave the page two roots. */}
-            <p className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
-                {title}
-            </p>
+            <p className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">{title}</p>
         </div>
         <div className="mt-4 flex min-w-0 lg:mt-0">
             {runHistory ? (

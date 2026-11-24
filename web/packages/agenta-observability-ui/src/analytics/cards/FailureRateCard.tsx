@@ -15,7 +15,8 @@ import {AnalyticsCard} from "./AnalyticsCard"
 const VISIBLE = 6
 // Below this a rate is noise (1 of 2 is not "50% failing"), so it reads muted.
 const MIN_RUNS = 5
-const GRID = "grid grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_76px_52px] items-center gap-3 text-label font-normal"
+const GRID =
+    "grid grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_76px_52px] items-center gap-3 text-label font-normal"
 
 export interface FailureRateCardProps {
     data: AnalyticsWindowData

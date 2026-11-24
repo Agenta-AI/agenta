@@ -476,7 +476,9 @@ function TestcaseDrawer<TData = unknown>({
                                     <Alert
                                         type="error"
                                         message={t("entityUi.testcase.loadFailed")}
-                                        description={errorMessage ?? t("entityUi.testcase.unknownError")}
+                                        description={
+                                            errorMessage ?? t("entityUi.testcase.unknownError")
+                                        }
                                         showIcon
                                     />
                                 </div>

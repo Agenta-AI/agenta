@@ -45,9 +45,7 @@ export const SkillCardBody = ({
                     <SkillActionsMenu row={row} onOpen={onOpen} />
                 </span>
             </span>
-            <span
-                className="line-clamp-3 min-h-[3.75rem] text-label leading-5 text-muted-foreground"
-            >
+            <span className="line-clamp-3 min-h-[3.75rem] text-label leading-5 text-muted-foreground">
                 {row.description || noDescriptionLabel()}
             </span>
             {/* Source on the left, date on the right — the card's two corners, the way the row's

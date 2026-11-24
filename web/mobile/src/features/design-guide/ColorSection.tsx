@@ -7,7 +7,10 @@ const statuses = ["destructive", "success", "warning", "info"]
 export function ColorSection() {
     return (
         <section>
-            <SectionTitle title="Color" description="Every theme color and its job: the UI colors first, then the data and media colors." />
+            <SectionTitle
+                title="Color"
+                description="Every theme color and its job: the UI colors first, then the data and media colors."
+            />
             <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-x-4 gap-y-3">
                 {colors.map((c) => (
                     <div key={c.name} className="flex min-w-0 items-start gap-3">
@@ -27,7 +30,10 @@ export function ColorSection() {
                     <span
                         key={s}
                         className="inline-flex h-5 items-center rounded-[var(--radius-sm)] px-1.5 text-caption"
-                        style={{color: `var(--${s})`, background: `color-mix(in srgb, var(--${s}) 10%, transparent)`}}
+                        style={{
+                            color: `var(--${s})`,
+                            background: `color-mix(in srgb, var(--${s}) 10%, transparent)`,
+                        }}
                     >
                         {s} / 10
                     </span>

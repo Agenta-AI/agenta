@@ -63,7 +63,11 @@ vi.mock("@agenta/ui/ui", () => ({
     TooltipContent: () => null,
     TooltipProvider: ({children}: {children?: unknown}) => children,
 }))
-vi.mock("@phosphor-icons/react", () => ({CaretRight: () => null, ChatCircle: () => null, Info: () => null}))
+vi.mock("@phosphor-icons/react", () => ({
+    CaretRight: () => null,
+    ChatCircle: () => null,
+    Info: () => null,
+}))
 // The composer's editor is not this file's subject.
 vi.mock("@agenta/entity-ui/gatewayTrigger", async () => ({
     ...(await import("../../../packages/agenta-entity-ui/src/gatewayTrigger/scheduleText")),

@@ -78,9 +78,7 @@ export const InputVariableCardHeader = ({
     return (
         <div className="flex min-w-0 items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-                <span className="truncate text-code font-medium text-info">
-                    {name}
-                </span>
+                <span className="truncate text-code font-medium text-info">{name}</span>
                 <TypeChip variant={chipVariantFor(value, expectedType)} value={value} />
                 {helpText ? (
                     <SimpleTooltip title={helpText} side="top">

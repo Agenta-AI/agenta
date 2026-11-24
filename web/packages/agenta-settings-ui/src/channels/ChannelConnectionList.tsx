@@ -57,9 +57,7 @@ export const ChannelConnectionList = ({
                                 {title.replace(/^@/, "").charAt(0).toUpperCase()}
                             </span>
                             <span className="flex min-w-0 flex-1 flex-col gap-px">
-                                <span className="truncate text-label text-foreground">
-                                    {title}
-                                </span>
+                                <span className="truncate text-label text-foreground">{title}</span>
                                 <span className="truncate text-label text-muted-foreground">
                                     {detail}
                                 </span>

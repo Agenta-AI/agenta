@@ -3,7 +3,12 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {Button, IconTile, SkeletonBlock} from "@agenta/ui/ui"
-import {ArrowClockwiseIcon, ChatCircleDots, ClockCounterClockwise, WarningIcon} from "@phosphor-icons/react"
+import {
+    ArrowClockwiseIcon,
+    ChatCircleDots,
+    ClockCounterClockwise,
+    WarningIcon,
+} from "@phosphor-icons/react"
 
 /**
  * Designed states for the run history and the session pane beside it.
@@ -95,12 +100,7 @@ export const AutomationRunHistoryError = ({
                 {message ?? t("automations.editor.loadRunsFailed")}
             </p>
             {onRetry ? (
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-label"
-                    onClick={onRetry}
-                >
+                <Button variant="outline" size="sm" className="text-label" onClick={onRetry}>
                     <ArrowClockwiseIcon className="size-3" />
                     {t("automations.editor.tryAgain")}
                 </Button>

@@ -288,18 +288,11 @@ const ResultRowFrame = ({
         <div className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-label font-medium text-foreground">{title}</span>
             {detail ? (
-                <span
-                    className="truncate text-meta text-muted-foreground"
-                    title={detail}
-                >
+                <span className="truncate text-meta text-muted-foreground" title={detail}>
                     {detail}
                 </span>
             ) : null}
-            {note ? (
-                <span className="truncate text-meta text-muted-foreground">
-                    {note}
-                </span>
-            ) : null}
+            {note ? <span className="truncate text-meta text-muted-foreground">{note}</span> : null}
         </div>
         {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
     </div>

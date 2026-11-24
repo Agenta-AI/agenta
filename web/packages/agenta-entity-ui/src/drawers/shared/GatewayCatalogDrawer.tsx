@@ -141,8 +141,7 @@ function ExpandableText({text}: {text: string}) {
 
 function ItemTrailingIcon({state}: {state: ItemTrailing}) {
     if (state === "pending") return <Spinner size="small" />
-    if (state === "selected")
-        return <Check size={13} className="shrink-0 text-primary" />
+    if (state === "selected") return <Check size={13} className="shrink-0 text-primary" />
     return <Plus size={13} className="shrink-0 text-muted-foreground" />
 }
 
@@ -172,9 +171,7 @@ function ConnectionItemsList<I, T, C>({
     }
     if (items.length === 0) {
         return (
-            <div className="px-3 py-2 text-meta text-muted-foreground">
-                {config.emptyItemsText}
-            </div>
+            <div className="px-3 py-2 text-meta text-muted-foreground">{config.emptyItemsText}</div>
         )
     }
     return (
@@ -190,10 +187,7 @@ function ConnectionItemsList<I, T, C>({
                         }
                         className="flex w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 py-1.5 text-left hover:bg-accent"
                     >
-                        <Lightning
-                            size={13}
-                            className="shrink-0 text-muted-foreground"
-                        />
+                        <Lightning size={13} className="shrink-0 text-muted-foreground" />
                         <span className="min-w-0 flex-1 truncate text-meta">
                             {adapter.item.name(it) || adapter.item.key(it)}
                         </span>
@@ -736,7 +730,11 @@ export function GatewayCatalogDrawer<I, T, C>({
                                 onConnect={() => setConnectFor(selected)}
                             />
                         ) : (
-                            <IntegrationsView adapter={adapter} config={config} onSelect={setSelected} />
+                            <IntegrationsView
+                                adapter={adapter}
+                                config={config}
+                                onSelect={setSelected}
+                            />
                         )}
                     </div>
                 </SheetContent>

@@ -85,9 +85,7 @@ const GridRow = memo(function GridRow({
     const hover = hovering
         ? "hover:bg-info/10 hover:outline hover:outline-2 hover:-outline-offset-2 hover:outline-info"
         : ""
-    const picked = commenting
-        ? "bg-info/10"
-        : "outline outline-2 -outline-offset-2 outline-info"
+    const picked = commenting ? "bg-info/10" : "outline outline-2 -outline-offset-2 outline-info"
     return (
         <tr>
             <th

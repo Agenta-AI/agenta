@@ -425,9 +425,7 @@ function PlaygroundConfigSection({
                     <div
                         className={clsx(
                             "border border-solid rounded overflow-hidden",
-                            validationErrors.length > 0
-                                ? "border-destructive"
-                                : "border-border",
+                            validationErrors.length > 0 ? "border-destructive" : "border-border",
                         )}
                     >
                         <SharedEditor

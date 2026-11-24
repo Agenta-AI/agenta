@@ -18,8 +18,7 @@ const ROLE_COLOR_CLASSES: Record<string, string> = {
 }
 const DEFAULT_ROLE_COLOR_CLASS = "text-inherit"
 
-const booleanValueColorClass = (value: boolean): string =>
-    value ? "text-success" : "text-warning"
+const booleanValueColorClass = (value: boolean): string => (value ? "text-success" : "text-warning")
 
 /**
  * "Pretty JSON" view.
@@ -495,16 +494,10 @@ const ScalarValue = ({value}: {value: unknown}) => {
         return <span className="text-code text-muted-foreground italic">null</span>
     }
     if (typeof value === "boolean") {
-        return (
-            <span className={`text-code ${booleanValueColorClass(value)}`}>
-                {String(value)}
-            </span>
-        )
+        return <span className={`text-code ${booleanValueColorClass(value)}`}>{String(value)}</span>
     }
     if (typeof value === "number") {
-        return (
-            <span className="text-code text-info tabular-nums">{String(value)}</span>
-        )
+        return <span className="text-code text-info tabular-nums">{String(value)}</span>
     }
     if (typeof value === "string") {
         return <span className="text-code text-foreground">{value}</span>
@@ -644,7 +637,9 @@ const NodeRow = memo(function NodeRow({
                 </span>
 
                 {isMessage ? (
-                    <span className="whitespace-nowrap shrink-0 text-label font-normal">{keyLabel}</span>
+                    <span className="whitespace-nowrap shrink-0 text-label font-normal">
+                        {keyLabel}
+                    </span>
                 ) : (
                     <span
                         className={`font-mono whitespace-nowrap shrink-0 text-foreground ${isSection ? "font-medium text-label" : "text-code"}`}
@@ -660,9 +655,7 @@ const NodeRow = memo(function NodeRow({
                 ) : null}
 
                 {inlineValue ? (
-                    <span className="text-code break-words ml-1 min-w-0">
-                        {inlineValue}
-                    </span>
+                    <span className="text-code break-words ml-1 min-w-0">{inlineValue}</span>
                 ) : null}
 
                 {value !== undefined ? <CopyButton value={value} /> : null}
@@ -1160,9 +1153,7 @@ const RecursiveNode = memo(function RecursiveNode({
     return (
         <NodeRow
             keyLabel={keyLabel}
-            inlineValue={
-                <span className="text-code text-foreground">{valueToString(value)}</span>
-            }
+            inlineValue={<span className="text-code text-foreground">{valueToString(value)}</span>}
             collapsible={false}
             value={value}
             isSection={isSection}

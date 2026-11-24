@@ -37,7 +37,6 @@ import {
 } from "react"
 
 import {Lock} from "@phosphor-icons/react"
-import {motion} from "motion/react"
 
 import {cn} from "../../../utils/styles"
 import {HeightCollapse} from "../../HeightCollapse"
@@ -133,9 +132,9 @@ export interface ConfigAccordionSectionProps {
      * Change/validation indicator for the leading icon: tints the icon, adds a status dot,
      * and (with `tooltip`) explains it on hover. Takes precedence over `status`. Used by the
      * agent config panel to flag sections with unsaved edits (`"draft"`), a blocking problem
-     * (`"invalid"`), or an optional gap (`"incomplete"`). `pulse` plays a one-shot attention
-     * ring behind the dot (e.g. a change made from another pane); the caller owns how long it
-     * stays true (see `useRecentFlag`).
+     * (`"invalid"`), or an optional gap (`"incomplete"`). `pulse` (a change made from another
+     * pane) draws nothing extra: the dot fading in shows the change, with no ping or shimmer
+     * (MOTION-02).
      */
     indicator?: {tone: SectionIndicatorTone; tooltip?: ReactNode; pulse?: boolean}
     /** Only show `summary` while the section is collapsed. @default false (always). */
@@ -305,28 +304,22 @@ export function ConfigAccordionSection({
 
     const iconNode = icon ? (
         <span
-            className="relative flex shrink-0 items-center motion-safe:transition-colors motion-safe:duration-300"
+            className={cn(
+                "relative flex shrink-0 items-center motion-safe:transition-colors motion-safe:duration-[var(--duration-base)] motion-safe:ease-[var(--ease-out)]",
+                // A list row's icon is `icon-lg` (16px), whatever size the section passes (ICON-04).
+                canvas && "[&>svg]:size-4",
+            )}
             style={{color: iconColor}}
         >
             {icon}
-            {/* Attention ripple: expands + fades out from behind the dot, repeating while the
-                caller holds `pulse` true (e.g. a change from another pane). */}
-            {indicator?.pulse ? (
-                <motion.span
-                    className="absolute -right-1 -top-0.5 h-2 w-2 rounded-sm"
-                    style={{background: dotColor ?? undefined}}
-                    initial={{opacity: 0, scale: 1}}
-                    animate={{opacity: [0, 0.5, 0], scale: [1, 2, 3]}}
-                    transition={{duration: 1.8, ease: "easeOut", repeat: 1, times: [0, 0.25, 1]}}
-                />
-            ) : null}
             {/* Always mounted: state changes play as scale/opacity/color
                 transitions instead of the dot popping in and out. */}
             <span
                 className={cn(
                     "absolute -right-1 -top-0.5 box-border h-2 w-2 rounded-sm border-[1.5px] border-solid border-background",
-                    "motion-safe:transition-[transform,opacity,background-color] motion-safe:duration-300 motion-safe:ease-out",
-                    indicator ? "scale-100 opacity-100" : "scale-0 opacity-0",
+                    // The dot fades in and out; it never scales (MOTION-02).
+                    "motion-safe:transition-[opacity,background-color] motion-safe:duration-[var(--duration-base)] motion-safe:ease-[var(--ease-out)]",
+                    indicator ? "opacity-100" : "opacity-0",
                 )}
                 style={{background: dotColor ?? undefined}}
             />
@@ -363,7 +356,7 @@ export function ConfigAccordionSection({
                 headerBand
                     ? cn(
                           headerBand,
-                          "border-0 border-b border-solid transition-colors duration-300 ease-out",
+                          "border-0 border-b border-solid transition-colors duration-[var(--duration-base)] ease-[var(--ease-in-out)]",
                           banded
                               ? "border-transparent bg-secondary"
                               : cn("bg-transparent", noDivider ? "border-transparent" : divider),
@@ -386,7 +379,10 @@ export function ConfigAccordionSection({
                         : canvas
                           ? "-mx-2 h-row-single rounded-md px-2"
                           : "py-3",
-                    canvas === "panel" && headerActs && !locked && "hover:bg-accent",
+                    canvas === "panel" &&
+                        headerActs &&
+                        !locked &&
+                        "transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)] hover:bg-accent",
                     highlight && "bg-info/10",
                     locked && "cursor-not-allowed opacity-60",
                     headerActs && "cursor-pointer",
@@ -395,7 +391,7 @@ export function ConfigAccordionSection({
                     headerBand &&
                         cn(
                             headerBand,
-                            "transition-colors duration-300 ease-out",
+                            "transition-colors duration-[var(--duration-base)] ease-[var(--ease-in-out)]",
                             banded ? "bg-secondary" : "bg-transparent",
                         ),
                 )}
@@ -418,35 +414,10 @@ export function ConfigAccordionSection({
                     )}
                 >
                     {iconAffordance}
-                    {/* Title. Base text stays crisp; while `pulse` holds, an accent DUPLICATE laid
-                        on top is revealed through a moving mask (config-shimmer keyframe), so a
-                        glint sweeps the letters without fading the real text. */}
                     <span className="relative flex min-w-0">
                         <span className={cn("min-w-0 truncate font-medium", titleSize)}>
                             {title}
                         </span>
-                        {indicator?.pulse ? (
-                            <span
-                                aria-hidden
-                                className={cn(
-                                    "animate-config-shimmer pointer-events-none absolute inset-0 truncate font-medium",
-                                    titleSize,
-                                )}
-                                style={{
-                                    color: dotColor ?? undefined,
-                                    WebkitMaskImage:
-                                        "linear-gradient(100deg, transparent 8%, #000 50%, transparent 92%)",
-                                    maskImage:
-                                        "linear-gradient(100deg, transparent 8%, #000 50%, transparent 92%)",
-                                    WebkitMaskSize: "220% 100%",
-                                    maskSize: "220% 100%",
-                                    WebkitMaskRepeat: "no-repeat",
-                                    maskRepeat: "no-repeat",
-                                }}
-                            >
-                                {title}
-                            </span>
-                        ) : null}
                     </span>
                     {titleBadge ? <span className="shrink-0">{titleBadge}</span> : null}
                 </div>
@@ -544,7 +515,7 @@ export function ConfigAccordionSection({
     return (
         <div
             className={cn(
-                "grid motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-300 motion-safe:ease-out",
+                "grid motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-[var(--duration-base)] motion-safe:ease-[var(--ease-out)]",
                 revealed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
             )}
         >

@@ -13,7 +13,9 @@ import {FunnelIcon, MagnifyingGlassIcon} from "@phosphor-icons/react"
 export const QueuesNoMatch = ({term, onClear}: {term?: string; onClear: () => void}) => (
     <Empty className="py-14">
         <EmptyHeader>
-            <EmptyMedia variant="icon">{term ? <MagnifyingGlassIcon /> : <FunnelIcon />}</EmptyMedia>
+            <EmptyMedia variant="icon">
+                {term ? <MagnifyingGlassIcon /> : <FunnelIcon />}
+            </EmptyMedia>
             <EmptyTitle>
                 {term ? "No queues match your search" : "No queues match your filters"}
             </EmptyTitle>

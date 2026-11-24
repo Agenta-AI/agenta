@@ -51,9 +51,7 @@ export function PolicyGlyph({
         <Icon
             size={size}
             className={
-                value === "custom"
-                    ? "shrink-0 text-warning"
-                    : "shrink-0 text-muted-foreground"
+                value === "custom" ? "shrink-0 text-warning" : "shrink-0 text-muted-foreground"
             }
         />
     )

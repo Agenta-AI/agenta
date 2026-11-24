@@ -150,9 +150,7 @@ export const PanelSection = ({
                 headings are transparent and rows scroll visibly THROUGH them. */}
             <div
                 className={`${
-                    isRail
-                        ? "bg-[var(--ag-surface-paper)] dark:bg-background"
-                        : "bg-background"
+                    isRail ? "bg-[var(--ag-surface-paper)] dark:bg-background" : "bg-background"
                 } ${bodyClassName ?? "flex flex-col gap-0.5 px-2 pb-3"}`}
             >
                 {children}

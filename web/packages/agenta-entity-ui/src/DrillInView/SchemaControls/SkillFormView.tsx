@@ -187,9 +187,7 @@ function ReadOnlyText({text, mono = false}: {text: string; mono?: boolean}) {
 }
 
 /** A field label at the panel scale (F07): 12/16, medium, secondary. */
-const fieldLabel = (text: string) => (
-    <span className="text-meta text-muted-foreground">{text}</span>
-)
+const fieldLabel = (text: string) => <span className="text-meta text-muted-foreground">{text}</span>
 
 export function SkillFormView({
     value,
@@ -564,12 +562,9 @@ export function SkillFormView({
                                                             disabled={disabled}
                                                             className="cursor-pointer rounded-sm border-0 bg-transparent p-0 font-[inherit] text-meta text-destructive underline underline-offset-2 hover:no-underline disabled:cursor-not-allowed"
                                                         >
-                                                            {t(
-                                                                "entityUi.skillForm.useSuggestion",
-                                                                {
-                                                                    name: nameSuggestion,
-                                                                },
-                                                            )}
+                                                            {t("entityUi.skillForm.useSuggestion", {
+                                                                name: nameSuggestion,
+                                                            })}
                                                         </button>
                                                     </>
                                                 ) : null}
@@ -767,9 +762,7 @@ export function SkillFormView({
                                                 })
                                             }}
                                             placeholder="scripts/foo.py"
-                                            aria-invalid={
-                                                shownPathProblem ? true : undefined
-                                            }
+                                            aria-invalid={shownPathProblem ? true : undefined}
                                             disabled={disabled}
                                             size="compact"
                                             className="font-mono"

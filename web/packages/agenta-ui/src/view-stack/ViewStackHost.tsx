@@ -90,6 +90,9 @@ export const ViewStackHost = ({
     const [saving, setSaving] = useState(false)
     const [failedKey, setFailedKey] = useState<number | null>(null)
     const [question, setQuestion] = useState<PendingQuestion | null>(null)
+    // The root animates only when a view gives it back its place, not on the first paint.
+    const [viewOpened, setViewOpened] = useState(false)
+    if (entries.length > 0 && !viewOpened) setViewOpened(true)
 
     // Refs mirror the state for the async actions, which must read the latest values.
     const entriesRef = useRef(entries)
@@ -372,7 +375,13 @@ export const ViewStackHost = ({
     return (
         <ViewStackContext.Provider value={stack}>
             <div ref={hostRef} className="contents" onKeyDown={onKeyDown}>
-                <div style={{display: top ? "none" : "contents"}}>{children}</div>
+                {/* Back at the root, its content fades and slides in like any view (MOTION-01). */}
+                <div
+                    className={viewOpened ? "ag-view-enter-children" : undefined}
+                    style={{display: top ? "none" : "contents"}}
+                >
+                    {children}
+                </div>
                 {top ? (
                     <Chrome
                         crumbs={crumbs}
@@ -495,7 +504,8 @@ const MountedView = ({
     return (
         <div
             data-testid={isTop ? "panel-view" : undefined}
-            className="flex min-h-0 min-w-0 flex-1 flex-col"
+            // Fades and slides in when it opens and when a child gives it back its place (MOTION-01).
+            className="ag-view-enter flex min-h-0 min-w-0 flex-1 flex-col"
             style={isTop ? undefined : {display: "none"}}
             // While its Save runs the view takes no input: an edit made then would not be in the
             // request, and success closes the view.

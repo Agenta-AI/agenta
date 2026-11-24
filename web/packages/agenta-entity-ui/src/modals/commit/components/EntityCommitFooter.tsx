@@ -58,9 +58,7 @@ function DeployForm({
     const [deployMessage, setDeployMessage] = useState("")
 
     return (
-        <div
-            className="w-[300px] rounded-lg border border-solid border-border bg-popover p-3 shadow-overlay"
-        >
+        <div className="w-[300px] rounded-lg border border-solid border-border bg-popover p-3 shadow-overlay">
             <div className={cn("mb-2 text-label font-medium", textColors.secondary)}>
                 {t("entityUi.commitModal.deployTo")}
             </div>
@@ -87,7 +85,9 @@ function DeployForm({
                         {o.hint ? (
                             <span className="flex items-center gap-2">
                                 {o.label}
-                                <span className={cn("text-meta", textColors.tertiary)}>{o.hint}</span>
+                                <span className={cn("text-meta", textColors.tertiary)}>
+                                    {o.hint}
+                                </span>
                             </span>
                         ) : (
                             o.label

@@ -157,12 +157,7 @@ export function LoadAllButton({
 
             {/* Progress indicator when loading */}
             {isLoading && progressPercent !== undefined && (
-                <Progress
-                    type="circle"
-                    percent={progressPercent}
-                    size={20}
-                    showInfo={false}
-                />
+                <Progress type="circle" percent={progressPercent} size={20} showInfo={false} />
             )}
 
             {/* Count display */}

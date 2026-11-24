@@ -182,10 +182,7 @@ export const OnboardingQuestion = ({
             </div>
             {writeIn ? (
                 <div className="flex flex-col gap-2">
-                    <label
-                        className="text-label"
-                        htmlFor="onboarding-other"
-                    >
+                    <label className="text-label" htmlFor="onboarding-other">
                         {t("onboarding.flow.writeIn")}
                     </label>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

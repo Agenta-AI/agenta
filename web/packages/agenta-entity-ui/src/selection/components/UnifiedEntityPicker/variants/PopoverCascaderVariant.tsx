@@ -781,9 +781,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                 <Tabs
                     value={activeTabKey}
                     onValueChange={setActiveTabKey}
-                    className={cn(
-                        "border-0 border-b border-solid border-border-muted",
-                    )}
+                    className={cn("border-0 border-b border-solid border-border-muted")}
                 >
                     {/* Tab bar only — the panels below are rendered outside Tabs, so there is
                         no TabsContent. gap-4 = antd tabBarGutter 16. */}

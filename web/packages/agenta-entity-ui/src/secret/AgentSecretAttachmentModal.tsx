@@ -88,11 +88,7 @@ export function AgentSecretAttachmentModal({
 
     return (
         // Contained runs non-modal: the host drawer already traps focus.
-        <Dialog
-            open={open}
-            onOpenChange={(next) => !next && onClose()}
-            modal={!container}
-        >
+        <Dialog open={open} onOpenChange={(next) => !next && onClose()} modal={!container}>
             <DialogContent
                 container={container ?? undefined}
                 contained={!!container}

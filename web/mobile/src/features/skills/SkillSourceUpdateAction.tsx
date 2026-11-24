@@ -27,11 +27,7 @@ export const SkillSourceUpdateAction = ({ids}: {ids: string[]}) => {
 
     if (pending.length)
         return (
-            <Button
-                size="xs"
-                variant="outline"
-                onClick={() => void apply(pending)}
-            >
+            <Button size="xs" variant="outline" onClick={() => void apply(pending)}>
                 {t("skills.list.updateSkills", {count: pending.length})}
             </Button>
         )

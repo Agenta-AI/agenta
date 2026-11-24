@@ -381,9 +381,7 @@ const ToolList = ({
                 <li key={tool.name} data-testid="mcp-tool" className="flex flex-col gap-0.5">
                     <span className="text-label text-foreground">{tool.name}</span>
                     {tool.description ? (
-                        <span className="text-meta text-muted-foreground">
-                            {tool.description}
-                        </span>
+                        <span className="text-meta text-muted-foreground">{tool.description}</span>
                     ) : null}
                 </li>
             ))}

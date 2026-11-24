@@ -78,9 +78,7 @@ const SessionSearchPalette = ({projectURL}: {projectURL: string}) => {
                             Type to search this project&apos;s sessions.
                         </p>
                     ) : loading ? (
-                        <p className="m-0 px-2 py-3 text-label text-muted-foreground">
-                            Searching…
-                        </p>
+                        <p className="m-0 px-2 py-3 text-label text-muted-foreground">Searching…</p>
                     ) : results.length === 0 ? (
                         <p className="m-0 px-2 py-3 text-label text-muted-foreground">
                             No sessions match

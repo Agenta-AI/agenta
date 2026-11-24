@@ -4,7 +4,14 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {dayjs} from "@agenta/shared/utils/dateTime"
-import {CalendarBlank, CaretDoubleLeftIcon, CaretDoubleRightIcon, CaretLeftIcon, CaretRightIcon, X} from "@phosphor-icons/react"
+import {
+    CalendarBlank,
+    CaretDoubleLeftIcon,
+    CaretDoubleRightIcon,
+    CaretLeftIcon,
+    CaretRightIcon,
+    X,
+} from "@phosphor-icons/react"
 
 import {Button} from "./button"
 import {inputVariants} from "./input"

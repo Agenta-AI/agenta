@@ -302,9 +302,7 @@ const Item = ({
                 <span
                     aria-hidden
                     className={`flex size-4 shrink-0 items-center justify-center rounded ${
-                        added
-                            ? "bg-success/10 text-success"
-                            : "bg-destructive/10 text-destructive"
+                        added ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
                     }`}
                 >
                     {added ? <Plus size={11} weight="bold" /> : <X size={11} weight="bold" />}
@@ -399,11 +397,7 @@ const ChangeHeader = ({
                 <HeaderIcon size={small ? 12 : 14} />
             </span>
             <div className="flex min-w-0 flex-1 flex-col">
-                <span
-                    className="truncate text-label font-semibold text-foreground"
-                >
-                    {title}
-                </span>
+                <span className="truncate text-label font-semibold text-foreground">{title}</span>
                 {joined ? (
                     <span
                         // 12 / 16, the canvas's secondary line.
@@ -559,9 +553,7 @@ export const ChangeSections = ({
         >
             {cardHeader}
             {header && sentence ? (
-                <p className="m-0 text-label leading-relaxed text-muted-foreground">
-                    {sentence}
-                </p>
+                <p className="m-0 text-label leading-relaxed text-muted-foreground">{sentence}</p>
             ) : null}
             {notes}
             {blocks.length ? (

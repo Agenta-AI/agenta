@@ -16,7 +16,9 @@ export function OverlayOriginDemo({fromTrigger}: {fromTrigger: boolean}) {
                 className="w-popover-sm p-3 text-body-sm text-muted-foreground"
                 style={fromTrigger ? undefined : {transformOrigin: "center"}}
             >
-                {fromTrigger ? "Unfolds down out of the Filter button." : "Grows from its own middle, away from the button."}
+                {fromTrigger
+                    ? "Unfolds down out of the Filter button."
+                    : "Grows from its own middle, away from the button."}
             </PopoverContent>
         </Popover>
     )

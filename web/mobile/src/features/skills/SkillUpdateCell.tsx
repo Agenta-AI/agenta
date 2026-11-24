@@ -43,11 +43,7 @@ export const SkillUpdateCell = ({
                 <ArrowCircleUp aria-hidden className="size-4" weight="fill" />
             </Button>
         ) : (
-            <Button
-                size="xs"
-                variant="outline"
-                onClick={() => void apply([workflowId])}
-            >
+            <Button size="xs" variant="outline" onClick={() => void apply([workflowId])}>
                 {t("skills.list.update")}
             </Button>
         )

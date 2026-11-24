@@ -24,7 +24,9 @@ export const AgentsNoMatch = ({
     return (
         <Empty className="py-14">
             <EmptyHeader>
-                <EmptyMedia variant="icon">{term ? <MagnifyingGlassIcon /> : <FunnelIcon />}</EmptyMedia>
+                <EmptyMedia variant="icon">
+                    {term ? <MagnifyingGlassIcon /> : <FunnelIcon />}
+                </EmptyMedia>
                 <EmptyTitle>
                     {term
                         ? t("agents.list.noMatchSearchTitle", {term})

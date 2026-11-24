@@ -58,11 +58,7 @@ const CopyVariableButton = ({rowId, variableKey}: {rowId: string; variableKey: s
 
     return (
         <SimpleTooltip title="Copy">
-            <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigator.clipboard.writeText(value)}
-            >
+            <Button variant="ghost" size="sm" onClick={() => navigator.clipboard.writeText(value)}>
                 <CopySimpleIcon size={14} />
             </Button>
         </SimpleTooltip>
@@ -317,10 +313,13 @@ const ComparisonLayout = ({
                                                     openFocusDrawer({
                                                         rowId,
                                                         entityId:
-                                                            structuralRootNode?.entityId ?? entityId,
+                                                            structuralRootNode?.entityId ??
+                                                            entityId,
                                                     })
                                                 }
-                                                disabled={!(structuralRootNode?.entityId ?? entityId)}
+                                                disabled={
+                                                    !(structuralRootNode?.entityId ?? entityId)
+                                                }
                                             >
                                                 <ArrowsOutLineHorizontalIcon size={14} />
                                             </Button>

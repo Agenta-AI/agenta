@@ -17,7 +17,8 @@ interface Cta {
 }
 
 // antd size names kept on the public Cta.
-const toSize = (size: Cta["size"]) => (size === "small" ? "sm" : size === "middle" ? "default" : "lg")
+const toSize = (size: Cta["size"]) =>
+    size === "small" ? "sm" : size === "middle" ? "default" : "lg"
 
 export interface EmptyPlaceholderProps {
     image?: ReactNode

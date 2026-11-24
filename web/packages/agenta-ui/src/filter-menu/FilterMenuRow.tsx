@@ -164,10 +164,7 @@ export const FilterMenuRow = ({
                 align={flyoutAlign}
                 sideOffset={flyoutSideOffset}
                 aria-label={section.label}
-                className={cn(
-                    "flex max-h-70 flex-col p-0",
-                    "w-popover-sm",
-                )}
+                className={cn("flex max-h-70 flex-col p-0", "w-popover-sm")}
                 onOpenAutoFocus={(event) => event.preventDefault()}
                 // Radix hands focus back to its anchor on close; under the pointer that would
                 // pull the caret out of the search field the reader is still typing in.

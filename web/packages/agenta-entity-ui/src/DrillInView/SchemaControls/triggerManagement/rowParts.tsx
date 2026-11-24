@@ -48,9 +48,7 @@ export function RowStatusDot({active}: {active: boolean}) {
                     aria-label={label}
                     className={cn(
                         "mx-1 size-2 shrink-0 rounded-round",
-                        active
-                            ? "bg-success"
-                            : "bg-border-strong",
+                        active ? "bg-success" : "bg-border-strong",
                     )}
                 />
             </TooltipTrigger>

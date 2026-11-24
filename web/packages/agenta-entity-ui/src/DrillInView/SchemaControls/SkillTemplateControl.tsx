@@ -212,9 +212,7 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
                     {version && <Badge>{version}</Badge>}
                 </div>
                 {slug && (
-                    <span className="text-code-sm truncate text-muted-foreground">
-                        {slug}
-                    </span>
+                    <span className="text-code-sm truncate text-muted-foreground">{slug}</span>
                 )}
                 <span className="text-meta text-muted-foreground">
                     {t("entityUi.skillTemplate.staticSkillHint")}

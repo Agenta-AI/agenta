@@ -492,10 +492,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 }
                 footer={
                     showShapeHint ? (
-                        <Typography.Text
-                            type="secondary"
-                            className="block mt-1 px-1 text-code"
-                        >
+                        <Typography.Text type="secondary" className="block mt-1 px-1 text-code">
                             Expected shape: <code>{shapeHint}</code>
                         </Typography.Text>
                     ) : null

@@ -155,10 +155,7 @@ export function EventSourcePicker({
                                 <span className="relative inline-flex size-1.5 rounded-round bg-info" />
                             </span>
                         ) : (
-                            <ClockCountdown
-                                size={14}
-                                className="mt-0.5 text-muted-foreground"
-                            />
+                            <ClockCountdown size={14} className="mt-0.5 text-muted-foreground" />
                         )}
                         <span className="min-w-0 flex-1">
                             <span className="block text-meta">

@@ -197,9 +197,7 @@ function McpRow({item, done, open, onToggle}: RowProps) {
             open={open && !done}
             onToggle={done ? undefined : onToggle}
         >
-            <p className="m-0 text-meta leading-snug text-muted-foreground">
-                {copy.signIn(name)}
-            </p>
+            <p className="m-0 text-meta leading-snug text-muted-foreground">{copy.signIn(name)}</p>
             {endpoint ? (
                 <McpSignIn
                     endpoint={endpoint}

@@ -133,11 +133,7 @@ const TraceSidePanel = ({
             className="transition-all duration-300 ease-[ease] max-w-full overflow-hidden opacity-100 rounded-none border-0"
         >
             {items.map((item) => (
-                <AccordionItem
-                    key={item.key}
-                    value={item.key}
-                    className="border-border-muted"
-                >
+                <AccordionItem key={item.key} value={item.key} className="border-border-muted">
                     {/* Section headers on the row scale: row-single (ROW-01). */}
                     <AccordionTrigger className="box-border h-row-single !items-center !py-0">
                         {item.label}

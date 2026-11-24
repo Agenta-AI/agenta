@@ -45,7 +45,19 @@ import {
     FORMAT_TEXT_COMMAND,
     type TextFormatType,
 } from "lexical"
-import {CaretDownIcon, CodeIcon, LinkBreakIcon, LinkIcon as LinkIcon, ListIcon, ListNumbersIcon, QuotesIcon, TableIcon as TableIcon, TextBIcon, TextItalicIcon, TextStrikethroughIcon} from "@phosphor-icons/react"
+import {
+    CaretDownIcon,
+    CodeIcon,
+    LinkBreakIcon,
+    LinkIcon as LinkIcon,
+    ListIcon,
+    ListNumbersIcon,
+    QuotesIcon,
+    TableIcon as TableIcon,
+    TextBIcon,
+    TextItalicIcon,
+    TextStrikethroughIcon,
+} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
 import {
@@ -127,9 +139,7 @@ function TableSizePicker({onPick}: {onPick: (rows: number, cols: number) => void
                             onClick={() => onPick(r, c)}
                             className={[
                                 "h-4 w-4 rounded-[2px] border border-solid transition-colors",
-                                on
-                                    ? "border-primary bg-primary"
-                                    : "border-border bg-muted",
+                                on ? "border-primary bg-primary" : "border-border bg-muted",
                             ].join(" ")}
                         />
                     )
@@ -376,10 +386,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                             <DropdownMenuItem
                                 key={b.key}
                                 // antd `selectable` + `selectedKeys`: the active block is highlighted.
-                                className={cn(
-                                    b.key === blockType &&
-                                        "bg-selected text-foreground",
-                                )}
+                                className={cn(b.key === blockType && "bg-selected text-foreground")}
                                 onMouseDown={keepEditorSelection}
                                 onSelect={() => formatBlock(b.key)}
                             >

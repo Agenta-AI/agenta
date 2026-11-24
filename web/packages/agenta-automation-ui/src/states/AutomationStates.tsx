@@ -25,11 +25,7 @@ export const AutomationListNoMatch = ({
     return (
         <div className="flex flex-col items-center justify-center gap-2.5 px-8 py-14 text-center">
             <IconTile size={40}>
-                {term ? (
-                    <MagnifyingGlass aria-hidden />
-                ) : (
-                    <Funnel aria-hidden />
-                )}
+                {term ? <MagnifyingGlass aria-hidden /> : <Funnel aria-hidden />}
             </IconTile>
             <p className="m-0 text-body font-medium text-foreground">
                 {term
@@ -42,12 +38,7 @@ export const AutomationListNoMatch = ({
                     : t("automations.editor.noMatchFiltersBody")}
             </p>
             {onClear ? (
-                <Button
-                    size="sm"
-                    variant="outline"
-                    className="mt-1 text-label"
-                    onClick={onClear}
-                >
+                <Button size="sm" variant="outline" className="mt-1 text-label" onClick={onClear}>
                     {term
                         ? t("automations.editor.clearSearch")
                         : t("automations.editor.resetFilters")}

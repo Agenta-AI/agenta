@@ -206,9 +206,7 @@ export function RunVersionField({
     const envHint = envHintProp ?? t("entityUi.triggerShared.envHint")
     const revisionPicker = (
         <>
-            <span className="text-meta leading-snug text-muted-foreground">
-                {revisionHint}
-            </span>
+            <span className="text-meta leading-snug text-muted-foreground">{revisionHint}</span>
             <EntityPicker<WorkflowRevisionSelectionResult>
                 variant="popover-cascader"
                 adapter={revisionAdapter}
@@ -233,9 +231,7 @@ export function RunVersionField({
                 revisionPicker
             ) : (
                 <>
-                    <span className="text-meta leading-snug text-muted-foreground">
-                        {envHint}
-                    </span>
+                    <span className="text-meta leading-snug text-muted-foreground">{envHint}</span>
                     <Select
                         value={environmentSlug ?? undefined}
                         onValueChange={(slug) => onEnvironmentChange?.(slug)}

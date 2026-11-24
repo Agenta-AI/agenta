@@ -794,18 +794,12 @@ export const ChannelManagePanel = ({
                     {platformLogo(connection.platform, 24)}
                     <span
                         className={`absolute -right-0.5 -top-0.5 size-2 rounded-xs border-[1.5px] border-solid border-background ${
-                            revoked
-                                ? "bg-destructive"
-                                : off
-                                  ? "bg-border-strong"
-                                  : "bg-success"
+                            revoked ? "bg-destructive" : off ? "bg-border-strong" : "bg-success"
                         }`}
                     />
                 </span>
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="truncate text-title text-foreground">
-                        {title}
-                    </span>
+                    <span className="truncate text-title text-foreground">{title}</span>
                     <span className="truncate text-label text-muted-foreground">
                         <span
                             className={

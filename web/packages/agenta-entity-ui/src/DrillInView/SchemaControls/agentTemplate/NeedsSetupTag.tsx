@@ -25,9 +25,7 @@ export function NeedsSetupTag({reason, tag = true, className}: NeedsSetupTagProp
                 </Tag>
             ) : null}
             {reason ? (
-                <span className="truncate text-meta leading-tight text-warning">
-                    {reason}
-                </span>
+                <span className="truncate text-meta leading-tight text-warning">{reason}</span>
             ) : null}
         </span>
     )

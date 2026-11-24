@@ -33,8 +33,7 @@ export type DriveFileVariant = "row" | "card"
 // Themed keyboard-focus ring (replaces the browser's default blue outline, which ignores the row's
 // radius and reads harsh). Inset so it stays within the row bounds. Matches the PrettyJsonView rows.
 // Exported so the non-DriveFileRow drive surfaces (tree rows, folder tiles) share one focus look.
-export const FOCUS_RING =
-    "focus-ring"
+export const FOCUS_RING = "focus-ring"
 
 /**
  * DriveRetryButton — the retry affordance for a drive's errored state. Reads inline in the flow of the

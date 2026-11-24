@@ -1,7 +1,7 @@
 import * as React from "react"
 
-import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 import {CaretRightIcon, CheckIcon} from "@phosphor-icons/react"
+import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 
 import {MENU_ITEM, MENU_ITEM_INSET} from "./menu-item"
 import {cn} from "./utils"
@@ -11,9 +11,10 @@ import {cn} from "./utils"
  * antd Dropdown mapping: getPopupContainer→container, danger→variant="destructive", divider→Separator.
  */
 
-// The global scroll-fade animation never fires `animationend`, so a closed menu would stay
-// mounted; killing the name and resetting the timeline releases it.
-const NO_SCROLL_TIMELINE = "[animation-name:none] [animation-timeline:auto]"
+// The menu unfolds from its trigger (MICRO-02, `ag-overlay-motion` in surfaces.css). Its class
+// outranks the global scroll-fade animation, whose missing `animationend` kept a closed menu
+// mounted; the timeline reset keeps the menu's own animation on the document clock.
+const MENU_MOTION = "ag-overlay-motion [animation-timeline:auto]"
 
 function DropdownMenu(props: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
     return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
@@ -59,7 +60,7 @@ function DropdownMenuContent({
                     // font-portal: portalled to <body>, outside the app font scope; box-border: preflight off.
                     "relative z-50 box-border min-w-32 max-h-96 overflow-y-auto overflow-x-hidden bg-popover text-popover-foreground shadow-overlay font-portal",
                     "rounded-lg p-1",
-                    NO_SCROLL_TIMELINE,
+                    MENU_MOTION,
                     className,
                 )}
                 {...props}
@@ -225,7 +226,7 @@ function DropdownMenuSubContent({
                     // Same panel as DropdownMenuContent.
                     "relative z-50 box-border min-w-32 max-h-96 overflow-y-auto overflow-x-hidden bg-popover text-popover-foreground shadow-overlay font-portal",
                     "rounded-lg p-1",
-                    NO_SCROLL_TIMELINE,
+                    MENU_MOTION,
                     className,
                 )}
                 {...props}

@@ -45,9 +45,7 @@ export const UserQuoteBlock = ({quote}: {quote: QuotedExcerpt}) => {
                     <span className="font-mono">{quote.origin.split("/").pop()}</span>
                 )}
             </span>
-            <span className="line-clamp-2 text-label text-muted-foreground">
-                {excerpt}
-            </span>
+            <span className="line-clamp-2 text-label text-muted-foreground">{excerpt}</span>
         </div>
     )
 }

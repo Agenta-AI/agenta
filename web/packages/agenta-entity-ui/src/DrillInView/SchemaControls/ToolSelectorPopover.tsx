@@ -250,9 +250,7 @@ function SectionHeader({icon, title, right}: {icon: ReactNode; title: string; ri
         <div className="flex items-center justify-between px-2 py-1">
             <div className="flex items-center gap-1.5 min-w-0">
                 <span className="text-muted-foreground flex items-center">{icon}</span>
-                <span className="text-meta font-medium text-muted-foreground">
-                    {title}
-                </span>
+                <span className="text-meta font-medium text-muted-foreground">{title}</span>
             </div>
             {right}
         </div>
@@ -281,9 +279,7 @@ function HoverableRow({
             className={clsx(
                 "w-full border-none bg-transparent [font:inherit] text-left cursor-pointer",
                 "flex items-center gap-2 px-2 py-1.5 rounded-md",
-                active
-                    ? "bg-selected"
-                    : "hover:bg-accent dark:hover:bg-accent",
+                active ? "bg-selected" : "hover:bg-accent dark:hover:bg-accent",
             )}
         >
             <div className="min-w-0 flex-1">{left}</div>
@@ -496,9 +492,7 @@ function BuiltinToolsPane({
                             className={clsx(
                                 "w-full border-none bg-transparent [font:inherit] cursor-pointer",
                                 "flex items-center gap-2 px-2 py-1.5 rounded-md text-left",
-                                selected
-                                    ? "bg-selected"
-                                    : "hover:bg-accent dark:hover:bg-accent",
+                                selected ? "bg-selected" : "hover:bg-accent dark:hover:bg-accent",
                             )}
                         >
                             <span className="min-w-0 flex-1 text-meta truncate">
@@ -735,7 +729,9 @@ function GatewayActionsPane({
                                         )}
                                     >
                                         <span className="min-w-0 flex-1 flex flex-col leading-tight">
-                                            <span className="text-meta truncate">{action.name}</span>
+                                            <span className="text-meta truncate">
+                                                {action.name}
+                                            </span>
                                             <span className="text-meta text-muted-foreground truncate">
                                                 {action.key}
                                             </span>
@@ -919,7 +915,10 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                                         </div>
                                     }
                                     right={
-                                        <CaretRight size={12} className="text-muted-foreground shrink-0" />
+                                        <CaretRight
+                                            size={12}
+                                            className="text-muted-foreground shrink-0"
+                                        />
                                     }
                                 />
                             ))}

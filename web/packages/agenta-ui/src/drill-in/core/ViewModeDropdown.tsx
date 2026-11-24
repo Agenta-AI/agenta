@@ -57,11 +57,7 @@ function ViewModeDropdownInner<TValue extends string = string>({
                         key={option.value}
                         onClick={() => onChange(option.value)}
                         // antd `selectedKeys` highlight.
-                        className={
-                            option.value === value
-                                ? "bg-selected text-primary"
-                                : undefined
-                        }
+                        className={option.value === value ? "bg-selected text-primary" : undefined}
                     >
                         {option.label}
                     </DropdownMenuItem>

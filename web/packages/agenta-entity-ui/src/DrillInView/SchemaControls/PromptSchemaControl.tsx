@@ -501,9 +501,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     )
 
     if (!hasMessagesField) {
-        return (
-            <div className={cn("min-h-65", className)} data-testid="prompt-schema-control" />
-        )
+        return <div className={cn("min-h-65", className)} data-testid="prompt-schema-control" />
     }
 
     return (

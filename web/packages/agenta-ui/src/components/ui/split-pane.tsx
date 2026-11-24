@@ -381,9 +381,7 @@ export function SplitPane({
                 // `overflow-visible`: the hairline, the grip and the hit-slop all paint OUTSIDE
                 // the zero-width bar box, centred on the seam.
                 "group relative z-[5] box-border h-full shrink-0 touch-none select-none overflow-visible",
-                resizable &&
-                    !barHidden &&
-                    "cursor-col-resize outline-none focus-ring",
+                resizable && !barHidden && "cursor-col-resize outline-none focus-ring",
                 barClassName,
             )}
             style={{

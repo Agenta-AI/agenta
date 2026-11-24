@@ -613,7 +613,10 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Info size={12} className="cursor-help text-muted-foreground" />
+                                        <Info
+                                            size={12}
+                                            className="cursor-help text-muted-foreground"
+                                        />
                                     </TooltipTrigger>
                                     <TooltipContent>
                                         {t("entityUi.feedbackConfig.categoriesTooltip")}

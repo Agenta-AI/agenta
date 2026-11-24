@@ -159,9 +159,7 @@ export const DrawerRuns = ({
     return (
         <section className="rounded-xl bg-muted px-4 py-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-label">
-                    {t("observabilityUi.analytics.runsTitle")}
-                </span>
+                <span className="text-label">{t("observabilityUi.analytics.runsTitle")}</span>
                 <div className="flex items-center gap-2">
                     {failedOnly && reasons.length ? (
                         <DropdownMenu>

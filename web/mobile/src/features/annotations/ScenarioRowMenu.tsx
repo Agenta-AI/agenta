@@ -17,12 +17,7 @@ export const ScenarioRowMenu = ({
 }) => (
     <DropdownMenu>
         <DropdownMenuTrigger asChild>
-            <Button
-                type="button"
-                size="icon-xs"
-                variant="ghost"
-                aria-label="Item actions"
-            >
+            <Button type="button" size="icon-xs" variant="ghost" aria-label="Item actions">
                 <DotsThreeVertical aria-hidden className="size-3.5" />
             </Button>
         </DropdownMenuTrigger>

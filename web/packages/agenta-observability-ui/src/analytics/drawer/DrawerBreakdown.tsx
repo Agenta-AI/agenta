@@ -100,9 +100,7 @@ export const DrawerBreakdown = (props: DrawerBreakdownProps) => {
         <section className="rounded-xl bg-muted px-4 py-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                    <span className="text-label">
-                        {t("observabilityUi.analytics.breakdown")}
-                    </span>
+                    <span className="text-label">{t("observabilityUi.analytics.breakdown")}</span>
                     <Segmented
                         size="sm"
                         options={dimOptions}

@@ -27,9 +27,7 @@ const EventPickerEmptyFrame = ({
     action?: React.ReactNode
 }) => (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-2.5 px-8 py-12 text-center">
-        <IconTile size={40}>
-            {icon}
-        </IconTile>
+        <IconTile size={40}>{icon}</IconTile>
         <p className="m-0 text-body font-medium text-foreground">{title}</p>
         <p className="m-0 max-w-[38ch] text-label leading-snug text-muted-foreground">{body}</p>
         {action}

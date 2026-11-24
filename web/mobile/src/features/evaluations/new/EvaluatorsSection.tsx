@@ -201,10 +201,7 @@ export const EvaluatorsSection = ({
                             onToggle={() => setExpanded((current) => toggleKey(current, groupKey))}
                         />
                     ) : null}
-                    <span
-                        className="truncate text-label text-foreground"
-                        title={name}
-                    >
+                    <span className="truncate text-label text-foreground" title={name}>
                         {name}
                     </span>
                     {row.version != null ? (

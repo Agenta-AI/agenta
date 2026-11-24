@@ -55,8 +55,7 @@ export interface ChannelPeopleSectionProps {
 
 const ROW = "border-0 border-b border-solid border-border py-3"
 const PERSON_ROW = "flex items-center gap-2.5 border-0 border-b border-solid border-border py-2.5"
-const GROUP =
-    "flex items-center justify-between pt-2 pb-1 text-label text-muted-foreground"
+const GROUP = "flex items-center justify-between pt-2 pb-1 text-label text-muted-foreground"
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 // How long the picker waits after the last key before it searches.
 const SEARCH_DELAY_MS = 250

@@ -65,7 +65,9 @@ function ErrorTooltip({errors}: {errors: ErrorInfo[]}) {
                                     {error.type}
                                 </span>
                                 {lineDisplay && (
-                                    <span className="text-muted-foreground text-caption">{lineDisplay}</span>
+                                    <span className="text-muted-foreground text-caption">
+                                        {lineDisplay}
+                                    </span>
                                 )}
                             </div>
                             <div className="mt-1 text-foreground text-meta">{error.message}</div>

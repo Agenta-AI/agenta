@@ -422,11 +422,7 @@ const TurnRowInner = ({
     // A send the server refused after the composer had already cleared. The row keeps the text so
     // it is not lost; this says why it is sitting there with no answer coming.
     const failureNote = isPendingSendFailed(turn.message) ? (
-        <div
-            data-pending-send-failed="true"
-            role="status"
-            className="mt-1 text-meta opacity-80"
-        >
+        <div data-pending-send-failed="true" role="status" className="mt-1 text-meta opacity-80">
             {PENDING_SEND_FAILED_NOTE}
         </div>
     ) : null

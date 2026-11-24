@@ -28,8 +28,7 @@ const SELECT_COLUMN: ListTableColumn = {
  * `outline-solid` is not redundant — Tailwind v4's `outline-none` sets `--tw-outline-style:
  * none`, which `outline-2` then reads back, so the pair alone renders NO ring at all.
  */
-const FOCUS_RING =
-    "outline-none focus-ring"
+const FOCUS_RING = "outline-none focus-ring"
 
 const gridTemplate = (columns: ListTableColumn[]): string =>
     columns.map((column) => column.width).join(" ")
@@ -136,10 +135,7 @@ export const ListTable = <Row,>({
     const cardGrid = `repeat(auto-fill, minmax(min(100%, ${cardMinWidth}px), 1fr))`
     // One value for the rows AND their skeleton, so loading holds the rhythm the rows arrive in.
     // One row height per list (ROW-01), the same on every screen: a meta line fills the row.
-    const rowPad =
-        density === "compact"
-            ? "min-h-row-single py-1"
-            : "min-h-row-double py-1.5"
+    const rowPad = density === "compact" ? "min-h-row-single py-1" : "min-h-row-double py-1.5"
     // ROW-04: 4px between one-line rows, 8px between two-line rows.
     const rowGap = density === "compact" ? "mb-1 last:mb-0" : "mb-2 last:mb-0"
     const isEmpty = groups.every((group) => group.rows.length === 0)
@@ -468,8 +464,7 @@ export const ListTable = <Row,>({
                                                     rowGap,
                                                     "-mx-3 w-[calc(100%+1.5rem)] px-3",
                                                     rowClassName,
-                                                    opens(row) &&
-                                                        "cursor-pointer hover:bg-accent",
+                                                    opens(row) && "cursor-pointer hover:bg-accent",
                                                     opens(row) && FOCUS_RING,
                                                 )}
                                                 style={{gridTemplateColumns: grid}}

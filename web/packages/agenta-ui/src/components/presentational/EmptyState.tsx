@@ -111,10 +111,7 @@ export const EmptyState = ({
             <div className="flex w-full flex-col items-center text-center">
                 {/* Title + Description */}
                 <div className="mb-6">
-                    <h3
-                        className="mb-2 text-heading text-foreground"
-                        style={{textWrap: "balance"}}
-                    >
+                    <h3 className="mb-2 text-heading text-foreground" style={{textWrap: "balance"}}>
                         {title}
                     </h3>
 

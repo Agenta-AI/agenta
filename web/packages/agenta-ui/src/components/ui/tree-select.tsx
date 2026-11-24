@@ -600,7 +600,8 @@ export function TreeSelect({
                                         // non-selected active/hovered row = controlItemBgHover.
                                         selected ? "bg-selected" : "",
                                         !selected && active ? "bg-muted" : "",
-                                        option.disabled && "pointer-events-none text-muted-foreground",
+                                        option.disabled &&
+                                            "pointer-events-none text-muted-foreground",
                                         !selectable && !row.branch && "cursor-default",
                                     )}
                                 >

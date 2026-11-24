@@ -100,9 +100,7 @@ export function SkillViewHeader({
                         {extra}
                     </div>
                     {status ? (
-                        <span className="text-meta text-muted-foreground">
-                            {status}
-                        </span>
+                        <span className="text-meta text-muted-foreground">{status}</span>
                     ) : null}
                 </div>
                 {hasMenu ? (

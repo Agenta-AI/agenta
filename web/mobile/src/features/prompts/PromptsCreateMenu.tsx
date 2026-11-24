@@ -32,10 +32,7 @@ export const PromptsCreateMenu = ({
     canEditFolders || newPrompt ? (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button
-                    size="sm"
-                    disabled={newPrompt?.pending}
-                >
+                <Button size="sm" disabled={newPrompt?.pending}>
                     <PlusIcon size={14} />
                     {promptsCopy.createNew}
                 </Button>

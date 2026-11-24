@@ -57,10 +57,7 @@ export const AgentOverviewCardRow = ({
                     onClick()
                 }
             }}
-            className={cn(
-                shared,
-                "focus-ring cursor-pointer transition-colors hover:bg-accent",
-            )}
+            className={cn(shared, "focus-ring cursor-pointer transition-colors hover:bg-accent")}
         >
             {body}
         </div>

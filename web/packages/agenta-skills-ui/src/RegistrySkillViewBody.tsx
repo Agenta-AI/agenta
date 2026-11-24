@@ -379,9 +379,7 @@ const RegistrySkillEditor = ({
                         href={registryLink}
                         target="_blank"
                         rel="noreferrer"
-                        className={cn(
-                            "text-inherit underline underline-offset-2",
-                        )}
+                        className={cn("text-inherit underline underline-offset-2")}
                     >
                         {text}
                     </a>
@@ -534,7 +532,9 @@ const RegistrySkillEditor = ({
                         </div>
                     ) : null}
                     {archiveError ? (
-                        <p className="m-0 text-label font-normal text-destructive">{archiveError}</p>
+                        <p className="m-0 text-label font-normal text-destructive">
+                            {archiveError}
+                        </p>
                     ) : null}
                     <AlertDialogFooter>
                         <AlertDialogCancel asChild>

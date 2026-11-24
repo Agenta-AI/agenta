@@ -82,9 +82,7 @@ export const CreateEvaluationMenu = ({
                         onSelect={() => onCreate(item.kind)}
                     >
                         <span className="text-label font-medium">{item.title}</span>
-                        <span className="text-meta text-muted-foreground">
-                            {item.description}
-                        </span>
+                        <span className="text-meta text-muted-foreground">{item.description}</span>
                     </DropdownMenuItem>
                 ))}
             </DropdownMenuContent>

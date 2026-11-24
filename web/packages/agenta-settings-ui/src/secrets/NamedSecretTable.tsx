@@ -101,9 +101,7 @@ const UsedBy = ({agentIds}: {agentIds: string[]}) => {
         [agentIds],
     )
     const line = usedByLine(useAtomValue(namesAtom))
-    return line ? (
-        <span className="truncate text-label text-muted-foreground">{line}</span>
-    ) : null
+    return line ? <span className="truncate text-label text-muted-foreground">{line}</span> : null
 }
 
 const NO_AGENTS: string[] = []

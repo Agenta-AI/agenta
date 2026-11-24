@@ -45,12 +45,8 @@ export const KeyboardShortcutsSheet = ({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className={cn("max-w-[min(1040px,calc(100vw-2rem))] p-0", className)}>
                 <DialogHeader className="border-0 border-b border-solid border-border-muted px-5 py-3.5">
-                    <DialogTitle>
-                        {t("navigation.items.keyboardShortcuts")}
-                    </DialogTitle>
-                    <DialogDescription>
-                        {t("navigation.chrome.shortcutsHint")}
-                    </DialogDescription>
+                    <DialogTitle>{t("navigation.items.keyboardShortcuts")}</DialogTitle>
+                    <DialogDescription>{t("navigation.chrome.shortcutsHint")}</DialogDescription>
                 </DialogHeader>
                 {/* The height cap and the scrolling belong to the WRAPPER, never to the column box.
                     A multi-column element with a fixed height overflows sideways into extra columns

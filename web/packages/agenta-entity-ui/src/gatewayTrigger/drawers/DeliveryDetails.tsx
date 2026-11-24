@@ -6,7 +6,9 @@ import triggerDeliveriesCatalog from "@agenta/i18n/catalogs/entityUi.triggerDeli
 import {CopyButton} from "@agenta/ui"
 import {Badge, Button} from "@agenta/ui/ui"
 
-export function deliveryStatusColor(type?: string | null): "success" | "destructive" | "info" | "default" {
+export function deliveryStatusColor(
+    type?: string | null,
+): "success" | "destructive" | "info" | "default" {
     switch ((type ?? "").toLowerCase()) {
         case "success":
         case "delivered":

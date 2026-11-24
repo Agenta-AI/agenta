@@ -99,9 +99,7 @@ export const TemplatePage = ({
             <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-12">
                 <div className="flex min-w-0 flex-1 flex-col">
                     <AppTileStack apps={templateProviders(template)} size="xl" />
-                    <h1 className="m-0 mt-5 text-heading text-foreground">
-                        {template.name}
-                    </h1>
+                    <h1 className="m-0 mt-5 text-heading text-foreground">{template.name}</h1>
                     <p className="text-muted-foreground m-0 mt-2 max-w-[620px] text-body leading-relaxed">
                         {template.description}
                     </p>
@@ -116,9 +114,7 @@ export const TemplatePage = ({
                             title={t("marketplace.page.overview")}
                         >
                             {template.overview ? (
-                                <p className="m-0 text-body text-foreground">
-                                    {template.overview}
-                                </p>
+                                <p className="m-0 text-body text-foreground">{template.overview}</p>
                             ) : null}
                             {template.example ? <ExampleRun example={template.example} /> : null}
                             {template.instructions.trim() ? (

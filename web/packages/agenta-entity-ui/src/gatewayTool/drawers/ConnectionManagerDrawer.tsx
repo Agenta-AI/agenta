@@ -207,10 +207,7 @@ export default function ConnectionManagerDrawer() {
                 if (!next) handleClose()
             }}
         >
-            <SheetContent
-                side="right"
-                style={{width: 480, maxWidth: "calc(100% - 1rem)"}}
-            >
+            <SheetContent side="right" style={{width: 480, maxWidth: "calc(100% - 1rem)"}}>
                 <SheetHeader>
                     <SheetTitle className="min-w-0">
                         {t("entityUi.toolConnections.connectionDetails")}

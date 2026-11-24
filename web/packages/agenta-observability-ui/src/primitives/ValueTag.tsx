@@ -4,10 +4,7 @@ import clsx from "clsx"
 
 /** The app's `CustomAntdTag`: a filled tag whose value may be a JSON blob. */
 export const ValueTag = ({value, className}: {value: unknown; className?: string}) => (
-    <Tag
-        className={clsx(className, "bg-secondary")}
-        label={getStringOrJson(value as string)}
-    />
+    <Tag className={clsx(className, "bg-secondary")} label={getStringOrJson(value as string)} />
 )
 
 export default ValueTag

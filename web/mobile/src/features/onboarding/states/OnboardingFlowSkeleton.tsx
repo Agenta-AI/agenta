@@ -24,7 +24,10 @@ export const OnboardingFlowSkeleton = () => {
                     </div>
                     <div className="flex flex-wrap gap-2">
                         {CHIP_WIDTHS.map((width, index) => (
-                            <SkeletonBlock key={index} className={`h-control-lg rounded-md ${width}`} />
+                            <SkeletonBlock
+                                key={index}
+                                className={`h-control-lg rounded-md ${width}`}
+                            />
                         ))}
                     </div>
                 </div>

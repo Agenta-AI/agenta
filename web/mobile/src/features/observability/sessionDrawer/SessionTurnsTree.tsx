@@ -28,7 +28,9 @@ export const SessionTurnsTree = ({traces, stats, selectedKey, onSelect}: Session
     const tree = useMemo(() => buildSessionTree(traces, stats, search), [traces, stats, search])
 
     const renderLabel = useCallback(
-        (node: SessionTreeNode) => <TraceRow span={node} metrics={settings} className="text-meta" />,
+        (node: SessionTreeNode) => (
+            <TraceRow span={node} metrics={settings} className="text-meta" />
+        ),
         [settings],
     )
 

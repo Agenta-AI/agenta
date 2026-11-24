@@ -44,11 +44,7 @@ export function DriveErrorState({drive}: {drive: SessionDriveData}) {
                         disabled={drive.isFetching}
                         aria-busy={drive.isFetching || undefined}
                     >
-                        {drive.isFetching ? (
-                            <Spinner aria-hidden />
-                        ) : (
-                            <ArrowClockwise />
-                        )}
+                        {drive.isFetching ? <Spinner aria-hidden /> : <ArrowClockwise />}
                         {drive.isFetching
                             ? t("entityUi.driveExplorer.loading")
                             : t("entityUi.driveExplorer.tryAgain")}
@@ -67,7 +63,9 @@ export function DriveEmptyState({scope}: {scope: DriveScope}) {
                 <EmptyMedia variant="icon">
                     <Tray />
                 </EmptyMedia>
-                <EmptyTitle className="text-label">{t("entityUi.driveBrowser.driveEmpty")}</EmptyTitle>
+                <EmptyTitle className="text-label">
+                    {t("entityUi.driveBrowser.driveEmpty")}
+                </EmptyTitle>
                 <EmptyDescription className="text-meta">
                     {scope === "session"
                         ? t("entityUi.driveBrowser.createdOnFirstRun")

@@ -43,7 +43,9 @@ export const NextTriggersSection = ({agentId, agentNames}: NextTriggersSectionPr
                                 weight="fill"
                             />
                             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                <span className="truncate text-label text-foreground">{row.name}</span>
+                                <span className="truncate text-label text-foreground">
+                                    {row.name}
+                                </span>
                                 {row.subtitle ? (
                                     <span className="truncate text-label text-muted-foreground">
                                         {row.subtitle}

@@ -108,7 +108,9 @@ export const AgentTransferDialog = ({
             }
         >
             <div className="flex flex-col gap-1.5">
-                <span className="text-label font-medium text-muted-foreground">{copy.newOwner}</span>
+                <span className="text-label font-medium text-muted-foreground">
+                    {copy.newOwner}
+                </span>
                 <MemberPicker
                     mode="single"
                     projectName={projectName}

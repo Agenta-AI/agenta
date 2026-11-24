@@ -22,7 +22,12 @@ export function MotionSwapDemo({animated}: {animated: boolean}) {
                 className="rounded-lg bg-background px-4 py-3 text-label shadow-[inset_0_0_0_1px_var(--border-muted)] motion-reduce:transition-none"
                 style={
                     animated
-                        ? {transition: "opacity var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out)", opacity: shown ? 1 : 0, transform: shown ? "none" : "translateY(4px)"}
+                        ? {
+                              transition:
+                                  "opacity var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out)",
+                              opacity: shown ? 1 : 0,
+                              transform: shown ? "none" : "translateY(4px)",
+                          }
                         : undefined
                 }
             >

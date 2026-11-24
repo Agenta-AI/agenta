@@ -205,12 +205,7 @@ export default function AgentChangesSummary({
                         <div className="px-3.5 py-3">
                             {activeTool.descriptionDiff ? (
                                 <>
-                                    <div
-                                        className={cn(
-                                            "mb-1.5 text-meta",
-                                            textColors.tertiary,
-                                        )}
-                                    >
+                                    <div className={cn("mb-1.5 text-meta", textColors.tertiary)}>
                                         {t("entityUi.changesSummary.description")}
                                     </div>
                                     <div className=" text-code-sm leading-[1.8]">
@@ -226,10 +221,7 @@ export default function AgentChangesSummary({
                             {activeTool.fieldChanges?.some((f) => f.field !== "description") ? (
                                 <>
                                     <div
-                                        className={cn(
-                                            "mb-1.5 mt-3 text-meta",
-                                            textColors.tertiary,
-                                        )}
+                                        className={cn("mb-1.5 mt-3 text-meta", textColors.tertiary)}
                                     >
                                         {t("entityUi.changesSummary.parameters")}
                                     </div>

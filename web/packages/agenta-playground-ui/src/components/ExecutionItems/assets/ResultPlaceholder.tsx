@@ -37,9 +37,7 @@ export const ClickRunPlaceholder: FC<{className?: string; variant?: "block" | "i
                     <PlayIcon size={12} />
                 </div>
                 <div className="min-w-0">
-                    <p className="m-0 text-meta font-medium text-muted-foreground">
-                        No output yet
-                    </p>
+                    <p className="m-0 text-meta font-medium text-muted-foreground">No output yet</p>
                     <p className="m-0 mt-0.5 text-meta text-muted-foreground">
                         Click Run (Ctrl+Enter / ⌘+Enter) to generate output.
                     </p>

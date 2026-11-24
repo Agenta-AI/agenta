@@ -431,7 +431,10 @@ export function NewSkillBody({start = {step: "choose"}, onCreated}: NewSkillBody
     )
 
     const errorLine = error ? (
-        <span role="alert" className="flex items-start gap-1.5 text-label font-normal text-destructive">
+        <span
+            role="alert"
+            className="flex items-start gap-1.5 text-label font-normal text-destructive"
+        >
             <WarningCircle size={14} className="mt-px shrink-0" />
             <span className="min-w-0">{error}</span>
         </span>

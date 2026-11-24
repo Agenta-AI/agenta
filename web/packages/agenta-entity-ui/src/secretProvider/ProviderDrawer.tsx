@@ -397,7 +397,9 @@ const ProviderDrawer = ({
                                 <PlaygroundConnectedSection
                                     connections={userConnections}
                                     organizationConnections={
-                                        context === "completion" ? organizationConnections : undefined
+                                        context === "completion"
+                                            ? organizationConnections
+                                            : undefined
                                     }
                                     onSelect={(picked) =>
                                         showView({
@@ -417,7 +419,9 @@ const ProviderDrawer = ({
                                     onSelectPair={(pair) => showView({level: "subscription", pair})}
                                     hostedCards={
                                         <>
-                                            <SubscriptionConnectionCard connection={chatgptConnection} />
+                                            <SubscriptionConnectionCard
+                                                connection={chatgptConnection}
+                                            />
                                             <SubscriptionTokenCard connection={claudeConnection} />
                                         </>
                                     }

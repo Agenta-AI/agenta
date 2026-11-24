@@ -133,10 +133,7 @@ export const PlanOptionCard = ({
             <ul className="m-0 mb-4 flex flex-1 list-none flex-col gap-2 p-0">
                 {items.map((feature) => (
                     <li key={feature} className="flex gap-2 text-label">
-                        <Check
-                            size={14}
-                            className={cn("mt-0.5 shrink-0", muted)}
-                        />
+                        <Check size={14} className={cn("mt-0.5 shrink-0", muted)} />
                         {feature}
                     </li>
                 ))}

@@ -5,8 +5,7 @@ import {CaretRight} from "@phosphor-icons/react"
 
 const HEADING = "m-0 text-label font-medium text-muted-foreground"
 
-const FOCUS_RING =
-    "outline-none focus-ring"
+const FOCUS_RING = "outline-none focus-ring"
 
 const Count = ({count}: {count: number | null}) =>
     count === null ? null : (

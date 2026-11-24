@@ -59,7 +59,9 @@ export function OverlaysRow() {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Delete &ldquo;Weekly report&rdquo;?</DialogTitle>
-                        <DialogDescription>The agent and its 14 runs are deleted.</DialogDescription>
+                        <DialogDescription>
+                            The agent and its 14 runs are deleted.
+                        </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
                         <Button variant="ghost">Keep agent</Button>

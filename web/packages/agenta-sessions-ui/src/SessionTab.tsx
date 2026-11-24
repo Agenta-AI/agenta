@@ -105,9 +105,7 @@ export const SessionTab = ({
                 // "pressed/active" step, ink-tinted in light and translucent white in dark,
                 // clearly stronger than the whisper-of-fill hover an unselected tag gets, held
                 // at 90% so the chip sits a touch lighter on the canvas.
-                active
-                    ? "bg-selected/90 text-foreground"
-                    : "text-muted-foreground hover:bg-accent",
+                active ? "bg-selected/90 text-foreground" : "text-muted-foreground hover:bg-accent",
                 className,
             )}
         >

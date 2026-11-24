@@ -27,7 +27,8 @@ import {
 import {ScrollFadeDemo} from "../ScrollFadeDemo"
 import type {RuleExample} from "../types"
 
-const toastBox = "flex w-72 items-start gap-2 rounded-lg bg-popover p-3 text-left text-label shadow-overlay"
+const toastBox =
+    "flex w-72 items-start gap-2 rounded-lg bg-popover p-3 text-left text-label shadow-overlay"
 const th = "h-9 px-3 text-left text-meta text-muted-foreground"
 const td = "h-9 px-3 text-label"
 const RUNS = [
@@ -61,8 +62,12 @@ export const tabsRules: RuleExample[] = [
             example: (
                 <Tabs defaultValue="a">
                     <TabsList variant="track">
-                        <TabsTrigger value="a"><RobotIcon /> Agent Runs</TabsTrigger>
-                        <TabsTrigger value="b"><GearIcon /> Agent Settings</TabsTrigger>
+                        <TabsTrigger value="a">
+                            <RobotIcon /> Agent Runs
+                        </TabsTrigger>
+                        <TabsTrigger value="b">
+                            <GearIcon /> Agent Settings
+                        </TabsTrigger>
                         <TabsTrigger value="c">Create New</TabsTrigger>
                     </TabsList>
                 </Tabs>
@@ -79,10 +84,14 @@ export const tooltipRules: RuleExample[] = [
             example: (
                 <div className="flex gap-1">
                     <SimpleTooltip title="Copy" shortcut={["⌘", "C"]}>
-                        <Button variant="ghost" size="icon" aria-label="Copy"><CopyIcon /></Button>
+                        <Button variant="ghost" size="icon" aria-label="Copy">
+                            <CopyIcon />
+                        </Button>
                     </SimpleTooltip>
                     <SimpleTooltip title="Retry">
-                        <Button variant="ghost" size="icon" aria-label="Retry"><ArrowClockwiseIcon /></Button>
+                        <Button variant="ghost" size="icon" aria-label="Retry">
+                            <ArrowClockwiseIcon />
+                        </Button>
                     </SimpleTooltip>
                 </div>
             ),
@@ -95,9 +104,13 @@ export const tooltipRules: RuleExample[] = [
             example: (
                 <div className="flex gap-1">
                     <SimpleTooltip title="Click this button to copy the full contents of the message to your clipboard so you can paste it elsewhere.">
-                        <Button variant="ghost" size="icon" aria-label="Copy"><CopyIcon /></Button>
+                        <Button variant="ghost" size="icon" aria-label="Copy">
+                            <CopyIcon />
+                        </Button>
                     </SimpleTooltip>
-                    <Button variant="ghost" size="icon" aria-label="Retry"><ArrowClockwiseIcon /></Button>
+                    <Button variant="ghost" size="icon" aria-label="Retry">
+                        <ArrowClockwiseIcon />
+                    </Button>
                 </div>
             ),
             caption: "A paragraph in one tooltip, none on the other.",
@@ -113,7 +126,9 @@ export const toastRules: RuleExample[] = [
                 <div className={toastBox}>
                     <CheckCircleIcon className="mt-0.5 text-success" />
                     <div className="flex-1">Connection removed</div>
-                    <Button variant="ghost" size="xs">Undo</Button>
+                    <Button variant="ghost" size="xs">
+                        Undo
+                    </Button>
                 </div>
             ),
             caption: "Past tense, with Undo.",
@@ -127,8 +142,12 @@ message.success("Connection removed")`,
                     <div className="flex-1">
                         Are you sure you want to remove this connection?
                         <div className="mt-2 flex gap-1">
-                            <Button variant="ghost" size="xs">No</Button>
-                            <Button variant="destructive" size="xs">Yes</Button>
+                            <Button variant="ghost" size="xs">
+                                No
+                            </Button>
+                            <Button variant="destructive" size="xs">
+                                Yes
+                            </Button>
                         </div>
                     </div>
                 </div>
@@ -155,7 +174,11 @@ export const tableRules: RuleExample[] = [
                         {RUNS.map((r) => (
                             <tr key={r.name} className="border-b border-border-muted">
                                 <td className={td}>{r.name}</td>
-                                <td className={`${td} ${r.status === "Failed" ? "text-destructive" : "text-muted-foreground"}`}>{r.status}</td>
+                                <td
+                                    className={`${td} ${r.status === "Failed" ? "text-destructive" : "text-muted-foreground"}`}
+                                >
+                                    {r.status}
+                                </td>
                                 <td className={`${td} text-right tabular-nums`}>{r.cost}</td>
                             </tr>
                         ))}
@@ -174,13 +197,26 @@ export const tableRules: RuleExample[] = [
                     <thead>
                         <tr style={{background: "#242424", color: "#fff"}}>
                             {["RUN", "STATUS", "COST"].map((h) => (
-                                <th key={h} style={{border: "1px solid #999", padding: 6, fontSize: 11, textAlign: "left"}}>{h}</th>
+                                <th
+                                    key={h}
+                                    style={{
+                                        border: "1px solid #999",
+                                        padding: 6,
+                                        fontSize: 11,
+                                        textAlign: "left",
+                                    }}
+                                >
+                                    {h}
+                                </th>
                             ))}
                         </tr>
                     </thead>
                     <tbody>
                         {RUNS.map((r, i) => (
-                            <tr key={r.name} style={{background: i % 2 ? "rgba(0,0,0,0.06)" : undefined}}>
+                            <tr
+                                key={r.name}
+                                style={{background: i % 2 ? "rgba(0,0,0,0.06)" : undefined}}
+                            >
                                 <td style={{border: "1px solid #999", padding: 6}}>{r.name}</td>
                                 <td style={{border: "1px solid #999", padding: 6}}>{r.status}</td>
                                 <td style={{border: "1px solid #999", padding: 6}}>{r.cost}</td>
@@ -202,7 +238,9 @@ export const codeRules: RuleExample[] = [
                 <div className="w-72 overflow-hidden rounded-lg border border-border bg-background text-left">
                     <div className="flex items-center justify-between border-b border-border bg-muted py-1 pr-1 pl-3 text-meta text-muted-foreground">
                         curl
-                        <Button variant="ghost" size="icon-xs" aria-label="Copy"><CopyIcon /></Button>
+                        <Button variant="ghost" size="icon-xs" aria-label="Copy">
+                            <CopyIcon />
+                        </Button>
                     </div>
                     <pre className="m-0 overflow-x-auto p-3 text-code">{`curl $AGENTA_URL/api/runs \\\n  -H "Authorization: ApiKey $KEY"`}</pre>
                 </div>
@@ -214,8 +252,14 @@ export const codeRules: RuleExample[] = [
         },
         avoid: {
             example: (
-                <div className="w-64 rounded-md p-3 text-left" style={{background: "#0b0b0b", color: "#7dd3fc"}}>
-                    <pre className="m-0" style={{fontSize: 12}}>{`1  curl https://cloud.agenta.ai/api/runs \\\n2    -H "Authorization: ApiKey $KEY"`}</pre>
+                <div
+                    className="w-64 rounded-md p-3 text-left"
+                    style={{background: "#0b0b0b", color: "#7dd3fc"}}
+                >
+                    <pre
+                        className="m-0"
+                        style={{fontSize: 12}}
+                    >{`1  curl https://cloud.agenta.ai/api/runs \\\n2    -H "Authorization: ApiKey $KEY"`}</pre>
                 </div>
             ),
             caption: "A black slab with line numbers and no copy.",
@@ -233,11 +277,17 @@ export const commandRules: RuleExample[] = [
                     <CommandList>
                         <CommandEmpty>No commands match.</CommandEmpty>
                         <CommandGroup heading="Agents">
-                            <CommandItem><PlusIcon /> New agent<CommandShortcut>⌘N</CommandShortcut></CommandItem>
-                            <CommandItem><RobotIcon /> Open Weekly report</CommandItem>
+                            <CommandItem>
+                                <PlusIcon /> New agent<CommandShortcut>⌘N</CommandShortcut>
+                            </CommandItem>
+                            <CommandItem>
+                                <RobotIcon /> Open Weekly report
+                            </CommandItem>
                         </CommandGroup>
                         <CommandGroup heading="Settings">
-                            <CommandItem><GearIcon /> Open settings<CommandShortcut>⌘,</CommandShortcut></CommandItem>
+                            <CommandItem>
+                                <GearIcon /> Open settings<CommandShortcut>⌘,</CommandShortcut>
+                            </CommandItem>
                         </CommandGroup>
                     </CommandList>
                 </Command>
@@ -262,7 +312,9 @@ export const commandRules: RuleExample[] = [
                         <CommandGroup>
                             <CommandItem>Agent</CommandItem>
                             <CommandItem>Settings Page</CommandItem>
-                            <CommandItem><TrashIcon /> Delete All Data</CommandItem>
+                            <CommandItem>
+                                <TrashIcon /> Delete All Data
+                            </CommandItem>
                         </CommandGroup>
                     </CommandList>
                 </Command>
@@ -280,8 +332,12 @@ export const composerRules: RuleExample[] = [
                 <div className="w-72 rounded-xl bg-background p-2 text-left shadow-[inset_0_0_0_1px_var(--border)]">
                     <div className="min-h-10 px-1 text-body">Summarize the runs of this week</div>
                     <div className="flex items-center justify-between">
-                        <Button variant="ghost" size="icon-sm" aria-label="Attach"><PaperclipIcon /></Button>
-                        <Button size="icon-sm" aria-label="Send"><ArrowUpIcon /></Button>
+                        <Button variant="ghost" size="icon-sm" aria-label="Attach">
+                            <PaperclipIcon />
+                        </Button>
+                        <Button size="icon-sm" aria-label="Send">
+                            <ArrowUpIcon />
+                        </Button>
                     </div>
                 </div>
             ),
@@ -293,9 +349,25 @@ export const composerRules: RuleExample[] = [
         avoid: {
             example: (
                 <div className="flex w-72 items-center gap-1">
-                    <Button variant="outline" size="icon" aria-label="Attach"><PaperclipIcon /></Button>
-                    <div className="flex-1 rounded-md border border-border px-2 py-1.5 text-body text-muted-foreground">Message</div>
-                    <button type="button" style={{background: "#2563eb", color: "#fff", border: 0, borderRadius: 999, padding: "6px 14px", fontWeight: 700}}>SEND</button>
+                    <Button variant="outline" size="icon" aria-label="Attach">
+                        <PaperclipIcon />
+                    </Button>
+                    <div className="flex-1 rounded-md border border-border px-2 py-1.5 text-body text-muted-foreground">
+                        Message
+                    </div>
+                    <button
+                        type="button"
+                        style={{
+                            background: "#2563eb",
+                            color: "#fff",
+                            border: 0,
+                            borderRadius: 999,
+                            padding: "6px 14px",
+                            fontWeight: 700,
+                        }}
+                    >
+                        SEND
+                    </button>
                 </div>
             ),
             caption: "Three loose controls and a loud pill button.",
@@ -309,13 +381,19 @@ export const chatRules: RuleExample[] = [
         do: {
             example: (
                 <div className="flex w-72 flex-col gap-3 text-left">
-                    <div className="self-end rounded-lg bg-secondary px-3 py-2 text-body">Summarize this week</div>
+                    <div className="self-end rounded-lg bg-secondary px-3 py-2 text-body">
+                        Summarize this week
+                    </div>
                     <div>
                         <div className="text-body">
                             Three agents ran 128 times. Two runs failed on the Slack connection.
                             <div className="mt-1 flex gap-1 text-muted-foreground">
-                                <Button variant="ghost" size="icon-sm" aria-label="Copy"><CopyIcon /></Button>
-                                <Button variant="ghost" size="icon-sm" aria-label="Retry"><ArrowClockwiseIcon /></Button>
+                                <Button variant="ghost" size="icon-sm" aria-label="Copy">
+                                    <CopyIcon />
+                                </Button>
+                                <Button variant="ghost" size="icon-sm" aria-label="Retry">
+                                    <ArrowClockwiseIcon />
+                                </Button>
                             </div>
                         </div>
                     </div>
@@ -326,8 +404,21 @@ export const chatRules: RuleExample[] = [
         avoid: {
             example: (
                 <div className="flex w-72 flex-col gap-3 text-left">
-                    <div className="self-end px-3 py-2 text-body" style={{background: "#2563eb", color: "#fff", borderRadius: 18}}>Summarize this week</div>
-                    <div className="self-start px-3 py-2 text-body" style={{background: "#e5e7eb", color: "#111", borderRadius: 18, maxWidth: "80%"}}>
+                    <div
+                        className="self-end px-3 py-2 text-body"
+                        style={{background: "#2563eb", color: "#fff", borderRadius: 18}}
+                    >
+                        Summarize this week
+                    </div>
+                    <div
+                        className="self-start px-3 py-2 text-body"
+                        style={{
+                            background: "#e5e7eb",
+                            color: "#111",
+                            borderRadius: 18,
+                            maxWidth: "80%",
+                        }}
+                    >
                         Three agents ran 128 times. Two runs failed on the Slack connection.
                     </div>
                 </div>
@@ -373,7 +464,9 @@ export const spacingRules: RuleExample[] = [
             example: (
                 <div className="w-56 text-left">
                     {["Agents", "Automations", "Connections"].map((r) => (
-                        <div key={r} className="flex h-9 items-center px-2 text-label">{r}</div>
+                        <div key={r} className="flex h-9 items-center px-2 text-label">
+                            {r}
+                        </div>
                     ))}
                 </div>
             ),
@@ -383,7 +476,13 @@ export const spacingRules: RuleExample[] = [
             example: (
                 <div className="w-56 text-left">
                     {[30, 44, 38].map((h, i) => (
-                        <div key={h} className="flex items-center px-2 text-label" style={{height: h}}>{["Agents", "Automations", "Connections"][i]}</div>
+                        <div
+                            key={h}
+                            className="flex items-center px-2 text-label"
+                            style={{height: h}}
+                        >
+                            {["Agents", "Automations", "Connections"][i]}
+                        </div>
                     ))}
                 </div>
             ),
@@ -397,12 +496,16 @@ export const scrollRules: RuleExample[] = [
         id: "LAYOUT-05",
         do: {
             example: <ScrollFadeDemo mode="edges" />,
-            caption: "At the top only the bottom edge fades. Scroll down and the top edge fades too.",
+            caption:
+                "At the top only the bottom edge fades. Scroll down and the top edge fades too.",
             code: `const ref = useRef<HTMLDivElement>(null)
 useScrollFadeEdges(ref)
 
 <div ref={ref} className="ag-scroll-fade overflow-y-auto">…</div>`,
         },
-        avoid: {example: <ScrollFadeDemo mode="always" />, caption: "Both edges always fade: the first row looks cut off."},
+        avoid: {
+            example: <ScrollFadeDemo mode="always" />,
+            caption: "Both edges always fade: the first row looks cut off.",
+        },
     },
 ]

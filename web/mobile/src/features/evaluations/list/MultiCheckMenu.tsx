@@ -52,12 +52,11 @@ export const MultiCheckMenu = ({
                         <CaretDownIcon aria-hidden size={12} className="shrink-0" />
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent
-                    align="start"
-                    className="max-h-70 min-w-50 overflow-y-auto"
-                >
+                <DropdownMenuContent align="start" className="max-h-70 min-w-50 overflow-y-auto">
                     {options.length === 0 ? (
-                        <p className="m-0 px-2 py-1.5 text-body text-muted-foreground">No options</p>
+                        <p className="m-0 px-2 py-1.5 text-body text-muted-foreground">
+                            No options
+                        </p>
                     ) : (
                         options.map((option) => (
                             <DropdownMenuCheckboxItem

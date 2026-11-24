@@ -57,12 +57,7 @@ export const BottomSheet = ({
                     aria-hidden
                     className="mx-auto mb-2.5 h-[5px] w-9 shrink-0 rounded-sm bg-border"
                 />
-                <SheetTitle
-                    className={cn(
-                        "px-4 pb-2 pt-1 text-title",
-                        !showTitle && "sr-only",
-                    )}
-                >
+                <SheetTitle className={cn("px-4 pb-2 pt-1 text-title", !showTitle && "sr-only")}>
                     {title}
                 </SheetTitle>
                 <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>

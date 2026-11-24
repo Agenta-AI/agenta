@@ -34,12 +34,7 @@ export const RunRowMenu = ({run, actions}: {run: EvaluationRun; actions: RunRowA
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button
-                    type="button"
-                    size="icon-xs"
-                    variant="ghost"
-                    aria-label="Run actions"
-                >
+                <Button type="button" size="icon-xs" variant="ghost" aria-label="Run actions">
                     <DotsThreeVertical aria-hidden className="size-3.5" />
                 </Button>
             </DropdownMenuTrigger>

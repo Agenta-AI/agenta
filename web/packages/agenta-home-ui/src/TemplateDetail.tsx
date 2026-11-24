@@ -28,11 +28,7 @@ import {
 import {useT} from "@agenta/i18n"
 import detailCatalog from "@agenta/i18n/catalogs/home.templateDetail"
 import {pageContentWidthClass, pageGutterClass} from "@agenta/ui/components/page-width"
-import {
-    FilterRailLayout,
-    LoadError,
-    Tag,
-} from "@agenta/ui/components/presentational"
+import {FilterRailLayout, LoadError, Tag} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {EmptyState, LoadingButton, SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
 import {ArrowLeftIcon, ArrowRightIcon, CheckCircleIcon, LightningIcon} from "@phosphor-icons/react"
@@ -66,9 +62,7 @@ export interface TemplateDetailProps {
 }
 
 const SectionLabel = ({children}: {children: ReactNode}) => (
-    <h2 className="m-0 text-label text-muted-foreground">
-        {children}
-    </h2>
+    <h2 className="m-0 text-label text-muted-foreground">{children}</h2>
 )
 
 /** One boxed row — a connection, or the trigger. Label left, its scope truncated right. */
@@ -271,10 +265,7 @@ export const TemplateDetail = ({
                                     key={step}
                                     className="flex items-center gap-2 text-body text-muted-foreground"
                                 >
-                                    <CheckCircleIcon
-                                        size={14}
-                                        className="shrink-0 text-success"
-                                    />
+                                    <CheckCircleIcon size={14} className="shrink-0 text-success" />
                                     {step}
                                 </li>
                             ))}

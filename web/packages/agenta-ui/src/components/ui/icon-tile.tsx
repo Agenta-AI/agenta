@@ -44,7 +44,13 @@ export interface IconTileProps
     children?: React.ReactNode
 }
 
-export function IconTile({className, size = 24, tone = "neutral", children, ...props}: IconTileProps) {
+export function IconTile({
+    className,
+    size = 24,
+    tone = "neutral",
+    children,
+    ...props
+}: IconTileProps) {
     return (
         <span
             data-slot="icon-tile"

@@ -5,7 +5,9 @@ import {ArchiveIcon, MagnifyingGlassIcon} from "@phosphor-icons/react"
 export const ArchivedAppsEmpty = ({term, onClear}: {term?: string; onClear?: () => void}) => (
     <Empty className="py-14">
         <EmptyHeader>
-            <EmptyMedia variant="icon">{term ? <MagnifyingGlassIcon /> : <ArchiveIcon />}</EmptyMedia>
+            <EmptyMedia variant="icon">
+                {term ? <MagnifyingGlassIcon /> : <ArchiveIcon />}
+            </EmptyMedia>
             <EmptyTitle>
                 {term ? `No archived prompts match “${term}”` : "No archived prompts"}
             </EmptyTitle>

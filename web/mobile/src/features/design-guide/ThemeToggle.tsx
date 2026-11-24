@@ -5,7 +5,11 @@ interface ThemeToggleProps {
 
 export function ThemeToggle({mode, onChange}: ThemeToggleProps) {
     return (
-        <div role="group" aria-label="Mode" className="inline-flex gap-0.5 rounded-[var(--radius-md)] bg-secondary p-0.5">
+        <div
+            role="group"
+            aria-label="Mode"
+            className="inline-flex gap-0.5 rounded-[var(--radius-md)] bg-secondary p-0.5"
+        >
             {(["light", "dark"] as const).map((m) => (
                 <button
                     key={m}

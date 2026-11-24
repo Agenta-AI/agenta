@@ -122,9 +122,7 @@ function ChangedDetail({
             </div>
             <div
                 className={`max-h-28 overflow-auto whitespace-pre-wrap break-words rounded border border-solid border-border-muted bg-secondary px-2 py-1 text-meta ${
-                    muted
-                        ? "italic text-muted-foreground"
-                        : "font-mono text-foreground"
+                    muted ? "italic text-muted-foreground" : "font-mono text-foreground"
                 }`}
             >
                 {text}
@@ -176,11 +174,7 @@ export function RailField({label, align = "top", path, wide, children}: RailFiel
         return (
             <div className="flex flex-col gap-1.5">
                 <span
-                    className={`text-meta ${
-                        changed
-                            ? "text-foreground"
-                            : "text-muted-foreground"
-                    }`}
+                    className={`text-meta ${changed ? "text-foreground" : "text-muted-foreground"}`}
                 >
                     {labelNode}
                 </span>

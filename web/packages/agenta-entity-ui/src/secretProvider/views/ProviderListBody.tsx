@@ -90,9 +90,7 @@ const Row = ({
         {/* A phone has no width for a tag beside the name and the action, so the tag drops to
             a second line under the name. */}
         <span className="flex min-w-0 flex-1 items-center gap-3 max-md:flex-col max-md:items-start max-md:gap-0.5">
-            <span className="max-w-full truncate text-label leading-5 text-foreground">
-                {name}
-            </span>
+            <span className="max-w-full truncate text-label leading-5 text-foreground">{name}</span>
             <span className="flex min-w-0 flex-1 items-center gap-1.5 max-md:flex-none max-md:empty:hidden">
                 {tag ? <RowTag>{tag}</RowTag> : null}
                 {state ? <RowTag warn>{state}</RowTag> : null}
@@ -106,11 +104,7 @@ const Row = ({
         >
             {action.label}
         </Button>
-        {menu ? (
-            <span className="flex shrink-0">
-                {menu}
-            </span>
-        ) : null}
+        {menu ? <span className="flex shrink-0">{menu}</span> : null}
     </li>
 )
 

@@ -3,7 +3,13 @@ import * as React from "react"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {cva, type VariantProps} from "class-variance-authority"
-import {CheckCircleIcon, InfoIcon, WarningCircleIcon, WarningIcon, XIcon} from "@phosphor-icons/react"
+import {
+    CheckCircleIcon,
+    InfoIcon,
+    WarningCircleIcon,
+    WarningIcon,
+    XIcon,
+} from "@phosphor-icons/react"
 
 import {cn} from "./utils"
 

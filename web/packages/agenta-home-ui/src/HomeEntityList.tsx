@@ -84,7 +84,11 @@ const Row = ({
 }) => {
     const t = useT(entityListCatalog)
     return (
-        <button type="button" onClick={onClick} className={`${ROW} ${selected ? "bg-selected" : ""}`}>
+        <button
+            type="button"
+            onClick={onClick}
+            className={`${ROW} ${selected ? "bg-selected" : ""}`}
+        >
             {tile}
             {/* The description line renders even when empty, so rows keep one height and the column
             does not comb. */}

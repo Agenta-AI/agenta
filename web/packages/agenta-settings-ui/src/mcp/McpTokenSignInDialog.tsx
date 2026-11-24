@@ -73,9 +73,7 @@ export const McpTokenSignInDialog = ({
                         void submit()
                     }}
                 >
-                    <span className="text-label text-foreground">
-                        {t("settings.mcp.token")}
-                    </span>
+                    <span className="text-label text-foreground">{t("settings.mcp.token")}</span>
                     <PasswordInput
                         autoFocus
                         autoComplete="off"

@@ -13,8 +13,10 @@ import {
 
 import type {RuleExample} from "../types"
 
-const card = "w-full max-w-64 rounded-lg bg-background p-3 text-left shadow-[inset_0_0_0_1px_var(--border-muted)]"
-const frame = "flex w-52 flex-col overflow-hidden rounded-lg bg-background text-left shadow-[inset_0_0_0_1px_var(--border-muted)]"
+const card =
+    "w-full max-w-64 rounded-lg bg-background p-3 text-left shadow-[inset_0_0_0_1px_var(--border-muted)]"
+const frame =
+    "flex w-52 flex-col overflow-hidden rounded-lg bg-background text-left shadow-[inset_0_0_0_1px_var(--border-muted)]"
 const tip = "rounded-sm bg-foreground px-2 py-1 text-caption text-background shadow-overlay"
 
 export const moreTypeExamples: RuleExample[] = [
@@ -24,7 +26,9 @@ export const moreTypeExamples: RuleExample[] = [
             example: (
                 <div className={card}>
                     <div className="text-label text-foreground">Weekly report</div>
-                    <div className="text-meta text-muted-foreground">Runs every Monday · 2 min ago</div>
+                    <div className="text-meta text-muted-foreground">
+                        Runs every Monday · 2 min ago
+                    </div>
                 </div>
             ),
             caption: "The name is weight 500 in foreground; the meta is muted.",
@@ -33,7 +37,9 @@ export const moreTypeExamples: RuleExample[] = [
             example: (
                 <div className={card}>
                     <div className="text-title">Weekly report</div>
-                    <div className="text-meta text-muted-foreground">Runs every Monday · 2 min ago</div>
+                    <div className="text-meta text-muted-foreground">
+                        Runs every Monday · 2 min ago
+                    </div>
                 </div>
             ),
             caption: "The name grows to 16px to look important, and the row gets taller.",
@@ -45,12 +51,20 @@ export const moreColorExamples: RuleExample[] = [
     {
         id: "COLOR-04",
         do: {
-            example: <div className="rounded-lg bg-popover px-3 py-2 text-label shadow-overlay">bg-popover</div>,
+            example: (
+                <div className="rounded-lg bg-popover px-3 py-2 text-label shadow-overlay">
+                    bg-popover
+                </div>
+            ),
             caption: "One variable; its value changes with the theme.",
             code: `<div className="bg-popover" />`,
         },
         avoid: {
-            example: <div className="rounded-lg bg-background px-3 py-2 text-code-sm shadow-overlay">.dark .menu {"{ background: #222 }"}</div>,
+            example: (
+                <div className="rounded-lg bg-background px-3 py-2 text-code-sm shadow-overlay">
+                    .dark .menu {"{ background: #222 }"}
+                </div>
+            ),
             caption: "A component that picks its own dark color drifts from the theme.",
         },
     },
@@ -104,7 +118,9 @@ export const moreSurfaceExamples: RuleExample[] = [
             example: (
                 <div className="w-56 rounded-lg bg-background shadow-[inset_0_0_0_1px_var(--border)]">
                     <div className="px-3 py-2 text-label">Model</div>
-                    <div className="border-0 border-t border-solid border-border-muted px-3 py-2 text-label">Tools</div>
+                    <div className="border-0 border-t border-solid border-border-muted px-3 py-2 text-label">
+                        Tools
+                    </div>
                 </div>
             ),
             caption: "One border, one divider inside.",
@@ -112,8 +128,12 @@ export const moreSurfaceExamples: RuleExample[] = [
         avoid: {
             example: (
                 <div className="flex w-56 flex-col">
-                    <div className="rounded-t-lg border border-solid border-border px-3 py-2 text-label">Model</div>
-                    <div className="rounded-b-lg border border-solid border-border px-3 py-2 text-label">Tools</div>
+                    <div className="rounded-t-lg border border-solid border-border px-3 py-2 text-label">
+                        Model
+                    </div>
+                    <div className="rounded-b-lg border border-solid border-border px-3 py-2 text-label">
+                        Tools
+                    </div>
                 </div>
             ),
             caption: "Two bordered boxes stacked: a 2px seam between them.",
@@ -122,12 +142,18 @@ export const moreSurfaceExamples: RuleExample[] = [
     {
         id: "SURF-04",
         do: {
-            example: <div className={`${card} cursor-pointer transition-colors hover:bg-accent`}>Hover me: the fill darkens one step</div>,
+            example: (
+                <div className={`${card} cursor-pointer transition-colors hover:bg-accent`}>
+                    Hover me: the fill darkens one step
+                </div>
+            ),
             caption: "Hover the card: only the fill changes.",
         },
         avoid: {
             example: (
-                <div className={`${card} cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-modal`}>
+                <div
+                    className={`${card} cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-modal`}
+                >
                     Hover me: the card lifts
                 </div>
             ),
@@ -171,7 +197,10 @@ export const moreFormExamples: RuleExample[] = [
             example: (
                 <div className={card}>
                     <div className="mb-2 text-label">Rename agent</div>
-                    <Input defaultValue="Weekly report" className="border-foreground outline outline-2 outline-ring" />
+                    <Input
+                        defaultValue="Weekly report"
+                        className="border-foreground outline outline-2 outline-ring"
+                    />
                 </div>
             ),
             caption: "The dialog opens with the field focused; the user types at once.",
@@ -219,7 +248,8 @@ export const moreLayoutExamples: RuleExample[] = [
                     </div>
                 </div>
             ),
-            caption: "The icon on the Mark's left edge: the Mark looks off and the texts do not line up.",
+            caption:
+                "The icon on the Mark's left edge: the Mark looks off and the texts do not line up.",
         },
     },
     {
@@ -228,7 +258,9 @@ export const moreLayoutExamples: RuleExample[] = [
             example: (
                 <div className="h-28 w-48 overflow-y-auto rounded-lg bg-background p-2 text-label shadow-[inset_0_0_0_1px_var(--border-muted)]">
                     {Array.from({length: 8}, (_, i) => (
-                        <div key={i} className="py-1">Run {i + 1}</div>
+                        <div key={i} className="py-1">
+                            Run {i + 1}
+                        </div>
                     ))}
                 </div>
             ),
@@ -240,7 +272,9 @@ export const moreLayoutExamples: RuleExample[] = [
                     <div className="py-1">Runs</div>
                     <div className="h-16 overflow-y-auto rounded-md bg-muted px-2">
                         {Array.from({length: 8}, (_, i) => (
-                            <div key={i} className="py-1">Run {i + 1}</div>
+                            <div key={i} className="py-1">
+                                Run {i + 1}
+                            </div>
                         ))}
                     </div>
                     <div className="py-1">Settings</div>
@@ -256,7 +290,10 @@ export const moreLayoutExamples: RuleExample[] = [
             example: (
                 <div className="flex gap-2">
                     {["Agents", "Skills"].map((t) => (
-                        <div key={t} className="w-24 rounded-md bg-background p-2 shadow-[inset_0_0_0_1px_var(--border-muted)]">
+                        <div
+                            key={t}
+                            className="w-24 rounded-md bg-background p-2 shadow-[inset_0_0_0_1px_var(--border-muted)]"
+                        >
                             <div className="h-4" />
                             <div className="text-label">{t}</div>
                         </div>
@@ -287,7 +324,9 @@ export const moreLayoutExamples: RuleExample[] = [
             example: (
                 <div className="flex h-24 w-64 overflow-hidden rounded-lg bg-background outline outline-1 outline-border">
                     <div className="flex-1 p-2 text-label">Content</div>
-                    <div className="w-20 bg-muted p-2 text-meta text-muted-foreground">Right pane</div>
+                    <div className="w-20 bg-muted p-2 text-meta text-muted-foreground">
+                        Right pane
+                    </div>
                 </div>
             ),
             caption: "One right pane, from the layout, holding one thing.",
@@ -296,8 +335,12 @@ export const moreLayoutExamples: RuleExample[] = [
             example: (
                 <div className="flex h-24 w-64 overflow-hidden rounded-lg bg-background outline outline-1 outline-border">
                     <div className="flex-1 p-2 text-label">Content</div>
-                    <div className="w-16 border-0 border-l border-solid border-border p-2 text-meta text-muted-foreground">Page panel</div>
-                    <div className="w-16 bg-muted p-2 text-meta text-muted-foreground">Right pane</div>
+                    <div className="w-16 border-0 border-l border-solid border-border p-2 text-meta text-muted-foreground">
+                        Page panel
+                    </div>
+                    <div className="w-16 bg-muted p-2 text-meta text-muted-foreground">
+                        Right pane
+                    </div>
                 </div>
             ),
             caption: "A page draws its own panel next to the right pane; the content is squeezed.",
@@ -348,7 +391,9 @@ export const moreCompactExamples: RuleExample[] = [
                 <div className={`${frame} h-40 justify-end bg-overlay`}>
                     <div className="rounded-t-lg bg-popover p-1 shadow-modal">
                         {["Rename", "Duplicate"].map((t) => (
-                            <div key={t} className="flex h-8 items-center px-2 text-label">{t}</div>
+                            <div key={t} className="flex h-8 items-center px-2 text-label">
+                                {t}
+                            </div>
                         ))}
                     </div>
                 </div>
@@ -360,7 +405,9 @@ export const moreCompactExamples: RuleExample[] = [
                 <div className={`${frame} h-40 items-end p-2`}>
                     <div className="w-32 rounded-lg bg-popover p-1 shadow-overlay">
                         {["Rename", "Duplicate"].map((t) => (
-                            <div key={t} className="flex h-8 items-center px-2 text-label">{t}</div>
+                            <div key={t} className="flex h-8 items-center px-2 text-label">
+                                {t}
+                            </div>
                         ))}
                     </div>
                 </div>
@@ -376,7 +423,8 @@ export const moreCompactExamples: RuleExample[] = [
         },
         avoid: {
             example: <code className="text-code-sm">h-screen /* 100vh */</code>,
-            caption: "100vh is taller than the visible area: the bottom bar hides under the browser bar.",
+            caption:
+                "100vh is taller than the visible area: the bottom bar hides under the browser bar.",
         },
     },
 ]
@@ -389,7 +437,9 @@ export const moreTooltipExamples: RuleExample[] = [
                 <div className="relative mr-30 w-56">
                     <div className="mb-1 text-label">Schedule</div>
                     <Input placeholder="Every Monday" />
-                    <div className={`${tip} absolute left-[calc(100%+8px)] top-0 w-28`}>When the automation runs</div>
+                    <div className={`${tip} absolute left-[calc(100%+8px)] top-0 w-28`}>
+                        When the automation runs
+                    </div>
                 </div>
             ),
             caption: "The tooltip opens to the side; the field stays free.",
@@ -415,7 +465,10 @@ export const moreMarkExamples: RuleExample[] = [
                 <div className="flex flex-col gap-2">
                     {["List", "Picker"].map((place) => (
                         <span key={place} className="inline-flex items-center gap-2 text-label">
-                            <IconTile size={24}><RobotIcon /></IconTile> Weekly report
+                            <IconTile size={24}>
+                                <RobotIcon />
+                            </IconTile>{" "}
+                            Weekly report
                             <Badge>{place}</Badge>
                         </span>
                     ))}
@@ -427,7 +480,10 @@ export const moreMarkExamples: RuleExample[] = [
             example: (
                 <div className="flex flex-col gap-2">
                     <span className="inline-flex items-center gap-2 text-label">
-                        <IconTile size={24}><RobotIcon /></IconTile> Weekly report <Badge>List</Badge>
+                        <IconTile size={24}>
+                            <RobotIcon />
+                        </IconTile>{" "}
+                        Weekly report <Badge>List</Badge>
                     </span>
                     <span className="inline-flex items-center gap-2 text-label">
                         <IconTile size={24}>W</IconTile> weekly-report <Badge>Picker</Badge>
@@ -457,7 +513,8 @@ export const moreKitExamples: RuleExample[] = [
                     <GearIcon /> Settings
                 </div>
             ),
-            caption: "A div styled as a button: no focus, its own size, and it drifts on the next kit change.",
+            caption:
+                "A div styled as a button: no focus, its own size, and it drifts on the next kit change.",
         },
     },
 ]

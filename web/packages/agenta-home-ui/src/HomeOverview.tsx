@@ -92,9 +92,7 @@ export const HomeOverview = ({
                         generates no `--ant-*` vars at all. Below `sm` it drops to the 16px body
                         ramp, like every other page title on a phone — classes rather than the
                         old inline style, which no breakpoint can override. */}
-                        <h1 className="m-0 text-foreground text-heading">
-                            {title}
-                        </h1>
+                        <h1 className="m-0 text-foreground text-heading">{title}</h1>
                         {action}
                     </div>
 

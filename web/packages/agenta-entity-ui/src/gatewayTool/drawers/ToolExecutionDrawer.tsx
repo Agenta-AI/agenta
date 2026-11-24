@@ -79,16 +79,18 @@ export default function ToolExecutionDrawer() {
                 if (!next) handleClose()
             }}
         >
-            <SheetContent
-                side="right"
-                style={{width: 640, maxWidth: "calc(100% - 1rem)"}}
-            >
+            <SheetContent side="right" style={{width: 640, maxWidth: "calc(100% - 1rem)"}}>
                 <SheetHeader>
                     {/* The integration's mark heads the drawer, as in the connect dialog. */}
                     <SheetTitle className="min-w-0">
                         <span className="flex min-w-0 items-center gap-3">
-                            <LogoTile logo={integrationLogo ?? undefined} name={integrationName || ""} />
-                            <span className="truncate text-body font-medium">{integrationName}</span>
+                            <LogoTile
+                                logo={integrationLogo ?? undefined}
+                                name={integrationName || ""}
+                            />
+                            <span className="truncate text-body font-medium">
+                                {integrationName}
+                            </span>
                         </span>
                     </SheetTitle>
                 </SheetHeader>
@@ -163,7 +165,11 @@ function ActionRow({
                     </span>
                     {hint ? (
                         <Tag
-                            tone={hint === "entityUi.toolExecution.deletes" ? "destructive" : "default"}
+                            tone={
+                                hint === "entityUi.toolExecution.deletes"
+                                    ? "destructive"
+                                    : "default"
+                            }
                             className="shrink-0 text-meta"
                         >
                             {t(hint)}

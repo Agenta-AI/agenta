@@ -66,10 +66,12 @@ export const contrastPairs: [foreground: string, background: string, min: number
         [s, "background", 4.5],
         [s, "muted", 4.5],
     ]),
-    ...["keyword", "string", "number", "function", "property"].flatMap((c): [string, string, number][] => [
-        [`code-${c}`, "background", 4.5],
-        [`code-${c}`, "muted", 4.5],
-    ]),
+    ...["keyword", "string", "number", "function", "property"].flatMap(
+        (c): [string, string, number][] => [
+            [`code-${c}`, "background", 4.5],
+            [`code-${c}`, "muted", 4.5],
+        ],
+    ),
 ]
 
 /** Status text on its own 10% tint, over each ground a badge or banner sits on. */

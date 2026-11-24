@@ -761,11 +761,7 @@ const CardIndicator = ({checked, multiple}: {checked: boolean; multiple?: boolea
         aria-hidden
         className={`mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center border border-solid transition-colors ${
             multiple ? "rounded" : "rounded-sm"
-        } ${
-            checked
-                ? "border-primary bg-primary"
-                : "border-border-strong bg-background"
-        }`}
+        } ${checked ? "border-primary bg-primary" : "border-border-strong bg-background"}`}
     >
         {checked &&
             (multiple ? (

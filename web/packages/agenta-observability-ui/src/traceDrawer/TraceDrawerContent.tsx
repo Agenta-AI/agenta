@@ -87,9 +87,7 @@ const TraceDrawerContent = ({
             <div className="flex items-center gap-3 px-4 py-3 border-0 border-b border-solid border-border-muted">
                 {/* The panel is already as wide as the screen when stacked; widening does nothing. */}
                 {stacked ? null : (
-                    <SimpleTooltip
-                        title={isExpanded ? t("common.collapse") : t("common.expand")}
-                    >
+                    <SimpleTooltip title={isExpanded ? t("common.collapse") : t("common.expand")}>
                         <Button
                             onClick={onToggleWidth}
                             variant="ghost"

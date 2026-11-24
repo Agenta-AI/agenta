@@ -139,9 +139,7 @@ export const SettingsScreen = ({
                             <div className="border-border shrink-0 border-0 border-b border-solid px-2 pb-3 pt-2 lg:px-8">
                                 <ContentRail className="flex items-center gap-2 lg:max-w-none">
                                     <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                    <h1 className="m-0 text-title">
-                                        {t("common.settings")}
-                                    </h1>
+                                    <h1 className="m-0 text-title">{t("common.settings")}</h1>
                                 </ContentRail>
                             </div>
                         ) : (
@@ -156,9 +154,7 @@ export const SettingsScreen = ({
                                         projectId={projectId}
                                         scope={settingsScope}
                                     />
-                                    <h1 className="m-0 text-title">
-                                        {t("common.settings")}
-                                    </h1>
+                                    <h1 className="m-0 text-title">{t("common.settings")}</h1>
                                 </div>
                             </div>
                         )

@@ -272,9 +272,7 @@ export const ProductPreview = () => {
             <div className="flex min-w-0 flex-1 flex-col gap-6 overflow-hidden px-10 pt-10">
                 <div className="flex items-end justify-between gap-4">
                     <div className="flex flex-col gap-1.5">
-                        <h3 className="m-0 text-heading">
-                            {t("auth.productPreview.title")}
-                        </h3>
+                        <h3 className="m-0 text-heading">{t("auth.productPreview.title")}</h3>
                         <p className="auth-preview-muted m-0 text-body">
                             {t("auth.productPreview.subtitle")}
                         </p>

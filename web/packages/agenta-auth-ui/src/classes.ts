@@ -21,6 +21,5 @@ export const STATUS_TEXT_CLASS =
     "auth-rise m-0 flex items-center gap-2 text-label leading-5 text-muted-foreground"
 
 /** A step heading and the line under it. */
-export const HEADLINE_CLASS =
-    "auth-headline m-0 text-heading text-foreground"
+export const HEADLINE_CLASS = "auth-headline m-0 text-heading text-foreground"
 export const SUBLINE_CLASS = "m-0 text-body text-muted-foreground text-pretty"

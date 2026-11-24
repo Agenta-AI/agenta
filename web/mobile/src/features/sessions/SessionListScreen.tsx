@@ -273,9 +273,7 @@ const SessionListBody = ({
                 >
                     <div
                         className={
-                            lockedAgentId && !phone
-                                ? AGENT_SESSIONS_PAGE_COLUMN
-                                : LIST_PAGE_BODY
+                            lockedAgentId && !phone ? AGENT_SESSIONS_PAGE_COLUMN : LIST_PAGE_BODY
                         }
                     >
                         {projectEmpty ? (

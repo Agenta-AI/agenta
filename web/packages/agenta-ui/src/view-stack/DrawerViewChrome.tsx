@@ -53,7 +53,8 @@ export const DrawerViewChrome = ({
                                     title={crumb.title}
                                     className={cn(
                                         "truncate",
-                                        index === crumbs.length - 1 && "font-medium text-foreground",
+                                        index === crumbs.length - 1 &&
+                                            "font-medium text-foreground",
                                     )}
                                 >
                                     {crumb.title}

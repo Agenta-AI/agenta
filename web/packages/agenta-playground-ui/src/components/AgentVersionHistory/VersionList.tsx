@@ -33,9 +33,7 @@ const Pulse = ({width, tone}: {width: string; tone: "strong" | "faint"}) => (
     <div
         className={cn(
             "h-3 animate-pulse rounded-sm",
-            tone === "strong"
-                ? "bg-secondary"
-                : "h-2.5 bg-secondary",
+            tone === "strong" ? "bg-secondary" : "h-2.5 bg-secondary",
         )}
         style={{width}}
     />
@@ -102,9 +100,7 @@ export const VersionList = ({
                         key={row.id}
                         className={cn(
                             "mb-px flex items-center gap-1 rounded-md",
-                            row.id === selectedId
-                                ? "bg-secondary"
-                                : "hover:bg-accent",
+                            row.id === selectedId ? "bg-secondary" : "hover:bg-accent",
                         )}
                     >
                         <button
@@ -136,12 +132,7 @@ export const VersionList = ({
                                     {row.createdAt ? versionAge(row.createdAt) : ""}
                                 </span>
                             </span>
-                            <span
-                                className={cn(
-                                    "line-clamp-2 text-meta",
-                                    textColors.secondary,
-                                )}
-                            >
+                            <span className={cn("line-clamp-2 text-meta", textColors.secondary)}>
                                 {row.message || t("playground.versionHistory.noCommitMessage")}
                             </span>
                         </button>

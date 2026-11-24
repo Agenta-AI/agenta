@@ -62,11 +62,7 @@ export const SessionListLoadMore = ({
     const t = useT(sessionsListStatesCatalog)
     return (
         <div className="flex justify-center py-3">
-            <Button
-                variant="outline"
-                disabled={loading}
-                onClick={onClick}
-            >
+            <Button variant="outline" disabled={loading} onClick={onClick}>
                 {loading ? t("sessions.listStates.loadingMore") : t("sessions.listStates.loadMore")}
             </Button>
         </div>
@@ -76,8 +72,6 @@ export const SessionListLoadMore = ({
 /** A list group's heading. Plain (non-motion) so `sticky` is never fighting a transform. */
 export const SessionGroupHeader = ({label}: {label: string}) => (
     <div className="sticky top-0 z-20 bg-background pb-1 pt-4">
-        <p className="m-0 px-2 pt-1 text-meta text-muted-foreground">
-            {label}
-        </p>
+        <p className="m-0 px-2 pt-1 text-meta text-muted-foreground">{label}</p>
     </div>
 )

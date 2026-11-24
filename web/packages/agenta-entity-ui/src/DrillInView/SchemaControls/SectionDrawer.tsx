@@ -13,14 +13,7 @@ import {type ReactNode, useCallback, useState} from "react"
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {
-    Button,
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@agenta/ui/ui"
+import {Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 
 import {FormDrawerSkeleton} from "./DrawerSkeletons"
 import {SectionDrawerPanelContext} from "./sectionDrawerPanel"

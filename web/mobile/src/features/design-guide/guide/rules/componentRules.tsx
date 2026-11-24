@@ -1,4 +1,13 @@
-import {Alert, Badge, Button, EmptyState, Field, IconTile, Input, SkeletonBlock} from "@agenta/ui/ui"
+import {
+    Alert,
+    Badge,
+    Button,
+    EmptyState,
+    Field,
+    IconTile,
+    Input,
+    SkeletonBlock,
+} from "@agenta/ui/ui"
 import {ArrowClockwiseIcon, CopyIcon, PlusIcon, RobotIcon, TrashIcon} from "@phosphor-icons/react"
 
 import type {RuleExample} from "../types"
@@ -86,7 +95,9 @@ export const buttonRules: RuleExample[] = [
             example: (
                 <div className="flex items-center gap-1">
                     <Input placeholder="Search" className="w-36" style={{height: 36}} />
-                    <Button variant="outline" style={{height: 30}}>Filter</Button>
+                    <Button variant="outline" style={{height: 30}}>
+                        Filter
+                    </Button>
                     <Button style={{height: 34}}>New</Button>
                 </div>
             ),
@@ -98,9 +109,15 @@ export const buttonRules: RuleExample[] = [
         do: {
             example: (
                 <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" aria-label="Copy"><CopyIcon /></Button>
-                    <Button variant="ghost" size="icon" aria-label="Retry"><ArrowClockwiseIcon /></Button>
-                    <Button variant="ghost" size="icon" aria-label="Delete"><TrashIcon /></Button>
+                    <Button variant="ghost" size="icon" aria-label="Copy">
+                        <CopyIcon />
+                    </Button>
+                    <Button variant="ghost" size="icon" aria-label="Retry">
+                        <ArrowClockwiseIcon />
+                    </Button>
+                    <Button variant="ghost" size="icon" aria-label="Delete">
+                        <TrashIcon />
+                    </Button>
                 </div>
             ),
             caption: "gap-1: one toolbar.",
@@ -108,9 +125,15 @@ export const buttonRules: RuleExample[] = [
         avoid: {
             example: (
                 <div className="flex" style={{gap: 20}}>
-                    <Button variant="ghost" size="icon" aria-label="Copy"><CopyIcon /></Button>
-                    <Button variant="ghost" size="icon" aria-label="Retry"><ArrowClockwiseIcon /></Button>
-                    <Button variant="ghost" size="icon" aria-label="Delete"><TrashIcon /></Button>
+                    <Button variant="ghost" size="icon" aria-label="Copy">
+                        <CopyIcon />
+                    </Button>
+                    <Button variant="ghost" size="icon" aria-label="Retry">
+                        <ArrowClockwiseIcon />
+                    </Button>
+                    <Button variant="ghost" size="icon" aria-label="Delete">
+                        <TrashIcon />
+                    </Button>
                 </div>
             ),
             caption: "Loose icons with no group.",
@@ -134,7 +157,10 @@ export const formRules: RuleExample[] = [
         avoid: {
             example: (
                 <div className="w-60">
-                    <Field label="Temperature" description="Higher values give more varied answers. Lower values give more predictable answers.">
+                    <Field
+                        label="Temperature"
+                        description="Higher values give more varied answers. Lower values give more predictable answers."
+                    >
                         <Input defaultValue="0.7" />
                     </Field>
                 </div>
@@ -147,7 +173,10 @@ export const formRules: RuleExample[] = [
         do: {
             example: (
                 <div className="w-56">
-                    <div className="flex h-8 items-center rounded-md border border-foreground px-2.5 text-label" style={{outline: "2px solid var(--ring)"}}>
+                    <div
+                        className="flex h-8 items-center rounded-md border border-foreground px-2.5 text-label"
+                        style={{outline: "2px solid var(--ring)"}}
+                    >
                         weekly-report
                     </div>
                 </div>
@@ -157,7 +186,13 @@ export const formRules: RuleExample[] = [
         avoid: {
             example: (
                 <div className="w-56">
-                    <div className="flex h-8 items-center rounded-lg px-2.5 text-label" style={{border: "1px solid #d9d92c", boxShadow: "0 0 0 4px rgba(163,161,159,.5)"}}>
+                    <div
+                        className="flex h-8 items-center rounded-lg px-2.5 text-label"
+                        style={{
+                            border: "1px solid #d9d92c",
+                            boxShadow: "0 0 0 4px rgba(163,161,159,.5)",
+                        }}
+                    >
                         weekly-report
                     </div>
                 </div>
@@ -185,10 +220,26 @@ export const badgeRules: RuleExample[] = [
         avoid: {
             example: (
                 <div className="flex flex-wrap gap-1">
-                    {["#e6f4ff:#1677ff", "#fff1f0:#cf1322", "#f9f0ff:#722ed1", "#fffbe6:#d48806", "#f0f5ff:#2f54eb"].map((pair) => {
+                    {[
+                        "#e6f4ff:#1677ff",
+                        "#fff1f0:#cf1322",
+                        "#f9f0ff:#722ed1",
+                        "#fffbe6:#d48806",
+                        "#f0f5ff:#2f54eb",
+                    ].map((pair) => {
                         const [bg, fg] = pair.split(":")
                         return (
-                            <span key={pair} style={{background: bg, color: fg, border: `1px solid ${fg}55`, borderRadius: 4, padding: "0 7px", fontSize: 12}}>
+                            <span
+                                key={pair}
+                                style={{
+                                    background: bg,
+                                    color: fg,
+                                    border: `1px solid ${fg}55`,
+                                    borderRadius: 4,
+                                    padding: "0 7px",
+                                    fontSize: 12,
+                                }}
+                            >
                                 tag
                             </span>
                         )
@@ -207,7 +258,9 @@ export const markRules: RuleExample[] = [
             example: (
                 <div className="flex items-end gap-3">
                     {([16, 20, 24, 32, 40] as const).map((s) => (
-                        <IconTile key={s} size={s}><RobotIcon /></IconTile>
+                        <IconTile key={s} size={s}>
+                            <RobotIcon />
+                        </IconTile>
                     ))}
                 </div>
             ),
@@ -217,7 +270,17 @@ export const markRules: RuleExample[] = [
             example: (
                 <div className="flex items-end gap-3">
                     {[18, 22, 28, 36].map((s) => (
-                        <span key={s} style={{width: s, height: s, borderRadius: s / 2.5, background: "var(--secondary)", display: "grid", placeItems: "center"}}>
+                        <span
+                            key={s}
+                            style={{
+                                width: s,
+                                height: s,
+                                borderRadius: s / 2.5,
+                                background: "var(--secondary)",
+                                display: "grid",
+                                placeItems: "center",
+                            }}
+                        >
                             <RobotIcon size={s * 0.6} />
                         </span>
                     ))}
@@ -233,7 +296,10 @@ export const stateRules: RuleExample[] = [
         id: "STATE-01",
         do: {
             example: (
-                <EmptyState title="No agents yet" description="Create an agent to automate a task you do every week.">
+                <EmptyState
+                    title="No agents yet"
+                    description="Create an agent to automate a task you do every week."
+                >
                     <Button>
                         <PlusIcon /> New agent
                     </Button>
@@ -241,7 +307,10 @@ export const stateRules: RuleExample[] = [
             ),
             caption: "What is missing, why, one action.",
         },
-        avoid: {example: <span className="text-meta text-muted-foreground">No data</span>, caption: "A dead end."},
+        avoid: {
+            example: <span className="text-meta text-muted-foreground">No data</span>,
+            caption: "A dead end.",
+        },
     },
     {
         id: "STATE-02",
@@ -277,7 +346,12 @@ export const stateRules: RuleExample[] = [
         do: {
             example: (
                 <div className="w-64">
-                    <Alert type="error" showIcon message="Slack is disconnected" description="The token expired. Reconnect to continue this run." />
+                    <Alert
+                        type="error"
+                        showIcon
+                        message="Slack is disconnected"
+                        description="The token expired. Reconnect to continue this run."
+                    />
                 </div>
             ),
             caption: "Cause, effect, fix.",
@@ -285,7 +359,11 @@ export const stateRules: RuleExample[] = [
         avoid: {
             example: (
                 <div className="w-64">
-                    <Alert type="error" showIcon message="Something went wrong. Please try again." />
+                    <Alert
+                        type="error"
+                        showIcon
+                        message="Something went wrong. Please try again."
+                    />
                 </div>
             ),
             caption: "No cause, no fix.",

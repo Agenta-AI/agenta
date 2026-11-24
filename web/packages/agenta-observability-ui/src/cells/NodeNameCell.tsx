@@ -18,7 +18,10 @@ export const NodeNameCell = memo(({name, type}: Props) => {
                 <Icon size={16} />
             </div>
             {/* native title carries the full name, replacing antd's ellipsis tooltip */}
-            <span className="flex-1 min-w-0 truncate text-label font-normal" title={name ?? undefined}>
+            <span
+                className="flex-1 min-w-0 truncate text-label font-normal"
+                title={name ?? undefined}
+            >
                 {name}
             </span>
         </div>

@@ -73,9 +73,7 @@ export const RunErrorRecovery = ({actions}: {actions: RunErrorRecoveryAction[]})
                                 <Glyph size={16} />
                             </span>
                             <div className="flex min-w-0 flex-1 flex-col">
-                                <span className="truncate text-label text-foreground">
-                                    {title}
-                                </span>
+                                <span className="truncate text-label text-foreground">{title}</span>
                                 <span className="truncate text-meta text-muted-foreground">
                                     {description}
                                 </span>

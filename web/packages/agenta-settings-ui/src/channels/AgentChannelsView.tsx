@@ -261,9 +261,7 @@ const ROW_PHONE =
 
 /** The mark of API and Embed: their production icon on a muted square, a platform logo's size. */
 const PublishMark = ({icon}: {icon: React.ReactElement; phone: boolean}) => (
-    <span
-        className="flex size-6 items-center justify-center rounded-md bg-secondary text-body text-foreground"
-    >
+    <span className="flex size-6 items-center justify-center rounded-md bg-secondary text-body text-foreground">
         {icon}
     </span>
 )
@@ -308,9 +306,7 @@ const ChannelRow = ({
                     {label}
                     {tag}
                 </span>
-                <span className={`text-meta ${phone ? "" : "truncate"} ${subClass}`}>
-                    {sub}
-                </span>
+                <span className={`text-meta ${phone ? "" : "truncate"} ${subClass}`}>{sub}</span>
             </span>
         </>
     )
@@ -361,10 +357,7 @@ const ChannelRowsSkeleton = ({phone}: {phone: boolean}) => (
     <div className={`flex flex-col ${phone ? "" : "gap-2"}`}>
         {CHANNEL_PLATFORMS.slice(0, 3).map((platform) => (
             <div key={platform} className={phone ? ROW_PHONE : ROW_DESKTOP}>
-                <SkeletonBlock
-                    active
-                    className="size-6 rounded-md"
-                />
+                <SkeletonBlock active className="size-6 rounded-md" />
                 <div className="flex flex-1 flex-col gap-1.5">
                     <SkeletonBlock active className="h-3.5 w-20" />
                     <SkeletonBlock active className="h-3 w-36" />

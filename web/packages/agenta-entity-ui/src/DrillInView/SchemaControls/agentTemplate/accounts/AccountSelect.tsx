@@ -45,14 +45,8 @@ export function AccountSelect({
     return (
         <Select value={selected ? value : ""} onValueChange={onChange} disabled={disabled}>
             {/* Canvas F02 f6: the compact select (34 px, radius 6, 13 px, an up-down icon). */}
-            <SelectTrigger
-                size="compact"
-                className="w-full gap-2"
-                aria-label={ariaLabel}
-            >
-                {icon ? (
-                    <span className="flex shrink-0 text-muted-foreground">{icon}</span>
-                ) : null}
+            <SelectTrigger size="compact" className="w-full gap-2" aria-label={ariaLabel}>
+                {icon ? <span className="flex shrink-0 text-muted-foreground">{icon}</span> : null}
                 <SelectValue placeholder={placeholder}>
                     {selected ? <OptionText option={selected} /> : null}
                 </SelectValue>

@@ -430,9 +430,7 @@ const ToolHeader = memo(function ToolHeader({
                         {builtinToolLabel && (
                             <>
                                 {builtinProviderLabel && <span>/</span>}
-                                <span className="text-muted-foreground">
-                                    {builtinToolLabel}
-                                </span>
+                                <span className="text-muted-foreground">{builtinToolLabel}</span>
                             </>
                         )}
                     </div>

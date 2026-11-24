@@ -47,11 +47,7 @@ export const FeatureTemplateCard = ({
                             )}
                         >
                             {provider ? (
-                                <img
-                                    src={provider.logo}
-                                    alt={provider.label}
-                                    className="size-4"
-                                />
+                                <img src={provider.logo} alt={provider.label} className="size-4" />
                             ) : (
                                 <span className="text-label text-black">
                                     {slug.slice(0, 1).toUpperCase()}

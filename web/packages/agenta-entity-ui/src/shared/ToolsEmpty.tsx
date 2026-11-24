@@ -23,10 +23,7 @@ export const ToolsEmpty = ({
 }) => (
     <Empty className="py-10">
         <EmptyHeader>
-            <EmptyMedia
-                variant="icon"
-                className="border border-solid border-border bg-background"
-            >
+            <EmptyMedia variant="icon" className="border border-solid border-border bg-background">
                 {icon}
             </EmptyMedia>
             <EmptyTitle className="text-label font-medium">{title}</EmptyTitle>

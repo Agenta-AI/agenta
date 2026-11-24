@@ -57,9 +57,7 @@ function Row({item, onPick}: {item: AddItemMenuItem; onPick: (item: AddItemMenuI
             disabled={item.disabled}
             onClick={() => !item.disabled && onPick(item)}
             className={`flex w-full items-center gap-2.5 rounded-md border-none bg-transparent px-2 py-1.5 text-left [font:inherit] ${
-                item.disabled
-                    ? "cursor-not-allowed opacity-50"
-                    : "cursor-pointer hover:bg-accent"
+                item.disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-accent"
             }`}
         >
             <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center text-muted-foreground">
@@ -145,9 +143,7 @@ export const AddItemMenu = memo(function AddItemMenu({
             >
                 {groups.map((group, gi) => (
                     <div key={group.label ?? `group-${gi}`}>
-                        {gi > 0 && (
-                            <div className="mx-2 my-1.5 h-px bg-border-muted" />
-                        )}
+                        {gi > 0 && <div className="mx-2 my-1.5 h-px bg-border-muted" />}
                         {group.label ? <GroupLabel>{group.label}</GroupLabel> : null}
                         {group.items.map((item) => (
                             <Row key={item.key} item={item} onPick={handlePick} />

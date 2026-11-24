@@ -38,12 +38,7 @@ export const DeploymentRowMenu = ({
 }) => (
     <DropdownMenu>
         <DropdownMenuTrigger asChild>
-            <Button
-                type="button"
-                size="icon-xs"
-                variant="ghost"
-                aria-label="Deployment actions"
-            >
+            <Button type="button" size="icon-xs" variant="ghost" aria-label="Deployment actions">
                 <DotsThreeVertical aria-hidden className="size-3.5" />
             </Button>
         </DropdownMenuTrigger>

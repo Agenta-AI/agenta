@@ -119,7 +119,8 @@ const SELECT_CHIP_CLS =
 
 // antd `.ant-select-multiple` box, measured: h 30 (24 chip + 2×2 margin + border),
 // padding 0 11px 0 1px; the arrow is absolutely positioned (it must not wrap).
-const MULTI_BOX_CLS = "relative h-auto min-h-control flex-wrap justify-start gap-x-1 py-0 pl-px pr-6"
+const MULTI_BOX_CLS =
+    "relative h-auto min-h-control flex-wrap justify-start gap-x-1 py-0 pl-px pr-6"
 
 /** Removable chip (antd closable `Tag` / select selection-item). */
 export function Chip({

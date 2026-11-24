@@ -19,7 +19,9 @@ export const AnnotationEvaluatorSection = ({
     const entries = Object.entries(fields)
     if (entries.length === 0) {
         return (
-            <p className="m-0 py-1 text-body text-muted-foreground">No annotation fields available</p>
+            <p className="m-0 py-1 text-body text-muted-foreground">
+                No annotation fields available
+            </p>
         )
     }
     return (

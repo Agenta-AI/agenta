@@ -172,9 +172,7 @@ const StepRow = ({
                         {t("channels.connect.stepLabel", {index})}
                     </span>
                     <span className="text-label text-foreground">{title}</span>
-                    {body ? (
-                        <span className="text-label text-muted-foreground">{body}</span>
-                    ) : null}
+                    {body ? <span className="text-label text-muted-foreground">{body}</span> : null}
                 </div>
                 {children}
             </div>
@@ -184,9 +182,7 @@ const StepRow = ({
 
 /** An inline command, e.g. /newbot. */
 const Command = ({children}: {children: React.ReactNode}) => (
-    <code className="rounded bg-muted px-1.5 py-0.5 text-code-sm text-foreground">
-        {children}
-    </code>
+    <code className="rounded bg-muted px-1.5 py-0.5 text-code-sm text-foreground">{children}</code>
 )
 
 interface MethodOption<T extends string> {

@@ -8,7 +8,15 @@ import {
     FORMAT_TEXT_COMMAND,
     FORMAT_ELEMENT_COMMAND,
 } from "lexical"
-import {CodeIcon, TextAlignCenterIcon, TextAlignLeftIcon, TextAlignRightIcon, TextBIcon, TextItalicIcon, TextUnderlineIcon} from "@phosphor-icons/react"
+import {
+    CodeIcon,
+    TextAlignCenterIcon,
+    TextAlignLeftIcon,
+    TextAlignRightIcon,
+    TextBIcon,
+    TextItalicIcon,
+    TextUnderlineIcon,
+} from "@phosphor-icons/react"
 
 export function ToolbarPlugin(): JSX.Element {
     const [editor] = useLexicalComposerContext()

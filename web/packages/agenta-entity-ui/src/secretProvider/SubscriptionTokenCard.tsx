@@ -38,10 +38,7 @@ const SubscriptionTokenCard = ({
                     <span className="text-label font-medium text-foreground">{name}</span>
                     {connected ? (
                         <span className="flex items-center gap-1.5 text-success">
-                            <span
-                                aria-hidden
-                                className="size-1.5 shrink-0 rounded-round bg-success"
-                            />
+                            <span aria-hidden className="size-1.5 shrink-0 rounded-round bg-success" />
                             {t("entityUi.subscriptionSignIn.connectedStatus")}
                         </span>
                     ) : (

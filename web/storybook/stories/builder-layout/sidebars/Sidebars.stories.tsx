@@ -11,7 +11,15 @@ import {
     SidebarToggleButton,
     type NavItem,
 } from "@agenta/navigation-ui"
-import {ArrowsOutLineVerticalIcon, ChatsCircleIcon, CircleIcon, CompassIcon, HouseIcon, LightningIcon, RobotIcon} from "@phosphor-icons/react"
+import {
+    ArrowsOutLineVerticalIcon,
+    ChatsCircleIcon,
+    CircleIcon,
+    CompassIcon,
+    HouseIcon,
+    LightningIcon,
+    RobotIcon,
+} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {atom, type PrimitiveAtom} from "jotai"
 

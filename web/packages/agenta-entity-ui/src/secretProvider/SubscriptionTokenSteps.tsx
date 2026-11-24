@@ -22,9 +22,7 @@ const CopyCommand = () => {
     }, [copied])
     return (
         <div className="flex items-center justify-between gap-2 rounded-lg border border-solid border-border bg-muted/40 py-1 pl-3 pr-1">
-            <code className="select-all font-mono text-label text-foreground">
-                {SETUP_COMMAND}
-            </code>
+            <code className="select-all font-mono text-label text-foreground">{SETUP_COMMAND}</code>
             <Button
                 size="sm"
                 variant="ghost"

@@ -21,13 +21,19 @@ export function ContrastSection({mode}: {mode: "light" | "dark"}) {
                     </thead>
                     <tbody>
                         {contrastPairs.map(([fg, bg, min]) => {
-                            const ratio = contrastRatio(resolveColor(fg, mode), resolveColor(bg, mode))
+                            const ratio = contrastRatio(
+                                resolveColor(fg, mode),
+                                resolveColor(bg, mode),
+                            )
                             return (
                                 <tr key={`${fg}/${bg}`} className="border-t border-border-muted">
                                     <td className="px-3 py-1.5">
                                         <span
                                             className="rounded-[var(--radius-sm)] px-2 py-0.5 text-xs font-medium"
-                                            style={{color: `var(--${fg})`, background: `var(--${bg})`}}
+                                            style={{
+                                                color: `var(--${fg})`,
+                                                background: `var(--${bg})`,
+                                            }}
                                         >
                                             Aa
                                         </span>
