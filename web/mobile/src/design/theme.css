@@ -20,6 +20,11 @@
     --data-5: #b5605f;
     --data-6: #3f8a8a;
     --on-data: #ffffff;
+    --code-keyword: #76518f;
+    --code-string: #3b6f4d;
+    --code-number: #855711;
+    --code-function: #386492;
+    --code-property: #2a6d6d;
     --border: #e2e0dc;
     --border-muted: #ebe9e6;
     --border-strong: #797773;
@@ -170,6 +175,11 @@
     --data-5: #dc9190;
     --data-6: #74bcbc;
     --on-data: #0f0e0d;
+    --code-keyword: #b796cc;
+    --code-string: #86bd93;
+    --code-number: #d8ad6b;
+    --code-function: #7ea6d4;
+    --code-property: #74bcbc;
     --border: #2f2d2a;
     --border-muted: #242220;
     --border-strong: #7c7a76;

@@ -29,13 +29,9 @@ describe("design theme contrast", () => {
     }
 
     it("keeps the palette small, two text levels, and every alias on a core color", () => {
-        expect(
-            colors.filter((c) => /^(muted-)?foreground$|^subtle-foreground$/.test(c.name)).length,
-        ).toBe(2)
-        // Data (data-*, on-data) and media (scrim, on-scrim, logo-ground) colors are a separate group.
-        const uiColors = colors.filter(
-            (c) => !/^(data-\d|on-data|scrim|on-scrim|logo-ground)$/.test(c.name),
-        )
+        expect(colors.filter((c) => /^(muted-)?foreground$|^subtle-foreground$/.test(c.name)).length).toBe(2)
+        // Data (data-*, on-data), code (code-*) and media (scrim, on-scrim, logo-ground) colors are separate groups.
+        const uiColors = colors.filter((c) => !/^(data-\d|on-data|code-[a-z]+|scrim|on-scrim|logo-ground)$/.test(c.name))
         expect(uiColors.length).toBeLessThanOrEqual(23)
         const names = new Set(colors.map((c) => c.name))
         for (const to of Object.values(colorAliases)) expect(names.has(to)).toBe(true)

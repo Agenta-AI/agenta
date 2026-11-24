@@ -27,6 +27,7 @@ One word for one thing. Use these words in code, comments, docs and reviews.
 | Agent chat | A chat with the agent about the open item. It opens in the right pane. | agent pane |
 | Page top band | The 148px band at the top of a page on medium and expanded windows: the title and the page actions (`page-band`). | page header, header bar |
 | Compact header | The one 44px bar at the top of a compact window (`header-h`). | phone header, top bar |
+| Workbench bar | The bar across the top of a workbench page: the session playground, the Builder, the Playground and the trace view. It holds the controls of that page. | session header, top strip |
 | Alignment line | The left edge of the page title. Text, visible edges and the first Mark sit on it; only a hover fill hangs outside. | anchor line |
 | Hover fill | `accent`, the one fill for hover. | hover color |
 
@@ -43,7 +44,7 @@ One word for one thing. Use these words in code, comments, docs and reviews.
 
 ## Color
 
-There are 23 UI colors: 12 neutrals, 7 brand colors and 4 statuses. A separate group of 7 data colors and 3 media colors serves charts, categories and media only. Light and dark use the same names; only the values change.
+There are 23 UI colors: 12 neutrals, 7 brand colors and 4 statuses. Three small groups sit beside them, each with one narrow job: 7 data colors, 5 code colors and 3 media colors. Light and dark use the same names; only the values change.
 
 - **Surfaces.** `background` is the content area. `muted` is the sidebar, the right pane and grouped blocks. `popover` is everything that floats: menus, popovers, dialogs, sheets and toasts. Tooltips invert: `foreground` fill with `background` text.
 - **Fills.** `secondary` fills quiet controls, chips and Marks. `accent` is the hover fill. Both are translucent ink, so they stay one step darker than any surface under them. `selected` marks the selected row, the active nav item and the pressed state.
@@ -56,6 +57,7 @@ There are 23 UI colors: 12 neutrals, 7 brand colors and 4 statuses. A separate g
 - **Marks are neutral.** `secondary` with a `muted-foreground` icon or letter. Only the current workspace Mark takes `bg-brand/15`. Agent Marks are data and may use a data color.
 - **Disabled** controls keep their colors at 50% opacity.
 - **Data colors** (`data-1` … `data-6`, text `on-data`) tell categories and chart series apart: span types, file kinds, agent Marks, template tiles, template-syntax highlights, chart lines. Use them in order.
+- **Code colors** (`code-keyword`, `code-string`, `code-number`, `code-function`, `code-property`) color syntax in code blocks and editors, and nothing else. Comments and punctuation take `muted-foreground`. Each is at least 4.5:1 on `background` and on `muted`.
 - **Media colors** (`scrim`, `on-scrim`, `logo-ground`) are the same in both themes, because they sit on images, video and third-party logos.
 - **Contrast**, in both themes (`tests/unit/designThemeContrast.test.ts`): `foreground` ≥ 12:1; `muted-foreground` ≥ 4.5:1 on every surface; each status color ≥ 4.5:1 on `background`, on `muted` and on its own 10% tint; `border-strong` ≥ 3:1. `border` is below 3:1 on purpose; hover and focus carry the contrast.
 
@@ -84,6 +86,11 @@ There are 23 UI colors: 12 neutrals, 7 brand colors and 4 statuses. A separate g
 | `data-5` | `#b5605f` | `#dc9190` | Data only: fifth category or series. |
 | `data-6` | `#3f8a8a` | `#74bcbc` | Data only: sixth category or series. |
 | `on-data` | `#ffffff` | `#0f0e0d` | Data only: letters and glyphs on a data-* fill. |
+| `code-keyword` | `#76518f` | `#b796cc` | Code only: keywords and operators. |
+| `code-string` | `#3b6f4d` | `#86bd93` | Code only: strings. |
+| `code-number` | `#855711` | `#d8ad6b` | Code only: numbers and constants. |
+| `code-function` | `#386492` | `#7ea6d4` | Code only: function, class and tag names. |
+| `code-property` | `#2a6d6d` | `#74bcbc` | Code only: property names and keys. |
 | `border` | `#e2e0dc` | `#2f2d2a` | Card edges, inputs and outline buttons at rest. |
 | `border-muted` | `#ebe9e6` | `#242220` | Dividers inside a card or list. |
 | `border-strong` | `#797773` | `#7c7a76` | Edges that carry meaning: checkbox, switch, radio, hovered input (≥3:1 on every surface). |
@@ -278,7 +285,7 @@ A product term or a fixed action always has this icon, wherever it shows. An ico
 ## Layout and windows
 
 - Three window classes: compact, medium and expanded. Do not add another breakpoint.
-- On medium and expanded windows a page has the sidebar (`sidebar-w`, 48px closed, on `muted`), the content column and the right pane (`panel-side`). No bar runs across the top.
+- On medium and expanded windows a page has the sidebar (`sidebar-w`, 48px closed, on `muted`), the content column and the right pane (`panel-side`). A general page has no bar across the top: its title row holds the title and the page actions. A workbench page has the workbench bar, because it holds too many controls for a title row.
 - The right pane is part of the layout on every page, with its own 24px margins and its own alignment line. Any page or feature can put information in it: an item's details or activity, the agent chat, a preview, help. It holds one thing at a time; opening something else replaces it. When the window is too narrow for the pane next to an 80px-margin content column, the pane opens as an overlay with the scrim. On a compact window it is a drill-in: the page shows an entry, and opening it pushes its own screen with Back.
 - The content column has at least `page-margin` on each side. Its maximum width: `content-lg` for lists, `content-md` for item pages, sessions and Home, `content-sm` for settings. Workbench pages (Builder, Playground, the trace view) use the full width. With more room, the column stays centered. When the right pane opens, the column gives way first, then the margins down to 80px.
 - From the top of every page: `spacing-8`, the page top band (`page-band`), `spacing-6`, then the body. Only the body scrolls.
@@ -387,6 +394,7 @@ Find the element's place here. Do not copy the look of the screen you are on.
 | Empty state icon | A 40px neutral Mark |
 | Between sections | 24 on compact windows · 32 above |
 | Top of a page | The page top band on medium and expanded windows · the compact header on compact windows |
+| Page title | `text-display` for the Home greeting · `text-heading` on every other page, drawn by `PageTitle` and by nothing else · `text-subtitle` for the item name in the workbench bar |
 
 ## Rules
 
@@ -394,7 +402,7 @@ Each rule has an ID that lint, reviews and the guide cite. The prefix names the 
 
 ### Checks
 
-- Ratchet (`pnpm design:ratchet`, in `pnpm lint`): `COLOR-01`, `TYPE-01`, `TYPE-04`, `TYPE-05`, `SIZE-01`, `SHAPE-01`, `ICON-01`, `SURF-05`. It counts the patterns in `web/mobile/src` and `web/packages/*/src` and fails when a count rises.
+- Ratchet (`pnpm design:ratchet`, in `pnpm lint`): `COLOR-01`, `TYPE-01`, `TYPE-04`, `TYPE-05`, `SIZE-01`, `SHAPE-01`, `ICON-01`, `SURF-05`, `LAYOUT-02`, `CONS-03`, and breakpoints other than `sm` and `lg`. It counts the patterns in `web/mobile/src` and `web/packages/*/src` and fails when a count rises.
 - ESLint: `ICON-01`.
 - Review: every other rule.
 
@@ -413,7 +421,7 @@ Each rule has an ID that lint, reviews and the guide cite. The prefix names the 
 
 | ID | Rule | Why | Avoid | Do instead |
 | --- | --- | --- | --- | --- |
-| `COLOR-01` | Use a theme variable, never a raw color | A variable names a job, so the same job gets the same color everywhere. A raw value drifts with the next person. | Raw hex, stock Tailwind colors, antd names (`colorBg*`, `--ag-color*`) | A theme variable: `bg-muted`, `text-muted-foreground` |
+| `COLOR-01` | Use a theme variable, never a raw color | A variable names a job, so the same job gets the same color everywhere. A raw value drifts with the next person. | Raw hex, stock Tailwind colors, antd names (`colorBg*`, `--ag-color*`); a text color used as a border (`border-muted-foreground`) | A theme variable: `bg-muted`, `text-muted-foreground`; a border takes `border`, `border-muted` or `border-strong` |
 | `COLOR-02` | Brand yellow marks the one brand action | The yellow is the strongest color. On several things it points at nothing, and in dark `primary` is yellow too. | Brand yellow on badges, highlights, Publish, sign-in, billing, or more than one button | `brand` only on New agent on Home; the default primary elsewhere |
 | `COLOR-03` | Status needs a word or an icon | About 1 in 12 men see red and green poorly. Color only supports the meaning. | Status shown by a colored dot alone | A tint and a word, with an icon where it fits |
 | `COLOR-04` | No dark-mode colors in a component | A theme variable already changes per theme. A component's own dark color drifts from the theme. | A component that sets its own dark-mode color (`.dark .menu {…}`) | A theme variable whose value changes per theme (`popover`) |

@@ -538,6 +538,7 @@
                     "rule": "Cap the content width",
                     "why": "Text across a wide window is hard to read.",
                     "checkedBy": [
+                        "ratchet",
                         "review"
                     ]
                 },
@@ -868,6 +869,7 @@
                     "rule": "Base components live only in the kit",
                     "why": "A second button or menu drifts from the kit on the next change.",
                     "checkedBy": [
+                        "ratchet",
                         "review"
                     ]
                 }

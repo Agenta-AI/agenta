@@ -57,6 +57,12 @@ export const colors: ThemeVariable<ColorValue>[] = [
     {name: "data-5", value: {light: "#b5605f", dark: "#dc9190"}, usage: "Data only: fifth category or series."},
     {name: "data-6", value: {light: "#3f8a8a", dark: "#74bcbc"}, usage: "Data only: sixth category or series."},
     {name: "on-data", value: {light: "#ffffff", dark: "#0f0e0d"}, usage: "Data only: letters and glyphs on a data-* fill."},
+    // Code: syntax colors in code blocks and editors only. Comments and punctuation take muted-foreground.
+    {name: "code-keyword", value: {light: "#76518f", dark: "#b796cc"}, usage: "Code only: keywords and operators."},
+    {name: "code-string", value: {light: "#3b6f4d", dark: "#86bd93"}, usage: "Code only: strings."},
+    {name: "code-number", value: {light: "#855711", dark: "#d8ad6b"}, usage: "Code only: numbers and constants."},
+    {name: "code-function", value: {light: "#386492", dark: "#7ea6d4"}, usage: "Code only: function, class and tag names."},
+    {name: "code-property", value: {light: "#2a6d6d", dark: "#74bcbc"}, usage: "Code only: property names and keys."},
     {name: "border", value: {light: "#e2e0dc", dark: "#2f2d2a"}, usage: "Card edges, inputs and outline buttons at rest."},
     {name: "border-muted", value: {light: "#ebe9e6", dark: "#242220"}, usage: "Dividers inside a card or list."},
     {name: "border-strong", value: {light: "#797773", dark: "#7c7a76"}, usage: "Edges that carry meaning: checkbox, switch, radio, hovered input (≥3:1 on every surface)."},

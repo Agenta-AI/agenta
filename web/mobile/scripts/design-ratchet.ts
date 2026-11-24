@@ -25,6 +25,16 @@ const PATTERNS: Record<string, RegExp> = {
     "rounded-full": /\brounded-full\b/g,
     "font-bold": /\bfont-(?:bold|extrabold|black)\b/g,
     "lucide-react": /lucide-react/g,
+    // COLOR-01: a border takes border, border-muted or border-strong, never a text color.
+    "border-text-color": /(?<![\w-])border-(?:[trblxy]-)?(?:foreground|muted-foreground|current)\b/g,
+    // SIZE-01: a kit control gets its height from `size`, never from a class.
+    "kit-control-height": /<(?:Button|Input|SelectTrigger)\b[^>]*?className=[^>]*?(?<![\w-])(?:h|min-h|size)-(?:\d|\[)/g,
+    // CONS-03: a raw <button> skips the kit.
+    "raw-button": /<button\b/g,
+    // LAYOUT-02: a content column takes content-sm, content-md or content-lg.
+    "max-w-[Npx]": /\bmax-w-\[\d+(?:\.\d+)?px\]/g,
+    // Layout: three window classes, so only the sm and lg breakpoints.
+    "extra-breakpoint": /(?<![\w-])(?:max-)?(?:md|xl|2xl):/g,
 }
 
 type Counts = Record<string, {mobile: number; packages: number}>

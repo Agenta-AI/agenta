@@ -20,6 +20,11 @@
     --color-data-5: var(--data-5);
     --color-data-6: var(--data-6);
     --color-on-data: var(--on-data);
+    --color-code-keyword: var(--code-keyword);
+    --color-code-string: var(--code-string);
+    --color-code-number: var(--code-number);
+    --color-code-function: var(--code-function);
+    --color-code-property: var(--code-property);
     --color-border: var(--border);
     --color-border-muted: var(--border-muted);
     --color-border-strong: var(--border-strong);

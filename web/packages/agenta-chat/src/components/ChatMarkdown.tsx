@@ -381,8 +381,21 @@ export const chatMarkdownComponents: Components = {
 /** Streamdown's own list, plus one plugin BEFORE its harden gate; the prop replaces the defaults. */
 export const MD_REHYPE_PLUGINS = withExplicitRelativeLinks(defaultRehypePlugins)
 
-/** Light/dark pair — Shiki dual themes track the app theme. */
-const SHIKI_THEMES: [ThemeInput, ThemeInput] = ["one-light", "one-dark-pro"]
+/** One Shiki theme whose colors are theme variables (code-* in theme.config.ts), so it follows light and dark. */
+const codeTheme = (type: "light" | "dark"): ThemeInput => ({
+    name: `agenta-${type}`,
+    type,
+    colors: {"editor.foreground": "var(--foreground)", "editor.background": "var(--background)"},
+    tokenColors: [
+        {scope: ["comment", "punctuation.definition.comment", "punctuation", "meta.brace"], settings: {foreground: "var(--muted-foreground)"}},
+        {scope: ["keyword", "storage", "storage.type", "storage.modifier", "keyword.operator"], settings: {foreground: "var(--code-keyword)"}},
+        {scope: ["string", "string.quoted", "markup.inline.raw", "markup.fenced_code"], settings: {foreground: "var(--code-string)"}},
+        {scope: ["constant", "constant.numeric", "constant.language", "variable.other.constant"], settings: {foreground: "var(--code-number)"}},
+        {scope: ["entity.name.function", "support.function", "entity.name.type", "entity.name.class", "entity.name.tag", "support.class"], settings: {foreground: "var(--code-function)"}},
+        {scope: ["variable.parameter", "meta.object-literal.key", "support.type.property-name", "entity.other.attribute-name", "variable.other.property"], settings: {foreground: "var(--code-property)"}},
+    ],
+})
+const SHIKI_THEMES: [ThemeInput, ThemeInput] = [codeTheme("light"), codeTheme("dark")]
 
 /**
  * Fence languages the model writes that Shiki knows under another id. `bundledLanguagesInfo`

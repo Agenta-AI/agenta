@@ -36,17 +36,17 @@
         --editor-error-bg: color-mix(in oklab, var(--destructive) 5%, transparent);
         --editor-error-border: var(--destructive);
 
-        /* Syntax highlighting - Light theme (GitHub-inspired) */
-        --token-comment: #6a737d; /* muted gray */
-        --token-string: #032f62; /* dark blue for strings */
-        --token-keyword: #d73a49; /* red keywords */
-        --token-number: #005cc5; /* bright blue numbers */
-        --token-property: #6f42c1; /* purple mapping keys / properties */
-        --token-operator: #d73a49; /* match keyword red */
-        --token-punctuation: #24292e; /* near-black punctuation */
-        --token-function: #005cc5; /* blue functions */
-        --token-class-name: #e36209; /* orange classes */
-        --token-variable: #116329; /* green variables */
+        /* Syntax colors come from the theme (code-* in theme.config.ts), in light and dark. */
+        --token-comment: var(--muted-foreground);
+        --token-string: var(--code-string, currentColor);
+        --token-keyword: var(--code-keyword, currentColor);
+        --token-number: var(--code-number, currentColor);
+        --token-property: var(--code-property, currentColor);
+        --token-operator: var(--code-keyword, currentColor);
+        --token-punctuation: var(--muted-foreground);
+        --token-function: var(--code-function, currentColor);
+        --token-class-name: var(--code-function, currentColor);
+        --token-variable: var(--foreground);
         --token-plain: var(--foreground);
 
         /* Apply light theme variables */
@@ -584,16 +584,4 @@
 .dark .code-editor .editor-code {
     --editor-selection-bg: rgba(56, 90, 140, 0.5);
 
-    /* Syntax highlighting - Dark theme (GitHub-dark-inspired) */
-    --token-comment: #8b949e;
-    --token-string: #a5d6ff;
-    --token-keyword: #ff7b72;
-    --token-number: #79c0ff;
-    --token-property: #d2a8ff;
-    --token-operator: #ff7b72;
-    --token-punctuation: #c9d1d9;
-    --token-function: #79c0ff;
-    --token-class-name: #ffa657;
-    --token-variable: #7ee787;
-    --token-plain: var(--foreground);
 }
