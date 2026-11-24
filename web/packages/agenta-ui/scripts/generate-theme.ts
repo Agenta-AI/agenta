@@ -103,6 +103,10 @@ function tailwindCss(): string {
         ...sizes
             .filter((s) => s.name.startsWith("row-"))
             .map((s) => `--spacing-${s.name}: var(--${s.name});`),
+        // The page frame: h-header, px-page-margin, w-panel-side.
+        "--spacing-header: var(--header-h);",
+        "--spacing-page-margin: var(--page-margin);",
+        "--container-panel-side: var(--panel-side);",
         ...easings.map((e) => `--${e.name}: var(--${e.name});`),
         // A bare `transition-colors` moves on the theme's hover timing, not Tailwind's 150ms
         // default (MOTION-01: no duration or easing written in a component).

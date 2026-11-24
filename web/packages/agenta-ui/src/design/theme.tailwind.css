@@ -126,6 +126,9 @@
     --spacing-row-dense: var(--row-dense);
     --spacing-row-single: var(--row-single);
     --spacing-row-double: var(--row-double);
+    --spacing-header: var(--header-h);
+    --spacing-page-margin: var(--page-margin);
+    --container-panel-side: var(--panel-side);
     --ease-out: var(--ease-out);
     --ease-in-out: var(--ease-in-out);
     --default-transition-duration: var(--duration-fast);
