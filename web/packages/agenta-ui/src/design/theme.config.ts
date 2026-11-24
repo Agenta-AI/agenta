@@ -123,7 +123,7 @@ export const textStyles: TextStyle[] = [
 ]
 
 export const spacing: ThemeVariable[] = [
-    {name: "spacing-0.5", value: "2px", usage: "Hairline offsets."},
+    {name: "spacing-0.5", value: "2px", usage: "Hairline offsets; the gap between dense rows (menus, sidebar, trees)."},
     {name: "spacing-1", value: "4px", usage: "The tightest gap: inside badges and xs buttons, between grouped buttons, inside menus."},
     {name: "spacing-1.5", value: "6px", usage: "Gaps inside a control."},
     {name: "spacing-2", value: "8px", usage: "Gaps inside a row."},

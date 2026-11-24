@@ -37,6 +37,7 @@ import {
 } from "./rules/moreExamples"
 import {paneRules} from "./rules/paneRules"
 import {layoutRules, touchRules} from "./rules/patternRules"
+import {rowGapRules} from "./rules/rowGapRules"
 import {gapRules, hoverRules, rowRules} from "./rules/rowRules"
 import {contentRules, motionRules, quietRules} from "./rules/voiceRules"
 import {resolveRule} from "./ruleIndex"
@@ -180,7 +181,7 @@ export function guidePages(mode: "light" | "dark"): GuidePage[] {
                 {prop: "row", values: "MENU_ITEM", note: "32px, 8px side padding, 16px icon, 8px icon gap; the same on every screen"},
                 {prop: "inset row", values: "MENU_ITEM_INSET", note: "for a check or an indented label"},
             ],
-            rules: rowRules,
+            rules: [...rowRules, ...rowGapRules],
         },
         {id: "states", group: "Patterns", title: "View states", tagline: "Every view has loaded, empty, loading and error states.", rules: stateRules},
         {id: "layout", group: "Patterns", title: "Layout and alignment", tagline: "One alignment line, a capped content width, and fades only where a pane scrolls.", rules: [...layoutRules, ...moreLayoutExamples, ...scrollRules]},

@@ -5,6 +5,8 @@
  */
 export const MENU_ITEM = [
     "relative box-border flex min-h-8 w-full cursor-pointer select-none items-center gap-2 outline-none",
+    // ROW-04: 2px between two menu rows, so each hover fill stands on its own.
+    "ag-menu-row [.ag-menu-row+&]:mt-0.5",
     "rounded-sm px-2 py-1 text-label",
     // `accent`, not `muted`: in dark `--muted` equals the panel's own background.
     "data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground",

@@ -140,6 +140,8 @@ export const ListTable = <Row,>({
         density === "compact"
             ? "min-h-row-single py-1"
             : "min-h-row-double py-1.5"
+    // ROW-04: 4px between one-line rows, 8px between two-line rows.
+    const rowGap = density === "compact" ? "mb-1 last:mb-0" : "mb-2 last:mb-0"
     const isEmpty = groups.every((group) => group.rows.length === 0)
     // A grid has no column header, so a stuck heading sits at the scroller's own top.
     // Selection lives in the header row (select all, the bulk bar), so it keeps the header.
@@ -288,6 +290,7 @@ export const ListTable = <Row,>({
                                     className={cn(
                                         "grid w-full items-center gap-3",
                                         rowPad,
+                                        rowGap,
                                         rowClassName,
                                     )}
                                     style={{gridTemplateColumns: grid}}
@@ -462,6 +465,7 @@ export const ListTable = <Row,>({
                                                     // tracks — stay identical to the header's.
                                                     "group grid w-full items-center gap-3 rounded-md border-0 bg-transparent text-left",
                                                     rowPad,
+                                                    rowGap,
                                                     "-mx-3 w-[calc(100%+1.5rem)] px-3",
                                                     rowClassName,
                                                     opens(row) &&

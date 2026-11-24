@@ -211,7 +211,7 @@ export const HomeEntityList = ({
             <div
                 ref={scrollerRef}
                 onScroll={readScroll}
-                className="flex max-h-[330px] flex-col gap-0.5 overflow-y-auto"
+                className="flex max-h-[330px] flex-col gap-2 overflow-y-auto"
                 style={{maskImage: mask, WebkitMaskImage: mask}}
             >
                 {showAgents ? (

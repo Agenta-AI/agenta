@@ -450,6 +450,16 @@
                     "checkedBy": [
                         "review"
                     ]
+                },
+                {
+                    "id": "ROW-04",
+                    "rule": "Rows in a list are 2, 4 or 8px apart, by row height",
+                    "why": "A small gap lets each row's hover fill stand on its own, and the gap grows with the row, so tall rows with a Mark and two lines do not crowd each other.",
+                    "avoid": "Two-line rows that touch; a gap picked per screen (6px, 12px); more than 8px between rows of one list",
+                    "do": "`gap-0.5` (2px) between dense rows: menus, the sidebar, trees and rails · `gap-1` (4px) between one-line rows (`row-single`) · `gap-2` (8px) between two-line rows (`row-double`): the Home lists and the Agents, Skills and Automations tables · no gap in a table whose rows are split by divider lines",
+                    "checkedBy": [
+                        "review"
+                    ]
                 }
             ]
         },
