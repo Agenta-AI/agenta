@@ -142,14 +142,21 @@ export const AgentKindBadge = ({
     const badge = (
         <span
             data-testid="agent-kind-badge"
-            className={`box-border flex size-6 shrink-0 items-center justify-center rounded-md border border-solid border-border-muted bg-muted ${chrome.customised ? chrome.className : "text-zinc-8"}`}
+            className={`box-border flex size-6 shrink-0 items-center justify-center rounded-md border border-solid border-border-muted bg-muted ${chrome.customised ? chrome.className : "text-muted-foreground"}`}
             style={chrome.style}
         >
             {chrome.glyph}
         </span>
     )
     return editable && workflowId ? (
-        <AgentIconPopover workflowId={workflowId}>{badge}</AgentIconPopover>
+        // The trigger is a control-height box (28 px) around the 24 px Mark, so the bar keeps one
+        // height (SIZE-01); the hover fill shows it is a button.
+        <AgentIconPopover
+            workflowId={workflowId}
+            triggerClassName="size-control-sm justify-center hover:bg-accent"
+        >
+            {badge}
+        </AgentIconPopover>
     ) : (
         badge
     )

@@ -87,7 +87,7 @@ describe("the builder panel on an agent page", () => {
         expect(q("builder")?.getAttribute("data-agent")).toBe("agent-1")
         expect(frame().className).not.toContain("hidden")
         expect(frame().className).toContain("h-full")
-        expect(frame().style.width).toBe("360px")
+        expect(frame().style.width).toBe("320px")
         expect(store.get(agentPanelStateAtomFamily(KEY)).content).toBe("builder")
         // A second click closes it; the chat stays mounted for the next open.
         await act(async () => q("open-builder")?.click())

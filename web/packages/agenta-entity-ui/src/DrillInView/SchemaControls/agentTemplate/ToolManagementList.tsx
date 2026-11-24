@@ -10,6 +10,7 @@ import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import integrationsPhoneCatalog from "@agenta/i18n/catalogs/entityUi.integrationsPhone"
 import itemDescriptorsCatalog from "@agenta/i18n/catalogs/entityUi.itemDescriptors"
 import {humanizeActionKey} from "@agenta/shared/utils"
+import {cn} from "@agenta/ui/styles"
 import {CaretRight} from "@phosphor-icons/react"
 
 import {ProviderLogo} from "../sectionGroups"
@@ -24,6 +25,7 @@ import {
 import {ITEM_KINDS} from "./itemKinds"
 import {ItemRow, StatusTag, type ItemRowStatus, type ItemRowStatusTone} from "./ItemRow"
 import {usePhoneSections} from "./phoneSections"
+import {useSectionListLayout} from "./sectionListLayout"
 
 const tNow = createT(configItemsCatalog, itemDescriptorsCatalog)
 
@@ -98,7 +100,7 @@ function PhoneIntegrationRow({
             type="button"
             onClick={onOpen}
             disabled={disabled}
-            className="flex min-h-14 w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-border-muted bg-transparent py-1.5 pl-4 pr-2 text-left font-[inherit] disabled:cursor-default"
+            className="flex min-h-row-double w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-border-muted bg-transparent py-1.5 pl-4 pr-2 text-left font-[inherit] disabled:cursor-default"
         >
             <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">
                 <ProviderLogo logo={logo} size={22} />
@@ -210,7 +212,14 @@ export interface ToolManagementListProps {
 
 /** Shared empty-state line: one quiet line, the section header's "+" is the way to add. */
 function EmptyLine({label}: {label: string}) {
-    return <span className="text-meta text-muted-foreground">{label}</span>
+    // In the panel accordion the line starts under the section title (ALIGN-01): the header's
+    // 4 px inset, the 14 px icon and its 8 px gap.
+    const panel = useSectionListLayout() === null && usePhoneSections() === null
+    return (
+        <span className={cn("text-meta text-muted-foreground", panel && "pl-[26px]")}>
+            {label}
+        </span>
+    )
 }
 
 /** The Integrations section body: one row per connected app, no sub-header. */

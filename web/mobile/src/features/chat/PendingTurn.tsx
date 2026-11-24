@@ -17,7 +17,7 @@ export const PendingTurn = ({
             <ChatBubble
                 placement="start"
                 variant="borderless"
-                className="min-w-0 max-w-full sm:max-w-[85%]"
+                className="min-w-0 max-w-full"
                 classNames={{content: "min-w-0 max-w-full overflow-hidden text-body"}}
                 content={
                     <ActivityTimeline

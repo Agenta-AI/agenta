@@ -74,7 +74,7 @@ export const SessionMenu = ({
             aria-hidden
             data-testid="session-status-dot"
             className={cn(
-                "mx-0.5 box-border size-2 shrink-0 rounded-xs border border-solid",
+                "mx-0.5 box-border size-2 shrink-0 rounded-round border border-solid",
                 running ? "border-foreground bg-foreground" : "border-muted-foreground",
             )}
         />

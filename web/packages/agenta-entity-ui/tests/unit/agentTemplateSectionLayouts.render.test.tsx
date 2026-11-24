@@ -87,10 +87,11 @@ describe("AgentTemplateSectionList layouts", () => {
         expect(headerRow("subagents").className).toContain("px-1")
         expect(section("subagents").textContent).not.toContain("None")
         expect(section("skills").textContent).toContain("2 skills")
-        // The Advanced row keeps its sandbox and ends with the triangle, not a chevron.
+        // The Advanced row keeps its sandbox and ends with the Phosphor caret, never a filled
+        // triangle (MICRO-06).
         expect(section("advanced").textContent).toContain("Sandbox: Daytona")
-        expect(section("advanced").querySelector("[data-slot=collapse-caret]")).not.toBeNull()
-        expect(section("advanced").querySelector("svg")).toBeNull()
+        const caret = section("advanced").querySelector("[data-slot=collapse-caret]")
+        expect(caret?.tagName.toLowerCase()).toBe("svg")
     })
 
     it("pane: full-width 45 px rows that keep None and tint a marked header", () => {

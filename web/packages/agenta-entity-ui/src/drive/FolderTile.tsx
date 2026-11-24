@@ -28,14 +28,14 @@ const PhoneFolder = () => (
     >
         <path
             d="M2 6a4 4 0 0 1 4-4h12l5 5h19a4 4 0 0 1 4 4v23a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V6z"
-            className="fill-info/10 stroke-info/30"
+            className="fill-muted-foreground/10 stroke-muted-foreground/30"
         />
     </svg>
 )
 
 const FolderGlyphBox = () => (
     <span className="flex h-14 w-14 items-center justify-center">
-        <DriveFolderGlyph size={52} className="!size-13 max-md:hidden" />
+        <DriveFolderGlyph drawing size={52} className="!size-13 max-md:hidden" />
         <PhoneFolder />
     </span>
 )

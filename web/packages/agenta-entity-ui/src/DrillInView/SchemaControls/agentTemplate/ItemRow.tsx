@@ -9,15 +9,11 @@ import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {ConfigRowTriangle, Tag} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@agenta/ui/ui"
+import {IconTile, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {CaretRight, Trash} from "@phosphor-icons/react"
 
 import {describeInstruction, type ItemDescriptor} from "./itemDescriptors"
+import {usePhoneSections} from "./phoneSections"
 import {useSectionListLayout} from "./sectionListLayout"
 
 /**
@@ -114,20 +110,29 @@ function RowSubtitle({
     return <span className={className}>{description}</span>
 }
 
-/** Colored avatar square (icon or monogram) at the start of a config-item row. */
+/**
+ * The Mark at the start of a config-item row: the neutral 24px `IconTile` of a one-line row
+ * (COLOR-05, CONS-01). `descriptor.color` no longer paints it. An item that draws its own Mark
+ * (an MCP server, a skill, a subagent's agent Mark) keeps its chip at the same 24px.
+ */
 export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
-    // `chip` wins when the item paints itself; everything else keeps the solid type square.
-    const chipped = Boolean(descriptor.avatarClassName)
+    if (descriptor.avatarClassName) {
+        return (
+            <span
+                className={cn(
+                    "flex size-6 shrink-0 items-center justify-center rounded-md text-caption font-medium leading-none [&_svg]:size-3.5",
+                    descriptor.avatarClassName,
+                )}
+                style={descriptor.avatarStyle}
+            >
+                {descriptor.icon ?? descriptor.mono}
+            </span>
+        )
+    }
     return (
-        <span
-            className={cn(
-                "flex h-7 w-7 shrink-0 items-center justify-center rounded text-meta font-semibold leading-none",
-                chipped ? descriptor.avatarClassName : "text-white",
-            )}
-            style={chipped ? descriptor.avatarStyle : {background: descriptor.color}}
-        >
+        <IconTile size={24} tone="neutral" aria-hidden>
             {descriptor.icon ?? descriptor.mono}
-        </span>
+        </IconTile>
     )
 }
 
@@ -163,6 +168,9 @@ export function ItemRow({
 }) {
     const t = useT(configItemsCatalog)
     const page = useSectionListLayout() === "page"
+    const phone = usePhoneSections() !== null
+    // ROW-01: a name alone is a one-line row (36), a name with a second line is two-line (48).
+    const twoLine = Boolean(status?.reason || descriptor.description)
     // `disabled` counts: a disabled row that still reads as a button invokes a handler that no-ops.
     const interactive = Boolean(onEdit) && !locked && !disabled
     return (
@@ -175,11 +183,17 @@ export function ItemRow({
                 "group flex items-center transition-colors",
                 // `cn` does not drop a class another one overrides: the page row and the panel
                 // card take their padding and frame from one place each.
+                // In the pane a plain row with the hover fill, not a card in the section
+                // (SURF-01/02). The clear border only shows a status tint.
                 page
                     ? PAGE_ROW
-                    : "gap-2.5 rounded-lg border border-solid border-border-muted py-2.5 pl-3 pr-2",
-                // Item cards read as white sheets sitting ON the expanded section's band.
-                !locked && "bg-background",
+                    : cn(
+                          "gap-2 rounded-md border border-solid border-transparent pl-3 pr-3",
+                          twoLine ? "min-h-row-double py-1.5" : "min-h-row-single py-1",
+                      ),
+                // The row hangs its hover fill 8 px out, so its Mark sits on the section icon's line.
+                !page && !phone && "-mx-2",
+                page && !locked && "bg-background",
                 interactive && !status && "cursor-pointer hover:bg-accent",
                 interactive && status && "cursor-pointer",
                 locked && "bg-muted opacity-70",
@@ -203,7 +217,7 @@ export function ItemRow({
                 }
                 className={cn(
                     "flex min-w-0 flex-1 items-center transition-opacity",
-                    page ? "gap-3" : "gap-2.5",
+                    page ? "gap-3" : "gap-2",
                     inactive && "opacity-50",
                 )}
             >
@@ -371,6 +385,7 @@ export function InstructionsFileRow({
 }) {
     const t = useT(configItemsCatalog)
     const page = useSectionListLayout() === "page"
+    const phone = usePhoneSections() !== null
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length
     const meta =
         wordCount > 0
@@ -403,9 +418,10 @@ export function InstructionsFileRow({
             }}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             className={cn(
-                // A row-double card: 8 px gap in the row (SPACE-03).
-                "group box-border flex min-h-row-double cursor-pointer items-center gap-2 rounded-lg border border-solid border-border-muted bg-background py-1.5 pl-2 pr-2 transition-colors",
-                !status && "hover:border-border-strong",
+                // A plain row-double row with the hover fill, not a card (SURF-01/02): 8 px gap
+                // in the row (SPACE-03). The clear border only shows a status tint.
+                "group box-border flex min-h-row-double cursor-pointer items-center gap-2 rounded-md border border-solid border-transparent py-1.5 pl-3 pr-3 transition-colors hover:bg-accent",
+                !phone && "-mx-2",
             )}
         >
             {/* The "md" monogram, not the file glyph (canvas F01). */}

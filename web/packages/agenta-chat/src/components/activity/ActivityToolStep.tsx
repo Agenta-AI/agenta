@@ -285,7 +285,7 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
                 {others ? t("chat.activity.andOthers", {count: others}) : null}
             </span>
             {opensFile ? (
-                <ArrowSquareOut size={11} className="shrink-0 text-muted-foreground" />
+                <ArrowSquareOut size={12} className="shrink-0 text-muted-foreground" />
             ) : expandable ? (
                 <StepCaret open={open} />
             ) : null}

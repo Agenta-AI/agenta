@@ -161,12 +161,8 @@ export const FolderView = ({
                     />
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex min-w-0 items-center gap-2">
-                            <FolderSimple
-                                size={16}
-                                weight="fill"
-                                className="shrink-0 text-warning"
-                            />
-                            <span className="truncate font-mono text-label font-semibold">
+                            <FolderSimple size={16} className="shrink-0 text-muted-foreground" />
+                            <span className="truncate font-mono text-label font-medium">
                                 {folderName}
                             </span>
                             <span className="shrink-0 text-meta tabular-nums text-muted-foreground">

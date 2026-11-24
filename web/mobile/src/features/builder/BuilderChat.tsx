@@ -204,7 +204,8 @@ export const BuilderChat = ({
                 newChatLayout={phone ? "top" : "middle"}
                 belowComposer={
                     isUnlinked ? (
-                        <div className="px-4">
+                        // The rows' text sits on the composer's edge; the hover fill hangs out.
+                        <div className="px-1">
                             <QuickActions
                                 agentName={agentName}
                                 onPick={fillComposer}

@@ -123,7 +123,7 @@ export const DriveHeader = ({
                 onClick={onToggleExpand}
                 className={ROW_ICON_BTN}
             >
-                {expanded ? <ArrowsIn size={15} /> : <ArrowsOut size={15} />}
+                {expanded ? <ArrowsIn size={14} /> : <ArrowsOut size={14} />}
             </Button>
         </Tooltip>
     ) : null
@@ -139,7 +139,7 @@ export const DriveHeader = ({
                         onClick={onClose}
                         className={ROW_ICON_BTN}
                     >
-                        <X size={15} />
+                        <X size={14} />
                     </Button>
                 </Tooltip>
             ) : null}
@@ -156,7 +156,7 @@ export const DriveHeader = ({
                 onClick={onBack}
                 className={ROW_ICON_BTN}
             >
-                <CaretLeft size={15} weight="bold" />
+                <CaretLeft size={14} />
             </Button>
             <Button
                 variant="ghost"
@@ -170,7 +170,7 @@ export const DriveHeader = ({
                 onClick={onForward}
                 className={ROW_ICON_BTN}
             >
-                <CaretRight size={15} weight="bold" />
+                <CaretRight size={14} />
             </Button>
             {/* The crumb takes the row's slack and scrolls sideways when a deep path outgrows it. */}
             <div className="ml-1 flex min-w-0 flex-1 items-center">
@@ -197,7 +197,7 @@ export const DriveHeader = ({
                         title={t("entityUi.driveExplorer.viewOptions")}
                         className={ROW_ICON_BTN}
                     >
-                        <Sliders size={15} />
+                        <Sliders size={14} />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-55">
@@ -232,7 +232,7 @@ export const DriveHeader = ({
                 >
                     {/* The app's sidebar glyph (the nav toggle's), as is — the panel it shows is
                         the idea, not which edge the tree docks on. */}
-                    <Sidebar size={16} weight={treeVisible ? "fill" : "regular"} />
+                    <Sidebar size={14} weight={treeVisible ? "fill" : "regular"} />
                 </Button>
             </Tooltip>
             {onClose && closeVariant === "collapse" ? (
@@ -252,7 +252,7 @@ export const DriveHeader = ({
                         onClick={onClose}
                         className={ROW_ICON_BTN}
                     >
-                        <CaretDoubleRight size={15} />
+                        <CaretDoubleRight size={14} />
                     </Button>
                 </Tooltip>
             ) : null}

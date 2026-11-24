@@ -7,8 +7,9 @@ import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
-import {Button} from "@agenta/ui/ui"
+import {Button, Tabs, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
+import type {ReactNode} from "react"
 
 import {ConfigPane} from "../chat/ConfigPane"
 import {selectedRevisionAtomFamily} from "../chat/selectedRevision"
@@ -61,49 +62,34 @@ export const ConfigurationRoot = ({
         onCloseSection()
         panel.setConfigTab(tab)
     }
-    const tabList = (
-        <div
-            role="tablist"
+    // The kit Tabs (TabsList, 32 px) inside the pane header. Selection runs on click, so a key
+    // press moves focus and Enter or Space selects (one Tab stop for the row).
+    const tabTriggers = (
+        <TabsList
             className={cn(
-                "flex min-w-0 flex-1 self-stretch",
-                // A long word in another language scrolls the row, never the screen.
-                panel.phone ? "ag-scroll-no-bar gap-5 overflow-x-auto" : "ml-2.5 gap-3.5",
+                // In the 320 px pane four tabs and Close do not fit: the row scrolls, never overlaps.
+                "ag-scroll-no-bar min-w-0 shrink justify-start overflow-x-auto",
             )}
-            onKeyDown={(event) => {
-                // Arrow keys move between the tabs (one Tab stop for the row).
-                const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0
-                if (!step) return
-                event.preventDefault()
-                const index = tabs.findIndex((tab) => tab.key === configTab)
-                const next = tabs[(index + step + tabs.length) % tabs.length]
-                selectTab(next.key)
-                document.getElementById(`agent-config-tab-${next.key}`)?.focus()
-            }}
         >
             {tabs.map((tab) => (
-                <button
+                <TabsTrigger
                     key={tab.key}
+                    value={tab.key}
                     id={`agent-config-tab-${tab.key}`}
-                    type="button"
-                    role="tab"
-                    aria-selected={configTab === tab.key}
                     aria-controls="agent-config-tabpanel"
-                    tabIndex={configTab === tab.key ? 0 : -1}
-                    // Underline tabs (canvas S02, M07): the open tab has a 2 px bar on the row's line.
-                    className={cn(
-                        "relative flex shrink-0 items-center truncate rounded-none",
-                        // Canvas `.ltabs button`: 2 px on each side, on a phone too (M07).
-                        "px-0.5 text-label",
-                        configTab === tab.key
-                            ? "font-medium text-foreground after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-foreground after:content-['']"
-                            : "text-muted-foreground hover:text-foreground",
-                    )}
+                    className="flex-none"
                     onClick={() => selectTab(tab.key)}
                 >
                     {t(`agentLayout.panel.${tab.label}`)}
-                </button>
+                </TabsTrigger>
             ))}
-        </div>
+        </TabsList>
+    )
+    const tabRow = (className: string, trailing: ReactNode) => (
+        <Tabs value={configTab} activationMode="manual" className={className}>
+            {tabTriggers}
+            {trailing}
+        </Tabs>
     )
     return (
         <div className="ag-panel-raised flex h-full min-h-0 flex-col">
@@ -135,9 +121,9 @@ export const ConfigurationRoot = ({
                         />
                         {/* The tabs, and on the Agent tab the version status at the end of the
                             row (M07; version control is only on the Agent tab, M10). */}
-                        <div className="box-border flex h-10 shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted pl-4 pr-4">
-                            {tabList}
-                            {configTab === "agent" ? (
+                        {tabRow(
+                            "box-border h-10 shrink-0 flex-row items-center justify-between gap-1 border-0 border-b border-solid border-border-muted pl-1.5 pr-4",
+                            configTab === "agent" ? (
                                 <AgentRevisionStatus
                                     revisionId={revisionId}
                                     historyWorkflowId={agentId}
@@ -147,15 +133,16 @@ export const ConfigurationRoot = ({
                                     backTitle={t("agentLayout.header.configuration")}
                                     className="shrink-0"
                                 />
-                            ) : null}
-                        </div>
+                            ) : null,
+                        )}
                     </>
                 )
             ) : (
-                <div className="flex h-12 shrink-0 items-center border-0 border-b border-solid border-border-muted pl-1 pr-1.5">
-                    {tabList}
-                    <PanelCloseButton />
-                </div>
+                // The pane header: the session bar's 48 px, the tab text on the pane's 24 px line.
+                tabRow(
+                    "box-border h-12 shrink-0 flex-row items-center justify-between gap-2 border-0 border-b border-solid border-border-muted pl-3.5 pr-3",
+                    <PanelCloseButton />,
+                )
             )}
             <div
                 id="agent-config-tabpanel"
@@ -166,11 +153,11 @@ export const ConfigurationRoot = ({
                 {configTab === "agent" ? (
                     <div className="flex h-full min-h-0 flex-col">
                         <div className="min-h-0 flex-1">
-                            <ConfigPane entityId={revisionId} />
+                            <ConfigPane entityId={revisionId} inset={!panel.phone} />
                         </div>
                         {panel.phone ? null : (
                             // Save status and version in the footer (S02, configuration-draft).
-                            <div className="flex shrink-0 justify-end border-0 border-t border-solid border-border-muted p-3">
+                            <div className="flex shrink-0 justify-end border-0 border-t border-solid border-border-muted px-6 py-3">
                                 <AgentRevisionStatus
                                     revisionId={revisionId}
                                     historyWorkflowId={agentId}
@@ -196,9 +183,16 @@ export const ConfigurationRoot = ({
                         agentId={agentId}
                         workspaceId={workspaceId}
                         projectId={projectId}
+                        // The pane's own 24 px margins (`panel-side`).
+                        className={panel.phone ? undefined : "px-6"}
                     />
                 ) : (
-                    <AccessTab agentId={agentId} workspaceId={workspaceId} projectId={projectId} />
+                    <AccessTab
+                        agentId={agentId}
+                        workspaceId={workspaceId}
+                        projectId={projectId}
+                        className={panel.phone ? undefined : "px-6"}
+                    />
                 )}
             </div>
         </div>

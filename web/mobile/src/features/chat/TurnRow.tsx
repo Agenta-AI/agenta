@@ -460,15 +460,9 @@ const TurnRowInner = ({
             <ChatBubble
                 placement={turn.isUser ? "end" : "start"}
                 variant={turn.isUser && hasBubbleContent ? "filled" : "borderless"}
-                // No avatar column; the 85% inset is what reads as a user bubble. The builder's
-                // answers take the whole column (S03, B03).
-                className={
-                    turn.isUser
-                        ? "min-w-0 max-w-[85%]"
-                        : builderChat
-                          ? "min-w-0 max-w-full"
-                          : "min-w-0 max-w-full sm:max-w-[85%]"
-                }
+                // No avatar column; the 85% inset is what reads as a user bubble. The agent's
+                // answers take the whole column, as wide as the composer (KIT-11, LAYOUT-02).
+                className={turn.isUser ? "min-w-0 max-w-[85%]" : "min-w-0 max-w-full"}
                 classNames={{
                     content: turn.isUser
                         ? cn(

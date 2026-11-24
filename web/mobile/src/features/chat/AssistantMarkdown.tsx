@@ -15,23 +15,26 @@ import type {IconMap} from "streamdown"
  */
 const proseBase = [
     "w-full min-w-0 space-y-3 overflow-hidden wrap-anywhere sm:space-y-3.5",
-    "[&_a]:text-link [&_a]:font-medium [&_a]:underline",
+    "[&_a]:text-link [&_a]:underline",
     "[&_p]:text-foreground",
-    "[&_:is(h1,h2,h3,h4,h5,h6)]:mt-6 [&_:is(h1,h2,h3,h4,h5,h6)]:mb-2 [&_:is(h1,h2,h3,h4,h5,h6)]:font-semibold [&_:is(h1,h2,h3,h4,h5,h6)]:tracking-tight",
-    "[&_h1]:text-title [&_:is(h2,h3)]:text-body [&_:is(h2,h3)]:font-semibold [&_:is(h4,h5,h6)]:text-label",
+    // Headings are text styles only, never larger than the page title: h1 and h2 are card-size
+    // titles, the rest are section titles. The style carries the weight.
+    "[&_:is(h1,h2,h3,h4,h5,h6)]:mt-6 [&_:is(h1,h2,h3,h4,h5,h6)]:mb-2",
+    "[&_:is(h1,h2)]:text-title [&_:is(h3,h4,h5,h6)]:text-subtitle",
     // Lists: our own 5px dot, hung in the indent; a nested list is a ruled block, not more dots.
     "[&_:is(ul,ol)]:my-1 [&_li]:py-0.5",
     "[&_ul]:list-none [&_ul]:pl-0 [&_ul>li]:relative [&_ul>li]:pl-4 [&_ul>li]:before:absolute [&_ul>li]:before:left-0.5 [&_ul>li]:before:top-[calc(0.125rem_+_0.5lh_-_2.5px)] [&_ul>li]:before:size-[5px] [&_ul>li]:before:rounded-[1px] [&_ul>li]:before:bg-foreground [&_ul>li:has(>input)]:pl-0 [&_ul>li:has(>input)]:before:hidden",
-    "[&_li_ul]:my-1 [&_li_ul]:border-l [&_li_ul]:border-border/60 [&_li_ul]:pl-3.5 [&_li_ul>li]:pl-0 [&_li_ul>li]:before:hidden",
+    "[&_li_ul]:my-1 [&_li_ul]:border-l [&_li_ul]:border-border-muted [&_li_ul]:pl-3.5 [&_li_ul>li]:pl-0 [&_li_ul>li]:before:hidden",
     "[&_ol]:list-outside [&_ol]:pl-5 [&_ol>li]:marker:text-muted-foreground",
-    "[&_blockquote]:my-2 [&_blockquote]:border-l [&_blockquote]:border-border/60 [&_blockquote]:pl-3 [&_blockquote]:not-italic [&_blockquote]:text-muted-foreground [&_blockquote_p]:text-muted-foreground",
+    "[&_blockquote]:my-2 [&_blockquote]:border-l [&_blockquote]:border-border-muted [&_blockquote]:pl-3 [&_blockquote]:not-italic [&_blockquote]:text-muted-foreground [&_blockquote_p]:text-muted-foreground",
     // A quiet break: the heading after it carries the section.
     "[&_hr]:my-3 [&_hr]:border-transparent",
-    "[&_:not(pre)>code]:rounded-sm [&_:not(pre)>code]:border-0 [&_:not(pre)>code]:bg-secondary [&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-px [&_:not(pre)>code]:font-mono [&_:not(pre)>code]:text-[0.9em]",
-    "[&_pre_code]:text-[0.95em]",
-    // A fence as one surface: Streamdown ships three borders for one block.
-    "[&_[data-streamdown=code-block]]:my-2 [&_[data-streamdown=code-block]]:gap-0 [&_[data-streamdown=code-block]]:overflow-hidden [&_[data-streamdown=code-block]]:rounded-md [&_[data-streamdown=code-block]]:border-border/60 [&_[data-streamdown=code-block]]:bg-muted [&_[data-streamdown=code-block]]:p-0",
-    "[&_[data-streamdown=code-block-header]]:h-7 [&_[data-streamdown=code-block-header]]:border-b [&_[data-streamdown=code-block-header]]:border-border/60 [&_[data-streamdown=code-block-header]]:px-3 [&_[data-streamdown=code-block-header]]:text-caption [&_[data-streamdown=code-block-header]]:tracking-[0.02em] [&_[data-streamdown=code-block-header]_span]:ml-0",
+    "[&_:not(pre)>code]:rounded-sm [&_:not(pre)>code]:border-0 [&_:not(pre)>code]:bg-secondary [&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-px [&_:not(pre)>code]:text-code-sm",
+    "[&_pre_code]:text-code",
+    // A fence as one bordered box: a muted header with the label and Copy, the code on
+    // background (KIT-07). Streamdown ships three borders for one block.
+    "[&_[data-streamdown=code-block]]:my-2 [&_[data-streamdown=code-block]]:gap-0 [&_[data-streamdown=code-block]]:overflow-hidden [&_[data-streamdown=code-block]]:rounded-md [&_[data-streamdown=code-block]]:border-border-muted [&_[data-streamdown=code-block]]:bg-background [&_[data-streamdown=code-block]]:p-0",
+    "[&_[data-streamdown=code-block-header]]:h-7 [&_[data-streamdown=code-block-header]]:border-b [&_[data-streamdown=code-block-header]]:border-border-muted [&_[data-streamdown=code-block-header]]:bg-muted [&_[data-streamdown=code-block-header]]:px-3 [&_[data-streamdown=code-block-header]]:text-caption [&_[data-streamdown=code-block-header]_span]:ml-0",
     // The actions' sticky frame is unlabelled: reach it as the header's sibling.
     "[&_[data-streamdown=code-block-header]+div]:-mt-7 [&_[data-streamdown=code-block-header]+div]:h-7 [&_[data-streamdown=code-block-header]+div]:top-0 [&_[data-streamdown=code-block-header]+div]:pr-1.5",
     "[&_[data-streamdown=code-block-actions]]:rounded-none [&_[data-streamdown=code-block-actions]]:border-0 [&_[data-streamdown=code-block-actions]]:bg-transparent [&_[data-streamdown=code-block-actions]]:p-0 [&_[data-streamdown=code-block-actions]]:backdrop-blur-none",

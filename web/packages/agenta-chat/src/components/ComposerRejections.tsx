@@ -25,6 +25,8 @@ export interface ComposerRejectionsProps {
  */
 export const ComposerRejections = ({rejections, onDismiss}: ComposerRejectionsProps) => {
     const t = useT(chatComposerRejectionsCatalog)
+    // No rejections, no box: an empty warning strip above the composer is noise.
+    if (rejections.length === 0) return null
     return (
         <MotionConfig transition={SESSION_SPRING}>
             {/* max-h: four rows, then it scrolls — a bad multi-select must not push the input off screen. */}

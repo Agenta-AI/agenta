@@ -247,7 +247,7 @@ export const AgentRevisionStatus = ({
             {failed ? (
                 <WarningCircle size={12} className="shrink-0 text-destructive" />
             ) : (
-                <span className={`h-[6px] w-[6px] shrink-0 rounded-sm ${dot.tone}`} />
+                <span className={`size-1.5 shrink-0 rounded-round ${dot.tone}`} />
             )}
             {/* Words only for states that need attention; hidden on a narrow bar, except on a
                 phone, where the icon alone does not say that a save failed. */}
@@ -353,30 +353,27 @@ export const AgentRevisionStatus = ({
                 <SimpleTooltip
                     title={t("playground.agentHeader.statusAndHistory", {status: dot.label})}
                 >
-                    <button
-                        type="button"
+                    {/* A kit control, the height of the bar's other controls (SIZE-01). */}
+                    <Button
+                        variant="ghost"
+                        size="compact"
                         aria-label={t("playground.agentHeader.versionStatusOpen", {
                             version,
                             status: dot.label,
                         })}
                         onClick={() => openHistory(historyWorkflowId)}
-                        className={cn(
-                            "flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
-                            phone
-                                ? " whitespace-nowrap py-0.5 pl-2 pr-0.5 text-label font-normal"
-                                : "px-1.5 py-0.5 text-label font-normal",
-                        )}
+                        className={cn("gap-1.5", phone && "whitespace-nowrap")}
                     >
                         {/* One chip: the save state is a fact about this version. */}
-                        <span className={cn("flex items-center", phone ? "gap-1.5" : "gap-1")}>
+                        <span className="flex items-center gap-1.5">
                             {/* A caret would promise a menu; this opens a drawer of history. */}
                             {phone ? (
                                 // Canvas M07: a 14 px glyph and no dot; the words carry the state
                                 // ("Saved as vN", "Saving…").
-                                <ClockCounterClockwise size={14} className="shrink-0" />
+                                <ClockCounterClockwise size={14} className="size-3.5 shrink-0" />
                             ) : (
                                 <span className="relative flex shrink-0">
-                                    <ClockCounterClockwise size={11} />
+                                    <ClockCounterClockwise size={12} className="size-3" />
                                     {/* Save state as a badge on the icon, so it never trails the
                                         text. */}
                                     <span
@@ -393,7 +390,7 @@ export const AgentRevisionStatus = ({
                         {showLabel && !phone ? (
                             <span className="hidden sm:inline">{dot.label}</span>
                         ) : null}
-                    </button>
+                    </Button>
                 </SimpleTooltip>
             ) : null}
 

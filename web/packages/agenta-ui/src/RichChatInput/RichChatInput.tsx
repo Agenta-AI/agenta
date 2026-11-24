@@ -360,9 +360,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         const canvas = surface === "canvas"
         // The canvas box: 14 px text on a 22 px line (15 / 20 in a 24 px row on a phone) and a
         // 12 px inset over a one-line editor; the toolbar sits 12 px under it (S03, M01).
-        const minHeightClassName =
-            minHeightProp ?? (canvas ? "min-h-[34px]" : "min-h-[62px]")
-        const textSizeClassName = textSizeProp ?? "text-body"
+        const minHeightClassName = minHeightProp ?? (canvas ? "min-h-[34px]" : "min-h-[62px]")
+        // The kit field size (13 px); touch reads 16 px through the kit's touch rules (TOUCH-01).
+        const textSizeClassName = textSizeProp ?? "text-field-md"
         // The default box keeps its relaxed leading under any size a host passes.
         const leading = canvas ? "" : "leading-relaxed"
         const editorPad = comfortable
@@ -439,6 +439,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                     <div
                                         className={clsx(
                                             "pointer-events-none absolute inset-0 select-none break-words text-muted-foreground",
+                                            // The editor reads 16 px under touch (touch.css);
+                                            // the hint keeps the caret's size.
+                                            "pointer-coarse:text-field-lg",
                                             leading,
                                             // The canvas editor is one line high: a long hint
                                             // ends in "…" rather than spilling under the toolbar.
@@ -460,7 +463,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             comfortable
                                 ? "px-4 pb-3 pt-1.5"
                                 : canvas
-                                  ? // A phone row is 44 px: the 36 px buttons and their 4 px reach.
+                                  ? // The kit button sizes on every window (SIZE-02).
                                     "pb-2.5 pl-2.5 pr-3 pt-3 max-md:pb-1.5 max-md:pl-1.5 max-md:pr-3 max-md:pt-1.5"
                                   : "px-2 py-1.5",
                         )}

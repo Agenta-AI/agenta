@@ -31,8 +31,10 @@ export const ChatRow = ({
             onClick={() => onOpen(row.session_id)}
             className={cn(
                 "flex w-full min-w-0 cursor-pointer items-center border-0 bg-transparent text-left text-foreground hover:bg-accent",
-                layout === "panel" && "h-8 gap-3 rounded-lg px-2 text-label leading-5",
-                layout === "phoneRecent" && "h-11 shrink-0 gap-2 rounded-md px-1 text-label pointer-coarse:text-touch",
+                // A one-line list row (ROW-01: 36 px).
+                layout === "panel" && "h-row-single gap-3 rounded-md px-2 text-label",
+                layout === "phoneRecent" &&
+                    "h-11 shrink-0 gap-2 rounded-md px-1 text-label pointer-coarse:text-touch",
                 layout === "phoneHistory" &&
                     "min-h-14 shrink-0 gap-3 border-b border-solid border-border-muted py-1.5 pl-4 pr-2 text-label pointer-coarse:text-touch",
             )}

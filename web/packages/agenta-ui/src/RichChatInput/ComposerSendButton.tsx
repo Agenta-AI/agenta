@@ -21,7 +21,7 @@ export interface ComposerSendButtonProps {
      * that has not committed. The arrow becomes a spinner and the button refuses a second press.
      */
     sending?: boolean
-    /** `canvas`: a round dark 28 px button (36 px on a phone), dark even with nothing to send. */
+    /** `canvas`: a dark 28 px kit icon button, dark even with nothing to send. */
     surface?: ComposerSurface
 }
 
@@ -44,7 +44,8 @@ export function ComposerSendButton({
     const t = useT(uiChatInputCatalog)
     return (
         <Button
-            size="icon"
+            // The kit sizes it, the same on every window and on touch (SIZE-01, SIZE-02).
+            size={surface === "canvas" ? "icon-sm" : "icon"}
             variant="default"
             aria-label={sending ? t("ui.chatInput.sending") : (ariaLabel ?? t("ui.chatInput.send"))}
             aria-busy={sending || undefined}
@@ -55,12 +56,7 @@ export function ComposerSendButton({
             // editor has already emptied under it: a spinner on the inert grey said "nothing to
             // do" and "working" at once.
             className={cn(
-                // The control radius, not a circle: the composer is a rounded rectangle and every
-                // other control on it follows that radius — a puck was the one round thing on it.
-                // The canvas surface draws the round one.
-                surface === "canvas" ? "size-control-sm rounded-md" : "rounded-control",
-                // A phone: 36 px drawn and a 44 px area (4 px reach), as the design canvas.
-                "",
+                // The kit's control radius, never a circle (SHAPE-01).
                 surface === "canvas"
                     ? "!border-[var(--ag-composer-send-bg,var(--foreground))] !bg-[var(--ag-composer-send-bg,var(--foreground))] !text-[var(--ag-composer-send-fg,var(--background))] disabled:!opacity-100 hover:!opacity-90"
                     : disabled && !sending
@@ -77,12 +73,8 @@ export function ComposerSendButton({
                 <CircleNotch size={16} weight="bold" className="animate-spin" />
             ) : (
                 (icon ?? (
-                    // The canvas draws a 14 px arrow, on a phone too (S03, M01).
-                    <ArrowUp
-                        size={16}
-                        weight="bold"
-                        className={surface === "canvas" ? "size-3.5" : undefined}
-                    />
+                    // The kit's icon size for the button: 14 px in the 28 px canvas button.
+                    <ArrowUp size={16} />
                 ))
             )}
         </Button>

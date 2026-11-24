@@ -382,9 +382,9 @@ export const Composer = ({
         // a phone (M01).
         <div
             className={cn(
-                "bg-background shrink-0 px-3 pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:px-4 md:pb-4",
-                // The builder pads 16 px on a phone too (M04).
-                builderChat && "px-4",
+                // 16 px each side on every window, as the transcript: the composer and the
+                // messages share one column and both edges (LAYOUT-02).
+                "bg-background shrink-0 px-4 pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:pb-4",
                 // B01: the ideas sit 10 px over the box, and 24 px stay under it.
                 pageNewChat && "md:pb-6 md:pt-0",
                 // A parked card holds the one primary action: Send goes quiet (ACT-01).

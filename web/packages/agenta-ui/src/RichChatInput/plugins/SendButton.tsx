@@ -63,10 +63,7 @@ export function SendButton({
 
     const hasDraft = !empty || !!forceEnabled
     if (streaming || busyActions?.length) {
-        // A spinning ring (stream in progress) around a Stop square — one affordance that both
-        // signals progress and stops the run on click. Two-layer ring: a faint neutral track under
-        // a thin, muted-primary arc, so the accent reads as a calm progress cue rather than a loud
-        // full-saturation halo; the Stop glyph stays neutral so the accent isn't doubled up.
+        // A Stop square while the run goes on; the transcript shows the progress.
         return (
             <span className="inline-flex items-center gap-1">
                 {busyActions?.map((action) => (
@@ -83,40 +80,18 @@ export function SendButton({
                     </Button>
                 ))}
                 {streaming && !hasDraft ? (
-                    <span className="relative inline-flex">
-                        <span
-                            aria-hidden
-                            className="pointer-events-none absolute inset-0 rounded-md border-[1.5px] border-solid border-border-muted"
-                        />
-                        <span
-                            aria-hidden
-                            className="pointer-events-none absolute inset-0 animate-spin rounded-full border-[1.5px] border-solid border-transparent"
-                            style={{
-                                borderTopColor:
-                                    "color-mix(in srgb, var(--primary) 60%, var(--background))",
-                            }}
-                        />
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            // A phone: 36 px drawn and a 44 px area, as Send.
-                            className={`rounded-control-round ${
-                                surface === "canvas" ? "size-control-sm" : ""
-                            }`}
-                            aria-label={
-                                stopping ? t("ui.chatInput.stopping") : t("ui.chatInput.stop")
-                            }
-                            aria-keyshortcuts={shortcutAria("run.stop")}
-                            onClick={onStop}
-                            disabled={stopping}
-                        >
-                            <Stop
-                                size={13}
-                                weight="fill"
-                                className="text-muted-foreground"
-                            />
-                        </Button>
-                    </span>
+                    // Send becomes Stop while the agent runs (MICRO-03): the same kit button,
+                    // no spinning ring around it (MOTION-02).
+                    <Button
+                        size={surface === "canvas" ? "icon-sm" : "icon"}
+                        variant="outline"
+                        aria-label={stopping ? t("ui.chatInput.stopping") : t("ui.chatInput.stop")}
+                        aria-keyshortcuts={shortcutAria("run.stop")}
+                        onClick={onStop}
+                        disabled={stopping}
+                    >
+                        <Stop size={14} weight="fill" className="text-muted-foreground" />
+                    </Button>
                 ) : null}
                 {hasDraft ? (
                     <ComposerSendButton

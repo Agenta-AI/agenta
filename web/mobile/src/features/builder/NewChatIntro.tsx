@@ -1,44 +1,23 @@
 import {useT} from "@agenta/i18n"
 import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
-import dynamic from "next/dynamic"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
+import {IconTile} from "@agenta/ui/ui"
 
-import {cn} from "@/lib/utils"
-
-// The hero's shader loads on its own, after the chat is on screen.
-const BuilderHero = dynamic(
-    () => import("../builder-page/hero/BuilderHero").then((m) => m.BuilderHero),
-    {ssr: false, loading: () => <div className="size-40" />},
-)
-
-/** The top of a new builder chat: the hero, the question and what the builder can do. */
-export const NewChatIntro = ({agentName, phone = false}: {agentName: string; phone?: boolean}) => {
+/**
+ * The top of a new builder chat: a 40 px neutral Mark, the question and what the builder can do.
+ * No decorative illustration in the right pane (LOUD-01/02); the title is a text style (TYPE-01).
+ */
+export const NewChatIntro = ({agentName}: {agentName: string; phone?: boolean}) => {
     const t = useT(builderPanelCatalog)
     return (
         <div className="flex flex-col items-center text-center" data-testid="builder-new-chat">
-            {/* The ribbon fills the middle of its square, so the box takes the canvas orb's
-                height (125 px in the panel, S07; 104 px on a phone, M04) and the rest overhangs. */}
-            <div
-                className={cn(
-                    "flex items-center justify-center",
-                    phone ? "h-26" : "h-[125px]",
-                )}
-            >
-                <BuilderHero state="idle" className="size-40" />
-            </div>
-            <h2
-                className={cn(
-                    "m-0 text-heading text-foreground",
-                    phone && "mt-1.5",
-                )}
-            >
+            <IconTile size={40} tone="neutral" aria-hidden>
+                <BuilderIcon />
+            </IconTile>
+            <h2 className="m-0 mt-3 text-title text-foreground">
                 {t("builder.panel.question", {agent: agentName})}
             </h2>
-            <p
-                className={cn(
-                    "m-0 mt-1 max-w-[320px] text-muted-foreground",
-                    phone ? "text-sm" : "text-label leading-5",
-                )}
-            >
+            <p className="m-0 mt-1 max-w-[320px] text-body-sm text-muted-foreground">
                 {t("builder.panel.intro")}
             </p>
         </div>

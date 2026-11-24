@@ -45,22 +45,12 @@ export function ConfigRowDrawerCaret({className}: {className?: string}) {
 }
 
 /**
- * The canvas caret (F01, B03): an 8 x 5 triangle in the secondary text color. It points right on
- * a closed row and down on an open one; the right one keeps 4 px from the row's edge.
+ * The canvas caret (F01, B03): Phosphor's regular right caret in the secondary text color
+ * (MICRO-06: never a filled triangle). It points right on a closed or drill row and turns 90° on
+ * an open one.
  */
 export function ConfigRowTriangle({open = false}: {open?: boolean}) {
-    return (
-        <span
-            aria-hidden
-            data-slot="collapse-caret"
-            className={cn(
-                "block size-0 shrink-0 border-solid border-transparent",
-                open
-                    ? "mx-0.5 border-x-4 border-b-0 border-t-[5px] border-t-muted-foreground"
-                    : "mr-1 border-y-4 border-l-[5px] border-r-0 border-l-muted-foreground",
-            )}
-        />
-    )
+    return <CollapseCaret open={open} size={12} />
 }
 
 export interface ConfigRowTrailingProps {

@@ -57,7 +57,7 @@ export const DriveBreadcrumb = ({
                     <BreadcrumbItem>
                         {segs.length === 0 ? (
                             <BreadcrumbPage className="flex h-control-xs items-center gap-1.5 px-1.5 py-0 font-medium">
-                                <House size={15} />
+                                <House size={14} />
                                 {t("entityUi.driveExplorer.allFiles")}
                             </BreadcrumbPage>
                         ) : (
@@ -70,7 +70,7 @@ export const DriveBreadcrumb = ({
                                     title={rootLabel}
                                     className={crumbLink}
                                 >
-                                    <House size={15} />
+                                    <House size={14} />
                                 </Button>
                             </BreadcrumbLink>
                         )}
@@ -89,7 +89,7 @@ export const DriveBreadcrumb = ({
                                             {isFile ? (
                                                 <DriveTypeMark path={path} size="mini" />
                                             ) : (
-                                                <DriveFolderGlyph open size={15} />
+                                                <DriveFolderGlyph open size={14} />
                                             )}
                                             {seg}
                                         </BreadcrumbPage>
@@ -103,7 +103,7 @@ export const DriveBreadcrumb = ({
                                             >
                                                 <DriveFolderGlyph
                                                     open
-                                                    size={15}
+                                                    size={14}
                                                     className="!text-current"
                                                 />
                                                 {seg}

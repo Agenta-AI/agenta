@@ -153,7 +153,7 @@ export const AgentMenu = ({
                                 }}
                             >
                                 <AgentKindBadge workflowId={agentId} editable={false} />
-                                <span className="min-w-0 truncate text-title">{name}</span>
+                                <span className="min-w-0 truncate text-label">{name}</span>
                                 <CaretDown
                                     size={14}
                                     aria-hidden

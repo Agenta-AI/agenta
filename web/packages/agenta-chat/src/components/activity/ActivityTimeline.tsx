@@ -3,7 +3,7 @@ import {useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} f
 import {createT} from "@agenta/i18n"
 import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
 import {AgentActivityDots, HeightCollapse, type AgentActivityFormat} from "@agenta/ui"
-import {CaretRight, FileText} from "@phosphor-icons/react"
+import {FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useReducedMotion} from "motion/react"
@@ -30,7 +30,13 @@ import {turnSpanAtomFamily, useTurnStage, useTurnStageSince} from "../../state/t
 import RevealCollapse from "../RevealCollapse"
 
 import {ActivityClientStep} from "./ActivityClientStep"
-import {ActivityNode, LIVE_TEXT_CLASS, WaitingGlyph, type WaitingKind} from "./activityIcons"
+import {
+    ActivityNode,
+    LIVE_TEXT_CLASS,
+    StepCaret,
+    WaitingGlyph,
+    type WaitingKind,
+} from "./activityIcons"
 import {ActivityThoughtStep} from "./ActivityThoughtStep"
 import {ActivityToolStep} from "./ActivityToolStep"
 
@@ -477,7 +483,7 @@ export const ActivityTimeline = ({
                 // Nothing to open yet (no step, no raw failure): a plain line, not a toggle.
                 disabled={!nodes}
                 aria-expanded={nodes ? open : undefined}
-                className={`-ml-1.5 flex w-fit max-w-full cursor-pointer disabled:cursor-default items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-label text-muted-foreground pointer-coarse:leading-5 group/row`}
+                className={`-ml-1.5 flex w-fit max-w-full cursor-pointer disabled:cursor-default items-center gap-2 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-label text-muted-foreground group/row`}
             >
                 {awaiting ? (
                     <WaitingGlyph kind={waitingKind(steps)} />
@@ -490,19 +496,15 @@ export const ActivityTimeline = ({
                 {!live && files.length ? (
                     <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-muted-foreground">
                         <span>·</span>
-                        <FileText size={13} />
+                        <FileText size={12} />
                         {tNow("chat.activity.fileCount", {count: files.length})}
                     </span>
                 ) : null}
                 {/* Nothing to open before the first step. */}
                 {nodes ? (
-                    <CaretRight
-                        size={10}
-                        weight="bold"
-                        className={`shrink-0 text-muted-foreground transition-transform ${
-                            open ? "rotate-90" : ""
-                        }`}
-                    />
+                    <span className="flex shrink-0 text-muted-foreground">
+                        <StepCaret open={open} />
+                    </span>
                 ) : null}
             </button>
             <RevealCollapse open={open}>

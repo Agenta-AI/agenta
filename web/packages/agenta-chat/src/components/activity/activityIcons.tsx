@@ -147,7 +147,7 @@ export const ActivityNode = ({
                 <IntegrationTile label={appLabel ?? ""} logo={logo} size={16} />
             ) : (
                 <Glyph
-                    size={13}
+                    size={14}
                     className={state === "running" ? "motion-safe:animate-spin" : undefined}
                 />
             )}
@@ -155,7 +155,7 @@ export const ActivityNode = ({
     )
 }
 
-/** One step's row: the node, the sentence, a caret; the `after` box is the ~44px touch target. */
+/** One step's row: the node, the sentence, a caret. The same size on touch (SIZE-02). */
 export const StepRow = ({
     open,
     onToggle,
@@ -175,7 +175,7 @@ export const StepRow = ({
             onClick={onToggle}
             aria-expanded={open}
             aria-controls={open === undefined ? undefined : controls}
-            className="relative -ml-1.5 flex w-fit max-w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-left group/row after:absolute after:-inset-y-2 after:inset-x-0 after:content-['']"
+            className="relative -ml-1.5 flex w-fit max-w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-left group/row"
         >
             {children}
         </button>
@@ -194,7 +194,7 @@ export const WaitingGlyph = ({kind = "approval"}: {kind?: WaitingKind}) => {
     const Glyph = kind === "approval" ? ShieldCheck : KIND_GLYPHS[kind]
     return (
         <span aria-hidden className="flex size-6 shrink-0 items-center justify-center">
-            <Glyph size={13} />
+            <Glyph size={14} />
         </span>
     )
 }

@@ -242,7 +242,7 @@ export const DriveFileRow = ({
                 <DriveTypeMark path={path} size="mini" />
             )
         ) : isFolderEntry ? (
-            <FolderSimple size={size} weight="fill" className="text-warning" />
+            <FolderSimple size={size} className="text-muted-foreground" />
         ) : (
             driveFileIcon(path, size)
         )

@@ -282,7 +282,7 @@ const FileActionsMenu = ({
                     title={t("entityUi.driveBrowser.more")}
                     className={ROW_ICON_BTN}
                 >
-                    <DotsThree size={14} weight="bold" />
+                    <DotsThree size={14} />
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -456,7 +456,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
                         >
                             <SlidersHorizontalIcon className="size-3.5" />
                             {t(SORT_LABELS[sort])}
-                            <CaretDown weight="bold" className="size-3 opacity-70" />
+                            <CaretDown className="size-3" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
@@ -484,7 +484,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
                         title={t("entityUi.driveBrowser.more")}
                         className={ROW_ICON_BTN}
                     >
-                        <DotsThree size={14} weight="bold" />
+                        <DotsThree size={14} />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent

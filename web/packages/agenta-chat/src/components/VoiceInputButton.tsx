@@ -85,7 +85,7 @@ const VoiceInputButton = ({
      * mode leads and explains itself in the menu — it never blocks recording (D6). */
     audioPerceivable: boolean | null
     disabled?: boolean
-    /** The composer's look: `canvas` draws the mic like the paperclip, a 24 px box. */
+    /** The composer's look: `canvas` draws the mic like the paperclip, a 28 px kit button. */
     surface?: ComposerSurface
 }) => {
     const t = useT(chatVoiceInputButtonCatalog)
@@ -227,16 +227,15 @@ const VoiceInputButton = ({
     return (
         <div ref={rootRef} className="flex items-center">
             <SimpleTooltip title={title}>
-                {/* While dictating it stops: a danger Stop square, never mistaken for Send. */}
+                {/* While dictating it stops: a red Stop square, never mistaken for Send (ACT-03). */}
                 <Button
-                    variant={dictating ? "destructive" : "ghost"}
-                    size="icon"
-                    // A phone: 36 px drawn and a 44 px area (4 px reach), as the design canvas.
-                    className={`${
-                        surface === "canvas"
-                            ? `size-6 ${dictating ? "" : "text-muted-foreground"}`
-                            : ""
-                    }`}
+                    variant={dictating ? "destructive-ghost" : "ghost"}
+                    // The canvas: the kit's 28 px control, as Send and the model button, the
+                    // same on every window (SIZE-01, SIZE-02).
+                    size={surface === "canvas" ? "icon-sm" : "icon"}
+                    className={
+                        surface === "canvas" && !dictating ? "text-muted-foreground" : undefined
+                    }
                     onClick={toggle}
                     // A second press while the prompt is open would only queue another request.
                     disabled={disabled || (!dictating && (audioPending || audioBlocked))}

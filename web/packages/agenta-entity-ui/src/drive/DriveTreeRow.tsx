@@ -5,8 +5,7 @@ import {type MountUploadItem} from "@agenta/entities/drive"
 import {fileOrigin} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
 import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
-import {Spinner} from "@agenta/ui/ui"
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {CollapseCaret, Spinner} from "@agenta/ui/ui"
 
 import {FOCUS_RING} from "./DriveFileRow"
 import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
@@ -122,7 +121,7 @@ export const TreeRow = ({
                         }}
                         className={`flex w-4 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground ${FOCUS_RING}`}
                     >
-                        {isOpen ? <CaretDown size={10} /> : <CaretRight size={10} />}
+                        <CollapseCaret open={isOpen} className="text-current" />
                     </button>
                 ) : null}
                 {/* Keyboard focus stop only — the click (mouse and Enter/Space) bubbles to the row

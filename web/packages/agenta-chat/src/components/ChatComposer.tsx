@@ -62,7 +62,7 @@ export interface ChatComposerProps {
     maxHeightClassName?: string
     /** The editor's resting height; see RichChatInput. */
     minHeightClassName?: string
-    /** A 14 px secondary paperclip in a 24 px box: the builder page's new chat (B01). */
+    /** @deprecated No effect: the kit sizes the paperclip on every surface. Kept for callers. */
     smallAttach?: boolean
     disabled?: boolean
     /** Send and Enter are off while typing stays on (an agent whose model needs setup). */
@@ -134,7 +134,6 @@ export const ChatComposer = ({
     className,
     maxHeightClassName,
     minHeightClassName,
-    smallAttach = false,
     disabled,
     sendDisabled,
     hideSendButton,
@@ -313,8 +312,7 @@ export const ChatComposer = ({
                     onSubmit: withQuotes(action.onSubmit),
                 }))}
                 prefix={
-                    // Tight: these are one cluster of composer tools, not separate controls. On a
-                    // phone 8 px apart, so the 44 px areas do not reach a neighbour.
+                    // Tight: these are one cluster of composer tools, not separate controls.
                     <div className="flex items-center gap-0.5">
                         {extraPrefix}
                         {/* Gone while dictating: the row belongs to the wave, and attaching a file
@@ -333,17 +331,12 @@ export const ChatComposer = ({
                             >
                                 <Button
                                     variant="ghost"
-                                    size="icon"
-                                    // A phone: 36 px drawn and a 44 px area (4 px reach), as the
-                                    // design canvas.
-                                    className={` ${
-                                        // The canvas draws a bare glyph in a 24 px box.
-                                        surface === "canvas"
-                                            ? smallAttach
-                                                ? "size-6 text-muted-foreground"
-                                                : "size-6 text-muted-foreground"
-                                            : ""
-                                    }`}
+                                    // The canvas: the kit's 28 px control, as Send and the model
+                                    // button, the same on every window (SIZE-01, SIZE-02).
+                                    size={surface === "canvas" ? "icon-sm" : "icon"}
+                                    className={
+                                        surface === "canvas" ? "text-muted-foreground" : undefined
+                                    }
                                     disabled={!uploadsEnabled || composerDisabled}
                                     onClick={() => fileInputRef.current?.click()}
                                     // The closing picker's focus has no relatedTarget; no tooltip.
@@ -352,18 +345,8 @@ export const ChatComposer = ({
                                     }}
                                     aria-label={t("chat.chatComposer.attachFiles")}
                                 >
-                                    {/* 16 px (S07), 14 px on the builder page (B01), 20 px on
-                                        a phone (M01). */}
-                                    <Paperclip
-                                        size={16}
-                                        className={
-                                            surface !== "canvas"
-                                                ? undefined
-                                                : smallAttach
-                                                  ? "size-3.5"
-                                                  : "size-4"
-                                        }
-                                    />
+                                    {/* The kit's icon size for the button. */}
+                                    <Paperclip size={16} />
                                 </Button>
                             </SimpleTooltip>
                         )}

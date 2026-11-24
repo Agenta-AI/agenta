@@ -84,10 +84,11 @@ export const BuilderHeader = ({
                     type="button"
                     data-testid="builder-chat-title"
                     className={cn(
-                        "flex min-w-0 max-w-full cursor-pointer items-center gap-2 border-0 bg-transparent font-semibold text-foreground hover:bg-accent",
+                        // Weight 500 (TYPE-05); the kit's 28 px control on a wide window.
+                        "flex min-w-0 max-w-full cursor-pointer items-center gap-2 border-0 bg-transparent font-medium text-foreground hover:bg-accent",
                         phone
                             ? "h-11 rounded-lg px-2 text-base leading-5"
-                            : "h-[30px] rounded-[6px] px-2 text-sm",
+                            : "h-control-sm rounded-md px-2 text-label",
                     )}
                 >
                     <BuilderIcon size={14} className="shrink-0" />
@@ -107,7 +108,7 @@ export const BuilderHeader = ({
                         <span className="min-w-0 flex-1 truncate">
                             {row.name?.trim() || t("builder.panel.untitledChat")}
                         </span>
-                        <span className="shrink-0 text-xs text-muted-foreground">
+                        <span className="shrink-0 text-meta text-muted-foreground">
                             {age(row.updated_at, now)}
                         </span>
                     </DropdownMenuItem>
@@ -144,13 +145,14 @@ export const BuilderHeader = ({
     }
     return (
         <div
-            className={cn(headerClass, isHistory ? "pl-1.5" : "pl-2.5")}
+            // The title's icon on the pane's 24 px line (16 + the control's 8 px padding).
+            className={cn(headerClass, isHistory ? "pl-1.5" : "pl-4")}
             data-testid="builder-panel-header"
         >
             {isHistory ? (
                 <>
                     {iconButton(t("builder.panel.back"), <CaretLeft aria-hidden />, onBack)}
-                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                    <span className="min-w-0 flex-1 truncate text-label text-foreground">
                         {t("builder.panel.chatHistory")}
                     </span>
                 </>

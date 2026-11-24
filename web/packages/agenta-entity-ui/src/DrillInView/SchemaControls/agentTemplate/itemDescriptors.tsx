@@ -122,7 +122,7 @@ export function describeSubagent(
         description: typeof t.description === "string" ? t.description : undefined,
         mono: "",
         color: "transparent",
-        icon: chrome?.glyph ?? <Robot size={15} weight="fill" />,
+        icon: chrome?.glyph ?? <Robot />,
         // Always chipped: an unchipped avatar paints white on transparent and the glyph vanishes.
         avatarClassName:
             chrome?.className ??
@@ -162,7 +162,7 @@ export function describeTool(tool: unknown): ItemDescriptor {
             description: typeof t.description === "string" ? (t.description as string) : undefined,
             mono: "",
             color: "#0d9488",
-            icon: <GraphIcon size={15} weight="fill" />,
+            icon: <GraphIcon />,
             tags: [tNow("entityUi.itemDescriptors.workflowTag")],
             typeLabel: tNow("entityUi.itemDescriptors.workflowTag"),
             typeColor: "geekblue",
@@ -181,7 +181,7 @@ export function describeTool(tool: unknown): ItemDescriptor {
             monoName: false,
             mono: monogram(connection.integration),
             color: "#1c2c3d",
-            icon: <Plugs size={15} weight="fill" />,
+            icon: <Plugs />,
             tags: [connection.integration],
             typeLabel: tNow("entityUi.itemDescriptors.integrationType"),
             subtitle: tNow("entityUi.itemDescriptors.integrationSubtitle", {

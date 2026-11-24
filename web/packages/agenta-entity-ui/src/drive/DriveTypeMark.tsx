@@ -63,7 +63,7 @@ export const DriveTypeMark = ({path, size = "mini"}: {path: string; size?: "tile
             <span className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center">
                 <Page size={54} tight />
                 <span
-                    className={`absolute bottom-2 left-1/2 -translate-x-1/2 rounded-sm px-1 py-px text-caption font-semibold uppercase leading-[1.4] tracking-[0.4px] ${TONE_CLASS[tone]}`}
+                    className={`absolute bottom-2 left-1/2 -translate-x-1/2 rounded-sm px-1 py-px text-caption font-medium ${TONE_CLASS[tone]}`}
                 >
                     {fileTypeChip(path)}
                 </span>
@@ -79,18 +79,28 @@ export const DriveTypeMark = ({path, size = "mini"}: {path: string; size?: "tile
     )
 }
 
-/** The folder glyph, open while expanded / current. */
+/**
+ * The folder glyph, open while expanded / current. An icon takes the text color (LOUD-04,
+ * COLOR-05) and the regular weight (ICON-01). `drawing` is for the large grid glyph, a drawing
+ * rather than an icon: it keeps the filled shape, still neutral.
+ */
 export const DriveFolderGlyph = ({
     open = false,
     size = 14,
     className = "",
+    drawing = false,
 }: {
     open?: boolean
     size?: number
     className?: string
-}) =>
-    open ? (
-        <FolderOpen size={size} weight="fill" className={`shrink-0 text-info ${className}`} />
-    ) : (
-        <Folder size={size} weight="fill" className={`shrink-0 text-info ${className}`} />
+    drawing?: boolean
+}) => {
+    const Glyph = open ? FolderOpen : Folder
+    return (
+        <Glyph
+            size={size}
+            weight={drawing ? "fill" : "regular"}
+            className={`shrink-0 text-muted-foreground ${className}`}
+        />
     )
+}

@@ -1156,7 +1156,7 @@ export const LiveConversation = ({
                         {/* Not for a reader who cannot send: every row control (send now, edit,
                         remove) writes, and nothing they queued can go out from here. */}
                         {!locked && (conversation.queued.length > 0 || conversation.editingId) ? (
-                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                            <div className="bg-background shrink-0 px-4 pt-3 pb-0">
                                 <ContentRail>
                                     <QueuedMessagesDock
                                         queued={conversation.queued}
@@ -1213,7 +1213,7 @@ export const LiveConversation = ({
                         {/* Parked question forms, between approval and connect — the same order as
                         desktop, and the same order as the keyboard precedence. */}
                         {secrets.front ? (
-                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                            <div className="bg-background shrink-0 px-4 pt-3 pb-0">
                                 <ContentRail>
                                     <SecretRequestDock
                                         key={secrets.front.toolCallId}
@@ -1227,7 +1227,7 @@ export const LiveConversation = ({
                             </div>
                         ) : null}
                         {elicits.open ? (
-                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                            <div className="bg-background shrink-0 px-4 pt-3 pb-0">
                                 <ContentRail>
                                     <ElicitationDock
                                         elicits={elicits}
@@ -1240,7 +1240,7 @@ export const LiveConversation = ({
                         {/* Parked connections. The rail and padding are all this host adds; the dock
                         itself is the shared package component. */}
                         {connects.open ? (
-                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                            <div className="bg-background shrink-0 px-4 pt-3 pb-0">
                                 <ContentRail>
                                     <ConnectionDock
                                         connects={connects}
@@ -1254,7 +1254,7 @@ export const LiveConversation = ({
                         reloaded chat with no turns has no session row, so sending stays off, and
                         the card holds no message. */}
                         {personalSetup.open && !readOnly && !accessPending ? (
-                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                            <div className="bg-background shrink-0 px-4 pt-3 pb-0">
                                 <ContentRail>
                                     <PersonalAccountsCard
                                         workflowId={personalSetup.workflowId}
@@ -1280,7 +1280,7 @@ export const LiveConversation = ({
                             </ContentRail>
                         )}
                         {readOnly || hideComposer ? null : (
-                            <div className="bg-background shrink-0 px-3">
+                            <div className="bg-background shrink-0 px-4">
                                 <ContentRail>
                                     <CreditAlertStrip
                                         projectId={projectId}

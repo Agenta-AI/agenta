@@ -570,12 +570,12 @@ describe("BuilderPanel: on a phone (M04, M06)", () => {
         expect(container.querySelector('[aria-label="Back to Session"]')).toBeNull()
     })
 
-    it("shows 44 px ready requests and 44 px recent chats", async () => {
+    it("shows 48 px ready requests and 44 px recent chats", async () => {
         rememberBuilderChat(user(), "p1", "agent-1", "old-chat")
         list.rows = [{session_id: "old-chat", name: "Daily summary", updated_at: hoursAgo(100)}]
         await render()
         const row = byTestId("builder-ready-requests")?.querySelector("button")
-        expect(row?.className).toContain("min-h-11")
+        expect(row?.className).toContain("min-h-row-double")
         expect(byTestId("builder-chat-row")?.className).toContain("h-11")
         // M04: the intro, composer and quick actions at the top, Recent chats at the bottom.
         expect(byTestId("new-chat-footer")?.getAttribute("data-layout")).toBe("top")
