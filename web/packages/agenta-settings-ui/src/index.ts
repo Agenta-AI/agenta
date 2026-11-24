@@ -2,6 +2,9 @@ export type {ConfirmDestructive} from "./confirm"
 export {
     default as SettingsPageShell,
     SettingsPageActions,
+    SettingsHeaderActionsProvider,
+    SettingsPageDescription,
+    SettingsVideoButton,
     type SettingsPageShellProps,
 } from "./SettingsPageShell"
 export {ThemePicker, type ThemePickerProps, type ThemeChoice} from "./ThemePicker"

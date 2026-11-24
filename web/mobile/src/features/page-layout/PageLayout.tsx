@@ -1,5 +1,7 @@
 import type {CSSProperties, ReactNode, RefObject, UIEventHandler} from "react"
 
+import type {SidebarScope} from "@agenta/navigation"
+
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
@@ -20,8 +22,12 @@ import {useIsExpandedWindow} from "./useIsExpandedWindow"
 export interface PageLayoutProps {
     workspaceId: string
     projectId: string
-    /** The page title: the h1 and the browser tab. */
+    /** The page title: the h1, and the browser tab unless `documentTitle` names it. */
     title: string
+    /** The browser tab's title when it is not the h1 (Settings names the tab, not the section). */
+    documentTitle?: string
+    /** Replaces the main nav in the sidebar and the drawer (Settings). */
+    scope?: SidebarScope
     /** One line under the title. */
     description?: ReactNode
     /** The page actions: in the title row on an expanded window, in the compact bar below it. */
@@ -37,6 +43,8 @@ export interface PageLayoutProps {
     scrollRef?: RefObject<HTMLDivElement | null>
     onScroll?: UIEventHandler<HTMLDivElement>
     scrollStyle?: CSSProperties
+    /** Extra classes on the scroller, e.g. a scroll-edge fade. */
+    scrollClassName?: string
     children: ReactNode
 }
 
@@ -51,6 +59,8 @@ export const PageLayout = ({
     workspaceId,
     projectId,
     title,
+    documentTitle,
+    scope,
     description,
     actions,
     width = "lg",
@@ -60,6 +70,7 @@ export const PageLayout = ({
     scrollRef,
     onScroll,
     scrollStyle,
+    scrollClassName,
     children,
 }: PageLayoutProps) => {
     const expanded = useIsExpandedWindow()
@@ -69,6 +80,7 @@ export const PageLayout = ({
             <PageCompactBar
                 workspaceId={workspaceId}
                 projectId={projectId}
+                scope={scope}
                 actions={expanded ? undefined : actions}
             />
             <div className={`${PAGE_TITLE_BLOCK} ${PAGE_GUTTERS}`}>
@@ -91,8 +103,8 @@ export const PageLayout = ({
 
     return (
         <>
-            <PageTitle title={title} />
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
+            <PageTitle title={documentTitle ?? title} />
+            <AppShell workspaceId={workspaceId} projectId={projectId} scope={scope}>
                 <div className="flex h-full min-w-0">
                     <div className="min-w-0 flex-1">
                         <ScreenScaffold
@@ -100,6 +112,7 @@ export const PageLayout = ({
                             scrollRef={scrollRef}
                             onScroll={onScroll}
                             scrollStyle={scrollStyle}
+                            scrollClassName={scrollClassName}
                         >
                             {bodyClassName ? (
                                 <div className={bodyClassName}>{children}</div>

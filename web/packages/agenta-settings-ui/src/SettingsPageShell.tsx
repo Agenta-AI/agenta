@@ -26,6 +26,9 @@ export interface SettingsPageShellProps {
 /** Where a tab's primary action renders: the header's slot inside a shell, `undefined` outside one. */
 const HeaderActionsContext = createContext<HTMLElement | null | undefined>(undefined)
 
+/** Hands a tab's primary action a slot in a host's own title row (a host that draws its own frame). */
+export const SettingsHeaderActionsProvider = HeaderActionsContext.Provider
+
 /** A tab's primary action on the title row; rendered in place outside a shell. */
 export const SettingsPageActions = ({children}: {children: ReactNode}) => {
     const target = useContext(HeaderActionsContext)
@@ -42,11 +45,35 @@ const columnClassName = (variant: SettingsPageShellProps["variant"]) =>
     )
 
 /** The walkthrough beside the primary action; on a phone it folds to its icon. */
-const VideoButton = ({video}: {video: {label: string; onOpen: () => void}}) => (
+export const SettingsVideoButton = ({video}: {video: {label: string; onOpen: () => void}}) => (
     <Button variant="ghost" onClick={video.onOpen} aria-label={video.label} title={video.label}>
         <PlayCircle aria-hidden />
         <span className="hidden sm:inline">{video.label}</span>
     </Button>
+)
+
+/** The tab's one sentence, with its docs link at the end. */
+export const SettingsPageDescription = ({
+    description,
+    docs,
+}: Pick<SettingsPageShellProps, "description" | "docs">) => (
+    <>
+        {description}
+        {docs ? (
+            <>
+                {" "}
+                <a
+                    href={docs.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 whitespace-nowrap text-inherit no-underline underline-offset-4 hover:text-foreground hover:underline"
+                >
+                    {docs.label}
+                    <ArrowSquareOut size={12} />
+                </a>
+            </>
+        ) : null}
+    </>
 )
 
 const SettingsPageShell = ({
@@ -80,7 +107,7 @@ const SettingsPageShell = ({
                     <h1 className="m-0 min-w-0 truncate text-heading text-foreground">{title}</h1>
 
                     <div className="flex shrink-0 items-center gap-2">
-                        {video ? <VideoButton video={video} /> : null}
+                        {video ? <SettingsVideoButton video={video} /> : null}
                         <div
                             ref={setActionsSlot}
                             className="flex items-center gap-2 empty:hidden"
@@ -88,21 +115,7 @@ const SettingsPageShell = ({
                     </div>
                 </div>
                 <p className="m-0 text-body leading-5 text-muted-foreground">
-                    {description}
-                    {docs ? (
-                        <>
-                            {" "}
-                            <a
-                                href={docs.href}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`inline-flex items-center gap-1 whitespace-nowrap text-inherit no-underline underline-offset-4 hover:text-foreground hover:underline`}
-                            >
-                                {docs.label}
-                                <ArrowSquareOut size={12} />
-                            </a>
-                        </>
-                    ) : null}
+                    <SettingsPageDescription description={description} docs={docs} />
                 </p>
             </header>
 
