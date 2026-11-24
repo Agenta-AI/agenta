@@ -1,4 +1,6 @@
-// Every theme variable and its job. Rules and reasons live in web/mobile/DESIGN.md.
+// Every theme variable and its job. Names follow shadcn, so the kit and Tailwind read them as they are;
+// an extra name (selected, border-muted, data-1) names a role, never a product entity or a component.
+// The rules are in rules.json; the principles and the layout are in web/mobile/DESIGN.md.
 
 export type ThemeMode = "light" | "dark"
 
@@ -71,7 +73,7 @@ export const colors: ThemeVariable<ColorValue>[] = [
     {name: "brand", value: {light: "#f2f25c", dark: "#d1d151"}, usage: "LOCKED brand yellow. The one brand action, New agent on Home. Tint: brand/15."},
     {name: "brand-hover", value: {light: "#e7e712", dark: "#dcdc6b"}, usage: "LOCKED. Brand hover."},
     {name: "brand-foreground", value: {light: "#242424", dark: "#141414"}, usage: "Text on brand."},
-    {name: "link", value: {light: "#5e5e08", dark: "#8ccfff"}, usage: "LOCKED. Inline links."},
+    {name: "link", value: {light: "#5e5e08", dark: "#8ccfff"}, usage: "LOCKED. Inline links, always underlined."},
     {name: "ring", value: {light: "#d9d92c", dark: "#d9d92c"}, usage: "LOCKED brand lime. Outer focus outline, always with a foreground ring inside it."},
     {name: "destructive", value: {light: "#b6322d", dark: "#f66d62"}, usage: "Errors and destructive actions. Text, icons and the confirm button; tint with destructive/10."},
     {name: "success", value: {light: "#007835", dark: "#37bb62"}, usage: "Passed, done. Text and icons; tint with success/10."},

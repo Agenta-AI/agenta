@@ -1,4 +1,4 @@
-/* Touch rules every control gets for free: readable fields and phone sheets (DESIGN.md, TOUCH-01, COMPACT-04).
+/* Touch rules every control gets for free: readable fields and bottom sheets (TOUCH-01 and COMPACT-04 in web/mobile/src/design/rules.json).
    Nothing here changes a control's size: small screens and touch never get bigger UI. */
 @media (pointer: coarse) {
     /* iOS zooms the page when a field under 16px gets focus. */
@@ -10,7 +10,7 @@
     }
 }
 
-/* Compact window on touch: menus and selects open as a bottom sheet (DESIGN.md, COMPACT-04). */
+/* Compact window on touch: menus and selects open as a bottom sheet (COMPACT-04). */
 @media (max-width: 639px) and (pointer: coarse) {
     [data-radix-popper-content-wrapper]:has(> [data-slot="dropdown-menu-content"]),
     [data-radix-popper-content-wrapper]:has(> [data-slot="dropdown-menu-sub-content"]),

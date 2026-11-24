@@ -33,16 +33,16 @@ web/mobile/src/
   components/           # app-wide shells (ScreenScaffold, PageTitle, ContentRail, ...)
     ui/                 # local shadcn registry components (installed, then owned)
   lib/                  # motion presets, cn util, api glue — no JSX except tiny helpers
-  design/               # theme.config.ts (the values) + generated theme.css, theme.tailwind.css, tokens.json, rules.json
+  design/               # theme.config.ts (the values), rules.json (the rules) + generated theme.css, theme.tailwind.css, tokens.json
   styles/               # globals.css (imports the generated theme; Tailwind v4 CSS-first config)
 ```
 
 ## Design
 
-**Before any UI change, read `DESIGN.md`**: the glossary, the principles and the rules, each with an
-ID and a reason. Look up its patterns and value tables as you need them. `/m/design-system` shows a
-Do and an Avoid example for each rule. Values live in `src/design/theme.config.ts`; how to change
-one is in DESIGN.md, "Working with the system".
+**Before any UI change, read `DESIGN.md`**: the glossary, the principles, the layout and the patterns.
+The rules are in `src/design/rules.json`, grouped by topic; read the groups your change touches.
+The values are in `src/design/theme.config.ts`. `/m/design-system` shows a Do and an Avoid example for
+each rule.
 
 - View states (empty, loading, error) are sibling components in the feature's `states/` folder.
   A failed send never loses the draft.

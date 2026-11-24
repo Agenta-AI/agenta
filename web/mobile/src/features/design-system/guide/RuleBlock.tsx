@@ -14,9 +14,19 @@ export function RuleBlock({rule}: {rule: GuideRule}) {
                 </h3>
                 <Badge>{rule.id}</Badge>
             </div>
-            <p className="mb-4 mt-0 max-w-[68ch] text-body text-muted-foreground">
+            <p className="mb-3 mt-0 max-w-[68ch] text-body text-muted-foreground">
                 <InlineCode text={rule.why} />
             </p>
+            <dl className="m-0 mb-4 grid max-w-[68ch] grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-body-sm">
+                <dt className="text-label">Avoid</dt>
+                <dd className="m-0 text-muted-foreground">
+                    <InlineCode text={rule.avoidText} />
+                </dd>
+                <dt className="text-label">Do instead</dt>
+                <dd className="m-0 text-muted-foreground">
+                    <InlineCode text={rule.doText} />
+                </dd>
+            </dl>
             <div className="grid gap-4 md:grid-cols-2">
                 <DoAvoid kind="do" {...rule.do} />
                 <DoAvoid kind="avoid" {...rule.avoid} />

@@ -6,21 +6,21 @@ interface DesignRule {
     id: string
     rule: string
     why: string
+    avoid: string
+    do: string
     checkedBy: GuideRule["checkedBy"]
 }
 
-/** Every rule in DESIGN.md, in table order, with the title of its table. */
+/** Every rule in rules.json, in order, with the title of its group. */
 export const designRules: (DesignRule & {group: string})[] = rulesJson.groups.flatMap((g) =>
     g.rules.map((r) => ({...(r as DesignRule), group: g.title})),
 )
 
-export const designPrinciples: {title: string; body: string}[] = rulesJson.principles
-
 const byId = new Map(designRules.map((r) => [r.id, r]))
 
-/** Joins an example to its DESIGN.md row. An example without a row is a stale ID. */
+/** Joins an example to its rule. An example without a rule is a stale ID. */
 export function resolveRule(example: RuleExample): GuideRule {
     const rule = byId.get(example.id)
-    if (!rule) throw new Error(`${example.id} has an example in the guide but no row in DESIGN.md`)
-    return {...example, title: rule.rule, why: rule.why, group: rule.group, checkedBy: rule.checkedBy}
+    if (!rule) throw new Error(`${example.id} has an example in the guide but no rule in rules.json`)
+    return {...example, title: rule.rule, why: rule.why, avoidText: rule.avoid, doText: rule.do, group: rule.group, checkedBy: rule.checkedBy}
 }

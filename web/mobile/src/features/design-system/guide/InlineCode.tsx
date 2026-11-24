@@ -1,4 +1,4 @@
-/** Text from DESIGN.md with its `code` spans shown as code. */
+/** Text from rules.json with its `code` spans shown as code. */
 export function InlineCode({text}: {text: string}) {
     return (
         <>

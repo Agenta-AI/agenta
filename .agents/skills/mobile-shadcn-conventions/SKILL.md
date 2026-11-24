@@ -34,8 +34,8 @@ description: How the Agenta mobile app (web/mobile) installs and extends shadcn/
 
 ## Theme and design rules
 
-Not here. Values live in `src/design/theme.config.ts` and the rules in `web/mobile/DESIGN.md`
-("Working with the system" says how to change a value).
+Not here. Values live in `src/design/theme.config.ts`, the rules in `src/design/rules.json`, and the
+principles and the layout in `web/mobile/DESIGN.md`.
 
 ## Extending components
 

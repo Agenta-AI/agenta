@@ -15,7 +15,7 @@ import {PropsTable} from "./guide/PropsTable"
 import {RuleBlock} from "./guide/RuleBlock"
 import {ThemeToggle} from "./ThemeToggle"
 
-// Rules show in DESIGN.md order on every page.
+// Rules show in rules.json order on every page.
 const ruleOrder = new Map(designRules.map((r, i) => [r.id, i]))
 const byRuleOrder = (a: {id: string}, b: {id: string}) => (ruleOrder.get(a.id) ?? 0) - (ruleOrder.get(b.id) ?? 0)
 

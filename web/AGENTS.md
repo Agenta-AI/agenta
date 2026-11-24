@@ -316,7 +316,7 @@ class (evaluators showing "default", SDK-created apps showing "--" or hex slugs)
 When adding or changing UI elements, implement appearance and interaction states for both light and dark themes, and verify both before considering the work complete.
 
 **Theme and design rules.** `web/mobile` (and every package screen rendered at `/m`) takes its
-values from `mobile/src/design/theme.config.ts` and its rules from `mobile/DESIGN.md`. Use the
+values from `mobile/src/design/theme.config.ts` and its rules from `mobile/src/design/rules.json`; `mobile/DESIGN.md` has the principles and the layout. Use the
 theme variable names (`bg-muted`, `text-label`, `border-border-muted`), never raw hex. Old
 antd-era names (`bg-colorBgContainer`, `var(--ag-color*)`) still resolve through `globals.css`;
 replace them when you touch the code. `oss/src/styles/theme/palette.ts` feeds only legacy

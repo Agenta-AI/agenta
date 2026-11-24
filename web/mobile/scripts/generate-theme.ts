@@ -1,5 +1,5 @@
-// Writes theme.css, theme.tailwind.css, tokens.json and the DESIGN.md tables from theme.config.ts,
-// and rules.json (the principles and rules) from DESIGN.md for the guide.
+// Writes theme.css, theme.tailwind.css and tokens.json from theme.config.ts.
+// Also checks DESIGN.md against its own Glossary and rules.json for shape; it writes neither.
 import {existsSync, readFileSync, writeFileSync} from "fs"
 import {dirname, resolve} from "path"
 import {fileURLToPath} from "url"
@@ -179,128 +179,29 @@ function tokensJson(): string {
     )}\n`
 }
 
-function designTables(): Record<string, string> {
-    const row = (cells: string[]) => `| ${cells.join(" | ")} |`
-    const colorRows = colors.map((c) =>
-        row([
-            `\`${c.name}\``,
-            `\`${c.value.light}\``,
-            `\`${c.value.dark}\``,
-            c.usage.replace(/\\/g, "\\\\").replace(/\|/g, "\\|"),
-        ]),
-    )
-    const textRows = textStyles.map((t) =>
-        row([
-            `\`${t.name}\``,
-            `${t.fontSize} / ${t.lineHeight}`,
-            String(t.fontWeight),
-            t.letterSpacing ?? "0",
-            t.usage,
-        ]),
-    )
-    const scaleRows = [
-        ...spacing,
-        ...radius,
-        ...sizes,
-        ...durations,
-        ...easings,
-        ...breakpoints,
-        ...zIndex,
-    ].map((v) => row([`\`${v.name}\``, `\`${v.value}\``, v.usage]))
-    return {
-        colors: [
-            row(["Variable", "Light", "Dark", "Use"]),
-            row(["---", "---", "---", "---"]),
-            ...colorRows,
-        ].join("\n"),
-        "text-styles": [
-            row(["Style", "Size / line", "Weight", "Tracking", "Use"]),
-            row(["---", "---", "---", "---", "---"]),
-            ...textRows,
-        ].join("\n"),
-        scales: [row(["Variable", "Value", "Use"]), row(["---", "---", "---"]), ...scaleRows].join(
-            "\n",
-        ),
-    }
-}
-
 interface DesignRule {
     id: string
     rule: string
     why: string
+    avoid: string
+    do: string
     checkedBy: ("ratchet" | "lint" | "review")[]
 }
 
-/** The principles and rule tables of DESIGN.md, so the guide shows the same words. */
-function rulesJson(markdown: string): string {
-    const cells = (line: string) =>
-        line
-            .slice(1, -1)
-            .split(" | ")
-            .map((c) => c.trim())
-    const principles = [...markdown.matchAll(/^\d+\. \*\*(.+?)\*\* (.+)$/gm)].map((m) => ({
-        title: m[1].replace(/[.:]$/, ""),
-        body: m[2],
-    }))
-    const rulesPart = markdown.slice(
-        markdown.indexOf("\n## Rules\n"),
-        markdown.indexOf("\n## Working with the system"),
-    )
-    const checks = (label: string) =>
-        new Set(
-            [
-                ...(rulesPart.match(new RegExp(`^- ${label}[^\n]*`, "m"))?.[0] ?? "").matchAll(
-                    /`([A-Z]+-\d+)`/g,
-                ),
-            ].map((m) => m[1]),
-        )
-    const ratchet = checks("Ratchet")
-    const lint = checks("ESLint")
-    const groups: {prefix: string; title: string; rules: DesignRule[]}[] = []
-    for (const section of rulesPart.split(/^### /m).slice(1)) {
-        const [title, ...lines] = section.split("\n")
-        const rows = lines.filter((l) => /^\| `[A-Z]+-\d+` \|/.test(l))
-        if (!rows.length) continue
-        const rules = rows.map((l) => {
-            const [id, rule, why] = cells(l)
-            const bare = id.replace(/`/g, "")
-            const checkedBy: DesignRule["checkedBy"] = []
-            if (ratchet.has(bare)) checkedBy.push("ratchet")
-            if (lint.has(bare)) checkedBy.push("lint")
-            checkedBy.push("review")
-            return {id: bare, rule, why, checkedBy}
-        })
-        const prefixes = new Set(rules.map((r) => r.id.split("-")[0]))
-        if (prefixes.size !== 1)
-            throw new Error(
-                `DESIGN.md: the "${title}" table mixes rule prefixes: ${[...prefixes].join(", ")}`,
-            )
-        rules.forEach((r, i) => {
-            const n = String(i + 1).padStart(2, "0")
-            if (!r.id.endsWith(`-${n}`))
-                throw new Error(
-                    `DESIGN.md: ${r.id} is out of order in "${title}"; expected ${[...prefixes][0]}-${n}`,
-                )
-        })
-        groups.push({prefix: [...prefixes][0], title: title.trim(), rules})
-    }
+/** rules.json is written by hand: one prefix per group, IDs in order, every field filled. */
+function checkRules(json: string): void {
+    const {groups, terms} = JSON.parse(json) as {groups: {prefix: string; title: string; rules: DesignRule[]}[]; terms: {term: string; icon: string}[]}
     const seen = new Set<string>()
     for (const g of groups) {
-        if (seen.has(g.prefix))
-            throw new Error(`DESIGN.md: the prefix ${g.prefix} is used by two tables`)
+        if (seen.has(g.prefix)) throw new Error(`rules.json: the prefix ${g.prefix} is used by two groups`)
         seen.add(g.prefix)
-    }
-    // The "Icon per term" table, so the guide draws the same icons the file names.
-    const termsPart = markdown.slice(markdown.indexOf("\n### Icon per term\n"), markdown.indexOf("\n## Layout and windows"))
-    const terms = termsPart
-        .split("\n")
-        .filter((l) => l.startsWith("| ") && !/^\| (Term|---) /.test(l))
-        .map((l) => {
-            const [term, icon, component, note] = l.slice(1, -1).split(" | ").map((c) => c.trim())
-            return {term, icon: icon.replace(/`/g, ""), component, note: note ?? ""}
+        g.rules.forEach((r, i) => {
+            const id = `${g.prefix}-${String(i + 1).padStart(2, "0")}`
+            if (r.id !== id) throw new Error(`rules.json: ${r.id} is out of order in "${g.title}"; expected ${id}`)
+            for (const k of ["rule", "why", "avoid", "do"] as const) if (!r[k]) throw new Error(`rules.json: ${r.id} has no "${k}"`)
         })
-    if (!terms.length) throw new Error("DESIGN.md is missing the Icon per term table")
-    return JSON.stringify({principles, groups, terms}, null, 4) + "\n"
+    }
+    if (!terms.length) throw new Error("rules.json has no icon terms")
 }
 
 /** DESIGN.md follows its own Glossary: no word from the "Do not say" column outside that table. */
@@ -326,28 +227,13 @@ function checkGlossary(markdown: string): void {
     if (hits.length) throw new Error(`DESIGN.md uses words its Glossary bans:\n  ${hits.join("\n  ")}`)
 }
 
-function withTables(markdown: string): string {
-    let out = markdown
-    for (const [name, table] of Object.entries(designTables())) {
-        const start = `<!-- generated:${name}:start -->`
-        const end = `<!-- generated:${name}:end -->`
-        const re = new RegExp(`${start}[\\s\\S]*?${end}`)
-        if (!re.test(out)) throw new Error(`DESIGN.md is missing the ${start} … ${end} markers`)
-        out = out.replace(re, `${start}\n\n${table}\n\n${end}`)
-    }
-    return out
-}
-
 const outputs: [string, string][] = [
     [resolve(DESIGN, "theme.css"), themeCss()],
     [resolve(DESIGN, "theme.tailwind.css"), tailwindCss()],
     [resolve(DESIGN, "tokens.json"), tokensJson()],
 ]
-if (existsSync(DESIGN_MD)) {
-    const markdown = readFileSync(DESIGN_MD, "utf8")
-    checkGlossary(markdown)
-    outputs.push([DESIGN_MD, withTables(markdown)], [resolve(DESIGN, "rules.json"), rulesJson(markdown)])
-}
+checkGlossary(readFileSync(DESIGN_MD, "utf8"))
+checkRules(readFileSync(resolve(DESIGN, "rules.json"), "utf8"))
 
 const check = process.argv.includes("--check")
 let stale = 0

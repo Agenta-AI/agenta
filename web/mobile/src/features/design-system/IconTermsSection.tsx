@@ -8,7 +8,7 @@ import {termIcons} from "./termIcons"
 export function IconTermsSection() {
     return (
         <section>
-            <SectionTitle title="Icon per term" description="A product term or a fixed action always has this icon. The list comes from DESIGN.md." />
+            <SectionTitle title="Icon per term" description="A product term or a fixed action always has this icon. The list comes from rules.json." />
             <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-x-4 gap-y-3">
                 {rulesJson.terms.map((t) => {
                     const TermIcon = termIcons[t.component]

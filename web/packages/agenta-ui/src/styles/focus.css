@@ -1,4 +1,4 @@
-/* One focus style for every control (web/mobile/DESIGN.md, "Focus"). Unlayered on purpose so no
+/* One focus style for every control (FORM-02 in web/mobile/src/design/rules.json). Unlayered on purpose so no
    utility on the same element can replace it. */
 
 /* Any control: a 2px brand ring hugging the edge, with an ink line inside it for contrast. */
