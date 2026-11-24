@@ -9,7 +9,7 @@
     "columnLastUpdated": "Last updated",
     "columnActions": "Actions",
     "projectLabel": "This project",
-    "noDescription": "No description",
+    "noDescription": "Instructions and tools that agents can use.",
     "usedByCount_one": "{{count}} agent",
     "usedByCount_other": "{{count}} agents",
     "archivedTag": "Archived",

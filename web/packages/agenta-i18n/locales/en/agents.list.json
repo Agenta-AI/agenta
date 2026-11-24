@@ -24,7 +24,7 @@
     "groupUnknown": "Unknown",
     "groupWaiting": "Waiting",
     "loadError": "Could not load agents",
-    "noDescription": "No description",
+    "noDescription": "An agent you can chat with and give tasks to.",
     "noMatchFiltersBody": "Try widening the filters, or including archived agents.",
     "noMatchFiltersTitle": "No agents match these filters",
     "noMatchSearchBody": "Try a shorter search, or check the filters — they narrow this list too.",

@@ -30,8 +30,27 @@ export const AgentCardBody = ({
 
     return (
         <>
+            {/* The Mark on its own row, the menu at its right. */}
+            <span className="flex min-w-0 items-center justify-between gap-2">
+                <AgentChip workflowId={row.id} size={32} />
+                {/* The menu's own clicks are not the card's: without this every menu press
+                    would also open the overview. */}
+                <span
+                    className="flex shrink-0 items-center"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                >
+                    <AgentActionsMenu
+                        agent={{id: row.id, name: row.name}}
+                        align="end"
+                        onOpen={() => onOpen(row)}
+                        onRename={startFromMenu}
+                        onCloseAutoFocus={handleCloseAutoFocus}
+                        {...agentMenuProps(row, actions)}
+                    />
+                </span>
+            </span>
             <span className="flex min-w-0 items-center gap-2">
-                <AgentChip workflowId={row.id} />
                 {rename.renaming ? (
                     <span
                         className="min-w-0 flex-1"
@@ -69,22 +88,6 @@ export const AgentCardBody = ({
                         ) : null}
                     </span>
                 )}
-                {/* The menu's own clicks are not the card's: without this every menu press
-                    would also open the overview. */}
-                <span
-                    className="flex shrink-0 items-center"
-                    onClick={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => event.stopPropagation()}
-                >
-                    <AgentActionsMenu
-                        agent={{id: row.id, name: row.name}}
-                        align="end"
-                        onOpen={() => onOpen(row)}
-                        onRename={startFromMenu}
-                        onCloseAutoFocus={handleCloseAutoFocus}
-                        {...agentMenuProps(row, actions)}
-                    />
-                </span>
             </span>
             <span className="line-clamp-3 min-h-[3.75rem] text-label leading-5 text-muted-foreground">
                 {row.description || t("agents.list.noDescription")}

@@ -9,7 +9,7 @@
     "columnLastUpdated": "最終更新",
     "columnActions": "操作",
     "projectLabel": "このプロジェクト",
-    "noDescription": "説明なし",
+    "noDescription": "エージェントが使える指示とツールです。",
     "usedByCount_other": "{{count}} 個のエージェント",
     "archivedTag": "アーカイブ済み",
     "waysToAdd": "スキルの追加方法",

@@ -24,7 +24,7 @@
     "groupUnknown": "不明",
     "groupWaiting": "待機中",
     "loadError": "エージェントを読み込めませんでした",
-    "noDescription": "説明なし",
+    "noDescription": "チャットしたりタスクを任せたりできるエージェントです。",
     "noMatchFiltersBody": "フィルターの条件を広げるか、アーカイブ済みのエージェントを含めてみてください。",
     "noMatchFiltersTitle": "これらの条件に一致するエージェントはありません",
     "noMatchSearchBody": "検索語を短くするか、フィルターを確認してください。フィルターもこの一覧を絞り込みます。",

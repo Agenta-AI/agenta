@@ -9,7 +9,7 @@
     "columnLastUpdated": "最后更新",
     "columnActions": "操作",
     "projectLabel": "此项目",
-    "noDescription": "无描述",
+    "noDescription": "Agent 可以使用的指令和工具。",
     "usedByCount_other": "{{count}} 个 Agent",
     "archivedTag": "已归档",
     "waysToAdd": "添加 Skill 的方式",

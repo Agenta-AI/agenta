@@ -24,7 +24,7 @@
     "groupUnknown": "Desconhecido",
     "groupWaiting": "Aguardando",
     "loadError": "Não foi possível carregar os agentes",
-    "noDescription": "Sem descrição",
+    "noDescription": "Um agente com quem você pode conversar e para quem pode passar tarefas.",
     "noMatchFiltersBody": "Tente ampliar os filtros ou incluir os agentes arquivados.",
     "noMatchFiltersTitle": "Nenhum agente corresponde a estes filtros",
     "noMatchSearchBody": "Tente uma busca mais curta ou confira os filtros, que também restringem esta lista.",

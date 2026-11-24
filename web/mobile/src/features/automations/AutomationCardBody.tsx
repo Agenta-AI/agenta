@@ -35,14 +35,9 @@ export const AutomationCardBody = ({
 
     return (
         <>
-            <span className="flex min-w-0 items-center gap-2">
-                <AutomationKindMark kind={automation.kind} />
-                <span
-                    className="min-w-0 flex-1 truncate text-body font-medium text-foreground"
-                    title={automation.name}
-                >
-                    {automation.name}
-                </span>
+            {/* The Mark on its own row, the menu at its right. */}
+            <span className="flex min-w-0 items-center justify-between gap-2">
+                <AutomationKindMark kind={automation.kind} size={32} />
                 {/* The menu's own clicks are not the card's: without this every menu press
                     would also open the detail screen. */}
                 <span
@@ -52,6 +47,12 @@ export const AutomationCardBody = ({
                 >
                     <AutomationActionsMenu automation={automation} base={base} surface="list" />
                 </span>
+            </span>
+            <span
+                className="min-w-0 truncate text-body font-medium text-foreground"
+                title={automation.name}
+            >
+                {automation.name}
             </span>
             <span className="flex min-w-0 flex-col gap-1">
                 <AutomationStatusMark status={status} />

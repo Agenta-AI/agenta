@@ -24,7 +24,7 @@
     "groupUnknown": "未知",
     "groupWaiting": "等待中",
     "loadError": "无法加载 Agent",
-    "noDescription": "暂无描述",
+    "noDescription": "可以与之聊天并交给它任务的 Agent。",
     "noMatchFiltersBody": "请尝试放宽筛选条件，或包含已归档的 Agent。",
     "noMatchFiltersTitle": "没有符合这些筛选条件的 Agent",
     "noMatchSearchBody": "请尝试更短的搜索词，或检查筛选条件，它们也会缩小此列表的范围。",

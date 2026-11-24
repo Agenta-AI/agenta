@@ -31,10 +31,10 @@ export const SkillCardBody = ({
     useT(skillsListCatalog)
     return (
         <>
-            <span className={`flex min-w-0 items-center gap-2 ${row.archived ? "opacity-60" : ""}`}>
-                <SkillMark />
-                <span className="min-w-0 flex-1 truncate text-body font-medium text-foreground">
-                    {row.title}
+            {/* The Mark on its own row, the menu at its right. */}
+            <span className="flex min-w-0 items-center justify-between gap-2">
+                <span className={row.archived ? "opacity-60" : undefined}>
+                    <SkillMark size={32} />
                 </span>
                 <span
                     className="flex shrink-0 items-center gap-1.5"
@@ -44,6 +44,11 @@ export const SkillCardBody = ({
                     <SkillUpdateCell workflowId={row.id} />
                     <SkillActionsMenu row={row} onOpen={onOpen} />
                 </span>
+            </span>
+            <span
+                className={`min-w-0 truncate text-body font-medium text-foreground ${row.archived ? "opacity-60" : ""}`}
+            >
+                {row.title}
             </span>
             <span className="line-clamp-3 min-h-[3.75rem] text-label leading-5 text-muted-foreground">
                 {row.description || noDescriptionLabel()}
