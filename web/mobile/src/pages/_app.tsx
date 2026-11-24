@@ -9,6 +9,7 @@ import type {AppProps} from "next/app"
 import Head from "next/head"
 
 import {AppFonts} from "@/features/app/AppFonts"
+import {useIsIos} from "@/lib/useIsIos"
 import {AppProviders} from "@/features/app/AppProviders"
 import {BareProviders} from "@/features/app/BareProviders"
 import {GlobalDrawers} from "@/features/app/GlobalDrawers"
@@ -36,6 +37,9 @@ export default function App({Component, pageProps, router}: AppProps) {
     // `--ag-viewport-height`, which ScreenScaffold, AppShell and SessionWorkspace read with a
     // `100dvh` fallback. One mount here covers every screen. Idle when no keyboard is open.
     useVisualViewportHeight()
+    // iOS zooms the page when a field gets focus with text under 16px. `maximum-scale=1` stops
+    // that; iOS still allows pinch zoom with it (TOUCH-01). Other browsers do not zoom on focus.
+    const ios = useIsIos()
 
     // The embed widget runs inside other websites without an Agenta login: the data layer only.
     if (isEmbedPath(router.pathname)) {
@@ -58,7 +62,7 @@ export default function App({Component, pageProps, router}: AppProps) {
                     `viewport-fit=cover` stays: this app draws real safe-area insets. */}
                 <meta
                     name="viewport"
-                    content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+                    content={`width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content${ios ? ", maximum-scale=1" : ""}`}
                 />
                 {/* App-wide default: a route that names no title shows this, not the URL. */}
                 <title>{DEFAULT_PAGE_TITLE}</title>

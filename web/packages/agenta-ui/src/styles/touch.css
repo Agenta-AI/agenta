@@ -1,14 +1,6 @@
-/* Touch rules every control gets for free: readable fields and bottom sheets (TOUCH-01 and COMPACT-04 in src/design/rules.json).
-   Nothing here changes a control's size: small screens and touch never get bigger UI. */
-@media (pointer: coarse) {
-    /* iOS zooms the page when a field under 16px gets focus. */
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
-    textarea,
-    select,
-    [contenteditable="true"] {
-        font-size: max(16px, 1em);
-    }
-}
+/* Touch rules every control gets for free: bottom sheets (COMPACT-04 in src/design/rules.json).
+   Nothing here changes a control's size: small screens and touch never get bigger UI.
+   Fields keep their own text size on touch: the app's viewport stops the iOS focus zoom (TOUCH-01). */
 
 /* Compact window on touch: menus and selects open as a bottom sheet (COMPACT-04). */
 @media (max-width: 639px) and (pointer: coarse) {

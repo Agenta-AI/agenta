@@ -736,10 +736,10 @@
             "rules": [
                 {
                     "id": "TOUCH-01",
-                    "rule": "Fields show 16px text on touch",
-                    "why": "iOS zooms the page when a field under 16px gets focus.",
-                    "avoid": "Fields under 16px on touch; a taller field on touch",
-                    "do": "16px text under `pointer: coarse`, at the same height (the kit does it)",
+                    "rule": "Fields keep their text size on touch",
+                    "why": "A field bigger than the page around it looks out of place; iOS zooms on focus only when the page allows zoom.",
+                    "avoid": "16px field text on touch only; a taller field on touch; `maximum-scale=1` outside iOS (it blocks pinch zoom there)",
+                    "do": "The field's own text style; the app's viewport adds `maximum-scale=1` on iOS only, which stops the focus zoom and keeps pinch zoom",
                     "checkedBy": [
                         "review"
                     ]

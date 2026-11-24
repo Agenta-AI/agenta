@@ -361,7 +361,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         // The canvas box: 14 px text on a 22 px line (15 / 20 in a 24 px row on a phone) and a
         // 12 px inset over a one-line editor; the toolbar sits 12 px under it (S03, M01).
         const minHeightClassName = minHeightProp ?? (canvas ? "min-h-[34px]" : "min-h-[62px]")
-        // The kit field size (13 px); touch reads 16 px through the kit's touch rules (TOUCH-01).
+        // The kit field size, on touch too (TOUCH-01).
         const textSizeClassName = textSizeProp ?? "text-field-md"
         // The default box keeps its relaxed leading under any size a host passes.
         const leading = canvas ? "" : "leading-relaxed"

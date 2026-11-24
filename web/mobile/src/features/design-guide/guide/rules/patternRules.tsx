@@ -152,8 +152,19 @@ export const touchRules: RuleExample[] = [
         do: {
             example: (
                 <div className="w-56">
+                    <div className="flex h-8 items-center rounded-md border border-border px-2.5 text-body">
+                        <MagnifyingGlassIcon className="mr-1.5 text-muted-foreground" /> Ask
+                        anything
+                    </div>
+                </div>
+            ),
+            caption: "The field's own 14px on a touch screen, as on a desktop.",
+        },
+        avoid: {
+            example: (
+                <div className="w-56">
                     <div
-                        className="flex h-9 items-center rounded-md border border-border px-2.5"
+                        className="flex h-8 items-center rounded-md border border-border px-2.5"
                         style={{fontSize: 16}}
                     >
                         <MagnifyingGlassIcon className="mr-1.5 text-muted-foreground" /> Ask
@@ -161,21 +172,7 @@ export const touchRules: RuleExample[] = [
                     </div>
                 </div>
             ),
-            caption: "16px on a touch screen: the page stays still.",
-        },
-        avoid: {
-            example: (
-                <div className="w-56 overflow-hidden">
-                    <div
-                        className="flex h-9 origin-left items-center rounded-md border border-border px-2.5"
-                        style={{fontSize: 13, transform: "scale(1.3)"}}
-                    >
-                        <MagnifyingGlassIcon className="mr-1.5 text-muted-foreground" /> Ask
-                        anything
-                    </div>
-                </div>
-            ),
-            caption: "13px on a touch screen: iOS zooms in and the layout breaks.",
+            caption: "16px only on touch: the field is bigger than the page around it.",
         },
     },
     {

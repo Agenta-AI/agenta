@@ -17,7 +17,7 @@
 @import "@agenta/ui/surfaces.css" layer(components);
 /* One focus style for every control. Unlayered so it beats any utility. */
 @import "@agenta/ui/focus.css";
-/* 16px field text on touch and bottom-docked sheets on compact windows (TOUCH-01, COMPACT-04). */
+/* Bottom-docked sheets on compact windows (COMPACT-04). */
 @import "@agenta/ui/touch.css";
 /* The Lexical editor's own theme + Prism code tokens. Mobile renders the SAME editor (the chat
    composer and the config panel's JSON/YAML views), so it needs the same stylesheets — without
