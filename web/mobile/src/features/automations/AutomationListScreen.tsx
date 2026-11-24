@@ -49,7 +49,7 @@ import {AutomationStatusMark} from "./AutomationStatusMark"
  *
  * Identity takes the largest share and carries Runs when as its meta line. The last
  * column is the row's kebab, fixed at the button's own width so the reading columns keep their
- * proportions. The minima plus gaps sum to 598 — the width below
+ * proportions. The minima plus gaps sum to 688 — the width below
  * which the table scrolls sideways rather than crushing five columns into a phone.
  */
 
@@ -63,7 +63,7 @@ const wideColumns = (t: ScreenText): ListTableColumn[] => [
         width: LIST_COLUMN_WIDTH.secondary,
     },
     lastRunColumn(t),
-    {key: "agent", label: t("automations.screens.columnAgent"), width: "minmax(160px,1.4fr)"},
+    {key: "agent", label: t("automations.screens.columnAgent"), width: LIST_COLUMN_WIDTH.name},
     actionsColumn(t),
 ]
 // A phone keeps the name and whether it is doing anything; the kind tile already says schedule
@@ -81,7 +81,7 @@ const nameColumn = (t: ScreenText): ListTableColumn => ({
 const lastRunColumn = (t: ScreenText): ListTableColumn => ({
     key: "lastRun",
     label: t("automations.screens.columnLastRun"),
-    width: "minmax(110px,1fr)",
+    width: "minmax(96px,128px)",
 })
 const actionsColumn = (t: ScreenText): ListTableColumn => ({
     key: "actions",
@@ -92,7 +92,7 @@ const actionsColumn = (t: ScreenText): ListTableColumn => ({
 
 /** The sessions table's line, so the two nav entries slim down at the same width. */
 const WIDE_QUERY = "(min-width: 640px)"
-const WIDE_MIN_WIDTH = 620
+const WIDE_MIN_WIDTH = 690
 const NARROW_MIN_WIDTH = 300
 
 /**

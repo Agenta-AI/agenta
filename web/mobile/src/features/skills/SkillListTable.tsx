@@ -36,12 +36,12 @@ const nameColumn = (t: ListText): ListTableColumn => ({
 const provenanceColumn = (t: ListText, group: SkillGrouping): ListTableColumn => ({
     key: "provenance",
     label: group === "source" ? t("skills.list.columnCreatedBy") : t("skills.list.columnSource"),
-    width: "minmax(120px,1fr)",
+    width: LIST_COLUMN_WIDTH.name,
 })
 const usedByColumn = (t: ListText): ListTableColumn => ({
     key: "usedBy",
     label: t("skills.list.columnUsedBy"),
-    width: "88px",
+    width: LIST_COLUMN_WIDTH.secondary,
 })
 const updatedColumn = (t: ListText, width: string): ListTableColumn => ({
     key: "updated",
@@ -61,7 +61,7 @@ const wideColumns = (t: ListText, group: SkillGrouping): ListTableColumn[] => [
     nameColumn(t),
     provenanceColumn(t, group),
     usedByColumn(t),
-    updatedColumn(t, "96px"),
+    updatedColumn(t, LIST_COLUMN_WIDTH.time),
     actionsColumn(t),
 ]
 const narrowColumns = (t: ListText): ListTableColumn[] => [
@@ -72,7 +72,7 @@ const narrowColumns = (t: ListText): ListTableColumn[] => [
 
 /** Tailwind's `sm`. Below it Source and Used by go; the minima then fit a 375px screen. */
 const WIDE_QUERY = "(min-width: 640px)"
-const WIDE_MIN_WIDTH = 520
+const WIDE_MIN_WIDTH = 680
 const NARROW_MIN_WIDTH = 320
 
 /** A group's rows all share one repository, so the first says whether it can be checked. */

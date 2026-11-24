@@ -74,16 +74,16 @@ const WIDE_COLUMNS: ListTableColumn[] = [
         get label() {
             return tNow("sessions.mobileList.status")
         },
-        width: "minmax(110px,1fr)",
+        width: LIST_COLUMN_WIDTH.secondary,
     },
     {
         key: "agent",
         get label() {
             return tNow("sessions.mobileList.agent")
         },
-        width: "minmax(120px,1fr)",
+        width: LIST_COLUMN_WIDTH.name,
     },
-    updatedColumn("96px"),
+    updatedColumn(LIST_COLUMN_WIDTH.time),
     ACTIONS_COLUMN,
 ]
 const NARROW_COLUMNS: ListTableColumn[] = [SESSION_COLUMN, updatedColumn("64px"), ACTIONS_COLUMN]
@@ -92,7 +92,7 @@ const LOCKED_AGENT_WIDE_COLUMNS = WIDE_COLUMNS.filter((column) => column.key !==
 
 /** Tailwind's `sm`. Below it the Agent column goes; the minima then fit a 375px screen. */
 const WIDE_QUERY = "(min-width: 640px)"
-const WIDE_MIN_WIDTH = 560
+const WIDE_MIN_WIDTH = 650
 const NARROW_MIN_WIDTH = 272
 
 /** What the screen's `useSessionRowMenu` supplies — bound here, resolved there. */

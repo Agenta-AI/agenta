@@ -4,12 +4,19 @@ import type {ReactNode} from "react"
  * One column of the frame. The label is the consumer's — this package never learns what an
  * automation or a session is, only that a list has columns of some width in some order.
  */
-/** Column widths for a list: the first column takes three shares, the others one each. */
+/**
+ * Column widths for a list. The first column takes all the free width; the others are fixed, so
+ * they sit together at the row's right end instead of spreading across it.
+ */
 export const LIST_COLUMN_WIDTH = {
     /** The first column: the Mark, the title and the meta line. */
-    primary: "minmax(160px,3fr)",
-    /** A text column: a status, an owner, an agent. */
-    secondary: "minmax(96px,1fr)",
+    primary: "minmax(160px,1fr)",
+    /** A short value: a status, an owner, a count. */
+    secondary: "112px",
+    /** A name: an agent, a source. */
+    name: "176px",
+    /** A time: "6d ago", "Never". */
+    time: "88px",
     /** The row menu. */
     actions: "24px",
 } as const
