@@ -235,7 +235,7 @@ describe("PhonePrimaryAction", () => {
 })
 
 describe("SidebarSheet", () => {
-    it("is 300 px wide and closes with Close the sidebar", () => {
+    it("is 300 px wide and closes with Close sidebar", () => {
         const onOpenChange = vi.fn()
         render(
             <SidebarSheet
@@ -250,7 +250,7 @@ describe("SidebarSheet", () => {
         const sheet = screen.getByTestId("sidebar-sheet")
         expect(sheet.style.width).toBe("300px")
         expect(screen.getByRole("button", {name: "Back"})).toBeTruthy()
-        const close = screen.getByRole("button", {name: "Close the sidebar"})
+        const close = screen.getByRole("button", {name: "Close sidebar"})
         expect(close.className).toContain("size-control")
         expect(close.className).not.toContain("size-11")
         fireEvent.click(close)
@@ -327,7 +327,7 @@ describe("SidebarSheet without its header", () => {
         trigger.focus()
         fireEvent.click(trigger)
         await screen.findByTestId("sidebar-sheet")
-        expect(screen.queryByRole("button", {name: "Close the sidebar"})).toBeNull()
+        expect(screen.queryByRole("button", {name: "Close sidebar"})).toBeNull()
         fireEvent.click(screen.getByRole("button", {name: "Close navigation"}))
         await waitFor(() => expect(screen.queryByTestId("sidebar-sheet")).toBeNull())
         await waitFor(() => expect(document.activeElement).toBe(trigger))

@@ -8,11 +8,11 @@ import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
+import {TEST_DEVELOPER_VIEWS} from "./developerViewFixtures"
+
 import {developerNavItems} from "@/features/developer/developerNavItems"
 import {enabledDeveloperViewsAtom} from "@/features/developer/developerViewAccess"
 import {PreferencesTab} from "@/features/settings/PreferencesTab"
-
-import {TEST_DEVELOPER_VIEWS} from "./developerViewFixtures"
 
 vi.mock("@/features/developer/developerViews", async () => ({
     DEVELOPER_VIEWS: (await import("./developerViewFixtures")).TEST_DEVELOPER_VIEWS,
@@ -127,8 +127,6 @@ afterEach(() => {
     vi.unstubAllGlobals()
     assign.mockReset()
 })
-
-describe("beta developer mode switch", () => {})
 
 describe("with Developer Mode and beta developer mode on", () => {
     it("turns on every developer view and lists each page in the nav", () => {

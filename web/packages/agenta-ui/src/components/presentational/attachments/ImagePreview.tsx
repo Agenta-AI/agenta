@@ -100,7 +100,8 @@ const ImagePreview = ({
                     {/* Title-less preview: a visually-hidden title keeps the dialog accessible. */}
                     <DialogTitle className="sr-only">{alt}</DialogTitle>
                     {isValidPreview && imageURL && (
-                        <img
+                        // The same checked source and component as the thumbnail.
+                        <ImageWithFallback
                             src={imageURL}
                             alt={alt}
                             className="h-full max-h-150 w-full max-w-full object-contain"
