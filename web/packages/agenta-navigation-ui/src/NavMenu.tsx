@@ -65,10 +65,10 @@ export interface NavMenuProps {
     className?: string
 }
 
-const ROW_DISABLED = "cursor-default text-colorTextQuaternary"
+const ROW_DISABLED = "cursor-default text-muted-foreground"
 // Guide line marks the group's extent, the way the old inline menu did.
 const GROUP_CHILDREN =
-    "ml-[22px] flex flex-col border-0 border-l border-solid border-colorBorderSecondary pl-1"
+    "ml-[22px] flex flex-col border-0 border-l border-solid border-border-muted pl-1"
 // A group with no collapse control is a SECTION of the rail, not a submenu you opened: its rows
 // are rail rows. No indent and no guide line, so their glyphs sit in the nav icons' own column.
 const SECTION_CHILDREN = "flex flex-col"
@@ -114,7 +114,7 @@ const onMoveKey = (event: KeyboardEvent<HTMLElement>): boolean => {
 
 const TagChip = ({tag}: {tag?: string}) =>
     tag ? (
-        <span className="shrink-0 rounded bg-colorSuccessBg px-1 py-0.5 text-[12px] leading-none text-colorSuccessText">
+        <span className="shrink-0 rounded bg-success/10 px-1 py-0.5 text-meta leading-none text-success">
             {tag}
         </span>
     ) : null
@@ -298,7 +298,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                     aria-label={item.groupAdd.label}
                     title={item.groupAdd.label}
                     className={clsx(
-                        "ml-auto flex size-[22px] shrink-0 items-center justify-center rounded-[6px] !text-colorTextTertiary no-underline hover:bg-colorFillTertiary hover:!text-foreground",
+                        "ml-auto flex size-[22px] shrink-0 items-center justify-center rounded-[6px] !text-muted-foreground no-underline hover:bg-accent hover:!text-foreground",
                         item.groupEnter ? HEADING_HOVER_ACTION : "mr-1",
                     )}
                     onClick={(event) => {
@@ -319,7 +319,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                     aria-label={item.groupEnter.label}
                     title={item.groupEnter.label}
                     className={clsx(
-                        "mr-1 flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 text-colorTextTertiary [font-family:inherit] hover:bg-colorFillTertiary hover:text-foreground",
+                        "mr-1 flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 text-muted-foreground [font-family:inherit] hover:bg-accent hover:text-foreground",
                         !item.groupAdd && "ml-auto",
                         HEADING_HOVER_ACTION,
                     )}
@@ -339,7 +339,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
  * read as a broken session, and at the rail's width its sentence was truncated to nowhere.
  */
 const PlaceholderRow = ({item}: {item: NavItem}) => (
-    <p className="m-0 mx-auto w-[calc(100%-16px)] shrink-0 px-3 pb-1 pt-0.5 text-[12px] leading-snug text-colorTextTertiary select-none">
+    <p className="m-0 mx-auto w-[calc(100%-16px)] shrink-0 px-3 pb-1 pt-0.5 text-meta leading-snug text-muted-foreground select-none">
         {item.title}
     </p>
 )
@@ -378,7 +378,7 @@ const SectionHeading = ({
     return (
         <div
             className={cn(
-                "mx-auto flex w-[calc(100%-16px)] shrink-0 items-center gap-1 px-3 pb-1 pt-3.5 text-[12px] leading-4 text-muted-foreground select-none",
+                "mx-auto flex w-[calc(100%-16px)] shrink-0 items-center gap-1 px-3 pb-1 pt-3.5 text-meta leading-4 text-muted-foreground select-none",
                 item.rowClassName,
             )}
         >
@@ -392,8 +392,8 @@ const SectionHeading = ({
                     className={clsx(
                         "-ml-1 inline-flex min-w-0 items-center rounded px-1 py-0.5 no-underline",
                         selected
-                            ? "bg-colorFillTertiary !text-foreground"
-                            : "!text-colorTextTertiary hover:bg-colorFillTertiary hover:!text-foreground",
+                            ? "bg-accent !text-foreground"
+                            : "!text-muted-foreground hover:bg-accent hover:!text-foreground",
                     )}
                 >
                     {label}
@@ -411,7 +411,7 @@ const SectionHeading = ({
 
 /** Row widths for the loading list, varied so it reads as titles rather than a block. */
 /** The 12px caption line every group heading and section caption shares. */
-const CAPTION_TEXT = "text-[12px] leading-5"
+const CAPTION_TEXT = "text-meta leading-5"
 
 const LOADING_WIDTHS = ["w-[72%]", "w-[58%]", "w-[80%]", "w-[46%]", "w-[66%]", "w-[54%]"]
 
@@ -575,7 +575,7 @@ export const FlyoutChildren = ({
                     return (
                         <DropdownMenuLabel
                             key={child.key}
-                            className="text-xs text-colorTextTertiary"
+                            className="text-xs text-muted-foreground"
                         >
                             {child.title}
                         </DropdownMenuLabel>
@@ -745,7 +745,7 @@ const NavMenuImpl = ({
                                 antd's submenu arrow, which the expanded rail has always shown
                                 (and the collapsed one hidden). */}
                             {!collapsed ? (
-                                <span className="ml-auto flex shrink-0 items-center gap-2 pl-2 text-colorTextTertiary">
+                                <span className="ml-auto flex shrink-0 items-center gap-2 pl-2 text-muted-foreground">
                                     {item.suffix}
                                     <CaretRight size={12} />
                                 </span>
@@ -823,7 +823,7 @@ const NavMenuImpl = ({
                                     // z-[1] keeps the toggle clickable above the stretched link anchor.
                                     // A 44 px target in the phone sheet; the 12 px caret keeps its size.
                                     className={clsx(
-                                        "relative z-[1] mr-1 flex shrink-0 cursor-pointer items-center justify-center rounded-md text-colorTextTertiary hover:bg-colorFillTertiary hover:text-foreground",
+                                        "relative z-[1] mr-1 flex shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground",
                                         "size-[22px]",
                                     )}
                                     onClick={(event) => {
@@ -881,7 +881,7 @@ const NavMenuImpl = ({
                     onItemSelect={onItemSelect}
                 />
                 {item.divider ? (
-                    <hr className="my-2 w-full border-0 border-t border-solid border-colorBorderSecondary" />
+                    <hr className="my-2 w-full border-0 border-t border-solid border-border-muted" />
                 ) : null}
             </Fragment>
         )

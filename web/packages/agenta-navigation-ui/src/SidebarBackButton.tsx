@@ -35,7 +35,7 @@ export const SidebarBackButton = ({
             className={clsx(
                 // [font-family:inherit]: preflight is off, so a bare <button> renders Arial.
                 "flex cursor-pointer items-center justify-center gap-2 border-0 bg-transparent [font-family:inherit] text-foreground",
-                "hover:bg-colorFillTertiary",
+                "hover:bg-accent",
                 collapsed
                     ? "size-7 rounded-[6px]"
                     : clsx(

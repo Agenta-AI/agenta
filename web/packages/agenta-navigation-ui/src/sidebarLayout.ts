@@ -7,4 +7,4 @@ export type SidebarLayout = "rail" | "phone"
 export const SidebarLayoutContext = createContext<SidebarLayout>("rail")
 
 /** A row in the phone sheet: a 32 px menu row (SIZE-02: nothing gets bigger on a compact window). */
-export const PHONE_ROW_CLASS = "h-8 text-sm leading-8"
+export const PHONE_ROW_CLASS = "h-7 text-label leading-7"

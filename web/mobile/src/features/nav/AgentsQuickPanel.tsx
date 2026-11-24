@@ -56,7 +56,7 @@ export const AgentsQuickPanel = ({
                 autoFocusSearch={autoFocusSearch}
             />
             {newAgent.error ? (
-                <p className="text-destructive m-0 px-3 pb-2 text-[12px]">{newAgent.error}</p>
+                <p className="text-destructive m-0 px-3 pb-2 text-meta">{newAgent.error}</p>
             ) : null}
         </>
     )

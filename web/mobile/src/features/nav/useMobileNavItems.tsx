@@ -438,7 +438,7 @@ export const useMobileBottomNavItems = (projectURL: string): SidebarConfig[] => 
                 suffix: version
                     ? createElement(
                           "span",
-                          {className: "text-[10px] leading-none text-colorTextTertiary"},
+                          {className: "text-caption leading-none text-muted-foreground"},
                           `v${version}`,
                       )
                     : undefined,

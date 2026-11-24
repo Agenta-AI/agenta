@@ -26,7 +26,7 @@ import {ROW_BASE, ROW_INTERACTIVE, ROW_SELECTED} from "./rowStyles"
 import {PHONE_ROW_CLASS, SidebarLayoutContext} from "./sidebarLayout"
 
 const MORE_PANEL_CLASS =
-    "z-[2000] w-[248px] rounded-[10px] border border-solid border-colorBorderSecondary bg-popover p-0 shadow-md"
+    "z-[2000] w-[248px] rounded-[10px] border border-solid border-border-muted bg-popover p-0 shadow-md"
 
 const MOUSE_SLOP_PX = 4
 const TOUCH_HOLD_MS = 350
@@ -228,11 +228,11 @@ const MoreMenu = ({
                     )
                 })
             ) : (
-                <p className="m-0 px-2 pb-2 pt-1 text-[13px] leading-[18px] text-colorTextTertiary">
+                <p className="m-0 px-2 pb-2 pt-1 text-label text-muted-foreground">
                     {t("navigation.arrange.allVisible")}
                 </p>
             )}
-            <div className="my-1 h-px bg-colorBorderSecondary" />
+            <div className="my-1 h-px bg-border-muted" />
             <button type="button" className={MENU_ROW} onClick={onReset}>
                 <ArrowCounterClockwise size={16} className="shrink-0" />
                 <span>{t("navigation.arrange.reset")}</span>

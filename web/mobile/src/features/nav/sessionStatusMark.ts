@@ -25,7 +25,7 @@ export const sessionStatusMark = (mark: SessionMark): ReactNode => {
         "aria-label": tNow(
             mark === "waiting" ? "navigation.items.sessionWaiting" : "navigation.items.sessionLive",
         ),
-        className: `size-1.5 rounded-full ${mark === "waiting" ? "bg-[var(--ag-run-status-warning)]" : "bg-foreground"}`,
+        className: `size-1.5 rounded-round ${mark === "waiting" ? "bg-warning" : "bg-foreground"}`,
     })
 }
 

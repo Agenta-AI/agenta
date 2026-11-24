@@ -32,7 +32,7 @@ export type SwitcherCurrent = {kind: "agent"; agentId: string} | {kind: "builder
 /** The builder's tile in the switcher: the agent tile's size, on the neutral fill. */
 const BuilderTile = ({size}: {size: SwitcherTileSize}) => (
     <span
-        className={`flex shrink-0 items-center justify-center bg-colorSplit text-foreground ${SWITCHER_TILE[size].box}`}
+        className={`flex shrink-0 items-center justify-center bg-border-muted text-foreground ${SWITCHER_TILE[size].box}`}
     >
         <SparkleIcon size={SWITCHER_TILE[size].glyph} />
     </span>
@@ -58,7 +58,7 @@ const PanelRow = ({
         data-testid={testId}
         aria-current={current ? "true" : undefined}
         onClick={onClick}
-        className={`${SWITCHER_ROW_CLASS} ${item ? SWITCHER_ITEM_ROW_CLASS : ""} ${current ? "bg-colorFillSecondary" : ""}`}
+        className={`${SWITCHER_ROW_CLASS} ${item ? SWITCHER_ITEM_ROW_CLASS : ""} ${current ? "bg-secondary" : ""}`}
     >
         {children}
         {current ? <CheckIcon aria-hidden size={14} className="shrink-0 text-foreground" /> : null}
@@ -138,8 +138,8 @@ export const AgentSidebarSwitcher = ({
                         data-testid="agent-sidebar-switcher"
                         className={
                             collapsed
-                                ? "flex size-7 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 [font-family:inherit] hover:bg-colorFillTertiary"
-                                : "flex h-8 w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-[6px] border border-solid border-colorBorderSecondary bg-transparent pl-2.5 pr-3 text-left text-foreground transition-colors [font-family:inherit] hover:bg-colorFillTertiary data-[state=open]:bg-colorFillTertiary"
+                                ? "flex size-7 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 [font-family:inherit] hover:bg-accent"
+                                : "flex h-8 w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-[6px] border border-solid border-border-muted bg-transparent pl-2.5 pr-3 text-left text-foreground transition-colors [font-family:inherit] hover:bg-accent data-[state=open]:bg-accent"
                         }
                     >
                         {agentId ? (
@@ -154,7 +154,7 @@ export const AgentSidebarSwitcher = ({
                                 </span>
                                 <CaretUpDownIcon
                                     size={12}
-                                    className="shrink-0 text-colorTextTertiary"
+                                    className="shrink-0 text-muted-foreground"
                                 />
                             </>
                         )}
@@ -184,7 +184,7 @@ export const AgentSidebarSwitcher = ({
                                         {tBuilder("builder.page.builder")}
                                     </span>
                                 </PanelRow>
-                                <div className="my-1 h-px bg-colorBorderSecondary" />
+                                <div className="my-1 h-px bg-border-muted" />
                             </>
                         ) : null}
                         <div className={SWITCHER_CAPTION_CLASS}>
@@ -219,7 +219,7 @@ export const AgentSidebarSwitcher = ({
                                 </PanelRow>
                             ))}
                         </div>
-                        <div className="my-1 h-px bg-colorBorderSecondary" />
+                        <div className="my-1 h-px bg-border-muted" />
                         <div className="flex flex-col gap-0.5">
                             <PanelRow onClick={run(onAllAgents)}>
                                 <span className="flex size-6 shrink-0 items-center justify-center">
@@ -242,7 +242,7 @@ export const AgentSidebarSwitcher = ({
                                 </span>
                             </PanelRow>
                             {createError ? (
-                                <p className="m-0 px-2 pb-1 text-[12px] text-destructive">
+                                <p className="m-0 px-2 pb-1 text-meta text-destructive">
                                     {createError}
                                 </p>
                             ) : null}

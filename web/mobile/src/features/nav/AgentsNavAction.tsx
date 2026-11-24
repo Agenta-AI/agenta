@@ -27,7 +27,7 @@ export const AgentsNavAction = ({base}: {base: string}) => {
                     type="button"
                     aria-label={t("navigation.items.newAgentOrOpen")}
                     title={t("navigation.items.newAgentOrOpen")}
-                    className="text-colorTextQuaternary hover:bg-colorFillTertiary hover:text-foreground flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0"
+                    className="text-muted-foreground hover:bg-accent hover:text-foreground flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0"
                 >
                     <Plus size={12} />
                 </button>

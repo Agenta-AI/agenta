@@ -69,16 +69,16 @@ export interface ProjectOrgSwitcherViewProps {
 type Panel = "projects" | "orgs"
 
 export const ROW_CLASS =
-    "flex w-full items-center gap-2 h-8 px-2 rounded-[6px] text-sm leading-none text-left cursor-pointer border-0 bg-transparent [font-family:inherit] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary text-foreground hover:bg-colorFillSecondary transition-colors"
+    "flex w-full items-center gap-2 h-8 px-2 rounded-[6px] text-sm leading-none text-left cursor-pointer border-0 bg-transparent [font-family:inherit] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary text-foreground hover:bg-accent transition-colors"
 
 /** shrink-0 stops the capped scroll list from compressing rows instead of scrolling. */
 export const ITEM_ROW_CLASS = "shrink-0"
 
-export const CAPTION_CLASS = "px-2 pt-1.5 pb-1 text-xs font-medium text-colorTextTertiary truncate"
+export const CAPTION_CLASS = "px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground truncate"
 
 /** The switcher panel's surface; the agent switcher wears it too. */
 export const PANEL_CLASS =
-    "z-[2000] w-[220px] overflow-hidden rounded-[10px] border border-solid border-colorBorderSecondary bg-popover p-0 shadow-md"
+    "z-[2000] w-[220px] overflow-hidden rounded-[10px] border border-solid border-border-muted bg-popover p-0 shadow-md"
 
 const Row = ({
     onClick,
@@ -98,7 +98,7 @@ const Row = ({
 
 // The rule above it is drawn by the row, 8px up, so it matches the panel's own dividers.
 const LOGOUT_ROW =
-    "relative mt-[9px] !text-destructive before:pointer-events-none before:absolute before:inset-x-0 before:-top-[5px] before:h-px before:bg-colorBorderSecondary before:content-['']"
+    "relative mt-[9px] !text-destructive before:pointer-events-none before:absolute before:inset-x-0 before:-top-[5px] before:h-px before:bg-border-muted before:content-['']"
 
 /** Theme picker as a hover fly-out row; the Preferences tab offers the same choices. */
 const ThemeFlyout = ({
@@ -152,7 +152,7 @@ export const EntryList = ({entries, close}: {entries: SwitcherEntry[]; close: ()
                 className={clsx(
                     ITEM_ROW_CLASS,
                     // scroll-initial-target is Chromium-only; elsewhere the list opens at the top.
-                    entry.isActive && "bg-colorFillSecondary [scroll-initial-target:nearest]",
+                    entry.isActive && "bg-secondary [scroll-initial-target:nearest]",
                 )}
                 onClick={() => {
                     close()
@@ -219,7 +219,7 @@ export const ProjectOrgSwitcherView = ({
                     {t("navigation.projectMenu.projectsIn", {organization: orgLabel})}
                 </div>
                 <EntryList entries={projects} close={close} />
-                <div className="my-1 h-px bg-colorBorderSecondary" />
+                <div className="my-1 h-px bg-border-muted" />
                 <Row onClick={() => setPanel("orgs")}>
                     <ArrowsLeftRight size={14} className="shrink-0" />
                     <span className="flex-1">{t("navigation.projectMenu.switchOrganization")}</span>
@@ -271,14 +271,14 @@ export const ProjectOrgSwitcherView = ({
                         aria-label={t("common.close")}
                         title={t("common.close")}
                         onClick={close}
-                        className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-muted-foreground hover:bg-colorFillTertiary"
+                        className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-muted-foreground hover:bg-accent"
                     >
                         <X size={14} />
                     </button>
                 </div>
                 <div className={CAPTION_CLASS}>{t("navigation.projectMenu.organizations")}</div>
                 <EntryList entries={orgs} close={close} />
-                <div className="my-1 h-px bg-colorBorderSecondary" />
+                <div className="my-1 h-px bg-border-muted" />
                 {onCreateOrg && (
                     <Row
                         onClick={() => {
@@ -343,7 +343,7 @@ export const ProjectOrgSwitcherView = ({
                         data-project-org-switcher
                         className={clsx(
                             // Borderless at rest; the hover fill is the affordance.
-                            "flex cursor-pointer items-center rounded-[6px] border-0 bg-transparent transition-colors duration-150 hover:bg-colorFillTertiary",
+                            "flex cursor-pointer items-center rounded-[6px] border-0 bg-transparent transition-colors duration-150 hover:bg-accent",
                             // pl-2.5 tucks the wider avatar 2px left of the nav rows' icon column.
                             collapsed
                                 ? "size-7 justify-center p-0"
@@ -358,7 +358,7 @@ export const ProjectOrgSwitcherView = ({
                             size="small"
                             name={projectLabel}
                             className={clsx(
-                                "shrink-0 !text-[10px] !font-semibold",
+                                "shrink-0 text-caption",
                                 compact ? "!size-5 !rounded" : "!rounded-[5px]",
                             )}
                         />
@@ -376,7 +376,7 @@ export const ProjectOrgSwitcherView = ({
                                     {projectLabel}
                                 </span>
                                 {triggerMeta ? (
-                                    <span className="shrink-0 text-[10px] leading-none text-colorTextTertiary">
+                                    <span className="shrink-0 text-caption leading-none text-muted-foreground">
                                         {triggerMeta}
                                     </span>
                                 ) : null}

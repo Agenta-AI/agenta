@@ -120,7 +120,7 @@ export const NavDrawer = ({
             // The canvas menu button (M01, M02, M13): a panel-with-lines glyph in secondary text, 44 x 44 with
             // radius 8 and a 20 px glyph on a phone (the size gives it). From md, where it is
             // 28 px, the ::after reaches 8 px past each edge for the touch target.
-            className="relative md:after:absolute md:after:-inset-2 md:after:content-[''] lg:hidden"
+            className="relative lg:hidden"
         >
             <svg
                 aria-hidden

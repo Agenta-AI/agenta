@@ -46,7 +46,7 @@ describe("the builder in the main sidebar", () => {
 
     it("gives the builder heading a New chat link that brings the builder sidebar back", () => {
         const add = mobileSessionsEntity.groupAddLink?.(builderGroup, P)
-        expect(add).toMatchObject({link: `${P}/builder`, label: "New chat"})
+        expect(add).toMatchObject({link: `${P}/builder`, label: "New session"})
         getDefaultStore().set(builderSidebarHiddenAtom, true)
         add?.onClick?.({} as never)
         expect(getDefaultStore().get(builderSidebarHiddenAtom)).toBe(false)

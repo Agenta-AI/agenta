@@ -41,8 +41,8 @@ const DEFAULT_TONE: MeterTone = {
     Icon: null,
 }
 const METER_TONES: Partial<Record<CreditAlert["kind"], MeterTone>> = {
-    low: {text: "text-colorWarningText", bar: "bg-colorWarning", Icon: AlertTriangle},
-    empty: {text: "text-colorErrorText", bar: "bg-destructive", Icon: XCircle},
+    low: {text: "text-warning", bar: "bg-warning", Icon: WarningIcon},
+    empty: {text: "text-destructive", bar: "bg-destructive", Icon: XCircleIcon},
 }
 
 const CreditsMeter = ({projectId, settingsURL}: {projectId: string; settingsURL: string}) => {
@@ -80,7 +80,7 @@ const CreditsMeter = ({projectId, settingsURL}: {projectId: string; settingsURL:
                         remaining: formatCredits(remaining),
                         total: formatCredits(total),
                     })}
-                    className="hover:bg-accent/50 mx-2 mb-1 flex flex-col gap-1 rounded-md px-3 py-1 text-xs no-underline"
+                    className="hover:bg-accent mx-2 mb-1 flex flex-col gap-1 rounded-md px-3 py-1 text-xs no-underline"
                 >
                     <span className="flex items-center justify-between gap-2">
                         <span className="min-w-0 truncate text-muted-foreground">
@@ -98,9 +98,9 @@ const CreditsMeter = ({projectId, settingsURL}: {projectId: string; settingsURL:
                             </span>
                         </span>
                     </span>
-                    <span className="bg-border block h-[3px] overflow-hidden rounded-full">
+                    <span className="block h-[3px] overflow-hidden rounded-xs bg-border">
                         <span
-                            className={`block h-full rounded-full ${tone.bar}`}
+                            className={`block h-full rounded-xs ${tone.bar}`}
                             style={{width: `${ratio * 100}%`}}
                         />
                     </span>
