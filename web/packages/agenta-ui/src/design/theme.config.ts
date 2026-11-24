@@ -4,7 +4,10 @@
 
 export type ThemeMode = "light" | "dark"
 
-export type ColorValue = {light: string; dark: string}
+export interface ColorValue {
+    light: string
+    dark: string
+}
 
 export interface ThemeVariable<V = string> {
     name: string

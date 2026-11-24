@@ -2,9 +2,9 @@ import * as React from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import {XIcon} from "@phosphor-icons/react"
 import * as SheetPrimitive from "@radix-ui/react-dialog"
 import {cva, type VariantProps} from "class-variance-authority"
-import {XIcon} from "@phosphor-icons/react"
 
 import {Button} from "./button"
 import {cn} from "./utils"

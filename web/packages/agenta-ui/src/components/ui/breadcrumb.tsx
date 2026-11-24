@@ -2,8 +2,8 @@ import * as React from "react"
 
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
-import {Slot} from "@radix-ui/react-slot"
 import {DotsThreeIcon} from "@phosphor-icons/react"
+import {Slot} from "@radix-ui/react-slot"
 
 import {cn} from "./utils"
 

@@ -2,8 +2,8 @@ import * as React from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import {XIcon} from "@phosphor-icons/react"
+import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 
 import {Button, ButtonSizeContext, buttonVariants} from "./button"
 import {cn} from "./utils"

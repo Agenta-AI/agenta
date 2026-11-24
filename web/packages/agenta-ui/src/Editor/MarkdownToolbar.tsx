@@ -38,14 +38,6 @@ import {
 } from "@lexical/table"
 import {$getNearestNodeOfType} from "@lexical/utils"
 import {
-    $createParagraphNode,
-    $getSelection,
-    $isRangeSelection,
-    type ElementNode,
-    FORMAT_TEXT_COMMAND,
-    type TextFormatType,
-} from "lexical"
-import {
     CaretDownIcon,
     CodeIcon,
     LinkBreakIcon,
@@ -58,6 +50,14 @@ import {
     TextItalicIcon,
     TextStrikethroughIcon,
 } from "@phosphor-icons/react"
+import {
+    $createParagraphNode,
+    $getSelection,
+    $isRangeSelection,
+    type ElementNode,
+    FORMAT_TEXT_COMMAND,
+    type TextFormatType,
+} from "lexical"
 
 import {Button} from "../components/ui/button"
 import {

@@ -1,8 +1,8 @@
 import {useState} from "react"
 
 import {GroupMenu} from "@agenta/ui/filter-menu"
-import type {Meta, StoryObj} from "@storybook/nextjs"
 import {LightningIcon, MinusIcon, RobotIcon} from "@phosphor-icons/react"
+import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
  * The smaller sibling of `FilterMenu`, for a surface that wants a standalone group control rather

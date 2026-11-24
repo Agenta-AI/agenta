@@ -12,10 +12,10 @@ import React, {useCallback, useMemo} from "react"
 
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import {CaretDownIcon, CheckCircleIcon, XCircleIcon} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
-import {CaretDownIcon, CheckCircleIcon, XCircleIcon} from "@phosphor-icons/react"
 
 import {Button, type ButtonProps} from "./ui/button"
 import {LoadingButton} from "./ui/button-composed"

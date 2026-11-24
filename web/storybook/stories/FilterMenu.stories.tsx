@@ -1,7 +1,6 @@
 import {useState} from "react"
 
 import {FilterMenu, type FilterMenuItem} from "@agenta/ui/filter-menu"
-import type {Meta, StoryObj} from "@storybook/nextjs"
 import {
     ArchiveIcon,
     CalendarDotsIcon,
@@ -14,6 +13,7 @@ import {
     StackIcon,
     TextTIcon,
 } from "@phosphor-icons/react"
+import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
  * `@agenta/ui/filter-menu` is entity-free, so it renders identically in `/m` and

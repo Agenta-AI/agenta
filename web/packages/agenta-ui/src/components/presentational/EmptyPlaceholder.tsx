@@ -3,9 +3,8 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 
-import {Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia} from "../ui/empty"
-
 import {Button} from "../ui/button"
+import {Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia} from "../ui/empty"
 
 interface Cta {
     text: string

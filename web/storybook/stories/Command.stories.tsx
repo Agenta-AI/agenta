@@ -12,7 +12,6 @@ import {
     CommandSeparator,
     CommandShortcut,
 } from "@agenta/ui/ui"
-import type {Meta, StoryObj} from "@storybook/nextjs"
 import {
     CalculatorIcon,
     CalendarBlankIcon,
@@ -21,6 +20,7 @@ import {
     SmileyIcon,
     UserIcon,
 } from "@phosphor-icons/react"
+import type {Meta, StoryObj} from "@storybook/nextjs"
 
 const meta = {
     title: "@agenta/ui/Primitives/Overlays/Command",

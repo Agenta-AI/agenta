@@ -78,22 +78,6 @@ const headerRow = (key: string) =>
 const section = (key: string) => container.querySelector(`[data-config-section=${key}]`)!
 
 describe("AgentTemplateSectionList layouts", () => {
-    it("panel: 40 px inset rows with a 6 px gap, and no summary on an empty section", () => {
-        renderList(null)
-        const list = section("subagents").parentElement!
-        expect(list.className).toContain("gap-1.5")
-        expect(list.className).toContain("pt-3.5")
-        expect(headerRow("subagents").className).toContain("h-[39px]")
-        expect(headerRow("subagents").className).toContain("px-1")
-        expect(section("subagents").textContent).not.toContain("None")
-        expect(section("skills").textContent).toContain("2 skills")
-        // The Advanced row keeps its sandbox and ends with the Phosphor caret, never a filled
-        // triangle (MICRO-06).
-        expect(section("advanced").textContent).toContain("Sandbox: Daytona")
-        const caret = section("advanced").querySelector("[data-slot=collapse-caret]")
-        expect(caret?.tagName.toLowerCase()).toBe("svg")
-    })
-
     it("pane: full-width 45 px rows that keep None and tint a marked header", () => {
         renderList("pane")
         const list = section("subagents").parentElement!

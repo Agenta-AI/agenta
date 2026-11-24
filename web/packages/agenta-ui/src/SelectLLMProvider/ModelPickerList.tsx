@@ -20,7 +20,6 @@ import {SearchInput} from "../components/ui/input-composed"
 import {MENU_ITEM} from "../components/ui/menu-item"
 
 import ManageProvidersRow from "./ManageProvidersRow"
-
 import type {ProviderGroup, ProviderOption, ProviderSection} from "./types"
 import {getProviderIcon, optionMatchesSearch} from "./utils"
 

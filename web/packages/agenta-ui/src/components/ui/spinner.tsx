@@ -2,8 +2,8 @@ import * as React from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {cva, type VariantProps} from "class-variance-authority"
 import {CircleNotchIcon} from "@phosphor-icons/react"
+import {cva, type VariantProps} from "class-variance-authority"
 
 import {cn} from "./utils"
 

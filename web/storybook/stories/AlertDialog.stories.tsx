@@ -13,8 +13,8 @@ import {
     buttonVariants,
     Button as ShadButton,
 } from "@agenta/ui/ui"
-import type {Meta, StoryObj} from "@storybook/nextjs"
 import {TrashIcon} from "@phosphor-icons/react"
+import type {Meta, StoryObj} from "@storybook/nextjs"
 
 const meta = {
     title: "@agenta/ui/Primitives/Overlays/AlertDialog",

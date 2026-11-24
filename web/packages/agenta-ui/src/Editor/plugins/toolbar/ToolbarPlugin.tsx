@@ -3,12 +3,6 @@ import {useCallback, useEffect, useState, JSX} from "react"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {mergeRegister} from "@lexical/utils"
 import {
-    $getSelection,
-    $isRangeSelection,
-    FORMAT_TEXT_COMMAND,
-    FORMAT_ELEMENT_COMMAND,
-} from "lexical"
-import {
     CodeIcon,
     TextAlignCenterIcon,
     TextAlignLeftIcon,
@@ -17,6 +11,12 @@ import {
     TextItalicIcon,
     TextUnderlineIcon,
 } from "@phosphor-icons/react"
+import {
+    $getSelection,
+    $isRangeSelection,
+    FORMAT_TEXT_COMMAND,
+    FORMAT_ELEMENT_COMMAND,
+} from "lexical"
 
 export function ToolbarPlugin(): JSX.Element {
     const [editor] = useLexicalComposerContext()

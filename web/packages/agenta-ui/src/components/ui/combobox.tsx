@@ -5,9 +5,9 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {CaretDownIcon, CircleNotchIcon, X} from "@phosphor-icons/react"
 
+import {MENU_ITEM} from "./menu-item"
 import {Popover, PopoverAnchor, PopoverContent} from "./popover"
 import {selectTriggerVariants, type SelectTriggerProps} from "./select"
-import {MENU_ITEM} from "./menu-item"
 import {cn} from "./utils"
 
 /**
