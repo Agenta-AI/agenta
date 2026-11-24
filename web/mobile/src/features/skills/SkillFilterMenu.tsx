@@ -3,16 +3,7 @@ import {useMemo} from "react"
 import {useT} from "@agenta/i18n"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {FilterMenu, type FilterMenuItem} from "@agenta/ui/filter-menu"
-import {
-    Archive,
-    Folder,
-    GitBranch,
-    Minus,
-    Robot,
-    Rows,
-    SquaresFour,
-    Stack,
-} from "@phosphor-icons/react"
+import {Folder, GitBranch, Minus, Robot, Rows, SquaresFour, Stack} from "@phosphor-icons/react"
 
 import {
     ALL_SOURCES,
@@ -29,7 +20,7 @@ const ICON = 14
 
 /**
  * The skills registry's single view control: where a skill came from, whether an agent runs
- * it, the agents menu's "Only archived" switch, then how the rows are cut.
+ * it, then how the rows are cut. Archived is the toolbar's Active/Archived segment.
  *
  * Everything the shared `FilterMenu` knows about this screen arrives as props, so the package
  * never learns what a skill is and this file never re-implements a row or a check mark.
@@ -93,14 +84,6 @@ export const SkillFilterMenu = ({
                 onChange: (value) => onChange({...view, usedBy: value as SkillUsedByFilter}),
             },
             {
-                kind: "toggle",
-                key: "archived",
-                label: t("skills.list.filterOnlyArchived"),
-                icon: <Archive size={ICON} />,
-                checked: view.archived,
-                onChange: (checked) => onChange({...view, archived: checked}),
-            },
-            {
                 key: "group",
                 label: t("skills.list.filterGroupBy"),
                 icon: <Rows size={ICON} />,
@@ -126,7 +109,7 @@ export const SkillFilterMenu = ({
 
     // The grouping and the view mode survive a reset: they are how the reader chose to read the
     // list, not what they narrowed it to.
-    const isDefault = isDefaultSkillFilters(view)
+    const isDefault = isDefaultSkillFilters({...view, archived: DEFAULT_SKILL_LIST_VIEW.archived})
 
     return (
         <FilterMenu
@@ -134,9 +117,14 @@ export const SkillFilterMenu = ({
             align="start"
             size="default"
             // The view toggle beside it is 32; a 28px funnel between them read as a mistake.
-            active={!isDefaultSkillFilters(view)}
+            active={!isDefault}
             onReset={() =>
-                onChange({...DEFAULT_SKILL_LIST_VIEW, group: view.group, mode: view.mode})
+                onChange({
+                    ...DEFAULT_SKILL_LIST_VIEW,
+                    group: view.group,
+                    mode: view.mode,
+                    archived: view.archived,
+                })
             }
             resetDisabled={isDefault}
         />

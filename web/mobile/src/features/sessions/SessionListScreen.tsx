@@ -14,11 +14,12 @@ import {
     SessionFilterAtomsContext,
     sharedSessionFilterAtoms,
     useSessionFilterAtoms,
+    useSessionFilters,
     useSessionsList,
 } from "@agenta/sessions/state"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
-import {ListTableToolbar} from "@agenta/ui/list-table"
+import {ListTableArchiveToggle, ListTableToolbar} from "@agenta/ui/list-table"
 import {useIsPhone} from "@agenta/ui/phone"
 import {Button} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
@@ -136,6 +137,7 @@ const SessionListBody = ({
     // line nobody is looking at.
     const activityFloor = useMemo(() => activityFloorIso(view.activity), [view.activity])
 
+    const sessionFilters = useSessionFilters()
     // The SAME arguments `SessionListTable` passes, so both hooks resolve to one query rather
     // than two. This one is only here for the waiting count the filter menu shows.
     const list = useSessionsList({
@@ -261,6 +263,12 @@ const SessionListBody = ({
                             <LockedAgentChip agentId={lockedAgent.id} variant="inline" />
                         ) : null}
                     </>
+                }
+                end={
+                    <ListTableArchiveToggle
+                        archived={sessionFilters.archivedOnly}
+                        onChange={sessionFilters.setArchivedOnly}
+                    />
                 }
             />
             <SessionListTable

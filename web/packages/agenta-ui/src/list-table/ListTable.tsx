@@ -49,13 +49,9 @@ const STICKY = {height: "h-9", groupTop: "top-9"} as const
 /** With no visible header, a stuck group heading sits at the scroller's own top. */
 const groupTop = (hideHeader: boolean) => (hideHeader ? "top-0" : STICKY.groupTop)
 
-/**
- * The card's box, shared by a tile and its skeleton so the two are one shape. A card is a bordered
- * surface, not a fill, because a grid of fills reads as one slab; the border is what says "this
- * one opens on its own".
- */
+/** The card's box, shared by a tile and its skeleton: a soft fill, no border. */
 const CARD_CHROME =
-    "box-border flex min-w-0 flex-col gap-2 rounded-lg border border-solid border-border bg-card p-4 text-left text-card-foreground"
+    "box-border flex min-w-0 flex-col gap-2 rounded-lg border-0 bg-muted p-4 text-left text-foreground"
 
 /**
  * The list frame every table-shaped screen in this app shares: a header row, optional group
@@ -425,10 +421,9 @@ export const ListTable = <Row,>({
                                                         className={cn(
                                                             "group",
                                                             CARD_CHROME,
-                                                            // Hover: a stronger edge and the `accent`
-                                                            // fill, never a shadow (SURF-04).
+                                                            // Hover: the `accent` fill, never a shadow (SURF-04).
                                                             opens(row) &&
-                                                                "cursor-pointer transition-[border-color,background-color] hover:border-border-strong hover:bg-accent",
+                                                                "cursor-pointer transition-colors hover:bg-accent",
                                                             opens(row) && FOCUS_RING,
                                                         )}
                                                     >

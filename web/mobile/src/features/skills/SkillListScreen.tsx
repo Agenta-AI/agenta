@@ -20,7 +20,7 @@ import {
 } from "@agenta/skills-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
-import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
+import {ListTableArchiveToggle, ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -220,17 +220,19 @@ export const SkillListScreen = ({
                             onSearchChange={setTyped}
                             searchPlaceholder={t("skills.list.searchPlaceholder")}
                             actions={
+                                <SkillFilterMenu
+                                    view={view}
+                                    onChange={setView}
+                                    repositories={repositories}
+                                />
+                            }
+                            end={
                                 <>
-                                    <SkillFilterMenu
-                                        view={view}
-                                        onChange={setView}
-                                        repositories={repositories}
+                                    <ListTableArchiveToggle
+                                        archived={view.archived}
+                                        onChange={(archived) => setView({...view, archived})}
                                     />
-                                    <ListTableViewToggle
-                                        value={view.mode}
-                                        onChange={setMode}
-                                        className="ml-auto"
-                                    />
+                                    <ListTableViewToggle value={view.mode} onChange={setMode} />
                                 </>
                             }
                         />

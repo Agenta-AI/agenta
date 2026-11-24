@@ -81,5 +81,7 @@
     "working": "In Arbeit…",
     "yourRole": "Ihre Rolle",
     "dialog": "Dialog",
-    "resizePane": "Bereich in der Größe ändern"
+    "resizePane": "Bereich in der Größe ändern",
+    "archived": "Archiviert",
+    "activeOrArchived": "Aktiv oder archiviert"
 }

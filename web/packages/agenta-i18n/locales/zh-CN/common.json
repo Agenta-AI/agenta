@@ -81,5 +81,7 @@
     "working": "处理中…",
     "yourRole": "你的角色",
     "dialog": "对话框",
-    "resizePane": "调整面板大小"
+    "resizePane": "调整面板大小",
+    "archived": "已归档",
+    "activeOrArchived": "活跃或已归档"
 }

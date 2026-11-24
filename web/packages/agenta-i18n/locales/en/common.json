@@ -81,5 +81,7 @@
     "working": "Working…",
     "yourRole": "Your role",
     "dialog": "Dialog",
-    "resizePane": "Resize pane"
+    "resizePane": "Resize pane",
+    "archived": "Archived",
+    "activeOrArchived": "Active or archived"
 }
