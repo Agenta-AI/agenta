@@ -88,7 +88,10 @@ const SubscriptionConnectionCard = ({
                         }
                     >
                         {isReady && !pending ? (
-                            <span aria-hidden className="size-1.5 shrink-0 rounded-round bg-success" />
+                            <span
+                                aria-hidden
+                                className="size-1.5 shrink-0 rounded-round bg-success"
+                            />
                         ) : null}
                         {pending ? <Spinner className="size-3 shrink-0" /> : null}
                         <span className={pending ? "animate-pulse" : undefined}>

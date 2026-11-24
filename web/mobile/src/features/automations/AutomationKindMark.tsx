@@ -9,7 +9,13 @@ import {CalendarBlank, Lightning} from "@phosphor-icons/react"
  * only thing on the row that says which kind it is.
  */
 /** 24 in one-line rows and cards; 32 in two-line (48px) rows. */
-export const AutomationKindMark = ({kind, size = 24}: {kind: Automation["kind"]; size?: 24 | 32}) => {
+export const AutomationKindMark = ({
+    kind,
+    size = 24,
+}: {
+    kind: Automation["kind"]
+    size?: 24 | 32
+}) => {
     useAutomationText()
     return (
         <span

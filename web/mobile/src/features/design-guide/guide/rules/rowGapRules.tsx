@@ -23,7 +23,9 @@ function TwoLineRows({gap}: {gap: string}) {
                     </IconTile>
                     <div className="flex min-w-0 flex-col">
                         <span className="truncate text-label">{name}</span>
-                        <span className="truncate text-meta text-muted-foreground">{description}</span>
+                        <span className="truncate text-meta text-muted-foreground">
+                            {description}
+                        </span>
                     </div>
                 </div>
             ))}
@@ -36,7 +38,8 @@ export const rowGapRules: RuleExample[] = [
         id: "ROW-04",
         do: {
             example: <TwoLineRows gap="gap-2" />,
-            caption: "Two-line rows 8px apart: the hovered and the selected row each stand on their own.",
+            caption:
+                "Two-line rows 8px apart: the hovered and the selected row each stand on their own.",
             code: `<div className="flex flex-col gap-2">{rows}</div>`,
         },
         avoid: {

@@ -25,7 +25,9 @@ export const QuickActions = ({
                     className="focus-ring flex min-h-row-double w-full cursor-pointer flex-col justify-center rounded-md border-0 bg-transparent px-3 py-1.5 text-left hover:bg-accent"
                 >
                     <span className="text-label text-foreground">{t(entry.title)}</span>
-                    <span className="w-full truncate text-meta text-muted-foreground">{t(entry.line)}</span>
+                    <span className="w-full truncate text-meta text-muted-foreground">
+                        {t(entry.line)}
+                    </span>
                 </button>
             ))}
         </div>

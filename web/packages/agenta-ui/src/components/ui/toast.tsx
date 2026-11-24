@@ -1,6 +1,13 @@
 import * as React from "react"
 
-import {CheckCircleIcon, CircleNotchIcon, InfoIcon, WarningIcon, WarningOctagonIcon, XIcon} from "@phosphor-icons/react"
+import {
+    CheckCircleIcon,
+    CircleNotchIcon,
+    InfoIcon,
+    WarningIcon,
+    WarningOctagonIcon,
+    XIcon,
+} from "@phosphor-icons/react"
 import {Toaster as Sonner, type ToasterProps} from "sonner"
 
 import {buttonVariants} from "./button"

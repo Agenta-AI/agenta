@@ -340,7 +340,11 @@ export const textStyles: TextStyle[] = [
 ]
 
 export const spacing: ThemeVariable[] = [
-    {name: "spacing-0.5", value: "2px", usage: "Hairline offsets; the gap between dense rows (menus, sidebar, trees)."},
+    {
+        name: "spacing-0.5",
+        value: "2px",
+        usage: "Hairline offsets; the gap between dense rows (menus, sidebar, trees).",
+    },
     {
         name: "spacing-1",
         value: "4px",

@@ -54,7 +54,10 @@ export const AutomationRunRow = ({
                 FOCUS_RING,
             )}
         >
-            <span aria-hidden className={cn("size-2 shrink-0 rounded-round", runDotClass(delivery))} />
+            <span
+                aria-hidden
+                className={cn("size-2 shrink-0 rounded-round", runDotClass(delivery))}
+            />
             <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-label text-foreground">{label}</span>
                 {skipped ? (
