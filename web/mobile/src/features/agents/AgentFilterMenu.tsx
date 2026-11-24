@@ -153,9 +153,6 @@ export const AgentFilterMenu = ({
         <FilterMenu
             sections={sections}
             align="start"
-            // Icon alone, as on every list page's toolbar.
-            label={null}
-            triggerAriaLabel={t("agents.list.filterTriggerLabel")}
             size="default"
             active={!isDefaultAgentListView(view)}
             // The mode survives a reset: it is how the reader chose to read the list, not what

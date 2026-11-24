@@ -170,9 +170,6 @@ export const AutomationFilterMenu = ({
         <FilterMenu
             sections={sections}
             align="start"
-            // Icon alone: the table beside it is already the subject, and the word "Filter"
-            // added a second label to a toolbar that has one.
-            label={null}
             size="default"
             active={!isDefaultAutomationListView(view)}
             // The mode survives a reset: it is how the reader chose to read the list, not what

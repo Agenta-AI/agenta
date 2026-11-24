@@ -310,10 +310,6 @@ export const SessionFilterMenu = ({
         <FilterMenu
             sections={sections}
             align="start"
-            // Icon alone: the table beside it is already the subject, and the word "Filter" added
-            // a second label to a toolbar that has one.
-            label={null}
-            triggerAriaLabel={t("sessions.mobileList.filterAndGroup")}
             size="default"
             // A page locked to one agent is narrowed to it, so the dot shows there too (A02).
             active={changed || Boolean(lockedAgent)}

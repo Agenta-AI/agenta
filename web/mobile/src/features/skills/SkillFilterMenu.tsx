@@ -132,9 +132,6 @@ export const SkillFilterMenu = ({
         <FilterMenu
             sections={sections}
             align="start"
-            // Icon alone: the list beside it is already the subject, as on the agents toolbar.
-            label={null}
-            triggerAriaLabel={t("skills.list.filterAria")}
             size="default"
             // The view toggle beside it is 32; a 28px funnel between them read as a mistake.
             active={!isDefaultSkillFilters(view)}

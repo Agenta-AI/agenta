@@ -143,8 +143,6 @@ export const AgentActivityFilterMenu = ({
         <FilterMenu
             sections={sections}
             align="end"
-            label={null}
-            triggerAriaLabel={t("agents.activity.filterTriggerLabel")}
             size="icon-sm"
             active={active}
             onReset={onReset}
