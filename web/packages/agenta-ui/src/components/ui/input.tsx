@@ -17,7 +17,7 @@ const inputVariants = cva(
         // CONTROL_RESET — see button.tsx. Without preflight (/w), `border` sets only the width,
         // an <input> keeps the UA font and a <textarea> keeps monospace.
         "box-border border-solid font-[inherit]",
-        "w-full min-w-0 border text-[13px] text-foreground transition-colors outline-none",
+        "w-full min-w-0 border text-field-md text-foreground transition-colors outline-none",
         "placeholder:text-muted-foreground",
         "file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-label file:text-foreground",
         "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-[color:color-mix(in_srgb,var(--border)_50%,transparent)] disabled:opacity-50 dark:disabled:bg-[color:color-mix(in_srgb,var(--border)_80%,transparent)]",

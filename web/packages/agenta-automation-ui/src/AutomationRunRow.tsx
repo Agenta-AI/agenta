@@ -59,7 +59,7 @@ export const AutomationRunRow = ({
                 className={cn("size-2 shrink-0 rounded-round", runDotClass(delivery))}
             />
             <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-label text-foreground">{label}</span>
+                <span className="truncate text-body font-medium text-foreground">{label}</span>
                 {skipped ? (
                     <span className="truncate text-meta text-muted-foreground">{outcome}</span>
                 ) : null}

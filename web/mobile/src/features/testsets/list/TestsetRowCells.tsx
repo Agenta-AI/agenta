@@ -67,13 +67,16 @@ export const TestsetRowCells = ({
                         {expanded ? <CaretDown aria-hidden /> : <CaretRight aria-hidden />}
                     </Button>
                 ) : null}
-                <span className="block truncate text-label text-foreground" title={row.name}>
+                <span
+                    className="block truncate text-body font-medium text-foreground"
+                    title={row.name}
+                >
                     {row.name}
                 </span>
             </span>
             {narrow ? null : (
                 <span
-                    className={`block truncate text-label ${
+                    className={`block truncate text-body font-medium ${
                         commitMessage ? "text-muted-foreground" : "text-muted-foreground"
                     }`}
                     title={commitMessage ?? undefined}

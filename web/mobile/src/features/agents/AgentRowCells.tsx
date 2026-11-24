@@ -54,7 +54,7 @@ export const AgentRowCells = ({
                     ) : (
                         <span className="flex min-w-0 items-center gap-1.5">
                             <span
-                                className="truncate text-label text-foreground"
+                                className="truncate text-body font-medium text-foreground"
                                 title={row.name}
                                 onDoubleClick={(event) => {
                                     event.stopPropagation()

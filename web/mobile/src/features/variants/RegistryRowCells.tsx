@@ -78,11 +78,11 @@ export const RegistryRowCells = ({
                 </span>
             </span>
             {narrow ? null : (
-                <span className="block break-all text-label text-foreground">
+                <span className="block break-all text-body font-medium text-foreground">
                     {revision.model || "—"}
                 </span>
             )}
-            <span className="block truncate text-label text-foreground">
+            <span className="block truncate text-body font-medium text-foreground">
                 <FormattedDate
                     date={revision.createdAt}
                     format={narrow ? "MMM D, YYYY" : "MMM D, YYYY, h:mm A"}

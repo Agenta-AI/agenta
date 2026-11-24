@@ -47,7 +47,7 @@ export const VariantRowCells = ({
             <span
                 className={
                     detailed
-                        ? "block break-all text-label text-foreground"
+                        ? "block break-all text-body font-medium text-foreground"
                         : "block truncate text-label text-muted-foreground"
                 }
             >

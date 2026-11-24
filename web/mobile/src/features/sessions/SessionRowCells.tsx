@@ -168,7 +168,7 @@ export const SessionRowCells = ({
                 ) : (
                     <>
                         <span
-                            className="min-w-0 truncate text-label text-foreground"
+                            className="min-w-0 truncate text-body font-medium text-foreground"
                             title={vm.title}
                         >
                             {vm.title}

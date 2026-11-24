@@ -60,7 +60,7 @@ export const PromptRowCells = ({
                 ) : (
                     <AppTypeIcon appType={appType} />
                 )}
-                <span className="truncate text-label text-foreground" title={name}>
+                <span className="truncate text-body font-medium text-foreground" title={name}>
                     {name}
                 </span>
             </span>

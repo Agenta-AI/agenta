@@ -33,7 +33,7 @@ export const SkillCardBody = ({
         <>
             <span className={`flex min-w-0 items-center gap-2 ${row.archived ? "opacity-60" : ""}`}>
                 <SkillMark />
-                <span className="min-w-0 flex-1 truncate text-label font-medium text-foreground">
+                <span className="min-w-0 flex-1 truncate text-body font-medium text-foreground">
                     {row.title}
                 </span>
                 <span

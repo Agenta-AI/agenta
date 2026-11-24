@@ -150,8 +150,8 @@
     --text-btn-lg--line-height: 20px;
     --text-field-sm: 12px;
     --text-field-sm--line-height: 1.6666666666666667;
-    --text-field-md: 13px;
-    --text-field-md--line-height: 1.3846153846153846;
+    --text-field-md: 14px;
+    --text-field-md--line-height: 1.4285714285714286;
     --text-field-lg: 16px;
     --text-field-lg--line-height: 1.5;
     /* The shared packages' `text-xs` step is 13/18 (oss/tailwind.config.ts), not Tailwind's 12/16. */

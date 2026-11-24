@@ -101,7 +101,7 @@ export function InputAffix({
                 {...(isControlled ? {value} : {defaultValue})}
                 onChange={handleChange}
                 className={cn(
-                    "min-w-0 flex-1 border-0 bg-transparent p-0 font-[inherit] text-[13px] text-foreground outline-none placeholder:text-muted-foreground",
+                    "min-w-0 flex-1 border-0 bg-transparent p-0 font-[inherit] text-field-md text-foreground outline-none placeholder:text-muted-foreground",
                 )}
                 {...rest}
             />

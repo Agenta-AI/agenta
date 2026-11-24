@@ -111,7 +111,7 @@ const SessionRowImpl = ({
                             />
                         </span>
                     ) : (
-                        <span className="min-w-0 flex-1 truncate text-label text-foreground">
+                        <span className="min-w-0 flex-1 truncate text-body font-medium text-foreground">
                             {row.title}
                         </span>
                     )}

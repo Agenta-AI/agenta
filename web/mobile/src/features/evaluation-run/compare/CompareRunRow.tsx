@@ -45,7 +45,7 @@ export const CompareRunRow = ({
                     className="mt-0.5"
                 />
                 <span className="flex min-w-0 flex-col gap-0.5">
-                    <span className="truncate text-label text-foreground">{name}</span>
+                    <span className="truncate text-body font-medium text-foreground">{name}</span>
                     <span className="truncate text-meta text-muted-foreground">
                         {details || "No description"}
                     </span>

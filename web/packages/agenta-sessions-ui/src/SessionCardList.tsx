@@ -227,7 +227,7 @@ const Row = ({
                     className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1 border-0 bg-transparent p-0 text-left pointer-coarse:after:absolute pointer-coarse:after:inset-0 pointer-coarse:after:content-['']"
                 >
                     <span className="flex w-full min-w-0 items-center gap-2">
-                        <span className="min-w-0 flex-1 truncate text-label text-foreground">
+                        <span className="min-w-0 flex-1 truncate text-body font-medium text-foreground">
                             {vm.title}
                         </span>
                         {/* An automation row IS its schedule/subscription — the kind is what tells it

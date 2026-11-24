@@ -95,7 +95,7 @@ function CommandInput({className, ...props}: React.ComponentProps<typeof Command
                 <CommandPrimitive.Input
                     data-slot="command-input"
                     className={cn(
-                        "box-border h-full w-full min-w-0 border-0 bg-transparent p-0 font-[inherit] text-label text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
+                        "box-border h-full w-full min-w-0 border-0 bg-transparent p-0 font-[inherit] text-body text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
                         className,
                     )}
                     {...props}

@@ -89,7 +89,7 @@ export const EvaluatorRowCells = ({
                 ) : null}
                 <span
                     className={cn(
-                        "truncate text-label",
+                        "truncate text-body font-medium",
                         older ? "text-muted-foreground" : "text-foreground",
                     )}
                     title={name}

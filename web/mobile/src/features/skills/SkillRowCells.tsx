@@ -42,7 +42,7 @@ export const SkillRowCells = ({
                 shared, so the two lines are where a row can give height back. */}
                 <span className="flex min-w-0 flex-1 flex-col gap-px">
                     <span className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate text-label text-foreground" title={row.title}>
+                        <span className="truncate text-body font-medium text-foreground" title={row.title}>
                             {row.title}
                         </span>
                         {row.archived ? <SkillArchivedTag /> : null}

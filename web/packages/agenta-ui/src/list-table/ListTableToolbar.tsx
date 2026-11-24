@@ -53,7 +53,7 @@ export const ListTableToolbar = ({
                     placeholder={searchPlaceholder}
                     aria-label={searchAriaLabel ?? searchPlaceholder}
                     // Fills the group on a phone, so a tap anywhere in it lands on the field.
-                    className="text-label"
+                    className="text-body"
                 />
                 {search ? (
                     <InputGroupAddon align="inline-end">

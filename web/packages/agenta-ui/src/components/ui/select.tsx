@@ -67,7 +67,7 @@ const selectTriggerVariants = cva(
                 lg: "h-control-lg px-input-lg text-field-lg rounded-control-lg",
                 // The canvas select: control height, radius 6, 13px, an up-down icon. A button does not
                 // make iOS zoom, so 14px below md, as the phone design draws it.
-                compact: "h-control px-2.5 text-[13px] rounded-control",
+                compact: "h-control px-2.5 text-field-md rounded-control",
             },
         },
         defaultVariants: {variant: "default", size: "default"},

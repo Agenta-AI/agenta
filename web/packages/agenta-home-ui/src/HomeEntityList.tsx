@@ -93,7 +93,7 @@ const Row = ({
             {/* The description line renders even when empty, so rows keep one height and the column
             does not comb. */}
             <span className="flex min-w-0 flex-1 flex-col gap-px">
-                <span className="truncate text-label text-foreground">{name}</span>
+                <span className="truncate text-body font-medium text-foreground">{name}</span>
                 <span className="truncate text-meta text-muted-foreground">
                     {description?.trim() || t("home.entityList.noDescription")}
                 </span>
