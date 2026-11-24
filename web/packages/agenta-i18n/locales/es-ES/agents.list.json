@@ -41,5 +41,8 @@
     "viewArchived": "Ver agentes archivados",
     "waitingBadge": "{{n}} en espera",
     "waitingOnYou": "{{n}} esperando tu respuesta",
-    "pageDescription": "Los agentes que creas y con los que hablas. Cada uno tiene sus propias instrucciones, herramientas y skills."
+    "pageDescription": "Los agentes que creas y con los que hablas. Cada uno tiene sus propias instrucciones, herramientas y skills.",
+    "noArchivedTitle": "No hay agentes archivados",
+    "noArchivedBody": "Los agentes que archives aparecen aquí.",
+    "backToActive": "Volver a activos"
 }

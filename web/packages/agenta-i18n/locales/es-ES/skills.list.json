@@ -82,5 +82,8 @@
     "updateFailed_many": "No se pudieron actualizar {{count}} skills",
     "updateFailed_other": "No se pudieron actualizar {{count}} skills",
     "pageDescription": "Instrucciones y herramientas que puedes añadir a cualquier agente.",
-    "usedByNone": "Ningún agente"
+    "usedByNone": "Ningún agente",
+    "noArchivedTitle": "No hay skills archivadas",
+    "noArchivedBody": "Las skills que archives aparecen aquí.",
+    "backToActive": "Volver a activas"
 }

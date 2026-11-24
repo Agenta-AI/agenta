@@ -72,5 +72,8 @@
     "skillsUpdated_other": "已更新 {{count}} 个 Skill",
     "updateFailed_other": "无法更新 {{count}} 个 Skill",
     "pageDescription": "可以添加到任何 Agent 的指令和工具。",
-    "usedByNone": "无 Agent"
+    "usedByNone": "无 Agent",
+    "noArchivedTitle": "没有已归档的 Skill",
+    "noArchivedBody": "你归档的 Skill 会显示在这里。",
+    "backToActive": "返回活跃项"
 }

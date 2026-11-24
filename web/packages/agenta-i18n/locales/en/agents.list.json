@@ -41,5 +41,8 @@
     "viewArchived": "View archived agents",
     "waitingBadge": "{{n}} waiting",
     "waitingOnYou": "{{n}} waiting on you",
-    "pageDescription": "The agents you build and talk to. Each one has its own instructions, tools and skills."
+    "pageDescription": "The agents you build and talk to. Each one has its own instructions, tools and skills.",
+    "noArchivedTitle": "No archived agents",
+    "noArchivedBody": "Agents you archive show up here.",
+    "backToActive": "Back to active"
 }

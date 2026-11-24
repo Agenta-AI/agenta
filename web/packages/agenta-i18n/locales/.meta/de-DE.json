@@ -130,7 +130,10 @@
         "viewArchived": "306da5a2e96d",
         "waitingBadge": "05d76f64fdf7",
         "waitingOnYou": "0b9318d25462",
-        "pageDescription": "953e62076c8f"
+        "pageDescription": "953e62076c8f",
+        "noArchivedTitle": "3b28db098faf",
+        "noArchivedBody": "0c9cdc1f4fec",
+        "backToActive": "36736a4a3e97"
     },
     "agents.newAgentErrors": {
         "openFailed": "43263bda74b3",
@@ -7305,7 +7308,10 @@
         "updateFailed_one": "3efa67c31d80",
         "updateFailed_other": "7a4351856d67",
         "pageDescription": "76e012db1b96",
-        "usedByNone": "4c47f095edec"
+        "usedByNone": "4c47f095edec",
+        "noArchivedTitle": "054ba931c642",
+        "noArchivedBody": "93800f4c80a5",
+        "backToActive": "36736a4a3e97"
     },
     "testsets.screens": {
         "createTestset": "ebfd1c956a5a",

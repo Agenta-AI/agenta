@@ -77,5 +77,8 @@
     "updateFailed_one": "Couldn't update {{count}} skill",
     "updateFailed_other": "Couldn't update {{count}} skills",
     "pageDescription": "Instructions and tools you can add to any agent.",
-    "usedByNone": "No agents"
+    "usedByNone": "No agents",
+    "noArchivedTitle": "No archived skills",
+    "noArchivedBody": "Skills you archive show up here.",
+    "backToActive": "Back to active"
 }

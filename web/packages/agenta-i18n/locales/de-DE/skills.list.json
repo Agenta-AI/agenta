@@ -77,5 +77,8 @@
     "updateFailed_one": "{{count}} Skill konnte nicht aktualisiert werden",
     "updateFailed_other": "{{count}} Skills konnten nicht aktualisiert werden",
     "pageDescription": "Anweisungen und Tools, die du jedem Agent hinzufügen kannst.",
-    "usedByNone": "Keine Agents"
+    "usedByNone": "Keine Agents",
+    "noArchivedTitle": "Keine archivierten Skills",
+    "noArchivedBody": "Archivierte Skills erscheinen hier.",
+    "backToActive": "Zurück zu aktiven"
 }

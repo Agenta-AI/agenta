@@ -41,5 +41,8 @@
     "viewArchived": "アーカイブ済みのエージェントを表示",
     "waitingBadge": "{{n}} 件待機中",
     "waitingOnYou": "{{n}} 件があなたの対応を待っています",
-    "pageDescription": "作成して会話するエージェントです。それぞれに独自の指示、ツール、スキルがあります。"
+    "pageDescription": "作成して会話するエージェントです。それぞれに独自の指示、ツール、スキルがあります。",
+    "noArchivedTitle": "アーカイブ済みのエージェントはありません",
+    "noArchivedBody": "アーカイブしたエージェントがここに表示されます。",
+    "backToActive": "アクティブに戻る"
 }

@@ -82,5 +82,8 @@
     "updateFailed_many": "Não foi possível atualizar {{count}} habilidades",
     "updateFailed_other": "Não foi possível atualizar {{count}} habilidades",
     "pageDescription": "Instruções e ferramentas que você pode adicionar a qualquer agente.",
-    "usedByNone": "Nenhum agente"
+    "usedByNone": "Nenhum agente",
+    "noArchivedTitle": "Nenhuma habilidade arquivada",
+    "noArchivedBody": "As habilidades que você arquivar aparecem aqui.",
+    "backToActive": "Voltar para ativas"
 }

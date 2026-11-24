@@ -148,6 +148,13 @@ export const AgentListScreen = ({
     const emptyState = isLoading ? null : (
         <AgentsNoMatch
             term={term || undefined}
+            // Only the archive is chosen: nothing is archived, not a filter that hid it.
+            archiveEmpty={
+                !term &&
+                view.type === "archived" &&
+                isDefaultAgentFilters({...view, type: DEFAULT_AGENT_LIST_VIEW.type})
+            }
+            onShowActive={() => setView({...view, type: DEFAULT_AGENT_LIST_VIEW.type})}
             onClear={
                 term ? () => setSearch("") : isDefaultAgentFilters(view) ? undefined : resetFilters
             }

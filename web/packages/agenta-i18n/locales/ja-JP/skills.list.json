@@ -72,5 +72,8 @@
     "skillsUpdated_other": "{{count}} 個のスキルを更新しました",
     "updateFailed_other": "{{count}} 個のスキルを更新できませんでした",
     "pageDescription": "どのエージェントにも追加できる指示とツールです。",
-    "usedByNone": "エージェントなし"
+    "usedByNone": "エージェントなし",
+    "noArchivedTitle": "アーカイブ済みのスキルはありません",
+    "noArchivedBody": "アーカイブしたスキルがここに表示されます。",
+    "backToActive": "アクティブに戻る"
 }

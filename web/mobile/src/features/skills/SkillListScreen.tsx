@@ -167,6 +167,13 @@ export const SkillListScreen = ({
     const emptyState = isLoading ? null : (
         <SkillsNoMatch
             term={term || undefined}
+            // Only the archive is chosen: nothing is archived, not a filter that hid it.
+            archiveEmpty={
+                !term &&
+                view.archived &&
+                isDefaultSkillFilters({...view, archived: DEFAULT_SKILL_LIST_VIEW.archived})
+            }
+            onShowActive={() => setView({...view, archived: false})}
             onClear={
                 term ? () => setSearch("") : isDefaultSkillFilters(view) ? undefined : resetFilters
             }

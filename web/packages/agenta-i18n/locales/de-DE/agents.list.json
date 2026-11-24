@@ -41,5 +41,8 @@
     "viewArchived": "Archivierte Agents anzeigen",
     "waitingBadge": "{{n}} wartend",
     "waitingOnYou": "{{n}} warten auf Sie",
-    "pageDescription": "Die Agents, die du baust und mit denen du sprichst. Jeder hat eigene Anweisungen, Tools und Skills."
+    "pageDescription": "Die Agents, die du baust und mit denen du sprichst. Jeder hat eigene Anweisungen, Tools und Skills.",
+    "noArchivedTitle": "Keine archivierten Agents",
+    "noArchivedBody": "Archivierte Agents erscheinen hier.",
+    "backToActive": "Zurück zu aktiven"
 }
