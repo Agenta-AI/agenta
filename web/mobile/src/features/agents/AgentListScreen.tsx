@@ -16,17 +16,12 @@ import {Button} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-
 import {openAgentFromList} from "../agent-pages/openAgentFromList"
 import {startBlankSession} from "../chat/useStartBlankSession"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
-import {AppShell} from "../nav/AppShell"
-import {NavDrawer} from "../nav/NavDrawer"
-import {LIST_PAGE_BODY, LIST_PAGE_HEADER, LIST_PAGE_HEADER_ROW} from "../sessions/pageFrame"
+import {PageLayout} from "../page-layout/PageLayout"
 
 import {AgentFilterMenu} from "./AgentFilterMenu"
 import {AgentListTable} from "./AgentListTable"
@@ -176,73 +171,65 @@ export const AgentListScreen = ({
 
     return (
         <>
-            <PageTitle title={t("agents.list.pageTitle")} />
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    header={
-                        <div className={LIST_PAGE_HEADER}>
-                            <div className={LIST_PAGE_HEADER_ROW}>
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
-                                    {t("agents.list.pageTitle")}
-                                </h1>
-                                {projectEmpty ? null : (
-                                    <HowThisWorksButton guide="agents" className="max-sm:hidden" />
-                                )}
-                                <NewAgentAction newAgent={newAgent} base={base} align="end" />
+            <PageLayout
+                workspaceId={workspaceId}
+                projectId={projectId}
+                title={t("agents.list.pageTitle")}
+                actions={
+                    <>
+                        {projectEmpty ? null : (
+                            <HowThisWorksButton guide="agents" className="max-sm:hidden" />
+                        )}
+                        <NewAgentAction newAgent={newAgent} base={base} align="end" />
+                    </>
+                }
+            >
+                {projectEmpty ? (
+                    <>
+                        <FeatureOnboarding guideKey="agents" base={base} />
+                        {archived.agents.length > 0 ? (
+                            <div className="mt-6 flex justify-center">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setView({...view, type: "archived"})}
+                                >
+                                    {t("agents.list.viewArchived")}
+                                </Button>
                             </div>
-                        </div>
-                    }
-                >
-                    <div className={LIST_PAGE_BODY}>
-                        {projectEmpty ? (
-                            <>
-                                <FeatureOnboarding guideKey="agents" base={base} />
-                                {archived.agents.length > 0 ? (
-                                    <div className="mt-6 flex justify-center">
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => setView({...view, type: "archived"})}
-                                        >
-                                            {t("agents.list.viewArchived")}
-                                        </Button>
-                                    </div>
-                                ) : null}
-                            </>
-                        ) : (
-                            <>
-                                {/* Search belongs to the list, not to the page: it sits on the
+                        ) : null}
+                    </>
+                ) : (
+                    <>
+                        {/* Search belongs to the list, not to the page: it sits on the
                                     results' own left edge so it reads as the control that narrows
                                     what is below it. The facets and the grouping ride one control
                                     beside it, so the bar stays a search bar; the view switch takes
                                     the far edge, where it changes how the results are drawn rather
                                     than which ones are. */}
-                                <ListTableToolbar
-                                    search={search}
-                                    onSearchChange={setSearch}
-                                    searchPlaceholder={t("agents.list.searchPlaceholder")}
-                                    actions={
-                                        <>
-                                            <AgentFilterMenu
-                                                view={view}
-                                                onChange={setView}
-                                                owners={owners}
-                                            />
-                                            <ListTableViewToggle
-                                                value={view.mode}
-                                                onChange={setMode}
-                                                className="ml-auto"
-                                            />
-                                        </>
-                                    }
-                                />
-                                {body}
-                            </>
-                        )}
-                    </div>
-                </ScreenScaffold>
-            </AppShell>
+                        <ListTableToolbar
+                            search={search}
+                            onSearchChange={setSearch}
+                            searchPlaceholder={t("agents.list.searchPlaceholder")}
+                            actions={
+                                <>
+                                    <AgentFilterMenu
+                                        view={view}
+                                        onChange={setView}
+                                        owners={owners}
+                                    />
+                                    <ListTableViewToggle
+                                        value={view.mode}
+                                        onChange={setMode}
+                                        className="ml-auto"
+                                    />
+                                </>
+                            }
+                        />
+                        {body}
+                    </>
+                )}
+            </PageLayout>
         </>
     )
 }

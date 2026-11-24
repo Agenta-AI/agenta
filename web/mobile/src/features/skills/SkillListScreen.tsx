@@ -24,17 +24,12 @@ import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-
 import {agentEntryHref} from "../agents/agentEntry"
 import {useAgentOwners} from "../agents/useAgentOwners"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
-import {AppShell} from "../nav/AppShell"
-import {NavDrawer} from "../nav/NavDrawer"
-import {LIST_PAGE_BODY, LIST_PAGE_HEADER, LIST_PAGE_HEADER_ROW} from "../sessions/pageFrame"
+import {PageLayout} from "../page-layout/PageLayout"
 
 import {SkillCreateOptions} from "./SkillCreateOptions"
 import {SkillFilterMenu} from "./SkillFilterMenu"
@@ -188,68 +183,60 @@ export const SkillListScreen = ({
 
     return (
         <>
-            <PageTitle title={t("skills.list.pageTitle")} />
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    header={
-                        <div className={LIST_PAGE_HEADER}>
-                            <div className={LIST_PAGE_HEADER_ROW}>
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
-                                    {t("skills.list.pageTitle")}
-                                </h1>
-                                {projectEmpty ? null : (
-                                    <HowThisWorksButton guide="skills" className="max-sm:hidden" />
-                                )}
-                                <NewSkillMenuButton
-                                    onWrite={onWrite}
-                                    onUpload={onUpload}
-                                    onImport={onImport}
-                                />
-                            </div>
-                        </div>
-                    }
-                >
-                    <div className={LIST_PAGE_BODY}>
-                        {projectEmpty ? (
-                            <FeatureOnboarding guideKey="skills" base={base}>
-                                <SkillCreateOptions
-                                    onWrite={onWrite}
-                                    onUpload={onUpload}
-                                    onImport={onImport}
-                                />
-                            </FeatureOnboarding>
-                        ) : (
-                            <>
-                                {/* Search belongs to the list, not to the page: it sits on the
+            <PageLayout
+                workspaceId={workspaceId}
+                projectId={projectId}
+                title={t("skills.list.pageTitle")}
+                actions={
+                    <>
+                        {projectEmpty ? null : (
+                            <HowThisWorksButton guide="skills" className="max-sm:hidden" />
+                        )}
+                        <NewSkillMenuButton
+                            onWrite={onWrite}
+                            onUpload={onUpload}
+                            onImport={onImport}
+                        />
+                    </>
+                }
+            >
+                {projectEmpty ? (
+                    <FeatureOnboarding guideKey="skills" base={base}>
+                        <SkillCreateOptions
+                            onWrite={onWrite}
+                            onUpload={onUpload}
+                            onImport={onImport}
+                        />
+                    </FeatureOnboarding>
+                ) : (
+                    <>
+                        {/* Search belongs to the list, not to the page: it sits on the
                                     results' own left edge. The facets ride one control beside it;
                                     the view switch takes the far edge, where it changes how the
                                     results are drawn rather than which ones are. */}
-                                <ListTableToolbar
-                                    search={typed}
-                                    onSearchChange={setTyped}
-                                    searchPlaceholder={t("skills.list.searchPlaceholder")}
-                                    actions={
-                                        <>
-                                            <SkillFilterMenu
-                                                view={view}
-                                                onChange={setView}
-                                                repositories={repositories}
-                                            />
-                                            <ListTableViewToggle
-                                                value={view.mode}
-                                                onChange={setMode}
-                                                className="ml-auto"
-                                            />
-                                        </>
-                                    }
-                                />
-                                {body}
-                            </>
-                        )}
-                    </div>
-                </ScreenScaffold>
-            </AppShell>
+                        <ListTableToolbar
+                            search={typed}
+                            onSearchChange={setTyped}
+                            searchPlaceholder={t("skills.list.searchPlaceholder")}
+                            actions={
+                                <>
+                                    <SkillFilterMenu
+                                        view={view}
+                                        onChange={setView}
+                                        repositories={repositories}
+                                    />
+                                    <ListTableViewToggle
+                                        value={view.mode}
+                                        onChange={setMode}
+                                        className="ml-auto"
+                                    />
+                                </>
+                            }
+                        />
+                        {body}
+                    </>
+                )}
+            </PageLayout>
             <SkillDetailDrawer
                 open={detailOpen}
                 onClose={closeDetail}

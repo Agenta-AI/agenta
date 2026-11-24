@@ -30,15 +30,10 @@ import {Button} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
-import {AppShell} from "../nav/AppShell"
-import {NavDrawer} from "../nav/NavDrawer"
-import {LIST_PAGE_BODY, LIST_PAGE_HEADER, LIST_PAGE_HEADER_ROW} from "../sessions/pageFrame"
+import {PageLayout} from "../page-layout/PageLayout"
 
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
 import {AutomationAgentStarters} from "./AutomationAgentStarters"
@@ -305,71 +300,59 @@ export const AutomationListScreen = ({
 
     return (
         <>
-            <PageTitle title={t("automations.screens.pageTitle")} />
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    header={
-                        // The list-page frame every nav entry shares.
-                        <div className={LIST_PAGE_HEADER}>
-                            <div className={LIST_PAGE_HEADER_ROW}>
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
-                                    {t("automations.screens.pageTitle")}
-                                </h1>
-                                {/* Hidden on a phone, where the title needs the width. */}
-                                {projectEmpty ? null : (
-                                    <HowThisWorksButton
-                                        guide="automations"
-                                        className="max-sm:hidden"
-                                    />
-                                )}
-                                <Button onClick={() => void router.push(`${base}/automations/new`)}>
-                                    <Plus />
-                                    {t("automations.screens.newAutomation")}
-                                </Button>
-                            </div>
-                        </div>
-                    }
-                >
-                    <div className={LIST_PAGE_BODY}>
-                        {projectEmpty ? (
-                            <FeatureOnboarding guideKey="automations" base={base}>
-                                <AutomationAgentStarters base={base} />
-                            </FeatureOnboarding>
-                        ) : (
-                            <>
-                                {/* Search belongs to the list, not to the page: it sits on the
+            <PageLayout
+                workspaceId={workspaceId}
+                projectId={projectId}
+                title={t("automations.screens.pageTitle")}
+                actions={
+                    <>
+                        {/* Hidden on a phone, where the title needs the width. */}
+                        {projectEmpty ? null : (
+                            <HowThisWorksButton guide="automations" className="max-sm:hidden" />
+                        )}
+                        <Button onClick={() => void router.push(`${base}/automations/new`)}>
+                            <Plus />
+                            {t("automations.screens.newAutomation")}
+                        </Button>
+                    </>
+                }
+            >
+                {projectEmpty ? (
+                    <FeatureOnboarding guideKey="automations" base={base}>
+                        <AutomationAgentStarters base={base} />
+                    </FeatureOnboarding>
+                ) : (
+                    <>
+                        {/* Search belongs to the list, not to the page: it sits on the
                                     table's own left edge so it reads as the control that narrows
                                     what is below it. */}
-                                {/* One control beside the field, not three: sort and group are rows
+                        {/* One control beside the field, not three: sort and group are rows
                                     inside it, so the bar stays a search bar. The view switch takes
                                     the far edge, where it changes how the results are drawn rather
                                     than which ones are. */}
-                                <ListTableToolbar
-                                    search={search}
-                                    onSearchChange={setSearch}
-                                    searchPlaceholder={t("automations.screens.searchPlaceholder")}
-                                    actions={
-                                        <>
-                                            <AutomationFilterMenu
-                                                view={view}
-                                                onChange={setView}
-                                                agents={agents}
-                                            />
-                                            <ListTableViewToggle
-                                                value={view.mode}
-                                                onChange={setMode}
-                                                className="ml-auto"
-                                            />
-                                        </>
-                                    }
-                                />
-                                {body}
-                            </>
-                        )}
-                    </div>
-                </ScreenScaffold>
-            </AppShell>
+                        <ListTableToolbar
+                            search={search}
+                            onSearchChange={setSearch}
+                            searchPlaceholder={t("automations.screens.searchPlaceholder")}
+                            actions={
+                                <>
+                                    <AutomationFilterMenu
+                                        view={view}
+                                        onChange={setView}
+                                        agents={agents}
+                                    />
+                                    <ListTableViewToggle
+                                        value={view.mode}
+                                        onChange={setMode}
+                                        className="ml-auto"
+                                    />
+                                </>
+                            }
+                        />
+                        {body}
+                    </>
+                )}
+            </PageLayout>
         </>
     )
 }

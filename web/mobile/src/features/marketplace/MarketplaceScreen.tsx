@@ -16,15 +16,11 @@ import {Kbd, SearchInput} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {useScrollFade} from "@/lib/useScrollFade"
 
 import {useNewAgentAction} from "../agents/useNewAgentAction"
 import {useBindProjectContext} from "../context/useBindProjectContext"
-import {AppShell} from "../nav/AppShell"
-import {NavDrawer} from "../nav/NavDrawer"
-import {LIST_PAGE_BODY, LIST_PAGE_HEADER, LIST_PAGE_HEADER_ROW} from "../sessions/pageFrame"
+import {PageLayout} from "../page-layout/PageLayout"
 
 import {FeaturedTemplate} from "./FeaturedTemplate"
 import {
@@ -158,118 +154,102 @@ export const MarketplaceScreen = ({
 
     return (
         <>
-            <PageTitle title={t("marketplace.page.title")} />
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    scrollRef={fade.ref}
-                    onScroll={fade.onScroll}
-                    scrollStyle={fade.style}
-                    header={
-                        <div className={LIST_PAGE_HEADER}>
-                            <div className={LIST_PAGE_HEADER_ROW}>
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
-                                    {t("marketplace.page.title")}
-                                </h1>
-                            </div>
-                            <p className="text-muted-foreground m-0 mt-1 text-body">
-                                {t("marketplace.page.subtitle")}
-                            </p>
-                        </div>
-                    }
-                >
-                    <div className={`flex flex-col gap-8 ${LIST_PAGE_BODY}`}>
-                        {status === "pending" ? (
-                            <FeaturedTemplateSkeleton />
-                        ) : featured.length ? (
-                            <FeaturedTemplate
-                                templates={featured}
-                                busy={newAgent.creating}
-                                paused={previewOpen}
-                                onUse={startFromTemplate}
-                                onPreview={openTemplate}
-                            />
-                        ) : null}
+            <PageLayout
+                workspaceId={workspaceId}
+                projectId={projectId}
+                title={t("marketplace.page.title")}
+                description={t("marketplace.page.subtitle")}
+                scrollRef={fade.ref}
+                onScroll={fade.onScroll}
+                scrollStyle={fade.style}
+            >
+                <div className="flex flex-col gap-8">
+                    {status === "pending" ? (
+                        <FeaturedTemplateSkeleton />
+                    ) : featured.length ? (
+                        <FeaturedTemplate
+                            templates={featured}
+                            busy={newAgent.creating}
+                            paused={previewOpen}
+                            onUse={startFromTemplate}
+                            onPreview={openTemplate}
+                        />
+                    ) : null}
 
-                        <div className="grid min-w-0 grid-cols-1 items-start gap-3 lg:grid-cols-[208px_minmax(0,1fr)] lg:gap-9">
-                            <aside className="sticky top-4 hidden flex-col gap-6 lg:flex">
-                                <SearchInput
-                                    ref={searchRef}
-                                    suffix={<Kbd>/</Kbd>}
-                                    {...searchProps}
+                    <div className="grid min-w-0 grid-cols-1 items-start gap-3 lg:grid-cols-[208px_minmax(0,1fr)] lg:gap-9">
+                        <aside className="sticky top-4 hidden flex-col gap-6 lg:flex">
+                            <SearchInput ref={searchRef} suffix={<Kbd>/</Kbd>} {...searchProps} />
+                            {loaded ? (
+                                <TemplateFilterRail
+                                    filter={filter}
+                                    onChange={changeFilter}
+                                    categories={view.categories}
+                                    apps={view.apps}
                                 />
-                                {loaded ? (
-                                    <TemplateFilterRail
-                                        filter={filter}
-                                        onChange={changeFilter}
-                                        categories={view.categories}
-                                        apps={view.apps}
-                                    />
-                                ) : (
-                                    <TemplateFilterRailSkeleton />
-                                )}
-                            </aside>
-                            <div className="flex min-w-0 flex-col gap-3">
-                                <div className="flex items-center gap-2 lg:hidden">
-                                    <SearchInput ref={phoneSearchRef} {...searchProps} />
-                                    <TemplateFilterMenu
-                                        filter={filter}
-                                        onChange={changeFilter}
-                                        categories={view.categories}
-                                        apps={view.apps}
-                                    />
-                                </div>
-                                <div className="flex min-h-8 items-center justify-between gap-3">
-                                    <h2 className="m-0 text-title text-foreground">
-                                        {categoryLabel}
-                                        {loaded ? ` · ${view.templates.length}` : null}
-                                    </h2>
-                                    <div className="hidden lg:block">
-                                        <TemplateSortMenu
-                                            value={filter.sort}
-                                            onChange={(sort) => changeFilter({...filter, sort})}
-                                        />
-                                    </div>
-                                </div>
-                                {status === "error" ? (
-                                    <LoadError
-                                        framed
-                                        title={t("marketplace.page.loadError")}
-                                        onRetry={refetchTemplates}
-                                    />
-                                ) : (
-                                    <ListTable
-                                        view="grid"
-                                        columns={columns}
-                                        groups={[{key: "all", label: null, rows: view.templates}]}
-                                        rowKey={templateKey}
-                                        renderRow={(template) => (
-                                            <span className="truncate">{template.name}</span>
-                                        )}
-                                        renderCard={(template) => (
-                                            <TemplateCardBody template={template} />
-                                        )}
-                                        cardMinWidth={250}
-                                        onOpenRow={openTemplate}
-                                        loading={status === "pending"}
-                                        skeletonRows={6}
-                                        empty={
-                                            templates.length === 0 ? (
-                                                <TemplatesEmpty />
-                                            ) : (
-                                                <TemplatesNoMatch
-                                                    term={term || undefined}
-                                                    onClear={clearFilters}
-                                                />
-                                            )
-                                        }
-                                    />
-                                )}
+                            ) : (
+                                <TemplateFilterRailSkeleton />
+                            )}
+                        </aside>
+                        <div className="flex min-w-0 flex-col gap-3">
+                            <div className="flex items-center gap-2 lg:hidden">
+                                <SearchInput ref={phoneSearchRef} {...searchProps} />
+                                <TemplateFilterMenu
+                                    filter={filter}
+                                    onChange={changeFilter}
+                                    categories={view.categories}
+                                    apps={view.apps}
+                                />
                             </div>
+                            <div className="flex min-h-8 items-center justify-between gap-3">
+                                <h2 className="m-0 text-title text-foreground">
+                                    {categoryLabel}
+                                    {loaded ? ` · ${view.templates.length}` : null}
+                                </h2>
+                                <div className="hidden lg:block">
+                                    <TemplateSortMenu
+                                        value={filter.sort}
+                                        onChange={(sort) => changeFilter({...filter, sort})}
+                                    />
+                                </div>
+                            </div>
+                            {status === "error" ? (
+                                <LoadError
+                                    framed
+                                    title={t("marketplace.page.loadError")}
+                                    onRetry={refetchTemplates}
+                                />
+                            ) : (
+                                <ListTable
+                                    view="grid"
+                                    columns={columns}
+                                    groups={[{key: "all", label: null, rows: view.templates}]}
+                                    rowKey={templateKey}
+                                    renderRow={(template) => (
+                                        <span className="truncate">{template.name}</span>
+                                    )}
+                                    renderCard={(template) => (
+                                        <TemplateCardBody template={template} />
+                                    )}
+                                    cardMinWidth={250}
+                                    onOpenRow={openTemplate}
+                                    loading={status === "pending"}
+                                    skeletonRows={6}
+                                    empty={
+                                        templates.length === 0 ? (
+                                            <TemplatesEmpty />
+                                        ) : (
+                                            <TemplatesNoMatch
+                                                term={term || undefined}
+                                                onClear={clearFilters}
+                                            />
+                                        )
+                                    }
+                                />
+                            )}
                         </div>
                     </div>
-                </ScreenScaffold>
-            </AppShell>
+                </div>
+            </PageLayout>
             <TemplatePreviewSheet
                 open={previewOpen}
                 template={preview}

@@ -16,7 +16,7 @@ import {
     SheetTrigger,
     SimpleTooltip,
 } from "@agenta/ui/ui"
-import {SidebarSimpleIcon} from "@phosphor-icons/react"
+import {EqualsIcon} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -128,7 +128,7 @@ export const NavDrawer = ({
             aria-label={label}
             className="relative lg:hidden"
         >
-            <SidebarSimpleIcon aria-hidden />
+            <EqualsIcon aria-hidden />
         </Button>
     )
 
