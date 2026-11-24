@@ -420,8 +420,9 @@ export const ListTable = <Row,>({
                                                             "group",
                                                             CARD_CHROME,
                                                             // Hover: the `accent` fill, never a shadow (SURF-04).
+                                                            // The fill fades in and the card rises 2px (MOTION-02: calm, still under reduced motion).
                                                             opens(row) &&
-                                                                "cursor-pointer transition-colors hover:bg-accent",
+                                                                "cursor-pointer transition-[background-color,translate] duration-[var(--duration-base)] ease-out hover:-translate-y-0.5 hover:bg-accent motion-reduce:transition-none motion-reduce:hover:translate-y-0",
                                                             opens(row) && FOCUS_RING,
                                                         )}
                                                     >
@@ -465,7 +466,8 @@ export const ListTable = <Row,>({
                                                     rowGap,
                                                     "-mx-3 w-[calc(100%+1.5rem)] px-3",
                                                     rowClassName,
-                                                    opens(row) && "cursor-pointer hover:bg-accent",
+                                                    opens(row) &&
+                                                        "cursor-pointer transition-colors duration-[var(--duration-fast)] ease-out hover:bg-accent motion-reduce:transition-none",
                                                     opens(row) && FOCUS_RING,
                                                 )}
                                                 style={{gridTemplateColumns: grid}}
