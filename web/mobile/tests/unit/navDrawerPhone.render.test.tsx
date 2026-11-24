@@ -42,6 +42,8 @@ vi.mock("@agenta/navigation-ui", async (importOriginal) => {
 })
 vi.mock("@/features/support/crispChat", () => ({liveChatOpenAtom: atom(false)}))
 vi.mock("@/features/nav/railScope", () => ({useRailScope: () => ({id: "main"})}))
+// The drawer prefetches the agent sidebar; a stub keeps that load from outliving the test.
+vi.mock("@/features/agent-sidebar/agentSidebarScope", () => ({}))
 // The page's agent: an agent page or a session of that agent. Null until a session's row loads.
 const page = vi.hoisted(() => ({agentId: null as string | null}))
 vi.mock("@/features/agent-sidebar/useAgentSidebarSync", () => ({
