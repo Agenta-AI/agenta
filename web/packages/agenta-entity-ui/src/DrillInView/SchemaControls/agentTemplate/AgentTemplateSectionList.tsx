@@ -125,8 +125,8 @@ export const AgentTemplateSectionList = ({
     return (
         // Canvas F01 for the panel, B03 for the pane: there the rows run full width, so `-mx-4`
         // undoes the host's inset and the rows carry it.
-        <div className={pane ? "-mx-4 flex flex-col" : "flex flex-col gap-1.5 pt-3.5"}>
-            {sections.map((s, index) => {
+        <div className={pane ? "-mx-4 flex flex-col" : "flex flex-col gap-1 pt-3"}>
+            {sections.map((s) => {
                 const controlled = Boolean(controlledKeys?.has(s.key))
                 return (
                     // An anchor per section, so a host can list the sections and scroll to one.
@@ -156,9 +156,10 @@ export const AgentTemplateSectionList = ({
                                       : PANEL_BODY)
                             }
                             // Canvas F01: rows inset in the panel's `px-4`, an open section stays
-                            // white (no band). The builder pane keeps the last divider (B03).
+                            // white (no band). The panel separates its sections by space, not
+                            // lines (SURF-01); the builder pane keeps its dividers (B03).
                             canvas={pane ? "pane" : "panel"}
-                            noDivider={!pane && index === sections.length - 1}
+                            noDivider={!pane}
                             {...(controlled
                                 ? {
                                       open: openByKey?.[s.key] ?? s.defaultOpen ?? false,
@@ -176,9 +177,9 @@ export const AgentTemplateSectionList = ({
 }
 
 /** The body of an open panel section (canvas F01, with the list's gap). */
-const PANEL_BODY = "flex flex-col gap-2 pb-2.5 pt-3"
-/** A body that is one card under the title (see `insetBody`). */
-const PANEL_INSET_BODY = "flex flex-col pl-[22px] pt-1.5"
+const PANEL_BODY = "flex flex-col gap-1 pb-3 pt-1"
+/** A body that is one row under the title (see `insetBody`); its Mark stays on the line (ALIGN-01). */
+const PANEL_INSET_BODY = "flex flex-col pb-3 pt-1"
 
 /** The phone row's summary line. */
 const summaryOf = (s: AgentTemplateSectionDescriptor) => s.phoneSummary ?? s.summary
@@ -235,14 +236,16 @@ const PhoneSectionList = ({
         )
     }
     return (
-        <div className="-mx-4 flex flex-col" data-testid="phone-section-list">
+        // Two-line rows 8 px apart, no dividers (ROW-04, SURF-01); each row hangs its hover fill
+        // 8 px out, so its Mark stays on the screen's content line (ALIGN-01).
+        <div className="-mx-2 flex flex-col gap-2" data-testid="phone-section-list">
             {sections.map((s) => (
                 <button
                     key={s.key}
                     type="button"
                     data-config-section={s.key}
                     data-config-section-title={sectionTitle(s)}
-                    className="flex min-h-row-double w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-border-muted bg-transparent px-4 py-2 text-left font-[inherit] hover:bg-accent active:bg-accent"
+                    className="flex min-h-row-double w-full cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-2 py-2 text-left font-[inherit] hover:bg-accent active:bg-accent"
                     onClick={() =>
                         s.onOpen ? s.onOpen() : phoneSections.show(s.key, sectionTitle(s))
                     }

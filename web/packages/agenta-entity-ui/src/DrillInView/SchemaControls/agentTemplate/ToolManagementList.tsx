@@ -106,9 +106,7 @@ function PhoneIntegrationRow({
                 <ProviderLogo logo={logo} size={22} />
             </span>
             <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-body leading-5 text-foreground">
-                    {name}
-                </span>
+                <span className="truncate text-body leading-5 text-foreground">{name}</span>
                 <span className="truncate text-meta text-muted-foreground">
                     {source}
                     {status?.reason ? (
@@ -123,10 +121,7 @@ function PhoneIntegrationRow({
                 its room (canvas M08). */}
             {status && !status.reason ? <StatusTag status={status} /> : null}
             {disabled ? null : (
-                <CaretRight
-                    size={14}
-                    className="mr-2 shrink-0 text-muted-foreground"
-                />
+                <CaretRight size={14} className="mr-2 shrink-0 text-muted-foreground" />
             )}
         </button>
     )
@@ -216,9 +211,7 @@ function EmptyLine({label}: {label: string}) {
     // 4 px inset, the 14 px icon and its 8 px gap.
     const panel = useSectionListLayout() === null && usePhoneSections() === null
     return (
-        <span className={cn("text-meta text-muted-foreground", panel && "pl-[26px]")}>
-            {label}
-        </span>
+        <span className={cn("text-meta text-muted-foreground", panel && "pl-[26px]")}>{label}</span>
     )
 }
 
@@ -246,7 +239,8 @@ export function ToolManagementList({
                 phone
                     ? // 8 px under the header (M08): -mt-1 leaves 8 of the screen's 12 px top padding.
                       "-mx-4 -mt-1 flex flex-col"
-                    : "flex flex-col gap-2"
+                    : // One-line rows sit 4 px apart (ROW-04).
+                      "flex flex-col gap-1"
             }
         >
             {integrationRows.map((row) => (

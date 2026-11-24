@@ -27,7 +27,7 @@ export interface CatalogListRowProps {
      */
     align?: "center" | "start"
     /**
-     * `canvas`: the agent panel's row (canvas F02 f4): a 28 px leading box, the title 13/20/500
+     * `canvas`: the agent panel's row (canvas F02 f4): the title 13/20/500
      * with no control-height line. Absent, the Settings page row.
      */
     variant?: "default" | "canvas"
@@ -80,16 +80,16 @@ export function CatalogListRow({
             }
             // Borderless; the -mx/px pair keeps the logo on the search field's edge while the
             // hover fill reaches past it.
-            className={`group/row -mx-2 rounded-lg px-2 py-2 outline-none transition-colors focus-ring ${
+            // One hover fill (SURF-05) and the control radius (SHAPE-01).
+            className={`group/row -mx-2 rounded-md px-2 py-2 outline-none transition-colors focus-ring ${
                 highlighted ? "bg-secondary" : ""
-            } ${onClick ? "cursor-pointer hover:bg-accent/60" : ""} ${className ?? ""}`}
+            } ${onClick ? "cursor-pointer hover:bg-accent" : ""} ${className ?? ""}`}
         >
-            <div className={`flex gap-2.5 ${align === "start" ? "items-start" : "items-center"}`}>
-                {/* A 32px box (28 on the canvas) centres the logo on the title and meta lines. */}
+            {/* 12 px from the 32 px Mark to its text (SPACE-04). */}
+            <div className={`flex gap-3 ${align === "start" ? "items-start" : "items-center"}`}>
+                {/* The two-line row's 32 px Mark (`mark-lg`), on the panel and on the page. */}
                 {leading ? (
-                    <span
-                        className={`flex shrink-0 items-center justify-center ${canvas ? "size-7" : "size-8"}`}
-                    >
+                    <span className="flex size-8 shrink-0 items-center justify-center">
                         {leading}
                     </span>
                 ) : null}

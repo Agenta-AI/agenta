@@ -203,11 +203,11 @@ const attentionOf = (connection: ToolConnection | undefined): Attention | null =
     return null
 }
 
-/** The app logo in Settings' tile: a bordered 32px square. */
+/** The app logo in a two-line row's 32 px Mark (`mark-lg`): the neutral tile, no border. */
 function LogoTile({logo}: {logo: string | null}) {
     return (
-        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-background [&_img]:size-4 [&_img]:object-contain">
-            <ProviderLogo logo={logo} size={16} />
+        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-secondary [&_img]:size-5 [&_img]:object-contain">
+            <ProviderLogo logo={logo} size={20} />
         </span>
     )
 }
@@ -362,7 +362,7 @@ function ConnectedRow({
                             : undefined
             }
             variant={canvas ? "canvas" : "default"}
-            leading={canvas ? <ProviderLogo logo={logo} size={20} /> : <LogoTile logo={logo} />}
+            leading={<LogoTile logo={logo} />}
             title={title}
             titleSuffix={
                 canvas ? (
@@ -548,13 +548,7 @@ function CatalogRow({
         <CatalogListRow
             onClick={onConnect}
             variant={canvas ? "canvas" : "default"}
-            leading={
-                canvas ? (
-                    <ProviderLogo logo={integration.logo ?? null} size={20} />
-                ) : (
-                    <LogoTile logo={integration.logo ?? null} />
-                )
-            }
+            leading={<LogoTile logo={integration.logo ?? null} />}
             title={integration.name}
             actionLabel={t("entityUi.integrationDrawer.connectName", {name: integration.name})}
             action={
@@ -565,7 +559,6 @@ function CatalogRow({
                         name: integration.name,
                     })}
                     title={t("entityUi.integrationDrawer.connect")}
-                    
                     onClick={onConnect}
                 >
                     {canvas ? <Plus className="size-3.5" /> : <Plus size={16} />}
@@ -589,10 +582,10 @@ function CatalogRow({
     )
 }
 
-/** The agent panel's group header (canvas F02 f4): 13/600, a divider above, no count, no fold. */
+/** The agent panel's group header (canvas F02 f4): 13/600, space above, no line (SURF-01). */
 function CanvasGroupHeader({label}: {label: ReactNode}) {
     return (
-        <div className="mt-0.5 flex items-center border-0 border-t border-solid border-border-muted pb-0.5 pt-2 text-label font-semibold leading-5 text-foreground">
+        <div className="flex items-center pb-0.5 pt-3 text-label font-semibold leading-5 text-foreground">
             {label}
         </div>
     )
@@ -877,8 +870,7 @@ export function IntegrationCatalog({
             className={cn(
                 "min-w-0 flex-1",
                 // Canvas F02 f4: 30 px, radius 6, 13 px; 44 px on a phone.
-                !page &&
-                    "h-control rounded-md border-border-muted [&_input]:text-label",
+                !page && "h-control rounded-md border-border-muted [&_input]:text-label",
             )}
             placeholder={searchPlaceholder ?? t("entityUi.integrationDrawer.searchApps")}
             value={query}

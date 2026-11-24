@@ -100,27 +100,27 @@ function RowSubtitle({
     className: string
 }) {
     if (status?.reason) {
-        return (
-            <span className={cn(className, "text-warning")}>
-                {status.reason}
-            </span>
-        )
+        return <span className={cn(className, "text-warning")}>{status.reason}</span>
     }
     if (!description) return null
     return <span className={className}>{description}</span>
 }
 
 /**
- * The Mark at the start of a config-item row: the neutral 24px `IconTile` of a one-line row
- * (COLOR-05, CONS-01). `descriptor.color` no longer paints it. An item that draws its own Mark
- * (an MCP server, a skill, a subagent's agent Mark) keeps its chip at the same 24px.
+ * The Mark at the start of a config-item row: the neutral `IconTile`, 24px in a one-line row and
+ * 32px in a two-line row (`mark-md`, `mark-lg`; COLOR-05, CONS-01). `descriptor.color` no longer
+ * paints it. An item that draws its own Mark (an MCP server, a skill, a subagent's agent Mark)
+ * keeps its chip at the same size.
  */
-export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
+export function ItemAvatar({descriptor, size = 24}: {descriptor: ItemDescriptor; size?: 24 | 32}) {
     if (descriptor.avatarClassName) {
         return (
             <span
                 className={cn(
-                    "flex size-6 shrink-0 items-center justify-center rounded-md text-caption font-medium leading-none [&_svg]:size-3.5",
+                    "flex shrink-0 items-center justify-center rounded-md text-caption font-medium leading-none",
+                    size === 32
+                        ? "size-8 [&_img]:size-5 [&_svg]:size-4"
+                        : "size-6 [&_svg]:size-3.5",
                     descriptor.avatarClassName,
                 )}
                 style={descriptor.avatarStyle}
@@ -130,7 +130,7 @@ export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
         )
     }
     return (
-        <IconTile size={24} tone="neutral" aria-hidden>
+        <IconTile size={size} tone="neutral" aria-hidden>
             {descriptor.icon ?? descriptor.mono}
         </IconTile>
     )
@@ -188,10 +188,11 @@ export function ItemRow({
                 page
                     ? PAGE_ROW
                     : cn(
-                          "gap-2 rounded-md border border-solid border-transparent pl-3 pr-3",
+                          "gap-2 rounded-md border border-solid border-transparent px-2",
                           twoLine ? "min-h-row-double py-1.5" : "min-h-row-single py-1",
                       ),
-                // The row hangs its hover fill 8 px out, so its Mark sits on the section icon's line.
+                // The row hangs its hover fill 8 px out by its own 8 px padding, so its Mark sits on
+                // the section icon's line (ALIGN-01).
                 !page && !phone && "-mx-2",
                 page && !locked && "bg-background",
                 interactive && !status && "cursor-pointer hover:bg-accent",
@@ -217,11 +218,12 @@ export function ItemRow({
                 }
                 className={cn(
                     "flex min-w-0 flex-1 items-center transition-opacity",
-                    page ? "gap-3" : "gap-2",
+                    // SPACE-04: 12 px to a 32 px Mark, 8 px to a 24 px one.
+                    page || twoLine ? "gap-3" : "gap-2",
                     inactive && "opacity-50",
                 )}
             >
-                <ItemAvatar descriptor={descriptor} />
+                <ItemAvatar descriptor={descriptor} size={twoLine && !page ? 32 : 24} />
                 <div className="min-w-0 flex-1">
                     <div
                         className={cn(
@@ -418,22 +420,20 @@ export function InstructionsFileRow({
             }}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             className={cn(
-                // A plain row-double row with the hover fill, not a card (SURF-01/02): 8 px gap
-                // in the row (SPACE-03). The clear border only shows a status tint.
-                "group box-border flex min-h-row-double cursor-pointer items-center gap-2 rounded-md border border-solid border-transparent py-1.5 pl-3 pr-3 transition-colors hover:bg-accent",
+                // A plain row-double row with the hover fill, not a card (SURF-01/02): 12 px to
+                // its 32 px Mark (SPACE-04). The clear border only shows a status tint.
+                "group box-border flex min-h-row-double cursor-pointer items-center gap-3 rounded-md border border-solid border-transparent px-2 py-1.5 transition-colors hover:bg-accent",
                 !phone && "-mx-2",
             )}
         >
             {/* The "md" monogram, not the file glyph (canvas F01). */}
-            <ItemAvatar descriptor={{...descriptor, icon: undefined}} />
+            <ItemAvatar descriptor={{...descriptor, icon: undefined}} size={32} />
             <div className="flex min-w-0 flex-1 flex-col">
                 <div className="flex items-center gap-2">
                     <span className="truncate font-mono text-label leading-5">{filename}</span>
                     {status ? <StatusTag status={status} /> : null}
                 </div>
-                <span className="truncate text-meta text-muted-foreground">
-                    {line}
-                </span>
+                <span className="truncate text-meta text-muted-foreground">{line}</span>
             </div>
             <ConfigRowTriangle />
         </div>
@@ -483,9 +483,7 @@ function InstructionsPagePreview({
             <div className="flex items-center gap-2 border-0 border-b border-solid border-border-muted px-3.5 py-3">
                 <span className="truncate font-mono text-label">{filename}</span>
                 {status ? <StatusTag status={status} /> : null}
-                <span className="ml-auto shrink-0 text-meta text-muted-foreground">
-                    {meta}
-                </span>
+                <span className="ml-auto shrink-0 text-meta text-muted-foreground">{meta}</span>
             </div>
             {/* The agent's prompt is prose: `text-body-sm`, headings in `text-subtitle` (TYPE-04). */}
             <div className="flex max-h-44 flex-col gap-1 overflow-hidden px-3.5 py-3 text-body-sm text-foreground">

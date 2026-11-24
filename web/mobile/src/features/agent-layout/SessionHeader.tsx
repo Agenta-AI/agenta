@@ -268,23 +268,26 @@ export const SessionHeader = ({
                     onRetry={sessionOrder.retry}
                 />
             ) : null}
-            <span aria-hidden className="h-5 w-px shrink-0 bg-border-muted" />
-            {sharing}
-            {icon("files", t("agentLayout.header.files"), <FolderSimple className="size-4" />)}
-            {showAgentActions && panel.available.configuration
-                ? icon(
-                      "configuration",
-                      t("agentLayout.header.configuration"),
-                      <SlidersHorizontal className="size-4" />,
-                  )
-                : null}
-            {showAgentActions && panel.available.builder
-                ? icon(
-                      "builder",
-                      t("agentLayout.header.builder"),
-                      <BuilderIcon className="size-4" />,
-                  )
-                : null}
+            {/* Share and the panel icons are one group: 4 px apart (SPACE-02), set off from the
+                session button by the header's wider gap, not by a line (SPACE-01). */}
+            <div className="ml-1 flex shrink-0 items-center gap-1">
+                {sharing}
+                {icon("files", t("agentLayout.header.files"), <FolderSimple className="size-4" />)}
+                {showAgentActions && panel.available.configuration
+                    ? icon(
+                          "configuration",
+                          t("agentLayout.header.configuration"),
+                          <SlidersHorizontal className="size-4" />,
+                      )
+                    : null}
+                {showAgentActions && panel.available.builder
+                    ? icon(
+                          "builder",
+                          t("agentLayout.header.builder"),
+                          <BuilderIcon className="size-4" />,
+                      )
+                    : null}
+            </div>
         </header>
     )
 }

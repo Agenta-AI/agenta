@@ -8,6 +8,7 @@ import {agentAvatar} from "./AgentCard"
 import {useAgentIconChrome} from "./agentIcon"
 import {AgentIconPopover} from "./AgentIconPopover"
 import {AgentNameInline, agentNameLabelClass, type AgentNameSize} from "./AgentNameInline"
+import {AgentChip} from "./AgentPicker"
 import {AGENT_CHIP_BOX, AGENT_CHIP_FALLBACK} from "./chrome"
 
 export type AgentIdentitySize = AgentNameSize
@@ -122,9 +123,9 @@ export const AgentIdentity = ({
 }
 
 /**
- * The agent's kind badge in a session header: a 24 px bordered box with the agent's glyph (14 px)
- * drawn bare, so the box stays neutral and a picked colour tints only the glyph. Editable: a click
- * opens the icon picker, as on `AgentIdentity`.
+ * The agent's Mark in a session header: the 24 px `AgentChip` with its 14 px glyph, so the header
+ * draws the agent as every list does (CONS-02): its own colour when it has an icon, the neutral
+ * fill when not. Editable: a click opens the icon picker, as on `AgentIdentity`.
  */
 export const AgentKindBadge = ({
     workflowId,
@@ -133,19 +134,9 @@ export const AgentKindBadge = ({
     workflowId: string | null | undefined
     editable?: boolean
 }) => {
-    // A picked icon brings its own glyph colour; never both colour classes (equal specificity).
-    const chrome = useAgentIconChrome(workflowId, {
-        size: 14,
-        fallbackGlyph: <RobotIcon size={14} />,
-        bare: true,
-    })
     const badge = (
-        <span
-            data-testid="agent-kind-badge"
-            className={`box-border flex size-6 shrink-0 items-center justify-center rounded-md border border-solid border-border-muted bg-muted ${chrome.customised ? chrome.className : "text-muted-foreground"}`}
-            style={chrome.style}
-        >
-            {chrome.glyph}
+        <span data-testid="agent-kind-badge" className="flex shrink-0">
+            <AgentChip workflowId={workflowId ?? null} box="size-6" glyph={14} />
         </span>
     )
     return editable && workflowId ? (
