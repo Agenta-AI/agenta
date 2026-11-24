@@ -1,12 +1,15 @@
 import {useState} from "react"
 
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {SlidersHorizontalIcon} from "@phosphor-icons/react"
 
 import {Popover, PopoverContent} from "../components/ui/popover"
+import {useMediaQuery} from "../hooks/useMediaQuery"
+import {BottomSheet} from "../phone/BottomSheet"
 
-import {FilterMenuPanel} from "./FilterMenuPanel"
+import {DRILLDOWN_QUERY, FilterMenuPanel} from "./FilterMenuPanel"
 import {FilterMenuTrigger} from "./FilterMenuTrigger"
 import {
     isFilterMenuNarrowed,
@@ -72,6 +75,7 @@ export const FilterMenu = ({
     active,
 }: FilterMenuProps) => {
     const t = useT(uiControlsCatalog)
+    const tCommon = useT(commonCatalog)
     const [uncontrolled, setUncontrolled] = useState(false)
     const open = openProp ?? uncontrolled
     const setOpen = (next: boolean) => {
@@ -79,18 +83,60 @@ export const FilterMenu = ({
         onOpenChange?.(next)
     }
 
+    // A phone opens the panel as a bottom sheet (COMPACT-04): rows drill in, nothing hovers.
+    const compact = useMediaQuery(DRILLDOWN_QUERY)
+    const trigger = (
+        <FilterMenuTrigger
+            label={label}
+            icon={icon ?? <SlidersHorizontalIcon size={14} aria-hidden />}
+            size={size}
+            variant={variant}
+            triggerClassName={triggerClassName}
+            triggerAriaLabel={triggerAriaLabel}
+            active={Boolean(active) || isFilterMenuNarrowed(sections)}
+            defaultLabel={t("ui.controls.filter")}
+            onClick={compact ? () => setOpen(true) : undefined}
+        />
+    )
+    const panel = (
+        <FilterMenuPanel
+            sections={sections}
+            searchable={searchable}
+            searchPlaceholder={searchPlaceholder}
+            defaultSearch={defaultSearch}
+            onReset={onReset}
+            resetLabel={resetLabel}
+            resetDisabled={resetDisabled}
+            flyoutSide={flyoutSide}
+            flyoutAlign={flyoutAlign}
+            flyoutSideOffset={flyoutSideOffset}
+            fluid={compact}
+            className={className}
+        />
+    )
+
+    if (compact) {
+        return (
+            <>
+                {trigger}
+                <BottomSheet
+                    open={open}
+                    onOpenChange={setOpen}
+                    title={t("ui.controls.filterSortGroup")}
+                    // Each choice applies as it is tapped, so the sheet closes with Done.
+                    closeLabel={tCommon("common.done")}
+                    keepKeyboardClosed
+                    data-testid="filter-menu-sheet"
+                >
+                    {panel}
+                </BottomSheet>
+            </>
+        )
+    }
+
     return (
         <Popover open={open} onOpenChange={setOpen}>
-            <FilterMenuTrigger
-                label={label}
-                icon={icon ?? <SlidersHorizontalIcon size={14} aria-hidden />}
-                size={size}
-                variant={variant}
-                triggerClassName={triggerClassName}
-                triggerAriaLabel={triggerAriaLabel}
-                active={Boolean(active) || isFilterMenuNarrowed(sections)}
-                defaultLabel={t("ui.controls.filter")}
-            />
+            {trigger}
             <PopoverContent
                 side={side}
                 align={align}
@@ -99,19 +145,7 @@ export const FilterMenu = ({
                 className="p-0"
                 onOpenAutoFocus={(event) => event.preventDefault()}
             >
-                <FilterMenuPanel
-                    sections={sections}
-                    searchable={searchable}
-                    searchPlaceholder={searchPlaceholder}
-                    defaultSearch={defaultSearch}
-                    onReset={onReset}
-                    resetLabel={resetLabel}
-                    resetDisabled={resetDisabled}
-                    flyoutSide={flyoutSide}
-                    flyoutAlign={flyoutAlign}
-                    flyoutSideOffset={flyoutSideOffset}
-                    className={className}
-                />
+                {panel}
             </PopoverContent>
         </Popover>
     )

@@ -25,7 +25,13 @@ export const FilterMenuTrigger = ({
     triggerAriaLabel,
     active = false,
     defaultLabel,
-}: FilterMenuTriggerProps & {icon: ReactNode; defaultLabel: string}) => {
+    onClick,
+}: FilterMenuTriggerProps & {
+    icon: ReactNode
+    defaultLabel: string
+    /** Set: a plain button that opens a sheet, not a popover trigger (phones). */
+    onClick?: () => void
+}) => {
     const t = useT(uiControlsCatalog)
     const text = label === undefined ? defaultLabel : label
     const iconOnly = text === null || text === "" || text === false
@@ -38,29 +44,30 @@ export const FilterMenuTrigger = ({
                 ? "icon-sm"
                 : "icon"
 
-    return (
-        <PopoverTrigger asChild>
-            <Button
-                variant={variant}
-                size={iconOnly ? iconSize : size}
-                aria-label={triggerAriaLabel ?? (iconOnly ? defaultLabel : undefined)}
-                className={cn("relative gap-1.5", triggerClassName)}
-            >
-                {icon}
-                {iconOnly ? null : <span className="truncate">{text}</span>}
-                {active ? (
-                    <>
-                        {/* A dot in the corner, not a count: the number was a second thing to
-                            read on a control whose only job here is to say "this list is not
-                            showing everything". What is applied is one click away. */}
-                        <span
-                            aria-hidden
-                            className="absolute right-1 top-1 size-1.5 rounded-round bg-primary"
-                        />
-                        <span className="sr-only">{t("ui.controls.filtersApplied")}</span>
-                    </>
-                ) : null}
-            </Button>
-        </PopoverTrigger>
+    const button = (
+        <Button
+            onClick={onClick}
+            variant={variant}
+            size={iconOnly ? iconSize : size}
+            aria-label={triggerAriaLabel ?? (iconOnly ? defaultLabel : undefined)}
+            className={cn("relative gap-1.5", triggerClassName)}
+        >
+            {icon}
+            {iconOnly ? null : <span className="truncate">{text}</span>}
+            {active ? (
+                <>
+                    {/* A dot in the corner, not a count: the number was a second thing to
+                        read on a control whose only job here is to say "this list is not
+                        showing everything". What is applied is one click away. */}
+                    <span
+                        aria-hidden
+                        className="absolute right-1 top-1 size-1.5 rounded-round bg-primary"
+                    />
+                    <span className="sr-only">{t("ui.controls.filtersApplied")}</span>
+                </>
+            ) : null}
+        </Button>
     )
+    if (onClick) return button
+    return <PopoverTrigger asChild>{button}</PopoverTrigger>
 }

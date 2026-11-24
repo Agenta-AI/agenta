@@ -22,6 +22,9 @@ import {isFilterMenuToggle, type FilterMenuItem, type FilterMenuPlacementProps} 
  */
 export const DRILLDOWN_QUERY = "(max-width: 639.98px)"
 
+/** In a phone sheet: the full width, and rows at the 44px tap height (the switch keeps its size). */
+const FLUID_PANEL = "w-full [&_button:not([role=switch])]:min-h-11"
+
 /**
  * Reset reads as one more thing you can pick, not as fine print under the list — it is the same
  * row shape as everything above it, so it is as clickable as the rows it undoes.
@@ -84,9 +87,12 @@ export const FilterMenuPanel = ({
     flyoutSide,
     flyoutAlign,
     flyoutSideOffset,
+    fluid = false,
     className,
 }: {
     sections: FilterMenuItem[]
+    /** Fills its container (a phone's bottom sheet) and leaves the keyboard closed on open. */
+    fluid?: boolean
     searchable?: boolean
     searchPlaceholder?: string
     /** Seeds the search field — a story or a restored view can land on a narrowed panel. */
@@ -205,6 +211,7 @@ export const FilterMenuPanel = ({
     // focus call lands on a node the popover then moves out from under.
     useEffect(() => {
         const frame = requestAnimationFrame(() => {
+            if (fluid) return
             if (searchable) searchRef.current?.focus()
             else focusRow(order[0])
         })
@@ -233,7 +240,7 @@ export const FilterMenuPanel = ({
         const back = () => setDrillKey(null)
         return (
             <div
-                className={cn("flex w-popover-sm flex-col", className)}
+                className={cn("flex flex-col", fluid ? FLUID_PANEL : "w-popover-sm", className)}
                 onKeyDown={(event) => {
                     // Escape steps back to the rows before it closes the panel — the reader is
                     // one level in, and losing the whole menu is not what "back" means.
@@ -279,7 +286,7 @@ export const FilterMenuPanel = ({
     }
 
     return (
-        <div className={cn("flex w-popover-sm flex-col", className)}>
+        <div className={cn("flex flex-col", fluid ? FLUID_PANEL : "w-popover-sm", className)}>
             {searchable ? (
                 <label
                     className="flex items-center gap-2 border-0 border-b border-solid border-border px-3 py-2"

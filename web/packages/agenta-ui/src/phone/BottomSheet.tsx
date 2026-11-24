@@ -24,6 +24,10 @@ export interface BottomSheetProps {
     trigger?: ReactNode
     /** Buttons above "Cancel" (for example "New session"). Use `PHONE_BUTTON_CLASS`. */
     actions?: ReactNode
+    /** The closing button's text. "Cancel" by default; "Done" when changes already applied. */
+    closeLabel?: string
+    /** Leaves the focus off the first field on open, so a phone keyboard stays down. */
+    keepKeyboardClosed?: boolean
     "data-testid"?: string
     children: ReactNode
 }
@@ -38,6 +42,8 @@ export const BottomSheet = ({
     title,
     showTitle = true,
     actions,
+    closeLabel,
+    keepKeyboardClosed = false,
     trigger,
     "data-testid": testId = "bottom-sheet",
     children,
@@ -52,6 +58,7 @@ export const BottomSheet = ({
                 className="max-h-[85vh] gap-0 rounded-t-2xl pb-6 pt-2"
                 // The content names itself; there is no description to point at.
                 aria-describedby={undefined}
+                onOpenAutoFocus={keepKeyboardClosed ? (event) => event.preventDefault() : undefined}
             >
                 <div
                     aria-hidden
@@ -69,7 +76,7 @@ export const BottomSheet = ({
                         className={cn(PHONE_BUTTON_CLASS, "text-muted-foreground")}
                         onClick={() => onOpenChange(false)}
                     >
-                        {t("ui.phone.cancel")}
+                        {closeLabel ?? t("ui.phone.cancel")}
                     </Button>
                 </div>
             </SheetContent>
