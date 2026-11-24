@@ -4,20 +4,14 @@ import {workflowIncludeArchivedAtom} from "@agenta/entities/workflow"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
-import {ArrowLeft} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
-import Link from "next/link"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermission, useProjectPermissionState} from "../context/useProjectPermission"
-import {useDeveloperPageFrame} from "../developer/developerPageFrame"
-import {AppShell} from "../nav/AppShell"
-import {NavDrawer} from "../nav/NavDrawer"
+import {useDeveloperPageWidth} from "../developer/developerPageFrame"
+import {PageLayout} from "../page-layout/PageLayout"
 import {useRevisionParam} from "../revisions/useRevisionParam"
 
 import {ArchivedEvaluatorsTable} from "./ArchivedEvaluatorsTable"
@@ -39,7 +33,7 @@ export const ArchivedEvaluatorsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
-    const PAGE_FRAME = useDeveloperPageFrame()
+    const pageWidth = useDeveloperPageWidth()
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const [category, setCategory] = useEvaluatorCategory()
@@ -70,67 +64,46 @@ export const ArchivedEvaluatorsScreen = ({
 
     return (
         <>
-            <PageTitle title="Archived Evaluators" />
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    header={
-                        <div
-                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
-                        >
-                            <div className="flex min-w-0 items-center gap-2">
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <Button asChild variant="ghost" size="icon" className="shrink-0">
-                                    <Link
-                                        href={evaluatorsUrl(workspaceId, projectId, category)}
-                                        aria-label="Back to evaluators"
-                                        prefetch={false}
-                                    >
-                                        <ArrowLeft aria-hidden />
-                                    </Link>
-                                </Button>
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
-                                    Archived Evaluators
-                                </h1>
-                            </div>
-                        </div>
-                    }
-                >
-                    <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
-                        <div className="mb-3 overflow-x-auto">
-                            <EvaluatorCategoryTabs category={category} onChange={setCategory} />
-                        </div>
-                        <ListTableToolbar search={search.value} onSearchChange={search.onChange} />
-                        {denied || archived.isError ? (
-                            // A failed fetch must not read as "No archived evaluators".
-                            <LoadError
-                                framed
-                                title="Could not load archived evaluators"
-                                onRetry={() => {
-                                    if (!view.allowed) view.recheck()
-                                    void archived.refetch()
-                                }}
-                            />
-                        ) : (
-                            <ArchivedEvaluatorsTable
-                                rows={rows}
+            <PageLayout
+                workspaceId={workspaceId}
+                projectId={projectId}
+                title={"Archived Evaluators"}
+                width={pageWidth}
+                back={{label: "Evaluators", href: evaluatorsUrl(workspaceId, projectId, category)}}
+            >
+                <div className="mb-3 overflow-x-auto">
+                    <EvaluatorCategoryTabs category={category} onChange={setCategory} />
+                </div>
+                <ListTableToolbar search={search.value} onSearchChange={search.onChange} />
+                {denied || archived.isError ? (
+                    // A failed fetch must not read as "No archived evaluators".
+                    <LoadError
+                        framed
+                        title="Could not load archived evaluators"
+                        onRetry={() => {
+                            if (!view.allowed) view.recheck()
+                            void archived.refetch()
+                        }}
+                    />
+                ) : (
+                    <ArchivedEvaluatorsTable
+                        rows={rows}
+                        category={category}
+                        isLoading={view.pending || archived.isPending}
+                        restoring={restoring}
+                        empty={
+                            <EvaluatorsEmpty
                                 category={category}
-                                isLoading={view.pending || archived.isPending}
-                                restoring={restoring}
-                                empty={
-                                    <EvaluatorsEmpty
-                                        category={category}
-                                        archived
-                                        term={trimmed || undefined}
-                                        onClear={search.reset}
-                                    />
-                                }
-                                onOpen={(row) => setRevisionId(row.id)}
-                                onRestore={canRestore ? (id) => void restore(id) : undefined}
+                                archived
+                                term={trimmed || undefined}
+                                onClear={search.reset}
                             />
-                        )}
-                    </div>
-                </ScreenScaffold>
-            </AppShell>
+                        }
+                        onOpen={(row) => setRevisionId(row.id)}
+                        onRestore={canRestore ? (id) => void restore(id) : undefined}
+                    />
+                )}
+            </PageLayout>
             {view.allowed ? <EvaluatorsDrawer navigationIds={navigationIds} /> : null}
         </>
     )

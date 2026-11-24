@@ -17,11 +17,13 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
+import {PageBackBar} from "../page-layout/PageBackBar"
 import {useConfirmModal} from "../settings/useConfirmModal"
 
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
 import {AutomationRunConversation} from "./AutomationRunConversation"
 import {AutomationRunNowButton} from "./AutomationRunNowButton"
+import {AutomationRunHistoryCrumb} from "./AutomationRunHistoryCrumb"
 import {AutomationScreenHeader} from "./AutomationScreenHeader"
 import {useUnsavedGuard} from "./useUnsavedGuard"
 
@@ -119,6 +121,9 @@ export const AutomationDetailScreen = ({
         [automation?.agentId, projectId, workspaceId],
     )
 
+    const listHref = `${base}/automations`
+    const automationName = automation?.name || t("automations.screens.detailFallbackTitle")
+
     return (
         <>
             <PageTitle title={t("automations.screens.pageTitle")} context={automation?.name} />
@@ -126,16 +131,17 @@ export const AutomationDetailScreen = ({
                 <ScreenScaffold
                     fill={showRuns}
                     header={
-                        // The runs view carries its own back link, inside the column it centres,
-                        // so the arrow lands on the same grid as "Run history" at either width.
-                        showRuns ? null : (
+                        // The runs view draws its crumb inside the column it centres; below lg its
+                        // Back returns to the automation, as the crumb's name does.
+                        showRuns ? (
+                            <PageBackBar
+                                back={{label: automationName, onBack: closeRuns}}
+                                column="mx-auto box-border w-full max-w-content-md px-4 sm:pl-7.5 sm:pr-5"
+                            />
+                        ) : (
                             <AutomationScreenHeader
-                                workspaceId={workspaceId}
-                                projectId={projectId}
-                                title={
-                                    automation?.name || t("automations.screens.detailFallbackTitle")
-                                }
-                                backHref={`${base}/automations`}
+                                back={{label: t("automations.screens.pageTitle"), href: listHref}}
+                                backHref={listHref}
                             />
                         )
                     }
@@ -144,24 +150,17 @@ export const AutomationDetailScreen = ({
                         <AutomationRunHistoryView
                             automation={automation}
                             header={
-                                <AutomationScreenHeader
-                                    workspaceId={workspaceId}
-                                    projectId={projectId}
-                                    title={
-                                        automation?.name ||
-                                        t("automations.screens.detailFallbackTitle")
-                                    }
-                                    runHistory={{
-                                        listHref: `${base}/automations`,
-                                        name:
-                                            automation?.name ||
-                                            t("automations.screens.detailFallbackTitle"),
-                                        onAutomation: closeRuns,
-                                    }}
-                                    // The view's own 30px grid, so the arrow lines up with
-                                    // "Run history" below it.
-                                    className="w-full shrink-0 pb-2 pl-[30px] pr-5 pt-3 lg:pt-5"
-                                />
+                                // The view's own 30px grid, so the arrow lines up with
+                                // "Run history" below it.
+                                <div className="w-full shrink-0 pt-6 lg:pb-2 lg:pl-[30px] lg:pr-5 lg:pt-5">
+                                    <div className="max-lg:hidden">
+                                        <AutomationRunHistoryCrumb
+                                            listHref={listHref}
+                                            name={automationName}
+                                            onAutomation={closeRuns}
+                                        />
+                                    </div>
+                                </div>
                             }
                             renderConversation={renderConversation}
                             initialRunId={openRunId}

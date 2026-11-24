@@ -18,7 +18,7 @@ import {useBindProjectContext} from "../../context/useBindProjectContext"
 import {useProjectPermission} from "../../context/useProjectPermission"
 import {useDeveloperPageFrame, useDetailHeaderTop} from "../../developer/developerPageFrame"
 import {AppShell} from "../../nav/AppShell"
-import {NavDrawer} from "../../nav/NavDrawer"
+import {PageBackBar} from "../../page-layout/PageBackBar"
 
 import {ArchivedTestsetNotice} from "./ArchivedTestsetNotice"
 import {TestsetDetailSkeleton} from "./states/TestsetDetailSkeleton"
@@ -203,32 +203,41 @@ export const TestsetDetailScreen = ({
                 <ScreenScaffold
                     fill
                     header={
-                        <div className={`box-border shrink-0 px-4 pt-3 ${headerTop} ${PAGE_FRAME}`}>
-                            <div className="flex min-w-0 items-start gap-2">
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                {ready ? (
-                                    <div className="min-w-0 flex-1">
-                                        <TestsetHeader
-                                            header={header}
-                                            revisionId={revisionId}
-                                            isNew={isNew}
-                                            canEdit={canEdit}
-                                            canExport={canExport}
-                                            revisions={revisions}
-                                            onPickRevision={(id) =>
-                                                go(testsetRevisionPath(base, id))
-                                            }
-                                            onSaveDetails={details.save}
-                                            savingDetails={details.pending}
-                                            exporting={exporter.exporting}
-                                            onExport={(format) => void exporter.exportAs(format)}
-                                            archiveDisabledReason={archive.disabledReason}
-                                            onArchive={archive.request}
-                                        />
-                                    </div>
-                                ) : null}
+                        <>
+                            <PageBackBar
+                                back={{label: "Test sets", href: `${base}/testsets`}}
+                                column={`box-border px-4 ${PAGE_FRAME}`}
+                            />
+                            <div
+                                className={`box-border shrink-0 px-4 pt-6 ${headerTop} ${PAGE_FRAME}`}
+                            >
+                                <div className="flex min-w-0 items-start gap-2">
+                                    {ready ? (
+                                        <div className="min-w-0 flex-1">
+                                            <TestsetHeader
+                                                header={header}
+                                                revisionId={revisionId}
+                                                isNew={isNew}
+                                                canEdit={canEdit}
+                                                canExport={canExport}
+                                                revisions={revisions}
+                                                onPickRevision={(id) =>
+                                                    go(testsetRevisionPath(base, id))
+                                                }
+                                                onSaveDetails={details.save}
+                                                savingDetails={details.pending}
+                                                exporting={exporter.exporting}
+                                                onExport={(format) =>
+                                                    void exporter.exportAs(format)
+                                                }
+                                                archiveDisabledReason={archive.disabledReason}
+                                                onArchive={archive.request}
+                                            />
+                                        </div>
+                                    ) : null}
+                                </div>
                             </div>
-                        </div>
+                        </>
                     }
                 >
                     <div

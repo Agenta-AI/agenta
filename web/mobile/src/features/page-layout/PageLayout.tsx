@@ -7,6 +7,8 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {AppShell} from "../nav/AppShell"
 
+import {PageBackBar, type PageBack} from "./PageBackBar"
+import {PageBackLink} from "./PageBackLink"
 import {PageCompactBar} from "./PageCompactBar"
 import {
     PAGE_BODY,
@@ -30,6 +32,11 @@ export interface PageLayoutProps {
     scope?: SidebarScope
     /** One line under the title. */
     description?: ReactNode
+    /**
+     * An inside page's parent. Below lg the bar shows Back to it in place of the menu (the COMPACT
+     * rule: every page but the top-level ones has Back); on lg a back link sits over the title.
+     */
+    back?: PageBack
     /** The page actions: in the title row on an expanded window, in the compact bar below it. */
     actions?: ReactNode
     /** The content cap (LAYOUT-02). Lists `lg` (the default), item pages and Home `md`, forms `sm`. */
@@ -62,6 +69,7 @@ export const PageLayout = ({
     documentTitle,
     scope,
     description,
+    back,
     actions,
     width = "lg",
     pane,
@@ -77,14 +85,20 @@ export const PageLayout = ({
 
     const header = headerOverride ?? (
         <>
-            <PageCompactBar
-                workspaceId={workspaceId}
-                projectId={projectId}
-                scope={scope}
-                actions={expanded ? undefined : actions}
-            />
+            {back ? (
+                <PageBackBar back={back} width={width} actions={expanded ? undefined : actions} />
+            ) : (
+                <PageCompactBar
+                    workspaceId={workspaceId}
+                    projectId={projectId}
+                    scope={scope}
+                    width={width}
+                    actions={expanded ? undefined : actions}
+                />
+            )}
             <div className={`${PAGE_TITLE_BLOCK} ${PAGE_GUTTERS}`}>
                 <div className={pageColumn(width)}>
+                    {back && expanded ? <PageBackLink back={back} /> : null}
                     <div className={PAGE_TITLE_ROW}>
                         <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
                             {title}

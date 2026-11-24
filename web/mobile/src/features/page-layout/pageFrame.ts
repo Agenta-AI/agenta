@@ -7,8 +7,10 @@
  */
 export const PAGE_GUTTERS = "box-border w-full px-4 sm:px-8 lg:px-page-margin"
 
-/** The content caps; lists use `lg`, item pages and Home `md`, settings and forms `sm`. */
+/** The content caps; lists use `lg`, item pages and Home `md`, settings and forms `sm`; `full` is a
+ * developer view's uncapped table (beta developer mode). */
 export const PAGE_WIDTH = {
+    full: "max-w-none",
     sm: "max-w-content-sm",
     md: "max-w-content-md",
     lg: "max-w-content-lg",

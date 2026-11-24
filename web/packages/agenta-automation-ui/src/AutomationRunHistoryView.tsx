@@ -159,10 +159,10 @@ export const AutomationRunHistoryView = ({
                             "flex min-h-0 flex-col",
                             showPane
                                 ? "min-w-[240px] max-w-[380px] flex-[1_1_240px] border-0 border-r border-solid border-border pb-6 pr-4"
-                                : "w-full min-w-0 flex-1 pb-6 pr-5",
-                            // The heading's own 10px inset makes up the rest: 30px on a page's
-                            // grid, the panel's own gutter in a panel.
-                            frame === "page" ? "pl-5" : "pl-1.5",
+                                : "w-full min-w-0 flex-1 pb-6 pr-4 sm:pr-5",
+                            // The heading's own 10px inset makes up the rest: 16px on a phone page
+                            // (the bar's Back edge), 30px on a wider page, the panel's own gutter.
+                            frame === "page" ? "pl-1.5 sm:pl-5" : "pl-1.5",
                             frame === "page" && !showPane && "max-w-content-md",
                         )}
                     >

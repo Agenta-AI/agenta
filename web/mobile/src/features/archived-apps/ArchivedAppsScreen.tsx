@@ -11,23 +11,18 @@ import {
     type ListTableCsvColumn,
     type ListTableSelection,
 } from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
-import {ArrowCounterClockwise, ArrowLeft} from "@phosphor-icons/react"
+import {ArrowCounterClockwise} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
-import Link from "next/link"
 import {useRouter} from "next/router"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {useDeveloperViewEnabled} from "@/features/developer/developerViewAccess"
 import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 import {projectHomeUrl} from "@/lib/context"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermission} from "../context/useProjectPermission"
-import {useDeveloperPageFrame} from "../developer/developerPageFrame"
-import {AppShell} from "../nav/AppShell"
-import {NavDrawer} from "../nav/NavDrawer"
+import {useDeveloperPageWidth} from "../developer/developerPageFrame"
+import {PageLayout} from "../page-layout/PageLayout"
 
 import {ArchivedAppsTable} from "./ArchivedAppsTable"
 import {toArchivedAppRow, type ArchivedAppRow} from "./archivedAppsView"
@@ -55,7 +50,7 @@ export const ArchivedAppsScreen = ({
     projectId: string
 }) => {
     const t = useT(archivedAppsCatalog)
-    const PAGE_FRAME = useDeveloperPageFrame()
+    const pageWidth = useDeveloperPageWidth()
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const [term, setTerm] = useState("")
@@ -126,72 +121,46 @@ export const ArchivedAppsScreen = ({
 
     return (
         <>
-            <PageTitle title={t("archivedApps.screen.title")} />
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    header={
-                        <div
-                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
-                        >
-                            <div className="flex min-w-0 items-center gap-2">
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <Button asChild variant="ghost" size="icon" className="shrink-0">
-                                    <Link
-                                        href={backHref}
-                                        aria-label={
-                                            fromPrompts ? "Back to prompts" : "Back to home"
-                                        }
-                                        prefetch={false}
-                                    >
-                                        <ArrowLeft aria-hidden />
-                                    </Link>
-                                </Button>
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
-                                    {t("archivedApps.screen.title")}
-                                </h1>
-                            </div>
-                        </div>
-                    }
-                >
-                    <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
-                        <ListTableToolbar
-                            search={search.value}
-                            onSearchChange={search.onChange}
-                            searchPlaceholder="Search archived prompts by name…"
-                            actions={
-                                <ListTableExportButton
-                                    rows={rows}
-                                    columns={CSV_COLUMNS}
-                                    fileName={CSV_FILE_NAME}
-                                />
-                            }
+            <PageLayout
+                workspaceId={workspaceId}
+                projectId={projectId}
+                title={t("archivedApps.screen.title")}
+                width={pageWidth}
+                back={{label: fromPrompts ? "Prompts" : "Home", href: backHref}}
+            >
+                <ListTableToolbar
+                    search={search.value}
+                    onSearchChange={search.onChange}
+                    searchPlaceholder="Search archived prompts by name…"
+                    actions={
+                        <ListTableExportButton
+                            rows={rows}
+                            columns={CSV_COLUMNS}
+                            fileName={CSV_FILE_NAME}
                         />
-                        {archived.isError ? (
-                            // A failed fetch must not read as "No archived prompts".
-                            <LoadError
-                                framed
-                                title={t("archivedApps.screen.loadFailed")}
-                                onRetry={() => void archived.refetch()}
-                            />
-                        ) : (
-                            <ArchivedAppsTable
-                                rows={rows}
-                                projectId={projectId}
-                                canRestore={canRestore}
-                                isLoading={archived.isPending}
-                                selection={selection}
-                                onOpenOverview={overviewEnabled ? openOverview : undefined}
-                                empty={
-                                    <ArchivedAppsEmpty
-                                        term={trimmed || undefined}
-                                        onClear={search.reset}
-                                    />
-                                }
-                            />
-                        )}
-                    </div>
-                </ScreenScaffold>
-            </AppShell>
+                    }
+                />
+                {archived.isError ? (
+                    // A failed fetch must not read as "No archived prompts".
+                    <LoadError
+                        framed
+                        title={t("archivedApps.screen.loadFailed")}
+                        onRetry={() => void archived.refetch()}
+                    />
+                ) : (
+                    <ArchivedAppsTable
+                        rows={rows}
+                        projectId={projectId}
+                        canRestore={canRestore}
+                        isLoading={archived.isPending}
+                        selection={selection}
+                        onOpenOverview={overviewEnabled ? openOverview : undefined}
+                        empty={
+                            <ArchivedAppsEmpty term={trimmed || undefined} onClear={search.reset} />
+                        }
+                    />
+                )}
+            </PageLayout>
         </>
     )
 }

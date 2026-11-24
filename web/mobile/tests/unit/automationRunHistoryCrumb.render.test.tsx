@@ -5,7 +5,7 @@ import {act, createElement} from "react"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {AutomationScreenHeader} from "@/features/automations/AutomationScreenHeader"
+import {AutomationRunHistoryCrumb} from "@/features/automations/AutomationRunHistoryCrumb"
 
 vi.mock("@/features/nav/NavDrawer", () => ({NavDrawer: () => null}))
 vi.mock("next/link", () => ({
@@ -33,15 +33,10 @@ describe("run history page crumb", () => {
         const onAutomation = vi.fn()
         act(() =>
             root.render(
-                createElement(AutomationScreenHeader, {
-                    workspaceId: "w",
-                    projectId: "p",
-                    title: "Daily summary",
-                    runHistory: {
-                        listHref: "/base/automations",
-                        name: "Daily summary",
-                        onAutomation,
-                    },
+                createElement(AutomationRunHistoryCrumb, {
+                    listHref: "/base/automations",
+                    name: "Daily summary",
+                    onAutomation,
                 }),
             ),
         )

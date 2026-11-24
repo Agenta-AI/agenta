@@ -62,8 +62,9 @@ export const TemplatePage = ({
 
     return (
         <div className="flex flex-col gap-10">
-            <div className="flex items-center justify-between gap-3">
-                <Breadcrumb>
+            {/* Below lg the bar's Back names the parent, so the crumb is only for wide windows. */}
+            <div className="flex items-center justify-end gap-3 lg:justify-between">
+                <Breadcrumb className="max-lg:hidden">
                     <BreadcrumbList>
                         <BreadcrumbItem>
                             <BreadcrumbLink asChild>

@@ -168,7 +168,7 @@ describe("ArchivedEvaluatorsScreen", () => {
         const names = [...host.querySelectorAll('[title$="check"]')].map((n) => n.textContent)
         expect(names).toEqual(["Newer check", "Older check"])
         expect(text()).toContain("Archived Evaluators")
-        const back = host.querySelector('[aria-label="Back to evaluators"]')
+        const back = [...host.querySelectorAll("a")].find((a) => a.textContent === "Evaluators")
         expect(back?.getAttribute("href")).toBe("/w/ws/p/pr/evaluators?tab=automatic")
         expect(api.queryWorkflows).toHaveBeenCalledWith(
             expect.objectContaining({includeArchived: true}),

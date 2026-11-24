@@ -49,10 +49,12 @@ export const AutomationDraftScreen = ({
                 <ScreenScaffold
                     header={
                         <AutomationScreenHeader
-                            workspaceId={workspaceId}
-                            projectId={projectId}
-                            title={t("automations.screens.newAutomation")}
+                            back={{
+                                label: t("automations.screens.pageTitle"),
+                                href: `${base}/automations`,
+                            }}
                             backHref={`${base}/automations`}
+                            className="mx-auto box-border w-full max-w-content-sm px-4 md:px-6"
                         />
                     }
                 >
