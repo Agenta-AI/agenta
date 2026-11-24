@@ -379,7 +379,7 @@ export const ProjectOrgSwitcherView = ({
                     <>
                         <span
                             className={clsx(
-                                "min-w-0 truncate text-left text-label text-foreground",
+                                "min-w-0 truncate text-left text-body text-foreground",
                                 !compact && "flex-1",
                             )}
                         >

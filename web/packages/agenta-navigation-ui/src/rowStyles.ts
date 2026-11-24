@@ -1,5 +1,5 @@
-// A rail row: 28px, 13px label, 8px padding and gap: a 16px icon at 16–32px, its text at 40px.
-export const ROW_HEIGHT = "h-row-dense text-label"
+// A rail row: 28px, 14px body text, 8px padding and gap: a 16px icon at 16–32px, its text at 40px.
+export const ROW_HEIGHT = "h-row-dense text-body"
 // shrink-0: only the Sessions group scrolls; every other row holds its height.
 export const ROW_BASE = `relative box-border flex ${ROW_HEIGHT} shrink-0 w-[calc(100%-16px)] mx-auto items-center gap-2 rounded-md px-2 select-none`
 export const ROW_INTERACTIVE = "cursor-pointer text-foreground hover:bg-accent"
