@@ -13,6 +13,7 @@ import {PageBackControl} from "./PageBackControl"
 import {PageCompactBar} from "./PageCompactBar"
 import {
     PAGE_BODY,
+    PAGE_BODY_UNDER_TOOLBAR,
     PAGE_GUTTERS,
     PAGE_TITLE_BLOCK,
     PAGE_TITLE_ROW,
@@ -38,6 +39,8 @@ export interface PageLayoutProps {
     back?: PageBack
     /** The page actions: in the title row on an expanded window, in the compact bar below it. */
     actions?: ReactNode
+    /** The list toolbar (search, filters, view switch): pinned under the title, outside the scroll. */
+    toolbar?: ReactNode
     /** The content cap (LAYOUT-02). Lists `lg` (the default), item pages and Home `md`, forms `sm`. */
     width?: PageWidth
     scrollRef?: RefObject<HTMLDivElement | null>
@@ -65,6 +68,7 @@ export const PageLayout = ({
     description,
     back,
     actions,
+    toolbar,
     width = "lg",
     scrollRef,
     onScroll,
@@ -101,6 +105,7 @@ export const PageLayout = ({
                     {description ? (
                         <p className="m-0 mt-1 text-body text-muted-foreground">{description}</p>
                     ) : null}
+                    {toolbar ? <div className="mt-6">{toolbar}</div> : null}
                 </div>
             </div>
         </>
@@ -118,7 +123,11 @@ export const PageLayout = ({
                     scrollClassName={scrollClassName}
                 >
                     <div className={PAGE_GUTTERS}>
-                        <div className={`${pageColumn(width)} ${PAGE_BODY}`}>{children}</div>
+                        <div
+                            className={`${pageColumn(width)} ${toolbar ? PAGE_BODY_UNDER_TOOLBAR : PAGE_BODY}`}
+                        >
+                            {children}
+                        </div>
                     </div>
                 </ScreenScaffold>
             </AppShell>

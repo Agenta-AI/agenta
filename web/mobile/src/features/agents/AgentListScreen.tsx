@@ -176,6 +176,19 @@ export const AgentListScreen = ({
                 projectId={projectId}
                 title={t("agents.list.pageTitle")}
                 description={t("agents.list.pageDescription")}
+                toolbar={
+                    projectEmpty ? undefined : (
+                        <ListTableToolbar
+                            search={search}
+                            onSearchChange={setSearch}
+                            searchPlaceholder={t("agents.list.searchPlaceholder")}
+                            actions={
+                                <AgentFilterMenu view={view} onChange={setView} owners={owners} />
+                            }
+                            end={<ListTableViewToggle value={view.mode} onChange={setMode} />}
+                        />
+                    )
+                }
                 actions={
                     <>
                         {projectEmpty ? null : (
@@ -201,34 +214,7 @@ export const AgentListScreen = ({
                         ) : null}
                     </>
                 ) : (
-                    <>
-                        {/* Search belongs to the list, not to the page: it sits on the
-                                    results' own left edge so it reads as the control that narrows
-                                    what is below it. The facets and the grouping ride one control
-                                    beside it, so the bar stays a search bar; the view switch takes
-                                    the far edge, where it changes how the results are drawn rather
-                                    than which ones are. */}
-                        <ListTableToolbar
-                            search={search}
-                            onSearchChange={setSearch}
-                            searchPlaceholder={t("agents.list.searchPlaceholder")}
-                            actions={
-                                <>
-                                    <AgentFilterMenu
-                                        view={view}
-                                        onChange={setView}
-                                        owners={owners}
-                                    />
-                                    <ListTableViewToggle
-                                        value={view.mode}
-                                        onChange={setMode}
-                                        className="ml-auto"
-                                    />
-                                </>
-                            }
-                        />
-                        {body}
-                    </>
+                    body
                 )}
             </PageLayout>
         </>

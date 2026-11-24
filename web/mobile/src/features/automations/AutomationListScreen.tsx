@@ -298,6 +298,23 @@ export const AutomationListScreen = ({
                 projectId={projectId}
                 title={t("automations.screens.pageTitle")}
                 description={t("automations.screens.pageDescription")}
+                toolbar={
+                    projectEmpty ? undefined : (
+                        <ListTableToolbar
+                            search={search}
+                            onSearchChange={setSearch}
+                            searchPlaceholder={t("automations.screens.searchPlaceholder")}
+                            actions={
+                                <AutomationFilterMenu
+                                    view={view}
+                                    onChange={setView}
+                                    agents={agents}
+                                />
+                            }
+                            end={<ListTableViewToggle value={view.mode} onChange={setMode} />}
+                        />
+                    )
+                }
                 actions={
                     <>
                         {/* Hidden on a phone, where the title needs the width. */}
@@ -316,29 +333,7 @@ export const AutomationListScreen = ({
                         <AutomationAgentStarters base={base} />
                     </FeatureOnboarding>
                 ) : (
-                    <>
-                        {/* Search belongs to the list, not to the page: it sits on the
-                                    table's own left edge so it reads as the control that narrows
-                                    what is below it. */}
-                        {/* One control beside the field, not three: sort and group are rows
-                                    inside it, so the bar stays a search bar. The view switch takes
-                                    the far edge, where it changes how the results are drawn rather
-                                    than which ones are. */}
-                        <ListTableToolbar
-                            search={search}
-                            onSearchChange={setSearch}
-                            searchPlaceholder={t("automations.screens.searchPlaceholder")}
-                            actions={
-                                <AutomationFilterMenu
-                                    view={view}
-                                    onChange={setView}
-                                    agents={agents}
-                                />
-                            }
-                            end={<ListTableViewToggle value={view.mode} onChange={setMode} />}
-                        />
-                        {body}
-                    </>
+                    body
                 )}
             </PageLayout>
         </>

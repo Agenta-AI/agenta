@@ -188,6 +188,23 @@ export const SkillListScreen = ({
                 projectId={projectId}
                 title={t("skills.list.pageTitle")}
                 description={t("skills.list.pageDescription")}
+                toolbar={
+                    projectEmpty ? undefined : (
+                        <ListTableToolbar
+                            search={typed}
+                            onSearchChange={setTyped}
+                            searchPlaceholder={t("skills.list.searchPlaceholder")}
+                            actions={
+                                <SkillFilterMenu
+                                    view={view}
+                                    onChange={setView}
+                                    repositories={repositories}
+                                />
+                            }
+                            end={<ListTableViewToggle value={view.mode} onChange={setMode} />}
+                        />
+                    )
+                }
                 actions={
                     <>
                         {projectEmpty ? null : (
@@ -210,32 +227,7 @@ export const SkillListScreen = ({
                         />
                     </FeatureOnboarding>
                 ) : (
-                    <>
-                        {/* Search belongs to the list, not to the page: it sits on the
-                                    results' own left edge. The facets ride one control beside it;
-                                    the view switch takes the far edge, where it changes how the
-                                    results are drawn rather than which ones are. */}
-                        <ListTableToolbar
-                            search={typed}
-                            onSearchChange={setTyped}
-                            searchPlaceholder={t("skills.list.searchPlaceholder")}
-                            actions={
-                                <>
-                                    <SkillFilterMenu
-                                        view={view}
-                                        onChange={setView}
-                                        repositories={repositories}
-                                    />
-                                    <ListTableViewToggle
-                                        value={view.mode}
-                                        onChange={setMode}
-                                        className="ml-auto"
-                                    />
-                                </>
-                            }
-                        />
-                        {body}
-                    </>
+                    body
                 )}
             </PageLayout>
             <SkillDetailDrawer

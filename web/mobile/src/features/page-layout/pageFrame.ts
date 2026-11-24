@@ -30,3 +30,5 @@ export const PAGE_TITLE_ROW = "flex min-h-control min-w-0 items-center gap-2"
 
 /** The body under the title: 24px below it, room at the end of the scroll. */
 export const PAGE_BODY = "min-w-0 pb-12 pt-6"
+/** The body under a pinned toolbar: the toolbar already holds the space above the rows. */
+export const PAGE_BODY_UNDER_TOOLBAR = "min-w-0 pb-12 pt-1"

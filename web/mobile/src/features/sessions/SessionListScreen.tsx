@@ -231,50 +231,58 @@ const SessionListBody = ({
         [agentNames, lockedAgentId],
     )
 
-    const listBody = projectEmpty ? (
-        <FeatureOnboarding guideKey="sessions" base={base} />
-    ) : (
-        <>
-            {/* Search belongs to the list, not to the page: it sits on the
+    const listToolbar = (
+        /* Search belongs to the list, not to the page: it sits on the
                                 table's own left edge so it reads as the control that narrows
                                 what is below it. One control beside the field, not four — type,
                                 status, agent and grouping are rows inside it, so the bar stays
-                                a search bar. */}
-            <ListTableToolbar
-                search={search.value}
-                onSearchChange={search.onChange}
-                searchPlaceholder={t("sessions.mobileList.searchSessions")}
-                actions={
-                    <>
-                        <SessionFilterMenu
-                            view={view}
-                            onChange={setView}
-                            agents={agents}
-                            // The count is project-wide: the page of one
-                            // agent shows Waiting without it.
-                            waitingCount={lockedAgentId ? undefined : list.waitingCount}
-                            onReset={resetView}
-                            lockedAgent={lockedAgent}
-                            defaultView={defaultView}
-                        />
-                        {lockedAgent ? (
-                            <LockedAgentChip agentId={lockedAgent.id} variant="inline" />
-                        ) : null}
-                    </>
-                }
-            />
-            <SessionListTable
-                group={view.group}
-                activityFloor={activityFloor}
-                agentNames={agentNames}
-                agentNamesReady={!agentsQuery.isPending}
-                verbs={verbs}
-                // The agent page has "New session" in its sidebar already.
-                onNewSession={lockedAgentId ? undefined : startBlank}
-                lockedAgentId={lockedAgentId}
-                onClearSearch={clearSearch}
-                onResetView={resetView}
-            />
+                                a search bar. */
+        <ListTableToolbar
+            search={search.value}
+            onSearchChange={search.onChange}
+            searchPlaceholder={t("sessions.mobileList.searchSessions")}
+            actions={
+                <>
+                    <SessionFilterMenu
+                        view={view}
+                        onChange={setView}
+                        agents={agents}
+                        // The count is project-wide: the page of one
+                        // agent shows Waiting without it.
+                        waitingCount={lockedAgentId ? undefined : list.waitingCount}
+                        onReset={resetView}
+                        lockedAgent={lockedAgent}
+                        defaultView={defaultView}
+                    />
+                    {lockedAgent ? (
+                        <LockedAgentChip agentId={lockedAgent.id} variant="inline" />
+                    ) : null}
+                </>
+            }
+        />
+    )
+    const listTable = projectEmpty ? (
+        <FeatureOnboarding guideKey="sessions" base={base} />
+    ) : (
+        <SessionListTable
+            group={view.group}
+            activityFloor={activityFloor}
+            agentNames={agentNames}
+            agentNamesReady={!agentsQuery.isPending}
+            verbs={verbs}
+            // The agent page has "New session" in its sidebar already.
+            onNewSession={lockedAgentId ? undefined : startBlank}
+            lockedAgentId={lockedAgentId}
+            onClearSearch={clearSearch}
+            onResetView={resetView}
+        />
+    )
+    const listBody = projectEmpty ? (
+        listTable
+    ) : (
+        <>
+            {listToolbar}
+            {listTable}
         </>
     )
 
@@ -310,6 +318,7 @@ const SessionListBody = ({
                     projectId={projectId}
                     title={t("sessions.mobileList.sessions")}
                     description={t("sessions.mobileList.pageDescription")}
+                    toolbar={projectEmpty ? undefined : listToolbar}
                     actions={
                         <>
                             {projectEmpty ? null : (
@@ -327,7 +336,7 @@ const SessionListBody = ({
                         </>
                     }
                 >
-                    {listBody}
+                    {listTable}
                 </PageLayout>
             )}
             {/* The trigger drawers the automation row verbs open, at screen level so one survives
