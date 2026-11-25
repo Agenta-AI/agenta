@@ -12,7 +12,7 @@
     "descriptionMissing": "请添加描述。",
     "instructions": "说明",
     "instructionsHint": "Agent 使用此 Skill 时遵循的步骤。",
-    "instructionsPlaceholder": "写下 Agent 要遵循的步骤…",
+    "instructionsPlaceholder": "用简单的话写下 Agent 应遵循的步骤。\n\n1. 先看什么\n2. 用它做什么\n3. 好的结果是什么样",
     "instructionsMissing": "请编写说明。",
     "write": "编写",
     "preview": "预览",

@@ -12,7 +12,7 @@
     "descriptionMissing": "Füge eine Beschreibung hinzu.",
     "instructions": "Anweisungen",
     "instructionsHint": "Die Schritte, denen der Agent folgt, wenn er diesen Skill verwendet.",
-    "instructionsPlaceholder": "Schreibe die Schritte, denen der Agent folgt…",
+    "instructionsPlaceholder": "Schreibe die Schritte, denen der Agent folgen soll, in einfachen Worten.\n\n1. Was zuerst anzusehen ist\n2. Was damit zu tun ist\n3. Wie ein gutes Ergebnis aussieht",
     "instructionsMissing": "Schreibe die Anweisungen.",
     "write": "Schreiben",
     "preview": "Vorschau",

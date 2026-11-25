@@ -12,7 +12,7 @@
     "descriptionMissing": "説明を追加してください。",
     "instructions": "手順",
     "instructionsHint": "エージェントがこのスキルを使うときに従う手順です。",
-    "instructionsPlaceholder": "エージェントが従う手順を書きます…",
+    "instructionsPlaceholder": "エージェントが従う手順を、わかりやすい言葉で書きます。\n\n1. 最初に見るもの\n2. それをどうするか\n3. 良い結果とはどういうものか",
     "instructionsMissing": "手順を書いてください。",
     "write": "編集",
     "preview": "プレビュー",

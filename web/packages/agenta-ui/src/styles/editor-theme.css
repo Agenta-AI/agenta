@@ -690,6 +690,16 @@ pre::-webkit-scrollbar-thumb {
     margin: 0 0 12px;
     line-height: inherit;
 }
+/* A placeholder can hold a short example on several lines. */
+.md-doc .md-prose .editor-placeholder {
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    white-space: pre-line;
+}
+/* An empty document keeps a full line, so the caret is as tall as the text (not the 8px gap line). */
+.md-doc .md-prose .editor-input:not(.markdown-view) > .editor-paragraph:only-child:has(> br:only-child) {
+    line-height: inherit;
+}
 /* Headings stay below the page title: weight shows rank, not size. */
 .md-doc .md-prose .editor-heading-h1,
 .md-doc .md-prose .editor-heading-h2,

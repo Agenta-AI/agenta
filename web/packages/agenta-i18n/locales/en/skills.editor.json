@@ -12,7 +12,7 @@
     "descriptionMissing": "Add a description.",
     "instructions": "Instructions",
     "instructionsHint": "The steps the agent follows when it uses this skill.",
-    "instructionsPlaceholder": "Write the steps the agent follows…",
+    "instructionsPlaceholder": "Write the steps the agent should follow, in plain words.\n\n1. What to look at first\n2. What to do with it\n3. What a good result looks like",
     "instructionsMissing": "Write the instructions.",
     "write": "Write",
     "preview": "Preview",

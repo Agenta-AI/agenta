@@ -12,7 +12,7 @@
     "descriptionMissing": "Adicione uma descrição.",
     "instructions": "Instruções",
     "instructionsHint": "Os passos que o agente segue quando usa esta habilidade.",
-    "instructionsPlaceholder": "Escreva os passos que o agente segue…",
+    "instructionsPlaceholder": "Escreva os passos que o agente deve seguir, com palavras simples.\n\n1. O que olhar primeiro\n2. O que fazer com isso\n3. Como é um bom resultado",
     "instructionsMissing": "Escreva as instruções.",
     "write": "Escrever",
     "preview": "Visualizar",
