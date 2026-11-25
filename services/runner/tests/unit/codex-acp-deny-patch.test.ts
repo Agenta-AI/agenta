@@ -1,103 +1,42 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
 
+import patchSpec from "../../src/engines/sandbox_agent/codex-acp-patch.json" with { type: "json" };
 import { applyCodexAcpDenyPatch } from "../../src/engines/sandbox_agent/codex-acp-patch.ts";
+import {
+  CODEX_ACP_2_8_0_DENY_FIXTURE,
+  CODEX_ACP_2_8_0_MCP_HELPERS,
+} from "./fixtures/codex-acp-2.8.0-deny-anchors.ts";
 
 /**
- * Snippets from `@agentclientprotocol/codex-acp` (1.13.1, dist/index.js).
- * Preserves the exact anchor lines so the patch can be tested in isolation and evaluated.
+ * Anchors and `convertMcpPermissionResponse` are verbatim excerpts from
+ * `@agentclientprotocol/codex-acp@2.8.0` `dist/index.js`. See the fixture
+ * file for the npm pack checksums.
  */
-const BUNDLE = `
-var McpApprovalOptionId = {
-  AllowOnce: "allow_once",
-  AllowSession: "allow_session",
-  AllowAlways: "allow_always",
-  Decline: "decline",
-  Cancel: "cancel"
-};
+const BUNDLE = CODEX_ACP_2_8_0_DENY_FIXTURE;
+const MCP_DECLINE = patchSpec.deny.replacements[1];
 
-function permissionOption2(optionId, name, kind, description) {
-  return { optionId, name, kind, description };
-}
-
-function cancelledResponse() {
-  return { action: "cancel", content: null, _meta: null };
-}
-
-function elicitationResponseMeta(response, context) {
-  return null;
-}
-
-var CreateElicitationResponse = {
-  isDecline(response) {
-    return response && response.action === "decline";
-  }
-};
-
-function buildMcpPermissionOptions(isToolApproval) {
-  const options = [];
-  if (isToolApproval) {
-    options.push(permissionOption2(
-      McpApprovalOptionId.Cancel,
-      "Cancel",
-      "reject_once",
-      "Cancel this tool call"
-    ));
-  } else {
-    options.push(
-      permissionOption2(
-        McpApprovalOptionId.Decline,
-        "Decline",
-        "reject_once",
-        "Decline this request and continue."
-      )
-    );
-  }
-  return options;
-}
-
-function convertMcpPermissionResponse(response, isToolApproval) {
-  switch (response.outcome.optionId) {
-    case McpApprovalOptionId.Decline:
-      return !isToolApproval ? { action: "decline", content: null, _meta: null } : cancelledResponse();
-    case McpApprovalOptionId.Cancel:
-    default:
-      return cancelledResponse();
-  }
-}
-
-var Handler = class {
-  convertElicitationResponse(response, context) {
-    if (CreateElicitationResponse.isDecline(response)) {
-      return context.isToolApproval ? { action: "cancel", content: null, _meta: elicitationResponseMeta(response, context) } : { action: "decline", content: null, _meta: elicitationResponseMeta(response, context) };
-    }
-    return cancelledResponse();
-  }
-};
-`;
-
-function load(source: string) {
+function loadMcp(source: string) {
   return new Function(
-    `${source}; return { McpApprovalOptionId, buildMcpPermissionOptions, convertMcpPermissionResponse, Handler };`,
+    `${source}; return { McpApprovalOptionId, convertMcpPermissionResponse };`,
   )() as {
     McpApprovalOptionId: Record<string, string>;
-    buildMcpPermissionOptions: (isToolApproval: boolean) => Array<{
-      optionId: string;
-      name: string;
-      kind: string;
-      description: string;
-    }>;
     convertMcpPermissionResponse: (
-      response: { outcome: { optionId: string } },
+      response: { outcome: { outcome: string; optionId: string } },
       isToolApproval: boolean,
+      persistOptions: Set<string>,
     ) => { action: string; content: unknown; _meta: unknown };
-    Handler: new () => {
-      convertElicitationResponse: (
-        response: { action: string },
-        context: { isToolApproval: boolean },
-      ) => { action: string; content: unknown; _meta: unknown };
-    };
   };
+}
+
+function patchedMcpHelpers(): string {
+  assert.equal(
+    CODEX_ACP_2_8_0_MCP_HELPERS.split(MCP_DECLINE.find).length - 1,
+    MCP_DECLINE.count,
+  );
+  return CODEX_ACP_2_8_0_MCP_HELPERS.split(MCP_DECLINE.find).join(
+    MCP_DECLINE.replace,
+  );
 }
 
 function patchedBundle(): string {
@@ -107,68 +46,80 @@ function patchedBundle(): string {
 }
 
 describe("applyCodexAcpDenyPatch", () => {
+  it("matches the published 2.8.0 anchors, including CreateElicitationResponse2", () => {
+    assert.match(
+      BUNDLE,
+      /CreateElicitationResponse2\.isDecline\(response\)/,
+    );
+    assert.equal(
+      BUNDLE.includes("CreateElicitationResponse.isDecline"),
+      false,
+    );
+    assert.equal(applyCodexAcpDenyPatch(BUNDLE).kind, "patched");
+  });
+
   it("stock bundle forces cancel on tool approval decline, causing Codex to retry", () => {
-    const stock = load(BUNDLE);
-    const options = stock.buildMcpPermissionOptions(true);
-    assert.deepEqual(
-      options.map((o) => o.optionId),
-      ["cancel"],
-      "stock bundle only offers cancel for tool approval",
+    assert.match(
+      BUNDLE,
+      /if \(isToolApproval\) \{\n    options\.push\(permissionOption2\(\n      McpApprovalOptionId\.Cancel,/,
+    );
+    assert.match(
+      BUNDLE,
+      /case McpApprovalOptionId\.Decline:\n      return !isToolApproval \? \{ action: "decline", content: null, _meta: null \} : cancelledResponse\(\);/,
+    );
+    assert.match(
+      BUNDLE,
+      /if \(CreateElicitationResponse2\.isDecline\(response\)\) \{\n      return context\.isToolApproval \? \{ action: "cancel"/,
     );
 
+    const stock = loadMcp(CODEX_ACP_2_8_0_MCP_HELPERS);
     const mcpResult = stock.convertMcpPermissionResponse(
-      { outcome: { optionId: stock.McpApprovalOptionId.Decline } },
+      {
+        outcome: {
+          outcome: "selected",
+          optionId: stock.McpApprovalOptionId.Decline,
+        },
+      },
       true,
+      new Set(),
     );
     assert.equal(
       mcpResult.action,
       "cancel",
-      "stock bundle forces action: cancel for tool approvals",
-    );
-
-    const handler = new stock.Handler();
-    const elicitationResult = handler.convertElicitationResponse(
-      { action: "decline" },
-      { isToolApproval: true },
-    );
-    assert.equal(
-      elicitationResult.action,
-      "cancel",
-      "stock bundle forces action: cancel in convertElicitationResponse for tool approvals",
+      "stock 2.8.0 bundle forces action: cancel for tool approvals",
     );
   });
 
   it("patched bundle offers Deny (Decline) before Cancel and reports action: decline", () => {
-    const patched = load(patchedBundle());
-    const options = patched.buildMcpPermissionOptions(true);
-    assert.deepEqual(
-      options.map((o) => ({ id: o.optionId, name: o.name, kind: o.kind })),
-      [
-        { id: "decline", name: "Deny", kind: "reject_once" },
-        { id: "cancel", name: "Cancel", kind: "reject_once" },
-      ],
-      "patched bundle offers Deny before Cancel for tool approval",
+    const patched = patchedBundle();
+    assert.match(
+      patched,
+      /if \(isToolApproval\) \{\n    \/\* agenta:tool-deny \*\/\n    options\.push\(\n      permissionOption2\(\n        McpApprovalOptionId\.Decline,\n        "Deny",\n        "reject_once",\n        "Decline this tool call"\n      \),\n      permissionOption2\(\n        McpApprovalOptionId\.Cancel,/,
+    );
+    assert.match(
+      patched,
+      /case McpApprovalOptionId\.Decline:\n      return \{ action: "decline", content: null, _meta: null \};/,
+    );
+    assert.match(
+      patched,
+      /if \(CreateElicitationResponse2\.isDecline\(response\)\) \{\n      return \{ action: "decline", content: null, _meta: elicitationResponseMeta\(response, context\) \};\n    \}/,
     );
 
-    const mcpResult = patched.convertMcpPermissionResponse(
-      { outcome: { optionId: patched.McpApprovalOptionId.Decline } },
+    const mcp = loadMcp(patchedMcpHelpers());
+    const mcpResult = mcp.convertMcpPermissionResponse(
+      {
+        outcome: {
+          outcome: "selected",
+          optionId: mcp.McpApprovalOptionId.Decline,
+        },
+      },
       true,
+      new Set(),
     );
     assert.equal(
       mcpResult.action,
       "decline",
       "patched bundle maps tool decline to action: decline",
-    );
-
-    const handler = new patched.Handler();
-    const elicitationResult = handler.convertElicitationResponse(
-      { action: "decline" },
-      { isToolApproval: true },
-    );
-    assert.equal(
-      elicitationResult.action,
-      "decline",
-      "patched bundle maps elicitation decline to action: decline",
     );
   });
 

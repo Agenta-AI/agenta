@@ -19,8 +19,8 @@
         "count": 1
       },
       {
-        "find": "    if (CreateElicitationResponse.isDecline(response)) {\n      return context.isToolApproval ? { action: \"cancel\", content: null, _meta: elicitationResponseMeta(response, context) } : { action: \"decline\", content: null, _meta: elicitationResponseMeta(response, context) };\n    }",
-        "replace": "    if (CreateElicitationResponse.isDecline(response)) {\n      return { action: \"decline\", content: null, _meta: elicitationResponseMeta(response, context) };\n    }",
+        "find": "    if (CreateElicitationResponse2.isDecline(response)) {\n      return context.isToolApproval ? { action: \"cancel\", content: null, _meta: elicitationResponseMeta(response, context) } : { action: \"decline\", content: null, _meta: elicitationResponseMeta(response, context) };\n    }",
+        "replace": "    if (CreateElicitationResponse2.isDecline(response)) {\n      return { action: \"decline\", content: null, _meta: elicitationResponseMeta(response, context) };\n    }",
         "count": 1
       }
     ]
