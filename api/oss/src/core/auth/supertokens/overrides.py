@@ -64,6 +64,7 @@ from oss.src.core.telemetry.service import (
     deployment_url,
     distinct_id_for,
 )
+from oss.src.utils.version import get_agenta_version
 from oss.src.core.webhooks.utils import resolve_validated_webhook_ip
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
 from oss.src.core.users.types import UserIdentityCreate
@@ -184,6 +185,7 @@ async def _create_account(email: str, uid: str) -> bool:
                 "source": "auth",
                 "is_ee": is_ee(),
                 "cloud_region": cloud_region(deployment_url()),
+                "agenta_version": get_agenta_version(),
             }
             # Self-hosted events carry no email and no instance URL.
             if env.stripe.enabled:

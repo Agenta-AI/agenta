@@ -161,7 +161,11 @@ from oss.src.apis.fastapi.sharing.router import SharingRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.apis.fastapi.telemetry.router import TelemetryRouter
-from oss.src.core.telemetry.service import log_telemetry_status, schedule_install_ping
+from oss.src.core.telemetry.service import (
+    log_telemetry_status,
+    schedule_install_ping,
+    schedule_startup_event,
+)
 from oss.src.core.annotations.service import AnnotationsService
 from oss.src.core.annotations.general_fields import AnnotationGeneralFieldsService
 from oss.src.core.invocations.service import InvocationsService
@@ -391,6 +395,7 @@ async def lifespan(*args, **kwargs):
 
     await log_telemetry_status()
     schedule_install_ping()
+    schedule_startup_event()
 
     await _triggers_broker.startup()
     await _channels_inbox_broker.startup()

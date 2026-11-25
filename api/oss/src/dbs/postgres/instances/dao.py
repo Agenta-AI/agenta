@@ -14,6 +14,14 @@ class InstancesDAO:
             result = await connection.execute(select(InstanceDBE.id).limit(1))
             return result.scalar_one_or_none()
 
+    async def fetch_postgres_version(self) -> Optional[str]:
+        """The server version without the build details, such as "16.4"."""
+
+        async with get_transactions_engine().transaction() as connection:
+            result = await connection.execute(text("SHOW server_version"))
+            version = result.scalar_one_or_none()
+            return version.split()[0] if version else None
+
     @asynccontextmanager
     async def lock_unsent_install_ping(self) -> AsyncIterator[Optional[UUID]]:
         """Yield the instance id while its row is locked, when the install ping is due.
