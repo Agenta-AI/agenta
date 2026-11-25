@@ -35,9 +35,10 @@ import {useRouter} from "next/router"
 import {fetchProjects} from "@/lib/context"
 
 import {groupByOrganization} from "../context/workspaceGroups"
-import {readLimitRefusal, type LimitRefusal} from "../limits/limitRefusal"
+import {readLimitRefusal} from "../limits/limitRefusal"
 import {LimitRefusalNotice} from "../limits/LimitRefusalNotice"
 import {OrganizationLimitNotice} from "../limits/OrganizationLimitNotice"
+import {useLimitRefusal} from "../limits/useLimitRefusal"
 
 import {ConfirmModal} from "./ConfirmModal"
 import {isAtLimit} from "./licenseApi"
@@ -79,23 +80,23 @@ export const OrganizationsTab = ({workspaceId, projectId}: SettingsTabProps) => 
     // The limit shows when the dialog opens, before the reader types a name.
     const usage = useLicenseUsage(projectId, creating)
     const organizationsAtLimit = isAtLimit(usage.data?.organizations)
+    const {refusal, refuse, clear: clearRefusal} = useLimitRefusal(usage, usage.data?.organizations)
     const [transferring, setTransferring] = useState<Org | null>(null)
     const [deleting, setDeleting] = useState<Org | null>(null)
     const [pending, setPending] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [refusal, setRefusal] = useState<LimitRefusal | null>(null)
 
     const run = async (action: () => Promise<unknown>, fallback: string) => {
         setPending(true)
         setError(null)
-        setRefusal(null)
+        clearRefusal()
         try {
             await action()
             onChanged()
             return true
         } catch (cause) {
             const limitRefusal = readLimitRefusal(cause)
-            if (limitRefusal) setRefusal(limitRefusal)
+            if (limitRefusal) refuse(limitRefusal)
             else setError(errorText(cause, fallback))
             return false
         } finally {
@@ -135,7 +136,7 @@ export const OrganizationsTab = ({workspaceId, projectId}: SettingsTabProps) => 
             }}
             onCreate={() => {
                 setError(null)
-                setRefusal(null)
+                clearRefusal()
                 setCreating(true)
             }}
             onRename={async (org, name) => {

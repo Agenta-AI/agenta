@@ -19,9 +19,10 @@ import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {useLogout} from "../auth/useLogout"
-import {readLimitRefusal, type LimitRefusal} from "../limits/limitRefusal"
+import {readLimitRefusal} from "../limits/limitRefusal"
 import {LimitRefusalNotice} from "../limits/LimitRefusalNotice"
 import {ProjectLimitNotice} from "../limits/ProjectLimitNotice"
+import {useLimitRefusal} from "../limits/useLimitRefusal"
 import {isAtLimit} from "../settings/licenseApi"
 import {switchSettingsContext} from "../settings/switchContext"
 import {invalidateLicenseUsage, useLicenseUsage} from "../settings/useLicenseUsage"
@@ -99,10 +100,10 @@ export const DrawerProjectSwitcher = ({
 
     const queryClient = useQueryClient()
     const [createOpen, setCreateOpen] = useState(false)
-    const [refusal, setRefusal] = useState<LimitRefusal | null>(null)
     // The limit shows when the sheet opens, before the reader types a name.
     const usage = useLicenseUsage(projectId, createOpen)
     const projectsAtLimit = isAtLimit(usage.data?.projects)
+    const {refusal, refuse, clear: clearRefusal} = useLimitRefusal(usage, usage.data?.projects)
     // Same shared mutation the desktop rail calls; the row it feeds is already in the shared
     // view, gated on `onCreateProject`, and was invisible here only because nothing passed it.
     const createProject = useMutation({
@@ -123,7 +124,7 @@ export const DrawerProjectSwitcher = ({
         onError: (error) => {
             const limitRefusal = readLimitRefusal(error)
             if (limitRefusal) {
-                setRefusal(limitRefusal)
+                refuse(limitRefusal)
                 return
             }
             const detail = (error as {response?: {data?: {detail?: unknown}}})?.response?.data
@@ -188,10 +189,10 @@ export const DrawerProjectSwitcher = ({
                 open={createOpen}
                 onOpenChange={(open) => {
                     setCreateOpen(open)
-                    setRefusal(null)
+                    clearRefusal()
                 }}
                 onSubmit={(name) => {
-                    setRefusal(null)
+                    clearRefusal()
                     createProject.mutate(name)
                 }}
                 isPending={createProject.isPending}
