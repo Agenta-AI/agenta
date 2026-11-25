@@ -1,7 +1,7 @@
 {
     "name": "名称",
     "nameHint": "使用小写字母、数字和连字符，例如 pr-review。",
-    "namePlaceholder": "Skill 名称",
+    "namePlaceholder": "为你的 Skill 命名，例如 周报",
     "nameMissing": "请为 Skill 命名。",
     "savedAs": "将保存为 {{name}}。",
     "description": "描述",

@@ -1,7 +1,7 @@
 {
     "name": "Name",
     "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche, zum Beispiel pr-review.",
-    "namePlaceholder": "Skill-Name",
+    "namePlaceholder": "Benenne deinen Skill, z. B. Wochenbericht",
     "nameMissing": "Gib dem Skill einen Namen.",
     "savedAs": "Wird als {{name}} gespeichert.",
     "description": "Beschreibung",

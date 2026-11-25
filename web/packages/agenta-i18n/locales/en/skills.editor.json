@@ -1,7 +1,7 @@
 {
     "name": "Name",
     "nameHint": "Lowercase letters, numbers and hyphens, for example pr-review.",
-    "namePlaceholder": "Skill name",
+    "namePlaceholder": "Name your skill, e.g. Weekly report",
     "nameMissing": "Give the skill a name.",
     "savedAs": "Saved as {{name}}.",
     "description": "Description",

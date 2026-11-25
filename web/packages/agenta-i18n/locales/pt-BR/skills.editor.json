@@ -1,7 +1,7 @@
 {
     "name": "Nome",
     "nameHint": "Letras minúsculas, números e hifens, por exemplo pr-review.",
-    "namePlaceholder": "Nome da habilidade",
+    "namePlaceholder": "Dê um nome à sua habilidade, ex.: Relatório semanal",
     "nameMissing": "Dê um nome à habilidade.",
     "savedAs": "Salvo como {{name}}.",
     "description": "Descrição",

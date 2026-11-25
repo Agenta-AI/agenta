@@ -1,7 +1,7 @@
 {
     "name": "Nombre",
     "nameHint": "Minúsculas, números y guiones, por ejemplo pr-review.",
-    "namePlaceholder": "Nombre de la skill",
+    "namePlaceholder": "Pon nombre a tu skill, p. ej. Informe semanal",
     "nameMissing": "Ponle un nombre a la skill.",
     "savedAs": "Se guarda como {{name}}.",
     "description": "Descripción",
