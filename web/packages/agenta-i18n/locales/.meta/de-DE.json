@@ -6786,16 +6786,10 @@
         "title": "fa67e4d0dae5"
     },
     "shell.limitRefusal": {
-        "askInstanceAdmin": "0136b9999f0f",
-        "openLicenseSettings": "61ab21edf36c",
         "organizationLimitInfo": "256c2d97ecf4",
-        "organizationLimit_one": "452379a807bc",
-        "organizationLimit_other": "4bbe2eb7e70c",
         "projectLimitAskAdmin": "5806edb456ea",
         "projectLimitCloud": "7eaffc233b85",
         "projectLimitRegister": "70adf0bc9557",
-        "projectLimit_one": "c87a547e283b",
-        "projectLimit_other": "ec38254bc9ce",
         "projectsUsage": "ca06317e9660",
         "register": "bb7234ec1245",
         "registerInstance": "a0ec4521215a",

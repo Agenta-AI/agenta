@@ -195,7 +195,7 @@ export const DrawerProjectSwitcher = ({
                     createProject.mutate(name)
                 }}
                 isPending={createProject.isPending}
-                submitDisabled={projectsAtLimit}
+                submitDisabled={projectsAtLimit || Boolean(refusal)}
                 notice={
                     projectsAtLimit && usage.data?.projects ? (
                         <ProjectLimitNotice usage={usage.data.projects} projectId={projectId} />

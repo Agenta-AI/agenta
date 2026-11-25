@@ -29,12 +29,7 @@ vi.mock("../../src/features/settings/useInstanceLicense", () => ({
     useInstanceLicense: () => ({isInstanceAdmin: fixture.isInstanceAdmin}),
 }))
 
-import {
-    limitNextStep,
-    limitRefusalText,
-    readLimitRefusal,
-    type LimitRefusal,
-} from "@/features/limits/limitRefusal"
+import {readLimitRefusal, type LimitRefusal} from "@/features/limits/limitRefusal"
 import {LimitRefusalNotice} from "@/features/limits/LimitRefusalNotice"
 
 import {routerPush} from "../support/nextRouter"
@@ -62,60 +57,6 @@ describe("readLimitRefusal", () => {
         expect(readLimitRefusal(apiError({code: "run_credential_required"}))).toBeNull()
         expect(readLimitRefusal(new Error("network"))).toBeNull()
         expect(readLimitRefusal(null)).toBeNull()
-    })
-})
-
-describe("limitRefusalText", () => {
-    it("asks the instance admin to register the instance on a self-hosted project refusal", () => {
-        expect(limitRefusalText(PROJECT, {cloud: false, isInstanceAdmin: true})).toBe(
-            "This organization has reached its limit of 1 project. Register this instance for free to create more projects.",
-        )
-    })
-
-    it("asks a member to ask the instance admin to register the instance", () => {
-        expect(limitRefusalText(PROJECT, {cloud: false, isInstanceAdmin: false})).toBe(
-            "This organization has reached its limit of 1 project. Ask your instance admin to register this instance for more projects.",
-        )
-    })
-
-    it("keeps the Hobby plan text on cloud", () => {
-        expect(limitRefusalText(PROJECT, {cloud: true, isInstanceAdmin: true})).toBe(
-            "The Hobby plan includes 1 project. Upgrade to Starter for unlimited projects.",
-        )
-    })
-
-    it("explains the instance organization limit", () => {
-        expect(limitRefusalText(ORGANIZATION, {cloud: false, isInstanceAdmin: true})).toBe(
-            "This instance allows 1 organization. Ask for an invitation to an existing organization, or add a paid license key.",
-        )
-    })
-
-    it("uses the plural form above one", () => {
-        expect(
-            limitRefusalText({...ORGANIZATION, limit: 3}, {cloud: false, isInstanceAdmin: true}),
-        ).toBe(
-            "This instance allows 3 organizations. Ask for an invitation to an existing organization, or add a paid license key.",
-        )
-        expect(
-            limitRefusalText({...PROJECT, limit: 3}, {cloud: false, isInstanceAdmin: true}),
-        ).toBe(
-            "This organization has reached its limit of 3 projects. Register this instance for free to create more projects.",
-        )
-    })
-})
-
-describe("limitNextStep", () => {
-    it("sends a cloud project refusal to Billing", () => {
-        expect(limitNextStep({refusal: PROJECT, cloud: true, isInstanceAdmin: false})).toBe(
-            "billing",
-        )
-    })
-
-    it("sends the instance admin to the License tab, and others to the admin", () => {
-        for (const refusal of [PROJECT, ORGANIZATION]) {
-            expect(limitNextStep({refusal, cloud: false, isInstanceAdmin: true})).toBe("license")
-            expect(limitNextStep({refusal, cloud: false, isInstanceAdmin: false})).toBe("askAdmin")
-        }
     })
 })
 
@@ -152,57 +93,65 @@ describe("LimitRefusalNotice", () => {
         )
         return onNavigate
     }
-    const button = () => container.querySelector("button")
-
-    it("asks the instance admin to register the instance, and opens the registration in place", () => {
-        fixture.isInstanceAdmin = true
-        const onNavigate = render(PROJECT)
-
-        expect(container.textContent).toContain(
-            "This organization has reached its limit of 1 project. Register this instance for free to create more projects.",
+    const button = (label: string) =>
+        Array.from(document.querySelectorAll<HTMLElement>("button, a")).find(
+            (node) => node.textContent?.trim() === label,
         )
-        expect(container.textContent).not.toContain("Ask your instance admin.")
-        expect(button()?.textContent).toBe("Register this instance")
-        act(() => button()?.click())
+
+    it("shows the instance admin the project limit notice of the open dialog", () => {
+        fixture.isInstanceAdmin = true
+        const onNavigate = render({...PROJECT, limit: 3})
+
+        expect(container.textContent).toContain("Projects in this organization")
+        expect(container.textContent).toContain("3 of 3")
+        expect(container.textContent).toContain(
+            "Register this instance for free to create more projects.",
+        )
+        act(() => button("Register this instance")!.click())
         expect(onNavigate).not.toHaveBeenCalled()
         expect(routerPush).not.toHaveBeenCalled()
         expect(document.body.textContent).toContain("Register to create more projects")
-        expect(document.body.textContent).toContain("Send me a free key")
-    })
-
-    it("keeps the License settings button at the organization limit", () => {
-        fixture.isInstanceAdmin = true
-        render(ORGANIZATION)
-
-        expect(button()?.textContent).toBe("Open License settings")
-        act(() => button()?.click())
-        expect(routerPush).toHaveBeenCalledWith("/w/ws-1/p/proj-1/settings?tab=license")
     })
 
     it("asks a member to ask the instance admin at the project limit, with no button", () => {
         render(PROJECT)
 
-        expect(container.textContent).toBe(
-            "This organization has reached its limit of 1 project. Ask your instance admin to register this instance for more projects.",
+        expect(container.textContent).toContain(
+            "Ask your instance admin to register this instance for more projects.",
         )
-        expect(button()).toBeNull()
+        expect(button("Register this instance")).toBeUndefined()
     })
 
-    it("tells a member to ask the instance admin, with no button", () => {
+    it("shows the organization limit notice of the open dialog", () => {
+        fixture.isInstanceAdmin = true
+        const onNavigate = render(ORGANIZATION)
+
+        expect(container.textContent).toContain("Organizations on this instance")
+        expect(container.textContent).toContain("1 of 1")
+        expect(container.textContent).toContain(
+            "A second organization needs an Enterprise license.",
+        )
+        act(() => button("Add a license key")!.click())
+        expect(onNavigate).toHaveBeenCalledOnce()
+        expect(routerPush).toHaveBeenCalledWith("/w/ws-1/p/proj-1/settings?tab=license")
+    })
+
+    it("offers a member only Talk to us at the organization limit", () => {
         render(ORGANIZATION)
 
-        expect(container.textContent).toContain(
-            "This instance allows 1 organization. Ask for an invitation to an existing organization, or add a paid license key. Ask your instance admin.",
-        )
-        expect(button()).toBeNull()
+        expect(button("Talk to us")).toBeDefined()
+        expect(button("Add a license key")).toBeUndefined()
     })
 
     it("keeps the upgrade path to Billing on cloud", () => {
         fixture.cloud = true
-        render(PROJECT)
+        const onNavigate = render(PROJECT)
 
-        expect(button()?.textContent).toBe("Upgrade plan")
-        act(() => button()?.click())
+        expect(container.textContent).toContain(
+            "The Hobby plan includes 1 project. Upgrade to Starter for unlimited projects.",
+        )
+        act(() => button("Upgrade plan")!.click())
+        expect(onNavigate).toHaveBeenCalledOnce()
         expect(routerPush).toHaveBeenCalledWith("/w/ws-1/p/proj-1/settings?tab=billing")
     })
 })

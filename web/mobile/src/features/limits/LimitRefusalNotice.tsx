@@ -1,17 +1,18 @@
-import {useState} from "react"
-
 import {useT} from "@agenta/i18n"
 import limitRefusalCatalog from "@agenta/i18n/catalogs/shell.limitRefusal"
 import {isBillingEnabled} from "@agenta/shared/api"
 import {Button} from "@agenta/ui/ui"
 import {useRouter} from "next/router"
 
-import {useInstanceLicense} from "../settings/useInstanceLicense"
+import type {LimitRefusal} from "./limitRefusal"
+import {OrganizationLimitNotice} from "./OrganizationLimitNotice"
+import {ProjectLimitNotice} from "./ProjectLimitNotice"
 
-import {limitNextStep, limitRefusalText, type LimitRefusal} from "./limitRefusal"
-import {RegistrationDialog} from "./RegistrationDialog"
-
-/** A project or organization refusal at the plan's limit, with the reader's next step. */
+/**
+ * A refusal at the plan's limit after submit. Self-hosted shows the same notice the dialog shows
+ * when it opens at the limit (a refusal means the count reached it); cloud offers the plan
+ * upgrade in Billing.
+ */
 export const LimitRefusalNotice = ({
     refusal,
     workspaceId,
@@ -21,49 +22,58 @@ export const LimitRefusalNotice = ({
     refusal: LimitRefusal
     workspaceId: string
     projectId: string
-    /** Called before the next step opens Settings, so a dialog can close. */
+    /** Called before a next step opens Settings, so a dialog can close. */
+    onNavigate?: () => void
+}) => {
+    const usage = {count: refusal.limit, limit: refusal.limit}
+    if (refusal.code === "instance_organization_limit_reached") {
+        return (
+            <OrganizationLimitNotice
+                usage={usage}
+                workspaceId={workspaceId}
+                projectId={projectId}
+                onNavigate={onNavigate}
+            />
+        )
+    }
+    if (!isBillingEnabled()) return <ProjectLimitNotice usage={usage} projectId={projectId} />
+    return (
+        <CloudProjectLimitNotice
+            workspaceId={workspaceId}
+            projectId={projectId}
+            onNavigate={onNavigate}
+        />
+    )
+}
+
+/** The cloud Hobby plan's project limit, with the upgrade in Billing. */
+const CloudProjectLimitNotice = ({
+    workspaceId,
+    projectId,
+    onNavigate,
+}: {
+    workspaceId: string
+    projectId: string
     onNavigate?: () => void
 }) => {
     const t = useT(limitRefusalCatalog)
     const router = useRouter()
-    const cloud = isBillingEnabled()
-    const {isInstanceAdmin} = useInstanceLicense(projectId)
-    const step = limitNextStep({refusal, cloud, isInstanceAdmin})
-    const [registering, setRegistering] = useState(false)
-    // At the project limit the instance admin registers in place, over the create dialog.
-    const registerInPlace = step === "license" && refusal.code === "project_limit_reached"
-    const openTab = (tab: "billing" | "license") => {
-        onNavigate?.()
-        void router.push(`/w/${workspaceId}/p/${projectId}/settings?tab=${tab}`)
-    }
 
     return (
         <div role="alert" className="flex flex-col items-start gap-2">
             <p className="text-destructive m-0 text-xs">
-                {limitRefusalText(refusal, {cloud, isInstanceAdmin})}
-                {step === "askAdmin" && refusal.code !== "project_limit_reached"
-                    ? ` ${t("shell.limitRefusal.askInstanceAdmin")}`
-                    : null}
+                {t("shell.limitRefusal.projectLimitCloud")}
             </p>
-            {step === "askAdmin" ? null : (
-                <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => (registerInPlace ? setRegistering(true) : openTab(step))}
-                >
-                    {step === "billing"
-                        ? t("shell.limitRefusal.upgradePlan")
-                        : refusal.code === "project_limit_reached"
-                          ? t("shell.limitRefusal.registerInstance")
-                          : t("shell.limitRefusal.openLicenseSettings")}
-                </Button>
-            )}
-            <RegistrationDialog
-                open={registering}
-                title={t("shell.limitRefusal.registerTitle")}
-                projectId={projectId}
-                onClose={() => setRegistering(false)}
-            />
+            <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                    onNavigate?.()
+                    void router.push(`/w/${workspaceId}/p/${projectId}/settings?tab=billing`)
+                }}
+            >
+                {t("shell.limitRefusal.upgradePlan")}
+            </Button>
         </div>
     )
 }

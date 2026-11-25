@@ -163,7 +163,7 @@ export const OrganizationsTab = ({workspaceId, projectId}: SettingsTabProps) => 
                 submitLabel={t("common.create")}
                 pending={pending}
                 error={error}
-                submitDisabled={organizationsAtLimit}
+                submitDisabled={organizationsAtLimit || Boolean(refusal)}
                 notice={
                     organizationsAtLimit && usage.data?.organizations ? (
                         <OrganizationLimitNotice
