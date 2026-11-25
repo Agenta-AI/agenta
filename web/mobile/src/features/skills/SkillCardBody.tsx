@@ -34,11 +34,9 @@ export const SkillCardBody = ({
         <>
             {/* The Mark on its own row, the menu at its right. */}
             <span className="flex min-w-0 items-center justify-between gap-2">
-                <span className={row.archived ? "opacity-60" : undefined}>
-                    <ListTableSelectMark>
-                        <SkillMark size={32} />
-                    </ListTableSelectMark>
-                </span>
+                <ListTableSelectMark dim={row.archived}>
+                    <SkillMark size={32} />
+                </ListTableSelectMark>
                 <span
                     className="flex shrink-0 items-center gap-1.5"
                     onClick={(event) => event.stopPropagation()}

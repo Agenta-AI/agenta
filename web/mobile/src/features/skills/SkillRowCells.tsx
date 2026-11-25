@@ -37,13 +37,16 @@ export const SkillRowCells = ({
     useT(skillsListCatalog)
     return (
         <>
-            <span className={`flex min-w-0 items-center gap-3 ${row.archived ? "opacity-60" : ""}`}>
-                <ListTableSelectMark>
+            <span className="flex min-w-0 items-center gap-3">
+                {/* An archived row dims its Mark and text; a check on the Mark keeps full strength. */}
+                <ListTableSelectMark dim={row.archived}>
                     <SkillMark size={32} />
                 </ListTableSelectMark>
                 {/* Tight leading and a hairline gap: the frame's own row padding is fixed and
                 shared, so the two lines are where a row can give height back. */}
-                <span className="flex min-w-0 flex-1 flex-col gap-px">
+                <span
+                    className={`flex min-w-0 flex-1 flex-col gap-px ${row.archived ? "opacity-60" : ""}`}
+                >
                     <span className="flex min-w-0 items-center gap-1.5">
                         <span
                             className="truncate text-body font-medium text-foreground"

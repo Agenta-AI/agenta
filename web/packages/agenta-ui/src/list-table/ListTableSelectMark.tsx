@@ -18,11 +18,19 @@ export const ListTableRowSelectContext = createContext<ListTableRowSelect | null
 
 /**
  * Wraps a row's or a card's Mark. Under `selection.markAsCheckbox` the Mark turns into a check on
- * hover and focus, while anything is selected, and always on touch; without it, the Mark as is.
+ * hover and focus and while anything is selected; on touch, a small check sits on its corner until
+ * then. Without it, the Mark as is. `dim` fades the Mark only (an archived row), never the check.
  */
-export const ListTableSelectMark = ({children}: {children: ReactNode}) => {
+export const ListTableSelectMark = ({
+    children,
+    dim = false,
+}: {
+    children: ReactNode
+    dim?: boolean
+}) => {
     const select = useContext(ListTableRowSelectContext)
-    if (!select) return <>{children}</>
+    const mark = dim ? <span className="inline-flex opacity-60">{children}</span> : children
+    if (!select) return <>{mark}</>
     const {checked, selecting, label, onToggle} = select
     const shown = checked || selecting
     return (
@@ -32,7 +40,7 @@ export const ListTableSelectMark = ({children}: {children: ReactNode}) => {
             onClick={(event) => event.stopPropagation()}
             onKeyDown={(event) => event.stopPropagation()}
         >
-            {children}
+            {mark}
             <input
                 type="checkbox"
                 checked={checked}
@@ -49,7 +57,7 @@ export const ListTableSelectMark = ({children}: {children: ReactNode}) => {
                     checked
                         ? "bg-foreground text-background opacity-100"
                         : cn(
-                              "bg-selected group-hover:opacity-100 pointer-coarse:opacity-100",
+                              "bg-selected pointer-fine:group-hover:opacity-100",
                               shown ? "opacity-100" : "opacity-0",
                           ),
                 )}
@@ -60,6 +68,13 @@ export const ListTableSelectMark = ({children}: {children: ReactNode}) => {
                     <span className="box-border size-control-check rounded-control-check border border-solid border-border-strong bg-background" />
                 )}
             </span>
+            {/* Touch has no hover: the Mark stays, with a small check on its corner. */}
+            {shown ? null : (
+                <span
+                    aria-hidden
+                    className="pointer-events-none absolute -bottom-1 -right-1 hidden size-3.5 rounded-control-check border border-solid border-border-strong bg-background pointer-coarse:block"
+                />
+            )}
         </span>
     )
 }
