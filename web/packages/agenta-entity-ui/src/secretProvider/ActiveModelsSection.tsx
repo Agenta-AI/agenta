@@ -164,7 +164,7 @@ const ActiveModelsSection = ({
                     <button
                         type="button"
                         onClick={addTerm}
-                        className="flex shrink-0 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 py-2 text-left text-field-sm text-foreground hover:bg-accent"
+                        className="flex shrink-0 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 py-2 text-left text-field-sm text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent"
                     >
                         <Plus size={14} className="shrink-0 text-muted-foreground" />
                         <span className="min-w-0 truncate">
@@ -189,7 +189,7 @@ const ActiveModelsSection = ({
                         {visible.map((option) => (
                             <label
                                 key={option.id}
-                                className="flex cursor-pointer items-center gap-2.5 rounded px-2 py-2 hover:bg-accent"
+                                className="flex cursor-pointer items-center gap-2.5 rounded px-2 py-2 transition-colors duration-[var(--duration-fast)] hover:bg-accent"
                             >
                                 <Checkbox
                                     disabled={readOnly}

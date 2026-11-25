@@ -81,7 +81,7 @@ export function CatalogListRow({
             // Borderless; the -mx/px pair keeps the logo on the search field's edge while the
             // hover fill reaches past it.
             // One hover fill (SURF-05) and the control radius (SHAPE-01).
-            className={`group/row -mx-2 rounded-md px-2 py-2 outline-none transition-colors focus-ring ${
+            className={`group/row -mx-2 rounded-md px-2 py-2 outline-none transition-colors duration-[var(--duration-fast)] focus-ring ${
                 highlighted ? "bg-secondary" : ""
             } ${onClick ? "cursor-pointer hover:bg-accent" : ""} ${className ?? ""}`}
         >

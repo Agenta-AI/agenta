@@ -103,7 +103,7 @@ export function AccountSwitch<Value extends string>({
                     className={cn(
                         "pointer-events-none absolute left-0 rounded-md border border-solid border-border bg-background",
                         ready &&
-                            "transition-[transform,width,height] duration-200 ease-[cubic-bezier(0.645,0.045,0.355,1)]",
+                            "transition-[transform,width,height] duration-[var(--duration-base)] ease-[var(--ease-in-out)]",
                     )}
                     style={{
                         transform: `translateX(${thumb.left}px)`,
@@ -130,7 +130,7 @@ export function AccountSwitch<Value extends string>({
                             if (!selected) onChange(choice.value)
                         }}
                         className={cn(
-                            "flex min-w-0 flex-1 cursor-pointer flex-col items-start gap-0.5 rounded-md border border-solid px-2.5 py-2 text-left font-[inherit] outline-none transition-colors",
+                            "flex min-w-0 flex-1 cursor-pointer flex-col items-start gap-0.5 rounded-md border border-solid px-2.5 py-2 text-left font-[inherit] outline-none transition-colors duration-[var(--duration-fast)]",
                             "focus-ring",
                             "disabled:cursor-not-allowed disabled:opacity-60",
                             // The thumb draws the selected box; the choice stays clear above it.

@@ -89,7 +89,7 @@ const HarnessesSection = ({
                 <CaretRight
                     size={12}
                     className={cn(
-                        "text-muted-foreground transition-transform",
+                        "text-muted-foreground transition-transform duration-[var(--duration-fast)]",
                         expanded && "rotate-90",
                     )}
                 />
@@ -104,7 +104,7 @@ const HarnessesSection = ({
                     sectionRef.current?.scrollIntoView({behavior: "smooth", block: "nearest"})
                 }}
                 className={cn(
-                    "grid transition-[grid-template-rows,opacity] duration-200 ease-out",
+                    "grid transition-[grid-template-rows,opacity] duration-[var(--duration-base)] ease-[var(--ease-out)]",
                     expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
                 )}
             >
@@ -121,7 +121,7 @@ const HarnessesSection = ({
                                 <label
                                     key={choice.id}
                                     className={cn(
-                                        "box-border flex min-w-0 flex-col gap-1 rounded-lg border border-solid p-3 transition-colors",
+                                        "box-border flex min-w-0 flex-col gap-1 rounded-lg border border-solid p-3 transition-colors duration-[var(--duration-fast)]",
                                         checked ? "border-primary bg-primary/5" : "border-border",
                                         choice.supported
                                             ? "cursor-pointer hover:border-primary"
