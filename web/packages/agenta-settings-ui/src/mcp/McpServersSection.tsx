@@ -413,7 +413,7 @@ export default function McpServersSection({
             empty={
                 narrowed ? (
                     <SettingsEmpty
-                        plain
+                        compact
                         icon={getSettingsSidebarIcon("mcpEndpoints")}
                         title={t("settings.shared.noMatchTitle")}
                         description={t("settings.shared.noMatchBody")}
@@ -431,6 +431,7 @@ export default function McpServersSection({
                     />
                 ) : (
                     <SettingsEmpty
+                        compact
                         icon={getSettingsSidebarIcon("mcpEndpoints")}
                         title={copy.emptyTitle}
                         description={copy.emptyBody}

@@ -455,7 +455,7 @@ export const ProvidersPanel = ({
                 loading={loading}
                 empty={
                     <SettingsEmpty
-                        plain
+                        compact
                         icon={<MagnifyingGlass size={18} />}
                         title={t("settings.shared.noMatchTitle")}
                         description={t("settings.shared.noMatchBody")}

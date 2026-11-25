@@ -217,7 +217,7 @@ export const NamedSecretTable = ({
               : null
     const empty = term ? (
         <SettingsEmpty
-            plain
+            compact
             icon={getSettingsSidebarIcon("secrets")}
             title={t("settings.shared.noMatchTitle")}
             description={t("settings.shared.noMatchBody")}
@@ -229,6 +229,7 @@ export const NamedSecretTable = ({
         />
     ) : (
         <SettingsEmpty
+            compact
                 icon={getSettingsSidebarIcon("secrets")}
                 title={tabEmpty?.title ?? t("settings.secrets.emptyTitle")}
                 description={tabEmpty?.body ?? t("settings.secrets.emptyDescription")}

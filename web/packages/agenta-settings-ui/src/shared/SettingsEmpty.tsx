@@ -38,6 +38,7 @@ export const SettingsEmpty = ({
     action,
     secondary,
     plain = false,
+    compact = false,
 }: {
     icon?: ReactNode
     title: ReactNode
@@ -47,7 +48,36 @@ export const SettingsEmpty = ({
     secondary?: ReactNode
     /** A plain icon instead of the ghost rows, for no-match and locked states. */
     plain?: boolean
-}) => (
+    /** One quiet row instead of the block: the connection pages' lists. */
+    compact?: boolean
+}) =>
+    compact ? (
+        <div
+            data-slot="empty"
+            className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-dashed border-border px-3 py-2.5"
+        >
+            {icon ? (
+                <span
+                    aria-hidden
+                    className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground [&_svg]:size-4"
+                >
+                    {icon}
+                </span>
+            ) : null}
+            <div className="flex min-w-0 flex-1 basis-56 flex-col">
+                <span className="text-label font-medium text-foreground">{title}</span>
+                {description ? (
+                    <span className="text-meta text-muted-foreground">{description}</span>
+                ) : null}
+            </div>
+            {action || secondary ? (
+                <div className="flex shrink-0 items-center gap-2">
+                    {action}
+                    {secondary}
+                </div>
+            ) : null}
+        </div>
+    ) : (
     <Empty
         className={
             plain
