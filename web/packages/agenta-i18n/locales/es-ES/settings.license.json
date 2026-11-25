@@ -55,7 +55,7 @@
     "registrationSending": "Enviando…",
     "registrationSent": "Revisa tu bandeja de entrada. Enviamos una clave a {{email}}.",
     "registrationSubmit": "Enviarme una clave gratuita",
-    "registrationUnreachable": "No pudimos conectar con Agenta. Inténtalo de nuevo más tarde.",
+    "registrationNotSent": "No pudimos enviar tu clave. Inténtalo de nuevo más tarde.",
     "replaceKey": "Sustituir la clave",
     "seatCount_many": "{{count}} puestos",
     "seatCount_one": "{{count}} puesto",

@@ -54,7 +54,7 @@
     "registrationSending": "Sending…",
     "registrationSent": "Check your inbox. We sent a key to {{email}}.",
     "registrationSubmit": "Send me a free key",
-    "registrationUnreachable": "We could not reach Agenta. Try again later.",
+    "registrationNotSent": "We could not send your key. Try again later.",
     "replaceKey": "Replace key",
     "seatCount_one": "{{count}} seat",
     "seatCount_other": "{{count}} seats",

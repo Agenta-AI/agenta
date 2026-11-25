@@ -2,10 +2,8 @@ import {useState} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
 import {Dialog, DialogContent, DialogTitle} from "@agenta/ui/ui"
-import {useQueryClient} from "@tanstack/react-query"
 
-import {dismissRegistrationPrompt, type InstanceLicense} from "../settings/licenseApi"
-import {instanceLicenseQueryKey} from "../settings/useInstanceLicense"
+import {useDismissRegistrationOffer} from "../settings/useInstanceLicense"
 
 import {isOnboardingPending} from "./onboardingPending"
 import {RegistrationOffer} from "./RegistrationOffer"
@@ -15,19 +13,16 @@ import {RegistrationOffer} from "./RegistrationOffer"
  * dismissal on the instance, so it does not come back in another browser. Escape and a click
  * outside do nothing: the step asks for one of the two answers.
  */
-export const RegistrationPrompt = ({projectId}: {projectId: string}) => {
+export const RegistrationOfferDialog = ({projectId}: {projectId: string}) => {
     const {user} = useProfile()
-    const queryClient = useQueryClient()
+    const dismiss = useDismissRegistrationOffer(projectId)
     const [closed, setClosed] = useState(false)
     // A new account answers it in onboarding instead.
     const pending = user?.id ? isOnboardingPending(user.id) : true
 
     const close = () => {
         setClosed(true)
-        queryClient.setQueryData<InstanceLicense>(instanceLicenseQueryKey(projectId), (data) =>
-            data ? {...data, registration_prompt_dismissed: true} : data,
-        )
-        void dismissRegistrationPrompt(projectId).catch(() => undefined)
+        dismiss()
     }
 
     return (

@@ -8,7 +8,12 @@ import {useMutation, useQueryClient} from "@tanstack/react-query"
 
 import {AddLicenseKeyDialog} from "./AddLicenseKeyDialog"
 import {ConfirmModal} from "./ConfirmModal"
-import {activateInstanceLicense, isInvalidLicenseKey, isOtherInstanceKey} from "./licenseApi"
+import {
+    activateInstanceLicense,
+    isInvalidLicenseKey,
+    isOtherInstanceKey,
+    REGISTERED_PLAN,
+} from "./licenseApi"
 import {LicenseSummary} from "./LicenseSummary"
 import {RegistrationForm} from "./RegistrationForm"
 import {RegistrationGains} from "./RegistrationGains"
@@ -29,7 +34,6 @@ const errorMessage = (error: unknown) =>
           ? tNow("settings.license.invalidKey")
           : tNow("settings.license.addFailed")
 
-const REGISTERED_PLAN = "self_hosted_registered"
 
 /**
  * The instance license, for the instance admin: the plan with its usage, then one next step.

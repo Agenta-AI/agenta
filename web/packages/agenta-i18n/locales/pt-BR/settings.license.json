@@ -55,7 +55,7 @@
     "registrationSending": "Enviando…",
     "registrationSent": "Confira sua caixa de entrada. Enviamos uma chave para {{email}}.",
     "registrationSubmit": "Enviar uma chave gratuita para mim",
-    "registrationUnreachable": "Não foi possível conectar à Agenta. Tente novamente mais tarde.",
+    "registrationNotSent": "Não foi possível enviar sua chave. Tente novamente mais tarde.",
     "replaceKey": "Substituir a chave",
     "seatCount_many": "{{count}} assentos",
     "seatCount_one": "{{count}} assento",

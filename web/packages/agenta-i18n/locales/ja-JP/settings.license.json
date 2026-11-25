@@ -53,7 +53,7 @@
     "registrationSending": "送信中…",
     "registrationSent": "受信トレイを確認してください。{{email}} にキーを送信しました。",
     "registrationSubmit": "無料キーを送ってもらう",
-    "registrationUnreachable": "Agenta に接続できませんでした。しばらくしてからもう一度お試しください。",
+    "registrationNotSent": "キーを送信できませんでした。しばらくしてからもう一度お試しください。",
     "replaceKey": "キーを置き換える",
     "seatCount_other": "{{count}} シート",
     "seats": "シート",

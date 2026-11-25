@@ -1,4 +1,4 @@
-"""The registration prompt an instance admin sees once after an upgrade.
+"""The registration offer an instance admin sees once after an upgrade.
 
 Skipping it is stored per instance, in the `meta` of the oldest organization (the one
 whose owner is the instance admin), so it stays skipped in every browser. There is no
@@ -12,7 +12,7 @@ from sqlalchemy import select
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.models.db_models import OrganizationDB
 
-DISMISSED_AT = "registration_prompt_dismissed_at"
+DISMISSED_AT = "registration_offer_dismissed_at"
 
 
 def _oldest_organization():
@@ -27,7 +27,7 @@ def _oldest_organization():
     )
 
 
-async def is_registration_prompt_dismissed() -> bool:
+async def is_registration_offer_dismissed() -> bool:
     async with get_transactions_engine().session() as session:
         organization = (
             await session.execute(_oldest_organization())
@@ -35,7 +35,7 @@ async def is_registration_prompt_dismissed() -> bool:
         return bool(organization and (organization.meta or {}).get(DISMISSED_AT))
 
 
-async def dismiss_registration_prompt() -> None:
+async def dismiss_registration_offer() -> None:
     async with get_transactions_engine().session() as session:
         organization = (
             await session.execute(_oldest_organization().with_for_update())
