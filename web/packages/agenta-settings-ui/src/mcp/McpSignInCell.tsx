@@ -1,7 +1,4 @@
-/**
- * MCPs → a person's own sign-in to a project server. The server stays the project's; the sign-in
- * only says whose account the agent runs as, so it is a status on the row, not an owner.
- */
+/** A person's own sign-in to a project server: whose account runs it, a status, never an owner. */
 import type {MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"

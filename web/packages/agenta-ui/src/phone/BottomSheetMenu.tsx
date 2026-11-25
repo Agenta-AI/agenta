@@ -29,6 +29,8 @@ export interface BottomSheetMenuProps {
     items: BottomSheetMenuItem[]
     /** The control that opens the menu; it gets the focus back when the menu closes. */
     trigger?: ReactNode
+    /** Radix's close-focus hook, for an entry that moves the focus after the sheet closes. */
+    onCloseAutoFocus?: (event: Event) => void
 }
 
 /**
@@ -45,6 +47,7 @@ export const BottomSheetMenu = ({
     showTitle = true,
     items,
     trigger,
+    onCloseAutoFocus,
 }: BottomSheetMenuProps) => {
     return (
         <BottomSheet
@@ -53,6 +56,7 @@ export const BottomSheetMenu = ({
             title={title}
             showTitle={showTitle}
             trigger={trigger}
+            onCloseAutoFocus={onCloseAutoFocus}
             data-testid="bottom-sheet-menu"
         >
             <div role="menu" aria-label={title} className="flex flex-col px-2">

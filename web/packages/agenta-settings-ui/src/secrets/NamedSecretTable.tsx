@@ -64,11 +64,7 @@ const maskContent = (record: NamedSecretRow): string => {
 }
 
 export interface NamedSecretTableProps {
-    /**
-     * Create/edit secret dialog — the host's. A person's own secret arrives with
-     * `ownerKind: "user"`, which the save keeps. `owners` is what a new secret may be, the
-     * default first (the Owner filter's owner, else the narrowest).
-     */
+    /** The host's create/edit dialog; `owners` lists a new secret's owners, the default first. */
     renderConfigureDialog?: (state: {
         selectedSecret: NamedSecretRow | null
         open: boolean
@@ -288,7 +284,11 @@ export const NamedSecretTable = ({
                     rowKey={(record) => record.key}
                     minWidth={0}
                     onOpenRow={openSecret}
-                    loading={(loading || (personal && personalQuery.isPending)) && !narrowed}
+                    loading={
+                        groups.every((group) => group.rows.length === 0) &&
+                        !narrowed &&
+                        (loading || (personal && personalQuery.isPending))
+                    }
                     showGroupCount
                     empty={empty}
                     renderRow={(record) => (

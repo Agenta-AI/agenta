@@ -149,10 +149,7 @@ export interface IntegrationCatalogProps {
      * the catalog asks and runs it.
      */
     confirmConnectionAction?: (action: ConnectionAction, connection: ToolConnection) => void
-    /**
-     * A host that draws its own toolbar (Settings) holds the search, the category and the owner;
-     * the catalog then draws no search or category control of its own.
-     */
+    /** Filters held by a host that draws its own toolbar (Settings); the catalog draws none. */
     controls?: IntegrationCatalogControls
 }
 

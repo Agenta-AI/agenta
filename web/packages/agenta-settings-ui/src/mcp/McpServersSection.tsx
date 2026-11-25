@@ -477,12 +477,22 @@ export default function McpServersSection({
                                 // One glyph for every server; the tile color follows the name.
                                 mark={<McpServerMark size={32} name={record.name || record.slug} />}
                                 title={record.name || record.slug || ""}
+                                // A phone's meta line: a broken server first, then the sign-in.
                                 meta={
-                                    personal && !shows("signin") && asksForSignIn(record)
-                                        ? isSignedIn(record)
-                                            ? t("settings.mcp.signedInAsYou")
-                                            : t("settings.mcp.notSignedIn")
-                                        : (record.data.route.base_url ?? undefined)
+                                    !personal || shows("signin")
+                                        ? (record.data.route.base_url ?? undefined)
+                                        : status !== "connected"
+                                          ? getMcpConnectionStatusLabel(status)
+                                          : asksForSignIn(record)
+                                            ? isSignedIn(record)
+                                                ? t("settings.mcp.signedInAsYou")
+                                                : t("settings.mcp.notSignedIn")
+                                            : (record.data.route.base_url ?? undefined)
+                                }
+                                metaTone={
+                                    !personal || shows("signin") || status === "connected"
+                                        ? "muted"
+                                        : "danger"
                                 }
                             />
                         )}

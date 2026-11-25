@@ -27,10 +27,7 @@ export const PAGE_OWNERS = {
 /** The Owner filter's value: every owner, or one. */
 export type OwnerFilter = "all" | OwnerKind
 
-/**
- * The allowed owners with the add form's default first: the filtered owner when the filter names
- * an allowed one, else the narrowest. The form shows them narrow to wide whatever the order.
- */
+/** The allowed owners, the add form's default first: the filtered owner, else the narrowest. */
 export const ownersWithDefault = <Owner extends OwnerKind>(
     allowed: readonly Owner[],
     filter: OwnerFilter = "all",

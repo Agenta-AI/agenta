@@ -28,6 +28,8 @@ export interface BottomSheetProps {
     hideClose?: boolean
     /** Leaves the focus off the first field on open, so a phone keyboard stays down. */
     keepKeyboardClosed?: boolean
+    /** Radix's close-focus hook: a caller that moves the focus itself prevents the default. */
+    onCloseAutoFocus?: (event: Event) => void
     "data-testid"?: string
     children: ReactNode
 }
@@ -45,6 +47,7 @@ export const BottomSheet = ({
     hideClose = false,
     keepKeyboardClosed = false,
     trigger,
+    onCloseAutoFocus,
     "data-testid": testId = "bottom-sheet",
     children,
 }: BottomSheetProps) => {
@@ -59,6 +62,7 @@ export const BottomSheet = ({
                 // The content names itself; there is no description to point at.
                 aria-describedby={undefined}
                 onOpenAutoFocus={keepKeyboardClosed ? (event) => event.preventDefault() : undefined}
+                onCloseAutoFocus={onCloseAutoFocus}
             >
                 <div
                     aria-hidden

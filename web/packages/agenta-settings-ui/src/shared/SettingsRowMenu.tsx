@@ -61,6 +61,13 @@ export const SettingsRowMenu = ({items, label}: {items: SettingsRowMenuItem[]; l
                     onOpenChange={setSheetOpen}
                     title={menuLabel}
                     showTitle={false}
+                    onCloseAutoFocus={(event) => {
+                        const deferred = deferredRef.current
+                        deferredRef.current = null
+                        if (!deferred) return
+                        event.preventDefault()
+                        deferred()
+                    }}
                     trigger={
                         <Button
                             type="button"
@@ -78,11 +85,28 @@ export const SettingsRowMenu = ({items, label}: {items: SettingsRowMenuItem[]; l
                             : [
                                   {
                                       key: item.key,
-                                      label: item.label,
+                                      label:
+                                          item.checked === undefined ? (
+                                              item.label
+                                          ) : (
+                                              <span className="inline-flex items-center gap-2">
+                                                  {item.label}
+                                                  <Switch
+                                                      size="sm"
+                                                      checked={item.checked}
+                                                      tabIndex={-1}
+                                                      aria-hidden
+                                                      className="pointer-events-none"
+                                                  />
+                                              </span>
+                                          ),
                                       icon: item.icon,
                                       disabled: item.disabled,
                                       destructive: item.danger,
-                                      onSelect: item.onClick,
+                                      onSelect: () => {
+                                          if (item.deferred) deferredRef.current = item.onClick
+                                          else item.onClick()
+                                      },
                                   },
                               ],
                     )}
