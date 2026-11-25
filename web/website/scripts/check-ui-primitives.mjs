@@ -62,10 +62,7 @@ const rules = [
   {
     name: "button gradient drawn by hand (use <Button> / .ag-btn)",
     re: /var\(--grad-btn-(primary|dark)\)|var\(--th-btn-ghost-bg\)/,
-    allow: [
-      "styles/global.css",
-      "styles/theme.css",
-    ],
+    allow: ["styles/global.css", "styles/theme.css"],
   },
 ];
 

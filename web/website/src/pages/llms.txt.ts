@@ -27,13 +27,19 @@ const quoted = TAGLINE.split("\n")
 
 // Templates grouped by catalog category, generated so the list never goes stale.
 const byCategory = new Map<string, typeof templates>();
-for (const t of templates) byCategory.set(t.category, [...(byCategory.get(t.category) ?? []), t]);
+for (const t of templates)
+  byCategory.set(t.category, [...(byCategory.get(t.category) ?? []), t]);
 const templateList = [...byCategory.entries()]
   .sort((a, b) => b[1].length - a[1].length)
   .map(
     ([category, list]) =>
       `### ${category}\n\n` +
-      list.map((t) => `- [${t.name}](${SITE_URL}/marketplace/${t.key}): ${t.summary}`).join("\n"),
+      list
+        .map(
+          (t) =>
+            `- [${t.name}](${SITE_URL}/marketplace/${t.key}): ${t.summary}`,
+        )
+        .join("\n"),
   )
   .join("\n\n");
 

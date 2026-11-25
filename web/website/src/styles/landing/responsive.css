@@ -38,23 +38,7 @@
   }
 }
 
-/* Smaller screens: the hero's sidebar is a collapsed icon rail. */
-@media (max-width: 1100px) {
-  html body .lp .r3 .r3-aw.r3-aw-full {
-    grid-template-columns: 52px minmax(0, 1fr) !important;
-  }
-}
 
-/* ── tablet ──────────────────────────────────────────────────── */
-@media (max-width: 1167px) {
-  /* The design hides the hero demo below 1167px; keep it, full width. */
-  html body .lp .r3 .r3-ag-hero .r3-ag-app-frame:not([hidden]) {
-    display: block !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    box-sizing: border-box;
-  }
-}
 
 @media (max-width: 1100px) {
   html body .lp .sx-site .tplx .lp-grid {
@@ -115,17 +99,6 @@
   html body .lp .r3 .r3-ag-hero {
     padding-left: 16px !important;
     padding-right: 16px !important;
-  }
-  html body .lp .r3 .r3-ag-hero .r3-ag-app-frame {
-    height: 560px !important;
-  }
-  html body .lp .r3 .r3-ap-thread {
-    padding-left: 16px !important;
-    padding-right: 16px !important;
-  }
-  html body .lp .r3 .r3-ap-comp {
-    margin-left: 12px !important;
-    margin-right: 12px !important;
   }
 
   /* No sticky stage on phones; the beats loop instead. */

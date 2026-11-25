@@ -1,0 +1,124 @@
+/* The tour hero (components/hero-app/HeroTour.jsx): dashes, side arrows, copy below the app. */
+.hxt {
+  width: min(1120px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  margin-top: 24px;
+}
+.hxt-dashes {
+  display: flex;
+  gap: 8px;
+}
+.hxt-dashes button {
+  width: 24px;
+  height: 3px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: var(--lp-line-strong);
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    width 0.2s;
+}
+.hxt-dashes button:hover {
+  background: var(--lp-dim);
+}
+.hxt-dashes button.on {
+  width: 40px;
+  background: var(--lp-text);
+}
+.hxt-dashes button:focus-visible,
+.hxt-arrow:focus-visible {
+  outline: 2px solid var(--lp-text);
+  outline-offset: 3px;
+}
+.hxt-stage {
+  position: relative;
+  width: 100%;
+}
+.hxt-stage .hx-frame {
+  margin-top: 0;
+}
+.hxt-arrow {
+  position: absolute;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  margin-top: -20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--lp-body);
+  cursor: pointer;
+}
+.hxt-arrow:hover {
+  background: var(--lp-surface-3);
+  color: var(--lp-text);
+}
+.hxt-arrow.prev {
+  left: -64px;
+}
+.hxt-arrow.next {
+  right: -64px;
+}
+.hxt-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 560px;
+  text-align: center;
+  min-height: 72px;
+}
+.hxt-copy p {
+  margin: 0;
+}
+.hxt-title {
+  font:
+    500 18px/26px "Inter",
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  color: var(--lp-text);
+}
+.hxt-text {
+  font:
+    400 15px/22px "Inter",
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  color: var(--lp-body);
+  text-wrap: pretty;
+}
+
+/* Without room beside the app, the arrows sit on the copy row. */
+@media (max-width: 1279px) {
+  .hxt-stage {
+    position: static;
+  }
+  .hxt {
+    position: relative;
+  }
+  .hxt-arrow {
+    top: auto;
+    bottom: 16px;
+    margin-top: 0;
+  }
+  .hxt-arrow.prev {
+    left: 0;
+  }
+  .hxt-arrow.next {
+    right: 0;
+  }
+  .hxt-copy {
+    padding: 0 48px;
+  }
+}

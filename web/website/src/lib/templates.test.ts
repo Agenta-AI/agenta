@@ -35,7 +35,10 @@ describe("website template data", () => {
 
 describe("Use it for free", () => {
   it("links every landing and nav template to a key the catalog loads", () => {
-    const keys = [...SHOWCASE_KEYS, ...NAV_TEMPLATE_PICKS.flatMap((g) => g.keys)];
+    const keys = [
+      ...SHOWCASE_KEYS,
+      ...NAV_TEMPLATE_PICKS.flatMap((g) => g.keys),
+    ];
     for (const key of keys) {
       expect(templateByKey(key), key).toBeDefined();
     }
