@@ -118,6 +118,28 @@ describe("RightPane", () => {
         expect((screen.getByLabelText("draft") as HTMLInputElement).value).toBe("half a question")
     })
 
+    it("docked, takes the focus when it opens, unless focusOnOpen is false", () => {
+        const Page = ({focusOnOpen}: {focusOnOpen?: boolean}) => (
+            <RightPaneHost>
+                {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+                <input aria-label="name" autoFocus />
+                <RightPane
+                    open
+                    onOpenChange={() => undefined}
+                    title="Files"
+                    focusOnOpen={focusOnOpen}
+                >
+                    files
+                </RightPane>
+            </RightPaneHost>
+        )
+        render(<Page />)
+        expect(document.activeElement?.tagName).toBe("ASIDE")
+        cleanup()
+        render(<Page focusOnOpen={false} />)
+        expect(document.activeElement).toBe(screen.getByLabelText("name"))
+    })
+
     it("resizes from the keyboard within 320 and 560px", () => {
         render(
             <RightPaneHost>

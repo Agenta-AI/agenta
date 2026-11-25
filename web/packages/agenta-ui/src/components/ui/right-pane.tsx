@@ -286,10 +286,21 @@ export interface RightPaneProps {
     title: React.ReactNode
     /** Mounted while the pane is open, and through its closing slide. */
     children: React.ReactNode
+    /**
+     * Docked, move focus into the pane when it opens (default). `false` for a pane that opens
+     * with its page, so the page's own first field keeps the focus.
+     */
+    focusOnOpen?: boolean
 }
 
 /** Fills the right pane from anywhere under the host. Renders nothing while closed. */
-export function RightPane({open, onOpenChange, title, children}: RightPaneProps) {
+export function RightPane({
+    open,
+    onOpenChange,
+    title,
+    children,
+    focusOnOpen = true,
+}: RightPaneProps) {
     const host = React.useContext(RightPaneContext)
     const id = React.useId()
     const titleId = React.useId()
@@ -336,8 +347,11 @@ export function RightPane({open, onOpenChange, title, children}: RightPaneProps)
     const asideRef = React.useRef<HTMLElement>(null)
     const returnFocus = React.useRef<HTMLElement | null>(null)
     const dockedOpen = open && dockedShown
+    const focusOnOpenRef = React.useRef(focusOnOpen)
+    focusOnOpenRef.current = focusOnOpen
     React.useEffect(() => {
         if (dockedOpen) {
+            if (!focusOnOpenRef.current) return
             returnFocus.current = document.activeElement as HTMLElement | null
             asideRef.current?.focus({preventScroll: true})
             return

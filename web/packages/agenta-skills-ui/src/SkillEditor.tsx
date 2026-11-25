@@ -8,16 +8,7 @@ import {SKILL_DESCRIPTION_MAX, type SkillFile} from "@agenta/skills"
 import {MarkdownPreview} from "@agenta/ui"
 import {useIsExpandedWindow} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
-import {
-    Button,
-    Field,
-    IconTile,
-    Input,
-    RightPane,
-    Segmented,
-    Switch,
-    Textarea,
-} from "@agenta/ui/ui"
+import {Button, Field, IconTile, Input, RightPane, Segmented, Switch, Textarea} from "@agenta/ui/ui"
 import {CaretRight, Files, FileText, X} from "@phosphor-icons/react"
 
 import {
@@ -279,7 +270,12 @@ export function SkillEditor({
                     )}
                 </div>
                 {view === "write" && !readOnly ? (
-                    <div className={cn(EDITOR_FRAME, missingBody && "[&_.md-prose]:outline-destructive")}>
+                    <div
+                        className={cn(
+                            EDITOR_FRAME,
+                            missingBody && "[&_.md-prose]:outline-destructive",
+                        )}
+                    >
                         <MarkdownEditor
                             value={draft.body}
                             onChange={(body) => set({body})}
@@ -295,7 +291,9 @@ export function SkillEditor({
                     </div>
                 ) : (
                     <p className="m-0 rounded-lg border border-dashed border-border px-4 py-6 text-center text-label text-muted-foreground">
-                        {readOnly ? t("skills.editor.nothingWritten") : t("skills.editor.nothingYet")}
+                        {readOnly
+                            ? t("skills.editor.nothingWritten")
+                            : t("skills.editor.nothingYet")}
                     </p>
                 )}
                 {missingBody ? (
@@ -372,7 +370,13 @@ export function SkillEditor({
             {notices}
             {filesRow}
             {fileView ?? skillView}
-            <RightPane open={filesOpen} onOpenChange={setFilesOpen} title={filesTitle}>
+            {/* The docked pane opens with the page; the Name field keeps the focus. */}
+            <RightPane
+                open={filesOpen}
+                onOpenChange={setFilesOpen}
+                title={filesTitle}
+                focusOnOpen={false}
+            >
                 {filesPanel}
             </RightPane>
         </div>
