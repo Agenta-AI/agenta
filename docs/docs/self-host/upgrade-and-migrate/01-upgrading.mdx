@@ -28,7 +28,7 @@ On an open source database, the first start adds tables and rows, and this canno
 
 Pull the new images and restart, as in the [standard upgrade](#standard-upgrade-process) or the [Helm chart upgrade](#helm-chart-upgrade). Keep your compose files, Helm values and Railway template as they are. You do not change images, env files or databases.
 
-Do not change `AGENTA_LICENSE`. It now only picks the default database names (`agenta_oss_*` or `agenta_ee_*`). A different value points the install at other, empty databases.
+Do not change `AGENTA_LICENSE`. It picks the default database names (`agenta_oss_*` or `agenta_ee_*`), not the plan. A different value points the install at other, empty databases.
 
 ### What the first start does on an open source database
 
@@ -62,10 +62,6 @@ Without a key, the instance runs on the Community plan. Projects and organizatio
 - An instance that has 1 organization or more cannot get another one. A person who signs up gets no organization and joins one by invitation. A paid key removes this limit.
 
 See [Upgrade an open source instance](/self-host/license-keys#upgrade-an-open-source-instance) for the full list.
-
-### Enterprise: provider keys in the services environment
-
-Provider keys such as `OPENAI_API_KEY` that you set on the services container are now used by default on every install, when a project has no key of its own for that provider. Before, the Enterprise images ignored them unless `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` was `true`. To keep them off, set `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=false` on the services container. See [llm (provider API keys)](/self-host/configuration#llm-provider-api-keys).
 
 ### Enterprise: images
 

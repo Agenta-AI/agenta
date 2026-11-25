@@ -25,7 +25,7 @@ On the first start, the migration job adds the Enterprise tables to your open so
 If your instance runs a version older than v0.104.0, upgrade it to the latest 0.129.x release first. The migration job of v0.130.1 stops on an older database before it changes anything.
 
 :::warning Do not change `AGENTA_LICENSE`
-`AGENTA_LICENSE` now only picks the default database names. Setting it to `ee` on an open source install points the install at other, empty databases (`agenta_ee_*`), and it looks as if its data is gone. Keep the value you have.
+`AGENTA_LICENSE` picks the default database names, not the plan. Setting it to `ee` on an open source install points the install at other, empty databases (`agenta_ee_*`), and it looks as if its data is gone. Keep the value you have.
 :::
 
 ## What changes without a key

@@ -47,7 +47,8 @@ This key has no env-var or `env.py` equivalent.
 
 `AGENTA_LICENSE` picks the default database names: `oss` (the default) gives `agenta_oss_core`,
 `agenta_oss_tracing` and `agenta_oss_supertokens`, and `ee` gives `agenta_ee_*`. The web
-container also reads it for the classic web app. It does not decide the plan or the
+container also reads it for the classic web app, and the services container reads it for
+[provider keys from the environment](#llm-provider-api-keys). It does not decide the plan or the
 features: a [license key](#license) does. `POSTGRES_DB_PREFIX` and the `POSTGRES_URI_*` variables
 override the names it picks. See [postgres](#postgres).
 
@@ -1421,7 +1422,7 @@ allows 1 project per organization and 1 organization per instance. No data is de
 expires. See [Limits by plan](/self-host/license-keys#limits-by-plan). `AGENTA_ACCESS_DEFAULT_PLAN`, `AGENTA_ACCESS_PLANS` and
 `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` cannot turn on enterprise features without a key.
 
-Do not confuse it with [`AGENTA_LICENSE`](#agenta-core), which only picks the default database names.
+Do not confuse it with [`AGENTA_LICENSE`](#agenta-core), which picks the default database names.
 
 The Helm chart has no value for it. Set it on the `api`, `worker-queues` and `worker-streams`
 containers with `api.extraEnv`, `workerQueues.extraEnv` and `workerStreams.extraEnv`.
@@ -1447,8 +1448,8 @@ containers with `api.extraEnv`, `workerQueues.extraEnv` and `workerStreams.extra
 
 A prompt or an evaluator runs on the provider keys saved in its project. The keys above, set on
 the services container, are used only when a project has no key of its own for that provider,
-and only when `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` allows it. It defaults to `true` on every
-install. Set it to `false` on the services container when projects must not use these keys. With it off, a project without a saved key gets the
+and only when `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` allows it. It defaults to `true` when
+`AGENTA_LICENSE` is `oss` or unset, and to `false` when it is `ee`. With it off, a project without a saved key gets the
 error "No API key found for model". A custom provider always uses its own key and never one of
 these.
 
