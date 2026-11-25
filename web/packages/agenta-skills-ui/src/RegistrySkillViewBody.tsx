@@ -14,7 +14,6 @@ import {
     firstBadFile,
     SKILL_ACTION_ROW,
     SkillFormSkeleton,
-    SkillFormView,
     SkillViewHeader,
     useSkillViewForm,
     skillFilesOf,
@@ -65,6 +64,8 @@ import Link from "next/link"
 import {useRouter} from "next/router"
 
 import {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
+import {toSkillContent, toSkillDraft, type SkillDraft} from "./skillDraft"
+import {SkillEditor} from "./SkillEditor"
 import {skillTitle} from "./skillTitle"
 import {useRegistrySkill} from "./useRegistrySkill"
 import type {SkillListItem, SkillUsageRef} from "./types"
@@ -83,16 +84,15 @@ const skillsPageHref = (slug: string): string | null => {
     return project ? `${project}/skills?skill=${encodeURIComponent(slug)}` : null
 }
 
-const toFormValue = (skill?: Record<string, unknown>): Record<string, unknown> => ({
-    name: skill?.name ?? "",
-    description: skill?.description ?? "",
-    body: skill?.body ?? "",
-    files: Array.isArray(skill?.files) ? skill.files : [],
-    ...(skill?.disable_model_invocation != null
-        ? {disable_model_invocation: skill.disable_model_invocation}
-        : {}),
-    ...(skill?.allow_executable_files != null
-        ? {allow_executable_files: skill.allow_executable_files}
+/** The editor's draft back as the form value, the name kept as typed. */
+const fromDraft = (draft: SkillDraft): Record<string, unknown> => ({
+    name: draft.name,
+    description: draft.description,
+    body: draft.body,
+    files: draft.files,
+    allow_executable_files: draft.allowExecutable,
+    ...(draft.disableModelInvocation != null
+        ? {disable_model_invocation: draft.disableModelInvocation}
         : {}),
 })
 
@@ -212,26 +212,27 @@ const RegistrySkillEditor = ({
     const [draft, setDraft] = useState<Record<string, unknown> | null>(null)
     const [editBaseId, setEditBaseId] = useState<string | null>(null)
     if (head && draft === null) {
-        setDraft(toFormValue(head.skill))
+        setDraft(fromDraft(toSkillDraft(head.skill)))
         setEditBaseId(head.id)
     }
-    const headValue = useMemo(() => toFormValue(head?.skill), [head])
+    const headValue = useMemo(() => fromDraft(toSkillDraft(head?.skill)), [head])
     // Read only shows the saved skill, never a draft typed before the view turned read only.
     const value = readOnly ? headValue : (draft ?? headValue)
     const dirty = !readOnly && draft !== null && JSON.stringify(draft) !== JSON.stringify(headValue)
     const valid =
         !readOnly &&
-        skillContentSchema.safeParse(value).success &&
+        skillContentSchema.safeParse(toSkillContent(toSkillDraft(value))).success &&
         firstBadFile(skillFilesOf(value)) === undefined
     const [error, setError] = useState<string | null>(null)
 
-    const {onUploadControl} = useSkillViewForm(
+    useSkillViewForm(
         {
             dirty,
             valid,
             leaveDescription: t("entityUi.skillView.registryLeaveDescription"),
             save: async () => {
-                const parsed = skillContentSchema.safeParse(value)
+                // The stored name is the typed name's slug, as the skill page saves it.
+                const parsed = skillContentSchema.safeParse(toSkillContent(toSkillDraft(value)))
                 if (!parsed.success || !editBaseId) return false
                 setError(null)
                 try {
@@ -292,6 +293,8 @@ const RegistrySkillEditor = ({
         [onLeave, projectId, t, workflowId],
     )
 
+    // The header's slot for the editor's Files toggle.
+    const [filesSlot, setFilesSlot] = useState<HTMLDivElement | null>(null)
     // Flyouts render inside the view, so a modal drawer around it keeps their lists scrollable.
     const [editorRoot, setEditorRoot] = useState<HTMLDivElement | null>(null)
     // "Add to agent" opens the agent picker as a flyout, on hover as the filter menu rows do.
@@ -426,6 +429,8 @@ const RegistrySkillEditor = ({
     return (
         <div ref={setEditorRoot} className="flex min-h-0 flex-1 flex-col">
             <SkillViewHeader
+                compact
+                end={<div ref={setFilesSlot} className="flex empty:hidden" />}
                 name={skillTitle(skill)}
                 status={status}
                 extra={
@@ -478,16 +483,18 @@ const RegistrySkillEditor = ({
                 ) : revisionsQuery.isError || !head ? (
                     <LoadFailed onRetry={() => void revisionsQuery.refetch()} />
                 ) : (
-                    <SkillFormView
-                        value={value}
-                        onChange={readOnly ? () => undefined : setDraft}
-                        baseline={headValue}
-                        downloadable
-                        disabled={readOnly}
-                        valuesAsText={viewReadOnly}
-                        onUploadControl={onUploadControl}
-                        showMissing={dirty && !valid}
-                    />
+                    // The same editor as the skill page, with Files beside or over the fields.
+                    <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
+                        <SkillEditor
+                            draft={toSkillDraft(value)}
+                            onChange={(next) => setDraft(fromDraft(next))}
+                            readOnly={readOnly}
+                            showName
+                            showMissing={dirty && !valid}
+                            filesPlacement="inline"
+                            filesToggleSlot={filesSlot}
+                        />
+                    </div>
                 )}
             </div>
 

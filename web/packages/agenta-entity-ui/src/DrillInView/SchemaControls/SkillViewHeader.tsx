@@ -65,6 +65,10 @@ export interface SkillViewHeaderProps {
     /** The open state of the menu, for a host whose rows open a flyout. */
     menuOpen?: boolean
     onMenuOpenChange?: (open: boolean) => void
+    /** One small row: the status, `end`, then the menu. For a host that already names the skill. */
+    compact?: boolean
+    /** Controls before the menu in a compact header (the Files toggle). */
+    end?: ReactNode
 }
 
 export function SkillViewHeader({
@@ -77,6 +81,8 @@ export function SkillViewHeader({
     error,
     menuOpen,
     onMenuOpenChange,
+    compact = false,
+    end,
 }: SkillViewHeaderProps) {
     const t = useT(skillsGalleryCatalog)
     const [ownOpen, setOwnOpen] = useState(false)
@@ -85,6 +91,66 @@ export function SkillViewHeader({
     const hasMenu = actions.length > 0 || Boolean(menuTop)
     // The menu renders inside the header, so a modal drawer around it keeps it scrollable.
     const [headerRoot, setHeaderRoot] = useState<HTMLDivElement | null>(null)
+    const menu = hasMenu ? (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    variant="ghost"
+                    size="icon-compact"
+                    aria-label={t("skills.gallery.skillActions")}
+                    disabled={busy}
+                    className="shrink-0"
+                >
+                    <DotsThree aria-hidden weight="bold" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent
+                align="end"
+                sideOffset={6}
+                container={headerRoot}
+                className="flex w-[220px] flex-col p-1"
+            >
+                {menuTop}
+                {actions.map((action, index) => (
+                    <Fragment key={action.key}>
+                        {/* A line before the first danger action (F07 f10: before Archive). */}
+                        {action.danger && index > 0 && !actions[index - 1].danger ? (
+                            <span
+                                role="separator"
+                                className="mx-1 my-1 h-px shrink-0 bg-border-muted"
+                            />
+                        ) : null}
+                        <button
+                            type="button"
+                            disabled={action.disabled}
+                            onClick={() => {
+                                setOpen(false)
+                                action.onSelect()
+                            }}
+                            className={action.danger ? SKILL_DANGER_ROW : SKILL_ACTION_ROW}
+                        >
+                            {action.icon}
+                            <span className="flex-1">{action.label}</span>
+                        </button>
+                    </Fragment>
+                ))}
+            </PopoverContent>
+        </Popover>
+    ) : null
+    if (compact)
+        return (
+            <div ref={setHeaderRoot} className="flex shrink-0 flex-col gap-1 px-4 py-2">
+                <div className="flex min-h-control-sm min-w-0 items-center gap-1">
+                    <span className="min-w-0 flex-1 truncate text-meta text-muted-foreground">
+                        {status}
+                    </span>
+                    {extra}
+                    {end}
+                    {menu}
+                </div>
+                {error ? <span className="text-meta text-destructive">{error}</span> : null}
+            </div>
+        )
     return (
         <div ref={setHeaderRoot} className="flex shrink-0 flex-col gap-1 px-4 py-3">
             <div className="flex min-w-0 items-center gap-2">
@@ -103,54 +169,7 @@ export function SkillViewHeader({
                         <span className="text-meta text-muted-foreground">{status}</span>
                     ) : null}
                 </div>
-                {hasMenu ? (
-                    <Popover open={open} onOpenChange={setOpen}>
-                        <PopoverTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon-compact"
-                                aria-label={t("skills.gallery.skillActions")}
-                                disabled={busy}
-                                className="shrink-0"
-                            >
-                                <DotsThree aria-hidden weight="bold" />
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                            align="end"
-                            sideOffset={6}
-                            container={headerRoot}
-                            className="flex w-[220px] flex-col p-1"
-                        >
-                            {menuTop}
-                            {actions.map((action, index) => (
-                                <Fragment key={action.key}>
-                                    {/* A line before the first danger action (F07 f10: before Archive). */}
-                                    {action.danger && index > 0 && !actions[index - 1].danger ? (
-                                        <span
-                                            role="separator"
-                                            className="mx-1 my-1 h-px shrink-0 bg-border-muted"
-                                        />
-                                    ) : null}
-                                    <button
-                                        type="button"
-                                        disabled={action.disabled}
-                                        onClick={() => {
-                                            setOpen(false)
-                                            action.onSelect()
-                                        }}
-                                        className={
-                                            action.danger ? SKILL_DANGER_ROW : SKILL_ACTION_ROW
-                                        }
-                                    >
-                                        {action.icon}
-                                        <span className="flex-1">{action.label}</span>
-                                    </button>
-                                </Fragment>
-                            ))}
-                        </PopoverContent>
-                    </Popover>
-                ) : null}
+                {menu}
             </div>
             {error ? <span className="text-meta text-destructive">{error}</span> : null}
         </div>

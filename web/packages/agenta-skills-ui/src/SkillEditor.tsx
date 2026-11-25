@@ -85,7 +85,7 @@ export function SkillEditor({
     const expanded = useIsExpandedWindow() && !inline
     // From a medium window up, the page header's toggle opens Files; a phone keeps the Files row.
     const compact = useWindowMatch(COMPACT_WINDOW_QUERY)
-    const headerToggle = !inline && !compact && filesToggleSlot !== undefined
+    const headerToggle = filesToggleSlot !== undefined && (inline || !compact)
     const [filesOpen, setFilesOpen] = useState(expanded)
     // Docked beside the editor on a wide window; a drill-in a tap away on a narrow one.
     useEffect(() => setFilesOpen(expanded), [expanded])
@@ -169,7 +169,7 @@ export function SkillEditor({
                       <Button
                           type="button"
                           variant="ghost"
-                          size="icon"
+                          size={inline ? "icon-compact" : "icon"}
                           aria-label={t("skills.editor.files")}
                           aria-pressed={filesOpen}
                           className={filesOpen ? "bg-selected" : undefined}
@@ -330,6 +330,7 @@ export function SkillEditor({
         // One Files panel: a column at 672px and wider; below, it takes the fields' place while open.
         return (
             <div className="@container min-w-0">
+                {filesToggle}
                 <div className="flex min-w-0 gap-6">
                     <div
                         className={cn(
@@ -343,8 +344,16 @@ export function SkillEditor({
                     </div>
                     <aside
                         className={cn(
-                            "ag-view-enter min-w-0 flex-col gap-3 @2xl:flex @2xl:w-64 @2xl:shrink-0",
-                            filesOpen ? "flex flex-1" : "hidden",
+                            "ag-view-enter min-w-0 flex-col gap-3",
+                            // With a header toggle, Files shows only while it is on, at any width.
+                            headerToggle
+                                ? filesOpen
+                                    ? "flex flex-1 @2xl:w-64 @2xl:flex-none @2xl:shrink-0"
+                                    : "hidden"
+                                : cn(
+                                      "@2xl:flex @2xl:w-64 @2xl:shrink-0",
+                                      filesOpen ? "flex flex-1" : "hidden",
+                                  ),
                         )}
                     >
                         <div className="flex min-h-8 items-center gap-2 text-label font-medium text-foreground">
