@@ -10,6 +10,7 @@
     "creditsDescription": "Was Ihre Organisation noch hat, wohin es ging und wie Sie mehr hinzufügen.",
     "integrationsDescription": "Verbinden Sie die Integrationen, die Ihre Agents nutzen können.",
     "integrationsDocs": "Mehr über Integrationen erfahren",
+    "licenseDescription": "Lizenz und Tarif dieser Instanz, für jede Organisation darauf.",
     "llmsDescription": "Verbinden Sie die KI-Anbieter, auf denen Ihre Agents, Prompts und Evaluierungen laufen.",
     "llmsDocs": "Mehr über KI-Anbieter erfahren",
     "mcpEndpointsDescription": "Mit diesem Projekt verbundene MCP-Server. Jeder Agent wählt, welche davon er nutzt und was er ausführen darf.",
