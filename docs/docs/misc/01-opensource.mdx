@@ -16,7 +16,7 @@ This page lists what each plan gives.
 A self-hosted instance is on one of three plans:
 
 - **No key**: the Community plan.
-- **Free key**: the Registered plan, from the [free registration key](/self-host/license-keys#get-a-free-registration-key).
+- **Free key**: the Registered plan, from the [free registration key](/self-host/license-keys#get-a-free-registration-key). The free key works only on the instance that registered for it.
 - **Paid key**: the Enterprise plan, from a key you buy.
 
 | | No key | Free key | Paid key | Agenta Cloud |
@@ -41,7 +41,7 @@ The limits refuse only a new project or a new organization. Projects and organiz
 - **Projects**: without a key, each organization can have 1 project. The free key and a paid key remove this limit.
 - **Organizations**: without a paid key, the instance can have 1 organization. The first person who signs up gets it. After that, a person who signs up gets no organization of their own and joins an existing one by invitation. See [Restrict sign-ups and organization creation](/self-host/guides/restrict-organization-creation#one-organization-without-a-paid-key).
 
-When someone reaches a limit, the app tells them. The [instance admin](/self-host/license-keys#in-the-app) (the person who manages the instance license) gets a button that opens **Settings > License**. Other people are told to ask their instance admin.
+The app shows the limit when someone opens the dialog to create a project or an organization. At the project limit, the [instance admin](/self-host/license-keys#in-the-app) (the person who manages the instance license) gets **Register this instance**, which asks for the free key in place. Other people are told to ask their instance admin to register the instance. At the organization limit, the app names a paid key or an invitation to an existing organization, because the free key does not remove that limit.
 
 An expired key, or a key that is not valid, puts the instance on the Community plan, with its limits.
 
@@ -65,18 +65,18 @@ The audit log records who did what across the organization, with a screen and an
 
 ### Telemetry and update notices
 
-A self-hosted instance sends usage data to Agenta, with no content, names or email addresses. You can turn it off with `AGENTA_TELEMETRY_ENABLED=false`. An instance with a paid key keeps telemetry on unless your contract exempts it. The free key does not change the switch. The Telemetry page in the self-hosting docs lists what is sent.
+A self-hosted instance sends usage data to Agenta, with no content, names or email addresses. You can turn it off with `AGENTA_TELEMETRY_ENABLED=false`. Registering links your instance to your email in our analytics. Instances that do not register stay anonymous. An instance with a paid key keeps telemetry on unless your contract exempts it. The free key does not change the switch. The Telemetry page in the self-hosting docs lists what is sent.
 
 A self-hosted instance also shows when a newer release is available, and warns organization owners and admins when a newer release fixes a security issue. `AGENTA_UPDATE_CHECK_ENABLED=false` turns this off.
 
 ## Get a key
 
-- **Free key**: the instance admin opens **Settings > License** and selects **Get a free key**. See [Get a free registration key](/self-host/license-keys#get-a-free-registration-key).
+- **Free key**: the instance admin registers the instance in the step after the onboarding questions, or opens **Settings > License** and selects **Send me a free key**. The box for security and product updates is optional. See [Get a free registration key](/self-host/license-keys#get-a-free-registration-key).
 - **Paid key**: [talk to us](https://agenta.ai/contact).
 
-To add a key, the instance admin pastes it under **Settings > License**, or you set `AGENTA_LICENSE_KEY`. See [Add a license key](/self-host/license-keys#add-a-license-key). You do not change images or databases to move from one plan to another.
+To add a key, the instance admin selects **Add a license key** under **Settings > License**, or you set `AGENTA_LICENSE_KEY`. See [Add a license key](/self-host/license-keys#add-a-license-key). You do not change images or databases to move from one plan to another.
 
-If your instance runs a version older than v0.130.1, [upgrade it](/self-host/upgrading#upgrading-to-0130-1) first. To use the hosted service, [create an account](https://app.agenta.ai).
+If your instance runs a version older than v0.131.1, [upgrade it](/self-host/upgrading#upgrading-to-0131-1) first. To use the hosted service, [create an account](https://app.agenta.ai).
 
 ## Licensing
 

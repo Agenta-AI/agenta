@@ -2,14 +2,14 @@
 title: Move from Open Source to the Enterprise Plan
 slug: /self-host/upgrades/oss-to-ee-switch
 sidebar_label: Open source to Enterprise
-description: 'How to move a self-hosted Agenta instance that runs the open source images to the Enterprise plan: upgrade to v0.130.1 or later by pulling the new images and restarting, then add a license key.'
+description: 'How to move a self-hosted Agenta instance that runs the open source images to the Enterprise plan: upgrade to v0.131.1 or later by pulling the new images and restarting, then add a license key.'
 ---
 
-From v0.130.1, open source and Enterprise installs run the same images. There is no switch of images or databases. A [license key](/self-host/license-keys) decides the plan.
+From v0.131.1, open source and Enterprise installs run the same images. There is no switch of images or databases. A [license key](/self-host/license-keys) decides the plan.
 
-## If your instance runs v0.130.1 or later
+## If your instance runs v0.131.1 or later
 
-Add a license key. The instance admin pastes it under **Settings > License**, or you set `AGENTA_LICENSE_KEY` and restart the `api`, `worker-queues` and `worker-streams` containers. See [Add a license key](/self-host/license-keys#add-a-license-key).
+Add a license key. The instance admin selects **Add a license key** under **Settings > License** and pastes it, or you set `AGENTA_LICENSE_KEY` and restart the `api`, `worker-queues` and `worker-streams` containers. See [Add a license key](/self-host/license-keys#add-a-license-key).
 
 - The [free key](/self-host/license-keys#get-a-free-registration-key) removes the limit of 1 project per organization.
 - A paid key turns on the enterprise features and removes the limit of 1 organization per instance. To get one, [talk to us](https://agenta.ai/contact).
@@ -17,12 +17,12 @@ Add a license key. The instance admin pastes it under **Settings > License**, or
 ## If your instance runs an older version
 
 1. Take a dump of your core and tracing databases.
-2. Pull the new images and restart, with your existing compose files, Helm values or Railway template. See [Upgrading to 0.130.1](/self-host/upgrading#upgrading-to-0130-1).
+2. Pull the new images and restart, with your existing compose files, Helm values or Railway template. See [Upgrading to 0.131.1](/self-host/upgrading#upgrading-to-0131-1).
 3. Add a license key, as above.
 
 On the first start, the migration job adds the Enterprise tables to your open source database and keeps every member's access to their projects. You do not run any migration or membership command yourself.
 
-If your instance runs a version older than v0.104.0, upgrade it to the latest 0.129.x release first. The migration job of v0.130.1 stops on an older database before it changes anything.
+If your instance runs a version older than v0.104.0, upgrade it to the latest 0.129.x release first. The migration job of v0.131.1 stops on an older database before it changes anything.
 
 :::warning Do not change `AGENTA_LICENSE`
 `AGENTA_LICENSE` picks the default database names, not the plan. Setting it to `ee` on an open source install points the install at other, empty databases (`agenta_ee_*`), and it looks as if its data is gone. Keep the value you have.

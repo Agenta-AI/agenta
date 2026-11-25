@@ -22,7 +22,7 @@ Use one of these two ways. A key in `AGENTA_LICENSE_KEY` takes priority over a k
 
 1. Sign in as the instance admin.
 2. Open **Settings > License**.
-3. Paste the key in **License key** and select **Add key**.
+3. Select **Add a license key**, paste the key in **License key**, and select **Add key**.
 
 The new plan applies to every organization on the instance. The **License** tab is visible only to the instance admin. The instance admin is a user whose email is in `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS`. When that list is unset, it is the owner of the oldest organization.
 
@@ -112,9 +112,9 @@ Everything else works, with no limit on users. SSO login that you configure with
 
 ## Upgrade an open source instance
 
-Before v0.130.1, the open source images did not read license keys and had no limits. From v0.130.1, every install runs the same images. When you upgrade an instance that ran the open source images and you do not add a key:
+Before v0.131.1, the open source images did not read license keys and had no limits. From v0.131.1, every install runs the same images. When you upgrade an instance that ran the open source images and you do not add a key:
 
-- The first start migrates the database to the full schema. Every member keeps access to the projects they could open before. See [Upgrading to 0.130.1](/self-host/upgrading#upgrading-to-0130-1) for the steps.
+- The first start migrates the database to the full schema. Every member keeps access to the projects they could open before. See [Upgrading to 0.131.1](/self-host/upgrading#upgrading-to-0131-1) for the steps.
 - The instance runs on the Community plan. All existing projects and organizations stay.
 - An organization that has 1 project or more cannot create another project. Add the free key to remove this limit.
 - An instance that has 1 organization or more cannot get another organization. A person who signs up gets no organization and joins by invitation. Add a paid key to remove this limit.
@@ -122,7 +122,7 @@ Before v0.130.1, the open source images did not read license keys and had no lim
 
 ## Upgrade an existing Enterprise instance
 
-Before v0.130.1, an instance that ran the Enterprise images without a key gave every organization the enterprise plan. After the upgrade, an instance without a key runs on the Community plan. If you upgrade such an instance and do not add a key:
+Before v0.131.1, an instance that ran the Enterprise images without a key gave every organization the enterprise plan. After the upgrade, an instance without a key runs on the Community plan. If you upgrade such an instance and do not add a key:
 
 - Every organization moves to the Community plan. Adding a key later turns the enterprise features back on.
 - The [limits](#limits-by-plan) apply to new projects and organizations. Existing ones stay.
