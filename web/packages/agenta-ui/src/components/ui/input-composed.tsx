@@ -5,6 +5,7 @@ import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {Eye, EyeSlash, MagnifyingGlass, XCircle} from "@phosphor-icons/react"
 
 import {type InputProps, Textarea, type TextareaProps, inputVariants} from "./input"
+import {SimpleTooltip} from "./tooltip-composed"
 import {cn} from "./utils"
 
 /**
@@ -149,15 +150,19 @@ export function PasswordInput(props: InputAffixProps) {
             data-slot="password-input"
             type={show ? "text" : "password"}
             suffix={
-                <button
-                    type="button"
-                    tabIndex={-1}
-                    onClick={() => setShow((s) => !s)}
-                    aria-label={show ? t("ui.controls.hideValue") : t("ui.controls.showValue")}
-                    className="flex items-center border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground"
+                <SimpleTooltip
+                    title={show ? t("ui.controls.hideValue") : t("ui.controls.showValue")}
                 >
-                    {show ? <EyeSlash size={14} /> : <Eye size={14} />}
-                </button>
+                    <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={() => setShow((s) => !s)}
+                        aria-label={show ? t("ui.controls.hideValue") : t("ui.controls.showValue")}
+                        className="flex items-center border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground"
+                    >
+                        {show ? <EyeSlash size={14} /> : <Eye size={14} />}
+                    </button>
+                </SimpleTooltip>
             }
             {...props}
         />

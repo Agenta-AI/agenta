@@ -10,6 +10,7 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
+    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {ArrowClockwise, DotsThreeVertical, Trash, XCircle} from "@phosphor-icons/react"
 
@@ -36,19 +37,21 @@ export function ConnectionRowMenu({
     const t = useT(integrationDrawerCatalog)
     return (
         <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label={t("entityUi.integrationDrawer.connectionActions")}
-                    // Shown on row hover where there is hover; always on touch. The row already
-                    // hovers to accent; the translucent accent stacks on it.
-                    className={`hover:bg-accent focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[state=open]:opacity-100 [@media(hover:hover)]:opacity-0`}
-                >
-                    <DotsThreeVertical aria-hidden weight="bold" />
-                </Button>
-            </DropdownMenuTrigger>
+            <SimpleTooltip title={t("entityUi.integrationDrawer.connectionActions")}>
+                <DropdownMenuTrigger asChild>
+                    <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={t("entityUi.integrationDrawer.connectionActions")}
+                        // Shown on row hover where there is hover; always on touch. The row already
+                        // hovers to accent; the translucent accent stacks on it.
+                        className={`hover:bg-accent focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[state=open]:opacity-100 [@media(hover:hover)]:opacity-0`}
+                    >
+                        <DotsThreeVertical aria-hidden weight="bold" />
+                    </Button>
+                </DropdownMenuTrigger>
+            </SimpleTooltip>
             <DropdownMenuContent align="end" className="min-w-[160px]">
                 {items.map((item) => (
                     <DropdownMenuItem key={item.key} onSelect={item.onSelect}>

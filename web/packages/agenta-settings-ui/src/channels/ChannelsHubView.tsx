@@ -3,7 +3,11 @@ import {useState} from "react"
 import {useT} from "@agenta/i18n"
 import channelsHubCatalog from "@agenta/i18n/catalogs/channels.hub"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {Button, SkeletonBlock} from "@agenta/ui/ui"
+import {
+    Button,
+    SimpleTooltip,
+    SkeletonBlock,
+} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, CaretUp, ChatCircleText, Code, Plus} from "@phosphor-icons/react"
 
 import {ChannelsHubDiagram, type ChannelsHubDiagramTarget} from "./ChannelsHubDiagram"
@@ -212,30 +216,38 @@ export const ChannelsHubView = ({
                                         {mine.length ? t("common.add") : t("common.connect")}
                                     </Button>
                                 )}
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    disabled={unavailable}
-                                    aria-label={
+                                <SimpleTooltip title={
                                         canExpand
                                             ? open
                                                 ? t("common.collapse")
                                                 : t("common.expand")
                                             : t("common.open")
-                                    }
-                                    onClick={toggle}
-                                    className={`rounded-md text-muted-foreground ${open ? "bg-muted" : ""}`}
-                                >
-                                    {canExpand ? (
-                                        open ? (
-                                            <CaretUp />
+                                    }>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        disabled={unavailable}
+                                        aria-label={
+                                            canExpand
+                                                ? open
+                                                    ? t("common.collapse")
+                                                    : t("common.expand")
+                                                : t("common.open")
+                                        }
+                                        onClick={toggle}
+                                        className={`rounded-md text-muted-foreground ${open ? "bg-muted" : ""}`}
+                                    >
+                                        {canExpand ? (
+                                            open ? (
+                                                <CaretUp />
+                                            ) : (
+                                                <CaretDown />
+                                            )
                                         ) : (
-                                            <CaretDown />
-                                        )
-                                    ) : (
-                                        <CaretRight />
-                                    )}
-                                </Button>
+                                            <CaretRight />
+                                        )}
+                                    </Button>
+                                </SimpleTooltip>
                             </div>
                             {open ? (
                                 <div className="border-0 border-t border-solid border-border px-1.5 pb-1.5 pt-1">

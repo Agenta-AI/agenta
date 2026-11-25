@@ -43,6 +43,7 @@ import {
     SheetFooter,
     SheetHeader,
     SheetTitle,
+    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {ArrowLeft, ArrowSquareOut, WarningCircle} from "@phosphor-icons/react"
 
@@ -257,14 +258,17 @@ const ProviderDrawer = ({
     const showSubscriptionRows = isPlayground && showSubscriptions
 
     const backButton = (
-        <button
-            type="button"
-            aria-label={t("entityUi.providerDrawer.backToCatalog")}
-            onClick={goBack}
-            className="flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 text-foreground"
-        >
-            <ArrowLeft size={16} />
-        </button>
+        <SimpleTooltip title={t("entityUi.providerDrawer.backToCatalog")}>
+            <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("entityUi.providerDrawer.backToCatalog")}
+                onClick={goBack}
+                className="shrink-0"
+            >
+                <ArrowLeft size={16} />
+            </Button>
+        </SimpleTooltip>
     )
 
     /**

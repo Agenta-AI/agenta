@@ -422,15 +422,17 @@ export function SecretForm({controller, textOnly = false, popupZIndex, nameHelp}
                                             ))}
                                         </SelectContent>
                                     </Select>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        aria-label={t("entityUi.secretForm.removeField")}
-                                        disabled={kvRows.length === 1}
-                                        onClick={() => removeRow(idx)}
-                                    >
-                                        <Trash />
-                                    </Button>
+                                    <SimpleTooltip title={t("entityUi.secretForm.removeField")}>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            aria-label={t("entityUi.secretForm.removeField")}
+                                            disabled={kvRows.length === 1}
+                                            onClick={() => removeRow(idx)}
+                                        >
+                                            <Trash />
+                                        </Button>
+                                    </SimpleTooltip>
                                 </div>
                             )
                         })}

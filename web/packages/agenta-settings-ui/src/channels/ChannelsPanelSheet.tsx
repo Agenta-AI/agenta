@@ -1,6 +1,14 @@
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from "@agenta/ui/ui"
+import {
+    Button,
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+    SimpleTooltip,
+} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 
 import type {ChannelsPanelRenderProps} from "./useChannelPanel"
@@ -59,14 +67,16 @@ export const ChannelsPanelSheet = ({
                 <SheetHeader className="py-3.5">
                     <div className="flex min-w-0 items-center gap-2.5">
                         {onBack ? (
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={t("common.back")}
-                                onClick={onBack}
-                            >
-                                <ArrowLeft />
-                            </Button>
+                            <SimpleTooltip title={t("common.back")}>
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label={t("common.back")}
+                                    onClick={onBack}
+                                >
+                                    <ArrowLeft />
+                                </Button>
+                            </SimpleTooltip>
                         ) : null}
                         {icon ? (
                             <span className="flex flex-none items-center text-foreground [&_svg]:size-4">

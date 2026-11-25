@@ -36,8 +36,8 @@
     "timePart": "heure",
     "filter": "Filtre",
     "group": "Regrouper",
-    "showValue": "afficher",
-    "hideValue": "masquer",
+    "showValue": "Afficher la valeur",
+    "hideValue": "Masquer la valeur",
     "searchEllipsis": "Rechercher…",
     "searchLabel": "Rechercher {{label}}"
 }

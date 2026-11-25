@@ -36,8 +36,8 @@
     "timePart": "Uhrzeit",
     "filter": "Filter",
     "group": "Gruppieren",
-    "showValue": "anzeigen",
-    "hideValue": "ausblenden",
+    "showValue": "Wert anzeigen",
+    "hideValue": "Wert ausblenden",
     "searchEllipsis": "Suchen…",
     "searchLabel": "{{label}} durchsuchen"
 }

@@ -6,7 +6,14 @@ import channelsHubCatalog from "@agenta/i18n/catalogs/channels.hub"
 import channelsPageCatalog from "@agenta/i18n/catalogs/channels.page"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {PhoneScreenHeader, useIsPhone} from "@agenta/ui/phone"
-import {Button, Sheet, SheetContent, SheetTitle, SkeletonBlock} from "@agenta/ui/ui"
+import {
+    Button,
+    Sheet,
+    SheetContent,
+    SheetTitle,
+    SimpleTooltip,
+    SkeletonBlock,
+} from "@agenta/ui/ui"
 import {ArrowLeft, CaretRight, ChatCircleText, Code} from "@phosphor-icons/react"
 
 import {
@@ -398,14 +405,16 @@ const InlineChannelView = ({title, icon, onClose, onBack, children}: ChannelsPan
         <div className="flex flex-col gap-4" data-testid="agent-channels-open-view">
             <nav className="flex min-w-0 items-center gap-1.5 text-body">
                 {onBack ? (
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={t("common.back")}
-                        onClick={onBack}
-                    >
-                        <ArrowLeft size={14} />
-                    </Button>
+                    <SimpleTooltip title={t("common.back")}>
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={t("common.back")}
+                            onClick={onBack}
+                        >
+                            <ArrowLeft size={14} />
+                        </Button>
+                    </SimpleTooltip>
                 ) : null}
                 <button
                     type="button"

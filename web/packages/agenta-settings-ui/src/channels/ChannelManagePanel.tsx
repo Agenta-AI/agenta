@@ -14,6 +14,7 @@ import {
     PasswordInput,
     RadioGroup,
     RadioGroupItem,
+    SimpleTooltip,
     Spinner,
     Switch,
 } from "@agenta/ui/ui"
@@ -822,17 +823,18 @@ export const ChannelManagePanel = ({
                     </span>
                 </div>
                 {telegramUrl ? (
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        asChild
-                        title={t("channels.manage.openInTelegram")}
-                        aria-label={t("channels.manage.openInTelegram")}
-                    >
-                        <a href={telegramUrl} target="_blank" rel="noreferrer">
-                            <ArrowSquareOut />
-                        </a>
-                    </Button>
+                    <SimpleTooltip title={t("channels.manage.openInTelegram")}>
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            asChild
+                            aria-label={t("channels.manage.openInTelegram")}
+                        >
+                            <a href={telegramUrl} target="_blank" rel="noreferrer">
+                                <ArrowSquareOut />
+                            </a>
+                        </Button>
+                    </SimpleTooltip>
                 ) : null}
             </div>
 

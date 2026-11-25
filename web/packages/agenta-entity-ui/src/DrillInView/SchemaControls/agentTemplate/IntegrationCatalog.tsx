@@ -39,6 +39,7 @@ import {HeightCollapse, ScrollSentinel} from "@agenta/ui"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {
     Button,
+    cn,
     Empty,
     EmptyDescription,
     EmptyHeader,
@@ -47,7 +48,7 @@ import {
     RadioGroup,
     RadioGroupItem,
     SearchInput,
-    cn,
+    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {CaretRight, Check, MagnifyingGlass, Play, Plus, Star} from "@phosphor-icons/react"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -594,17 +595,18 @@ function CatalogRow({
             title={integration.name}
             actionLabel={t("entityUi.integrationDrawer.connectName", {name: integration.name})}
             action={
-                <Button
-                    variant="ghost"
-                    size={canvas ? "icon-compact" : "icon-sm"}
-                    aria-label={t("entityUi.integrationDrawer.connectName", {
-                        name: integration.name,
-                    })}
-                    title={t("entityUi.integrationDrawer.connect")}
-                    onClick={onConnect}
-                >
-                    {canvas ? <Plus className="size-3.5" /> : <Plus size={16} />}
-                </Button>
+                <SimpleTooltip title={t("entityUi.integrationDrawer.connect")}>
+                    <Button
+                        variant="ghost"
+                        size={canvas ? "icon-compact" : "icon-sm"}
+                        aria-label={t("entityUi.integrationDrawer.connectName", {
+                            name: integration.name,
+                        })}
+                        onClick={onConnect}
+                    >
+                        {canvas ? <Plus className="size-3.5" /> : <Plus size={16} />}
+                    </Button>
+                </SimpleTooltip>
             }
         >
             {integration.description ? (

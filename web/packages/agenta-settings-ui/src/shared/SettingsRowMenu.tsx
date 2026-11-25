@@ -9,6 +9,7 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
+    SimpleTooltip,
     Switch,
 } from "@agenta/ui/ui"
 import {BottomSheetMenu, useIsPhone} from "@agenta/ui/phone"
@@ -125,18 +126,20 @@ export const SettingsRowMenu = ({items, label}: {items: SettingsRowMenuItem[]; l
         // A row opens on click, so the menu must not open the row as well.
         <span className="flex justify-end" onClick={(event) => event.stopPropagation()}>
             <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        aria-label={menuLabel}
-                        // Accent is translucent, so on the row's accent hover it still shows.
-                        className={`hover:bg-accent`}
-                    >
-                        <DotsThreeVertical aria-hidden weight="bold" />
-                    </Button>
-                </DropdownMenuTrigger>
+                <SimpleTooltip title={menuLabel}>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            aria-label={menuLabel}
+                            // Accent is translucent, so on the row's accent hover it still shows.
+                            className={`hover:bg-accent`}
+                        >
+                            <DotsThreeVertical aria-hidden weight="bold" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                </SimpleTooltip>
                 <DropdownMenuContent
                     align="end"
                     className="min-w-60"

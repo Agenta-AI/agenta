@@ -12,6 +12,7 @@ import {
     PasswordInput,
     RadioGroup,
     RadioGroupItem,
+    SimpleTooltip,
     Spinner,
     Textarea,
 } from "@agenta/ui/ui"
@@ -1266,38 +1267,42 @@ export const ChannelConnectFlow = ({
                                         )}
                                     </span>
                                     <div className="absolute right-3 top-3 flex gap-1.5">
-                                        <Button
-                                            variant="outline"
-                                            size="icon-sm"
-                                            title={t("channels.connect.downloadQr")}
-                                            aria-label={t("channels.connect.downloadQr")}
-                                            onClick={() =>
-                                                downloadQrPng(
-                                                    qrRef.current?.querySelector("svg") ?? null,
-                                                    "telegram-agenta-qr.png",
-                                                )
-                                            }
-                                        >
-                                            <DownloadSimple />
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            size="icon-sm"
+                                        <SimpleTooltip title={t("channels.connect.downloadQr")}>
+                                            <Button
+                                                variant="outline"
+                                                size="icon-sm"
+                                                aria-label={t("channels.connect.downloadQr")}
+                                                onClick={() =>
+                                                    downloadQrPng(
+                                                        qrRef.current?.querySelector("svg") ?? null,
+                                                        "telegram-agenta-qr.png",
+                                                    )
+                                                }
+                                            >
+                                                <DownloadSimple />
+                                            </Button>
+                                        </SimpleTooltip>
+                                        <SimpleTooltip
                                             title={
                                                 linkCopied
                                                     ? t("channels.connect.linkCopied")
                                                     : t("channels.connect.copyLink")
                                             }
-                                            aria-label={t("channels.connect.copyLink")}
-                                            onClick={async () => {
-                                                const ok = await copyText(tgLink.url)
-                                                setLinkCopied(ok)
-                                                feedbackLater(() => setLinkCopied(false), 1800)
-                                            }}
-                                            data-testid="channels-copy-telegram-link"
                                         >
-                                            {linkCopied ? <Check weight="bold" /> : <Link />}
-                                        </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="icon-sm"
+                                                aria-label={t("channels.connect.copyLink")}
+                                                onClick={async () => {
+                                                    const ok = await copyText(tgLink.url)
+                                                    setLinkCopied(ok)
+                                                    feedbackLater(() => setLinkCopied(false), 1800)
+                                                }}
+                                                data-testid="channels-copy-telegram-link"
+                                            >
+                                                {linkCopied ? <Check weight="bold" /> : <Link />}
+                                            </Button>
+                                        </SimpleTooltip>
                                     </div>
                                 </>
                             ) : null}

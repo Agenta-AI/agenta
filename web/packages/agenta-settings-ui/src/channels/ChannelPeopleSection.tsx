@@ -14,6 +14,7 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
+    SimpleTooltip,
     Spinner,
 } from "@agenta/ui/ui"
 import {UsersThree, X} from "@phosphor-icons/react"
@@ -572,20 +573,23 @@ export const ChannelPeopleSection = ({
                                     </>
                                 )}
                             </span>
-                            <Button
-                                variant="ghost"
-                                size="icon-xs"
-                                title={t("common.remove")}
-                                aria-label={t("channels.people.removePerson", {
+                            <SimpleTooltip title={t("channels.people.removePerson", {
                                     name: person.name ?? person.id,
-                                })}
-                                disabled={saving}
-                                onClick={() =>
-                                    void write(people.filter((other) => other.id !== person.id))
-                                }
-                            >
-                                <X />
-                            </Button>
+                                })}>
+                                <Button
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    aria-label={t("channels.people.removePerson", {
+                                        name: person.name ?? person.id,
+                                    })}
+                                    disabled={saving}
+                                    onClick={() =>
+                                        void write(people.filter((other) => other.id !== person.id))
+                                    }
+                                >
+                                    <X />
+                                </Button>
+                            </SimpleTooltip>
                         </div>
                     ))}
                 </>
