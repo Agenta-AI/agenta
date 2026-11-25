@@ -15,12 +15,10 @@
   // agent-facing headers. See worker/index.ts.
   "main": "./worker/index.ts",
   // Plain variables for POST /api/license-registrations (see web/website/AGENTS.md).
-  // LOOPS_TRANSACTIONAL_ID is the Loops email that carries the key; empty, the route
-  // answers 503. LOOPS_PRODUCT_UPDATES_LIST_ID is the Loops mailing list for product
-  // updates that a registered contact joins when it ticked the updates box; empty, none joins.
+  // LOOPS_TRANSACTIONAL_ID is the published Loops email that carries the key (data
+  // variables licenseKey and activationUrl); empty, the route answers 503.
   "vars": {
-    "LOOPS_TRANSACTIONAL_ID": "",
-    "LOOPS_PRODUCT_UPDATES_LIST_ID": "",
+    "LOOPS_TRANSACTIONAL_ID": "cmww5g20v0jt60kz3co0n144d",
   },
   // Limits for POST /api/license-registrations (see web/website/AGENTS.md). Preview and
   // production use different namespace ids so they do not share counters.
