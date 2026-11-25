@@ -36,7 +36,17 @@ export const OrganizationLimitNotice = ({
         >
             <LicenseUsageRow
                 label={t("settings.license.usageOrganizations")}
-                value={t("settings.license.usageOf", {count: usage.count, limit: usage.limit ?? 0})}
+                value={
+                    usage.limit !== null && usage.count > usage.limit
+                        ? t("settings.license.usageOverLimitOrganizations", {
+                              count: usage.count,
+                              limit: usage.limit,
+                          })
+                        : t("settings.license.usageOf", {
+                              count: usage.count,
+                              limit: usage.limit ?? 0,
+                          })
+                }
                 count={usage.count}
                 limit={usage.limit}
             />

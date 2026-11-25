@@ -107,6 +107,35 @@ describe("limit screens", () => {
         expect(routerPush).not.toHaveBeenCalled()
     })
 
+    it("names the count and the limit when an upgraded install is over the limit", () => {
+        mount(<ProjectLimitNotice usage={{count: 2, limit: 1}} projectId="proj-1" />)
+        expect(text()).toContain("2 projects, limit 1")
+        expect(text()).not.toContain("2 of 1")
+    })
+
+    it("uses the singular when one organization is over a limit of zero", () => {
+        mount(
+            <OrganizationLimitNotice
+                usage={{count: 1, limit: 0}}
+                workspaceId="ws-1"
+                projectId="proj-1"
+            />,
+        )
+        expect(text()).toContain("1 organization, limit 0")
+    })
+
+    it("names the organization count and the limit when over the limit", () => {
+        mount(
+            <OrganizationLimitNotice
+                usage={{count: 2, limit: 1}}
+                workspaceId="ws-1"
+                projectId="proj-1"
+            />,
+        )
+        expect(text()).toContain("2 organizations, limit 1")
+        expect(text()).not.toContain("2 of 1")
+    })
+
     it("asks a member to ask the instance admin, with no button", () => {
         fixture.isInstanceAdmin = false
         mount(<ProjectLimitNotice usage={FULL} projectId="proj-1" />)

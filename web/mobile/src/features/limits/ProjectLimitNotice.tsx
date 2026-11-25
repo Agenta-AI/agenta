@@ -33,7 +33,17 @@ export const ProjectLimitNotice = ({
         >
             <LicenseUsageRow
                 label={t("settings.license.usageProjects")}
-                value={t("settings.license.usageOf", {count: usage.count, limit: usage.limit ?? 0})}
+                value={
+                    usage.limit !== null && usage.count > usage.limit
+                        ? t("settings.license.usageOverLimitProjects", {
+                              count: usage.count,
+                              limit: usage.limit,
+                          })
+                        : t("settings.license.usageOf", {
+                              count: usage.count,
+                              limit: usage.limit ?? 0,
+                          })
+                }
                 count={usage.count}
                 limit={usage.limit}
             />

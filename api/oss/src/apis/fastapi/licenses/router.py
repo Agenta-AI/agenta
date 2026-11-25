@@ -193,9 +193,8 @@ class LicensesRouter:
         """The counts behind the create dialogs, for any person signed in to the app:
         a member also sees the limit before they try to create. `projects` counts the
         request's organization; `organizations` counts the instance."""
-        # The ee cloud check directly, not this module's `_is_cloud`: the one-image
-        # runtime change replaces that helper with `oss.src.utils.common.is_cloud`,
-        # and this route must work before and after that change.
+        # The usage is for self-hosted installs only. On the ee cloud this route is
+        # not available, so the ee cloud check runs first.
         if is_ee():
             from ee.src.core.licenses.cloud import is_cloud  # noqa: PLC0415
 
