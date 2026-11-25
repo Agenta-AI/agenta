@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
@@ -6,6 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from oss.src.core.sessions.records.dtos import SessionMessagePreview
 from oss.src.core.sessions.streams.dtos import SessionStream, SessionStreamQueryFlags
 from oss.src.core.sessions.types import ReferenceKey as ReferenceKey
+from oss.src.core.sessions.types import SessionCallingSession as SessionCallingSession
+from oss.src.core.sessions.types import (
+    SessionCallingSessionQuery as SessionCallingSessionQuery,
+)
 from oss.src.core.sessions.types import SessionDelivery as SessionDelivery
 from oss.src.core.sessions.types import SessionOrigin as SessionOrigin
 from oss.src.core.sessions.types import SessionReference as SessionReference
@@ -59,6 +64,11 @@ class SessionQuery(BaseModel):
     exclude_session_ids: Optional[List[str]] = None
     origins: Optional[List[SessionOrigin]] = None
     exclude_origins: Optional[List[SessionOrigin]] = None
+    # Sessions created by these calling sessions or calling agents.
+    calling_session: Optional[SessionCallingSessionQuery] = None
+    # Creation-time bounds (`created_at`), apart from the last-activity windowing.
+    created_after: Optional[datetime] = None
+    created_before: Optional[datetime] = None
 
 
 class SessionQueryLifecycle(BaseModel):

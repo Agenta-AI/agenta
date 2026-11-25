@@ -287,7 +287,7 @@ describe("the All Annotations tab", () => {
         expect(callsOf("submitAnnotations")).toEqual([
             {scenarioId: "s-1", queueId: "queue-1", markComplete: true},
         ])
-        expect(fixture.toast.success).toHaveBeenCalledWith("Scenario completed")
+        expect(fixture.toast.success).toHaveBeenCalledWith("Item marked completed")
     })
 
     it("Open in Focus View switches to the Annotate tab on that scenario", async () => {
@@ -304,7 +304,7 @@ describe("the All Annotations tab", () => {
 
     it("Add to Testset uses the selected rows when some are selected", async () => {
         await render()
-        await act(async () => findButton(host, "Add to Testset")!.click())
+        await act(async () => findButton(host, "Add to test set")!.click())
         expect(callsOf("openAddToTestsetModal").at(-1)).toEqual({scope: "all"})
 
         const checkbox = findButton(rows()[1], "Select item 2")!
@@ -313,7 +313,7 @@ describe("the All Annotations tab", () => {
         expect(document.body.textContent).not.toContain("Annotate Scenario")
 
         await act(async () => patchSession({selectedScenarioIds: ["s-2"]}))
-        await act(async () => findButton(host, "Add to Testset")!.click())
+        await act(async () => findButton(host, "Add to test set")!.click())
         expect(callsOf("openAddToTestsetModal").at(-1)).toEqual({
             scope: "selected",
             scenarioIds: ["s-2"],

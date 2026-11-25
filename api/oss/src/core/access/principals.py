@@ -12,6 +12,9 @@ The envelope has one JSON shape, used for the token claims and for the stored
       "approved_by":  {"principal": {...}, "user_id": "<uuid>", "external_key": null}
     }
 
+`approved_by` carries `"is_run_credential": true` only when it is true; no stored
+envelope carries it (`approval_from_request`).
+
 `sender` and `approved_by` are absent when `None`. The envelope holds identity only,
 never a secret value.
 """
@@ -25,6 +28,7 @@ from oss.src.core.access.dtos import (
     Decision,
     PrincipalKind,
     PrincipalRef,
+    RequestCredentialKind,
     RunApproval,
     RunAuthority,
     RunContext,
@@ -151,6 +155,40 @@ def child_envelope(*, parent: RunEnvelope) -> RunEnvelope:
             origin=RunOrigin.CHILD,
         ),
         sender=parent.sender,
+    )
+
+
+_PERSON_CREDENTIAL_KINDS = (
+    RequestCredentialKind.BEARER_SESSION,
+    RequestCredentialKind.API_KEY,
+)
+
+
+def approval_from_request(
+    *,
+    principal: PrincipalRef,
+    credential_kind: Optional[RequestCredentialKind],
+    user_id: Optional[UUID] = None,
+    external_key: Optional[str] = None,
+) -> RunApproval:
+    """The only builder of `RunApproval`: who answered an interaction, and whether the
+    answer came with a run credential.
+
+    `credential_kind` is the credential of the answering request. A channel answer has
+    no request: the channel inbox passes `None` with the installation as `principal`.
+    Every other answer counts as a run credential unless it came with a browser session
+    or an API key, so an answer whose credential is unknown is refused."""
+
+    is_channel_answer = (
+        credential_kind is None and principal.kind == PrincipalKind.INSTALLATION
+    )
+    return RunApproval(
+        principal=principal,
+        user_id=user_id,
+        external_key=external_key,
+        is_run_credential=(
+            not is_channel_answer and credential_kind not in _PERSON_CREDENTIAL_KINDS
+        ),
     )
 
 

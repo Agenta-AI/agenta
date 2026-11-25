@@ -11,10 +11,12 @@
 import {AccessClient} from "@agentaai/api-client/resources/access"
 import {AccountChoicesClient} from "@agentaai/api-client/resources/accountChoices"
 import {ApplicationsClient} from "@agentaai/api-client/resources/applications"
+import {ApprovalChoicesClient} from "@agentaai/api-client/resources/approvalChoices"
 import {ChannelsClient} from "@agentaai/api-client/resources/channels"
 import {EvaluationsClient} from "@agentaai/api-client/resources/evaluations"
 import {EventsClient} from "@agentaai/api-client/resources/events"
 import {FoldersClient} from "@agentaai/api-client/resources/folders"
+import {GatewayClient} from "@agentaai/api-client/resources/gateway"
 import {GatewayMcpClient} from "@agentaai/api-client/resources/gatewayMcp"
 import {KeysClient} from "@agentaai/api-client/resources/keys"
 import {MountsClient} from "@agentaai/api-client/resources/mounts"
@@ -186,6 +188,16 @@ export function getSharingClient(): SharingClient {
 let _accountChoices: AccountChoicesClient | undefined
 export function getAccountChoicesClient(): AccountChoicesClient {
     return (_accountChoices ??= new AccountChoicesClient(buildClientOptions()))
+}
+
+let _gateway: GatewayClient | undefined
+export function getGatewayClient(): GatewayClient {
+    return (_gateway ??= new GatewayClient(buildClientOptions()))
+}
+
+let _approvalChoices: ApprovalChoicesClient | undefined
+export function getApprovalChoicesClient(): ApprovalChoicesClient {
+    return (_approvalChoices ??= new ApprovalChoicesClient(buildClientOptions()))
 }
 
 let _gatewayMcp: GatewayMcpClient | undefined

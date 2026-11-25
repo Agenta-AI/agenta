@@ -12,7 +12,6 @@
     "remove": "Quitar",
     "removeFromAgent": "Quitar del agente",
     "thisServer": "Este servidor",
-    "inheritsPermission": "Hereda {{permission}}",
     "selectConnection": "Selecciona una conexión para elegir qué puede hacer este agente con ella.",
     "couldNotReadTools": "No se han podido leer las herramientas de este servidor",
     "notConnectedYet": "{{name}} aún no está conectado, así que no se pueden listar sus herramientas.",

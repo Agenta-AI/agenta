@@ -1,4 +1,5 @@
 {
+    "childSessionAsks": "Asked by the session <link>session name</link>",
     "failed": "Approval failed.",
     "failedStatus": "Approval failed (HTTP {{status}}).",
     "noLongerPending": "This approval is no longer pending — refresh and retry.",

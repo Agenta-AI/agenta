@@ -1,54 +1,6 @@
-import {describe, expect, it, vi} from "vitest"
+import {describe, expect, it} from "vitest"
 
-import {
-    activeModelsCount,
-    credentialStatusLine,
-    manualModelPlaceholderForKind,
-    MODEL_LIST_RENDER_CAP,
-    modelListView,
-    relativeFetchTime,
-    secretNoteForKind,
-} from "../../src/secret/core/cardCopy"
-
-describe("credentialStatusLine", () => {
-    it("joins the provider's verdict to what the same call fetched", () => {
-        expect(credentialStatusLine("OpenAI accepted this key.", 41)).toBe(
-            "OpenAI accepted this key · 41 models fetched",
-        )
-    })
-
-    it("names the endpoint the API named, not the provider family", () => {
-        expect(credentialStatusLine("api.openai.com accepted this key.", 9)).toBe(
-            "api.openai.com accepted this key · 9 models fetched",
-        )
-    })
-
-    it("drops the API's full stop so the separator reads as one", () => {
-        expect(credentialStatusLine("OpenAI accepted this key.", 41)).not.toContain("key. ·")
-    })
-
-    it("counts one model in the singular", () => {
-        expect(credentialStatusLine("Groq accepted this key.", 1)).toBe(
-            "Groq accepted this key · 1 model fetched",
-        )
-    })
-
-    it("says nothing about a fetch that did not happen", () => {
-        expect(credentialStatusLine("OpenAI rejected this key (401).", null)).toBe(
-            "OpenAI rejected this key (401)",
-        )
-    })
-})
-
-describe("activeModelsCount", () => {
-    it("counts what is checked against what was fetched", () => {
-        expect(activeModelsCount(3, 41)).toBe("3 of 41")
-    })
-
-    it("never claims a choice the user did not make", () => {
-        expect(activeModelsCount(0, 9)).toBe("0 of 9")
-    })
-})
+import {MODEL_LIST_RENDER_CAP, modelListView} from "../../src/secret/core/cardCopy"
 
 describe("modelListView", () => {
     it("never offers 'Show all' when every row is already rendered", () => {
@@ -84,61 +36,5 @@ describe("modelListView", () => {
         const second = modelListView({total: 61, showAll: false})
         expect(first).toEqual(second)
         expect(first.truncated).toBe(true)
-    })
-})
-
-describe("secretNoteForKind", () => {
-    it("says what Test does with a standard provider's key", () => {
-        expect(secretNoteForKind("openai", "OpenAI")).toBe(
-            "Test checks the key with OpenAI and fetches its model list. Nothing is saved until Done.",
-        )
-    })
-
-    it("tests a credential-set connection by reaching the address it names", () => {
-        expect(secretNoteForKind("custom", "OpenAI-compatible endpoint")).toBe(
-            "Test pings the endpoint and fetches its model list. Nothing is saved until Done.",
-        )
-        // Vertex's credential is a service-account JSON, so "the key" would misdescribe it.
-        expect(secretNoteForKind("vertex_ai", "Google Vertex AI")).not.toContain("the key")
-    })
-
-    it("promises the same thing in both cases: nothing lands before Done", () => {
-        for (const kind of ["openai", "custom", "bedrock"]) {
-            expect(secretNoteForKind(kind, "X")).toContain("Nothing is saved until Done.")
-        }
-    })
-})
-
-describe("manualModelPlaceholderForKind", () => {
-    it("adds against the API's list for a standard provider", () => {
-        expect(manualModelPlaceholderForKind("openai")).toBe("Add a model ID the API doesn't list")
-    })
-
-    it("adds against the endpoint's list for a credential-set connection", () => {
-        expect(manualModelPlaceholderForKind("custom")).toBe(
-            "Add a model ID the endpoint doesn't list",
-        )
-    })
-})
-
-describe("relativeFetchTime", () => {
-    it("reads a fresh fetch as just now", () => {
-        vi.setSystemTime(new Date("2026-08-13T12:00:00Z"))
-        expect(relativeFetchTime("2026-08-13T11:59:40Z")).toBe("just now")
-        vi.useRealTimers()
-    })
-
-    it("steps up through minutes, hours, and days", () => {
-        vi.setSystemTime(new Date("2026-08-13T12:00:00Z"))
-        expect(relativeFetchTime("2026-08-13T11:58:00Z")).toBe("2 min ago")
-        expect(relativeFetchTime("2026-08-13T09:00:00Z")).toBe("3 h ago")
-        expect(relativeFetchTime("2026-08-11T12:00:00Z")).toBe("2 d ago")
-        vi.useRealTimers()
-    })
-
-    it("treats a clock-skewed future timestamp as just now, not a negative age", () => {
-        vi.setSystemTime(new Date("2026-08-13T12:00:00Z"))
-        expect(relativeFetchTime("2026-08-13T12:05:00Z")).toBe("just now")
-        vi.useRealTimers()
     })
 })

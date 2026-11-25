@@ -37,10 +37,13 @@ def test_codex_milestone_one_model_sets() -> None:
     assert not any(model_id.startswith("gpt-5.1-codex") for model_id in catalog_models)
 
 
-# The models the pinned Codex CLI 0.156.1 (codex-acp 1.13.1) lists: its bundled model list for an
-# API key, and the ChatGPT backend's list for a subscription login (the backend hides GPT-6 from
-# Codex clients older than 0.155.0). Both lists matched on 2026-09-27. Update on a Codex bump.
+# The models the pinned Codex CLI 0.170.0 (codex-acp 2.8.0) lists in its bundled model list
+# (visibility "list"), read on 2026-11-20. Update on a Codex bump.
 CODEX_ACCEPTED_MODELS = {
+    "gpt-6.2-sol",
+    "gpt-6.2-astra",
+    "gpt-6.1-terra",
+    "gpt-6.1-sol",
     "gpt-6-astra",
     "gpt-6-sol",
     "gpt-6-luna",
@@ -58,7 +61,9 @@ def test_codex_publishes_only_models_the_pinned_codex_accepts() -> None:
     assert catalog_ids == CODEX_MODELS
     assert set(caps.models["openai"]) <= CODEX_ACCEPTED_MODELS
     assert set(caps.default_models["openai"]) <= CODEX_ACCEPTED_MODELS
-    assert {"gpt-6-sol", "gpt-6-luna"} <= set(caps.models["openai"])
+    assert {"gpt-6.2-sol", "gpt-6.2-astra", "gpt-6.1-terra"} <= set(
+        caps.models["openai"]
+    )
 
 
 def test_codex_model_catalog_carries_pricing() -> None:

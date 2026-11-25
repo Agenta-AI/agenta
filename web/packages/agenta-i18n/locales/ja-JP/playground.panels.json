@@ -46,5 +46,9 @@
     "callId": "コール ID",
     "promptRefined": "プロンプトを改善しました。",
     "leaveWarning": "ローカルの下書きリビジョンまたは未保存の変更があり、離れると失われます。続行してもよろしいですか？",
-    "rerunning": "再実行中..."
+    "rerunning": "再実行中...",
+    "averageTokens": "平均トークン数",
+    "newAgent": "新しいエージェント",
+    "newPrompt": "新しいプロンプト",
+    "revisionOpen": "表示中"
 }

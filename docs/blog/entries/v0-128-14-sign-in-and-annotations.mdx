@@ -1,0 +1,47 @@
+---
+title: "A new sign-in screen"
+slug: v0-128-14-sign-in-and-annotations
+date: 2026-11-18
+tags: [v0.128.14]
+improvements:
+  - area: Sessions
+    text: "The Sessions page loads faster"
+fixes:
+  - area: Annotations
+    text: "Annotating a session no longer changes the session counts or moves it to the top"
+  - area: Tracing
+    text: "Traces keep arriving when many chats are open at the same time"
+  - area: SDK
+    text: "Trace details that your app sends reach the trace again"
+  - area: Agents
+    text: "A command now stops at its time limit, and when you press Stop"
+description: "A redesigned sign-in screen with a preview of templates, clearer sign-in errors, and annotations that no longer disturb your sessions."
+---
+
+<Summary>
+
+The sign-in screen now shows a preview of what agents can do, next to the form. Sign-in errors also say what went wrong. For example, a wrong password now shows **Invalid email or password**.
+
+</Summary>
+
+{/* truncate */}
+
+## A new sign-in screen
+
+The sign-in screen now shows a live preview next to the form. It lists automations that a team or an agency would run, such as support triage, client reports and social posts. One of them opens into a playground-style run, so you can see how an agent works before you sign in.
+
+Sign-in errors are also clearer.
+
+- When Agenta rejects your password, the form now says **Invalid email or password**. Before, it could say that Agenta could not be reached.
+- If you lose your connection while you submit a code, you stay on the code step. You can try again without starting over.
+
+## Annotations and sessions
+
+Annotations now behave better in agent sessions.
+
+- The Sessions tab and the session list no longer count annotations as traces. Annotating an old session also no longer moves it to the top of the list.
+- Annotations now carry the session, turn and app of the span they describe, so you can find all feedback on one session. Agenta never copies these links from a private session that the annotator cannot see.
+- A text note now shows as plain text in the trace drawer. Before, it showed as raw JSON. Thank you to [@yunusarda-sudo](https://github.com/yunusarda-sudo) for this fix.
+- When you clear a column in an annotation and sync to a test set, the column is now removed from the test set. Thank you to [@TbhVishal](https://github.com/TbhVishal) for this fix.
+
+Thank you to [@abrahamguo](https://github.com/abrahamguo) for the fix that brings the trace details your app sends back to the trace.

@@ -452,6 +452,7 @@ async def test_no_rename_creates_a_channel_thread_s_session(world):
         session_id = await _channel_thread(world)
         with pytest.raises(SessionIdTombstoned):
             await world.streams.set_header(
+                envelope=None,
                 project_id=world.project_id,
                 user_id=user_id,
                 session_id=session_id,
@@ -506,6 +507,7 @@ async def test_a_person_s_first_send_into_a_channel_thread_creates_nothing(world
         )
         with pytest.raises(SessionIdTombstoned):
             await world.streams.command(
+                envelope=None,
                 project_id=world.project_id,
                 user_id=world.bob,
                 request=SessionStreamCommandRequest(

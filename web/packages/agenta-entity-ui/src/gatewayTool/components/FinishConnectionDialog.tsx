@@ -14,11 +14,12 @@ import {
 } from "@agenta/ui/ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 
-/** A pending connection's sign-in was never completed; this finishes it or deletes it. */
+/** A pending connection was never completed; this finishes its sign-in or deletes it. */
 export const FinishConnectionDialog = ({
     open,
     name,
     logo,
+    apiKey = false,
     onAuthorize,
     onDelete,
     onClose,
@@ -28,6 +29,8 @@ export const FinishConnectionDialog = ({
     /** The app's display name. */
     name: ReactNode
     logo: ReactNode
+    /** An API-key connection: no sign-in to reopen, so it can only be deleted and reconnected. */
+    apiKey?: boolean
     /** Starts the provider's sign-in; resolves once its window is open. */
     onAuthorize: () => Promise<void>
     onDelete?: () => void
@@ -62,7 +65,9 @@ export const FinishConnectionDialog = ({
                             })}
                         </DialogTitle>
                         <DialogDescription className="text-sm text-colorTextDescription">
-                            {t("entityUi.toolConnections.signInNeverCompleted")}
+                            {apiKey
+                                ? t("entityUi.toolConnections.apiKeyNeverVerified")
+                                : t("entityUi.toolConnections.signInNeverCompleted")}
                         </DialogDescription>
                     </div>
                 </DialogHeader>
@@ -84,21 +89,23 @@ export const FinishConnectionDialog = ({
                     <Button variant="outline" onClick={onClose}>
                         {t("entityUi.toolConnections.cancel")}
                     </Button>
-                    <LoadingButton
-                        loading={authorizing}
-                        onClick={async () => {
-                            setAuthorizing(true)
-                            try {
-                                await onAuthorize()
-                                onClose()
-                            } finally {
-                                setAuthorizing(false)
-                            }
-                        }}
-                    >
-                        {t("entityUi.toolConnections.authorize")}
-                        <ArrowSquareOut size={14} />
-                    </LoadingButton>
+                    {apiKey ? null : (
+                        <LoadingButton
+                            loading={authorizing}
+                            onClick={async () => {
+                                setAuthorizing(true)
+                                try {
+                                    await onAuthorize()
+                                    onClose()
+                                } finally {
+                                    setAuthorizing(false)
+                                }
+                            }}
+                        >
+                            {t("entityUi.toolConnections.authorize")}
+                            <ArrowSquareOut size={14} />
+                        </LoadingButton>
+                    )}
                 </DialogFooter>
             </DialogContent>
         </Dialog>

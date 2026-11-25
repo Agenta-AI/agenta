@@ -120,7 +120,13 @@ export const AppOverviewScreen = ({
                         ) : app ? (
                             <div className="flex flex-col gap-8">
                                 {showUsage ? <AppUsageSection appId={app.id} /> : null}
-                                {evaluator ? null : <AppDeploymentSection app={app} base={base} />}
+                                {evaluator ? null : (
+                                    <AppDeploymentSection
+                                        projectId={projectId}
+                                        app={app}
+                                        base={base}
+                                    />
+                                )}
                                 <AppRecentPromptsSection
                                     projectId={projectId}
                                     app={app}

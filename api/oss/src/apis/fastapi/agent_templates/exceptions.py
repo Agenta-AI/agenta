@@ -14,8 +14,17 @@ from oss.src.core.agent_templates.exceptions import (
     TemplateWorkflowCreationFailed,
 )
 from oss.src.core.mounts.types import MountPathInvalid, MountStorageUnavailable
-from oss.src.core.sessions.inputs.types import SessionInputIdempotencyConflict
+from oss.src.core.sessions.inputs.types import (
+    SessionInputIdempotencyConflict,
+    SessionInputKeyReserved,
+)
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
+from oss.src.core.workflows.types import (
+    InvalidAgentConfigurationError,
+    InvalidAgentConnectionError,
+    InvalidAgentHarnessError,
+    InvalidAgentInstructionsError,
+)
 
 
 def _response(
@@ -59,6 +68,20 @@ def template_load_error_response(
     *,
     unavailable_next_step: str = _LOAD_UNAVAILABLE_NEXT_STEP,
 ) -> JSONResponse | None:
+    if isinstance(
+        exc,
+        (
+            InvalidAgentConfigurationError,
+            InvalidAgentConnectionError,
+            InvalidAgentHarnessError,
+            InvalidAgentInstructionsError,
+        ),
+    ):
+        # The agent the template builds cannot run. Same envelope as the workflow routes.
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content=exc.to_detail(),
+        )
     if isinstance(exc, TemplateSourceNotFound):
         return _response(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -99,6 +122,14 @@ def template_load_error_response(
                 "This Idempotency-Key was already used for a different first message. "
                 "Resend the original request body, or start over with a new key."
             ),
+        )
+    if isinstance(exc, SessionInputKeyReserved):
+        return _response(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            code="idempotency_key_reserved",
+            message=str(exc),
+            details={"field": "Idempotency-Key"},
+            next_step="Send a key that does not start with 'ag:'.",
         )
     if isinstance(exc, SessionStartNotDurable):
         return _response(

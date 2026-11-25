@@ -14,7 +14,9 @@ export const PageNotFound = () => {
         <>
             <PageTitle title={t("navigation.chrome.pageNotFound")} />
             <NotFoundScreen
-                onBack={() => router.back()}
+                // A fresh tab has no history to go back to, so it goes home instead.
+                onBack={() => (window.history.length > 1 ? router.back() : void router.push("/"))}
+                homeHref={`${router.basePath ?? ""}/`}
                 path={router.asPath === "/404" ? undefined : router.asPath}
             />
         </>

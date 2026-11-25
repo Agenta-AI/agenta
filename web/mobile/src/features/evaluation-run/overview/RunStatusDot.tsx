@@ -1,12 +1,6 @@
-import {humanizeRunStatus, runStatusTone, type RunStatusTone} from "@agenta/entities/evaluationRun"
+import {humanizeRunStatus, runStatusTone} from "@agenta/entities/evaluationRun"
 
-const DOT: Record<RunStatusTone, string> = {
-    success: "bg-success",
-    processing: "bg-primary",
-    error: "bg-destructive",
-    warning: "bg-primary",
-    default: "bg-muted-foreground",
-}
+import {RUN_STATUS_DOT_COLOR} from "../../evaluations/list/runStatusDotColor"
 
 /** A run status as the old app's summary shows it: a colored dot and the status in words. */
 export const RunStatusDot = ({status}: {status: string | null}) => {
@@ -15,7 +9,7 @@ export const RunStatusDot = ({status}: {status: string | null}) => {
         <span className="inline-flex items-center gap-2">
             <span
                 aria-hidden
-                className={`size-2.5 shrink-0 rounded-full ${DOT[runStatusTone(status)]}`}
+                className={`size-2.5 shrink-0 rounded-full ${RUN_STATUS_DOT_COLOR[runStatusTone(status)]}`}
             />
             {humanizeRunStatus(status)}
         </span>

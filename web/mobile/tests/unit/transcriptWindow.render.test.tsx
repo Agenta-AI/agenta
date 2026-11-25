@@ -11,10 +11,13 @@ import {useTranscriptWindow} from "@/features/chat/useTranscriptWindow"
 const ROW_PX = 100
 const VIEWPORT_PX = 700
 
+// A new session per test: the window is kept per session id.
+let sessionId = ""
+
 const Transcript = ({count}: {count: number}) => {
     const turns = useMemo(() => Array.from({length: count}, (_, i) => i), [count])
     const autoScroll = useTranscriptAutoScroll(turns)
-    const start = useTranscriptWindow(turns.length, autoScroll.ref)
+    const start = useTranscriptWindow(turns.length, autoScroll.ref, sessionId)
     return (
         <div ref={autoScroll.ref} onScroll={autoScroll.onScroll} data-testid="scroller">
             <div>
@@ -42,6 +45,7 @@ describe("transcript window with auto-scroll", () => {
         })
 
     beforeEach(() => {
+        sessionId = crypto.randomUUID()
         ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
         vi.stubGlobal(
             "ResizeObserver",

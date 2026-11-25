@@ -2,7 +2,8 @@
 
 /**
  * What `build_setup_document` generates, request-url-dependent and so
- * never baked into the static capability declaration.
+ * never baked into the static capability declaration. A `zip` document
+ * carries the archive bytes base64-encoded in `content`.
  */
 export interface ChannelSetupDoc {
     format: string;

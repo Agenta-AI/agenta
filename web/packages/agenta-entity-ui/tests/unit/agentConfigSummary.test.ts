@@ -102,7 +102,7 @@ describe("integrationKeys", () => {
 })
 
 describe("skillNames", () => {
-    it("titles embed refs by sibling name, falls back to the referenced slug", () => {
+    it("names embed refs by sibling name, falls back to the referenced slug, never title-cased", () => {
         const summary = agentConfigSummary({
             agent: {
                 skills: [
@@ -123,9 +123,9 @@ describe("skillNames", () => {
         expect(summary.skills).toBe(5)
         expect(summary.skillNames).toEqual([
             "PDF tools",
-            "CSV Checker",
-            "Inline Skill",
-            "Web Search",
+            "csv-checker",
+            "inline-skill",
+            "web-search",
         ])
     })
 })

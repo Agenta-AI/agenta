@@ -1,7 +1,7 @@
 /** The connection card's Harnesses: which harnesses may use it, with unreachable ones disabled. */
 import {useRef, useState} from "react"
 
-import {useT} from "@agenta/i18n"
+import {formatList, useT} from "@agenta/i18n"
 import providerConnectionCatalog from "@agenta/i18n/catalogs/entityUi.providerConnection"
 import {cn} from "@agenta/ui/styles"
 import {Checkbox, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
@@ -44,12 +44,9 @@ const HarnessesSection = ({
             ? unrestricted
                 ? t("entityUi.providerConnection.anyHarness")
                 : t("entityUi.providerConnection.noHarnessSelected")
-            : labels.length === 1
-              ? t("entityUi.providerConnection.enabledInHarness", {harness: labels[0]})
-              : t("entityUi.providerConnection.enabledInHarnesses", {
-                    harnesses: labels.slice(0, -1).join(", "),
-                    last: labels[labels.length - 1],
-                })
+            : t("entityUi.providerConnection.enabledInHarness", {
+                  harness: formatList(labels, {type: "conjunction", style: "long"}),
+              })
 
     return (
         <section ref={sectionRef} className="flex shrink-0 flex-col">

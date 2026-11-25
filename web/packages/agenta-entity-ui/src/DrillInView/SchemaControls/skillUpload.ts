@@ -14,6 +14,8 @@
 import {strFromU8, unzipSync} from "fflate"
 import {load as loadYaml} from "js-yaml"
 
+import {skillFilesOf} from "./skillFiles"
+
 export interface SkillFileEntry {
     path: string
     content: string
@@ -96,6 +98,40 @@ export function buildSkillFromFiles(raw: RawFile[]): ParsedSkill {
         body,
         files: bundled,
     }
+}
+
+/** The entry names of a zip, repeats included, read from its central directory. */
+function zipEntryNames(bytes: Uint8Array): string[] {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    // The end-of-directory record: the last 22 bytes, before any archive comment.
+    let end = bytes.length - 22
+    while (end >= 0 && view.getUint32(end, true) !== 0x06054b50) end--
+    if (end < 0) return []
+    const names: string[] = []
+    let at = view.getUint32(end + 16, true)
+    for (let n = view.getUint16(end + 10, true); n > 0; n--) {
+        if (at + 46 > bytes.length || view.getUint32(at, true) !== 0x02014b50) break
+        const nameLength = view.getUint16(at + 28, true)
+        // As fflate: a name without the UTF-8 flag (bit 11) is read as Latin-1.
+        const latin1 = !(view.getUint16(at + 8, true) & 0x0800)
+        names.push(strFromU8(bytes.subarray(at + 46, at + 46 + nameLength), latin1))
+        at += 46 + nameLength + view.getUint16(at + 30, true) + view.getUint16(at + 32, true)
+    }
+    return names
+}
+
+/** A name that an archive in the upload holds twice; unzipping keeps only one of the two. */
+function repeatedArchivePath(raw: RawFile[]): string | undefined {
+    for (const f of raw) {
+        if (!ARCHIVE_EXT.test(f.path)) continue
+        // Folders and ignored files never reach the skill, so their repeats do not count.
+        const names = zipEntryNames(f.bytes).filter(
+            (name) => !name.endsWith("/") && !IGNORED.test(name),
+        )
+        const repeated = names.find((name, i) => names.indexOf(name) !== i)
+        if (repeated !== undefined) return repeated
+    }
+    return undefined
 }
 
 /** Expand any `.zip` / `.skill` archives into their entries; pass other files through. */
@@ -226,12 +262,12 @@ const looksBinary = (bytes: Uint8Array): boolean => {
     return false
 }
 
-/**
- * Enumerate EVERY SKILL.md in an upload and build one candidate per directory, so the
- * upload view can recover from "no SKILL.md at the root" by offering the nested skills it
- * did find. Binary and oversized files are skipped with a reason, never mojibaked in.
- */
-export function scanSkillFiles(raw: RawFile[]): SkillUploadScan {
+/** The files of an upload, split into the text files and the files skipped with a reason. */
+function splitTextFiles(raw: RawFile[]): {
+    files: RawFile[]
+    usable: RawFile[]
+    skipped: {path: string; reason: string}[]
+} {
     const files = raw.filter((f) => f.bytes && !f.path.endsWith("/") && !IGNORED.test(f.path))
     const skipped: {path: string; reason: string}[] = []
     const usable: RawFile[] = []
@@ -241,6 +277,16 @@ export function scanSkillFiles(raw: RawFile[]): SkillUploadScan {
             skipped.push({path: f.path, reason: "too large"})
         else usable.push(f)
     }
+    return {files, usable, skipped}
+}
+
+/**
+ * Enumerate EVERY SKILL.md in an upload and build one candidate per directory, so the
+ * upload view can recover from "no SKILL.md at the root" by offering the nested skills it
+ * did find. Binary and oversized files are skipped with a reason, never mojibaked in.
+ */
+export function scanSkillFiles(raw: RawFile[]): SkillUploadScan {
+    const {files, usable, skipped} = splitTextFiles(raw)
 
     const skillFiles = usable.filter((f) => SKILL_MD.test(f.path))
     // Nested-skill boundaries come from EVERY SKILL.md, including skipped ones — a
@@ -273,4 +319,96 @@ export async function scanSkillFromFileList(list: FileList | File[]): Promise<Sk
 /** Top-level: a drop's DataTransfer → the multi-candidate scan. */
 export async function scanSkillFromDataTransfer(dt: DataTransfer): Promise<SkillUploadScan> {
     return scanSkillFiles(expandArchives(await readDataTransfer(dt)))
+}
+
+// ---------------------------------------------------------------------------
+// Upload into an open skill: "Add to this skill" or "Replace the whole skill"
+// ---------------------------------------------------------------------------
+
+/** An upload read for the skill view: the text files as a skill, and the files left out. */
+export interface SkillUpload {
+    /** The upload held a SKILL.md (as text). */
+    hasSkillMd: boolean
+    /** It held more than one, so it is more than one skill. */
+    manySkills?: boolean
+    /** A path two uploaded files share: one would silently replace the other. */
+    duplicatePath?: string
+    skill: ParsedSkill
+    /** Files that are not text, or too large, with the reason. */
+    skipped: {path: string; reason: string}[]
+}
+
+/** Split an upload into its text files and the files that are skipped. */
+export function readSkillUpload(raw: RawFile[], repeatedPath?: string): SkillUpload {
+    const {files, usable, skipped} = splitTextFiles(raw)
+    const skill = buildSkillFromFiles(usable)
+    const paths = skill.files.map((file) => file.path)
+    return {
+        hasSkillMd: usable.some((f) => SKILL_MD.test(f.path)),
+        // A skipped SKILL.md still marks a second skill, as in `scanSkillFiles`.
+        manySkills: files.filter((f) => SKILL_MD.test(f.path)).length > 1,
+        duplicatePath: repeatedPath ?? paths.find((path, i) => paths.indexOf(path) !== i),
+        skill,
+        skipped,
+    }
+}
+
+/** Top-level: a selected FileList → an upload for the skill view. */
+export async function readSkillUploadFromFileList(list: FileList | File[]): Promise<SkillUpload> {
+    const raw = await filesToRaw(list)
+    return readSkillUpload(expandArchives(raw), repeatedArchivePath(raw))
+}
+
+/** Top-level: a drop's DataTransfer → an upload for the skill view. */
+export async function readSkillUploadFromDataTransfer(dt: DataTransfer): Promise<SkillUpload> {
+    const raw = await readDataTransfer(dt)
+    return readSkillUpload(expandArchives(raw), repeatedArchivePath(raw))
+}
+
+export type SkillUploadMode = "add" | "replace"
+
+/**
+ * Apply an upload to the skill being edited.
+ * - "add": each uploaded file is added; a file with the same path is replaced; the other files
+ *   stay. SKILL.md, the name, the description and the switches never change.
+ * - "replace": every file, the name, the description and SKILL.md come from the upload, as an
+ *   upload did before. It needs a SKILL.md.
+ * Nothing is saved: the result is the next draft.
+ */
+export function applySkillUpload(
+    skill: Record<string, unknown>,
+    upload: SkillUpload,
+    mode: SkillUploadMode,
+):
+    | {skill: Record<string, unknown>}
+    | {error: "noSkillMd" | "manySkills"}
+    | {error: "duplicatePath"; path: string} {
+    const parsed = upload.skill
+    if (upload.duplicatePath !== undefined)
+        return {error: "duplicatePath", path: upload.duplicatePath}
+    if (mode === "add") {
+        const files = [...skillFilesOf(skill)]
+        for (const file of parsed.files) {
+            const at = files.findIndex((entry) => entry.path === file.path)
+            if (at === -1) files.push(file)
+            // The uploaded text replaces the file; its executable mark stays.
+            else files[at] = {...files[at], content: file.content}
+        }
+        const next = {...skill}
+        if (files.length) next.files = files
+        else delete next.files
+        return {skill: next}
+    }
+    if (!upload.hasSkillMd) return {error: "noSkillMd"}
+    // Replace takes one skill; the files of a second one would land in this one.
+    if (upload.manySkills) return {error: "manySkills"}
+    const next: Record<string, unknown> = {...skill, body: parsed.body}
+    // As production: a SKILL.md with no name or description keeps the ones the skill has.
+    if (parsed.name) next.name = parsed.name
+    if (parsed.description) next.description = parsed.description
+    if (parsed.files.length) next.files = parsed.files
+    else delete next.files
+    if (parsed.disable_model_invocation) next.disable_model_invocation = true
+    else delete next.disable_model_invocation
+    return {skill: next}
 }

@@ -9,7 +9,7 @@ import {
     ObservabilityToolbar,
     useAutoRefresh,
 } from "@agenta/observability-ui"
-import {AddActionsDropdown, DeleteTraceModal, deleteTraceModalAtom} from "@agenta/observability-ui"
+import {AddActionsDropdown, deleteTraceModalAtom} from "@agenta/observability-ui"
 import {PageLayout} from "@agenta/ui"
 import {useIsNarrowScreen} from "@agenta/ui/hooks"
 import {useQueryClient} from "@tanstack/react-query"
@@ -275,7 +275,6 @@ const ObservabilityContent = ({
                                 />
                             )}
                         </div>
-                        <DeleteTraceModal />
                         {sessionDrawerRequested ? (
                             <ObservabilitySessionDrawer
                                 sessionId={session.sessionId}

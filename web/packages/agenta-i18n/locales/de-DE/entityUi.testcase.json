@@ -25,5 +25,6 @@
     "testcaseData": "Testfalldaten",
     "root": "Stamm",
     "unsavedChanges": "Ungespeicherte Änderungen",
-    "noTestcases": "Keine Testfälle gefunden"
+    "noTestcases": "Keine Testfälle gefunden",
+    "invalidCode": "Ungültiges {{format}}: {{error}}. Korrigieren Sie es, um die Änderung zu übernehmen."
 }

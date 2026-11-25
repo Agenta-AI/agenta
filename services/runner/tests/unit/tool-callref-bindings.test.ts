@@ -323,3 +323,54 @@ describe("startToolRelay callRef context bindings", () => {
     );
   });
 });
+
+// The session writes are handler-mode ops (a `callRef`, no `call`) that bind the call id as their
+// retry key. These specs carry the bindings exactly as the SDK op catalog emits them. Before the
+// relay filled `tool.call_id` on this branch, every such call failed with "missing run-context
+// value for tool binding 'tool_call_id'" (the direct-call tests above never reached this branch).
+describe("callRef relay: the tool call id binding", () => {
+  for (const op of ["start_session", "send_session_message"]) {
+    const spec = callRefSpec({
+      name: op,
+      callRef: `tools.agenta.${op}`,
+      contextBindings: { tool_call_id: "$ctx.tool.call_id" },
+      timeoutMs: 75000,
+    });
+
+    it(`binds $ctx.tool.call_id from the relayed tool call for ${op}`, async () => {
+      const calls = stubFetch("started");
+
+      const res = await relayOnce({
+        spec,
+        args: { text: "hi" },
+        runContext: RUN_CONTEXT,
+      });
+
+      assert.equal(res?.ok, true);
+      const body = JSON.parse(calls[0].init.body as string);
+      assert.equal(body.data.function.name, `tools.agenta.${op}`);
+      assert.deepEqual(body.data.function.arguments, {
+        text: "hi",
+        tool_call_id: "call-1",
+      });
+    });
+
+    it(`keeps the same tool_call_id for ${op} when the same call is relayed twice`, async () => {
+      const calls = stubFetch("started");
+
+      await relayOnce({ spec, args: {}, runContext: RUN_CONTEXT });
+      await relayOnce({
+        spec,
+        args: { tool_call_id: "chosen-by-model" },
+        runContext: RUN_CONTEXT,
+      });
+
+      const ids = calls.map(
+        (c) =>
+          JSON.parse(c.init.body as string).data.function.arguments
+            .tool_call_id,
+      );
+      assert.deepEqual(ids, ["call-1", "call-1"]);
+    });
+  }
+});
