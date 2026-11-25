@@ -6,7 +6,7 @@
     "projectLimit_one": "This organization has reached its limit of {{count}} project.",
     "projectLimit_other": "This organization has reached its limit of {{count}} projects.",
     "projectLimitCloud": "The Hobby plan includes 1 project. Upgrade to Starter for unlimited projects.",
-    "projectLimitFreeKey": "A free key gives more projects.",
+    "projectLimitAskAdmin": "Ask your instance admin to register this instance for more projects.",
     "projectLimitRegister": "Register this instance for free to create more projects.",
     "registerInstance": "Register this instance",
     "upgradePlan": "Upgrade plan"

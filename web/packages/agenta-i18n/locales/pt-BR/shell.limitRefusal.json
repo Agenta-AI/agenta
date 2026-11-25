@@ -8,7 +8,7 @@
     "projectLimit_many": "Esta organização atingiu o limite de {{count}} projetos.",
     "projectLimit_other": "Esta organização atingiu o limite de {{count}} projetos.",
     "projectLimitCloud": "O plano Hobby inclui 1 projeto. Faça upgrade para o Starter para ter projetos ilimitados.",
-    "projectLimitFreeKey": "Uma chave gratuita dá mais projetos.",
+    "projectLimitAskAdmin": "Peça ao administrador da sua instância para registrar esta instância e ter mais projetos.",
     "projectLimitRegister": "Registre esta instância gratuitamente para criar mais projetos.",
     "registerInstance": "Registrar esta instância",
     "upgradePlan": "Fazer upgrade do plano"

@@ -35,7 +35,9 @@ export const LimitRefusalNotice = ({
         <div role="alert" className="flex flex-col items-start gap-2">
             <p className="text-destructive m-0 text-xs">
                 {limitRefusalText(refusal, {cloud, isInstanceAdmin})}
-                {step === "askAdmin" ? ` ${t("shell.limitRefusal.askInstanceAdmin")}` : null}
+                {step === "askAdmin" && refusal.code !== "project_limit_reached"
+                    ? ` ${t("shell.limitRefusal.askInstanceAdmin")}`
+                    : null}
             </p>
             {step === "askAdmin" ? null : (
                 <Button size="sm" variant="outline" onClick={() => openTab(step)}>

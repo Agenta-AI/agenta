@@ -4,7 +4,7 @@
     "organizationLimit_other": "このインスタンスで作成できる組織は {{count}} 件までです。既存の組織への招待を依頼するか、有料のライセンスキーを追加してください。",
     "projectLimit_other": "この組織はプロジェクトの上限 ({{count}} 件) に達しました。",
     "projectLimitCloud": "Hobby プランに含まれるプロジェクトは 1 件です。プロジェクトを無制限にするには Starter にアップグレードしてください。",
-    "projectLimitFreeKey": "無料キーでプロジェクトを増やせます。",
+    "projectLimitAskAdmin": "プロジェクトを増やすには、このインスタンスの登録をインスタンス管理者に依頼してください。",
     "projectLimitRegister": "このインスタンスを無料で登録すると、さらにプロジェクトを作成できます。",
     "registerInstance": "このインスタンスを登録",
     "upgradePlan": "プランをアップグレード"

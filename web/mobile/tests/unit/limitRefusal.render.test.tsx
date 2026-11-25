@@ -60,9 +60,9 @@ describe("limitRefusalText", () => {
         )
     })
 
-    it("keeps the free key sentence for a member", () => {
+    it("asks a member to ask the instance admin to register the instance", () => {
         expect(limitRefusalText(PROJECT, {cloud: false, isInstanceAdmin: false})).toBe(
-            "This organization has reached its limit of 1 project. A free key gives more projects.",
+            "This organization has reached its limit of 1 project. Ask your instance admin to register this instance for more projects.",
         )
     })
 
@@ -163,11 +163,11 @@ describe("LimitRefusalNotice", () => {
         expect(routerPush).toHaveBeenCalledWith("/w/ws-1/p/proj-1/settings?tab=license")
     })
 
-    it("keeps the member text at the project limit", () => {
+    it("asks a member to ask the instance admin at the project limit, with no button", () => {
         render(PROJECT)
 
         expect(container.textContent).toBe(
-            "This organization has reached its limit of 1 project. A free key gives more projects. Ask your instance admin.",
+            "This organization has reached its limit of 1 project. Ask your instance admin to register this instance for more projects.",
         )
         expect(button()).toBeNull()
     })

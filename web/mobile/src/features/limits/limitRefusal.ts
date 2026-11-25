@@ -49,7 +49,10 @@ export const limitNextStep = ({
 
 const tNow = createT(limitRefusalCatalog)
 
-/** The refusal as translated sentences. The instance admin is asked to register the instance. */
+/**
+ * The refusal as translated sentences. At the project limit, the instance admin is asked to
+ * register the instance, and a member is asked to ask the instance admin to do it.
+ */
 export const limitRefusalText = (
     refusal: LimitRefusal,
     {cloud, isInstanceAdmin}: {cloud: boolean; isInstanceAdmin: boolean},
@@ -61,6 +64,6 @@ export const limitRefusalText = (
     return `${tNow("shell.limitRefusal.projectLimit", {count: refusal.limit})} ${tNow(
         isInstanceAdmin
             ? "shell.limitRefusal.projectLimitRegister"
-            : "shell.limitRefusal.projectLimitFreeKey",
+            : "shell.limitRefusal.projectLimitAskAdmin",
     )}`
 }

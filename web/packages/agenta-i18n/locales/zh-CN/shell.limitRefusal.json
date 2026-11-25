@@ -4,7 +4,7 @@
     "organizationLimit_other": "此实例最多允许 {{count}} 个组织。请申请加入现有组织，或添加付费许可证密钥。",
     "projectLimit_other": "此组织已达到 {{count}} 个项目的上限。",
     "projectLimitCloud": "Hobby 套餐包含 1 个项目。升级到 Starter 可获得无限项目。",
-    "projectLimitFreeKey": "免费密钥可提供更多项目。",
+    "projectLimitAskAdmin": "请联系实例管理员注册此实例，以获得更多项目。",
     "projectLimitRegister": "免费注册此实例，即可创建更多项目。",
     "registerInstance": "注册此实例",
     "upgradePlan": "升级套餐"

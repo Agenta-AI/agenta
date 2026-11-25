@@ -8,7 +8,7 @@
     "projectLimit_many": "Cette organisation a atteint sa limite de {{count}} projets.",
     "projectLimit_other": "Cette organisation a atteint sa limite de {{count}} projets.",
     "projectLimitCloud": "L’offre Hobby inclut 1 projet. Passez à Starter pour des projets illimités.",
-    "projectLimitFreeKey": "Une clé gratuite donne plus de projets.",
+    "projectLimitAskAdmin": "Demandez à l’administrateur de votre instance d’enregistrer cette instance pour obtenir davantage de projets.",
     "projectLimitRegister": "Enregistrez cette instance gratuitement pour créer davantage de projets.",
     "registerInstance": "Enregistrer cette instance",
     "upgradePlan": "Améliorer l’offre"
