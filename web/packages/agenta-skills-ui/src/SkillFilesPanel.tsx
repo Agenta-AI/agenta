@@ -1,4 +1,5 @@
 import {memo, useMemo, useRef, useState, type DragEvent} from "react"
+import {createPortal} from "react-dom"
 
 import {useT} from "@agenta/i18n"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
@@ -11,7 +12,6 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-    Field,
     IconTile,
     Switch,
 } from "@agenta/ui/ui"
@@ -28,7 +28,6 @@ import {
 
 import {baseOf, dirOf} from "./skillDraft"
 import {SkillFileNameRow} from "./SkillFileNameRow"
-import {SkillHint} from "./SkillHint"
 
 const ROW =
     "group relative flex h-row-single items-center gap-2 rounded-md px-2 text-label transition-colors duration-[var(--duration-fast)] motion-reduce:transition-none"
@@ -60,6 +59,8 @@ export interface SkillFilesPanelProps {
     /** Applies a change to the latest files, so a stale list never overwrites a newer one. */
     onFiles: (update: (files: SkillFile[]) => SkillFile[]) => void
     onAllowExecutable: (allow: boolean) => void
+    /** Where the Add menu goes (the pane header); unset, it sits on top of the list. */
+    addSlot?: HTMLElement | null
     /** In the right pane: the programs switch stays pinned to the pane's bottom edge. */
     docked?: boolean
 }
@@ -75,6 +76,7 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
     onFiles,
     onAllowExecutable,
     docked = false,
+    addSlot,
 }: SkillFilesPanelProps) {
     const t = useT(skillsEditorCatalog)
     const [dragging, setDragging] = useState(false)
@@ -180,6 +182,29 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
         />
     )
     const browse = () => pickerRef.current?.click()
+    const addMenu = (
+        <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button type="button" variant="outline" size="sm">
+                                <Plus />
+                                {t("skills.editor.add")}
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                            align="end"
+                            onCloseAutoFocus={(event) => event.preventDefault()}
+                        >
+                            <DropdownMenuItem onSelect={() => setNaming({path: null, dir: ""})}>
+                                <FilePlus />
+                                {t("skills.editor.newFile")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={browse}>
+                                <UploadSimple />
+                                {t("skills.editor.uploadFiles")}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+    )
 
     const fileRow = (file: SkillFile) => {
         if (naming?.path === file.path) return nameRow(file.path, dirOf(file.path))
@@ -268,37 +293,13 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
             onDrop={onDrop}
             className={cn(
                 "flex min-h-0 flex-1 flex-col gap-3 rounded-lg",
+                // The right pane's body has no padding of its own; the panel sets the pane's.
+                docked && "px-4 sm:px-6",
                 dragging && "outline-dashed outline-1 outline-border-strong",
             )}
         >
-            <div className="flex items-start gap-2">
-                <div className="min-w-0 flex-1">
-                    <SkillHint>{t("skills.editor.filesHint")}</SkillHint>
-                </div>
-                {readOnly ? null : (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button type="button" variant="outline" size="sm">
-                                <Plus />
-                                {t("skills.editor.add")}
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                            align="end"
-                            onCloseAutoFocus={(event) => event.preventDefault()}
-                        >
-                            <DropdownMenuItem onSelect={() => setNaming({path: null, dir: ""})}>
-                                <FilePlus />
-                                {t("skills.editor.newFile")}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={browse}>
-                                <UploadSimple />
-                                {t("skills.editor.uploadFiles")}
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                )}
-            </div>
+            {readOnly || addSlot ? null : <div className="flex justify-end">{addMenu}</div>}
+            {!readOnly && addSlot ? createPortal(addMenu, addSlot) : null}
 
             {/* Rows hang their fill 8px outside the pane's text edge. */}
             <div className="-mx-2 flex flex-col gap-1">
@@ -354,29 +355,34 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
                 ) : null}
             </div>
 
-            <Field
+            <div
                 className={cn(
-                    "mt-auto border-0 border-t border-solid border-border-muted pt-3",
-                    // The negative margins mirror the right pane's body padding (px-4 sm:px-6 pb-6).
-                    docked &&
-                        "sticky -bottom-6 z-[1] -mx-4 -mb-6 bg-muted px-4 pb-6 sm:-mx-6 sm:px-6",
+                    "mt-auto pt-3",
+                    // Full width under the list: the negative margins undo the panel's own padding.
+                    docked && "sticky bottom-0 z-[1] -mx-4 bg-muted px-4 pb-4 sm:-mx-6 sm:px-6",
                 )}
-                label={t("skills.editor.allowPrograms")}
-                tooltip={t("skills.editor.allowProgramsHint")}
-                tooltipPlacement="top"
-                htmlFor="skill-exec-switch"
-                labelEnd={
+            >
+                <div className="flex items-center gap-3 rounded-lg bg-background px-4 py-3">
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <label
+                            htmlFor="skill-exec-switch"
+                            className="cursor-pointer text-label font-medium text-foreground"
+                        >
+                            {t("skills.editor.allowPrograms")}
+                        </label>
+                        <span id="skill-exec-hint" className="text-meta text-muted-foreground">
+                            {t("skills.editor.allowProgramsHint")}
+                        </span>
+                    </span>
                     <Switch
                         id="skill-exec-switch"
-                        size="sm"
+                        aria-describedby="skill-exec-hint"
                         checked={allowExecutable}
                         disabled={readOnly}
                         onCheckedChange={onAllowExecutable}
                     />
-                }
-            >
-                {null}
-            </Field>
+                </div>
+            </div>
             <input
                 ref={pickerRef}
                 type="file"

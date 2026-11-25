@@ -63,6 +63,7 @@ export function SkillEditor({
     // Slots in the label rows that the markdown formatting tools render into.
     const [bodyTools, setBodyTools] = useState<HTMLDivElement | null>(null)
     const [fileTools, setFileTools] = useState<HTMLDivElement | null>(null)
+    const [addSlot, setAddSlot] = useState<HTMLDivElement | null>(null)
     const [fileBox, setFileBox] = useState<HTMLDivElement | null>(null)
     const fileHeight = useFillPageHeight(fileBox)
     const [bodyBox, setBodyBox] = useState<HTMLDivElement | null>(null)
@@ -150,26 +151,26 @@ export function SkillEditor({
                 <p className="m-0 text-meta text-warning">{t("skills.editor.turnOnPrograms")}</p>
             ) : null}
             <div ref={setFileBox} style={{height: fileHeight}} className="flex min-h-0 flex-col">
-            {isMarkdownPath(current.path) ? (
-                <SkillMarkdownFrame
-                    value={current.content}
-                    onChange={(content) => setFile({content})}
-                    placeholder={t("skills.editor.filePlaceholder")}
-                    empty={t("skills.editor.nothingWritten")}
-                    readOnly={readOnly}
-                    toolbar={fileTools}
-                    fill
-                />
-            ) : (
-                <Textarea
-                    aria-label={current.path}
-                    value={current.content}
-                    readOnly={readOnly}
-                    spellCheck={false}
-                    onChange={(event) => setFile({content: event.target.value})}
-                    className="h-full resize-none font-mono text-code"
-                />
-            )}
+                {isMarkdownPath(current.path) ? (
+                    <SkillMarkdownFrame
+                        value={current.content}
+                        onChange={(content) => setFile({content})}
+                        placeholder={t("skills.editor.filePlaceholder")}
+                        empty={t("skills.editor.nothingWritten")}
+                        readOnly={readOnly}
+                        toolbar={fileTools}
+                        fill
+                    />
+                ) : (
+                    <Textarea
+                        aria-label={current.path}
+                        value={current.content}
+                        readOnly={readOnly}
+                        spellCheck={false}
+                        onChange={(event) => setFile({content: event.target.value})}
+                        className="h-full resize-none font-mono text-code"
+                    />
+                )}
             </div>
         </section>
     ) : null
@@ -233,16 +234,20 @@ export function SkillEditor({
                     style={inline ? undefined : {height: bodyHeight}}
                     className="flex min-h-0 flex-col"
                 >
-                <SkillMarkdownFrame
-                    fill={!inline}
-                    value={draft.body}
-                    onChange={(body) => set({body})}
-                    placeholder={t("skills.editor.instructionsPlaceholder")}
-                    empty={readOnly ? t("skills.editor.nothingWritten") : t("skills.editor.nothingYet")}
-                    readOnly={readOnly}
-                    invalid={missingBody}
-                    toolbar={bodyTools}
-                />
+                    <SkillMarkdownFrame
+                        fill={!inline}
+                        value={draft.body}
+                        onChange={(body) => set({body})}
+                        placeholder={t("skills.editor.instructionsPlaceholder")}
+                        empty={
+                            readOnly
+                                ? t("skills.editor.nothingWritten")
+                                : t("skills.editor.nothingYet")
+                        }
+                        readOnly={readOnly}
+                        invalid={missingBody}
+                        toolbar={bodyTools}
+                    />
                 </div>
             </Field>
         </div>
@@ -259,6 +264,7 @@ export function SkillEditor({
             onFiles={updateFiles}
             onAllowExecutable={setAllowExecutable}
             docked={!inline}
+            addSlot={inline ? undefined : addSlot}
         />
     )
     const filesTitle = (
@@ -319,6 +325,7 @@ export function SkillEditor({
                 open={filesOpen}
                 onOpenChange={setFilesOpen}
                 title={filesTitle}
+                actions={readOnly ? null : <div ref={setAddSlot} className="flex" />}
                 focusOnOpen={false}
             >
                 {filesPanel}

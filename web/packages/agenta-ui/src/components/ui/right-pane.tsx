@@ -224,9 +224,11 @@ function RightPaneHeader({
     back,
     onClose,
     overlay = false,
+    actions,
 }: {
     titleId: string
     title: React.ReactNode
+    actions?: React.ReactNode
     back: boolean
     onClose: () => void
     /** In the overlay the dialog's own title names it, so the visible one stays out of the tree. */
@@ -253,6 +255,7 @@ function RightPaneHeader({
             >
                 {title}
             </span>
+            {actions}
             {back ? null : (
                 <Button
                     variant="ghost"
@@ -284,7 +287,9 @@ export interface RightPaneProps {
     onOpenChange: (open: boolean) => void
     /** Names what the pane shows ("Ask about automations", the item's name). */
     title: React.ReactNode
-    /** Mounted while the pane is open, and through its closing slide. */
+    /** Controls at the end of the header, before Close: the pane's own actions ("Add"). */
+    actions?: React.ReactNode
+    /** Mounted while open and through the closing slide; the body has no padding, so set your own. */
     children: React.ReactNode
     /**
      * Docked, move focus into the pane when it opens (default). `false` for a pane that opens
@@ -298,6 +303,7 @@ export function RightPane({
     open,
     onOpenChange,
     title,
+    actions,
     children,
     focusOnOpen = true,
 }: RightPaneProps) {
@@ -365,9 +371,7 @@ export function RightPane({
     if (!node || (!open && !lingering)) return null
     const close = () => onOpenChange(false)
     const content = createPortal(
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-6 sm:px-6">
-            {children}
-        </div>,
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>,
         node,
     )
 
@@ -386,6 +390,7 @@ export function RightPane({
                         <RightPaneHeader
                             titleId={titleId}
                             title={title}
+                            actions={actions}
                             back={false}
                             onClose={close}
                         />
@@ -415,6 +420,7 @@ export function RightPane({
                     <RightPaneHeader
                         titleId={titleId}
                         title={title}
+                        actions={actions}
                         back={compact}
                         onClose={close}
                         overlay
