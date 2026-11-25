@@ -82,6 +82,20 @@ describe("shared desktop and mobile analytics", () => {
         })
     })
 
+    it("removes email addresses from typed answers on a self-hosted event", () => {
+        const sent = stripInstanceUrl({
+            properties: {
+                $survey_response: "Contact person@example.com please",
+                answers: ["Other", "ops@corp.example"],
+                $set: {role_other: "admin, a.b@c.io"},
+            },
+            $set: {company_other: "x person@example.com"},
+        })
+        expect(JSON.stringify(sent)).not.toContain("@")
+        expect(sent?.properties.$survey_response).toBe("Contact [email] please")
+        expect(sent?.$set).toEqual({company_other: "x [email]"})
+    })
+
     it("answers cloud only when telemetry is on and names no instance group", () => {
         expect(
             isCloudTelemetry(
