@@ -48,7 +48,7 @@ export const ViewDrawerHost = <P,>({
     title?: string
     /** Receives the drawer's stack, so a later request opens in it. */
     stackRef?: MutableRefObject<ViewStack | null>
-    /** `dialog`: a centred modal on wide screens; a phone still covers the screen. */
+    /** `dialog`: a centred modal on wide screens, a bottom sheet on a phone. */
     presentation?: "drawer" | "dialog"
     /** No header row: for a view that heads itself (a logo and a title); Close moves beside it. */
     bare?: boolean
@@ -64,12 +64,14 @@ export const ViewDrawerHost = <P,>({
         void stackRef.current?.closeAll()
     }, [])
     const finish = useCallback(() => setOpen(false), [])
+    // A dialog on a phone rises from the bottom, as the phone's other sheets.
+    const sheet = presentation === "dialog" && phone
     const body = (
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[inherit] p-0 text-field-md text-foreground">
             <DrawerCloseContext.Provider value={close}>
-                <DrawerBareContext.Provider value={bare && !phone}>
+                <DrawerBareContext.Provider value={bare && (!phone || sheet)}>
                 <ViewStackHost
-                    chrome={phone ? PhoneViewChrome : DrawerViewChrome}
+                    chrome={phone && !sheet ? PhoneViewChrome : DrawerViewChrome}
                     phone={phone}
                     confirmLeave={presentation !== "dialog"}
                 >
@@ -83,7 +85,37 @@ export const ViewDrawerHost = <P,>({
             </DrawerCloseContext.Provider>
         </div>
     )
-    if (presentation === "dialog" && !phone) {
+    if (sheet) {
+        return (
+            <Sheet
+                open={open}
+                onOpenChange={(next) => {
+                    if (!next) close()
+                }}
+            >
+                <SheetContent
+                    side="bottom"
+                    className="max-h-[85dvh] gap-0 rounded-t-2xl pt-2"
+                    style={{paddingBottom: "env(safe-area-inset-bottom)"}}
+                    aria-describedby={undefined}
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                    onCloseAutoFocus={() => onClosed()}
+                    onEscapeKeyDown={(e) => {
+                        e.preventDefault()
+                        void stackRef.current?.back()
+                    }}
+                >
+                    <div
+                        aria-hidden
+                        className="mx-auto mb-1 h-[5px] w-9 shrink-0 rounded-sm bg-border"
+                    />
+                    <SheetTitle className="sr-only">{title || t("common.dialog")}</SheetTitle>
+                    {body}
+                </SheetContent>
+            </Sheet>
+        )
+    }
+    if (presentation === "dialog") {
         return (
             <Dialog
                 open={open}
