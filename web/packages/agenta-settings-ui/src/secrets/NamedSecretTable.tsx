@@ -290,7 +290,7 @@ export const NamedSecretTable = ({
                         <>
                             <ListTableNameCell
                                 mark={
-                                    <IconTile size={32} tone="muted" aria-hidden="true">
+                                    <IconTile size={32} tone="neutral" aria-hidden="true">
                                         <Vault />
                                     </IconTile>
                                 }
