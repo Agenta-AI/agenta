@@ -46,8 +46,6 @@ export interface Notice {
     link: string
     severity: "info" | "warning"
     editions?: ("oss" | "ee")[]
-    /** Plan slugs, e.g. "self_hosted_community". */
-    plans?: string[]
     /** Inclusive, in the `Release.id` form. */
     minVersion?: string
     maxVersion?: string

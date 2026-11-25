@@ -88,11 +88,6 @@ const checkNotices = (notices) => {
             )
         )
             throw new Error(`${where}: editions must list ${NOTICE_EDITIONS.join(", ")}`)
-        if (
-            notice.plans !== undefined &&
-            !(Array.isArray(notice.plans) && notice.plans.every((plan) => typeof plan === "string"))
-        )
-            throw new Error(`${where}: plans must be a list of plan slugs`)
         for (const key of ["minVersion", "maxVersion"])
             if (notice[key] !== undefined && !VERSION_TAG.test(notice[key]))
                 throw new Error(`${where}: ${key} must look like v0.128.0`)

@@ -172,9 +172,12 @@ export const useSidebarHelpItem = ({
                     ...buildReleaseNavItems(version, {
                         whatsNew: "What's new?",
                         viewAll: "View all releases",
-                        updateAvailable: "Update available",
-                        howToUpgrade: "How to upgrade",
+                        // The classic app passes no `notInstalled` list, so the
+                        // update row and its note never render here.
+                        update: "",
+                        releasesBehind: "",
                         notInstalled: "Not installed",
+                        securityFix: "Security fix",
                     }),
                 ],
             }),

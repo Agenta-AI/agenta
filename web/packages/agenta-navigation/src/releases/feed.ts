@@ -132,10 +132,9 @@ export const updateSize = (notInstalled: Release[], version: string | null): Upd
 /** Whether every filter the notice sets matches this instance. */
 export const noticeApplies = (
     notice: Notice,
-    {version, edition, plan}: {version: string | null; edition: "oss" | "ee"; plan: string | null},
+    {version, edition}: {version: string | null; edition: "oss" | "ee"},
 ): boolean => {
     if (notice.editions && !notice.editions.includes(edition)) return false
-    if (notice.plans && !(plan && notice.plans.includes(plan))) return false
     if (notice.minVersion || notice.maxVersion) {
         if (!isVersion(version)) return false
         if (isVersion(notice.minVersion) && compareVersions(version, notice.minVersion) < 0)
@@ -163,7 +162,6 @@ export const parseNotices = (feed: readonly unknown[] = []): Notice[] =>
             isHttpsLink(notice.link) &&
             NOTICE_SEVERITIES.has(notice.severity ?? "") &&
             (notice.editions === undefined || isStringList(notice.editions)) &&
-            (notice.plans === undefined || isStringList(notice.plans)) &&
             (notice.minVersion === undefined || isVersion(notice.minVersion)) &&
             (notice.maxVersion === undefined || isVersion(notice.maxVersion))
         )

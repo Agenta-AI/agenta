@@ -36,6 +36,8 @@ export const instanceReleasesQueryAtom = atomWithQuery<InstanceReleases | null>(
     },
     enabled: Boolean(get(projectIdAtom)),
     staleTime: STALE_TIME_MS,
+    // An app left open still learns about a new security release within the hour.
+    refetchInterval: STALE_TIME_MS,
     refetchOnWindowFocus: false,
     retry: false,
 }))

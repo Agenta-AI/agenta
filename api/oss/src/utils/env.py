@@ -2122,8 +2122,8 @@ class RedisConfig(BaseModel):
 
 
 class ReleasesConfig(BaseModel):
-    """The update check: the API downloads Agenta's public release feed and sends
-    nothing about the instance. It does not follow AGENTA_TELEMETRY_ENABLED."""
+    """The update check: the API downloads Agenta's public release feed and sends the
+    running version, nothing else. It does not follow AGENTA_TELEMETRY_ENABLED."""
 
     update_check_enabled: bool = _parse_bool_env("AGENTA_UPDATE_CHECK_ENABLED", True)
     # Change it only to test a different feed. An empty value uses the default.
@@ -2415,13 +2415,10 @@ def _parse_deployment_method() -> Optional[DeploymentMethod]:
 
 
 class TelemetryConfig(BaseModel):
-    """What a self-hosted instance sends to Agenta's PostHog project."""
+    """What a self-hosted instance sends to Agenta's PostHog project. #8237 adds the
+    other telemetry settings; this change needs only the deployment method."""
 
-    enabled: bool = _parse_bool_env("AGENTA_TELEMETRY_ENABLED", default=True)
-    # Whether the operator set the switch, so the startup log can name the reason.
-    enabled_set: bool = bool((os.getenv("AGENTA_TELEMETRY_ENABLED") or "").strip())
     deployment_method: Optional[DeploymentMethod] = _parse_deployment_method()
-    ci: bool = bool(os.getenv("CI"))
 
     model_config = ConfigDict(extra="ignore")
 

@@ -30,7 +30,7 @@ const notice = (extra: Partial<Notice> = {}): Notice => ({
     ...extra,
 })
 
-const instance = {version: "v0.128.5", edition: "oss" as const, plan: "self_hosted_community"}
+const instance = {version: "v0.128.5", edition: "oss" as const}
 
 describe("compareVersions", () => {
     it("compares by number, not as text", () => {
@@ -274,11 +274,7 @@ describe("noticeApplies", () => {
         )
     })
 
-    it("matches editions and plans", () => {
-        const trial = notice({plans: ["self_hosted_community"]})
-        expect(noticeApplies(trial, instance)).toBe(true)
-        expect(noticeApplies(trial, {...instance, plan: "cloud_v0_pro"})).toBe(false)
-        expect(noticeApplies(trial, {...instance, plan: null})).toBe(false)
+    it("matches editions", () => {
         expect(noticeApplies(notice({editions: ["ee"]}), instance)).toBe(false)
         expect(noticeApplies(notice({editions: ["oss", "ee"]}), instance)).toBe(true)
     })
