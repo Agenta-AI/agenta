@@ -4,7 +4,14 @@ import {useRef, useState} from "react"
 import {formatList, useT} from "@agenta/i18n"
 import providerConnectionCatalog from "@agenta/i18n/catalogs/entityUi.providerConnection"
 import {cn} from "@agenta/ui/styles"
-import {Checkbox, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+import {
+    Button,
+    Checkbox,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
 
 import {harnessMarkFor} from "./harnessMark"
@@ -50,10 +57,11 @@ const HarnessesSection = ({
 
     return (
         <section ref={sectionRef} className="flex shrink-0 flex-col">
-            <button
+            <Button
                 type="button"
+                variant="ghost"
                 onClick={() => setExpanded((value) => !value)}
-                className="flex w-fit cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left"
+                className="-mx-2 w-fit justify-start gap-1.5 px-2"
                 aria-expanded={expanded}
             >
                 <span className="font-medium text-foreground">
@@ -93,7 +101,7 @@ const HarnessesSection = ({
                         expanded && "rotate-90",
                     )}
                 />
-            </button>
+            </Button>
 
             {/* Animates height through grid rows; once open, the section scrolls into view. */}
             <div

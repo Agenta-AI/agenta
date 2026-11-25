@@ -99,10 +99,10 @@ export const OAuthAdvancedFields = ({
 
     return (
         <div className="flex flex-col gap-3" data-testid="mcp-oauth-advanced">
-            {/* A section row (canvas F03 f5): the glyph, the title, what is inside, a caret. */}
-            <button
+            <Button
                 type="button"
-                className="flex h-10 w-full cursor-pointer items-center gap-2 border-0 border-b border-solid border-border-muted bg-transparent px-1 text-left font-[inherit] text-foreground outline-none focus-ring"
+                variant="ghost"
+                className="w-full justify-start gap-2 px-2 text-foreground"
                 aria-expanded={open}
                 onClick={() => setToggled(!open)}
             >
@@ -114,7 +114,7 @@ export const OAuthAdvancedFields = ({
                     {summary}
                 </span>
                 <CollapseCaret open={open} size={10} className="text-foreground" />
-            </button>
+            </Button>
             {open ? (
                 <div className="flex flex-col gap-4">
                     <p id={introId} className="m-0 text-meta leading-normal text-muted-foreground">

@@ -239,8 +239,10 @@ const OrganizationProjectsSection = ({
                                     className="flex items-center gap-1 rounded-control-sm bg-secondary py-0.5 pl-2 pr-1 text-foreground"
                                 >
                                     {names.get(id) ?? id}
-                                    <button
+                                    <Button
                                         type="button"
+                                        variant="ghost"
+                                        size="icon-xs"
                                         aria-label={t(
                                             "entityUi.organizationProjects.removeProject",
                                             {
@@ -248,10 +250,10 @@ const OrganizationProjectsSection = ({
                                             },
                                         )}
                                         onClick={() => toggle(id)}
-                                        className="flex cursor-pointer items-center border-0 bg-transparent p-0.5 text-muted-foreground hover:text-foreground"
+                                        className="size-5 text-muted-foreground"
                                     >
                                         <X size={12} />
-                                    </button>
+                                    </Button>
                                 </span>
                             ))}
                         </div>

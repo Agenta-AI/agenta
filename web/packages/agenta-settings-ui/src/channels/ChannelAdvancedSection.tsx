@@ -389,16 +389,18 @@ export const ChannelAdvancedSection = ({
 
     return (
         <div className="flex flex-col gap-2" data-testid="channels-advanced">
-            <button
+            <Button
                 type="button"
-                className="flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-label text-foreground"
+                variant="ghost"
+                size="sm"
+                className="-mx-2 w-fit gap-1.5 px-2 text-foreground"
                 onClick={() => setOpen((value) => !value)}
                 aria-expanded={open}
                 data-testid="channels-advanced-toggle"
             >
                 {open ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 {t("channels.advanced.advanced")}
-            </button>
+            </Button>
 
             {open ? (
                 <div className="flex flex-col gap-2">

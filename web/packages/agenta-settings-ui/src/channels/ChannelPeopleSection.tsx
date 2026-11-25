@@ -19,7 +19,7 @@ import {
 } from "@agenta/ui/ui"
 import {UsersThree, X} from "@phosphor-icons/react"
 
-import {errorMessage, splitIdList} from "./helpers"
+import {errorMessage, ROW_BUTTON, splitIdList} from "./helpers"
 import type {
     ChannelAudiencePerson,
     ChannelPeopleDirectory,
@@ -273,12 +273,13 @@ export const ChannelPeopleSection = ({
     })()
 
     const personItem = (person: ChannelPerson) => (
-        <button
+        <Button
             key={person.id}
             type="button"
+            variant="ghost"
             disabled={person.isBot || saving}
             onClick={() => void pick(person)}
-            className="flex w-full cursor-pointer items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+            className={`${ROW_BUTTON} w-full gap-2.5 px-1.5 py-1.5`}
             data-testid="channels-people-result"
         >
             <span className="flex size-6 flex-none items-center justify-center rounded-md bg-secondary text-caption font-semibold text-muted-foreground">
@@ -296,7 +297,7 @@ export const ChannelPeopleSection = ({
                               .join(" · ") || person.id}
                 </span>
             </span>
-        </button>
+        </Button>
     )
 
     const slackResults = (
@@ -334,15 +335,17 @@ export const ChannelPeopleSection = ({
                                             ago: ago(t, directory.updatedAt),
                                         })} · `
                                       : ""}
-                                <button
+                                <Button
                                     type="button"
-                                    className="cursor-pointer border-0 bg-transparent p-0 text-label text-primary"
+                                    variant="link"
+                                    size="sm"
+                                    className="h-auto p-0 text-label"
                                     disabled={refreshing}
                                     onClick={() => void refresh()}
                                     data-testid="channels-people-refresh"
                                 >
                                     {t("common.refresh")}
-                                </button>
+                                </Button>
                             </span>
                         ) : null}
                     </div>

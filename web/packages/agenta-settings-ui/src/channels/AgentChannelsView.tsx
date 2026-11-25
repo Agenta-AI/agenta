@@ -416,13 +416,15 @@ const InlineChannelView = ({title, icon, onClose, onBack, children}: ChannelsPan
                         </Button>
                     </SimpleTooltip>
                 ) : null}
-                <button
+                <Button
                     type="button"
+                    variant="ghost"
+                    size="xs"
                     onClick={onClose}
-                    className="cursor-pointer border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground"
+                    className="-mx-1.5 px-1.5 text-muted-foreground"
                 >
                     {t("channels.page.title")}
-                </button>
+                </Button>
                 <CaretRight size={12} aria-hidden className="text-muted-foreground" />
                 <span className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
                     {icon}

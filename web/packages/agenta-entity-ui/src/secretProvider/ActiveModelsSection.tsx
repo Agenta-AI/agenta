@@ -161,10 +161,11 @@ const ActiveModelsSection = ({
             {/* Sized to its rows, so a short list leaves no empty box; a long one scrolls. */}
             <div className="flex max-h-[min(320px,45vh)] flex-col overflow-hidden">
                 {canAdd ? (
-                    <button
+                    <Button
                         type="button"
+                        variant="ghost"
                         onClick={addTerm}
-                        className="flex shrink-0 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 py-2 text-left text-field-sm text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent"
+                        className="w-full shrink-0 justify-start gap-2 px-2 text-field-sm"
                     >
                         <Plus size={14} className="shrink-0 text-muted-foreground" />
                         <span className="min-w-0 truncate">
@@ -175,7 +176,7 @@ const ActiveModelsSection = ({
                         <span className="ml-auto shrink-0 text-field-xs text-muted-foreground">
                             {t("entityUi.providerConnection.enterKey")}
                         </span>
-                    </button>
+                    </Button>
                 ) : null}
 
                 {visible.length === 0 ? (
