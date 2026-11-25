@@ -17,6 +17,20 @@ const isInstanceUrlProperty = (key: string) =>
     INSTANCE_URL_PROPERTIES.includes(key) ||
     INSTANCE_URL_PREFIXES.some((prefix) => key.startsWith(prefix))
 
+// Typed text, such as a survey answer, can hold an email address.
+const EMAIL_ADDRESS = /[^\s@]+@[^\s@]+\.[^\s@]+/g
+
+const withoutEmails = (value: unknown): unknown => {
+    if (typeof value === "string") return value.replace(EMAIL_ADDRESS, "[email]")
+    if (Array.isArray(value)) return value.map(withoutEmails)
+    if (value && typeof value === "object") {
+        return Object.fromEntries(
+            Object.entries(value).map(([key, nested]) => [key, withoutEmails(nested)]),
+        )
+    }
+    return value
+}
+
 const withoutInstanceUrl = (properties: Record<string, unknown> | undefined) => {
     if (!properties) return properties
     const kept = {...properties}
@@ -27,7 +41,7 @@ const withoutInstanceUrl = (properties: Record<string, unknown> | undefined) => 
             kept[key] = withoutInstanceUrl(nested as Record<string, unknown>)
         }
     }
-    return kept
+    return withoutEmails(kept) as Record<string, unknown>
 }
 
 interface CapturedEvent {
@@ -36,7 +50,7 @@ interface CapturedEvent {
     $set_once?: Record<string, unknown>
 }
 
-/** Self-hosted events carry no instance address and no GeoIP lookup. */
+/** Self-hosted events carry no instance address, no email address and no GeoIP lookup. */
 export const stripInstanceUrl = <T extends CapturedEvent>(event: T | null): T | null =>
     event && {
         ...event,
