@@ -193,7 +193,7 @@ export function loopsMailSender(
 }
 
 // The contact properties must exist in Loops before the first call (Audience page or
-// API settings): agentaVersion and agentaPlan as strings,
+// API settings): agentaVersion, agentaInstanceId and agentaPlan as strings,
 // agentaRegisteredAt as a date.
 export function loopsContactRecorder(
   apiKey: string,
@@ -213,6 +213,7 @@ export function loopsContactRecorder(
           source: "self-hosted registration",
           userGroup: "self-hosted",
           agentaVersion: registration.agenta_version,
+          agentaInstanceId: registration.instance_id,
           // Loops reads `YYYY-MM-DDTHH:mm:ss` without an offset as UTC.
           agentaRegisteredAt: registeredAt.toISOString().slice(0, 19),
           agentaPlan: REGISTERED_PLAN,

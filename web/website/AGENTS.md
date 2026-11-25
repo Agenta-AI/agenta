@@ -9,8 +9,8 @@ context, decisions, and the design source live in
 ## Asset hosting — proprietary and large files (IMPORTANT)
 
 **This repo is public / open source. Never commit proprietary, licensed, or large
-binary assets.** We may be licensed to *use* an asset on our site but not to
-*redistribute* its source binary, and a public repo redistributes everything in it,
+binary assets.** We may be licensed to _use_ an asset on our site but not to
+_redistribute_ its source binary, and a public repo redistributes everything in it,
 forever, in history.
 
 The rule: **proprietary/large assets live in the deployed output, never in git.**
@@ -71,8 +71,8 @@ Every PR that touches `web/website/**` gets an automatically deployed preview, v
 `.github/workflows/15-website-preview.yml`.
 
 - **How:** the workflow builds the site and runs `wrangler versions upload
-  --preview-alias pr-<number>` against the single `agenta-website-preview` worker.
-  This publishes a new *version* with its own shareable preview URL and does **not**
+--preview-alias pr-<number>` against the single `agenta-website-preview` worker.
+  This publishes a new _version_ with its own shareable preview URL and does **not**
   touch the worker's production deployment, so one worker serves every PR's preview
   (no per-PR worker sprawl, no cleanup job). The stable alias makes the URL
   deterministic per PR: `https://pr-<number>-agenta-website-preview.<subdomain>.workers.dev`.
@@ -128,9 +128,9 @@ self-hosted instance asks for a free registration key. The worker checks the bod
 `self_hosted_registered` plan with WebCrypto Ed25519, and emails the key and its activation
 link (`<web_url>/m/settings?tab=license#key=<key>`) through Loops. Then it upserts the Loops
 contact (`PUT /api/v1/contacts/update`) with `source: "self-hosted registration"`,
-`userGroup: "self-hosted"` and the custom properties `agentaVersion`, `agentaRegisteredAt` and
-`agentaPlan`; these properties must exist in Loops first. It never sends the instance id to Loops,
-so the email cannot be linked to the anonymous telemetry of that instance. It adds the
+`userGroup: "self-hosted"` and the custom properties `agentaVersion`, `agentaRegisteredAt`,
+`agentaInstanceId` and `agentaPlan`; these properties must exist in Loops first. The instance id is
+stored on the contact, and registration links the instance to the email in PostHog. It adds the
 contact to the mailing list in the plain worker variable `LOOPS_PRODUCT_UPDATES_LIST_ID` when that
 is set. A failed contact update is logged and does not fail the registration, because the key email
 already went out. It stores nothing itself and answers `202 {}`. It runs before the negotiation `try/catch`, so a failure answers JSON and never falls
@@ -167,7 +167,7 @@ Every merge to `main` that touches `web/website/**` deploys production, via
 `.github/workflows/16-website-production.yml` (also `workflow_dispatch`).
 
 - **How:** builds with the same R2 font secrets, then runs `wrangler deploy
-  --config wrangler.production.jsonc` — a real deploy (not `versions upload`) to the
+--config wrangler.production.jsonc` — a real deploy (not `versions upload`) to the
   separate production worker `agenta-website` (`preview_urls: false`, no routes yet;
   the `agenta.ai` domain is attached in the Cloudflare dashboard).
 - **Canonical URL:** after the worker deploy, `scripts/configure-canonical-redirect.mjs`
@@ -206,13 +206,13 @@ and case, a button with its own gradient) and then drifting when the original ch
 The rule: **a shared element is drawn in exactly one place, and pages only use it.**
 `pnpm lint:ui` (also run by `pnpm build`) fails when a page draws one of these itself.
 
-| Element | Use | Defined in |
-| --- | --- | --- |
-| Page column (1440, flat) | `Site` layout | `.ag-wrap` in `styles/global.css` |
-| Band border (the page grid) | `<Section tone="grid" \| "dark" \| "flat">` | `components/Section.astro`, `.ag-section` |
-| Eyebrow chip ("HOW IT WORKS") | `<Badge variant=...>` | `components/Badge.astro`, `.ag-badge` |
-| Button | `<Button variant=...>` or `class="ag-btn ag-btn--<variant>"` | `components/Button.astro`, `.ag-btn` |
-| Section header (chip + title + subtitle) | `<SectionTitle>` | `components/SectionTitle.astro` |
+| Element                                  | Use                                                          | Defined in                                |
+| ---------------------------------------- | ------------------------------------------------------------ | ----------------------------------------- |
+| Page column (1440, flat)                 | `Site` layout                                                | `.ag-wrap` in `styles/global.css`         |
+| Band border (the page grid)              | `<Section tone="grid" \| "dark" \| "flat">`                  | `components/Section.astro`, `.ag-section` |
+| Eyebrow chip ("HOW IT WORKS")            | `<Badge variant=...>`                                        | `components/Badge.astro`, `.ag-badge`     |
+| Button                                   | `<Button variant=...>` or `class="ag-btn ag-btn--<variant>"` | `components/Button.astro`, `.ag-btn`      |
+| Section header (chip + title + subtitle) | `<SectionTitle>`                                             | `components/SectionTitle.astro`           |
 
 - `Section` owns `border: 1px solid var(--th-section-border)` and the `-1px` overlap.
   `tone="dark"` is for bands that are dark in both themes (a paper line between two

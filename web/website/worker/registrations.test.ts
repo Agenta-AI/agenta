@@ -399,6 +399,7 @@ describe("Loops contact", () => {
       source: "self-hosted registration",
       userGroup: "self-hosted",
       agentaVersion: "v0.128.11",
+      agentaInstanceId: "0f8b8a52-6a3e-4a1c-9d8e-2b7c4f1e9a10",
       agentaRegisteredAt: expect.stringMatching(
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/,
       ),
