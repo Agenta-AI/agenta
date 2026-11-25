@@ -84,7 +84,7 @@ const Card = ({card}: {card: SubscriptionCard}) => {
 export const SubscriptionCards = ({cards}: {cards: SubscriptionCard[]}) => {
     const t = useT(settingsProvidersCatalog)
     return (
-        <section className="grid grid-cols-1 gap-2 rounded-lg border border-solid border-border p-2 md:grid-cols-[minmax(0,1.1fr)_repeat(2,minmax(0,1fr))]">
+        <section className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1.1fr)_repeat(2,minmax(0,1fr))]">
             <div className="flex min-w-0 flex-col justify-center gap-2 p-2">
                 <span className="flex items-center gap-1.5 text-label text-muted-foreground">
                     <Key size={14} aria-hidden />

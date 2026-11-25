@@ -29,7 +29,7 @@ export const BasicCredentialHelper = ({disabled, onCreateSecret}: BasicCredentia
 
     return (
         <div
-            className="flex flex-col gap-3 rounded-control border border-solid border-border-muted p-3"
+            className="flex flex-col gap-3 rounded-lg bg-muted p-3"
             data-testid="mcp-basic-helper"
         >
             <span className="text-label font-medium text-foreground">

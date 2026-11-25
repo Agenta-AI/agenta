@@ -127,7 +127,7 @@ export const OAuthAdvancedFields = ({
                             <span className="text-field-md text-foreground">
                                 {t("entityUi.mcpConnect.callbackUrl")}
                             </span>
-                            <div className="flex h-8 items-center gap-2 rounded-lg border border-solid border-border-muted bg-background pl-3 pr-1">
+                            <div className="flex h-8 items-center gap-2 rounded-lg bg-muted pl-3 pr-1">
                                 <code
                                     ref={callbackRef}
                                     className="min-w-0 flex-1 truncate text-code-sm text-muted-foreground"

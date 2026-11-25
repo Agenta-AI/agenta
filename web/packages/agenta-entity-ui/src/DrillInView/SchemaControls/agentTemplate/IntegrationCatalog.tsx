@@ -468,14 +468,14 @@ function ConnectedRow({
             }
             expansion={
                 choosing && browseList ? (
-                    <div className="ml-[42px] mt-2 flex flex-col gap-1">
+                    <div className="ml-11 mt-2 flex flex-col gap-1">
                         {group.connections.map((connection) => {
                             const label = connectionLabel(connection, integration?.name)
                             const pending = attentionOf(connection) === "pending"
                             return (
                                 <div
                                     key={connection.slug}
-                                    className="flex items-center gap-2 rounded border border-solid border-border-muted px-2.5 py-1 text-label"
+                                    className="flex items-center gap-2 rounded-md bg-muted px-2.5 py-1 text-label"
                                 >
                                     <span className="flex-1 truncate">{label}</span>
                                     {verbs.makeDefault && isConnectionDefault(connection) ? (
@@ -517,15 +517,13 @@ function ConnectedRow({
                         })}
                     </div>
                 ) : choosing && onAdd ? (
-                    <div className="ml-[42px] mt-2 flex flex-col gap-1">
+                    <div className="ml-11 mt-2 flex flex-col gap-1">
                         <RadioGroup value={selected} onValueChange={setSelected}>
                             {group.connections.map((connection) => (
                                 <label
                                     key={connection.slug}
-                                    className={`flex cursor-pointer items-center gap-2 rounded border border-solid px-2.5 py-1.5 text-label ${
-                                        selected === connection.slug
-                                            ? "border-foreground"
-                                            : "border-border-muted"
+                                    className={`flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-label transition-colors duration-[var(--duration-fast)] ${
+                                        selected === connection.slug ? "bg-accent" : "bg-muted"
                                     }`}
                                 >
                                     <RadioGroupItem value={connection.slug ?? ""} />

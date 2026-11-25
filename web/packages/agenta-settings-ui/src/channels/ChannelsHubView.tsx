@@ -96,7 +96,7 @@ export const ChannelsHubView = ({
             {loadError ? (
                 <div
                     role="alert"
-                    className="flex items-center justify-between gap-3 rounded-lg border border-solid border-border px-3 py-2.5 text-label text-destructive"
+                    className="flex items-center justify-between gap-3 rounded-lg bg-muted px-3 py-2.5 text-label text-destructive"
                 >
                     <span className="min-w-0">{loadError}</span>
                     <Button
@@ -125,7 +125,7 @@ export const ChannelsHubView = ({
                         return (
                             <div
                                 key={platform}
-                                className="flex items-center gap-3 rounded-lg border border-solid border-border px-3 py-2.5"
+                                className="flex items-center gap-3 rounded-lg bg-muted px-3 py-2.5"
                             >
                                 <SkeletonBlock active className="size-8 rounded-md" />
                                 <div className="flex flex-1 flex-col gap-1.5">
@@ -160,14 +160,9 @@ export const ChannelsHubView = ({
                             ? summary.sub
                             : t("common.notConnected")
                     return (
-                        <div
-                            key={platform}
-                            className={`overflow-hidden rounded-lg border border-solid bg-background transition-colors ${
-                                open ? "border-ring" : "border-border"
-                            }`}
-                        >
+                        <div key={platform} className="overflow-hidden rounded-lg bg-muted">
                             <div
-                                className={`flex items-center gap-2 pr-2.5 ${
+                                className={`flex items-center gap-2 pr-2.5 transition-colors duration-[var(--duration-fast)] ${
                                     unavailable ? "" : "hover:bg-accent"
                                 }`}
                             >
@@ -179,11 +174,11 @@ export const ChannelsHubView = ({
                                     className={`${ROW_BUTTON} min-w-0 flex-1 gap-3 rounded-none py-2.5 pl-3 pr-1 hover:bg-transparent disabled:opacity-100`}
                                     data-testid={`channels-hub-${platform}`}
                                 >
-                                    <span className="relative flex size-8 flex-none items-center justify-center rounded-md bg-secondary">
+                                    <span className="relative flex size-8 flex-none items-center justify-center rounded-md bg-background">
                                         {platformLogo(platform, 16)}
                                         {dotClass && !unavailable ? (
                                             <span
-                                                className={`absolute -right-[3px] -top-[3px] size-2.5 rounded-round border-2 border-solid border-background ${dotClass}`}
+                                                className={`absolute -right-[3px] -top-[3px] size-2.5 rounded-round border-2 border-solid border-muted ${dotClass}`}
                                             />
                                         ) : null}
                                     </span>
