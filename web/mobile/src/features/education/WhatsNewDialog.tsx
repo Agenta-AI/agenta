@@ -131,31 +131,34 @@ export const WhatsNewDialog = () => {
                                                     : "group-hover:bg-background/60",
                                             )}
                                         >
-                                            <span className="flex items-center justify-between gap-2 text-[11.5px] text-colorTextTertiary">
-                                                <span className="flex items-center gap-1.5">
+                                            <span className="flex items-start justify-between gap-2 text-[11.5px] text-colorTextTertiary">
+                                                {/* Wraps when a release carries both tags; the date stays on the first line. */}
+                                                <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
                                                     {release.id}
                                                     {notInstalled.has(release.id) ? (
                                                         <>
                                                             {release.securityFix ? (
-                                                                <span className="rounded bg-colorErrorBg px-1.5 text-[10.5px] font-medium leading-4 text-colorErrorText">
+                                                                <span className="rounded bg-colorErrorBg px-1.5 whitespace-nowrap text-[10.5px] font-medium leading-4 text-colorErrorText">
                                                                     {t(
                                                                         "education.whatsNew.securityFix",
                                                                     )}
                                                                 </span>
                                                             ) : null}
-                                                            <span className="rounded bg-colorWarningBg px-1.5 text-[10.5px] font-medium leading-4 text-colorWarning">
+                                                            <span className="rounded bg-colorWarningBg px-1.5 whitespace-nowrap text-[10.5px] font-medium leading-4 text-colorWarning">
                                                                 {t(
                                                                     "education.whatsNew.notInstalled",
                                                                 )}
                                                             </span>
                                                         </>
                                                     ) : index === 0 ? (
-                                                        <span className="rounded bg-colorSuccessBg px-1.5 text-[10.5px] font-medium leading-4 text-colorSuccessText">
+                                                        <span className="rounded bg-colorSuccessBg px-1.5 whitespace-nowrap text-[10.5px] font-medium leading-4 text-colorSuccessText">
                                                             {t("education.whatsNew.latest")}
                                                         </span>
                                                     ) : null}
                                                 </span>
-                                                <span>{formatReleaseDate(release)}</span>
+                                                <span className="shrink-0 whitespace-nowrap">
+                                                    {formatReleaseDate(release)}
+                                                </span>
                                             </span>
                                             <span className="truncate text-[13.5px] leading-5 text-foreground">
                                                 {release.features[0]?.title}

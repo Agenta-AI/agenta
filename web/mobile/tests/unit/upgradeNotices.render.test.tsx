@@ -185,7 +185,7 @@ describe("upgrade notices", () => {
 
             const update = row("update-available")
             expect(update?.title).toBe(label)
-            expect(renderNode(update?.suffix)).toContain("2 releases behind")
+            expect(update?.subtitle).toBe("2 releases behind")
             expect(renderNode(update?.icon)).toContain(fg)
             expect(renderNode(help?.icon)).toContain(bg)
         })
@@ -193,7 +193,7 @@ describe("upgrade notices", () => {
         it("says 1 release behind for one missing release", () => {
             behind({notInstalled: [release("v0.129.1")], running: "v0.129.0", size: "patch"})
             render(<Probe />)
-            expect(renderNode(row("update-available")?.suffix)).toContain("1 release behind")
+            expect(row("update-available")?.subtitle).toBe("1 release behind")
         })
 
         it("opens the What's new dialog on the newest release, not the docs", () => {
@@ -202,7 +202,7 @@ describe("upgrade notices", () => {
 
             const update = row("update-available")
             expect(update?.link).toBeUndefined()
-            act(() => update?.onClick?.())
+            act(() => update?.onClick?.({} as never))
             expect(store.get(whatsNewAtom)).toEqual({releaseId: "v0.131.0"})
         })
 

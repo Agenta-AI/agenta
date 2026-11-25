@@ -161,7 +161,8 @@ export const buildReleaseNavItems = (
                               className={UPDATE_SIZE_COLOR[updateSize ?? "patch"].text}
                           />
                       ),
-                      suffix: <RowNote>{labels.releasesBehind}</RowNote>,
+                      // Under the label, not beside it: the two side by side did not fit.
+                      subtitle: labels.releasesBehind,
                   },
               ]
             : []),
