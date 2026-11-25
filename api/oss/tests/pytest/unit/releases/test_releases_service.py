@@ -82,6 +82,8 @@ def requests(monkeypatch):
     monkeypatch.setattr(releases_service, "get_agenta_version", lambda: "v0.128.11")
     monkeypatch.setattr(env.releases, "update_check_enabled", True)
     monkeypatch.setattr(env.telemetry, "instance_kind", None)
+    monkeypatch.setattr(env.telemetry, "ci", False)
+    monkeypatch.setattr(env.agenta, "web_url", "https://agenta.example.com")
     return recorder
 
 

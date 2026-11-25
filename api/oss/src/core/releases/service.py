@@ -5,9 +5,10 @@ from typing import Any, Optional
 
 import httpx
 
+from oss.src.core.instances.service import get_instance_kind
 from oss.src.core.releases.dtos import InstanceReleases, ReleaseFeed
 from oss.src.utils.caching import get_cache, set_cache
-from oss.src.utils.env import InstanceKind, env
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.version import get_agenta_version
 
@@ -20,13 +21,6 @@ FAILED_FEED_TTL_SECONDS = 60 * 60
 FETCH_TIMEOUT_SECONDS = 5.0
 # The published feed is about 10 KB; anything far larger is not the feed.
 MAX_FEED_BYTES = 1024 * 1024
-
-
-def get_instance_kind() -> InstanceKind:
-    """The override, else "production". #8237 adds the detection (ci, development) in
-    oss.src.core.instances.service.get_instance_kind; when both land, use that one."""
-
-    return env.telemetry.instance_kind or "production"
 
 
 def _parse_feed(payload: Any) -> Optional[ReleaseFeed]:
