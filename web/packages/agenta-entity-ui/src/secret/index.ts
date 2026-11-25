@@ -20,6 +20,13 @@ export {
 
 export {PASSWORD_MANAGER_OPT_OUT} from "./passwordManagerOptOut"
 export {OwnerRadioGroup, type OwnerOption, type OwnerRadioGroupProps} from "./OwnerRadioGroup"
+export {
+    OWNER_ICON,
+    OWNER_ORDER,
+    OwnerField,
+    useOwnerWord,
+    type OwnerFieldProps,
+} from "../accounts/OwnerField"
 
 export {SecretRemoveDialog} from "./SecretRemoveDialog"
 export {secretAttachView, type SecretAttachViewParams} from "./views/secretAttachView"

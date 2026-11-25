@@ -18,5 +18,14 @@
     "everyoneInProject": "{{project}} 中的所有人",
     "everyoneInThisProject": "此项目中的所有人",
     "everyoneSecretNote": "构建者可以将它附加到此项目中的 Agent。",
-    "userSecretRow": "每个人自己的密钥"
+    "userSecretRow": "每个人自己的密钥",
+    "owner": "所有者",
+    "ownerUser": "个人",
+    "ownerProject": "项目",
+    "ownerOrganization": "组织",
+    "ownerUserNote": "只有你可以使用。它会随你进入每个项目。",
+    "ownerProjectNote": "{{project}} 中的每个人都可以将它添加到智能体。",
+    "ownerProjectNoteThis": "此项目中的每个人都可以将它添加到智能体。",
+    "ownerOrganizationNote": "在 {{organization}} 中保存一次。由你选择哪些项目可以使用。",
+    "ownerOrganizationNoteThis": "为组织保存一次。由你选择哪些项目可以使用。"
 }

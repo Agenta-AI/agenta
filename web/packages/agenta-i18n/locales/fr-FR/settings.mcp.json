@@ -20,11 +20,12 @@
     "signInTo": "Se connecter à {{name}}",
     "signOutMessage": "Les agents qui utilisent la connexion personnelle de chaque personne à ce serveur ne peuvent plus l’utiliser pour vous tant que vous ne vous reconnectez pas.",
     "signOutOf": "Se déconnecter de {{name}}",
-    "signedInAsYou": "Connecté sous votre compte",
+    "signedInAsYou": "Connecté en tant que Vous",
     "signingIn": "Connexion…",
     "thisServer": "ce serveur",
     "token": "Jeton",
     "tokenDialogDescription": "Collez votre propre jeton pour ce serveur. Seules les exécutions que vous lancez l’utilisent.",
     "viewTools": "Voir les outils",
-    "yours": "Les vôtres"
+    "searchServers": "Rechercher des serveurs MCP",
+    "yourSignIn": "Votre connexion"
 }

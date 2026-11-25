@@ -26,5 +26,6 @@
     "token": "令牌",
     "tokenDialogDescription": "粘贴你自己的此服务器令牌。只有你发起的运行会使用它。",
     "viewTools": "查看工具",
-    "yours": "你的"
+    "searchServers": "搜索 MCP 服务器",
+    "yourSignIn": "你的登录"
 }

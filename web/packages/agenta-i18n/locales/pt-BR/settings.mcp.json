@@ -20,11 +20,12 @@
     "signInTo": "Entrar em {{name}}",
     "signOutMessage": "Os agentes que usam o login de cada pessoa neste servidor não poderão usá-lo para você até que você entre novamente.",
     "signOutOf": "Sair de {{name}}",
-    "signedInAsYou": "Login feito como você",
+    "signedInAsYou": "Login feito como Você",
     "signingIn": "Entrando…",
     "thisServer": "este servidor",
     "token": "Token",
     "tokenDialogDescription": "Cole seu próprio token para este servidor. Somente as execuções que você iniciar o usam.",
     "viewTools": "Ver ferramentas",
-    "yours": "Seu"
+    "searchServers": "Pesquisar servidores MCP",
+    "yourSignIn": "Seu login"
 }

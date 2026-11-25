@@ -26,5 +26,6 @@
     "token": "トークン",
     "tokenDialogDescription": "このサーバー用の自分のトークンを貼り付けてください。あなたが開始した実行でのみ使用されます。",
     "viewTools": "ツールを表示",
-    "yours": "自分用"
+    "searchServers": "MCP サーバーを検索",
+    "yourSignIn": "あなたのサインイン"
 }

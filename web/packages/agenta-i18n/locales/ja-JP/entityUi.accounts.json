@@ -18,5 +18,14 @@
     "everyoneInProject": "{{project}} の全員",
     "everyoneInThisProject": "このプロジェクトの全員",
     "everyoneSecretNote": "ビルダーはこのプロジェクトのエージェントにこれを添付できます。",
-    "userSecretRow": "各ユーザー自身のシークレット"
+    "userSecretRow": "各ユーザー自身のシークレット",
+    "owner": "所有者",
+    "ownerUser": "個人",
+    "ownerProject": "プロジェクト",
+    "ownerOrganization": "組織",
+    "ownerUserNote": "あなただけが使えます。すべてのプロジェクトで使えます。",
+    "ownerProjectNote": "{{project}} の全員がエージェントに追加できます。",
+    "ownerProjectNoteThis": "このプロジェクトの全員がエージェントに追加できます。",
+    "ownerOrganizationNote": "{{organization}} に一度だけ保存します。使えるプロジェクトはあなたが選びます。",
+    "ownerOrganizationNoteThis": "組織に一度だけ保存します。使えるプロジェクトはあなたが選びます。"
 }

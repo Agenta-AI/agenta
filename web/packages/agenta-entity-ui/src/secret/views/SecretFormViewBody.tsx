@@ -13,10 +13,9 @@ import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import deepEqual from "fast-deep-equal"
 import {useAtomValue} from "jotai"
 
-import {ACCOUNT_COPY} from "../../accounts/copy"
+import {OwnerField} from "../../accounts/OwnerField"
 import {useProjectName} from "../../accounts/useProjectName"
 import type {SecretOwner} from "../agentSecretRules"
-import {OwnerRadioGroup} from "../OwnerRadioGroup"
 import {SecretForm, useSecretForm, type SecretFormController} from "../SecretForm"
 import {objectToRows, type KvRow} from "../SecretForm/primitives"
 
@@ -103,26 +102,13 @@ const SecretFormViewBody = ({params}: ViewProps<SecretFormViewParams>) => {
                 {t("settings.secretFormSheet.description")}
             </p>
             <SecretForm controller={controller} />
-            {askOwner ? (
-                <div className="flex flex-col gap-1">
-                    <span className="font-medium text-foreground">{ACCOUNT_COPY.whoCanUseIt}</span>
-                    <OwnerRadioGroup<SecretOwner>
-                        value={owner}
-                        onChange={setOwner}
-                        options={[
-                            {
-                                value: "user",
-                                label: ACCOUNT_COPY.onlyMe,
-                                note: ACCOUNT_COPY.onlyMeSecretNote,
-                            },
-                            {
-                                value: "project",
-                                label: ACCOUNT_COPY.everyoneIn(projectName),
-                                note: ACCOUNT_COPY.everyoneSecretNote,
-                            },
-                        ]}
-                    />
-                </div>
+            {askOwner && owners ? (
+                <OwnerField<SecretOwner>
+                    value={owner}
+                    owners={owners}
+                    onChange={setOwner}
+                    projectName={projectName}
+                />
             ) : null}
         </div>
     )

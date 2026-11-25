@@ -5,8 +5,17 @@
     "rowActions": "Zeilenaktionen",
     "seePlans": "Pläne ansehen",
     "usedBy": "Verwendet von {{names}}",
-    "yours": "Ihre",
+    "yours": "Persönlich",
     "yoursEmptyBody": "Konten, die Sie hier hinzufügen, werden in allen Ihren Projekten verwendet, wenn ein Agent das eigene Konto jeder Person nutzt.",
     "yoursEmptyBodyCount": "Konten, die Sie hier hinzufügen, werden in allen {{projectCount}} Ihrer Projekte verwendet, wenn ein Agent das eigene Konto jeder Person nutzt.",
-    "yoursEmptyTitle": "Noch keine eigenen Konten"
+    "yoursEmptyTitle": "Noch keine eigenen Konten",
+    "owner": "Eigentümer",
+    "ownerAll": "Alle",
+    "filterCategory": "Kategorie",
+    "filterAuth": "Authentifizierung",
+    "authApiKey": "API-Schlüssel",
+    "authNone": "Keine",
+    "noMatchTitle": "Keine Treffer",
+    "noMatchBody": "Versuchen Sie eine andere Suche oder setzen Sie die Filter zurück.",
+    "resetFilters": "Filter zurücksetzen"
 }

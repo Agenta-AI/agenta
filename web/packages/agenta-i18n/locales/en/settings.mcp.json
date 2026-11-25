@@ -20,11 +20,12 @@
     "signInTo": "Sign in to {{name}}",
     "signOutMessage": "Agents that use each person's own sign-in to this server cannot use it for you until you sign in again.",
     "signOutOf": "Sign out of {{name}}",
-    "signedInAsYou": "Signed in as you",
+    "signedInAsYou": "Signed in as You",
     "signingIn": "Signing in…",
     "thisServer": "this server",
     "token": "Token",
     "tokenDialogDescription": "Paste your own token for this server. Only runs you start use it.",
     "viewTools": "View tools",
-    "yours": "Yours"
+    "searchServers": "Search MCP servers",
+    "yourSignIn": "Your sign-in"
 }

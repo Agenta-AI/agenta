@@ -2213,7 +2213,16 @@
         "everyoneInProject": "ea1c225ea3c9",
         "everyoneInThisProject": "157e75881465",
         "everyoneSecretNote": "e025f4d948df",
-        "userSecretRow": "c4b9744ba44f"
+        "userSecretRow": "c4b9744ba44f",
+        "owner": "4b1b8aa3608a",
+        "ownerUser": "845f9286400f",
+        "ownerProject": "985959785319",
+        "ownerOrganization": "d764d42592fc",
+        "ownerUserNote": "886a2659b005",
+        "ownerProjectNote": "d592b96fd503",
+        "ownerProjectNoteThis": "28baa71d5ed0",
+        "ownerOrganizationNote": "c4795914b5cf",
+        "ownerOrganizationNoteThis": "2f5e3c3bacd1"
     },
     "entityUi.addSubagent": {
         "removeAsSubagent": "82496ab307a7",
@@ -2822,7 +2831,6 @@
     "entityUi.connectForm": {
         "popupBlocked": "3ded10a66eb3",
         "onlyMe": "bdc0857b99a9",
-        "onlyMeNote": "30dfd5aaf2b6",
         "everyoneInProject": "ea1c225ea3c9",
         "everyoneInThisProject": "157e75881465",
         "everyoneNote": "2328ac65d9a2",
@@ -6565,13 +6573,14 @@
         "signInTo": "c8c72c792299",
         "signOutMessage": "f0a46d2c4ab0",
         "signOutOf": "b7589db89aa1",
-        "signedInAsYou": "c476395eb36e",
+        "signedInAsYou": "a5d42e9c6ce2",
         "signingIn": "8b9d3de8ae00",
         "thisServer": "98bf14a43213",
         "token": "d2089be67295",
         "tokenDialogDescription": "7afab93518ce",
         "viewTools": "bfce2e667cc1",
-        "yours": "54b26f7d3d0d"
+        "searchServers": "e9813443449b",
+        "yourSignIn": "10a8d67b3d0c"
     },
     "settings.memberRoles": {
         "admin": "c1c224b03cd9",
@@ -6782,7 +6791,8 @@
         "emptyTitle": "5aa40906d187",
         "format": "2f343666aaa8",
         "secretActions": "7fbc42b5a303",
-        "value": "8e37953d23da"
+        "value": "8e37953d23da",
+        "searchSecrets": "b5814f05b923"
     },
     "settings.secretsTab": {
         "deleteBody": "f3f8ed15ce1d",
@@ -6795,10 +6805,19 @@
         "renameFailed": "33da8f52f244",
         "rowActions": "67a1892f792a",
         "usedBy": "b75cb7446f09",
-        "yours": "54b26f7d3d0d",
+        "yours": "845f9286400f",
         "yoursEmptyBody": "4a4a7801a019",
         "yoursEmptyBodyCount": "387b69154f84",
-        "yoursEmptyTitle": "6eeade11192c"
+        "yoursEmptyTitle": "6eeade11192c",
+        "owner": "4b1b8aa3608a",
+        "ownerAll": "a52ace420f21",
+        "filterCategory": "292c06f0045a",
+        "filterAuth": "8eb3ea9bbde6",
+        "authApiKey": "16f0ee47f993",
+        "authNone": "dc937b598926",
+        "noMatchTitle": "965b516df3ba",
+        "noMatchBody": "a0e06f3b9907",
+        "resetFilters": "10afa98480f2"
     },
     "settings.ssoProviderDialog": {
         "addDescription": "34fa72d421a6",

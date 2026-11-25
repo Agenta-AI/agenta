@@ -5,8 +5,17 @@
     "rowActions": "Actions de la ligne",
     "seePlans": "Voir les offres",
     "usedBy": "Utilisé par {{names}}",
-    "yours": "Les vôtres",
+    "yours": "Personnel",
     "yoursEmptyBody": "Les comptes que vous ajoutez ici sont utilisés dans tous vos projets, lorsqu’un agent utilise le compte personnel de chaque personne.",
     "yoursEmptyBodyCount": "Les comptes que vous ajoutez ici sont utilisés dans vos {{projectCount}} projets, lorsqu’un agent utilise le compte personnel de chaque personne.",
-    "yoursEmptyTitle": "Aucun compte personnel pour le moment"
+    "yoursEmptyTitle": "Aucun compte personnel pour le moment",
+    "owner": "Propriétaire",
+    "ownerAll": "Tous",
+    "filterCategory": "Catégorie",
+    "filterAuth": "Authentification",
+    "authApiKey": "Clé API",
+    "authNone": "Aucune",
+    "noMatchTitle": "Aucun résultat",
+    "noMatchBody": "Essayez une autre recherche ou réinitialisez les filtres.",
+    "resetFilters": "Réinitialiser les filtres"
 }

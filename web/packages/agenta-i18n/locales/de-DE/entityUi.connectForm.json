@@ -1,7 +1,6 @@
 {
     "popupBlocked": "Pop-up blockiert. Weiterleitung in diesem Tab.",
     "onlyMe": "Nur ich",
-    "onlyMeNote": "Wird verwendet, wenn Sie einen Agent ausführen, der das eigene {{name}} jeder Person nutzt. Ihr erstes {{name}}-Konto wird Ihr Standard.",
     "everyoneInProject": "Alle in {{project}}",
     "everyoneInThisProject": "Alle in diesem Projekt",
     "everyoneNote": "Ein Agent in diesem Projekt kann es als Konto des Agents verwenden, für jede Person, die ihn ausführt.",

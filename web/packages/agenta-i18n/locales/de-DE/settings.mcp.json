@@ -20,11 +20,12 @@
     "signInTo": "Bei {{name}} anmelden",
     "signOutMessage": "Agents, die die eigene Anmeldung jeder Person bei diesem Server verwenden, können ihn für Sie erst nutzen, wenn Sie sich erneut anmelden.",
     "signOutOf": "Von {{name}} abmelden",
-    "signedInAsYou": "Als Sie angemeldet",
+    "signedInAsYou": "Angemeldet als Sie",
     "signingIn": "Anmeldung läuft…",
     "thisServer": "dieser Server",
     "token": "Token",
     "tokenDialogDescription": "Fügen Sie Ihr eigenes Token für diesen Server ein. Nur Ausführungen, die Sie starten, verwenden es.",
     "viewTools": "Werkzeuge ansehen",
-    "yours": "Ihre"
+    "searchServers": "MCP-Server suchen",
+    "yourSignIn": "Ihre Anmeldung"
 }

@@ -1,7 +1,6 @@
 {
     "popupBlocked": "Popup blocked. Redirecting in this tab.",
     "onlyMe": "Only me",
-    "onlyMeNote": "Used when you run an agent that uses each person's own {{name}}. Your first {{name}} account becomes your default.",
     "everyoneInProject": "Everyone in {{project}}",
     "everyoneInThisProject": "Everyone in this project",
     "everyoneNote": "An agent in this project can use it as the agent's account, for every person who runs it.",

@@ -26,11 +26,8 @@ import {
 } from "@agenta/ui/ui"
 import Image from "next/image"
 
-import {
-    CANVAS_FIELD_LABEL,
-    ConnectOwnerField,
-    type ConnectionOwner,
-} from "../../accounts/ConnectOwnerField"
+import {CANVAS_FIELD_LABEL, type ConnectionOwner} from "../../accounts/ConnectOwnerField"
+import {OwnerField} from "../../accounts/OwnerField"
 import {openToolAuthPopup} from "../utils/openToolAuthPopup"
 
 const DEFAULT_PROVIDER = "composio"
@@ -271,11 +268,10 @@ export function ConnectFormFields({
                 </Field>
 
                 {owners && owners.length > 1 ? (
-                    <ConnectOwnerField
+                    <OwnerField<ConnectionOwner>
                         value={form.owner}
                         owners={owners}
                         onChange={form.setOwner}
-                        onlyMeDetail={t("entityUi.connectForm.onlyMeNote", {name: integrationName})}
                         projectName={projectName}
                     />
                 ) : null}

@@ -18,5 +18,14 @@
     "everyoneInProject": "Everyone in {{project}}",
     "everyoneInThisProject": "Everyone in this project",
     "everyoneSecretNote": "Builders can attach it to agents in this project.",
-    "userSecretRow": "Each person's own secret"
+    "userSecretRow": "Each person's own secret",
+    "owner": "Owner",
+    "ownerUser": "Personal",
+    "ownerProject": "Project",
+    "ownerOrganization": "Organization",
+    "ownerUserNote": "Only you can use it. It follows you to every project.",
+    "ownerProjectNote": "Everyone in {{project}} can add it to an agent.",
+    "ownerProjectNoteThis": "Everyone in this project can add it to an agent.",
+    "ownerOrganizationNote": "Saved once in {{organization}}. You choose which projects can use it.",
+    "ownerOrganizationNoteThis": "Saved once for the organization. You choose which projects can use it."
 }

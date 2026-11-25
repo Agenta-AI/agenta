@@ -20,11 +20,12 @@
     "signInTo": "Iniciar sesión en {{name}}",
     "signOutMessage": "Los agentes que usan el inicio de sesión de cada persona en este servidor no podrán usarlo por ti hasta que vuelvas a iniciar sesión.",
     "signOutOf": "Cerrar sesión en {{name}}",
-    "signedInAsYou": "Sesión iniciada contigo",
+    "signedInAsYou": "Sesión iniciada como Tú",
     "signingIn": "Iniciando sesión…",
     "thisServer": "este servidor",
     "token": "Token",
     "tokenDialogDescription": "Pega tu propio token para este servidor. Solo lo usan las ejecuciones que inicies tú.",
     "viewTools": "Ver herramientas",
-    "yours": "Tuyo"
+    "searchServers": "Buscar servidores MCP",
+    "yourSignIn": "Tu inicio de sesión"
 }

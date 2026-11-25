@@ -18,5 +18,14 @@
     "everyoneInProject": "Tout le monde dans {{project}}",
     "everyoneInThisProject": "Tout le monde dans ce projet",
     "everyoneSecretNote": "Les créateurs peuvent l’associer aux agents de ce projet.",
-    "userSecretRow": "Le secret propre à chaque personne"
+    "userSecretRow": "Le secret propre à chaque personne",
+    "owner": "Propriétaire",
+    "ownerUser": "Personnel",
+    "ownerProject": "Projet",
+    "ownerOrganization": "Organisation",
+    "ownerUserNote": "Vous seul pouvez l'utiliser. Il vous suit dans chaque projet.",
+    "ownerProjectNote": "Tout le monde dans {{project}} peut l'ajouter à un agent.",
+    "ownerProjectNoteThis": "Tout le monde dans ce projet peut l'ajouter à un agent.",
+    "ownerOrganizationNote": "Enregistré une fois dans {{organization}}. Vous choisissez les projets qui peuvent l'utiliser.",
+    "ownerOrganizationNoteThis": "Enregistré une fois pour l'organisation. Vous choisissez les projets qui peuvent l'utiliser."
 }
