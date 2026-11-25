@@ -56,7 +56,7 @@ describe("readLimitRefusal", () => {
 describe("limitRefusalText", () => {
     it("names the free key on a self-hosted project refusal", () => {
         expect(limitRefusalText(PROJECT, {cloud: false})).toBe(
-            "This organization has reached its limit of 1 project(s). A free key gives more projects.",
+            "This organization has reached its limit of 1 project. A free key gives more projects.",
         )
     })
 
@@ -68,7 +68,16 @@ describe("limitRefusalText", () => {
 
     it("explains the instance organization limit", () => {
         expect(limitRefusalText(ORGANIZATION, {cloud: false})).toBe(
-            "This instance allows 1 organization(s). Ask for an invitation to an existing organization, or add a paid license key.",
+            "This instance allows 1 organization. Ask for an invitation to an existing organization, or add a paid license key.",
+        )
+    })
+
+    it("uses the plural form above one", () => {
+        expect(limitRefusalText({...ORGANIZATION, limit: 3}, {cloud: false})).toBe(
+            "This instance allows 3 organizations. Ask for an invitation to an existing organization, or add a paid license key.",
+        )
+        expect(limitRefusalText({...PROJECT, limit: 3}, {cloud: false})).toBe(
+            "This organization has reached its limit of 3 projects. A free key gives more projects.",
         )
     })
 })
@@ -136,7 +145,7 @@ describe("LimitRefusalNotice", () => {
         render(ORGANIZATION)
 
         expect(container.textContent).toContain(
-            "This instance allows 1 organization(s). Ask for an invitation to an existing organization, or add a paid license key. Ask your instance admin.",
+            "This instance allows 1 organization. Ask for an invitation to an existing organization, or add a paid license key. Ask your instance admin.",
         )
         expect(button()).toBeNull()
     })

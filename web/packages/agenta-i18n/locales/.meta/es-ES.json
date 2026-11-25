@@ -6889,8 +6889,12 @@
     "shell.limitRefusal": {
         "askInstanceAdmin": "0136b9999f0f",
         "openLicenseSettings": "61ab21edf36c",
-        "organizationLimit": "b0f71fba935d",
-        "projectLimit": "694be24e8c19",
+        "organizationLimit_one": "452379a807bc",
+        "organizationLimit_many": "4bbe2eb7e70c",
+        "organizationLimit_other": "4bbe2eb7e70c",
+        "projectLimit_one": "c87a547e283b",
+        "projectLimit_many": "ec38254bc9ce",
+        "projectLimit_other": "ec38254bc9ce",
         "projectLimitCloud": "7eaffc233b85",
         "projectLimitFreeKey": "1f8cd71eca6c",
         "upgradePlan": "39b7ec1e8402"

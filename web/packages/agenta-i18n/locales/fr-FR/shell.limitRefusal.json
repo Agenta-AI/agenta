@@ -1,8 +1,12 @@
 {
     "askInstanceAdmin": "Demandez à l’administrateur de votre instance.",
     "openLicenseSettings": "Ouvrir les paramètres de licence",
-    "organizationLimit": "Cette instance autorise {{limit}} organisation(s). Demandez une invitation à une organisation existante ou ajoutez une clé de licence payante.",
-    "projectLimit": "Cette organisation a atteint sa limite de {{limit}} projet(s).",
+    "organizationLimit_one": "Cette instance autorise {{count}} organisation. Demandez une invitation à une organisation existante ou ajoutez une clé de licence payante.",
+    "organizationLimit_many": "Cette instance autorise {{count}} organisations. Demandez une invitation à une organisation existante ou ajoutez une clé de licence payante.",
+    "organizationLimit_other": "Cette instance autorise {{count}} organisations. Demandez une invitation à une organisation existante ou ajoutez une clé de licence payante.",
+    "projectLimit_one": "Cette organisation a atteint sa limite de {{count}} projet.",
+    "projectLimit_many": "Cette organisation a atteint sa limite de {{count}} projets.",
+    "projectLimit_other": "Cette organisation a atteint sa limite de {{count}} projets.",
     "projectLimitCloud": "L’offre Hobby inclut 1 projet. Passez à Starter pour des projets illimités.",
     "projectLimitFreeKey": "Une clé gratuite donne plus de projets.",
     "upgradePlan": "Améliorer l’offre"

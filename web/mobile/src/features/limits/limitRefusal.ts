@@ -52,10 +52,10 @@ const tNow = createT(limitRefusalCatalog)
 /** The refusal as translated sentences. */
 export const limitRefusalText = (refusal: LimitRefusal, {cloud}: {cloud: boolean}): string => {
     if (refusal.code === "instance_organization_limit_reached") {
-        return tNow("shell.limitRefusal.organizationLimit", {limit: refusal.limit})
+        return tNow("shell.limitRefusal.organizationLimit", {count: refusal.limit})
     }
     if (cloud) return tNow("shell.limitRefusal.projectLimitCloud")
-    return `${tNow("shell.limitRefusal.projectLimit", {limit: refusal.limit})} ${tNow(
+    return `${tNow("shell.limitRefusal.projectLimit", {count: refusal.limit})} ${tNow(
         "shell.limitRefusal.projectLimitFreeKey",
     )}`
 }

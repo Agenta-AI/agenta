@@ -1,8 +1,8 @@
 {
     "askInstanceAdmin": "インスタンス管理者に依頼してください。",
     "openLicenseSettings": "ライセンス設定を開く",
-    "organizationLimit": "このインスタンスで作成できる組織は {{limit}} 件までです。既存の組織への招待を依頼するか、有料のライセンスキーを追加してください。",
-    "projectLimit": "この組織はプロジェクトの上限 ({{limit}} 件) に達しました。",
+    "organizationLimit_other": "このインスタンスで作成できる組織は {{count}} 件までです。既存の組織への招待を依頼するか、有料のライセンスキーを追加してください。",
+    "projectLimit_other": "この組織はプロジェクトの上限 ({{count}} 件) に達しました。",
     "projectLimitCloud": "Hobby プランに含まれるプロジェクトは 1 件です。プロジェクトを無制限にするには Starter にアップグレードしてください。",
     "projectLimitFreeKey": "無料キーでプロジェクトを増やせます。",
     "upgradePlan": "プランをアップグレード"
