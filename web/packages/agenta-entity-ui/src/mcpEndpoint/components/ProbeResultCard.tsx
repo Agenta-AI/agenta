@@ -47,10 +47,10 @@ export const ProbeResultCard = ({mode, onChange}: ProbeResultCardProps) => {
             </span>
             {onChange ? (
                 <Button
-                    variant="link"
+                    variant="ghost"
                     size="xs"
-                    // The negative margin keeps the 24px box at its 20px line.
-                    className="-my-0.5 shrink-0 px-0 text-meta text-foreground underline underline-offset-2"
+                    // The negative margins keep the 24px box on its 20px line, the text in line.
+                    className="-my-0.5 -mr-1.5 shrink-0 text-foreground"
                     onClick={onChange}
                 >
                     {t("entityUi.mcpConnect.change")}

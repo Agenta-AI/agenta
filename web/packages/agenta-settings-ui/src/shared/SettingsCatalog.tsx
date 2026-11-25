@@ -98,7 +98,7 @@ const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
                 open && FOCUS_RING,
             )}
         >
-            <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-solid border-border bg-background [&_img]:size-4 [&_img]:object-contain [&_svg]:size-4">
+            <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted [&_img]:size-4 [&_img]:object-contain [&_svg]:size-4">
                 {item.logo}
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-px">
@@ -111,7 +111,8 @@ const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
                     {attention ? (
                         <span className="flex shrink-0 items-center gap-1.5 text-meta font-medium text-warning">
                             <span aria-hidden className="size-1.5 rounded-round bg-current" />
-                            {item.statusLabel}
+                            {/* A phone keeps the dot; the name needs the width. */}
+                            <span className="max-sm:sr-only">{item.statusLabel}</span>
                         </span>
                     ) : null}
                 </span>

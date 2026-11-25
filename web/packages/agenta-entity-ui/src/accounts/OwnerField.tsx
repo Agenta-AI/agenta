@@ -53,9 +53,8 @@ export interface OwnerFieldProps<Owner extends OwnerKind> {
     /** The owners this form allows, in any order; the field lists them narrow to wide. */
     owners: readonly Owner[]
     onChange: (next: Owner) => void
-    /** Names the project and the organization in the sentences; absent, "this project". */
+    /** Names the project in its sentence; absent, "this project". */
     projectName?: string
-    organizationName?: string
 }
 
 /** The add form's Owner segment: each owner with the sentence saying who can use it. */
@@ -64,7 +63,6 @@ export function OwnerField<Owner extends OwnerKind>({
     owners,
     onChange,
     projectName,
-    organizationName,
 }: OwnerFieldProps<Owner>) {
     const t = useT(accountsCatalog)
     const word = useOwnerWord()
@@ -75,9 +73,7 @@ export function OwnerField<Owner extends OwnerKind>({
               ? projectName
                   ? t("entityUi.accounts.ownerProjectNote", {project: projectName})
                   : t("entityUi.accounts.ownerProjectNoteThis")
-              : organizationName
-                ? t("entityUi.accounts.ownerOrganizationNote", {organization: organizationName})
-                : t("entityUi.accounts.ownerOrganizationNoteThis")
+              : t("entityUi.accounts.ownerOrganizationNoteThis")
     const shown = OWNER_ORDER.filter((owner): owner is Owner => owners.includes(owner as Owner))
 
     return (

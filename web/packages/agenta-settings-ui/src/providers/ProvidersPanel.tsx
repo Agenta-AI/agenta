@@ -347,7 +347,12 @@ export const ProvidersPanel = ({
                 // A group still loading holds its place with one skeleton row.
                 pendingRows: source.loading && !held.length ? 1 : 0,
                 footer: source.failure,
-                empty: !!source.emptyFooter && !source.failure && !source.loading && !held.length,
+                // Carded subscriptions are not rows, so emptiness reads every connection.
+                empty:
+                    !!source.emptyFooter &&
+                    !source.failure &&
+                    !source.loading &&
+                    !source.connections.length,
                 emptyFooter: source.emptyFooter,
             }
         })

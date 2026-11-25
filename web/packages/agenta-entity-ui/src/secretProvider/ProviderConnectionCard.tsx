@@ -16,7 +16,6 @@
  */
 import {useCallback, useEffect, useId, useMemo, useRef, useState} from "react"
 
-import {organizationLabel} from "@agenta/entities/organization"
 import {
     buildModelOptions,
     connectionPolicyForSave,
@@ -966,7 +965,6 @@ const ProviderConnectionCard = ({
                         owners={PROVIDER_OWNERS}
                         onChange={setOwner}
                         projectName={ownerChoice.projectName}
-                        organizationName={organizationLabel(ownerChoice.organization.name)}
                     />
                 </div>
             ) : null}
@@ -1000,7 +998,7 @@ const ProviderConnectionCard = ({
                     <span className="font-medium text-foreground">
                         {t("entityUi.providerConnection.activeModels")}
                     </span>
-                    <p className="m-0 rounded-md border border-dashed border-border-muted px-3 py-4 text-center text-muted-foreground">
+                    <p className="m-0 text-label text-muted-foreground">
                         {t("entityUi.providerConnection.enterCredential", {provider: displayTitle})}
                     </p>
                 </section>

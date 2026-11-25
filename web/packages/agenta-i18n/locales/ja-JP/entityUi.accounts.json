@@ -26,7 +26,6 @@
     "ownerUserNote": "あなただけが使えます。すべてのプロジェクトで使えます。",
     "ownerProjectNote": "{{project}} の全員がエージェントに追加できます。",
     "ownerProjectNoteThis": "このプロジェクトの全員がエージェントに追加できます。",
-    "ownerOrganizationNote": "{{organization}} に一度だけ保存します。使えるプロジェクトはあなたが選びます。",
     "ownerOrganizationNoteThis": "組織に一度だけ保存します。使えるプロジェクトはあなたが選びます。",
     "connectionsAll": "すべての接続",
     "connectionsUser": "個人の接続",
