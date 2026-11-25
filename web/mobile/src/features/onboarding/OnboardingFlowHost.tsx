@@ -20,8 +20,8 @@ import {capture, captureIntent} from "@/features/analytics/client"
 import {newId} from "@/lib/ids"
 
 import {useNewAgentAction} from "../agents/useNewAgentAction"
-import {dismissRegistrationPrompt, type RegistrationSurvey} from "../settings/licenseApi"
-import {useInstanceLicense} from "../settings/useInstanceLicense"
+import {type RegistrationSurvey} from "../settings/licenseApi"
+import {useDismissRegistrationOffer, useInstanceLicense} from "../settings/useInstanceLicense"
 
 import {connectedApps} from "./onboardingApps"
 import type {OnboardingCatalog} from "./onboardingChoices"
@@ -43,12 +43,7 @@ import {
     type OnboardingStep,
 } from "./onboardingRoute"
 import {RegistrationOffer} from "./RegistrationOffer"
-import {
-    isLargeCompany,
-    isRegistrationOfferSeen,
-    markRegistrationOfferSeen,
-    shouldOfferRegistration,
-} from "./registrationOfferRules"
+import {isLargeCompany, shouldOfferRegistration} from "./registrationOfferRules"
 import {registrationSurvey} from "./registrationSurvey"
 import {useOnboardingModel} from "./useOnboardingModel"
 import {useSeedToolConnections} from "./useSeedToolConnections"
@@ -128,12 +123,11 @@ export const OnboardingFlowHost = ({
             isInstanceAdmin: license.isInstanceAdmin,
             hasKey: Boolean(license.data?.license),
         })
+    const dismissOffer = useDismissRegistrationOffer(projectId)
     useEffect(() => {
-        if (!offerOpen || !userId) return
-        markRegistrationOfferSeen(userId)
-        // Shown here, so the prompt after an upgrade never asks again, in any browser.
-        void dismissRegistrationPrompt(projectId).catch(() => undefined)
-    }, [offerOpen, userId, projectId])
+        // Shown here, so the offer after an upgrade never asks again, in any browser.
+        if (offerOpen) dismissOffer()
+    }, [offerOpen, dismissOffer])
     const track = (event: string, properties?: Record<string, unknown>) => {
         if (!preview) capture(event, properties)
     }
@@ -168,7 +162,7 @@ export const OnboardingFlowHost = ({
                 "survey sent",
                 signupSurveyProperties(draft.answers, isBillingEnabled() ? userEmail : null),
             )
-            if (!preview && !invited && !(userId && isRegistrationOfferSeen(userId))) {
+            if (!preview && !invited && !license.data?.registration_offer_dismissed) {
                 setSurvey({
                     largeCompany: isLargeCompany(draft.answers),
                     answers: registrationSurvey(draft.answers),

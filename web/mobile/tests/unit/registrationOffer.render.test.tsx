@@ -20,11 +20,7 @@ vi.mock("../../src/features/settings/licenseApi", async (importOriginal) => ({
 }))
 
 import {RegistrationOffer} from "@/features/onboarding/RegistrationOffer"
-import {
-    isLargeCompany,
-    shouldOfferRegistration,
-    shouldPromptRegistration,
-} from "@/features/onboarding/registrationOfferRules"
+import {isLargeCompany, shouldOfferRegistration} from "@/features/onboarding/registrationOfferRules"
 import {registrationSurvey} from "@/features/onboarding/registrationSurvey"
 
 import {WithQueryClient} from "../support/queryClient"
@@ -43,22 +39,6 @@ describe("registration offer rules", () => {
         expect(shouldOfferRegistration({...base, selfHosted: false})).toBe(false)
         expect(shouldOfferRegistration({...base, isInstanceAdmin: false})).toBe(false)
         expect(shouldOfferRegistration({...base, hasKey: true})).toBe(false)
-    })
-
-    it("prompts after an upgrade only until skipped, and never during onboarding", () => {
-        const base = {
-            selfHosted: true,
-            isInstanceAdmin: true,
-            hasKey: false,
-            dismissed: false,
-            onboardingPending: false,
-        }
-        expect(shouldPromptRegistration(base)).toBe(true)
-        expect(shouldPromptRegistration({...base, dismissed: true})).toBe(false)
-        expect(shouldPromptRegistration({...base, onboardingPending: true})).toBe(false)
-        expect(shouldPromptRegistration({...base, hasKey: true})).toBe(false)
-        expect(shouldPromptRegistration({...base, isInstanceAdmin: false})).toBe(false)
-        expect(shouldPromptRegistration({...base, selfHosted: false})).toBe(false)
     })
 
     it("sends the chosen labels only, never the typed Other line", () => {

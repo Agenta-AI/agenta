@@ -4,12 +4,10 @@ import {Badge, type BadgeProps} from "@agenta/ui/ui"
 
 import {formatDate} from "../wallet/walletFormat"
 
-import type {InstanceLicense, LicenseLimitUsage} from "./licenseApi"
+import {REGISTERED_PLAN, type InstanceLicense, type InstanceLimitUsage} from "./licenseApi"
 import {LicenseUsageRow} from "./LicenseUsageRow"
 
 type LicenseKey = CatalogKey<typeof settingsLicenseCatalog>
-
-const REGISTERED_PLAN = "self_hosted_registered"
 
 /** The plan name and its badge. The free key keeps the Community name, as a registered badge. */
 const PLANS: Record<string, {name: LicenseKey; badge: LicenseKey; variant: BadgeProps["variant"]}> =
@@ -49,7 +47,7 @@ export const LicenseSummary = ({
     const plan = PLANS[license.plan]
     const registered = license.plan === REGISTERED_PLAN
 
-    const usage = (label: LicenseKey, value: LicenseLimitUsage) => (
+    const usage = (label: LicenseKey, value: InstanceLimitUsage) => (
         <LicenseUsageRow
             label={t(label)}
             value={

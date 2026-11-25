@@ -19,14 +19,14 @@ REGISTRATION_URL = "https://agenta.ai/api/license-registrations"
 
 
 async def _instance_id() -> UUID:
-    # Part 1 of this change adds `get_instance_id`; hoist this import when it lands.
+    # #8237 adds `get_instance_id`; hoist this import when it lands.
     from oss.src.core.instances.service import get_instance_id  # noqa: PLC0415
 
     return await get_instance_id()
 
 
 def _agenta_version() -> str:
-    # Part 5 of this change adds `get_agenta_version`; hoist this import when it lands.
+    # #8240 adds `get_agenta_version`; hoist this import when it lands.
     from oss.src.utils.version import get_agenta_version  # noqa: PLC0415
 
     return get_agenta_version()

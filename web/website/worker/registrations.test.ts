@@ -468,7 +468,7 @@ describe("Loops contact", () => {
     });
   });
 
-  it("marks the contact as not wanting product updates when the box was clear", async () => {
+  it("leaves the product updates choice alone when the box was clear", async () => {
     const calls = stubLoops();
 
     const response = await handleRegistration(
@@ -481,7 +481,8 @@ describe("Loops contact", () => {
 
     expect(response.status).toBe(202);
     const body = JSON.parse(calls[1].init.body as string);
-    expect(body.agentaProductUpdates).toBe(false);
+    // The request cannot prove it owns the email, so it never opts a contact out.
+    expect(body).not.toHaveProperty("agentaProductUpdates");
     expect(body).not.toHaveProperty("mailingLists");
     expect(body.agentaRole).toBe("Engineer (AI, SWE, ML)");
   });
@@ -517,6 +518,27 @@ describe("Loops contact", () => {
 
     expect(response.status).toBe(202);
     expect(sent).toHaveLength(1);
+  });
+
+  it("answers 202 before a slow contact or analytics update ends", async () => {
+    const { sender, sent } = fakeSender();
+    const never = new Promise<void>(() => {});
+    const recorder: ContactRecorder = { record: () => never };
+    const analytics = { record: () => never };
+    const pending: Promise<unknown>[] = [];
+
+    const response = await handleRegistration(
+      post(VALID),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem }),
+      sender,
+      recorder,
+      analytics,
+      (promise) => pending.push(promise),
+    );
+
+    expect(response.status).toBe(202);
+    expect(sent).toHaveLength(1);
+    expect(pending).toHaveLength(1);
   });
 
   it("does not update the contact when the key email fails", async () => {

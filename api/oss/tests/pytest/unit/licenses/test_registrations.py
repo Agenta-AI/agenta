@@ -129,7 +129,7 @@ async def test_registration_answers_502_when_agenta_fails(admin, agenta):
         await _register()
 
     assert error.value.status_code == 502
-    assert error.value.detail == "We could not reach Agenta. Try again later."
+    assert error.value.detail == "We could not send your key. Try again later."
 
 
 @pytest.mark.asyncio
@@ -175,13 +175,13 @@ async def test_registration_answers_502_when_the_instance_id_is_not_wired(
 @pytest.fixture
 def prompt(monkeypatch):
     dismiss = AsyncMock()
-    monkeypatch.setattr(licenses_router, "dismiss_registration_prompt", dismiss)
+    monkeypatch.setattr(licenses_router, "dismiss_registration_offer", dismiss)
     return dismiss
 
 
 @pytest.mark.asyncio
-async def test_the_instance_admin_dismisses_the_registration_prompt(admin, prompt):
-    await licenses_router.LicensesRouter().dismiss_instance_registration_prompt(
+async def test_the_instance_admin_dismisses_the_registration_offer(admin, prompt):
+    await licenses_router.LicensesRouter().dismiss_instance_registration_offer(
         request=None
     )
 
@@ -189,11 +189,11 @@ async def test_the_instance_admin_dismisses_the_registration_prompt(admin, promp
 
 
 @pytest.mark.asyncio
-async def test_a_member_cannot_dismiss_the_registration_prompt(admin, prompt):
+async def test_a_member_cannot_dismiss_the_registration_offer(admin, prompt):
     admin.return_value = False
 
     with pytest.raises(HTTPException) as error:
-        await licenses_router.LicensesRouter().dismiss_instance_registration_prompt(
+        await licenses_router.LicensesRouter().dismiss_instance_registration_offer(
             request=None
         )
 
@@ -202,11 +202,11 @@ async def test_a_member_cannot_dismiss_the_registration_prompt(admin, prompt):
 
 
 @pytest.mark.asyncio
-async def test_the_registration_prompt_is_not_on_cloud(admin, prompt, monkeypatch):
+async def test_the_registration_offer_is_not_on_cloud(admin, prompt, monkeypatch):
     monkeypatch.setattr(licenses_router, "_is_cloud", lambda: True)
 
     with pytest.raises(HTTPException) as error:
-        await licenses_router.LicensesRouter().dismiss_instance_registration_prompt(
+        await licenses_router.LicensesRouter().dismiss_instance_registration_offer(
             request=None
         )
 
@@ -222,7 +222,7 @@ async def test_the_oss_license_reports_whether_the_prompt_was_dismissed(
     monkeypatch.setattr(licenses_router, "count_users", AsyncMock(return_value=1))
     monkeypatch.setattr(
         licenses_router,
-        "is_registration_prompt_dismissed",
+        "is_registration_offer_dismissed",
         AsyncMock(return_value=True),
     )
 
@@ -230,4 +230,4 @@ async def test_the_oss_license_reports_whether_the_prompt_was_dismissed(
         request=None
     )
 
-    assert response.registration_prompt_dismissed is True
+    assert response.registration_offer_dismissed is True

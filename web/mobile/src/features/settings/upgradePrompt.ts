@@ -33,7 +33,8 @@ export const useUpgradePromptViewed = (features: UpgradeFeature[], screen: Upgra
     const key = features.join(",")
 
     useEffect(() => {
-        if (viewed.current || isBillingEnabled()) return
+        // No locked feature, no box on screen.
+        if (viewed.current || !key || isBillingEnabled()) return
         viewed.current = true
         for (const feature of key.split(",")) capture("upgrade_prompt_viewed", {feature, screen})
     }, [key, screen])

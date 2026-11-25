@@ -14,7 +14,10 @@ const state = vi.hoisted(() => ({
     flow: null as Record<string, (...args: never[]) => unknown> | null,
     billing: false,
     dismissPrompt: vi.fn(),
-    license: {isInstanceAdmin: true, data: {license: null} as {license: unknown}},
+    license: {
+        isInstanceAdmin: true,
+        data: {license: null} as {license: unknown; registration_offer_dismissed?: boolean},
+    },
     templates: [
         {key: "lead-qualifier", name: "Lead qualifier", category: "Sales"},
     ] as readonly unknown[],
@@ -31,11 +34,16 @@ vi.mock("@/features/onboarding/OnboardingFlow", () => ({
     },
 }))
 vi.mock("@/features/onboarding/RegistrationOffer", () => ({RegistrationOffer: () => null}))
-vi.mock("@/features/settings/licenseApi", () => ({
-    dismissRegistrationPrompt: state.dismissPrompt,
-}))
 vi.mock("@/features/settings/useInstanceLicense", () => ({
     useInstanceLicense: () => state.license,
+    // Like the real hook: the cached license says dismissed, and the instance is told.
+    useDismissRegistrationOffer: (projectId: string) => () => {
+        state.license = {
+            ...state.license,
+            data: {...state.license.data, registration_offer_dismissed: true},
+        }
+        void state.dismissPrompt(projectId)
+    },
 }))
 vi.mock("@/features/onboarding/onboardingPending", () => ({
     endOnboarding: state.endOnboarding,
@@ -273,7 +281,7 @@ describe("the registration step after the survey", () => {
             email: "person@example.com",
             survey: {role: "Marketing", team_size: "51-200", heard_from: "GitHub"},
         })
-        // Shown once: the prompt after an upgrade does not ask again.
+        // Shown once: the offer after an upgrade does not ask again.
         expect(state.dismissPrompt).toHaveBeenCalledWith("p")
     })
 
@@ -295,7 +303,7 @@ describe("the registration step after the survey", () => {
         expect(offer()).toBeDefined()
     })
 
-    it("does not show again after Skip, also in a new tab", () => {
+    it("does not show again once the instance has it dismissed", () => {
         mount()
         act(() => flow().onStepCompleted("source", draft))
         expect(offer()).toBeDefined()

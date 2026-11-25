@@ -133,8 +133,10 @@ contact (`PUT /api/v1/contacts/update`) with `source: "self-hosted registration"
 `userGroup: "self-hosted"` and the custom properties `agentaVersion`, `agentaRegisteredAt`,
 `agentaInstanceId`, `agentaPlan`, `agentaProductUpdates`, `agentaRole`, `agentaTeamSize` and
 `agentaHeardFrom`; these
-properties must exist in Loops first. It sets the boolean property `agentaProductUpdates` to the
-person's choice; there is no mailing list, so product update campaigns target `userGroup`
+properties must exist in Loops first. It sets the boolean property `agentaProductUpdates` to true when the
+person ticks the box, and leaves it alone otherwise, because the request does not prove the
+caller owns the email (a contact opts out through the Loops unsubscribe link); there is no
+mailing list, so product update campaigns target `userGroup`
 "self-hosted" with `agentaProductUpdates` true. The signed key carries the `instance_id`, and the
 API accepts a free key only on that instance. Last, it sends to the
 self-hosted PostHog project (the same public project token as the API fallback key) the
