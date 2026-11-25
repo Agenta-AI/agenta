@@ -44,7 +44,7 @@ export const OnboardingCreditsStep = ({
         chatgpt.setDialogOpen(true)
         void views.open(
             subscriptionSignInView,
-            {provider: "chatgpt", connectionId: chatgpt.connection?.id},
+            {provider: "chatgpt", connectionId: chatgpt.connection?.id, start: true},
             {kind: "project"},
         )
     }

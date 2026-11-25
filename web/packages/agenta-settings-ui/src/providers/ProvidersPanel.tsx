@@ -220,9 +220,18 @@ export const ProvidersPanel = ({
 
     const signInGroup = allGroups.find((group) => group.key === signInGroupKey) ?? null
     const openSignIn = useCallback(
-        (groupKey: string, provider: SubscriptionProvider, connectionId?: string) => {
+        (
+            groupKey: string,
+            provider: SubscriptionProvider,
+            connectionId?: string,
+            start = false,
+        ) => {
             setSignInGroupKey(groupKey)
-            void views.open(subscriptionViewFor(provider), {provider, connectionId}, PROJECT)
+            void views.open(
+                subscriptionViewFor(provider),
+                {provider, connectionId, start},
+                PROJECT,
+            )
         },
         [views],
     )
@@ -312,7 +321,7 @@ export const ProvidersPanel = ({
                           statusLabel: t("settings.providers.connectName", {
                               name: subscriptionProviderName(provider),
                           }),
-                          onOpen: () => openSignIn(groupKey, provider),
+                          onOpen: () => openSignIn(groupKey, provider, undefined, true),
                       }))
                     : []
             return {
@@ -405,7 +414,7 @@ export const ProvidersPanel = ({
     const cards = useMemo<SubscriptionCard[] | null>(() => {
         if (!subscriptions || !projectGroup) return null
         const open = (provider: SubscriptionProvider, connection: ProviderConnection | null) =>
-            openSignIn(projectGroup.key, provider, connection?.id)
+            openSignIn(projectGroup.key, provider, connection?.id, true)
         const chatgpt = subscriptionConnectionFor(subscriptions, "chatgpt") ?? null
         const claude = subscriptionConnectionFor(subscriptions, "claude") ?? null
         const chatgptReady = subscriptionIsReady(chatgpt?.subscription)
