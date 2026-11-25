@@ -39,7 +39,8 @@ export const useInstanceLicense = (projectId: string) => {
 export const useDismissRegistrationOffer = (projectId: string) => {
     const queryClient = useQueryClient()
     return useCallback(() => {
-        queryClient.setQueryData<InstanceLicense>(instanceLicenseQueryKey(projectId), (data) =>
+        // The dismissal is for the instance, so every project's cached copy says so.
+        queryClient.setQueriesData<InstanceLicense>({queryKey: ["instance", "license"]}, (data) =>
             data ? {...data, registration_offer_dismissed: true} : data,
         )
         void dismissRegistrationOffer(projectId).catch(() => undefined)

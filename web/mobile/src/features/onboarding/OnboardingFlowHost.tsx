@@ -114,20 +114,18 @@ export const OnboardingFlowHost = ({
         largeCompany: boolean
         answers: RegistrationSurvey
     } | null>(null)
-    const [offerClosed, setOfferClosed] = useState(false)
+    // The instance flag is the one state: Skip or Continue sets it, so the offer closes here
+    // and the offer after an upgrade never asks again, in any browser.
     const offerOpen =
         survey !== null &&
-        !offerClosed &&
+        Boolean(license.data) &&
+        !license.data?.registration_offer_dismissed &&
         shouldOfferRegistration({
             selfHosted: !isBillingEnabled(),
             isInstanceAdmin: license.isInstanceAdmin,
             hasKey: Boolean(license.data?.license),
         })
-    const dismissOffer = useDismissRegistrationOffer(projectId)
-    useEffect(() => {
-        // Shown here, so the offer after an upgrade never asks again, in any browser.
-        if (offerOpen) dismissOffer()
-    }, [offerOpen, dismissOffer])
+    const closeOffer = useDismissRegistrationOffer(projectId)
     const track = (event: string, properties?: Record<string, unknown>) => {
         if (!preview) capture(event, properties)
     }
@@ -162,7 +160,7 @@ export const OnboardingFlowHost = ({
                 "survey sent",
                 signupSurveyProperties(draft.answers, isBillingEnabled() ? userEmail : null),
             )
-            if (!preview && !invited && !license.data?.registration_offer_dismissed) {
+            if (!preview && !invited) {
                 setSurvey({
                     largeCompany: isLargeCompany(draft.answers),
                     answers: registrationSurvey(draft.answers),
@@ -238,8 +236,6 @@ export const OnboardingFlowHost = ({
         if (userId) endOnboarding(userId)
         void router.replace(homeUrl)
     }
-
-    const closeOffer = () => setOfferClosed(true)
 
     return (
         <OnboardingFlow

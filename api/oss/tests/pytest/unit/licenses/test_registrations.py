@@ -173,23 +173,25 @@ async def test_registration_answers_502_when_the_instance_id_is_not_wired(
 
 
 @pytest.fixture
-def prompt(monkeypatch):
+def dismiss_offer(monkeypatch):
     dismiss = AsyncMock()
     monkeypatch.setattr(licenses_router, "dismiss_registration_offer", dismiss)
     return dismiss
 
 
 @pytest.mark.asyncio
-async def test_the_instance_admin_dismisses_the_registration_offer(admin, prompt):
+async def test_the_instance_admin_dismisses_the_registration_offer(
+    admin, dismiss_offer
+):
     await licenses_router.LicensesRouter().dismiss_instance_registration_offer(
         request=None
     )
 
-    prompt.assert_awaited_once()
+    dismiss_offer.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_a_member_cannot_dismiss_the_registration_offer(admin, prompt):
+async def test_a_member_cannot_dismiss_the_registration_offer(admin, dismiss_offer):
     admin.return_value = False
 
     with pytest.raises(HTTPException) as error:
@@ -198,11 +200,13 @@ async def test_a_member_cannot_dismiss_the_registration_offer(admin, prompt):
         )
 
     assert error.value.status_code == 403
-    prompt.assert_not_awaited()
+    dismiss_offer.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_the_registration_offer_is_not_on_cloud(admin, prompt, monkeypatch):
+async def test_the_registration_offer_is_not_on_cloud(
+    admin, dismiss_offer, monkeypatch
+):
     monkeypatch.setattr(licenses_router, "_is_cloud", lambda: True)
 
     with pytest.raises(HTTPException) as error:
@@ -211,11 +215,11 @@ async def test_the_registration_offer_is_not_on_cloud(admin, prompt, monkeypatch
         )
 
     assert error.value.status_code == 404
-    prompt.assert_not_awaited()
+    dismiss_offer.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_the_oss_license_reports_whether_the_prompt_was_dismissed(
+async def test_the_oss_license_reports_whether_the_offer_was_dismissed(
     admin, monkeypatch
 ):
     monkeypatch.setattr(licenses_router, "is_ee", lambda: False)

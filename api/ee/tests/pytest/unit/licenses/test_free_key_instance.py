@@ -1,5 +1,6 @@
 """A free registration key works only on the instance it was issued for."""
 
+import sys
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -109,6 +110,25 @@ async def test_a_stored_free_key_of_another_instance_gives_the_community_plan(
     service = _service(_free_key(registration_key, instance_id=str(uuid4())))
 
     assert await service.instance_plan() == "self_hosted_community"
+
+
+@pytest.mark.asyncio
+async def test_a_failed_instance_id_read_raises_and_caches_nothing(
+    self_hosted, registration_key, shared_cache, monkeypatch
+):
+    async def get_instance_id():
+        raise RuntimeError("database down")
+
+    monkeypatch.setitem(
+        sys.modules,
+        "oss.src.core.instances.service",
+        SimpleNamespace(get_instance_id=get_instance_id),
+    )
+    service = _service(_free_key(registration_key, instance_id=str(THIS_INSTANCE)))
+
+    with pytest.raises(RuntimeError):
+        await service.read_state()
+    assert shared_cache == {}
 
 
 @pytest.mark.asyncio

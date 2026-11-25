@@ -13,7 +13,7 @@ const state = vi.hoisted(() => ({
     endOnboarding: vi.fn(),
     flow: null as Record<string, (...args: never[]) => unknown> | null,
     billing: false,
-    dismissPrompt: vi.fn(),
+    dismissOffer: vi.fn(),
     license: {
         isInstanceAdmin: true,
         data: {license: null} as {license: unknown; registration_offer_dismissed?: boolean},
@@ -42,7 +42,7 @@ vi.mock("@/features/settings/useInstanceLicense", () => ({
             ...state.license,
             data: {...state.license.data, registration_offer_dismissed: true},
         }
-        void state.dismissPrompt(projectId)
+        void state.dismissOffer(projectId)
     },
 }))
 vi.mock("@/features/onboarding/onboardingPending", () => ({
@@ -156,7 +156,7 @@ beforeEach(() => {
     state.capture.mockClear()
     state.captureIntent.mockClear()
     state.billing = false
-    state.dismissPrompt.mockReset().mockResolvedValue(undefined)
+    state.dismissOffer.mockReset().mockResolvedValue(undefined)
     state.license = {isInstanceAdmin: true, data: {license: null}}
     window.localStorage.clear()
 })
@@ -281,8 +281,8 @@ describe("the registration step after the survey", () => {
             email: "person@example.com",
             survey: {role: "Marketing", team_size: "51-200", heard_from: "GitHub"},
         })
-        // Shown once: the offer after an upgrade does not ask again.
-        expect(state.dismissPrompt).toHaveBeenCalledWith("p")
+        // Shown is not answered: the instance flag is set only by Skip or Continue.
+        expect(state.dismissOffer).not.toHaveBeenCalled()
     })
 
     it("stays away when the instance already has a key", () => {
@@ -303,11 +303,26 @@ describe("the registration step after the survey", () => {
         expect(offer()).toBeDefined()
     })
 
+    it("stays away when a late license answer says it was dismissed", () => {
+        state.license = {isInstanceAdmin: false, data: {license: null}}
+        mount()
+        act(() => flow().onStepCompleted("source", draft))
+        state.license = {
+            isInstanceAdmin: true,
+            data: {license: null, registration_offer_dismissed: true},
+        }
+        rerender()
+        expect(offer()).toBeUndefined()
+    })
+
     it("does not show again once the instance has it dismissed", () => {
         mount()
         act(() => flow().onStepCompleted("source", draft))
         expect(offer()).toBeDefined()
         act(() => (offer()!.onSkip as () => void)())
+        expect(state.dismissOffer).toHaveBeenCalledWith("p")
+        // The real hook updates the cached license, which renders the host again.
+        rerender()
         expect(offer()).toBeUndefined()
 
         act(() => root!.unmount())
