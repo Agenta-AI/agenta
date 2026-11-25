@@ -205,21 +205,14 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
             ) : null}
 
             {textOnly ? null : (
-                <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between gap-3">
                     <FieldLabel>{t("entityUi.secretForm.format")}</FieldLabel>
-                    <div className="flex items-center gap-3">
-                        <Segmented
-                            className="w-fit"
-                            options={formatOptions(t)}
-                            value={format}
-                            onChange={(v) => onChangeFormat(v as typeof format)}
-                        />
-                        <HintText>
-                            {format === CustomSecretFormat.Text
-                                ? t("entityUi.secretForm.formatTextHint")
-                                : t("entityUi.secretForm.formatJsonHint")}
-                        </HintText>
-                    </div>
+                    <Segmented
+                        className="w-fit"
+                        options={formatOptions(t)}
+                        value={format}
+                        onChange={(v) => onChangeFormat(v as typeof format)}
+                    />
                 </div>
             )}
 
@@ -264,8 +257,8 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                     <div className="flex flex-col gap-4">
                         <Textarea
                             id={SECRET_VALUE_ID}
-                            rows={4}
-                            className="font-mono"
+                            rows={2}
+                            className="min-h-0 font-mono"
                             aria-label={valueLabel}
                             value={textValue}
                             onChange={(e) => setTextValue(e.target.value)}
