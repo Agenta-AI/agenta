@@ -136,10 +136,13 @@ export const SettingsScreen = ({
                 title={getMobileSettingsTabLabel(active, access)}
                 documentTitle={t("common.settings")}
                 description={
-                    <SettingsPageDescription
-                        description={getMobileSettingsTabDescription(active, access)}
-                        docs={getMobileSettingsTabDocs(active)}
-                    />
+                    // An element skips PageLayout's own text style, so it is set here.
+                    <p className="m-0 mt-1 text-body text-muted-foreground">
+                        <SettingsPageDescription
+                            description={getMobileSettingsTabDescription(active, access)}
+                            docs={getMobileSettingsTabDocs(active)}
+                        />
+                    </p>
                 }
                 actions={
                     <>
