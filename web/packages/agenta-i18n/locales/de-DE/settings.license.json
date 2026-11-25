@@ -56,7 +56,7 @@
     "registrationSending": "Wird gesendet…",
     "registrationSent": "Prüfen Sie Ihren Posteingang. Wir haben einen Schlüssel an {{email}} gesendet.",
     "registrationSubmit": "Kostenlosen Schlüssel an mich senden",
-    "registrationUnreachable": "Agenta ist nicht erreichbar. Versuchen Sie es später erneut.",
+    "registrationNotSent": "Wir konnten Ihren Schlüssel nicht senden. Versuchen Sie es später erneut.",
     "replaceKey": "Schlüssel ersetzen",
     "seatCount_one": "{{count}} Platz",
     "seatCount_other": "{{count}} Plätze",

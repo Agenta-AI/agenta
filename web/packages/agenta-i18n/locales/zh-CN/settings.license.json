@@ -55,7 +55,7 @@
     "registrationSending": "发送中…",
     "registrationSent": "请查收邮件。我们已将密钥发送至 {{email}}。",
     "registrationSubmit": "给我发送免费密钥",
-    "registrationUnreachable": "无法连接到 Agenta，请稍后重试。",
+    "registrationNotSent": "无法发送密钥，请稍后重试。",
     "replaceKey": "替换密钥",
     "seatCount_other": "{{count}} 个席位",
     "seats": "席位",

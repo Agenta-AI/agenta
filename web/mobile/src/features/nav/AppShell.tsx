@@ -3,7 +3,7 @@ import type {ReactNode} from "react"
 import type {SidebarScope} from "@agenta/navigation"
 
 import {useCanonicalProjectRoute} from "../context/useCanonicalProjectRoute"
-import {RegistrationPromptGate} from "../onboarding/RegistrationPromptGate"
+import {RegistrationOfferGate} from "../onboarding/RegistrationOfferGate"
 
 import {useTrackLastNonSettingsPath} from "./lastNonSettingsPath"
 import {MobileCommandPalette} from "./MobileCommandPalette"
@@ -37,7 +37,7 @@ export const AppShell = ({
             <NavRail workspaceId={workspaceId} projectId={projectId} scope={scope} />
             <main className="min-w-0 flex-1">{children}</main>
             <MobileCommandPalette projectURL={`/w/${workspaceId}/p/${projectId}`} />
-            <RegistrationPromptGate projectId={projectId} />
+            <RegistrationOfferGate projectId={projectId} />
         </div>
     )
 }
