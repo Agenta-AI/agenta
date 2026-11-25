@@ -2,7 +2,8 @@ import {AgentChip} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
 import type {SkillOriginInfo, SkillUsageItem} from "@agenta/skills"
-import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {cn} from "@agenta/ui/styles"
+import {MENU_ITEM, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import Link from "next/link"
 
 import {agentEntryHref} from "../agents/agentEntry"
@@ -50,7 +51,7 @@ export const SkillPageMeta = ({
                             {usedText}
                         </button>
                     </PopoverTrigger>
-                    <PopoverContent align="start" className="flex w-[260px] flex-col gap-0.5 p-1">
+                    <PopoverContent align="start" className="flex w-64 flex-col p-1">
                         {usedBy.map((agent) => {
                             const id = agent.agent_workflow_id ?? ""
                             const name = agent.agent_name ?? agent.agent_slug ?? ""
@@ -58,9 +59,12 @@ export const SkillPageMeta = ({
                                 <Link
                                     key={id || name}
                                     href={id ? agentEntryHref(base, id) : "#"}
-                                    className="flex h-8 items-center gap-2 rounded-sm px-2 text-label text-foreground no-underline hover:bg-accent"
+                                    className={cn(
+                                        MENU_ITEM,
+                                        "text-foreground no-underline hover:bg-accent focus-visible:bg-accent",
+                                    )}
                                 >
-                                    <AgentChip workflowId={id || null} size={20} />
+                                    <AgentChip workflowId={id || null} size={16} />
                                     <span className="min-w-0 truncate">{name}</span>
                                 </Link>
                             )

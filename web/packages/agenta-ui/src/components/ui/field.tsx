@@ -60,6 +60,8 @@ export interface FieldProps extends VariantProps<typeof fieldLabelVariants> {
     tooltip?: React.ReactNode
     /** Side the tooltip opens on. Mirrors LabeledField's `tooltipPlacement`. Defaults to `right`. */
     tooltipPlacement?: "top" | "right" | "bottom" | "left"
+    /** A control at the end of the label row: a view switch, or the switch of a settings row. */
+    labelEnd?: React.ReactNode
     /** Help text under the label, in `colorTextDescription`. */
     description?: React.ReactNode
     /** Error / help line under the control, in `colorError`. */
@@ -84,6 +86,7 @@ export interface FieldProps extends VariantProps<typeof fieldLabelVariants> {
     /** Marks the field disabled (dims the label via `data-disabled`). Does not disable the control. */
     disabled?: boolean
     /** The control. */
+    /** The control; null for a label row whose control sits in `labelEnd`. */
     children: React.ReactNode
     className?: string
 }
@@ -93,6 +96,7 @@ function Field({
     required = false,
     tooltip,
     tooltipPlacement = "right",
+    labelEnd,
     description,
     error,
     invalid = false,
@@ -198,6 +202,7 @@ function Field({
                             </Tooltip>
                         </TooltipProvider>
                     )}
+                    {labelEnd != null && <div className="ml-auto flex shrink-0">{labelEnd}</div>}
                 </div>
             )}
             {description != null && (

@@ -3,8 +3,7 @@ import {useEffect, useRef, useState} from "react"
 import {createT, useT} from "@agenta/i18n"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import {message} from "@agenta/ui/app-message"
-import {cn} from "@agenta/ui/styles"
-import {IconTile} from "@agenta/ui/ui"
+import {IconTile, Input} from "@agenta/ui/ui"
 import {File as FileIcon} from "@phosphor-icons/react"
 
 const tNow = createT(skillsEditorCatalog)
@@ -90,11 +89,12 @@ export function SkillFileNameRow({
     return (
         <div className="flex flex-col gap-1">
             <div className="flex h-row-single items-center gap-2 px-2">
-                <IconTile size={20} aria-hidden>
+                <IconTile size={24} aria-hidden>
                     <FileIcon />
                 </IconTile>
-                <input
+                <Input
                     ref={inputRef}
+                    size="sm"
                     value={value}
                     onChange={(event) => {
                         setValue(event.target.value)
@@ -116,14 +116,11 @@ export function SkillFileNameRow({
                         isNew ? t("skills.editor.newFilePath") : t("skills.editor.filePath")
                     }
                     aria-invalid={error ? true : undefined}
-                    className={cn(
-                        "box-border h-7 min-w-0 flex-1 rounded-md border border-solid border-input bg-background px-1.5 font-[inherit] text-label text-foreground outline-none placeholder:text-muted-foreground focus:border-ring",
-                        error && "border-destructive focus:border-destructive",
-                    )}
+                    className="min-w-0 flex-1"
                 />
             </div>
             {error ? (
-                <span role="alert" className="pl-9 text-meta text-destructive">
+                <span role="alert" className="pl-10 text-meta text-destructive">
                     {error}
                 </span>
             ) : null}

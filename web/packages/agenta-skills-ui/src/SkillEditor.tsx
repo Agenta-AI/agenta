@@ -20,7 +20,6 @@ import {
     type SkillDraft,
 } from "./skillDraft"
 import {SkillFilesPanel} from "./SkillFilesPanel"
-import {SkillHint} from "./SkillHint"
 
 type InstructionsView = "write" | "preview"
 
@@ -44,7 +43,7 @@ export interface SkillEditorProps {
     filesPlacement?: "pane" | "inline"
 }
 
-const EDITOR_FRAME = "flex min-h-[320px] flex-col [&_.md-prose]:min-h-[280px]"
+const EDITOR_FRAME = "md-doc flex min-h-[320px] flex-col [&_.md-prose]:min-h-[280px]"
 
 /** The skill editor the skill page and the create page share: fields, a file, the Files pane. */
 export function SkillEditor({
@@ -115,10 +114,10 @@ export function SkillEditor({
             onClick={() => setFilesOpen(true)}
             className={cn(
                 inline && "@2xl:hidden",
-                "-mx-2 flex h-row-single cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left font-[inherit] text-label text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent max-sm:min-h-11 motion-reduce:transition-none",
+                "-mx-2 flex h-row-single cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left font-[inherit] text-label text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent motion-reduce:transition-none",
             )}
         >
-            <IconTile size={20} aria-hidden>
+            <IconTile size={24} aria-hidden>
                 <Files />
             </IconTile>
             <span className="min-w-0 flex-1 truncate">
@@ -137,7 +136,7 @@ export function SkillEditor({
                             {dirOf(current.path)}/
                         </span>
                     ) : null}
-                    <span className="min-w-0 truncate text-title text-foreground">
+                    <span className="min-w-0 truncate text-subtitle text-foreground">
                         {baseOf(current.path)}
                     </span>
                 </span>
@@ -184,7 +183,7 @@ export function SkillEditor({
                     spellCheck={false}
                     rows={18}
                     onChange={(event) => setFile({content: event.target.value})}
-                    className="resize-y font-mono text-meta"
+                    className="field-sizing-content resize-none font-mono text-code"
                 />
             )}
         </section>
@@ -196,7 +195,7 @@ export function SkillEditor({
                 <div className="flex flex-col gap-1">
                     <Field
                         label={t("skills.editor.name")}
-                        description={t("skills.editor.nameHint")}
+                        tooltip={t("skills.editor.nameHint")}
                         error={missingName ? t("skills.editor.nameMissing") : undefined}
                     >
                         <Input
@@ -218,7 +217,7 @@ export function SkillEditor({
             <div className="flex flex-col gap-1">
                 <Field
                     label={t("skills.editor.description")}
-                    description={t("skills.editor.descriptionHint")}
+                    tooltip={t("skills.editor.descriptionHint")}
                     error={
                         tooLong
                             ? t("skills.editor.descriptionTooLong")
@@ -234,7 +233,7 @@ export function SkillEditor({
                         aria-invalid={tooLong || missingDescription || undefined}
                         placeholder={t("skills.editor.descriptionPlaceholder")}
                         onChange={(event) => set({description: event.target.value})}
-                        className="resize-y"
+                        className="field-sizing-content resize-none"
                     />
                 </Field>
                 <span
@@ -249,15 +248,12 @@ export function SkillEditor({
                     })}
                 </span>
             </div>
-            <section className="flex flex-col gap-2">
-                <div className="flex items-end gap-3">
-                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="text-label font-medium text-foreground">
-                            {t("skills.editor.instructions")}
-                        </span>
-                        <SkillHint>{t("skills.editor.instructionsHint")}</SkillHint>
-                    </div>
-                    {readOnly ? null : (
+            <Field
+                label={t("skills.editor.instructions")}
+                tooltip={t("skills.editor.instructionsHint")}
+                gap="sm"
+                labelEnd={
+                    readOnly ? null : (
                         <Segmented
                             size="sm"
                             value={view}
@@ -267,8 +263,10 @@ export function SkillEditor({
                                 {value: "preview", label: t("skills.editor.preview")},
                             ]}
                         />
-                    )}
-                </div>
+                    )
+                }
+                error={missingBody ? t("skills.editor.instructionsMissing") : undefined}
+            >
                 {view === "write" && !readOnly ? (
                     <div
                         className={cn(
@@ -296,12 +294,7 @@ export function SkillEditor({
                             : t("skills.editor.nothingYet")}
                     </p>
                 )}
-                {missingBody ? (
-                    <p role="alert" className="m-0 text-meta text-destructive">
-                        {t("skills.editor.instructionsMissing")}
-                    </p>
-                ) : null}
-            </section>
+            </Field>
         </div>
     )
 

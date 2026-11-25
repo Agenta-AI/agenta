@@ -20,24 +20,27 @@ export interface MarkdownPreviewProps {
 // mode. (This renderer is for inline summaries/previews; the drawer's edit + preview panes render
 // through the Lexical editor and pick up the `.md-prose` CSS instead.)
 const MD_CLASS = [
-    "text-label leading-[1.6] text-foreground",
+    "text-body text-foreground",
     "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-    "[&_h1]:text-heading [&_h1]:font-semibold [&_h1]:mt-[18px] [&_h1]:mb-1.5 [&_h1]:leading-tight",
-    "[&_h2]:text-title [&_h2]:font-semibold [&_h2]:mt-4 [&_h2]:mb-1.5",
-    "[&_h3]:text-body [&_h3]:font-semibold [&_h3]:mt-3.5 [&_h3]:mb-1",
-    "[&_h4]:text-label [&_h4]:font-semibold [&_h4]:text-muted-foreground",
+    // Headings stay below the page title (LOUD-02): weight shows rank, not size.
+    "[&_h1]:text-title [&_h1]:font-semibold [&_h1]:mt-4 [&_h1]:mb-2",
+    "[&_h2]:text-body [&_h2]:font-semibold [&_h2]:mt-4 [&_h2]:mb-2",
+    "[&_h3]:text-body [&_h3]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1",
+    "[&_h4]:text-body [&_h4]:font-semibold [&_h4]:text-muted-foreground",
     "[&_p]:my-2",
     "[&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1",
     // Per-depth list markers, matching the editor + the Lexical playground (1 → A → a, • → ◦ → ▪).
     "[&_ol_ol]:list-[upper-alpha] [&_ol_ol_ol]:list-[lower-alpha] [&_ol_ol_ol_ol]:list-[upper-roman] [&_ol_ol_ol_ol_ol]:list-[lower-roman] [&_ul_ul]:list-[circle] [&_ul_ul_ul]:list-[square]",
     "[&_a]:text-link [&_a]:underline",
-    "[&_code]:font-mono [&_code]:text-[0.86em] [&_code]:bg-secondary [&_code]:border [&_code]:border-solid [&_code]:border-border-muted [&_code]:rounded [&_code]:px-1.5 [&_code]:py-px",
-    "[&_pre]:my-2.5 [&_pre]:bg-muted [&_pre]:border [&_pre]:border-solid [&_pre]:border-border-muted [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:overflow-x-auto",
-    "[&_pre_code]:border-0 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-meta",
-    "[&_blockquote]:my-2.5 [&_blockquote]:border-0 [&_blockquote]:border-l [&_blockquote]:border-solid [&_blockquote]:border-border-strong [&_blockquote]:pl-3.5 [&_blockquote]:italic [&_blockquote]:text-muted-foreground",
-    "[&_table]:my-2.5 [&_table]:w-full [&_table]:border-collapse [&_table]:text-label",
-    "[&_th]:border-0 [&_th]:border-b [&_th]:border-solid [&_th]:border-border [&_th]:bg-secondary [&_th]:px-2.5 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-medium",
-    "[&_td]:border-0 [&_td]:border-b [&_td]:border-solid [&_td]:border-border-muted [&_td]:px-2.5 [&_td]:py-1.5",
+    "[&_code]:font-mono [&_code]:text-code [&_code]:bg-muted [&_code]:rounded-sm [&_code]:px-1 [&_code]:py-px",
+    "[&_pre]:my-3 [&_pre]:bg-muted [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:overflow-x-auto",
+    "[&_pre_code]:bg-transparent [&_pre_code]:p-0",
+    "[&_blockquote]:my-3 [&_blockquote]:mx-0 [&_blockquote]:border-0 [&_blockquote]:border-l [&_blockquote]:border-solid [&_blockquote]:border-border-strong [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground",
+    // Rows, not a grid (KIT-06): 36px rows split by quiet dividers, no header fill.
+    "[&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_table]:text-body-sm",
+    "[&_th]:h-row-single [&_th]:border-0 [&_th]:border-b [&_th]:border-solid [&_th]:border-border-muted [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-medium [&_th]:text-muted-foreground",
+    "[&_td]:h-row-single [&_td]:border-0 [&_td]:border-b [&_td]:border-solid [&_td]:border-border-muted [&_td]:px-3 [&_td]:py-2",
+    "[&_tr:last-child_td]:border-b-0",
 ].join(" ")
 
 export function MarkdownPreview({content, className}: MarkdownPreviewProps) {

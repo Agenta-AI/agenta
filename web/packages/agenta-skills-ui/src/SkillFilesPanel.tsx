@@ -11,6 +11,7 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
+    Field,
     IconTile,
     Switch,
 } from "@agenta/ui/ui"
@@ -197,7 +198,7 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
                     dragPath === file.path && "opacity-60",
                 )}
             >
-                <IconTile size={20} aria-hidden>
+                <IconTile size={24} aria-hidden>
                     <FileIcon />
                 </IconTile>
                 <button
@@ -296,10 +297,11 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
                 )}
             </div>
 
-            <div className="flex flex-col gap-1">
+            {/* Rows hang their fill 8px outside the pane's text edge. */}
+            <div className="-mx-2 flex flex-col gap-1">
                 <div {...dropZone("")}>
                     <div className={cn(ROW, fileOpen ? "hover:bg-accent" : "bg-selected")}>
-                        <IconTile size={20} aria-hidden>
+                        <IconTile size={24} aria-hidden>
                             <FileText />
                         </IconTile>
                         <button
@@ -349,23 +351,24 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
                 ) : null}
             </div>
 
-            <div className="mt-auto flex items-start gap-3 border-0 border-t border-solid border-border-muted pt-3">
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span id="skill-exec-label" className="text-label text-foreground">
-                        {t("skills.editor.allowPrograms")}
-                    </span>
-                    <span className="text-meta text-muted-foreground">
-                        {t("skills.editor.allowProgramsHint")}
-                    </span>
-                </span>
-                <Switch
-                    size="sm"
-                    aria-labelledby="skill-exec-label"
-                    checked={allowExecutable}
-                    disabled={readOnly}
-                    onCheckedChange={onAllowExecutable}
-                />
-            </div>
+            <Field
+                className="mt-auto border-0 border-t border-solid border-border-muted pt-3"
+                label={t("skills.editor.allowPrograms")}
+                tooltip={t("skills.editor.allowProgramsHint")}
+                tooltipPlacement="top"
+                htmlFor="skill-exec-switch"
+                labelEnd={
+                    <Switch
+                        id="skill-exec-switch"
+                        size="sm"
+                        checked={allowExecutable}
+                        disabled={readOnly}
+                        onCheckedChange={onAllowExecutable}
+                    />
+                }
+            >
+                {null}
+            </Field>
             <input
                 ref={pickerRef}
                 type="file"
