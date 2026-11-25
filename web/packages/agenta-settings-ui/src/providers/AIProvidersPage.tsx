@@ -63,8 +63,6 @@ export interface AIProvidersPageProps {
     subscriptionDocsUrl?: string
     /** Adds the organization's group. Absent keeps the project's connections alone. */
     organization?: AIProvidersOrganization
-    /** The project group's heading: the project switch. Absent, it reads "Connected". */
-    projectSwitch?: ReactNode
 }
 
 /** The project's own connections: one row per key; its subscriptions are the cards on top. */
@@ -117,7 +115,6 @@ export const AIProvidersPage = ({
     renderRemoveDialog,
     subscriptionDocsUrl = SUBSCRIPTION_DOCS_URL,
     organization,
-    projectSwitch,
 }: AIProvidersPageProps) => {
     const t = useT(settingsProvidersCatalog, commonCatalog)
     const project = useProjectProvidersSource()
@@ -137,8 +134,8 @@ export const AIProvidersPage = ({
     const [search, setSearch] = useState("")
 
     const projectGroup = useMemo<ProvidersGroup>(
-        () => ({key: "project", label: projectSwitch ?? t("common.connected"), source: project}),
-        [projectSwitch, project, t],
+        () => ({key: "project", owner: "project" as const, source: project}),
+        [project],
     )
     const shownGroups = useMemo(
         () =>
@@ -183,6 +180,7 @@ export const AIProvidersPage = ({
                 }
                 ownerChoiceFor={ownerChoiceFor}
                 loading={project.loading}
+                ownerChips={ownerFilter === "all" && Boolean(organizationGroup)}
                 renderRemoveDialog={renderRemoveDialog}
                 subscriptionDocsUrl={subscriptionDocsUrl}
             />

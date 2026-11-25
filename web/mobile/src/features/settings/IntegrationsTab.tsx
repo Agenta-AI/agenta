@@ -13,7 +13,7 @@ import {useSettingsProjectGroup} from "./useSettingsProjectGroup"
 /** Settings > Integrations; `edit_tools` decides whether connect asks "Who can use it". */
 export const IntegrationsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const {confirm, modal} = useConfirmModal()
-    const {projectSwitch, projectCount} = useSettingsProjectGroup(workspaceId, projectId)
+    const {projectCount} = useSettingsProjectGroup(workspaceId, projectId)
     const canEdit = useProjectPermission(projectId, "edit_tools")
     const t = useT(settingsIntegrationsCatalog)
     // The shared section's defaults still say "tool" for oss/ee.
@@ -29,7 +29,6 @@ export const IntegrationsTab = ({workspaceId, projectId}: SettingsTabProps) => {
             <GatewayToolsSection
                 confirm={confirm}
                 copy={copy}
-                projectSwitch={projectSwitch}
                 projectCount={projectCount}
                 canEdit={canEdit}
             />

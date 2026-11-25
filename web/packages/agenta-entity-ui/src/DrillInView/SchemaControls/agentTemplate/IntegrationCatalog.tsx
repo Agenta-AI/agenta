@@ -53,6 +53,7 @@ import {CaretRight, Check, MagnifyingGlass, Play, Plus, Star} from "@phosphor-ic
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
+import {OwnerChip} from "../../../accounts/OwnerChip"
 import type {CreatedConnection} from "../../../gatewayTool/components/ConnectForm"
 import {FinishConnectionDialog} from "../../../gatewayTool/components/FinishConnectionDialog"
 import {useRefreshToolConnection} from "../../../gatewayTool/hooks/useRefreshToolConnection"
@@ -274,9 +275,12 @@ function ConnectedRow({
     handlers,
     verbs = {},
     canvas = false,
+    chip,
 }: {
     /** The agent panel's row (canvas F02 f4); off, the Settings page row. */
     canvas?: boolean
+    /** After the name, e.g. the owner chip in Settings' mixed list. */
+    chip?: ReactNode
     group: ConnectedGroup
     /** The agent's row for this integration, in EITHER format, or undefined when it holds none. */
     row: IntegrationRow | undefined
@@ -375,7 +379,9 @@ function ConnectedRow({
             leading={<LogoTile logo={logo} />}
             title={title}
             titleSuffix={
-                canvas ? (
+                chip ? (
+                    chip
+                ) : canvas ? (
                     attention ? (
                         <span className="inline-flex h-5 shrink-0 items-center rounded-sm px-2 text-caption text-warning bg-warning/10">
                             {attention === "inactive"
@@ -609,8 +615,11 @@ function RowGroup({
     onToggle,
     page,
     footer,
+    list = false,
     children,
 }: {
+    /** One row per line, like a table, in place of the page's two columns. */
+    list?: boolean
     /** In the agent panel (not `page`) the header is the canvas one and the group never folds. */
     label: ReactNode
     count: number
@@ -639,7 +648,10 @@ function RowGroup({
                 open={!page || !collapsed}
                 fade
                 className="-mx-2"
-                contentClassName={cn(page ? PAGE_ROWS : "flex flex-col gap-2", "px-2 pt-2")}
+                contentClassName={cn(
+                    page && !list ? PAGE_ROWS : "flex flex-col gap-2",
+                    "px-2 pt-2",
+                )}
             >
                 {children}
             </HeightCollapse>
@@ -897,7 +909,7 @@ export function IntegrationCatalog({
         />
     )
 
-    const renderRows = (groups: ConnectedGroup[], verbs: RowVerbs) =>
+    const renderRows = (groups: ConnectedGroup[], verbs: RowVerbs, chip?: ReactNode) =>
         groups.map((group) => (
             <ConnectedRow
                 key={groupKey(group.provider, group.integrationKey)}
@@ -916,6 +928,7 @@ export function IntegrationCatalog({
                 handlers={rowHandlers}
                 verbs={verbs}
                 canvas={!page}
+                chip={chip}
             />
         ))
 
@@ -957,36 +970,79 @@ export function IntegrationCatalog({
                             : "ag-scroll-fade flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4"
                     }
                 >
+                    {controls ? (
+                        // Settings: one Connected list, narrow owners first; chips name the
+                        // owner when the All tab mixes them.
+                        (showsOwner("user") && (yoursGroups.length > 0 || yoursFooter)) ||
+                        (showsOwner("project") && connectedGroups.length > 0) ? (
+                            <RowGroup
+                                label={t("entityUi.integrationDrawer.connected")}
+                                list
+                                count={
+                                    (showsOwner("user") ? yoursGroups.length : 0) +
+                                    (showsOwner("project") ? connectedGroups.length : 0)
+                                }
+                                page={page}
+                                footer={
+                                    controls.owner === "user" && yoursFooter ? (
+                                        <div className="pt-2">{yoursFooter}</div>
+                                    ) : null
+                                }
+                            >
+                                {showsOwner("user")
+                                    ? renderRows(
+                                          yoursGroups,
+                                          yoursVerbs,
+                                          yours && controls.owner === "all" ? (
+                                              <OwnerChip owner="user" />
+                                          ) : undefined,
+                                      )
+                                    : null}
+                                {showsOwner("project")
+                                    ? renderRows(
+                                          connectedGroups,
+                                          projectVerbs,
+                                          yours && controls.owner === "all" ? (
+                                              <OwnerChip owner="project" />
+                                          ) : undefined,
+                                      )
+                                    : null}
+                            </RowGroup>
+                        ) : null
+                    ) : (
+                        <>
                     {yours && showsOwner("user") && (yoursGroups.length > 0 || yoursFooter) ? (
-                        <RowGroup
-                            label={yours.label}
-                            count={yoursGroups.length}
-                            collapsed={!searching && yoursCollapsed}
-                            onToggle={
-                                searching ? undefined : () => setYoursCollapsed((value) => !value)
-                            }
-                            page={page}
-                            footer={yoursFooter ? <div className="pt-2">{yoursFooter}</div> : null}
-                        >
-                            {renderRows(yoursGroups, yoursVerbs)}
-                        </RowGroup>
-                    ) : null}
-
-                    {showConnected && showsOwner("project") ? (
-                        <RowGroup
-                            label={projectHeading ?? t("entityUi.integrationDrawer.connected")}
-                            count={connectedGroups.length}
-                            collapsed={!projectHeading && !searching && connectedCollapsed}
-                            onToggle={
-                                projectHeading || searching
-                                    ? undefined
-                                    : () => setConnectedCollapsed((value) => !value)
-                            }
-                            page={page}
-                        >
-                            {renderRows(connectedGroups, projectVerbs)}
-                        </RowGroup>
-                    ) : null}
+                            <RowGroup
+                                label={yours.label}
+                                count={yoursGroups.length}
+                                collapsed={!searching && yoursCollapsed}
+                                onToggle={
+                                    searching ? undefined : () => setYoursCollapsed((value) => !value)
+                                }
+                                page={page}
+                                footer={yoursFooter ? <div className="pt-2">{yoursFooter}</div> : null}
+                            >
+                                {renderRows(yoursGroups, yoursVerbs)}
+                            </RowGroup>
+                        ) : null}
+    
+                        {showConnected && showsOwner("project") ? (
+                            <RowGroup
+                                label={projectHeading ?? t("entityUi.integrationDrawer.connected")}
+                                count={connectedGroups.length}
+                                collapsed={!projectHeading && !searching && connectedCollapsed}
+                                onToggle={
+                                    projectHeading || searching
+                                        ? undefined
+                                        : () => setConnectedCollapsed((value) => !value)
+                                }
+                                page={page}
+                            >
+                                {renderRows(connectedGroups, projectVerbs)}
+                            </RowGroup>
+                        ) : null}
+                        </>
+                    )}
 
                     {nothingFound ? (
                         <Empty className="py-10">

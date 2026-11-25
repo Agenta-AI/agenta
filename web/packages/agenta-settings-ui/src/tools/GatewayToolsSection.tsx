@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState, type ReactNode} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {
     invalidateToolConnections,
@@ -57,8 +57,6 @@ export interface GatewayToolsSectionProps {
     confirm?: ConfirmDestructive
     /** Overrides the nouns; defaults to the "tool" wording oss/ee use. */
     copy?: Partial<GatewayToolsSectionCopy>
-    /** The project group's heading: the project switch. Absent, it stays "Connected". */
-    projectSwitch?: ReactNode
     /** How many projects the person has in the organization, for the empty "Yours" note. */
     projectCount?: number
     /**
@@ -72,7 +70,6 @@ export interface GatewayToolsSectionProps {
 export default function GatewayToolsSection({
     confirm,
     copy: copyOverrides,
-    projectSwitch,
     projectCount,
     canEdit = true,
 }: GatewayToolsSectionProps) {
@@ -238,7 +235,6 @@ export default function GatewayToolsSection({
                 <IntegrationCatalog
                     layout="page"
                     searchPlaceholder={copy.searchPlaceholder}
-                    projectHeading={projectSwitch}
                     yours={yours}
                     run={run}
                     confirmConnectionAction={confirm ? confirmConnectionAction : undefined}

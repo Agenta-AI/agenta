@@ -13,7 +13,6 @@ import {useOrganizationProjects} from "../nav/useOrganizationProjects"
 
 import {ConfirmModal} from "./ConfirmModal"
 import type {SettingsTabProps} from "./settingsTabProps"
-import {useSettingsProjectGroup} from "./useSettingsProjectGroup"
 
 /**
  * The organization the page names, from the project list the nav already holds (the root
@@ -60,11 +59,9 @@ const useProvidersOrganization = (
 export const LlmProvidersTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const t = useT(commonCatalog, settingsLlmProvidersTabCatalog)
     const organization = useProvidersOrganization(workspaceId, projectId)
-    const {projectSwitch} = useSettingsProjectGroup(workspaceId, projectId)
     return (
         <AIProvidersPage
             organization={organization ?? undefined}
-            projectSwitch={projectSwitch}
             renderRemoveDialog={({connection, open, pending, error, onConfirm, onClose}) => (
                 <ConfirmModal
                     open={open}

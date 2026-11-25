@@ -8,7 +8,6 @@
  */
 import {useMemo} from "react"
 
-import {organizationLabel} from "@agenta/entities/organization"
 import {
     deleteSecretAtom,
     isSubscriptionConnection,
@@ -204,10 +203,10 @@ export const useOrganizationProvidersGroup = (
     return useMemo(
         () => ({
             group: source
-                ? {key: "organization", label: organizationLabel(scope?.name ?? ""), source}
+                ? {key: "organization", owner: "organization" as const, source}
                 : null,
             manageScope: manage ? drawerScope : null,
         }),
-        [source, scope?.name, manage, drawerScope],
+        [source, manage, drawerScope],
     )
 }

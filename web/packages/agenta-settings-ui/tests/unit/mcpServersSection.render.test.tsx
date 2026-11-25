@@ -238,9 +238,9 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe("the registry table", () => {
-    it("names the columns, with the server URL under the name", () => {
+    it("names the columns, with the auth under the name", () => {
         show([LINEAR])
-        for (const heading of ["Name", "Auth", "Status"]) {
+        for (const heading of ["Name", "Server URL", "Status"]) {
             expect(screen.getByRole("columnheader", {name: heading})).toBeTruthy()
         }
     })
@@ -279,9 +279,9 @@ describe("the auth cell", () => {
         expect(screen.getByText("API key")).toBeTruthy()
     })
 
-    it("reads None for a server that needs no credential", () => {
+    it("says nothing about auth for a server that needs no credential", () => {
         show([MEMORY])
-        expect(screen.getByText("None")).toBeTruthy()
+        expect(screen.queryByText("None")).toBeNull()
     })
 })
 

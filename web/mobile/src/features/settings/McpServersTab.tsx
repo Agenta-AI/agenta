@@ -4,21 +4,18 @@ import {useProjectPermission} from "../context/useProjectPermission"
 
 import type {SettingsTabProps} from "./settingsTabProps"
 import {useConfirmModal} from "./useConfirmModal"
-import {useSettingsProjectGroup} from "./useSettingsProjectGroup"
 
 /** Settings > MCPs; writes follow `edit_mcp_endpoints`, tools `use_mcp_endpoints`, a sign-in neither. */
-export const McpServersTab = ({workspaceId, projectId}: SettingsTabProps) => {
+export const McpServersTab = ({projectId}: SettingsTabProps) => {
     const {confirm, modal} = useConfirmModal()
     const canEdit = useProjectPermission(projectId, "edit_mcp_endpoints")
     const canListTools = useProjectPermission(projectId, "use_mcp_endpoints")
-    const {projectSwitch} = useSettingsProjectGroup(workspaceId, projectId)
     return (
         <>
             <McpServersSection
                 confirm={confirm}
                 readOnly={!canEdit}
                 canListTools={canListTools}
-                projectSwitch={projectSwitch}
             />
             {modal}
         </>

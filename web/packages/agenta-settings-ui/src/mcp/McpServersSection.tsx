@@ -12,7 +12,7 @@
  * each one authenticates. What a server may actually do is a property of an agent, not of the
  * connection, so permissions are reachable from here only read-only ("View tools").
  */
-import {type ReactNode, useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {
     usePersonalMcpSignIn,
@@ -126,8 +126,8 @@ const hasGrantToRevoke = (endpoint: MCPEndpoint) =>
 
 type ColumnLabel = CatalogKey<typeof commonCatalog | typeof settingsMcpCatalog>
 
-const NAME_COLUMN = {key: "name", label: "common.name", width: LIST_COLUMN_WIDTH.primary}
-const AUTH_COLUMN = {key: "auth", label: "settings.mcp.auth", width: LIST_COLUMN_WIDTH.secondary}
+const NAME_COLUMN = {key: "name", label: "common.name", width: "minmax(160px,1.4fr)"}
+const URL_COLUMN = {key: "url", label: "settings.mcp.serverUrl", width: "minmax(0,1fr)"}
 const STATUS_COLUMN = {key: "status", label: "common.status", width: LIST_COLUMN_WIDTH.secondary}
 /** The person's own sign-in: run-as, never ownership, so a status cell beside the server's. */
 const SIGN_IN_COLUMN = {key: "signin", label: "settings.mcp.yourSignIn", width: LIST_COLUMN_WIDTH.name}
@@ -140,8 +140,8 @@ const ACTIONS_COLUMN = {
 
 const columnsFor = (personal: boolean): (ListTableColumn & {label: ColumnLabel})[] =>
     personal
-        ? [NAME_COLUMN, AUTH_COLUMN, STATUS_COLUMN, SIGN_IN_COLUMN, ACTIONS_COLUMN]
-        : [NAME_COLUMN, AUTH_COLUMN, STATUS_COLUMN, ACTIONS_COLUMN]
+        ? [NAME_COLUMN, URL_COLUMN, STATUS_COLUMN, SIGN_IN_COLUMN, ACTIONS_COLUMN]
+        : [NAME_COLUMN, URL_COLUMN, STATUS_COLUMN, ACTIONS_COLUMN]
 
 /** A phone keeps the name and the menu; the person's sign-in moves under the name. */
 const phoneKeysFor = (personal: boolean) =>
@@ -165,8 +165,6 @@ export interface McpServersSectionProps {
      */
     canListTools?: boolean
     copy?: Partial<McpServersSectionCopy>
-    /** The list's heading: the project switch. Shown with personal accounts on. */
-    projectSwitch?: ReactNode
 }
 
 export default function McpServersSection({
@@ -174,7 +172,6 @@ export default function McpServersSection({
     readOnly,
     canListTools = true,
     copy: copyOverrides,
-    projectSwitch,
 }: McpServersSectionProps) {
     const t = useT(commonCatalog, settingsMcpCatalog, settingsSharedCatalog)
     const copy = useMemo<McpServersSectionCopy>(
@@ -405,12 +402,12 @@ export default function McpServersSection({
     const projectTable = (
         <ListTable<MCPEndpoint>
             columns={columns}
-            groups={[{key: "servers", label: personal ? (projectSwitch ?? null) : null, rows}]}
+            groups={[{key: "servers", label: null, rows}]}
             rowKey={rowKey}
             minWidth={0}
             loading={isPending}
             skeletonRows={3}
-            showGroupCount
+            hideHeader={false}
             onOpenRow={(record) => setViewing(record)}
             empty={
                 narrowed ? (
@@ -447,6 +444,18 @@ export default function McpServersSection({
                 const secretName = record.secret_id
                     ? secretNameById.get(record.secret_id)
                     : undefined
+                // How the server signs in, under its name; never the credential itself.
+                const authLine =
+                    record.auth_mode === "oauth" ? (
+                        t("settings.mcp.oauth")
+                    ) : record.auth_mode === "none" ? undefined : secretName ? (
+                        <>
+                            {t("settings.mcp.apiKeyPrefix")}{" "}
+                            <span className="text-code">{secretName}</span>
+                        </>
+                    ) : (
+                        t("settings.mcp.apiKey")
+                    )
                 return (
                     <>
                         {renamingKey === rowKey(record) && !readOnly ? (
@@ -491,8 +500,10 @@ export default function McpServersSection({
                                 title={record.name || record.slug || ""}
                                 // A phone's meta line: a broken server first, then the sign-in.
                                 meta={
-                                    !personal || shows("signin")
-                                        ? (record.data.route.base_url ?? undefined)
+                                    shows("url")
+                                        ? authLine
+                                        : !personal
+                                          ? (record.data.route.base_url ?? undefined)
                                         : status !== "connected"
                                           ? getMcpConnectionStatusLabel(status)
                                           : asksForSignIn(record)
@@ -502,25 +513,20 @@ export default function McpServersSection({
                                             : (record.data.route.base_url ?? undefined)
                                 }
                                 metaTone={
-                                    !personal || shows("signin") || status === "connected"
+                                    shows("url") || !personal || status === "connected"
                                         ? "muted"
                                         : "danger"
                                 }
                             />
                         )}
-                        {!shows("auth") ? null : record.auth_mode === "oauth" ? (
-                            <span className="truncate">{t("settings.mcp.oauth")}</span>
-                        ) : record.auth_mode === "none" ? (
-                            <span className="truncate">{t("common.none")}</span>
-                        ) : secretName ? (
-                            // Never the credential itself, only what it is filed under.
-                            <span className="flex min-w-0 items-center gap-1">
-                                <span>{t("settings.mcp.apiKeyPrefix")}</span>
-                                <span className="truncate text-code">{secretName}</span>
+                        {shows("url") ? (
+                            <span
+                                className="truncate text-label text-muted-foreground"
+                                title={record.data.route.base_url ?? undefined}
+                            >
+                                {record.data.route.base_url}
                             </span>
-                        ) : (
-                            <span className="truncate">{t("settings.mcp.apiKey")}</span>
-                        )}
+                        ) : null}
                         {!shows("status") ? null : (
                         <span
                             data-testid="mcp-connection-status"

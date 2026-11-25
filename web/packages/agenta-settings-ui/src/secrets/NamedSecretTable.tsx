@@ -10,7 +10,7 @@ import {
     type NamedSecretRow,
 } from "@agenta/entities/secret"
 import {workflowMolecule} from "@agenta/entities/workflow"
-import type {SecretOwner} from "@agenta/entity-ui/secret"
+import {OwnerChip, type SecretOwner} from "@agenta/entity-ui/secret"
 import {formatLocale, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsSecretsCatalog from "@agenta/i18n/catalogs/settings.secrets"
@@ -43,7 +43,6 @@ import {
 import {ConnectionsToolbar} from "../shared/ConnectionsToolbar"
 import {hoverableRow} from "../shared/hoverableRow"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
-import {SettingsGroupHeading} from "../shared/SettingsGroupHeading"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {usePhoneColumns} from "../shared/usePhoneColumns"
 
@@ -69,17 +68,15 @@ export interface NamedSecretTableProps {
         open: boolean
         owners: SecretOwner[] | undefined
         onClose: () => void
-    }) => React.ReactNode
+    }) => ReactNode
     /** Delete dialog — the model registry's. */
     renderDeleteDialog?: (state: {
         selectedProvider: LlmProvider | null
         open: boolean
         onClose: () => void
-    }) => React.ReactNode
+    }) => ReactNode
     /** Who may own a new secret (`addAccountOwners`); two show the owner segment and field. */
     owners?: SecretOwner[]
-    /** The project group's heading: the project switch. Shown with "Personal". */
-    projectSwitch?: ReactNode
 }
 
 interface SecretRow extends NamedSecretRow {
@@ -142,7 +139,6 @@ export const NamedSecretTable = ({
     renderConfigureDialog,
     renderDeleteDialog,
     owners,
-    projectSwitch,
 }: NamedSecretTableProps) => {
     const t = useT(commonCatalog, settingsSecretsCatalog, settingsSharedCatalog)
     const {namedSecrets, loading, loadFailed, mutate} = useVaultSecret()
@@ -168,24 +164,15 @@ export const NamedSecretTable = ({
     )
 
     const term = search.trim().toLowerCase()
+    // One list, narrow owners first; the owner tab narrows it, a chip names the owner in All.
     const groups = useMemo<ListTableGroup<SecretRow>[]>(() => {
-        const project = {
-            key: "project",
-            label: personal ? (projectSwitch ?? t("common.project")) : null,
-            rows: projectRows.filter((row) => matches(row, term)),
-        }
-        if (!personal) return [project]
-        const own = {
-            key: "user",
-            label: t("settings.shared.yours"),
-            rows: personalRows.filter((row) => matches(row, term)),
-        }
-        // An empty Personal group would be a heading over nothing.
-        return [
-            ownerShown(ownerFilter, "user") && own.rows.length ? own : null,
-            ownerShown(ownerFilter, "project") ? project : null,
-        ].filter((group): group is typeof project => group !== null)
-    }, [ownerFilter, personal, personalRows, projectRows, projectSwitch, t, term])
+        const rows = [
+            ...(personal && ownerShown(ownerFilter, "user") ? personalRows : []),
+            ...(ownerShown(ownerFilter, "project") ? projectRows : []),
+        ].filter((row) => matches(row, term))
+        return [{key: "secrets", label: null, rows}]
+    }, [ownerFilter, personal, personalRows, projectRows, term])
+    const showsChip = personal && ownerFilter === "all"
 
     const openCreate = () => {
         setSelectedSecret(null)
@@ -241,11 +228,7 @@ export const NamedSecretTable = ({
             }
         />
     ) : (
-        <div className="flex flex-col gap-3">
-            {personal && projectSwitch && ownerFilter !== "user" ? (
-                <SettingsGroupHeading label={projectSwitch} count={null} />
-            ) : null}
-            <SettingsEmpty
+        <SettingsEmpty
                 icon={getSettingsSidebarIcon("secrets")}
                 title={tabEmpty?.title ?? t("settings.secrets.emptyTitle")}
                 description={tabEmpty?.body ?? t("settings.secrets.emptyDescription")}
@@ -260,7 +243,6 @@ export const NamedSecretTable = ({
                     )
                 }
             />
-        </div>
     )
 
     return (
@@ -294,7 +276,7 @@ export const NamedSecretTable = ({
                         !narrowed &&
                         (loading || (personal && personalQuery.isPending))
                     }
-                    showGroupCount
+                    hideHeader={false}
                     empty={empty}
                     renderRow={(record) => (
                         <>
@@ -305,6 +287,7 @@ export const NamedSecretTable = ({
                                     </IconTile>
                                 }
                                 title={record.name ?? ""}
+                                badge={showsChip ? <OwnerChip owner={record.owner} /> : undefined}
                                 meta={
                                     <>
                                         <span className="text-code">{record.slug}</span>

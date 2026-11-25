@@ -10,6 +10,7 @@ import {
     type ProviderCatalogEntry,
     type ProviderConnection,
 } from "@agenta/entities/secret"
+import {OwnerChip} from "@agenta/entity-ui/secret"
 import {
     ProviderDrawer,
     providerIconFor,
@@ -23,6 +24,7 @@ import {useT, type CatalogKey} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
+import type {OwnerKind} from "@agenta/shared/types"
 import {useViewOpener, type ViewTarget} from "@agenta/ui/view-stack"
 import {MagnifyingGlass, PencilSimpleLine, Trash, WarningCircle} from "@phosphor-icons/react"
 
@@ -74,8 +76,8 @@ export interface ProvidersSource {
 /** One owner's group on the page: the project's, or the organization's. */
 export interface ProvidersGroup {
     key: string
-    /** The heading, for example "{org} organization". */
-    label: ReactNode
+    /** Whose rows these are; the chip on each row in a mixed list. */
+    owner: OwnerKind
     source: ProvidersSource
 }
 
@@ -151,6 +153,7 @@ export const ProvidersPanel = ({
     subscriptions,
     ownerChoiceFor,
     loading = false,
+    ownerChips = false,
     renderRemoveDialog,
     subscriptionDocsUrl,
 }: {
@@ -164,6 +167,8 @@ export const ProvidersPanel = ({
     /** The drawer's Owner field for a new connection of this kind; absent, it is the project's. */
     ownerChoiceFor?: (kind: string) => ProviderOwnerChoice | undefined
     loading?: boolean
+    /** Every owner's rows in one Connected list, each with its owner chip (the All tab). */
+    ownerChips?: boolean
     renderRemoveDialog?: (state: ProviderRemovalState) => ReactNode
     subscriptionDocsUrl: string
 }) => {
@@ -240,7 +245,8 @@ export const ProvidersPanel = ({
     const groups = useMemo<SettingsCatalogGroup[]>(() => {
         const matches = (item: SettingsCatalogItem) =>
             !term || (typeof item.name === "string" && item.name.toLowerCase().includes(term))
-        const owned = ownerGroups.map<SettingsCatalogGroup>(({key: groupKey, label, source}) => {
+        const owned = ownerGroups.map<SettingsCatalogGroup>(({key: groupKey, owner, source}) => {
+            const badge = ownerChips ? <OwnerChip owner={owner} /> : undefined
             const canRemove = canRemoveIn(source)
             const open = (connection: ProviderConnection) => {
                 const provider = subscriptionProviderOf(connection)
@@ -251,6 +257,7 @@ export const ProvidersPanel = ({
                 key: connection.id,
                 logo: <ProviderLogo kind={connection.kind} />,
                 name: connection.name,
+                badge,
                 description: source.describe(connection),
                 status: "connected",
                 statusLabel: t("common.connected"),
@@ -285,9 +292,10 @@ export const ProvidersPanel = ({
                     ? SUBSCRIPTION_PROVIDERS.filter(
                           (provider) => !subscriptionConnectionFor(source.connections, provider),
                       ).map<SettingsCatalogItem>((provider) => ({
-                          key: `subscription:${provider}`,
+                          key: `${groupKey}:subscription:${provider}`,
                           logo: <ProviderLogo kind={subscriptionProviderFamily(provider)} />,
                           name: subscriptionProviderName(provider),
+                          badge,
                           description: t(SUBSCRIPTION_HINT[provider]),
                           status: "available",
                           statusLabel: t("settings.providers.connectName", {
@@ -298,12 +306,10 @@ export const ProvidersPanel = ({
                     : []
             return {
                 key: groupKey,
-                label,
+                label: null,
                 items: [...held, ...offered].filter(matches),
                 // The count is of what the owner holds, not of what it may connect.
                 count: held.filter(matches).length,
-                // The project's heading is the project switch, so it stays when empty.
-                keepWhenEmpty: !term && groupKey === projectGroup?.key,
                 // A group still loading holds its place with one skeleton row.
                 pendingRows: source.loading && !held.length ? 1 : 0,
                 ...(source.failure
@@ -313,7 +319,19 @@ export const ProvidersPanel = ({
                       : {}),
             }
         })
-        if (!projectGroup) return owned
+        // One Connected list: every owner's rows, narrow owners first.
+        const connected: SettingsCatalogGroup = {
+            key: "connected",
+            label: t("common.connected"),
+            list: true,
+            items: owned.flatMap((group) => group.items),
+            count: owned.reduce((sum, group) => sum + (group.count ?? 0), 0),
+            pendingRows: owned.some((group) => group.pendingRows) ? 1 : 0,
+            footer: owned.some((group) => group.footer) ? (
+                <>{owned.map((group) => group.footer)}</>
+            ) : undefined,
+        }
+        if (!projectGroup) return [connected]
         const catalogRow = (entry: ProviderCatalogEntry): SettingsCatalogItem => ({
             key: entry.kind,
             logo: <ProviderLogo kind={entry.kind} />,
@@ -326,7 +344,7 @@ export const ProvidersPanel = ({
             onOpen: () => setDrawerTarget({kind: entry.kind}),
         })
         return [
-            ...owned,
+            connected,
             {
                 key: "model-providers",
                 label: t("settings.providers.modelProviders"),
@@ -338,7 +356,7 @@ export const ProvidersPanel = ({
                 items: CLOUD_PLATFORMS.map(catalogRow).filter(matches),
             },
         ]
-    }, [ownerGroups, projectGroup, term, canRemoveIn, requestRemoval, openSignIn, t])
+    }, [ownerGroups, projectGroup, ownerChips, term, canRemoveIn, requestRemoval, openSignIn, t])
 
     const cards = useMemo<SubscriptionCard[] | null>(() => {
         if (!subscriptions || !projectGroup) return null

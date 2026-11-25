@@ -11,10 +11,13 @@ export const ListTableNameCell = ({
     title,
     meta,
     metaTone = "muted",
+    badge,
     className,
 }: {
     mark?: ReactNode
     title: string
+    /** A chip after the title, e.g. the owner of a connection in a mixed list. */
+    badge?: ReactNode
     meta?: ReactNode
     /** `danger` for a meta line that says something is wrong ("Slack is disconnected"). */
     metaTone?: "muted" | "danger"
@@ -23,9 +26,18 @@ export const ListTableNameCell = ({
     <span className={cn("flex min-w-0 items-center gap-3", className)}>
         {mark}
         <span className="flex min-w-0 flex-col">
-            <span className="truncate text-body font-medium text-foreground" title={title}>
-                {title}
-            </span>
+            {badge ? (
+                <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-body font-medium text-foreground" title={title}>
+                        {title}
+                    </span>
+                    {badge}
+                </span>
+            ) : (
+                <span className="truncate text-body font-medium text-foreground" title={title}>
+                    {title}
+                </span>
+            )}
             {meta ? (
                 <span
                     className={cn(

@@ -13,6 +13,8 @@ export interface SettingsCatalogItem {
     /** The provider's or platform's own mark, drawn inside the row's tile. */
     logo: ReactNode
     name: ReactNode
+    /** A chip after the name, e.g. the owner in a list that mixes owners. */
+    badge?: ReactNode
     description?: ReactNode
     status: SettingsCatalogStatus
     /** The problem on a broken row (shown beside its name), the verb on an available one. */
@@ -44,6 +46,8 @@ export interface SettingsCatalogGroup {
     onToggle?: () => void
     /** Shown with no rows too, e.g. a heading that is also the project switch. */
     keepWhenEmpty?: boolean
+    /** One row per line, like a table, in place of two columns. */
+    list?: boolean
 }
 
 const FOCUS_RING = "outline-none focus-ring"
@@ -102,6 +106,7 @@ const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
                     <span className="truncate text-body font-medium leading-5 text-foreground">
                         {item.name}
                     </span>
+                    {item.badge}
                     {/* Beside the name and never truncated, so the problem always shows. */}
                     {attention ? (
                         <span className="flex shrink-0 items-center gap-1.5 text-meta font-medium text-warning">
@@ -164,7 +169,7 @@ export const SettingsCatalogSection = ({
             action={group.action}
         />
         {group.collapsed ? null : group.items.length || group.pendingRows ? (
-            <div className={ROW_GRID}>
+            <div className={group.list ? "flex flex-col gap-0.5" : ROW_GRID}>
                 {group.items.map((item) => (
                     <CatalogRow key={item.key} item={item} />
                 ))}

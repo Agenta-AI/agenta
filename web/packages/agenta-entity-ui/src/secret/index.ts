@@ -27,6 +27,7 @@ export {
     useOwnerWord,
     type OwnerFieldProps,
 } from "../accounts/OwnerField"
+export {OwnerChip} from "../accounts/OwnerChip"
 
 export {SecretRemoveDialog} from "./SecretRemoveDialog"
 export {secretAttachView, type SecretAttachViewParams} from "./views/secretAttachView"
