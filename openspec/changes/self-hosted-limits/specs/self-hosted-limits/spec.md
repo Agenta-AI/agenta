@@ -161,7 +161,7 @@ During sign-up, `create_accounts` SHALL skip the personal organization, without 
 #### Scenario: Register with the box unticked
 
 - **WHEN** the admin unticks "Send me security and product updates (about once a month)" and sends the registration
-- **THEN** the free key is still sent, `agentaProductUpdates` is false, and security notices still reach that email
+- **THEN** the free key is still sent, the stored `agentaProductUpdates` value stays unchanged (a new contact has none), and security notices still reach that email
 
 #### Scenario: Skip
 
@@ -175,7 +175,7 @@ During sign-up, `create_accounts` SHALL skip the personal organization, without 
 
 ### Requirement: One-time registration prompt on upgraded installs
 
-The instance admin of an install with no key that skipped onboarding SHALL see the registration step once as a prompt, and a skip SHALL be stored on the server through `POST /instance/license/registration-prompt/dismiss`.
+The instance admin of an install with no key that skipped onboarding SHALL see the registration step once as a prompt, and a skip SHALL be stored on the server through `POST /instance/license/registration-offer/dismiss`.
 
 #### Scenario: First visit after the upgrade
 

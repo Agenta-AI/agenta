@@ -16,12 +16,12 @@ The spec PR is the base of the stack and sits on #8242. M1 to M4 started togethe
 | M4 Images, hosting, builds | 4.x | spec; check needs M2 and M3 | #8545, agenta_cloud#1796 | `feat/one-image-spec` | built, in review |
 | M5 License text, docs, QA | 5.x | M1 to M4 | #8551 | `feat/one-image-spec` | docs built; QA open |
 
-Shared files: M1 and M2 both touch `api/oss/src/services/commoners.py` (limit check, and the `env` import). Merge order: #8242, spec, M1, M2, M3, M4, M5.
+Shared files: M1 and M2 both touch `api/oss/src/services/commoners.py` (limit check, and the `env` import). Merge order: #8237 before #8242 (#8242 needs the instance id from #8237), then #8242, spec, M1, M2, M3, M4, M5. #8240 sends the instance id in its update check only after #8237 is in the release branch (D39).
 
 ## R. Registration and the free key (#8242, website worker)
 
 - [x] R.1 Registration as a full onboarding step after the survey, with "Send me a free key" and "Skip".
-- [x] R.2 One-time prompt for the instance admin of an upgraded install; `POST /instance/license/registration-prompt/dismiss` stores the skip, and `GET /instance/license` reports it.
+- [x] R.2 One-time prompt for the instance admin of an upgraded install; `POST /instance/license/registration-offer/dismiss` stores the skip, and `GET /instance/license` reports it.
 - [x] R.3 The updates box starts ticked and is optional in the UI, the API and the worker; security notices go to every registrant.
 - [x] R.4 The setup answers (option labels only) go with every registration, with the notice line under the button.
 - [x] R.5 The API forwards the updates choice, the setup answers and the signed-in user id.
