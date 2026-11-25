@@ -12,7 +12,7 @@ globalThis.ResizeObserver ??= class {
 
 const fixture = vi.hoisted(() => ({
     isInstanceAdmin: true,
-    license: null as unknown,
+    usage: null as unknown,
 }))
 
 vi.mock("next/router", async () => (await import("../support/nextRouter")).nextRouterModule)
@@ -27,10 +27,11 @@ vi.mock("@agenta/entities/profile", () => ({
 }))
 
 vi.mock("../../src/features/settings/useInstanceLicense", () => ({
-    useInstanceLicense: () => ({
-        isInstanceAdmin: fixture.isInstanceAdmin,
-        data: fixture.license,
-    }),
+    useInstanceLicense: () => ({isInstanceAdmin: fixture.isInstanceAdmin}),
+}))
+
+vi.mock("../../src/features/settings/useLicenseUsage", () => ({
+    useLicenseUsage: () => ({data: fixture.usage}),
 }))
 
 import {NoOrganization} from "@/features/context/NoOrganization"
@@ -61,7 +62,7 @@ describe("limit screens", () => {
 
     beforeEach(() => {
         fixture.isInstanceAdmin = true
-        fixture.license = null
+        fixture.usage = null
         routerPush.mockClear()
         host = document.createElement("div")
         document.body.appendChild(host)
@@ -145,7 +146,7 @@ describe("limit screens", () => {
     })
 
     it("shows the project usage on Settings, Projects for an instance with no key", () => {
-        fixture.license = {license: null, usage: {users: 1, projects: FULL}}
+        fixture.usage = {projects: FULL, organizations: FULL}
         mount(<ProjectsUsageNotice projectId="proj-1" />)
 
         expect(text()).toContain(
@@ -155,12 +156,13 @@ describe("limit screens", () => {
         expect(text()).toContain("Register to create more projects")
     })
 
-    it("hides the project usage with a key or without a limit", () => {
-        fixture.license = {license: {key_id: "k"}, usage: {users: 1, projects: FULL}}
+    it("hides the project usage without a limit, or from a member", () => {
+        fixture.usage = {projects: {count: 3, limit: null}, organizations: FULL}
         mount(<ProjectsUsageNotice projectId="proj-1" />)
         expect(text()).toBe("")
 
-        fixture.license = {license: null, usage: {users: 1, projects: {count: 3, limit: null}}}
+        fixture.usage = {projects: FULL, organizations: FULL}
+        fixture.isInstanceAdmin = false
         mount(<ProjectsUsageNotice projectId="proj-1" />)
         expect(text()).toBe("")
     })

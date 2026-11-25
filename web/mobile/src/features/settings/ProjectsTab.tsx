@@ -24,7 +24,7 @@ import {NameDialog} from "./NameDialog"
 import {ProjectsUsageNotice} from "./ProjectsUsageNotice"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {switchSettingsContext} from "./switchContext"
-import {useInstanceUsage} from "./useInstanceUsage"
+import {invalidateLicenseUsage, useLicenseUsage} from "./useLicenseUsage"
 import {useOrganizationOwner} from "./useOrganizationOwner"
 import {useSettingsOrg} from "./useSettingsOrg"
 
@@ -48,9 +48,6 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     // Deleting a project loses its data for good: the route checks `delete_workspace`, which only
     // the owner role holds by default.
     const canDelete = useProjectPermission(projectId, "delete_workspace")
-    // Read with the page, so the create dialog shows the limit when it opens.
-    const usage = useInstanceUsage(projectId)
-    const projectsAtLimit = isAtLimit(usage.data?.projects)
     return (
         <>
             <ProjectsUsageNotice projectId={projectId} />
@@ -66,7 +63,7 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                 // The nav switcher reads its own projects list.
                 onChanged={() => {
                     void queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})
-                    void queryClient.invalidateQueries({queryKey: ["instance"]})
+                    void invalidateLicenseUsage(queryClient)
                 }}
                 onSwitch={(project) =>
                     switchSettingsContext(router, {
@@ -75,21 +72,9 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                     })
                 }
                 renderCreateDialog={({open, onClose, onSubmit, pending}) => (
-                    <NameDialog
+                    <CreateProjectDialog
                         open={open}
-                        submitDisabled={projectsAtLimit}
-                        notice={
-                            projectsAtLimit && usage.data?.projects ? (
-                                <ProjectLimitNotice
-                                    usage={usage.data.projects}
-                                    projectId={projectId}
-                                />
-                            ) : null
-                        }
-                        title={t("settings.projectsTab.newTitle")}
-                        description={t("settings.projectsTab.newDescription")}
-                        placeholder={t("settings.projectsTab.namePlaceholder")}
-                        submitLabel={t("common.create")}
+                        projectId={projectId}
                         pending={pending}
                         onClose={onClose}
                         onSubmit={(name) => onSubmit({name})}
@@ -141,5 +126,43 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                 )}
             />
         </>
+    )
+}
+
+/** The create dialog, which reads the project usage again each time it opens. */
+export const CreateProjectDialog = ({
+    open,
+    projectId,
+    pending,
+    onClose,
+    onSubmit,
+}: {
+    open: boolean
+    projectId: string
+    pending: boolean
+    onClose: () => void
+    onSubmit: (name: string) => void
+}) => {
+    const t = useT(commonCatalog, settingsProjectsTabCatalog)
+    const usage = useLicenseUsage(projectId, open)
+    const projects = usage.data?.projects
+    const atLimit = isAtLimit(projects)
+    return (
+        <NameDialog
+            open={open}
+            submitDisabled={atLimit}
+            notice={
+                atLimit && projects ? (
+                    <ProjectLimitNotice usage={projects} projectId={projectId} />
+                ) : null
+            }
+            title={t("settings.projectsTab.newTitle")}
+            description={t("settings.projectsTab.newDescription")}
+            placeholder={t("settings.projectsTab.namePlaceholder")}
+            submitLabel={t("common.create")}
+            pending={pending}
+            onClose={onClose}
+            onSubmit={onSubmit}
+        />
     )
 }

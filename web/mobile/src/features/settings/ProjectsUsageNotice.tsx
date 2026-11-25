@@ -7,18 +7,20 @@ import {Button} from "@agenta/ui/ui"
 import {RegistrationDialog} from "../limits/RegistrationDialog"
 
 import {useInstanceLicense} from "./useInstanceLicense"
+import {useLicenseUsage} from "./useLicenseUsage"
 
 /**
- * Settings > Projects, for the instance admin of an instance with no key: how many projects
- * the organization uses of its limit, and the registration that lifts it. It shows before the
- * limit is hit.
+ * Settings > Projects, for the instance admin of an instance with a project limit (no key):
+ * how many projects the organization uses of its limit, and the registration that lifts it. It
+ * shows before the limit is hit.
  */
 export const ProjectsUsageNotice = ({projectId}: {projectId: string}) => {
     const t = useT(limitRefusalCatalog)
-    const license = useInstanceLicense(projectId)
+    const {isInstanceAdmin} = useInstanceLicense(projectId)
+    const usage = useLicenseUsage(projectId)
     const [registering, setRegistering] = useState(false)
-    const projects = license.data?.usage.projects
-    if (!license.data || license.data.license || !projects || projects.limit === null) return null
+    const projects = usage.data?.projects
+    if (!isInstanceAdmin || !projects || projects.limit === null) return null
 
     return (
         <div className="bg-colorInfoBg ring-colorInfoBorder mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 ring-1 ring-inset">

@@ -21,12 +21,8 @@ export interface InstanceLicense {
     plan: string
     source: "environment" | "database" | null
     license: InstanceLicenseKey | null
-    /** Projects and organizations come only from an API that counts them against limits. */
-    usage: {
-        users: number
-        projects?: LicenseLimitUsage | null
-        organizations?: LicenseLimitUsage | null
-    }
+    /** Projects and organizations: read them from `fetchLicenseUsage`, the one source. */
+    usage: {users: number}
     /** The admin skipped the one-time registration prompt on this instance. */
     registration_prompt_dismissed?: boolean
 }
@@ -63,13 +59,15 @@ export const activateInstanceLicense = async (
     return data
 }
 
-/** `GET /instance/license/usage`: the counts behind the create dialogs, for any signed-in person. */
-export interface InstanceUsage {
+/** `GET /instance/license/usage`: the counts against the plan limits, for any signed-in person. */
+export interface LicenseUsage {
+    /** The projects of this project's organization, not of the instance. */
     projects: LicenseLimitUsage | null
+    /** The organizations on the instance. */
     organizations: LicenseLimitUsage | null
 }
 
-export const fetchInstanceUsage = async (projectId: string): Promise<InstanceUsage> => {
+export const fetchLicenseUsage = async (projectId: string): Promise<LicenseUsage> => {
     const {data} = await axios.get(`${getAgentaApiUrl()}/instance/license/usage`, {
         params: {project_id: projectId},
     })

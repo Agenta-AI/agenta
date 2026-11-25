@@ -14,7 +14,7 @@ import {
 import {message} from "@agenta/ui/app-message"
 import {KeyboardShortcutsSheet} from "@agenta/ui/shortcuts"
 import {themeIcon, useThemeMode, useThemeOptions} from "@agenta/ui/theme"
-import {useMutation} from "@tanstack/react-query"
+import {useMutation, useQueryClient} from "@tanstack/react-query"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
@@ -24,7 +24,7 @@ import {LimitRefusalNotice} from "../limits/LimitRefusalNotice"
 import {ProjectLimitNotice} from "../limits/ProjectLimitNotice"
 import {isAtLimit} from "../settings/licenseApi"
 import {switchSettingsContext} from "../settings/switchContext"
-import {useInstanceUsage} from "../settings/useInstanceUsage"
+import {invalidateLicenseUsage, useLicenseUsage} from "../settings/useLicenseUsage"
 import {LiveChatNavButton} from "../support/LiveChatNavButton"
 import {useLiveChatEnabled} from "../support/useLiveChatEnabled"
 
@@ -97,10 +97,11 @@ export const DrawerProjectSwitcher = ({
         [groups, currentGroup?.key],
     )
 
+    const queryClient = useQueryClient()
     const [createOpen, setCreateOpen] = useState(false)
     const [refusal, setRefusal] = useState<LimitRefusal | null>(null)
     // The limit shows when the sheet opens, before the reader types a name.
-    const usage = useInstanceUsage(projectId, createOpen)
+    const usage = useLicenseUsage(projectId, createOpen)
     const projectsAtLimit = isAtLimit(usage.data?.projects)
     // Same shared mutation the desktop rail calls; the row it feeds is already in the shared
     // view, gated on `onCreateProject`, and was invisible here only because nothing passed it.
@@ -112,6 +113,7 @@ export const DrawerProjectSwitcher = ({
         // Creating a project is a switch into it, exactly like picking one from the list.
         onSuccess: async (created) => {
             setCreateOpen(false)
+            void invalidateLicenseUsage(queryClient)
             // Refetch first: the destination reads this same query for its title.
             await query.refetch()
             goTo(created.organization_id ?? created.workspace_id ?? workspaceId, created.project_id)

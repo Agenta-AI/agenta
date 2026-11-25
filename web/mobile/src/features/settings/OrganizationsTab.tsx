@@ -44,7 +44,7 @@ import {isAtLimit} from "./licenseApi"
 import {NameDialog} from "./NameDialog"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {switchSettingsContext} from "./switchContext"
-import {useInstanceUsage} from "./useInstanceUsage"
+import {invalidateLicenseUsage, useLicenseUsage} from "./useLicenseUsage"
 import {useSettingsOrg} from "./useSettingsOrg"
 
 const errorText = (error: unknown, fallback: string): string => {
@@ -72,10 +72,12 @@ export const OrganizationsTab = ({workspaceId, projectId}: SettingsTabProps) => 
         void org.refetch()
         // The nav switcher and org switching read org names and projects from this list.
         void queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})
+        // A new or deleted organization changes the count against the instance limit.
+        void invalidateLicenseUsage(queryClient)
     }
     const [creating, setCreating] = useState(false)
     // The limit shows when the dialog opens, before the reader types a name.
-    const usage = useInstanceUsage(projectId, creating)
+    const usage = useLicenseUsage(projectId, creating)
     const organizationsAtLimit = isAtLimit(usage.data?.organizations)
     const [transferring, setTransferring] = useState<Org | null>(null)
     const [deleting, setDeleting] = useState<Org | null>(null)

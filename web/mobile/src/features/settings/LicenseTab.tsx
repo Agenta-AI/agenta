@@ -20,6 +20,7 @@ import {SettingsTabSkeleton} from "./states/SettingsTabSkeleton"
 import {CONTACT_URL, PRICING_URL, UPGRADE_DOCS_URL} from "./upgradePrompt"
 import {useActivationLinkKey} from "./useActivationLinkKey"
 import {instanceLicenseQueryKey, useInstanceLicense} from "./useInstanceLicense"
+import {invalidateLicenseUsage, useLicenseUsage} from "./useLicenseUsage"
 
 const tNow = createT(settingsLicenseCatalog)
 
@@ -49,6 +50,7 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
     const t = useT(settingsLicenseCatalog)
     const queryClient = useQueryClient()
     const license = useInstanceLicense(projectId)
+    const limits = useLicenseUsage(projectId)
     const {user} = useProfile()
     const [linkKey, dismissLinkKey] = useActivationLinkKey()
     const [error, setError] = useState<string | null>(null)
@@ -61,6 +63,7 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
             setDialogOpen(false)
             dismissLinkKey()
             queryClient.setQueryData(instanceLicenseQueryKey(projectId), data)
+            void invalidateLicenseUsage(queryClient)
             // The plan changes every organization's features at once.
             void queryClient.invalidateQueries({queryKey: ["billing"]})
             void queryClient.invalidateQueries({queryKey: ["access"]})
@@ -124,7 +127,7 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
 
     return (
         <div className="flex flex-col gap-5">
-            <LicenseSummary license={license.data} />
+            <LicenseSummary license={license.data} limits={limits.data} />
 
             {!key ? (
                 <>
