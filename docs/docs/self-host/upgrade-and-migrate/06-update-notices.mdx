@@ -25,7 +25,7 @@ A self-hosted Agenta instance shows its users when a newer release is available,
 
 When a signed-in user opens the app, the app asks your API for the release list. The API downloads the public release feed at `https://agenta.ai/releases.json` and keeps it for 12 hours. After a failed download, it tries again after one hour. Each API process keeps its own copy.
 
-The download sends the version your API runs, as a query parameter (`?version=v0.131.0`). Agenta counts these requests to know which versions are in use, as other self-hosted products do with their update checks. The request sends no other data about your instance. It is separate from telemetry, and `AGENTA_TELEMETRY_ENABLED` does not change it. `AGENTA_UPDATE_CHECK_ENABLED=false` stops it.
+The download sends the version your API runs and the kind of instance, as query parameters (`?version=v0.131.0&kind=production`). Agenta counts these requests to know which versions are in use, as other self-hosted products do with their update checks. The kind is `production` unless `AGENTA_TELEMETRY_INSTANCE_KIND` sets another value; Agenta's own test stacks set `test` so their requests can be filtered out. The request sends no other data about your instance. It is separate from telemetry, and `AGENTA_TELEMETRY_ENABLED` does not change it. `AGENTA_UPDATE_CHECK_ENABLED=false` stops it.
 
 If the API cannot reach `agenta.ai`, for example on a network with no internet access, the app shows only the releases that shipped with your version, and no warnings.
 

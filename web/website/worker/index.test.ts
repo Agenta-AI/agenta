@@ -315,7 +315,9 @@ describe("release feed", () => {
     );
 
   it("records the update check and returns the feed", async () => {
-    const response = await feed("?version=v0.131.0&instance_id=inst-1");
+    const response = await feed(
+      "?version=v0.131.0&kind=production&instance_id=inst-1",
+    );
 
     expect(response.status).toBe(200);
     expect(await response.text()).toBe(FEED);
@@ -330,11 +332,27 @@ describe("release feed", () => {
       distinct_id: "inst-1",
       properties: {
         agenta_version: "v0.131.0",
+        instance_kind: "production",
         $groups: { instance: "inst-1" },
         $process_person_profile: false,
       },
     });
   });
+
+  it("records the test kind so test stacks can be filtered out", async () => {
+    await feed("?version=v0.131.0&kind=test");
+
+    expect(events[0].body.properties.instance_kind).toBe("test");
+  });
+
+  it.each([["?version=v0.131.0"], ["?version=v0.131.0&kind=staging"]])(
+    "records no instance kind for %s",
+    async (query) => {
+      await feed(query);
+
+      expect(events[0].body.properties.instance_kind).toBeNull();
+    },
+  );
 
   it("uses an anonymous id when only the version is sent", async () => {
     await feed("?version=v0.131.0");

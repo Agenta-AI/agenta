@@ -1537,8 +1537,9 @@ What users see, and who sees it, is on the [update notices page](/self-host/upda
 
 The update check is on by default. The API downloads the public release feed at
 `https://agenta.ai/releases.json` when someone uses Agenta, and keeps it for 12 hours (each API
-process keeps its own copy). The request sends the version the API runs
-(`?version=v0.131.0`) and no other data about your instance. Agenta uses the feed to
+process keeps its own copy). The request sends the version the API runs and the kind of
+instance (`?version=v0.131.0&kind=production`) and no other data about your instance. The kind
+is `production` unless `AGENTA_TELEMETRY_INSTANCE_KIND` sets `development`, `ci` or `test`. Agenta uses the feed to
 show newer releases in "What's new", an "Update available" mark in the help menu, and a
 warning to organization owners and admins when a newer release fixes a security issue.
 

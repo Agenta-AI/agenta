@@ -1,5 +1,6 @@
 import asyncio
 import json
+import warnings
 
 import httpx
 import pytest
@@ -12,7 +13,7 @@ from oss.src.core.releases.service import (
     MAX_FEED_BYTES,
     ReleasesService,
 )
-from oss.src.utils.env import ReleasesConfig, env
+from oss.src.utils.env import ReleasesConfig, _parse_instance_kind, env
 
 FEED = {
     "releases": [
@@ -80,6 +81,7 @@ def requests(monkeypatch):
     monkeypatch.setattr(releases_service.httpx, "AsyncClient", client)
     monkeypatch.setattr(releases_service, "get_agenta_version", lambda: "v0.128.11")
     monkeypatch.setattr(env.releases, "update_check_enabled", True)
+    monkeypatch.setattr(env.telemetry, "instance_kind", None)
     return recorder
 
 
@@ -94,14 +96,16 @@ async def test_returns_the_feed_and_the_running_version(cache, requests):
     assert cache.writes[0]["key"] == "feed"
 
 
-async def test_request_carries_only_the_version(cache, requests):
+async def test_request_carries_only_the_version_and_the_kind(cache, requests):
     await ReleasesService().fetch_instance_releases()
 
     assert len(requests) == 1
     request = requests[0]
     assert request.method == "GET"
-    assert str(request.url) == f"{env.releases.feed_url}?version=v0.128.11"
-    assert dict(request.url.params) == {"version": "v0.128.11"}
+    assert (
+        str(request.url) == f"{env.releases.feed_url}?version=v0.128.11&kind=production"
+    )
+    assert dict(request.url.params) == {"version": "v0.128.11", "kind": "production"}
     assert request.content == b""
     sent = json.dumps(dict(request.headers)).lower()
     assert "0.128.11" not in sent
@@ -131,9 +135,32 @@ async def test_download_uses_the_configured_feed_url(cache, requests, monkeypatc
     result = await ReleasesService().fetch_instance_releases()
 
     assert [str(request.url) for request in requests] == [
-        f"{preview}?version=v0.128.11"
+        f"{preview}?version=v0.128.11&kind=production"
     ]
     assert result.releases == FEED["releases"]
+
+
+@pytest.mark.parametrize("kind", ["test", "ci", "development"])
+async def test_request_carries_the_instance_kind_override(
+    cache, requests, monkeypatch, kind
+):
+    monkeypatch.setattr(env.telemetry, "instance_kind", kind)
+
+    await ReleasesService().fetch_instance_releases()
+
+    assert requests[0].url.params["kind"] == kind
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [("test", "test"), (" TEST ", "test"), ("", None), ("staging", None)],
+)
+def test_instance_kind_override_is_parsed(monkeypatch, value, expected):
+    monkeypatch.setenv("AGENTA_TELEMETRY_INSTANCE_KIND", value)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        assert _parse_instance_kind() == expected
 
 
 @pytest.mark.parametrize("method", ["compose", "helm", None])

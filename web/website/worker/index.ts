@@ -149,9 +149,10 @@ async function handle(request: Request, env: Env): Promise<Response> {
 }
 
 /**
- * The release feed. An Agenta API asks for it with the running version and, when it has one,
- * the instance id (`?version=v0.131.0&instance_id=...`). That request is recorded as one
- * `instance_update_check` event, the way other self-hosted products count their update checks.
+ * The release feed. An Agenta API asks for it with the running version, the instance kind and,
+ * when it has one, the instance id (`?version=v0.131.0&kind=production&instance_id=...`). That
+ * request is recorded as one `instance_update_check` event, the way other self-hosted products
+ * count their update checks. The kind lets Agenta filter out its own test stacks.
  * The feed itself is the same static file for everyone, and a PostHog failure never touches it.
  */
 async function serveReleases(
@@ -162,8 +163,11 @@ async function serveReleases(
   const url = new URL(request.url);
   const version = url.searchParams.get("version");
   const instanceId = url.searchParams.get("instance_id");
+  const kind = url.searchParams.get("kind");
   if (version || instanceId) {
-    const sent = recordUpdateCheck(version, instanceId).catch(() => undefined);
+    const sent = recordUpdateCheck(version, instanceId, kind).catch(
+      () => undefined,
+    );
     if (ctx) ctx.waitUntil(sent);
     else await sent;
   }
@@ -184,10 +188,13 @@ async function serveReleases(
 // Bounded like the API's own feed request, so a slow PostHog cannot hold the worker.
 const POSTHOG_TIMEOUT_MS = 3000;
 const MAX_PARAM_LENGTH = 100;
+// The instance kinds the API sends; any other value is dropped.
+const INSTANCE_KINDS = new Set(["production", "development", "ci", "test"]);
 
 async function recordUpdateCheck(
   version: string | null,
   instanceId: string | null,
+  kind: string | null,
 ): Promise<void> {
   const id = instanceId?.slice(0, MAX_PARAM_LENGTH) || null;
   const response = await fetch(POSTHOG_CAPTURE_URL, {
@@ -199,6 +206,7 @@ async function recordUpdateCheck(
       distinct_id: id ?? "anonymous",
       properties: {
         agenta_version: version?.slice(0, MAX_PARAM_LENGTH) ?? null,
+        instance_kind: kind && INSTANCE_KINDS.has(kind) ? kind : null,
         $process_person_profile: false,
         ...(id ? { $groups: { instance: id } } : {}),
       },

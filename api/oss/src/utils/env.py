@@ -2123,7 +2123,8 @@ class RedisConfig(BaseModel):
 
 class ReleasesConfig(BaseModel):
     """The update check: the API downloads Agenta's public release feed and sends the
-    running version, nothing else. It does not follow AGENTA_TELEMETRY_ENABLED."""
+    running version and the instance kind, nothing else. It does not follow
+    AGENTA_TELEMETRY_ENABLED."""
 
     update_check_enabled: bool = _parse_bool_env("AGENTA_UPDATE_CHECK_ENABLED", True)
     # Change it only to test a different feed. An empty value uses the default.
@@ -2414,11 +2415,37 @@ def _parse_deployment_method() -> Optional[DeploymentMethod]:
     return None
 
 
+_INSTANCE_KINDS = ("production", "development", "ci", "test")
+
+InstanceKind = Literal["production", "development", "ci", "test"]
+
+
+def _parse_instance_kind() -> Optional[InstanceKind]:
+    """AGENTA_TELEMETRY_INSTANCE_KIND, when set: Agenta's own test and QA stacks set
+    `test` so their events can be filtered out. Empty means the API detects it."""
+
+    value = (os.getenv("AGENTA_TELEMETRY_INSTANCE_KIND") or "").strip().lower()
+    if not value:
+        return None
+    if value in _INSTANCE_KINDS:
+        return value
+    warnings.warn(
+        f"AGENTA_TELEMETRY_INSTANCE_KIND={value!r} is not recognized; "
+        "expected one of production, development, ci, test. "
+        "Detecting the instance kind instead.",
+        stacklevel=2,
+    )
+    return None
+
+
 class TelemetryConfig(BaseModel):
     """What a self-hosted instance sends to Agenta's PostHog project. #8237 adds the
-    other telemetry settings; this change needs only the deployment method."""
+    other telemetry settings; this change needs only the deployment method and the
+    instance kind override."""
 
     deployment_method: Optional[DeploymentMethod] = _parse_deployment_method()
+    # Overrides the detected instance kind when set.
+    instance_kind: Optional[InstanceKind] = _parse_instance_kind()
 
     model_config = ConfigDict(extra="ignore")
 
