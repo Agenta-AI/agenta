@@ -1,12 +1,12 @@
 ---
 title: License keys
 sidebar_label: License keys
-description: What an Agenta license key is, how to add one to a self-hosted Enterprise instance, and what happens without one
+description: What an Agenta license key is, how to add one to a self-hosted instance, the project and organization limits of each plan, and what happens without a key
 slug: /self-host/license-keys
 sidebar_position: 4
 ---
 
-A license key sets the plan of a self-hosted Agenta instance. The plan decides which enterprise features every organization on the instance can use. This page applies to the Enterprise (EE) image. The open-source (OSS) image does not read license keys.
+A license key sets the plan of a self-hosted Agenta instance. The plan decides how many projects and organizations the instance can have, and which enterprise features every organization on the instance can use. Every Agenta image reads license keys.
 
 ## What a license key is
 
@@ -22,7 +22,7 @@ Use one of these two ways. A key in `AGENTA_LICENSE_KEY` takes priority over a k
 
 1. Sign in as the instance admin.
 2. Open **Settings > License**.
-3. Paste the key in **License key** and select **Add key**.
+3. Select **Add a license key**, paste the key in **License key**, and select **Add key**.
 
 The new plan applies to every organization on the instance. The **License** tab is visible only to the instance admin. The instance admin is a user whose email is in `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS`. When that list is unset, it is the owner of the oldest organization.
 
@@ -52,11 +52,11 @@ Set `AGENTA_LICENSE_KEY` on the `api`, `worker-queues` and `worker-streams` cont
 
 When the key comes from the environment, the **License** tab shows it with the message "This key is set in the server settings and cannot be changed here."
 
-Do not confuse `AGENTA_LICENSE_KEY` with `AGENTA_LICENSE`, which selects the edition (`oss` or `ee`).
+Do not confuse `AGENTA_LICENSE_KEY` with `AGENTA_LICENSE`, which picks the default database names, not the plan. See [`AGENTA_LICENSE`](/self-host/configuration#agenta-core).
 
 ## Get a free registration key
 
-The free registration key puts the instance on the Registered plan (`self_hosted_registered`). Today the Registered plan has the same features as the Community plan, which an instance without a key gets.
+The free registration key puts the instance on the Registered plan (`self_hosted_registered`). The Registered plan removes the limit of 1 project per organization. It has the same features as the Community plan, which an instance without a key gets, and keeps the limit of 1 organization per instance.
 
 To request a free key:
 
@@ -76,17 +76,29 @@ The free key works only on the instance that requested it. The key names that in
 
 You keep what your key unlocks. The free key does not expire and has no seat count. It does not change the telemetry switch.
 
-The OSS image also shows the offer, but only the EE image can add a key.
+## Limits by plan
+
+| Plan | Key | Projects per organization | Organizations per instance |
+|---|---|---|---|
+| Community (`self_hosted_community`) | No key, an expired key, or a key that is not valid | 1 | 1 |
+| Registered (`self_hosted_registered`) | The free registration key | No limit | 1 |
+| Enterprise | A paid key | No limit | No limit |
+
+The limits refuse only a new project or a new organization. Projects and organizations that already exist stay, even when there are more than the limit allows.
+
+- A second project in an organization on the Community plan is refused. The API answers `403` with `detail.code` set to `project_limit_reached`.
+- A second organization on an instance without a paid key is refused. The API answers `403` with `detail.code` set to `instance_organization_limit_reached`.
+- A person who signs up on an instance that is at its organization limit is signed up with no organization. They join an existing organization by invitation. See [Restrict sign-ups and organization creation](/self-host/guides/restrict-organization-creation#one-organization-without-a-paid-key).
 
 ## When a key expires
 
-Starting 30 days before the expiry date, the **License** tab shows "This license expires on" with the date. After the expiry date, the instance runs on the Community plan, and the tab shows "This license expired on" with the date. Enterprise features stop working, but no data is deleted. Add a new key to turn them on again.
+Starting 30 days before the expiry date, the **License** tab shows "This license expires on" with the date. After the expiry date, the instance runs on the Community plan, and the tab shows "This license expired on" with the date. Enterprise features stop working and the Community plan limits apply to new projects and organizations, but no data is deleted. Add a new key to turn them on again.
 
 A key with seats shows the number of users against the seats on the **License** tab, and a notice when the instance has more users than the key allows. The instance does not block users above the seat count.
 
-## An Enterprise instance without a key
+## An instance without a key
 
-An EE instance with no key, or with a key that is not valid, runs every organization on the Community plan (`self_hosted_community`). The Community plan, and the Registered plan of the free key, have no enterprise features:
+An instance with no key, or with a key that is not valid, runs every organization on the Community plan (`self_hosted_community`). It has the [limits](#limits-by-plan) of 1 project per organization and 1 organization per instance. The Community plan, and the Registered plan of the free key, have no enterprise features:
 
 - SSO providers per organization, set up in the app
 - Sign-in method enforcement per organization
@@ -94,15 +106,26 @@ An EE instance with no key, or with a key that is not valid, runs every organiza
 - Roles beyond owner, admin and member in invitations and role changes
 - The audit log
 
-Everything else works as on OSS, with no limit on users. SSO login that you configure with environment variables works without a key. See [Configure SSO](/self-host/guides/configure-sso).
+Everything else works, with no limit on users. SSO login that you configure with environment variables works without a key. See [Configure SSO](/self-host/guides/configure-sso).
 
 `AGENTA_ACCESS_DEFAULT_PLAN`, `AGENTA_ACCESS_PLANS` and `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` cannot turn on enterprise features without a key. See [Dynamic access controls](/self-host/dynamic-access-controls).
 
+## Upgrade an open source instance
+
+Before v0.131.1, the open source images did not read license keys and had no limits. From v0.131.1, every install runs the same images. When you upgrade an instance that ran the open source images and you do not add a key:
+
+- The first start migrates the database to the full schema. Every member keeps access to the projects they could open before. See [Upgrading to 0.131.1](/self-host/upgrading#upgrading-to-0131-1) for the steps.
+- The instance runs on the Community plan. All existing projects and organizations stay.
+- An organization that has 1 project or more cannot create another project. Add the free key to remove this limit.
+- An instance that has 1 organization or more cannot get another organization. A person who signs up gets no organization and joins by invitation. Add a paid key to remove this limit.
+- The **Access & Security** and **Audit Log** settings show the enterprise features as locked, with **Add a license key** and **Talk to us**.
+
 ## Upgrade an existing Enterprise instance
 
-Before this release, an EE instance without a key gave every organization the enterprise plan. After the upgrade, an instance without a key runs on the Community plan. If you upgrade an EE instance and do not add a key:
+Before v0.131.1, an instance that ran the Enterprise images without a key gave every organization the enterprise plan. After the upgrade, an instance without a key runs on the Community plan. If you upgrade such an instance and do not add a key:
 
 - Every organization moves to the Community plan. Adding a key later turns the enterprise features back on.
+- The [limits](#limits-by-plan) apply to new projects and organizations. Existing ones stay.
 - The **Access & Security** and **Audit Log** settings show the enterprise features as locked, with **Add a license key** and **Talk to us**.
 - Invitations and role changes offer only admin and member. Members who already have another role keep it.
 - SSO providers, verified domains and sign-in settings that organizations saved before the upgrade stay in the database. Owners cannot change them until you add a key.

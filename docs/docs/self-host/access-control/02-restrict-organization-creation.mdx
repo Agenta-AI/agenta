@@ -2,10 +2,22 @@
 title: Restrict Sign-ups and Organization Creation
 slug: /self-host/guides/restrict-organization-creation
 sidebar_label: Restrict Access
-description: Control who can sign up and who can create organizations in your self-hosted Agenta deployment, in both the open source and Enterprise editions.
+description: Control who can sign up and who can create organizations in your self-hosted Agenta deployment, and how the limit of one organization without a paid key works.
 ---
 
-By default, anyone who can reach your Agenta instance can sign up and gets their own organization. This guide shows how to close that down. All settings on this page work in both the open source and Enterprise editions.
+By default, anyone who can reach your Agenta instance can sign up. Without a paid license key, the instance has one organization, and new people join it by invitation. This guide shows how to control who can sign up and who can create organizations. All settings on this page work on every plan.
+
+## One organization without a paid key {#one-organization-without-a-paid-key}
+
+An instance without a paid [license key](/self-host/license-keys) can have 1 organization. This applies with no key and with the free key.
+
+- The first person who signs up gets the organization, as long as the settings below allow them to create one.
+- After that, a person who signs up is signed up with no organization. They see "You are not in an organization yet. Ask an organization admin to invite you." An organization admin invites them, as in [How restricted users join](#how-restricted-users-join).
+- Creating a second organization is refused with "This instance allows 1 organization(s). Ask for an invitation to an existing organization, or add a paid license key."
+
+An instance that already had more than one organization before the upgrade to v0.131.1 keeps them all. Only new ones are refused.
+
+A paid key removes this limit. The settings below still apply on top of it, with or without a key.
 
 ## Restrict who can create organizations
 
@@ -15,7 +27,7 @@ Set `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` to a comma-separated list of emails all
 AGENTA_ACCESS_ALLOWED_OWNER_EMAILS=admin@company.com,ops@company.com
 ```
 
-When this variable is set, only the listed emails get an organization on signup and can create new ones. Everyone else must be invited to an existing organization. When it is not set, any user who signs up gets their own organization (the default).
+When this variable is set, only the listed emails get an organization on signup and can create new ones. Everyone else must be invited to an existing organization. When it is not set, any user who signs up gets their own organization (the default), as long as the instance is below its organization limit. Without a paid key, only the first person who signs up gets one. See [One organization without a paid key](#one-organization-without-a-paid-key).
 
 The legacy names `AGENTA_ORG_CREATION_ALLOWLIST` and `AGENTA_ACCESS_ORG_CREATION_ALLOWLIST` are still parsed as aliases.
 
@@ -61,14 +73,14 @@ Users who pass the sign-up checks but are not allowed to create an organization 
 1. As an organization member with invite rights, go to **Settings > Workspace > Members** and invite their email.
 2. The user accepts the invitation and becomes a member of that organization.
 
-On Enterprise, you can also enable auto-join for a verified domain from **Settings > Access & Security**, so users from that domain join the organization automatically on signup.
+With a paid key, you can also enable auto-join for a verified domain from **Settings > Access & Security**, so users from that domain join the organization automatically on signup.
 
 ## Reference
 
 | Variable | Effect |
 |---|---|
 | `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` | Only listed emails can create organizations |
-| `AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS` | Most organizations one user can own |
+| `AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS` | Most organizations one user can own. The limit of 1 organization per instance without a paid key applies too |
 | `AGENTA_ACCESS_ALLOWED_DOMAINS` | Only listed domains (and subdomains) can sign up |
 | `AGENTA_ACCESS_BLOCKED_DOMAINS` | Listed domains cannot sign up |
 | `AGENTA_ACCESS_BLOCKED_EMAILS` | Listed emails cannot sign up |
