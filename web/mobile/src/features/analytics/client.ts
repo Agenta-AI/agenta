@@ -45,6 +45,17 @@ export function loadPostHog(cloud: boolean): Promise<PostHog | null> {
                         loaded: (client) => {
                             if (process.env.NODE_ENV === "development") client.debug()
                             // Analytics identifies the browser with the API's id once it loads.
+                            // Loaded only when the API says telemetry is on. An opt-out
+                            // stored while it was off would otherwise keep this browser
+                            // silent for good.
+                            try {
+                                const full = client as PostHog
+                                if (full.has_opted_out_capturing()) {
+                                    full.opt_in_capturing({captureEventName: false})
+                                }
+                            } catch {
+                                // Blocked storage must not prevent initialization from settling.
+                            }
                             resolve(client as PostHog)
                         },
                     })
