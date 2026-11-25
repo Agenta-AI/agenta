@@ -16,7 +16,6 @@ import {builtinModelEndpointsQueryAtom} from "@agenta/entities/workflow"
 import {OwnerChip} from "@agenta/entity-ui/secret"
 import {
     builtinModelsView,
-    providerConnectionView,
     ProviderDrawer,
     providerIconFor,
     ProviderOwnerChoiceContext,
@@ -95,7 +94,10 @@ export interface ProvidersGroup {
  */
 interface DrawerTarget {
     groupKey: string
-    connectionId: string
+    /** A saved connection to open on. */
+    connectionId?: string
+    /** A new connection of this kind (a catalog row). */
+    kind?: string
 }
 
 type SubscriptionProvider = "chatgpt" | "claude"
@@ -196,7 +198,7 @@ export const ProvidersPanel = ({
     const drawerGroup = drawerTarget
         ? (allGroups.find((group) => group.key === drawerTarget.groupKey) ?? null)
         : null
-    const drawerConnection = drawerTarget
+    const drawerConnection = drawerTarget?.connectionId
         ? (drawerGroup?.source.connections.find(
               (candidate) => candidate.id === drawerTarget.connectionId,
           ) ?? null)
@@ -260,13 +262,6 @@ export const ProvidersPanel = ({
             const open = (connection: ProviderConnection) => {
                 const provider = subscriptionProviderOf(connection)
                 if (provider) openSignIn(groupKey, provider, connection.id)
-                // The project's key opens the view, which asks before it drops edits.
-                else if (groupKey === projectGroup?.key)
-                    void views.open(
-                        providerConnectionView,
-                        {kind: connection.kind, connectionId: connection.id},
-                        PROJECT,
-                    )
                 else setDrawerTarget({groupKey, connectionId: connection.id})
             }
             const held = source.rows.map<SettingsCatalogItem>((connection) => ({
@@ -376,7 +371,9 @@ export const ProvidersPanel = ({
             statusLabel: t("settings.providers.connectName", {
                 name: providerTitle(entry.kind, entry.title, t),
             }),
-            onOpen: () => void views.open(providerConnectionView, {kind: entry.kind}, PROJECT),
+            onOpen: projectGroup
+                ? () => setDrawerTarget({groupKey: projectGroup.key, kind: entry.kind})
+                : undefined,
         })
         return [
             connected,
@@ -509,9 +506,11 @@ export const ProvidersPanel = ({
                 context="settings"
                 connections={drawerGroup?.source.connections ?? []}
                 connection={drawerConnection}
+                kind={drawerTarget?.kind ?? null}
                 onSaved={onSaved}
                 subscriptionDocsUrl={subscriptionDocsUrl}
                 organization={drawerGroup?.source.organization}
+                ownerChoice={drawerTarget?.kind ? ownerChoiceFor?.(drawerTarget.kind) : undefined}
             />
         </div>
     )
