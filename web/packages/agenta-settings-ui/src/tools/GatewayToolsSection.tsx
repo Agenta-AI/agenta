@@ -26,21 +26,19 @@ import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import settingsToolsCatalog from "@agenta/i18n/catalogs/settings.tools"
 import {message} from "@agenta/ui/app-message"
 import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
-import {PageToolbar} from "@agenta/ui/ui"
 import {ViewDrawerHost} from "@agenta/ui/view-stack"
 import {SquaresFour, Tag} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {ConfirmDestructive} from "../confirm"
-import {SettingsPageToolbar} from "../SettingsPageShell"
 import {
     addAccountOwners,
     ownersWithDefault,
     showsYours,
     type OwnerFilter,
 } from "../shared/accountOwners"
+import {ConnectionsToolbar} from "../shared/ConnectionsToolbar"
 import {LoadFailed} from "../shared/LoadFailed"
-import {useOwnerFilterSection} from "../shared/ownerFilterSection"
 import {YoursEmpty} from "../shared/YoursEmpty"
 
 /** Nouns for the page; a host that calls them something else passes its own. */
@@ -99,7 +97,6 @@ export default function GatewayToolsSection({
     const [category, setCategory] = useState<CategorySelection | null>(null)
     const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all")
     const {categories} = useToolCatalogCategories()
-    const ownerSection = useOwnerFilterSection(connectOwners ?? [], ownerFilter, setOwnerFilter)
     const categorySection = useMemo<FilterMenuSection | null>(
         () =>
             categories.length
@@ -128,9 +125,6 @@ export default function GatewayToolsSection({
                   }
                 : null,
         [categories, category, t],
-    )
-    const sections = [ownerSection, categorySection].filter(
-        (section): section is FilterMenuSection => section !== null,
     )
     const controls = useMemo<IntegrationCatalogControls>(
         () => ({
@@ -221,27 +215,25 @@ export default function GatewayToolsSection({
 
     return (
         <>
-            <SettingsPageToolbar>
-                <PageToolbar
-                    search={query}
-                    onSearchChange={setQuery}
-                    searchPlaceholder={copy.searchPlaceholder}
-                    actions={
-                        sections.length ? (
-                            <FilterMenu
-                                sections={sections}
-                                align="start"
-                                size="default"
-                                onReset={() => {
-                                    setOwnerFilter("all")
-                                    setCategory(null)
-                                }}
-                                resetDisabled={ownerFilter === "all" && category === null}
-                            />
-                        ) : null
-                    }
-                />
-            </SettingsPageToolbar>
+            <ConnectionsToolbar
+                search={query}
+                onSearchChange={setQuery}
+                searchPlaceholder={copy.searchPlaceholder}
+                filter={
+                    categorySection ? (
+                        <FilterMenu
+                            sections={[categorySection]}
+                            align="start"
+                            size="default"
+                            onReset={() => setCategory(null)}
+                            resetDisabled={category === null}
+                        />
+                    ) : null
+                }
+                owners={connectOwners}
+                owner={ownerFilter}
+                onOwnerChange={setOwnerFilter}
+            />
             <section className="ph-no-capture">
                 <IntegrationCatalog
                     layout="page"

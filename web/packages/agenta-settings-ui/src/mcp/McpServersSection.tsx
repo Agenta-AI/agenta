@@ -48,14 +48,14 @@ import {
     ListTableNameCell,
     type ListTableColumn,
 } from "@agenta/ui/list-table"
-import {Button, PageToolbar} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {ViewDrawerHost} from "@agenta/ui/view-stack"
 import {
     ArrowsClockwise,
     LinkBreak,
     PencilSimpleLine,
-    Key,
     Plus,
+    Pulse,
     SignIn,
     SignOut,
     SquaresFour,
@@ -65,8 +65,9 @@ import {
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {ConfirmDestructive} from "../confirm"
-import {SettingsPageActions, SettingsPageToolbar} from "../SettingsPageShell"
+import {SettingsPageActions} from "../SettingsPageShell"
 import {showsYours} from "../shared/accountOwners"
+import {ConnectionsToolbar} from "../shared/ConnectionsToolbar"
 import {InlineName} from "../shared/InlineName"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
@@ -77,7 +78,8 @@ import {McpTokenSignInDialog} from "./McpTokenSignInDialog"
 
 const tNow = createT(commonCatalog, settingsMcpCatalog)
 
-type AuthFilter = "all" | MCPEndpoint["auth_mode"]
+/** The Status filter: every server, the connected ones, or the ones that need attention. */
+type StatusFilter = "all" | "connected" | "attention"
 
 /** Nouns for the rows; a host that calls them something else passes its own. */
 export interface McpServersSectionCopy {
@@ -194,7 +196,7 @@ export default function McpServersSection({
     const signIn = usePersonalMcpSignIn()
     const [tokenFor, setTokenFor] = useState<MCPEndpoint | null>(null)
     const [search, setSearch] = useState("")
-    const [authFilter, setAuthFilter] = useState<AuthFilter>("all")
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
 
     const [connecting, setConnecting] = useState(false)
     const [reconnecting, setReconnecting] = useState<MCPEndpoint | null>(null)
@@ -217,11 +219,14 @@ export default function McpServersSection({
         () =>
             allRows.filter(
                 (row) =>
-                    matches(row, term) && (authFilter === "all" || row.auth_mode === authFilter),
+                    matches(row, term) &&
+                    (statusFilter === "all" ||
+                        (getMcpConnectionStatus(row) === "connected") ===
+                            (statusFilter === "connected")),
             ),
-        [allRows, authFilter, term],
+        [allRows, statusFilter, term],
     )
-    const narrowed = Boolean(term) || authFilter !== "all"
+    const narrowed = Boolean(term) || statusFilter !== "all"
     const names = useMemo(() => allRows.map((row) => row.name), [allRows])
     const rowKey = useCallback((record: MCPEndpoint) => record.id ?? record.slug ?? "", [])
     const viewing = useMemo(
@@ -365,22 +370,29 @@ export default function McpServersSection({
     )
     const {columns, shows} = usePhoneColumns(allColumns, phoneKeysFor(personal))
 
-    const authSection = useMemo<FilterMenuSection>(
+    const statusSection = useMemo<FilterMenuSection>(
         () => ({
-            key: "auth",
-            label: t("settings.shared.filterAuth"),
-            icon: <Key size={14} />,
-            value: authFilter,
+            key: "status",
+            label: t("common.status"),
+            icon: <Pulse size={14} />,
+            value: statusFilter,
             defaultValue: "all",
             options: [
                 {value: "all", label: t("settings.shared.ownerAll"), icon: <SquaresFour size={14} />},
-                {value: "oauth", label: t("settings.mcp.oauth")},
-                {value: "api_key", label: t("settings.shared.authApiKey")},
-                {value: "none", label: t("settings.shared.authNone")},
+                {
+                    value: "connected",
+                    label: getMcpConnectionStatusLabel("connected"),
+                    icon: <span aria-hidden className="size-1.5 rounded-round bg-success" />,
+                },
+                {
+                    value: "attention",
+                    label: getMcpConnectionStatusLabel("not_signed_in"),
+                    icon: <span aria-hidden className="size-1.5 rounded-round bg-warning" />,
+                },
             ],
-            onChange: (value) => setAuthFilter(value as AuthFilter),
+            onChange: (value) => setStatusFilter(value as StatusFilter),
         }),
-        [authFilter, t],
+        [statusFilter, t],
     )
 
     const connect = (
@@ -412,7 +424,7 @@ export default function McpServersSection({
                                 variant="outline"
                                 onClick={() => {
                                     setSearch("")
-                                    setAuthFilter("all")
+                                    setStatusFilter("all")
                                 }}
                             >
                                 {t("settings.shared.resetFilters")}
@@ -617,22 +629,20 @@ export default function McpServersSection({
         <div className="flex flex-col">
             {readOnly ? null : <SettingsPageActions>{connect}</SettingsPageActions>}
 
-            <SettingsPageToolbar>
-                <PageToolbar
-                    search={search}
-                    onSearchChange={setSearch}
-                    searchPlaceholder={t("settings.mcp.searchServers")}
-                    actions={
-                        <FilterMenu
-                            sections={[authSection]}
-                            align="start"
-                            size="default"
-                            onReset={() => setAuthFilter("all")}
-                            resetDisabled={authFilter === "all"}
-                        />
-                    }
-                />
-            </SettingsPageToolbar>
+            <ConnectionsToolbar
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder={t("settings.mcp.searchServers")}
+                filter={
+                    <FilterMenu
+                        sections={[statusSection]}
+                        align="start"
+                        size="default"
+                        onReset={() => setStatusFilter("all")}
+                        resetDisabled={statusFilter === "all"}
+                    />
+                }
+            />
             {signIn.error && !tokenFor ? (
                 <p className="m-0 mb-2 text-meta text-destructive">{signIn.error}</p>
             ) : null}

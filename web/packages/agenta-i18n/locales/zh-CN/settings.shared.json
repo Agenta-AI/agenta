@@ -12,9 +12,6 @@
     "owner": "所有者",
     "ownerAll": "全部",
     "filterCategory": "类别",
-    "filterAuth": "认证",
-    "authApiKey": "API 密钥",
-    "authNone": "无",
     "noMatchTitle": "没有匹配项",
     "noMatchBody": "请尝试其他搜索，或重置筛选条件。",
     "resetFilters": "重置筛选"

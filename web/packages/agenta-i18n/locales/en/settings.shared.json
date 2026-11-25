@@ -12,9 +12,6 @@
     "owner": "Owner",
     "ownerAll": "All",
     "filterCategory": "Category",
-    "filterAuth": "Auth",
-    "authApiKey": "API key",
-    "authNone": "None",
     "noMatchTitle": "Nothing matches",
     "noMatchBody": "Try another search, or reset the filters.",
     "resetFilters": "Reset filters"

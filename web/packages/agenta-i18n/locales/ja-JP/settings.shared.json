@@ -12,9 +12,6 @@
     "owner": "所有者",
     "ownerAll": "すべて",
     "filterCategory": "カテゴリ",
-    "filterAuth": "認証",
-    "authApiKey": "API キー",
-    "authNone": "なし",
     "noMatchTitle": "一致する項目はありません",
     "noMatchBody": "別の検索を試すか、フィルターをリセットしてください。",
     "resetFilters": "フィルターをリセット"

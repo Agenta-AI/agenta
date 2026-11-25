@@ -22,14 +22,16 @@ import {
 import {useT, type CatalogKey} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
+import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import {useViewOpener, type ViewTarget} from "@agenta/ui/view-stack"
-import {PencilSimpleLine, Trash, WarningCircle} from "@phosphor-icons/react"
+import {MagnifyingGlass, PencilSimpleLine, Trash, WarningCircle} from "@phosphor-icons/react"
 
 import {
     SettingsCatalog,
     type SettingsCatalogGroup,
     type SettingsCatalogItem,
 } from "../shared/SettingsCatalog"
+import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
 import {SubscriptionCards, type SubscriptionCard} from "./SubscriptionCards"
@@ -145,6 +147,7 @@ const SUBSCRIPTION_HINT: Record<
 export const ProvidersPanel = ({
     groups: ownerGroups,
     projectGroup,
+    query = "",
     subscriptions,
     ownerChoiceFor,
     loading = false,
@@ -154,6 +157,8 @@ export const ProvidersPanel = ({
     groups: ProvidersGroup[]
     /** Where a new connection and the cards' sign-ins go; absent, no catalog and no cards. */
     projectGroup?: ProvidersGroup
+    /** The search: rows whose name holds it. */
+    query?: string
     /** The project's ChatGPT and Claude cards; absent hides them. */
     subscriptions?: ProviderConnection[]
     /** The drawer's Owner field for a new connection of this kind; absent, it is the project's. */
@@ -162,7 +167,7 @@ export const ProvidersPanel = ({
     renderRemoveDialog?: (state: ProviderRemovalState) => ReactNode
     subscriptionDocsUrl: string
 }) => {
-    const t = useT(commonCatalog, settingsProvidersCatalog)
+    const t = useT(commonCatalog, settingsProvidersCatalog, settingsSharedCatalog)
     const [drawerTarget, setDrawerTarget] = useState<DrawerTarget | null>(null)
     const allGroups = useMemo(
         () =>
@@ -231,7 +236,10 @@ export const ProvidersPanel = ({
         allGroups.forEach((group) => group.source.onSaved?.())
     }, [allGroups])
 
+    const term = query.trim().toLowerCase()
     const groups = useMemo<SettingsCatalogGroup[]>(() => {
+        const matches = (item: SettingsCatalogItem) =>
+            !term || (typeof item.name === "string" && item.name.toLowerCase().includes(term))
         const owned = ownerGroups.map<SettingsCatalogGroup>(({key: groupKey, label, source}) => {
             const canRemove = canRemoveIn(source)
             const open = (connection: ProviderConnection) => {
@@ -291,11 +299,11 @@ export const ProvidersPanel = ({
             return {
                 key: groupKey,
                 label,
-                items: [...held, ...offered],
+                items: [...held, ...offered].filter(matches),
                 // The count is of what the owner holds, not of what it may connect.
-                count: held.length,
+                count: held.filter(matches).length,
                 // The project's heading is the project switch, so it stays when empty.
-                keepWhenEmpty: groupKey === projectGroup?.key,
+                keepWhenEmpty: !term && groupKey === projectGroup?.key,
                 // A group still loading holds its place with one skeleton row.
                 pendingRows: source.loading && !held.length ? 1 : 0,
                 ...(source.failure
@@ -322,15 +330,15 @@ export const ProvidersPanel = ({
             {
                 key: "model-providers",
                 label: t("settings.providers.modelProviders"),
-                items: MODEL_PROVIDERS.map(catalogRow),
+                items: MODEL_PROVIDERS.map(catalogRow).filter(matches),
             },
             {
                 key: "cloud-platforms",
                 label: t("settings.providers.cloudPlatforms"),
-                items: CLOUD_PLATFORMS.map(catalogRow),
+                items: CLOUD_PLATFORMS.map(catalogRow).filter(matches),
             },
         ]
-    }, [ownerGroups, projectGroup, canRemoveIn, requestRemoval, openSignIn, t])
+    }, [ownerGroups, projectGroup, term, canRemoveIn, requestRemoval, openSignIn, t])
 
     const cards = useMemo<SubscriptionCard[] | null>(() => {
         if (!subscriptions || !projectGroup) return null
@@ -376,6 +384,14 @@ export const ProvidersPanel = ({
             <SettingsCatalog
                 groups={groups}
                 loading={loading}
+                empty={
+                    <SettingsEmpty
+                        plain
+                        icon={<MagnifyingGlass size={18} />}
+                        title={t("settings.shared.noMatchTitle")}
+                        description={t("settings.shared.noMatchBody")}
+                    />
+                }
                 notice={
                     <>
                         {removeError ? (

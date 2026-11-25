@@ -26,5 +26,6 @@
     "signInAgain": "重新登录",
     "vertexFields": "项目、位置和凭据",
     "modelsDefaults": "默认",
-    "modelsActive": "已启用 {{active}} / {{total}}"
+    "modelsActive": "已启用 {{active}} / {{total}}",
+    "searchProviders": "搜索提供商"
 }

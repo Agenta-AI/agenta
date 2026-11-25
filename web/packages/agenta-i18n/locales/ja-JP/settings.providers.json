@@ -26,5 +26,6 @@
     "signInAgain": "再度サインイン",
     "vertexFields": "プロジェクト、ロケーション、認証情報",
     "modelsDefaults": "デフォルト",
-    "modelsActive": "{{total}} 件中 {{active}} 件が有効"
+    "modelsActive": "{{total}} 件中 {{active}} 件が有効",
+    "searchProviders": "プロバイダーを検索"
 }

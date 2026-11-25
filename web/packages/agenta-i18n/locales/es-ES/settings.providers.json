@@ -26,5 +26,6 @@
     "signInAgain": "Iniciar sesión de nuevo",
     "vertexFields": "Proyecto, ubicación y credenciales",
     "modelsDefaults": "Predeterminados",
-    "modelsActive": "{{active}} de {{total}} activos"
+    "modelsActive": "{{active}} de {{total}} activos",
+    "searchProviders": "Buscar proveedores"
 }

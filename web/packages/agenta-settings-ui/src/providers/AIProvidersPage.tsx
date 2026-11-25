@@ -18,13 +18,10 @@ import {
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
-import {FilterMenu} from "@agenta/ui/filter-menu"
-import {PageToolbar} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {SettingsPageToolbar} from "../SettingsPageShell"
 import {ownerShown, ownersWithDefault, PAGE_OWNERS, type OwnerFilter} from "../shared/accountOwners"
-import {useOwnerFilterSection} from "../shared/ownerFilterSection"
+import {ConnectionsToolbar} from "../shared/ConnectionsToolbar"
 
 import {
     ProvidersPanel,
@@ -113,8 +110,8 @@ const useProjectProvidersSource = (): ProvidersSource => {
 
 /**
  * Settings → AI providers: the ChatGPT and Claude cards, the project's connections under the
- * project switch, the organization's, then the catalog to connect from. The Owner filter narrows
- * the owner groups; a new connection asks for its Owner (Project or Organization).
+ * project switch, the organization's, then the catalog to connect from. The owner segment narrows
+ * the owner groups and sets the new connection's default Owner (Project or Organization).
  */
 export const AIProvidersPage = ({
     renderRemoveDialog,
@@ -137,11 +134,7 @@ export const AIProvidersPage = ({
     )
     const {group: organizationGroup, manageScope} = useOrganizationProvidersGroup(scope)
     const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all")
-    const ownerSection = useOwnerFilterSection(
-        organizationGroup ? PAGE_OWNERS.providers : NO_OWNERS,
-        ownerFilter,
-        setOwnerFilter,
-    )
+    const [search, setSearch] = useState("")
 
     const projectGroup = useMemo<ProvidersGroup>(
         () => ({key: "project", label: projectSwitch ?? t("common.connected"), source: project}),
@@ -173,23 +166,17 @@ export const AIProvidersPage = ({
 
     return (
         <>
-            {ownerSection ? (
-                <SettingsPageToolbar>
-                    <PageToolbar
-                        actions={
-                            <FilterMenu
-                                sections={[ownerSection]}
-                                align="start"
-                                size="default"
-                                onReset={() => setOwnerFilter("all")}
-                                resetDisabled={ownerFilter === "all"}
-                            />
-                        }
-                    />
-                </SettingsPageToolbar>
-            ) : null}
+            <ConnectionsToolbar
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder={t("settings.providers.searchProviders")}
+                owners={organizationGroup ? PAGE_OWNERS.providers : NO_OWNERS}
+                owner={ownerFilter}
+                onOwnerChange={setOwnerFilter}
+            />
             <ProvidersPanel
                 groups={shownGroups}
+                query={search}
                 projectGroup={projectGroup}
                 subscriptions={
                     ownerShown(ownerFilter, "project") ? project.connections : undefined

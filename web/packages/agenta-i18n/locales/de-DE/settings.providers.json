@@ -26,5 +26,6 @@
     "signInAgain": "Erneut anmelden",
     "vertexFields": "Projekt, Standort und Zugangsdaten",
     "modelsDefaults": "Standard",
-    "modelsActive": "{{active}} von {{total}} aktiv"
+    "modelsActive": "{{active}} von {{total}} aktiv",
+    "searchProviders": "Anbieter suchen"
 }

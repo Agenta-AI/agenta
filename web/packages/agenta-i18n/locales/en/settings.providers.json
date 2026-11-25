@@ -26,5 +26,6 @@
     "signInAgain": "Sign in again",
     "vertexFields": "Project, location and credentials",
     "modelsDefaults": "Defaults",
-    "modelsActive": "{{active}} of {{total}} active"
+    "modelsActive": "{{active}} of {{total}} active",
+    "searchProviders": "Search providers"
 }

@@ -18,7 +18,6 @@ import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import type {LlmProvider} from "@agenta/shared/types"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {FilterMenu} from "@agenta/ui/filter-menu"
 import {
     formatListDateTime,
     LIST_COLUMN_WIDTH,
@@ -27,11 +26,11 @@ import {
     type ListTableColumn,
     type ListTableGroup,
 } from "@agenta/ui/list-table"
-import {Button, IconTile, PageToolbar} from "@agenta/ui/ui"
+import {Button, IconTile} from "@agenta/ui/ui"
 import {PencilSimpleLine, Plus, Trash, Vault} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 
-import {SettingsPageActions, SettingsPageToolbar} from "../SettingsPageShell"
+import {SettingsPageActions} from "../SettingsPageShell"
 import {
     agentsBySecret,
     ownerShown,
@@ -41,8 +40,8 @@ import {
     usedByLine,
     type OwnerFilter,
 } from "../shared/accountOwners"
+import {ConnectionsToolbar} from "../shared/ConnectionsToolbar"
 import {hoverableRow} from "../shared/hoverableRow"
-import {useOwnerFilterSection} from "../shared/ownerFilterSection"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsGroupHeading} from "../shared/SettingsGroupHeading"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
@@ -77,7 +76,7 @@ export interface NamedSecretTableProps {
         open: boolean
         onClose: () => void
     }) => React.ReactNode
-    /** Who may own a new secret (`addAccountOwners`); two show the Owner filter and field. */
+    /** Who may own a new secret (`addAccountOwners`); two show the owner segment and field. */
     owners?: SecretOwner[]
     /** The project group's heading: the project switch. Shown with "Personal". */
     projectSwitch?: ReactNode
@@ -167,27 +166,25 @@ export const NamedSecretTable = ({
         useMemo(() => columnsFor(t), [t]),
         PHONE_KEYS,
     )
-    const ownerSection = useOwnerFilterSection(owners ?? [], ownerFilter, setOwnerFilter)
 
     const term = search.trim().toLowerCase()
     const groups = useMemo<ListTableGroup<SecretRow>[]>(() => {
         const project = {
             key: "project",
             label: personal ? (projectSwitch ?? t("common.project")) : null,
-            rows: ownerShown(ownerFilter, "project")
-                ? projectRows.filter((row) => matches(row, term))
-                : [],
+            rows: projectRows.filter((row) => matches(row, term)),
         }
         if (!personal) return [project]
         const own = {
             key: "user",
             label: t("settings.shared.yours"),
-            rows: ownerShown(ownerFilter, "user")
-                ? personalRows.filter((row) => matches(row, term))
-                : [],
+            rows: personalRows.filter((row) => matches(row, term)),
         }
         // An empty Personal group would be a heading over nothing.
-        return own.rows.length ? [own, project] : [project]
+        return [
+            ownerShown(ownerFilter, "user") && own.rows.length ? own : null,
+            ownerShown(ownerFilter, "project") ? project : null,
+        ].filter((group): group is typeof project => group !== null)
     }, [ownerFilter, personal, personalRows, projectRows, projectSwitch, t, term])
 
     const openCreate = () => {
@@ -215,35 +212,53 @@ export const NamedSecretTable = ({
         </Button>
     ) : null
 
-    const narrowed = Boolean(term) || ownerFilter !== "all"
-    const empty = narrowed ? (
+    const narrowed = Boolean(term)
+    // Each owner tab has its own empty state and start button; the button opens the form on it.
+    const tabEmpty =
+        ownerFilter === "user"
+            ? {
+                  title: t("settings.secrets.emptyPersonalTitle"),
+                  body: t("settings.secrets.emptyPersonalBody"),
+                  cta: t("settings.secrets.createPersonal"),
+              }
+            : ownerFilter === "project"
+              ? {
+                    title: t("settings.secrets.emptyProjectTitle"),
+                    body: t("settings.secrets.emptyProjectBody"),
+                    cta: t("settings.secrets.createProject"),
+                }
+              : null
+    const empty = term ? (
         <SettingsEmpty
             plain
             icon={getSettingsSidebarIcon("secrets")}
             title={t("settings.shared.noMatchTitle")}
             description={t("settings.shared.noMatchBody")}
             action={
-                <Button
-                    variant="outline"
-                    onClick={() => {
-                        setSearch("")
-                        setOwnerFilter("all")
-                    }}
-                >
-                    {t("settings.shared.resetFilters")}
+                <Button variant="outline" onClick={() => setSearch("")}>
+                    {t("common.clearSearch")}
                 </Button>
             }
         />
     ) : (
         <div className="flex flex-col gap-3">
-            {personal && projectSwitch ? (
+            {personal && projectSwitch && ownerFilter !== "user" ? (
                 <SettingsGroupHeading label={projectSwitch} count={null} />
             ) : null}
             <SettingsEmpty
                 icon={getSettingsSidebarIcon("secrets")}
-                title={t("settings.secrets.emptyTitle")}
-                description={t("settings.secrets.emptyDescription")}
-                action={create}
+                title={tabEmpty?.title ?? t("settings.secrets.emptyTitle")}
+                description={tabEmpty?.body ?? t("settings.secrets.emptyDescription")}
+                action={
+                    tabEmpty && renderConfigureDialog ? (
+                        <Button disabled={loading} onClick={openCreate}>
+                            <Plus size={14} />
+                            {tabEmpty.cta}
+                        </Button>
+                    ) : (
+                        create
+                    )
+                }
             />
         </div>
     )
@@ -251,24 +266,14 @@ export const NamedSecretTable = ({
     return (
         <>
             <SettingsPageActions>{create}</SettingsPageActions>
-            <SettingsPageToolbar>
-                <PageToolbar
-                    search={search}
-                    onSearchChange={setSearch}
-                    searchPlaceholder={t("settings.secrets.searchSecrets")}
-                    actions={
-                        ownerSection ? (
-                            <FilterMenu
-                                sections={[ownerSection]}
-                                align="start"
-                                size="default"
-                                onReset={() => setOwnerFilter("all")}
-                                resetDisabled={ownerFilter === "all"}
-                            />
-                        ) : null
-                    }
-                />
-            </SettingsPageToolbar>
+            <ConnectionsToolbar
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder={t("settings.secrets.searchSecrets")}
+                owners={owners}
+                owner={ownerFilter}
+                onOwnerChange={setOwnerFilter}
+            />
             {loadFailed ? (
                 <LoadError
                     framed

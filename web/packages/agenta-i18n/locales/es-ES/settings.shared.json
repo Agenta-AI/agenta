@@ -12,9 +12,6 @@
     "owner": "Propietario",
     "ownerAll": "Todos",
     "filterCategory": "Categoría",
-    "filterAuth": "Autenticación",
-    "authApiKey": "Clave de API",
-    "authNone": "Ninguna",
     "noMatchTitle": "Sin resultados",
     "noMatchBody": "Prueba otra búsqueda o restablece los filtros.",
     "resetFilters": "Restablecer filtros"

@@ -26,5 +26,6 @@
     "signInAgain": "Se reconnecter",
     "vertexFields": "Projet, emplacement et identifiants",
     "modelsDefaults": "Par défaut",
-    "modelsActive": "{{active}} sur {{total}} actifs"
+    "modelsActive": "{{active}} sur {{total}} actifs",
+    "searchProviders": "Rechercher des fournisseurs"
 }

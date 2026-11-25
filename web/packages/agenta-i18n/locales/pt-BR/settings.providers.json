@@ -26,5 +26,6 @@
     "signInAgain": "Entrar novamente",
     "vertexFields": "Projeto, localização e credenciais",
     "modelsDefaults": "Padrões",
-    "modelsActive": "{{active}} de {{total}} ativos"
+    "modelsActive": "{{active}} de {{total}} ativos",
+    "searchProviders": "Pesquisar provedores"
 }
