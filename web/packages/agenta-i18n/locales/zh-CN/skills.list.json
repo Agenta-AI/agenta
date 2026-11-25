@@ -77,6 +77,7 @@
     "noArchivedBody": "你归档的 Skill 会显示在这里。",
     "backToActive": "返回活跃项",
     "selectSkill": "选择 {{name}}",
+    "newSkill": "新建 Skill",
     "new": "新建",
     "bulkArchiveTitle_other": "归档 {{count}} 个 Skill？",
     "bulkArchiveMessage": "它们会从注册表中移除，Agent 将无法再运行它们。之后可以恢复。",

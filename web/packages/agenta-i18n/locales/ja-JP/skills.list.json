@@ -77,6 +77,7 @@
     "noArchivedBody": "アーカイブしたスキルがここに表示されます。",
     "backToActive": "アクティブに戻る",
     "selectSkill": "{{name}} を選択",
+    "newSkill": "新しいスキル",
     "new": "新規",
     "bulkArchiveTitle_other": "{{count}} 個のスキルをアーカイブしますか?",
     "bulkArchiveMessage": "レジストリから削除され、エージェントは実行できなくなります。後で復元できます。",

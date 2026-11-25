@@ -14,7 +14,7 @@ import {
     skillsSearchAtom,
     skillsShowArchivedAtom,
 } from "@agenta/skills/state"
-import {buildRegistrySections, NewSkillMenuButton} from "@agenta/skills-ui"
+import {buildRegistrySections} from "@agenta/skills-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {COMPACT_WINDOW_QUERY, useWindowMatch} from "@agenta/ui/hooks"
@@ -317,19 +317,11 @@ export const SkillListScreen = ({
                     {projectEmpty ? null : (
                         <HowThisWorksButton guide="skills" className="max-sm:hidden" />
                     )}
-                    {compact ? (
-                        // A phone has one header: the menu and New, which opens the create page.
-                        <Button type="button" size="sm" onClick={onNew}>
-                            <Plus aria-hidden />
-                            {t("skills.list.new")}
-                        </Button>
-                    ) : (
-                        <NewSkillMenuButton
-                            onWrite={onWrite}
-                            onUpload={onUpload}
-                            onImport={onImport}
-                        />
-                    )}
+                    {/* One New skill button; the create page offers every way in (the design's F). */}
+                    <Button type="button" size={compact ? "sm" : undefined} onClick={onNew}>
+                        <Plus aria-hidden />
+                        {compact ? t("skills.list.new") : t("skills.list.newSkill")}
+                    </Button>
                 </>
             }
         >

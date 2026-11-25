@@ -87,6 +87,7 @@
     "noArchivedBody": "Las skills que archives aparecen aquí.",
     "backToActive": "Volver a activas",
     "selectSkill": "Seleccionar {{name}}",
+    "newSkill": "Nueva skill",
     "new": "Nueva",
     "bulkArchiveTitle_one": "¿Archivar {{count}} skill?",
     "bulkArchiveTitle_many": "¿Archivar {{count}} skills?",

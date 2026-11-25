@@ -87,6 +87,7 @@
     "noArchivedBody": "As habilidades que você arquivar aparecem aqui.",
     "backToActive": "Voltar para ativas",
     "selectSkill": "Selecionar {{name}}",
+    "newSkill": "Nova habilidade",
     "new": "Nova",
     "bulkArchiveTitle_one": "Arquivar {{count}} habilidade?",
     "bulkArchiveTitle_many": "Arquivar {{count}} habilidades?",
