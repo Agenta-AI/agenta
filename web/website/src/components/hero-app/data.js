@@ -776,15 +776,66 @@ export const AUTOMATIONS = [
       "Score the new lead against our criteria and add it to HubSpot. Post hot leads in #sales.",
   },
 ];
-export const RUNS = [
-  [
-    "Today",
-    [
-      ["Scheduled run", "09:00", "ok", "took 1m 12s"],
-      ["Test run", "08:41", "ok", "took 58s"],
+// Run history for each automation, newest first. The first run matches the
+// automation's lastRun and lastOk, so the detail page and the history agree.
+export const RUNS = {
+  "daily-summary": {
+    ok: "Done. I posted 14 open tickets in #support-urgent: 3 high, 7 medium and 4 low.",
+    fail: "The run stopped before it finished: the Zendesk connection had expired.",
+    days: [
+      [
+        "Today",
+        [
+          ["Scheduled run", "09:00", "ok", "took 1m 12s"],
+          ["Test run", "08:41", "ok", "took 58s"],
+        ],
+      ],
+      ["Yesterday", [["Scheduled run", "09:00", "fail", "did not finish"]]],
+      ["Sun", [["Scheduled run", "09:00", "ok", "took 49s"]]],
     ],
-  ],
-  ["Yesterday", [["Scheduled run", "09:00", "ok", "took 1m 4s"]]],
-  ["Mon", [["Scheduled run", "09:00", "fail", "did not finish"]]],
-  ["Sun", [["Scheduled run", "09:00", "ok", "took 49s"]]],
-];
+  },
+  "new-ticket": {
+    ok: "Done. I set the ticket to high urgency, labeled it Billing, and drafted a first reply.",
+    fail: "The run stopped before it finished: the Zendesk connection had expired.",
+    days: [
+      [
+        "Today",
+        [
+          ["Ticket created", "17:48", "ok", "took 41s"],
+          ["Ticket created", "16:05", "ok", "took 37s"],
+        ],
+      ],
+      [
+        "Yesterday",
+        [
+          ["Ticket created", "14:22", "fail", "did not finish"],
+          ["Ticket created", "10:31", "ok", "took 44s"],
+        ],
+      ],
+    ],
+  },
+  "keyword-report": {
+    ok: "Done. 12 keywords moved last week. I wrote the report and shared it in #seo.",
+    fail: "The run stopped before it finished: the Search Console connection had expired.",
+    days: [
+      ["Mon", [["Scheduled run", "08:00", "ok", "took 2m 31s"]]],
+      ["Nov 17", [["Scheduled run", "08:00", "ok", "took 2m 12s"]]],
+      ["Nov 10", [["Scheduled run", "08:00", "ok", "took 2m 40s"]]],
+      ["Nov 3", [["Scheduled run", "08:00", "fail", "did not finish"]]],
+    ],
+  },
+  "form-entry": {
+    ok: "Done. I scored the lead as hot, added it to HubSpot, and posted it in #sales.",
+    fail: "The run stopped before it finished: the HubSpot connection had expired.",
+    days: [
+      [
+        "Sat",
+        [
+          ["Form submitted", "11:02", "fail", "did not finish"],
+          ["Form submitted", "09:17", "ok", "took 29s"],
+        ],
+      ],
+      ["Fri", [["Form submitted", "16:40", "ok", "took 33s"]]],
+    ],
+  },
+};

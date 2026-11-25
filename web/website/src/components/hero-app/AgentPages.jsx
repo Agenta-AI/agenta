@@ -107,7 +107,8 @@ export function AgentPage({ a, s, agent }) {
         </div>
       </>
     );
-  return <ConfigurationPage a={a} s={s} agent={agent} />;
+  // The key resets the page's local choices (such as the model) when the agent changes.
+  return <ConfigurationPage key={agent.id} a={a} s={s} agent={agent} />;
 }
 
 /* ---------------------------------------------------------------- configuration */

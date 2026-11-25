@@ -864,11 +864,14 @@ function AutomationMenu({ a, x, on, setOn, detail }) {
   );
 }
 
-function AutomationList({ a }) {
+// One on/off value per automation, kept in the shared demo state so the list
+// and the detail page agree.
+const isOn = (s, x) => s.automationOn?.[x.id] ?? x.status !== "Paused";
+const setAutomationOn = (a, x, v) =>
+  a.set((p) => ({ automationOn: { ...p.automationOn, [x.id]: v } }));
+
+function AutomationList({ a, s }) {
   const [q, setQ] = useState("");
-  const [paused, setPaused] = useState(() =>
-    Object.fromEntries(AUTOMATIONS.map((x) => [x.id, x.status === "Paused"])),
-  );
   const rows = AUTOMATIONS.filter((x) =>
     x.name.toLowerCase().includes(q.toLowerCase()),
   );
@@ -926,7 +929,7 @@ function AutomationList({ a }) {
             </div>
             {rows.map((x) => {
               const ag = AGENTS.find((g) => g.id === x.agent);
-              const on = !paused[x.id];
+              const on = isOn(s, x);
               const open = () =>
                 a.set({ automation: x.id, automationView: null });
               return (
@@ -962,7 +965,7 @@ function AutomationList({ a }) {
                       a={a}
                       x={x}
                       on={on}
-                      setOn={(v) => setPaused((p) => ({ ...p, [x.id]: !v }))}
+                      setOn={(v) => setAutomationOn(a, x, v)}
                     />
                   </span>
                 </div>
@@ -983,9 +986,10 @@ function AutomationList({ a }) {
   );
 }
 
-function AutomationDetail({ a, x }) {
+function AutomationDetail({ a, s, x }) {
   const ag = AGENTS.find((g) => g.id === x.agent);
-  const [on, setOn] = useState(x.status !== "Paused");
+  const on = isOn(s, x);
+  const setOn = (v) => setAutomationOn(a, x, v);
   const [text, setText] = useState(x.instruction);
   const dirty = text !== x.instruction;
   const back = () => a.set({ automation: null, automationView: null });
@@ -1110,8 +1114,9 @@ function AutomationDetail({ a, x }) {
 }
 
 function AutomationRuns({ a, x }) {
-  const [sel, setSel] = useState("Today-0");
-  const flat = RUNS.flatMap(([d, rs]) =>
+  const runs = RUNS[x.id];
+  const [sel, setSel] = useState(`${runs.days[0][0]}-0`);
+  const flat = runs.days.flatMap(([d, rs]) =>
     rs.map((r, i) => ({ key: `${d}-${i}`, day: d, r })),
   );
   const cur = flat.find((f) => f.key === sel) ?? flat[0];
@@ -1144,7 +1149,7 @@ function AutomationRuns({ a, x }) {
           <span className="sm t2" style={{ padding: "0 4px 8px" }}>
             {x.runs}
           </span>
-          {RUNS.map(([d, rs]) => (
+          {runs.days.map(([d, rs]) => (
             <div key={d}>
               <div className="hx-runday">{d}</div>
               {rs.map(([label, time, st], i) => (
@@ -1177,15 +1182,9 @@ function AutomationRuns({ a, x }) {
               <div className="ub">{x.instruction}</div>
               <div className="as">
                 {cur.r[2] === "ok" ? (
-                  <p>
-                    Done. I posted 14 open tickets in #support-urgent: 3 high, 7
-                    medium and 4 low.
-                  </p>
+                  <p>{runs.ok}</p>
                 ) : (
-                  <div className="errbox">
-                    The run stopped before it finished: the Zendesk connection
-                    had expired.
-                  </div>
+                  <div className="errbox">{runs.fail}</div>
                 )}
               </div>
             </div>
@@ -1198,9 +1197,10 @@ function AutomationRuns({ a, x }) {
 
 export function AutomationsPage({ a, s }) {
   const x = AUTOMATIONS.find((y) => y.id === s.automation);
-  if (!x) return <AutomationList a={a} />;
-  if (s.automationView === "runs") return <AutomationRuns a={a} x={x} />;
-  return <AutomationDetail a={a} x={x} key={x.id} />;
+  if (!x) return <AutomationList a={a} s={s} />;
+  if (s.automationView === "runs")
+    return <AutomationRuns a={a} x={x} key={x.id} />;
+  return <AutomationDetail a={a} s={s} x={x} key={x.id} />;
 }
 
 export { BotIcon };
