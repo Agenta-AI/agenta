@@ -18,7 +18,7 @@ An instance sends four kinds of data. Each one is linked to a random instance id
 
 - **An install ping.** A new instance sends one event when its first organization exists. The event carries only the instance id. An instance that upgrades from an older version does not send it.
 - **A startup event.** Each time the API starts, it sends the Agenta version and edition, the host name of the instance, the number of CPUs, the memory, and the operating system, Python and Postgres versions.
-- **A heartbeat.** Every 12 hours, the instance sends counts and settings: the Agenta version and edition, how you deployed it (for example Docker Compose or Helm), and the number of users, projects and workflows. It also counts the activity since the last heartbeat, such as traces, evaluations and deployments, and lists the most common email domains of your users, never full addresses.
+- **A heartbeat.** Every 6 hours, the instance sends counts and settings: the facts of the startup event, how you deployed it (for example Docker Compose or Helm), the plan and the expiry date and seats of the license key, which features are set up (yes or no, never a value), and the number of users by role, projects, API keys and workflows, with workflows also counted by kind (prompts, agents, evaluators and snippets). It also counts the activity since the last heartbeat, such as traces, annotations, test sets, evaluations by status, agent turns by outcome and deployments, and lists the most common email domains of your users, never full addresses.
 - **Product usage.** When a user creates an application, starts an evaluation or sends traces, the instance records that the action happened, with the Agenta version, the user's role and the name and version of the SDK that called. The browser records page views and the answers to the setup questions, with email addresses and links removed from typed answers. Every product event, from the API and from the browser, carries the instance kind (`production`, `development`, `ci` or `test`). Users are identified by their id in your database, never by email.
 
 ## Turn telemetry off
@@ -96,6 +96,72 @@ Event name: `instance_started`. The API sends it each time it starts, when telem
 | `$os_distro` | The Linux distribution, on Linux only |
 | `$is_server` | `true`. The event comes from a server, not a browser. |
 
+## Heartbeat
+
+Event name: `instance_heartbeat`. An hourly job asks the API for it, and the API sends it when 6 hours have passed since the last one. The distinct id is the instance id. A count that takes longer than 5 seconds is sent as empty.
+
+| Property | Value |
+|---|---|
+| `instance_id` | The instance id |
+| `instance_kind` | As in the startup event |
+| `agenta_version` | As in the startup event |
+| `edition` | As in the startup event |
+| `deployment_method` | As in the startup event |
+| `instance_host` | As in the startup event |
+| `cpu_count` | As in the startup event |
+| `memory_mb` | As in the startup event |
+| `memory_limit_mb` | As in the startup event |
+| `postgres_version` | As in the startup event |
+| `plan` | The plan, such as `self_hosted_community` |
+| `license_key_id` | The id of the license key, never the key |
+| `license_expires_at` | When the license key expires |
+| `license_days_left` | Days until the license key expires |
+| `license_seats` | The seats of the license key |
+| `email_configured` | `true` when SMTP or SendGrid is set up |
+| `sso_configured` | `true` when Okta, Azure AD, SAML or Google Workspaces is set up, or an organization set up its own SSO provider |
+| `social_login_configured` | `true` when a social sign-in, such as Google or GitHub, is set up |
+| `otel_export_configured` | `true` when the API sends its own logs or traces to an OpenTelemetry collector |
+| `composio_configured` | `true` when Composio tools are set up |
+| `llm_gateway_enabled` | `true` when `AGENTA_LLM_GATEWAY_ENABLED` is on |
+| `timezone` | The time zone of the API, such as `UTC` |
+| `total_organizations` | Organizations |
+| `total_projects` | Projects |
+| `total_users` | Users |
+| `total_workflows` | Workflows that are not archived |
+| `total_prompts` | Of these, prompts |
+| `total_agents` | Of these, agents |
+| `total_evaluators` | Of these, evaluators |
+| `total_snippets` | Of these, snippets |
+| `total_api_keys` | API keys that are not deleted |
+| `users_by_role` | Organization members by role, such as `{"owner": 1, "editor": 4}`. Role names that are not a plain word count under `custom`. |
+| `window_start` | The start of the window: the last heartbeat, or the install date |
+| `window_end` | The end of the window |
+| `window_spans` | Spans that started in the window |
+| `window_traces` | Traces that started in the window |
+| `window_annotations` | Annotations made in the window |
+| `window_evaluation_runs` | Evaluation runs created in the window |
+| `window_evaluation_runs_by_status` | The same runs by their status now, such as `{"success": 5, "failure": 1}` |
+| `window_evaluation_scenarios` | Evaluation scenarios created in the window |
+| `window_agent_turns` | Agent turns started in the window |
+| `window_agent_turns_by_outcome` | Agent turns that ended in the window, by outcome, such as `{"completed": 6, "failed": 1}` |
+| `window_revisions` | Configuration commits in the window |
+| `window_deployments` | Deployments in the window |
+| `window_testsets` | Test sets created in the window |
+| `window_testcases` | Test cases created in the window |
+| `user_domains` | The 100 most common email domains of your users, with the number of users of each. Never a full address. |
+| `$groups` | The instance, as a PostHog group of type `instance` |
+| `$geoip_disable` | `true`. PostHog does not look up a location. |
+| `$lib` | The name of the PostHog library |
+| `$lib_version` | The version of the PostHog library |
+| `$python_runtime` | The Python implementation, such as `CPython` |
+| `$python_version` | The Python version |
+| `$os` | The operating system, such as `Linux` |
+| `$os_version` | The operating system version |
+| `$os_distro` | The Linux distribution, on Linux only |
+| `$is_server` | `true`. The event comes from a server, not a browser. |
+
+The heartbeat also sets these properties on the `instance` group: the Agenta version and edition, the kind, the deployment method, the host name, the Postgres version, the plan, the license expiry date and seats, and the totals.
+
 ## Product events from the API
 
 The API sends one event when a user calls one of the routes below. The distinct id is `<instance id>:<user id>`, where the user id is the user's id in your database.
@@ -135,6 +201,7 @@ Each of these events has these properties:
 | `project_id` | The project id, when the route has one |
 | `workspace_id` | The workspace id, when the route has one |
 | `organization_id` | The organization id, when the route has one |
+| `$groups` | The instance, as a PostHog group of type `instance` |
 | `$set` | Sets `role` on the user: `owner`, `admin`, `editor`, `viewer` or another role the user has in the project of the event. A role name that is not a plain word is sent as `custom`. |
 
 The PostHog library also adds its own name and version, the Python version and the operating system.

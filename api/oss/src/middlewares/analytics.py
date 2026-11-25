@@ -8,6 +8,7 @@ from fastapi import Request
 from oss.src.core.memberships.service import get_memberships_service
 from oss.src.core.telemetry.service import (
     distinct_id_for,
+    instance_groups,
     role_label,
     self_hosted_event_properties,
 )
@@ -238,6 +239,7 @@ async def analytics_middleware(request: Request, call_next: Callable):
                     if env.stripe.enabled:
                         properties["$set"] = {"email": distinct_id}
                     else:
+                        properties["$groups"] = await instance_groups()
                         role = await _request_role(request)
                         if role:
                             properties["$set"] = {"role": role}
