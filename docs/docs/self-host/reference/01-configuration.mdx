@@ -1609,6 +1609,27 @@ cloud license key.
 | `SUPERTOKENS_TENANT` | `supertokens.tenant` | `supertokens.tenant` |
 | `SUPERTOKENS_URI_CORE` | `supertokens.uri_core` | `supertokens.uriCore` |
 
+## telemetry
+
+What a self-hosted instance sends to Agenta, and what each setting stops, is on the
+[telemetry page](/self-host/telemetry).
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_TELEMETRY_ENABLED` | `telemetry.enabled` | `telemetry.enabled` |
+| `AGENTA_DEPLOYMENT_METHOD` | `telemetry.deployment_method` | _(set to `helm` by the chart)_ |
+| `AGENTA_TELEMETRY_INSTANCE_KIND` | `telemetry.instance_kind` | `telemetry.instanceKind` |
+
+`AGENTA_TELEMETRY_ENABLED` defaults to `true`. Set it to `false` to stop every event
+except the one-time install ping. `AGENTA_DEPLOYMENT_METHOD` is `compose`, `helm`,
+`railway`, `kubernetes` or `docker`. The Helm chart, the compose files and the Railway
+template set it for you. When it is unset, the API reports `kubernetes` if
+`KUBERNETES_SERVICE_HOST` is set, `docker` if `/.dockerenv` exists, and nothing otherwise.
+`AGENTA_TELEMETRY_INSTANCE_KIND` is `production`, `development`, `ci` or `test`. When it
+is unset, the API reports `ci` if `CI` is set, `development` if the web URL is
+`localhost` or a private address, and `production` otherwise. The install ping, the
+startup event, the heartbeat and every product event carry it as `instance_kind`.
+
 ## Deprecated environment variables
 
 The following legacy names still work via fallback (the Pydantic env loader

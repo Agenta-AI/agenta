@@ -19,7 +19,13 @@ import {isDemo} from "../../helpers/utils"
 export const PERMISSION_ERR_MSG =
     "You don't have permission to perform this action. Please contact your organization admin."
 
-const ENDPOINTS_PROJECT_ID_WHITELIST = ["/auth/", "/projects", "/profile", "/organizations"]
+const ENDPOINTS_PROJECT_ID_WHITELIST = [
+    "/auth/",
+    "/projects",
+    "/profile",
+    "/organizations",
+    "/instance/telemetry",
+]
 let authUpgradeRedirectInFlight = false
 const resetAuthUpgradeRedirect = () => {
     authUpgradeRedirectInFlight = false
