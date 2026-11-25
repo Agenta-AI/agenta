@@ -236,6 +236,12 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
                     type="button"
                     aria-current={on ? "true" : undefined}
                     onClick={() => onOpen(file.path)}
+                    // A double click renames in place, as in a file manager.
+                    onDoubleClick={
+                        readOnly
+                            ? undefined
+                            : () => setNaming({path: file.path, dir: dirOf(file.path)})
+                    }
                     className={ROW_BUTTON}
                 >
                     {baseOf(file.path)}
