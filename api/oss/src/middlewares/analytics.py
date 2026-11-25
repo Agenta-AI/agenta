@@ -9,6 +9,7 @@ from oss.src.core.memberships.service import get_memberships_service
 from oss.src.core.telemetry.service import (
     cloud_event_properties,
     distinct_id_for,
+    instance_groups,
     role_label,
     self_hosted_event_properties,
 )
@@ -244,6 +245,7 @@ async def analytics_middleware(request: Request, call_next: Callable):
                     if env.stripe.enabled:
                         properties["$set"] = {"email": request.state.user_email}
                     else:
+                        properties["$groups"] = await instance_groups()
                         role = await _request_role(request)
                         if role:
                             properties["$set"] = {"role": role}

@@ -63,6 +63,7 @@ from oss.src.core.telemetry.service import (
     cloud_region,
     deployment_url,
     distinct_id_for,
+    instance_groups,
     self_hosted_event_properties,
 )
 from oss.src.utils.version import get_agenta_version
@@ -193,6 +194,8 @@ async def _create_account(email: str, uid: str) -> bool:
             if env.stripe.enabled:
                 properties.update(cloud_event_properties())
                 properties["$set"] = {"email": auth_info.email}
+            else:
+                properties["$groups"] = await instance_groups()
             posthog.capture(
                 distinct_id=await distinct_id_for(user.id),
                 event="user_signed_up_v1",
