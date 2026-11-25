@@ -1,7 +1,6 @@
 {
     "actionAddLicenseKey": "添加许可证密钥",
     "actionTalkToUs": "联系我们",
-    "actionUpgradeDocs": "如何升级",
     "addFailed": "无法添加密钥，请重试。",
     "addKey": "添加密钥",
     "adding": "添加中…",
@@ -38,7 +37,6 @@
     "lockedSso": "<strong>SSO 提供方。</strong>成员通过你公司的身份提供方登录。",
     "lockedSsoRow": "没有提供方。",
     "lockedTitle": "Enterprise 套餐提供此功能",
-    "needsEnterpriseImage": "许可证密钥需要 Enterprise 镜像。<link>如何升级</link>",
     "never": "永不过期",
     "noticeExpired": "此许可证已于 {{date}} 过期。实例现在使用 Community 套餐。",
     "noticeExpires": "此许可证将于 {{date}} 过期。",

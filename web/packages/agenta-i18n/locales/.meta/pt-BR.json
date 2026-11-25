@@ -6835,7 +6835,6 @@
     "settings.license": {
         "actionAddLicenseKey": "e03656a79493",
         "actionTalkToUs": "1d1d94fb5397",
-        "actionUpgradeDocs": "0abda85c2a0c",
         "addFailed": "d31464d0033e",
         "addKey": "12626d65b219",
         "adding": "c6de6f45c827",
@@ -6874,7 +6873,6 @@
         "lockedSso": "f3a940e9de84",
         "lockedSsoRow": "eab3efdcebbf",
         "lockedTitle": "737e9d971e1c",
-        "needsEnterpriseImage": "8524b70de584",
         "never": "6300ef800bb8",
         "noticeExpired": "e481a7e555ee",
         "noticeExpires": "b77296de75df",

@@ -4,7 +4,8 @@ from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.locking import acquire_lock, release_lock
-from oss.src.utils.common import env, is_ee
+from oss.src.utils.common import is_ee
+from oss.src.utils.env import env
 
 from oss.src.core.telemetry.service import schedule_install_ping
 from oss.src.services import db_manager

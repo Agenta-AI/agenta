@@ -1,7 +1,6 @@
 {
     "actionAddLicenseKey": "Add a license key",
     "actionTalkToUs": "Talk to us",
-    "actionUpgradeDocs": "How to upgrade",
     "addFailed": "We could not add the key. Try again.",
     "addKey": "Add key",
     "adding": "Adding…",
@@ -39,7 +38,6 @@
     "lockedSso": "<strong>SSO providers.</strong> Members sign in with your company identity provider.",
     "lockedSsoRow": "No providers.",
     "lockedTitle": "Available on the Enterprise plan",
-    "needsEnterpriseImage": "License keys need the Enterprise image. <link>How to upgrade</link>",
     "never": "Never",
     "noticeExpired": "This license expired on {{date}}. The instance is on the Community plan.",
     "noticeExpires": "This license expires on {{date}}.",
