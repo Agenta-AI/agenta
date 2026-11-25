@@ -10,6 +10,8 @@ from ee.src.core.access.entitlements.types import (
     Throttle,
     Tracker,
 )
+from ee.src.core.licenses.service import instance_plan
+from ee.src.core.licenses.cloud import is_cloud
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.subscriptions.settings import get_free_plan
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
@@ -234,6 +236,10 @@ async def _get_plan(organization_id: str) -> str | None:
     plan = subscription_data.get("plan") if subscription_data else None
     if not plan:
         return None
+
+    if not is_cloud():
+        # The cached plan could be older than the license key.
+        plan = await instance_plan()
 
     if plan not in get_plans():
         log.warning("[throttle] Unknown plan", plan=plan)
