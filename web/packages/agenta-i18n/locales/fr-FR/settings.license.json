@@ -57,7 +57,7 @@
     "registrationSending": "Envoi…",
     "registrationSent": "Consultez votre boîte de réception. Nous avons envoyé une clé à {{email}}.",
     "registrationSubmit": "M’envoyer une clé gratuite",
-    "registrationUnreachable": "Impossible de joindre Agenta. Réessayez plus tard.",
+    "registrationNotSent": "Impossible d’envoyer votre clé. Réessayez plus tard.",
     "replaceKey": "Remplacer la clé",
     "seatCount_many": "{{count}} sièges",
     "seatCount_one": "{{count}} siège",

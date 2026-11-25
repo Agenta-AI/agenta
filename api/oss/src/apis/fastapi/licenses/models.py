@@ -24,8 +24,8 @@ class InstanceLicenseResponse(BaseModel):
     source: Optional[Literal["environment", "database"]] = None
     license: Optional[InstanceLicenseKey] = None
     usage: InstanceLicenseUsage
-    # The admin skipped the one-time registration prompt on this instance.
-    registration_prompt_dismissed: bool = False
+    # The admin skipped the one-time registration offer on this instance.
+    registration_offer_dismissed: bool = False
 
 
 class InstanceLicenseActivateRequest(BaseModel):

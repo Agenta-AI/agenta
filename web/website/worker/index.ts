@@ -60,11 +60,23 @@ interface Env extends RegistrationEnv {
 const MARKDOWN = "text/markdown; charset=utf-8";
 const JSON_TYPE = "application/json; charset=utf-8";
 
+// The part of the Workers execution context this script uses.
+interface Context {
+  waitUntil(promise: Promise<unknown>): void;
+}
+
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx?: Context): Promise<Response> {
     // An API route, not a page: it answers for itself and never falls back to assets.
     if (new URL(request.url).pathname === REGISTRATION_PATH) {
-      return handleRegistration(request, env);
+      return handleRegistration(
+        request,
+        env,
+        undefined,
+        undefined,
+        undefined,
+        ctx ? (promise) => ctx.waitUntil(promise) : undefined,
+      );
     }
     try {
       return await handle(request, env);
