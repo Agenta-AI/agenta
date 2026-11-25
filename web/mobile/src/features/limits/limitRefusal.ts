@@ -49,13 +49,18 @@ export const limitNextStep = ({
 
 const tNow = createT(limitRefusalCatalog)
 
-/** The refusal as translated sentences. */
-export const limitRefusalText = (refusal: LimitRefusal, {cloud}: {cloud: boolean}): string => {
+/** The refusal as translated sentences. The instance admin is asked to register the instance. */
+export const limitRefusalText = (
+    refusal: LimitRefusal,
+    {cloud, isInstanceAdmin}: {cloud: boolean; isInstanceAdmin: boolean},
+): string => {
     if (refusal.code === "instance_organization_limit_reached") {
         return tNow("shell.limitRefusal.organizationLimit", {count: refusal.limit})
     }
     if (cloud) return tNow("shell.limitRefusal.projectLimitCloud")
     return `${tNow("shell.limitRefusal.projectLimit", {count: refusal.limit})} ${tNow(
-        "shell.limitRefusal.projectLimitFreeKey",
+        isInstanceAdmin
+            ? "shell.limitRefusal.projectLimitRegister"
+            : "shell.limitRefusal.projectLimitFreeKey",
     )}`
 }

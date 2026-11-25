@@ -6635,6 +6635,8 @@
         "projectLimit_other": "ec38254bc9ce",
         "projectLimitCloud": "7eaffc233b85",
         "projectLimitFreeKey": "1f8cd71eca6c",
+        "projectLimitRegister": "70adf0bc9557",
+        "registerInstance": "a0ec4521215a",
         "upgradePlan": "39b7ec1e8402"
     },
     "shell.sessionFilter": {

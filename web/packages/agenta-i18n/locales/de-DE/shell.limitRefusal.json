@@ -7,5 +7,7 @@
     "projectLimit_other": "Diese Organisation hat ihr Limit von {{count}} Projekten erreicht.",
     "projectLimitCloud": "Der Hobby-Tarif umfasst 1 Projekt. Wechseln Sie zu Starter für unbegrenzte Projekte.",
     "projectLimitFreeKey": "Mit einem kostenlosen Schlüssel erhalten Sie mehr Projekte.",
+    "projectLimitRegister": "Registrieren Sie diese Instanz kostenlos, um weitere Projekte zu erstellen.",
+    "registerInstance": "Diese Instanz registrieren",
     "upgradePlan": "Tarif upgraden"
 }

@@ -54,30 +54,40 @@ describe("readLimitRefusal", () => {
 })
 
 describe("limitRefusalText", () => {
-    it("names the free key on a self-hosted project refusal", () => {
-        expect(limitRefusalText(PROJECT, {cloud: false})).toBe(
+    it("asks the instance admin to register the instance on a self-hosted project refusal", () => {
+        expect(limitRefusalText(PROJECT, {cloud: false, isInstanceAdmin: true})).toBe(
+            "This organization has reached its limit of 1 project. Register this instance for free to create more projects.",
+        )
+    })
+
+    it("keeps the free key sentence for a member", () => {
+        expect(limitRefusalText(PROJECT, {cloud: false, isInstanceAdmin: false})).toBe(
             "This organization has reached its limit of 1 project. A free key gives more projects.",
         )
     })
 
     it("keeps the Hobby plan text on cloud", () => {
-        expect(limitRefusalText(PROJECT, {cloud: true})).toBe(
+        expect(limitRefusalText(PROJECT, {cloud: true, isInstanceAdmin: true})).toBe(
             "The Hobby plan includes 1 project. Upgrade to Starter for unlimited projects.",
         )
     })
 
     it("explains the instance organization limit", () => {
-        expect(limitRefusalText(ORGANIZATION, {cloud: false})).toBe(
+        expect(limitRefusalText(ORGANIZATION, {cloud: false, isInstanceAdmin: true})).toBe(
             "This instance allows 1 organization. Ask for an invitation to an existing organization, or add a paid license key.",
         )
     })
 
     it("uses the plural form above one", () => {
-        expect(limitRefusalText({...ORGANIZATION, limit: 3}, {cloud: false})).toBe(
+        expect(
+            limitRefusalText({...ORGANIZATION, limit: 3}, {cloud: false, isInstanceAdmin: true}),
+        ).toBe(
             "This instance allows 3 organizations. Ask for an invitation to an existing organization, or add a paid license key.",
         )
-        expect(limitRefusalText({...PROJECT, limit: 3}, {cloud: false})).toBe(
-            "This organization has reached its limit of 3 projects. A free key gives more projects.",
+        expect(
+            limitRefusalText({...PROJECT, limit: 3}, {cloud: false, isInstanceAdmin: true}),
+        ).toBe(
+            "This organization has reached its limit of 3 projects. Register this instance for free to create more projects.",
         )
     })
 })
@@ -130,15 +140,36 @@ describe("LimitRefusalNotice", () => {
     }
     const button = () => container.querySelector("button")
 
-    it("gives the instance admin a button to the License tab", () => {
+    it("asks the instance admin to register the instance, with a button to the License tab", () => {
         fixture.isInstanceAdmin = true
         const onNavigate = render(PROJECT)
 
+        expect(container.textContent).toContain(
+            "This organization has reached its limit of 1 project. Register this instance for free to create more projects.",
+        )
         expect(container.textContent).not.toContain("Ask your instance admin.")
-        expect(button()?.textContent).toBe("Open License settings")
+        expect(button()?.textContent).toBe("Register this instance")
         act(() => button()?.click())
         expect(onNavigate).toHaveBeenCalledOnce()
         expect(routerPush).toHaveBeenCalledWith("/w/ws-1/p/proj-1/settings?tab=license")
+    })
+
+    it("keeps the License settings button at the organization limit", () => {
+        fixture.isInstanceAdmin = true
+        render(ORGANIZATION)
+
+        expect(button()?.textContent).toBe("Open License settings")
+        act(() => button()?.click())
+        expect(routerPush).toHaveBeenCalledWith("/w/ws-1/p/proj-1/settings?tab=license")
+    })
+
+    it("keeps the member text at the project limit", () => {
+        render(PROJECT)
+
+        expect(container.textContent).toBe(
+            "This organization has reached its limit of 1 project. A free key gives more projects. Ask your instance admin.",
+        )
+        expect(button()).toBeNull()
     })
 
     it("tells a member to ask the instance admin, with no button", () => {

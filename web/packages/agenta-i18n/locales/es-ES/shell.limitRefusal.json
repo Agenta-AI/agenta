@@ -9,5 +9,7 @@
     "projectLimit_other": "Esta organización ha alcanzado su límite de {{count}} proyectos.",
     "projectLimitCloud": "El plan Hobby incluye 1 proyecto. Cambia a Starter para tener proyectos ilimitados.",
     "projectLimitFreeKey": "Una clave gratuita da más proyectos.",
+    "projectLimitRegister": "Registra esta instancia gratis para crear más proyectos.",
+    "registerInstance": "Registrar esta instancia",
     "upgradePlan": "Mejorar plan"
 }

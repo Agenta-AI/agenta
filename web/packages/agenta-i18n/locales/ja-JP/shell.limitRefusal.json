@@ -5,5 +5,7 @@
     "projectLimit_other": "この組織はプロジェクトの上限 ({{count}} 件) に達しました。",
     "projectLimitCloud": "Hobby プランに含まれるプロジェクトは 1 件です。プロジェクトを無制限にするには Starter にアップグレードしてください。",
     "projectLimitFreeKey": "無料キーでプロジェクトを増やせます。",
+    "projectLimitRegister": "このインスタンスを無料で登録すると、さらにプロジェクトを作成できます。",
+    "registerInstance": "このインスタンスを登録",
     "upgradePlan": "プランをアップグレード"
 }
