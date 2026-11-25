@@ -824,7 +824,7 @@ async def test_paid_license_opens_the_browser_and_the_queued_client(
 ):
     _install_license(monkeypatch, _license("self_hosted_enterprise"))
 
-    answer = await telemetry_service.instance_telemetry_for(USER_ID, EMAIL)
+    answer = await telemetry_service.instance_telemetry_for(USER_ID)
 
     assert answer.enabled is True
     assert answer.distinct_id == f"{INSTANCE_ID}:{USER_ID}"
