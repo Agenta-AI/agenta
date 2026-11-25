@@ -779,15 +779,8 @@ const Irow = ({ icon, name, sub }) => (
   </div>
 );
 
-export function ConfigPane({ a, s, agent }) {
+export function ConfigPane({ a, agent }) {
   const [tab, setTab] = useState("agent");
-  const [open, setOpen] = useState({ instructions: true, integrations: true });
-  const [policy, setPolicy] = useState(agent.permission);
-  const [access, setAccess] = useState("Shared with project");
-  const t = (k) => setOpen((o) => ({ ...o, [k]: !o[k] }));
-  const n = (list, one, many) =>
-    list.length ? `${list.length} ${list.length === 1 ? one : many}` : "None";
-  const ico = (I) => <I size={14} className="t2" />;
   return (
     <aside className="col slidex rpanel hx-rpane" aria-label="Configuration">
       <div
@@ -824,228 +817,7 @@ export function ConfigPane({ a, s, agent }) {
       </div>
       <div className="col grow" style={{ minHeight: 0 }}>
         <div style={{ overflow: "auto", flex: 1 }}>
-          {tab === "agent" ? (
-            <div className="cfgin2">
-              <Acc
-                icon={ico(Cpu)}
-                title="Model"
-                sum={`${agent.model.harness} · ${agent.model.name}`}
-                open={open.model}
-                onToggle={() => t("model")}
-              >
-                <Irow
-                  icon={<Cpu size={16} />}
-                  name={agent.model.name}
-                  sub={`${agent.model.id} · via ${agent.model.harness}`}
-                />
-              </Acc>
-              <Acc
-                icon={ico(FileText)}
-                title="Instructions"
-                sum=""
-                open={open.instructions}
-                onToggle={() => t("instructions")}
-              >
-                <div className="filecard" role="button" tabIndex={0}>
-                  <span className="av" style={{ background: "#1f7a5a" }}>
-                    <FileText size={14} />
-                  </span>
-                  <div className="grow">
-                    <div className="row g8">
-                      <span className="mono13">AGENTS.md</span>
-                      <span className="xs t3">
-                        {agent.instructions.words} words
-                      </span>
-                    </div>
-                    <div className="xs t2 clamp2">
-                      {agent.instructions.text}
-                    </div>
-                  </div>
-                  <span className="caret r" />
-                </div>
-              </Acc>
-              <Acc
-                icon={ico(Wrench)}
-                title="Integrations"
-                sum={n(agent.integrations, "integration", "integrations")}
-                add
-                open={open.integrations}
-                onToggle={() => t("integrations")}
-              >
-                {agent.integrations.length ? (
-                  agent.integrations.map((x) => (
-                    <Irow
-                      key={x.name}
-                      icon={<AppLogo slug={x.mark} name={x.name} />}
-                      name={x.name}
-                    />
-                  ))
-                ) : (
-                  <div className="sm t3">No integrations yet</div>
-                )}
-              </Acc>
-              <Acc
-                icon={ico(Robot)}
-                title="Subagents"
-                sum="None"
-                add
-                open={open.subagents}
-                onToggle={() => t("subagents")}
-              >
-                <div className="sm t3">No subagents yet</div>
-              </Acc>
-              <Acc
-                icon={ico(Broadcast)}
-                title="MCP servers"
-                sum="None"
-                add
-                open={open.mcp}
-                onToggle={() => t("mcp")}
-              >
-                <div className="sm t3">No MCP servers yet</div>
-              </Acc>
-              <Acc
-                icon={ico(Compass)}
-                title="Skills"
-                sum={n(agent.skills, "skill", "skills")}
-                add
-                open={open.skills}
-                onToggle={() => t("skills")}
-              >
-                {agent.skills.length ? (
-                  agent.skills.map((id) => {
-                    const sk = SKILLS.find((x) => x.id === id);
-                    return (
-                      <Irow
-                        key={id}
-                        icon={<Compass size={16} />}
-                        name={sk.title}
-                        sub={sk.desc}
-                      />
-                    );
-                  })
-                ) : (
-                  <div className="sm t3">No skills yet</div>
-                )}
-              </Acc>
-              <Acc
-                icon={ico(LockSimple)}
-                title="Secrets"
-                sum={
-                  agent.secrets.length
-                    ? `${agent.secrets.length} attached`
-                    : "None"
-                }
-                add
-                open={open.secrets}
-                onToggle={() => t("secrets")}
-              >
-                {agent.secrets.length ? (
-                  agent.secrets.map((x) => (
-                    <Irow
-                      key={x.name}
-                      icon={<LockSimple size={16} />}
-                      name={<span className="mono13">{x.name}</span>}
-                      sub={x.sub}
-                    />
-                  ))
-                ) : (
-                  <div className="sm t3">No custom secrets attached.</div>
-                )}
-              </Acc>
-              <Acc
-                icon={ico(Shield)}
-                title="Permissions"
-                sum={`Policy · ${policy}`}
-                open={open.perm}
-                onToggle={() => t("perm")}
-              >
-                <div className="irow" style={{ cursor: "default" }}>
-                  <span className="grow sm">
-                    What the agent may do without asking
-                  </span>
-                  <PolicySelect value={policy} onChange={setPolicy} />
-                </div>
-              </Acc>
-              <Acc
-                icon={ico(GearSix)}
-                title="Advanced"
-                sum=""
-                open={open.adv}
-                onToggle={() => t("adv")}
-              >
-                <Irow
-                  icon={<Cube size={16} />}
-                  name="Execution"
-                  sub="Daytona sandbox"
-                />
-                <Irow
-                  icon={<Toolbox size={16} />}
-                  name="Agenta tools"
-                  sub="Files, sessions and memory"
-                />
-                <Irow
-                  icon={<Hammer size={16} />}
-                  name="Build kit"
-                  sub="The tools the builder uses"
-                />
-              </Acc>
-            </div>
-          ) : tab === "automations" ? (
-            <div className="hx-panebody">
-              {[...agent.automations.scheduled, ...agent.automations.app]
-                .length ? (
-                [...agent.automations.scheduled, ...agent.automations.app].map(
-                  (x) => (
-                    <Irow
-                      key={x.name}
-                      icon={<Lightning size={16} />}
-                      name={x.name}
-                      sub={x.when}
-                    />
-                  ),
-                )
-              ) : (
-                <div className="sm t3">No automations yet</div>
-              )}
-              <button
-                type="button"
-                className="btn"
-                style={{ alignSelf: "flex-start" }}
-              >
-                <Plus size={14} />
-                Add automation
-              </button>
-            </div>
-          ) : tab === "channels" ? (
-            <div className="hx-panebody">
-              <ChannelList agent={agent} compact />
-            </div>
-          ) : (
-            <div className="hx-panebody">
-              <div className="sm b5">Who can see this agent</div>
-              {[
-                ["Private", "Only you can see and use it in Agenta."],
-                [
-                  "Shared with project",
-                  "Everyone in Acme Agency can see and use it.",
-                ],
-              ].map(([k, d]) => (
-                <button
-                  type="button"
-                  key={k}
-                  className={cx("radio", access === k && "on")}
-                  onClick={() => setAccess(k)}
-                >
-                  <span className="rd" />
-                  <span className="col">
-                    <span className="b5 sm">{k}</span>
-                    <span className="xs t2">{d}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+          <AgentPaneBody agent={agent} tab={tab} />
         </div>
       </div>
       <div className="df" style={{ justifyContent: "flex-end" }}>
@@ -1059,6 +831,219 @@ export function ConfigPane({ a, s, agent }) {
         </span>
       </div>
     </aside>
+  );
+}
+
+/** The agent's tabs as the configuration pane and the builder page pane draw them. */
+export function AgentPaneBody({ agent, tab }) {
+  const [open, setOpen] = useState({ instructions: true, integrations: true });
+  const [policy, setPolicy] = useState(agent.permission);
+  const [access, setAccess] = useState("Shared with project");
+  const t = (k) => setOpen((o) => ({ ...o, [k]: !o[k] }));
+  const n = (list, one, many) =>
+    list.length ? `${list.length} ${list.length === 1 ? one : many}` : "None";
+  const ico = (I) => <I size={14} className="t2" />;
+  return tab === "agent" ? (
+    <div className="cfgin2">
+      <Acc
+        icon={ico(Cpu)}
+        title="Model"
+        sum={`${agent.model.harness} · ${agent.model.name}`}
+        open={open.model}
+        onToggle={() => t("model")}
+      >
+        <Irow
+          icon={<Cpu size={16} />}
+          name={agent.model.name}
+          sub={`${agent.model.id} · via ${agent.model.harness}`}
+        />
+      </Acc>
+      <Acc
+        icon={ico(FileText)}
+        title="Instructions"
+        sum=""
+        open={open.instructions}
+        onToggle={() => t("instructions")}
+      >
+        <div className="filecard" role="button" tabIndex={0}>
+          <span className="av" style={{ background: "#1f7a5a" }}>
+            <FileText size={14} />
+          </span>
+          <div className="grow">
+            <div className="row g8">
+              <span className="mono13">AGENTS.md</span>
+              <span className="xs t3">{agent.instructions.words} words</span>
+            </div>
+            <div className="xs t2 clamp2">{agent.instructions.text}</div>
+          </div>
+          <span className="caret r" />
+        </div>
+      </Acc>
+      <Acc
+        icon={ico(Wrench)}
+        title="Integrations"
+        sum={n(agent.integrations, "integration", "integrations")}
+        add
+        open={open.integrations}
+        onToggle={() => t("integrations")}
+      >
+        {agent.integrations.length ? (
+          agent.integrations.map((x) => (
+            <Irow
+              key={x.name}
+              icon={<AppLogo slug={x.mark} name={x.name} />}
+              name={x.name}
+            />
+          ))
+        ) : (
+          <div className="sm t3">No integrations yet</div>
+        )}
+      </Acc>
+      <Acc
+        icon={ico(Robot)}
+        title="Subagents"
+        sum="None"
+        add
+        open={open.subagents}
+        onToggle={() => t("subagents")}
+      >
+        <div className="sm t3">No subagents yet</div>
+      </Acc>
+      <Acc
+        icon={ico(Broadcast)}
+        title="MCP servers"
+        sum="None"
+        add
+        open={open.mcp}
+        onToggle={() => t("mcp")}
+      >
+        <div className="sm t3">No MCP servers yet</div>
+      </Acc>
+      <Acc
+        icon={ico(Compass)}
+        title="Skills"
+        sum={n(agent.skills, "skill", "skills")}
+        add
+        open={open.skills}
+        onToggle={() => t("skills")}
+      >
+        {agent.skills.length ? (
+          agent.skills.map((id) => {
+            const sk = SKILLS.find((x) => x.id === id);
+            return (
+              <Irow
+                key={id}
+                icon={<Compass size={16} />}
+                name={sk.title}
+                sub={sk.desc}
+              />
+            );
+          })
+        ) : (
+          <div className="sm t3">No skills yet</div>
+        )}
+      </Acc>
+      <Acc
+        icon={ico(LockSimple)}
+        title="Secrets"
+        sum={agent.secrets.length ? `${agent.secrets.length} attached` : "None"}
+        add
+        open={open.secrets}
+        onToggle={() => t("secrets")}
+      >
+        {agent.secrets.length ? (
+          agent.secrets.map((x) => (
+            <Irow
+              key={x.name}
+              icon={<LockSimple size={16} />}
+              name={<span className="mono13">{x.name}</span>}
+              sub={x.sub}
+            />
+          ))
+        ) : (
+          <div className="sm t3">No custom secrets attached.</div>
+        )}
+      </Acc>
+      <Acc
+        icon={ico(Shield)}
+        title="Permissions"
+        sum={`Policy · ${policy}`}
+        open={open.perm}
+        onToggle={() => t("perm")}
+      >
+        <div className="irow" style={{ cursor: "default" }}>
+          <span className="grow sm">What the agent may do without asking</span>
+          <PolicySelect value={policy} onChange={setPolicy} />
+        </div>
+      </Acc>
+      <Acc
+        icon={ico(GearSix)}
+        title="Advanced"
+        sum="Sandbox: Daytona"
+        open={open.adv}
+        onToggle={() => t("adv")}
+      >
+        <Irow
+          icon={<Cube size={16} />}
+          name="Execution"
+          sub="Daytona sandbox"
+        />
+        <Irow
+          icon={<Toolbox size={16} />}
+          name="Agenta tools"
+          sub="Files, sessions and memory"
+        />
+        <Irow
+          icon={<Hammer size={16} />}
+          name="Build kit"
+          sub="The tools the builder uses"
+        />
+      </Acc>
+    </div>
+  ) : tab === "automations" ? (
+    <div className="hx-panebody">
+      {[...agent.automations.scheduled, ...agent.automations.app].length ? (
+        [...agent.automations.scheduled, ...agent.automations.app].map((x) => (
+          <Irow
+            key={x.name}
+            icon={<Lightning size={16} />}
+            name={x.name}
+            sub={x.when}
+          />
+        ))
+      ) : (
+        <div className="sm t3">No automations yet</div>
+      )}
+      <button type="button" className="btn" style={{ alignSelf: "flex-start" }}>
+        <Plus size={14} />
+        Add automation
+      </button>
+    </div>
+  ) : tab === "channels" ? (
+    <div className="hx-panebody">
+      <ChannelList agent={agent} compact />
+    </div>
+  ) : (
+    <div className="hx-panebody">
+      <div className="sm b5">Who can see this agent</div>
+      {[
+        ["Private", "Only you can see and use it in Agenta."],
+        ["Shared with project", "Everyone in Acme Agency can see and use it."],
+      ].map(([k, d]) => (
+        <button
+          type="button"
+          key={k}
+          className={cx("radio", access === k && "on")}
+          onClick={() => setAccess(k)}
+        >
+          <span className="rd" />
+          <span className="col">
+            <span className="b5 sm">{k}</span>
+            <span className="xs t2">{d}</span>
+          </span>
+        </button>
+      ))}
+    </div>
   );
 }
 

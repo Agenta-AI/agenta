@@ -47,7 +47,7 @@ import { AgentaWordmark } from "./logos.jsx";
 import { AGENTS, SESSIONS, WORKSPACE, sessionsOf } from "./data.js";
 import { AgentChip, Bullet, Ib, Mi, Pop, cx } from "./Common.jsx";
 
-const Row = ({ icon, label, sel, onClick, children, style }) => (
+export const Row = ({ icon, label, sel, onClick, children, style }) => (
   <div
     className={cx("bnav", sel && "sel")}
     role="button"
@@ -85,7 +85,7 @@ const Collapse = ({ a, s }) => (
 );
 
 /** Workspace switcher and help, the foot of every rail. */
-function WorkspaceFoot({ a }) {
+export function WorkspaceFoot({ a }) {
   return (
     <div className="row g4 hx-foot">
       <Pop
@@ -294,10 +294,7 @@ export function MainRail({ a, s }) {
         icon={<Gear size={16} />}
         label="Settings"
         onClick={() => a.settings()}
-      >
-        <span className="grow" />
-        <span className="xs t3">{WORKSPACE.version}</span>
-      </Row>
+      ></Row>
       {s.collapsed ? null : <WorkspaceFoot a={a} />}
     </nav>
   );

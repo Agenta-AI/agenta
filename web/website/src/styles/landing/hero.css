@@ -8,11 +8,6 @@
 @media (width <= 1167px){.r3 .r3-ag-hero { padding-left:24px !important; padding-right:24px !important; }}
 .r3 .r3-ag-hero-chip { --hchip-bg:linear-gradient(180deg, var(--lp-surface-3) 0%, var(--lp-line-2) 100%); --hchip-shadow:inset 0 2px .4px var(--lp-surface); --hchip-text:var(--lp-text); }
 
-/* The app mockup (components/hero-app). Phones keep the headline and buttons alone. */
-@media (max-width: 860px) {
-  .r3 .r3-ag-hero .hx-frame.hx-hero-a { display: none; }
-}
-
 /* Phones: a smaller hero subtitle. */
 @media (max-width: 600px) {
   .r3 .r3-ag-hero .r3-ag-sub { font-size:14px !important; line-height:22px !important; }

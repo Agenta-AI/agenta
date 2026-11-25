@@ -166,7 +166,7 @@ export function AppLogo({ slug, name, size = 20 }) {
   return (
     <img
       className="hx-applogo"
-      src={`/logos/apps/${slug}.svg`}
+      src={`${globalThis.__HX_ASSET_BASE ?? "/"}logos/apps/${slug}.svg`}
       alt=""
       width={size}
       height={size}

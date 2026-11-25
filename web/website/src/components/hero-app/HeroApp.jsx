@@ -7,6 +7,7 @@ import { BuilderPane, FilesPane, ConfigPane } from "./Panes.jsx";
 import { HomePage, AgentsPage, SkillsPage, AutomationsPage } from "./Pages.jsx";
 import { AgentPage } from "./AgentPages.jsx";
 import { SettingsPage } from "./SettingsPage.jsx";
+import { BuilderRail, BuilderPageView } from "./BuilderPage.jsx";
 import { agentById } from "./data.js";
 import "./hero-base.css";
 import "./hero-app.css";
@@ -21,15 +22,12 @@ export const PRESETS = {
     chat: "safari",
   },
   // Tour steps.
+  // The Builder page: a new chat with the prompt being typed, and the agent pane.
   build: {
-    page: "agent",
-    rail: "agent",
+    page: "builder",
+    rail: "builder",
     agent: "seo",
-    view: "configuration",
-    panel: "builder",
-    bview: "chat",
-    chat: "newseo",
-    cards: { newseo: "approved" },
+    panel: null,
   },
   work: {
     page: "session",
@@ -72,7 +70,7 @@ const BASE = {
   collapsed: false,
 };
 
-export default function HeroApp({ preset = "hero" }) {
+export default function HeroApp({ preset = "hero", autoType = false }) {
   const [s, setS] = useState(() => ({
     ...BASE,
     ...(PRESETS[preset] ?? PRESETS.hero),
@@ -135,6 +133,8 @@ export default function HeroApp({ preset = "hero" }) {
   else if (s.page === "automations") main = <AutomationsPage a={a} />;
   else if (s.page === "settings") main = <SettingsPage a={a} s={s} />;
   else if (s.page === "agent") main = <AgentPage a={a} s={s} agent={agent} />;
+  else if (s.page === "builder")
+    main = <BuilderPageView a={a} agent={agent} autoType={autoType} />;
   else main = <SessionView a={a} s={s} agent={agent} />;
 
   let pane = null;
@@ -149,6 +149,8 @@ export default function HeroApp({ preset = "hero" }) {
     <MainRail a={a} s={s} />
   ) : s.rail === "settings" ? (
     <SettingsRail a={a} s={s} />
+  ) : s.rail === "builder" ? (
+    <BuilderRail a={a} s={s} />
   ) : s.rail === "agent" ? (
     <AgentRail a={a} s={s} agent={agent} />
   ) : (

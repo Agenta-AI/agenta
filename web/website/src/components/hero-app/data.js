@@ -4,7 +4,6 @@
 export const WORKSPACE = {
   name: "Acme Agency",
   initials: "AA",
-  version: "v0.129.0",
   user: { name: "Maya Brooks", email: "maya@acme-agency.com", initials: "MB" },
 };
 

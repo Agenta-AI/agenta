@@ -1,10 +1,9 @@
-/* The tour hero (components/hero-app/HeroTour.jsx): dashes, side arrows, copy below the app. */
+/* The tour hero (components/hero-app/HeroTour.jsx): dashes that fill, the step title, the app. */
 .hxt {
   width: min(1120px, 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
   margin-top: 24px;
 }
 .hxt-dashes {
@@ -12,28 +11,53 @@
   gap: 8px;
 }
 .hxt-dashes button {
-  width: 24px;
-  height: 3px;
+  position: relative;
+  width: 40px;
+  height: 16px;
   padding: 0;
   border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.hxt-dashes button::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 6px;
+  height: 4px;
   border-radius: 2px;
   background: var(--lp-line-strong);
-  cursor: pointer;
-  transition:
-    background 0.2s,
-    width 0.2s;
 }
-.hxt-dashes button:hover {
-  background: var(--lp-dim);
-}
-.hxt-dashes button.on {
-  width: 40px;
+.hxt-dashes button i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 6px;
+  height: 4px;
+  border-radius: 2px;
   background: var(--lp-text);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+.hxt-dashes button:hover::before {
+  background: var(--lp-dim);
 }
 .hxt-dashes button:focus-visible,
 .hxt-arrow:focus-visible {
   outline: 2px solid var(--lp-text);
   outline-offset: 3px;
+  border-radius: 4px;
+}
+.hxt-title {
+  margin: 12px 0 20px;
+  font:
+    500 18px/26px "Inter",
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  color: var(--lp-text);
 }
 .hxt-stage {
   position: relative;
@@ -41,6 +65,36 @@
 }
 .hxt-stage .hx-frame {
   margin-top: 0;
+}
+.hxt-layer {
+  position: absolute;
+  inset: 0;
+}
+.hxt-layer.in {
+  animation: hxt-in 0.26s ease both;
+}
+.hxt-layer.out {
+  z-index: 1;
+  pointer-events: none;
+  animation: hxt-out 0.26s ease both;
+}
+@keyframes hxt-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes hxt-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 .hxt-arrow {
   position: absolute;
@@ -67,49 +121,17 @@
 .hxt-arrow.next {
   right: -64px;
 }
-.hxt-copy {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  max-width: 560px;
-  text-align: center;
-  min-height: 72px;
-}
-.hxt-copy p {
-  margin: 0;
-}
-.hxt-title {
-  font:
-    500 18px/26px "Inter",
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
-  color: var(--lp-text);
-}
-.hxt-text {
-  font:
-    400 15px/22px "Inter",
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
-  color: var(--lp-body);
-  text-wrap: pretty;
-}
 
-/* Without room beside the app, the arrows sit on the copy row. */
+/* Without room beside the app, the arrows sit beside the title. */
 @media (max-width: 1279px) {
-  .hxt-stage {
-    position: static;
-  }
   .hxt {
     position: relative;
   }
+  .hxt-stage {
+    position: static;
+  }
   .hxt-arrow {
-    top: auto;
-    bottom: 16px;
+    top: 20px;
     margin-top: 0;
   }
   .hxt-arrow.prev {
@@ -118,7 +140,10 @@
   .hxt-arrow.next {
     right: 0;
   }
-  .hxt-copy {
-    padding: 0 48px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hxt-layer.in,
+  .hxt-layer.out {
+    animation: none;
   }
 }

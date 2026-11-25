@@ -27,11 +27,8 @@ export default defineConfig({
     react(),
     mdx(),
     sitemap({
-      // The 404 page and the unlisted landing-tour test page never appear in the sitemap.
-      filter: (page) =>
-        !page.endsWith("/404") &&
-        !page.endsWith("/404/") &&
-        !/\/landing-tour\/?$/.test(page),
+      // The 404 page never appears in the sitemap.
+      filter: (page) => !page.endsWith("/404") && !page.endsWith("/404/"),
       // Astro emits directory routes with a trailing slash even though the
       // Cloudflare asset handler redirects them to their no-slash canonical.
       // Publish the final URL so crawlers never have to follow that redirect.
