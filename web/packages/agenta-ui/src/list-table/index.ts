@@ -8,7 +8,7 @@ export {ListTableSelectionToolbar} from "./ListTableSelectionToolbar"
 export {ListTableViewToggle} from "./ListTableViewToggle"
 export {downloadCsv, listTableToCsv} from "./csv"
 export {formatListDateTime} from "./formatListDateTime"
-export {LIST_COLUMN_WIDTH} from "./types"
+export {LIST_CARD_MIN_WIDTH, LIST_COLUMN_WIDTH} from "./types"
 export {useListTableColumnVisibility} from "./useListTableColumnVisibility"
 export type {
     ListTableColumn,

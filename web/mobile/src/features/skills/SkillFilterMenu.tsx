@@ -27,13 +27,7 @@ import {
 
 const ICON = 14
 
-/**
- * The skills registry's single view control: where a skill came from, whether an agent runs
- * it, the agents menu's "Only archived" switch, then how the rows are cut.
- *
- * Everything the shared `FilterMenu` knows about this screen arrives as props, so the package
- * never learns what a skill is and this file never re-implements a row or a check mark.
- */
+/** The skills list's filter menu: source, used by, only archived, and group by. */
 export const SkillFilterMenu = ({
     view,
     onChange,
@@ -130,8 +124,6 @@ export const SkillFilterMenu = ({
         [onChange, repositories, t, view],
     )
 
-    // The grouping and the view mode survive a reset: they are how the reader chose to read the
-    // list, not what they narrowed it to.
     const isDefault = isDefaultSkillFilters(view)
 
     return (
@@ -139,8 +131,8 @@ export const SkillFilterMenu = ({
             sections={sections}
             align="start"
             size="default"
-            // The view toggle beside it is 32; a 28px funnel between them read as a mistake.
             onReset={() =>
+                // A reset keeps the grouping and the view mode.
                 onChange({...DEFAULT_SKILL_LIST_VIEW, group: view.group, mode: view.mode})
             }
             resetDisabled={isDefault}

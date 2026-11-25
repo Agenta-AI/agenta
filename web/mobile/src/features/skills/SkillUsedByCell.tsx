@@ -21,7 +21,7 @@ export const SkillUsedByCell = ({workflowId, count}: {workflowId: string; count:
     })
     if (count === 0) {
         return (
-            <span className="block truncate text-label text-muted-foreground">
+            <span className="block truncate text-body-sm text-muted-foreground">
                 {usedByLabel(0)}
             </span>
         )
@@ -37,7 +37,7 @@ export const SkillUsedByCell = ({workflowId, count}: {workflowId: string; count:
                     <Robot />
                 </IconTile>
             )}
-            <span className="truncate text-label text-foreground" title={name || undefined}>
+            <span className="truncate text-body-sm text-foreground" title={name || undefined}>
                 {name || usedByLabel(count)}
             </span>
         </span>

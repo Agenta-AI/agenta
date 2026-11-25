@@ -14,10 +14,7 @@ import {
     Button,
 } from "@agenta/ui/ui"
 
-/**
- * The confirm-then-act alert every destructive action uses: no close X, outside clicks ignored,
- * Escape cancels — but never while the work is running, so the error stays visible.
- */
+/** Confirm-then-act alert: no close X, outside clicks ignored, Escape cancels unless pending. */
 export const ConfirmModal = ({
     open,
     title,
@@ -42,7 +39,7 @@ export const ConfirmModal = ({
     /** Names the way back; absent falls back to Cancel. */
     cancelLabel?: string
     pending?: boolean
-    /** Shown above the buttons when the action failed; this app has no toasts. */
+    /** Shown above the buttons when the action failed. */
     error?: string | null
     destructive?: boolean
     /** A solid red confirm button instead of the pale one; for a destructive developer page. */
@@ -65,8 +62,7 @@ export const ConfirmModal = ({
             >
                 <AlertDialogHeader>
                     <AlertDialogTitle>{title}</AlertDialogTitle>
-                    {/* Radix warns when a modal has no description, and the body is the description
-                    here whenever there is no separate line. */}
+                    {/* Radix needs a description; the body is it when there is no separate line. */}
                     <AlertDialogDescription>{description ?? body ?? ""}</AlertDialogDescription>
                 </AlertDialogHeader>
                 {description && body ? <div className="text-body">{body}</div> : null}
@@ -77,8 +73,7 @@ export const ConfirmModal = ({
                             {cancelLabel ?? t("common.cancel")}
                         </Button>
                     </AlertDialogCancel>
-                    {/* preventDefault keeps the alert open: it closes itself on success, and stays
-                    for the error otherwise. */}
+                    {/* preventDefault keeps it open; the caller closes it on success. */}
                     <AlertDialogAction asChild>
                         <Button
                             variant={destructive ? "destructive" : "default"}

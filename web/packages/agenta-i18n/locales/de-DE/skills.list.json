@@ -100,5 +100,7 @@
     "bulkArchiveFailed_one": "{{count}} Skill konnte nicht archiviert werden",
     "bulkArchiveFailed_other": "{{count}} Skills konnten nicht archiviert werden",
     "bulkRestoreFailed_one": "{{count}} Skill konnte nicht wiederhergestellt werden",
-    "bulkRestoreFailed_other": "{{count}} Skills konnten nicht wiederhergestellt werden"
+    "bulkRestoreFailed_other": "{{count}} Skills konnten nicht wiederhergestellt werden",
+    "downloaded": "Skill heruntergeladen",
+    "checkingUpdates": "Suche nach Updates…"
 }

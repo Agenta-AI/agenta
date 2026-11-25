@@ -104,10 +104,12 @@ export const SkillPageActions = ({
                             {t("skills.page.checkForUpdates")}
                         </DropdownMenuItem>
                     ) : null}
-                    <DropdownMenuItem onSelect={onDownload}>
-                        <DownloadSimple />
-                        {t("skills.page.download")}
-                    </DropdownMenuItem>
+                    {builtin ? null : (
+                        <DropdownMenuItem onSelect={onDownload}>
+                            <DownloadSimple />
+                            {t("skills.page.download")}
+                        </DropdownMenuItem>
+                    )}
                     {origin?.repository ? (
                         <DropdownMenuItem asChild>
                             <a href={skillGithubUrl(origin)} target="_blank" rel="noreferrer">

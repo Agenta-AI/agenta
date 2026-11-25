@@ -15,13 +15,7 @@ import {
 import {SkillUpdateCell} from "./SkillUpdateCell"
 import {SkillUsedByCell} from "./SkillUsedByCell"
 
-/**
- * One skill's cells, in column order.
- *
- * The name is the readable title from the SKILL.md name, the same one the drawer and the picker
- * show, and the whole row opens the drawer, so the actions cell holds only the kebab and,
- * on a wide screen once a check found one, the Update mark.
- */
+/** One skill's cells, in column order. */
 export const SkillRowCells = ({
     row,
     narrow,
@@ -38,12 +32,9 @@ export const SkillRowCells = ({
     return (
         <>
             <span className="flex min-w-0 items-center gap-3">
-                {/* An archived row dims its Mark and text; a check on the Mark keeps full strength. */}
                 <ListTableSelectMark dim={row.archived}>
                     <SkillMark size={32} />
                 </ListTableSelectMark>
-                {/* Tight leading and a hairline gap: the frame's own row padding is fixed and
-                shared, so the two lines are where a row can give height back. */}
                 <span
                     className={`flex min-w-0 flex-1 flex-col gap-px ${row.archived ? "opacity-60" : ""}`}
                 >
@@ -56,8 +47,6 @@ export const SkillRowCells = ({
                         </span>
                         {row.archived ? <SkillArchivedTag /> : null}
                     </span>
-                    {/* A described skill and an undescribed one have to be the same shape, or a
-                    column of rows jumps height by height as you read down it. */}
                     <span
                         className="truncate text-meta text-muted-foreground"
                         title={row.description || undefined}
@@ -71,7 +60,7 @@ export const SkillRowCells = ({
 
             {narrow ? null : (
                 <span
-                    className="block truncate text-label text-muted-foreground"
+                    className="block truncate text-body-sm text-muted-foreground"
                     title={provenanceLabel(row, group)}
                 >
                     {provenanceLabel(row, group)}
@@ -82,7 +71,6 @@ export const SkillRowCells = ({
                 {lastUpdatedLabel(row.age)}
             </span>
 
-            {/* A phone row keeps the kebab only; the Update mark waits for a wider screen. */}
             <span
                 className="flex items-center justify-end gap-1"
                 onClick={(event) => event.stopPropagation()}

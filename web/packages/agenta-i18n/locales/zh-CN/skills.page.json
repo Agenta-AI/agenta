@@ -50,5 +50,7 @@
     "branch": "分支",
     "defaultBranch": "默认分支",
     "version": "版本",
-    "unknown": "未知"
+    "unknown": "未知",
+    "backToSkills": "返回 Skills",
+    "createDescriptionManual": "编写、上传或从 GitHub 导入。"
 }

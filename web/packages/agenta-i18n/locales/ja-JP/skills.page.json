@@ -50,5 +50,7 @@
     "branch": "ブランチ",
     "defaultBranch": "デフォルトブランチ",
     "version": "バージョン",
-    "unknown": "不明"
+    "unknown": "不明",
+    "backToSkills": "スキルに戻る",
+    "createDescriptionManual": "書く、アップロードする、または GitHub からインポートします。"
 }

@@ -5,12 +5,7 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import type {SkillFile} from "@agenta/skills"
-import {
-    COMPACT_WINDOW_QUERY,
-    useIsExpandedWindow,
-    useScrollFadeEdges,
-    useWindowMatch,
-} from "@agenta/ui/hooks"
+import {COMPACT_WINDOW_QUERY, useIsExpandedWindow, useWindowMatch} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
 import {Button, Field, IconTile, Input, RightPane, SimpleTooltip, Textarea} from "@agenta/ui/ui"
 import {ArrowLeft, CaretRight, Files} from "@phosphor-icons/react"
@@ -38,33 +33,17 @@ export interface SkillEditorProps {
     showMissing?: boolean
     /** Above the fields (banners). */
     notices?: ReactNode
-    /**
-     * Where Files goes: the page's right pane, or "inline" for a host that is itself a drawer or a
-     * panel (a column beside the fields when it is wide, a Files row that swaps in when it is not).
-     */
+    /** Where Files goes: the page's right pane, or "inline" in a host that is a drawer or a panel. */
     filesPlacement?: "pane" | "inline"
-    /**
-     * Where the Files toggle goes on a wide window (the page header's actions). Without it, a
-     * closed pane reopens from the Files row above the fields.
-     */
+    /** Where the Files toggle goes on a wide window; without it, the Files row reopens the pane. */
     filesToggleSlot?: HTMLElement | null
 }
 
-const TOOLS_SLOT =
-    "ag-scroll-fade-x flex min-w-0 items-center overflow-x-auto [scrollbar-width:none]"
+const TOOLS_SLOT = "flex min-w-0 items-center overflow-x-auto [scrollbar-width:none]"
 
-/** A label-row slot for the formatting tools: one sideways scroller that fades its cut edges. */
+/** A label-row slot for the formatting tools; the toolbar fades its own scroll edges. */
 function ToolsSlot({onSlot}: {onSlot: (slot: HTMLDivElement | null) => void}) {
-    const ref = useRef<HTMLDivElement | null>(null)
-    useScrollFadeEdges(ref, {axis: "x"})
-    const setRef = useCallback(
-        (slot: HTMLDivElement | null) => {
-            ref.current = slot
-            onSlot(slot)
-        },
-        [onSlot],
-    )
-    return <div ref={setRef} className={TOOLS_SLOT} />
+    return <div ref={onSlot} className={TOOLS_SLOT} />
 }
 
 /** The skill editor the skill page and the create page share: fields, a file, the Files pane. */
@@ -135,7 +114,9 @@ export function SkillEditor({
     const tooLong = descriptionTooLong(draft)
     const missingName = showMissing && !draftSkillName(draft)
     const missingDescription = showMissing && !draft.description.trim()
-    const missingBody = showMissing && !draft.body.trim()
+    // The editor reports text after a short delay; typing clears the error at once.
+    const [bodyTyped, setBodyTyped] = useState(false)
+    const missingBody = showMissing && !draft.body.trim() && !bodyTyped
     const savedAs = draft.name.trim() ? draftSkillName(draft) : ""
 
     const setFile = (patch: Partial<SkillFile>) =>
@@ -186,8 +167,12 @@ export function SkillEditor({
 
     const fileView = current ? (
         <section key={current.path} className="ag-view-enter flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-                <span title={current.path} className="flex min-w-0 flex-1 items-baseline">
+            {/* On a phone the tools take their own row, so the file name keeps its place. */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span
+                    title={current.path}
+                    className="flex min-w-0 basis-full items-baseline sm:min-w-24 sm:flex-1 sm:basis-0"
+                >
                     {dirOf(current.path) ? (
                         <span className="min-w-0 shrink-[3] truncate text-label text-muted-foreground">
                             {dirOf(current.path)}/
@@ -226,7 +211,7 @@ export function SkillEditor({
                         readOnly={readOnly}
                         spellCheck={false}
                         onChange={(event) => setFile({content: event.target.value})}
-                        className="h-full resize-none font-mono text-code"
+                        className="h-full resize-none bg-transparent font-mono text-code dark:bg-transparent"
                     />
                 )}
             </div>
@@ -277,7 +262,8 @@ export function SkillEditor({
                         aria-invalid={tooLong || missingDescription || undefined}
                         placeholder={t("skills.editor.descriptionPlaceholder")}
                         onChange={(event) => set({description: event.target.value})}
-                        className="field-sizing-content min-h-0 max-h-15 resize-none [scrollbar-width:none]"
+                        // Three whole lines (20px each) plus padding and border, so no line is cut.
+                        className="field-sizing-content min-h-0 max-h-19.5 resize-none overflow-y-auto [scrollbar-width:none]"
                     />
                 </Field>
             </div>
@@ -287,10 +273,14 @@ export function SkillEditor({
                 error={missingBody ? t("skills.editor.instructionsMissing") : undefined}
                 labelEnd={readOnly ? null : <ToolsSlot onSlot={setBodyTools} />}
             >
+                {/* Without the error, the box runs into the page's bottom padding. */}
                 <div
                     ref={setBodyBox}
                     style={inline ? undefined : {height: bodyHeight}}
-                    className={cn("flex min-h-0 flex-col", !inline && "-mb-8")}
+                    onInput={(event) =>
+                        setBodyTyped(!!(event.target as HTMLElement).textContent?.trim())
+                    }
+                    className={cn("flex min-h-0 flex-col", !inline && !missingBody && "-mb-8")}
                 >
                     <SkillMarkdownFrame
                         fill={!inline}

@@ -6,6 +6,7 @@ import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
 import type {SkillOriginInfo, SkillUsageItem} from "@agenta/skills"
 import {cn} from "@agenta/ui/styles"
 import {MENU_ITEM, Popover, PopoverContent, PopoverTrigger, SimpleTooltip} from "@agenta/ui/ui"
+import {ArrowCircleUp} from "@phosphor-icons/react"
 import Link from "next/link"
 
 import {agentEntryHref} from "../agents/agentEntry"
@@ -94,7 +95,7 @@ export const SkillPageMeta = ({
                 disabled={updateBlocked}
                 className="inline-flex cursor-pointer items-center gap-1.5 rounded-sm border-0 bg-transparent p-0 font-[inherit] text-label text-warning hover:underline focus-ring disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:no-underline"
             >
-                <span aria-hidden className="size-1.5 rounded-round bg-warning" />
+                <ArrowCircleUp aria-hidden size={14} />
                 {t("skills.page.updateAvailable")}
             </button>
         </SimpleTooltip>

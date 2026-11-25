@@ -21,7 +21,12 @@ export const LIST_COLUMN_WIDTH = {
     timeCompact: "56px",
     /** The row menu. */
     actions: "24px",
+    /** The row menu with one icon control beside it. */
+    actionsWide: "52px",
 } as const
+
+/** The narrowest card in a grid view of a list with descriptions (agents, automations, skills). */
+export const LIST_CARD_MIN_WIDTH = 300
 
 export interface ListTableColumn {
     key: string
@@ -161,6 +166,8 @@ export interface ListTableBaseProps<Row> {
      */
     loading?: boolean
     skeletonRows?: number
+    /** Skeleton shape: `mark` draws a 32px Mark and two lines in the first cell, `heading` a group heading bar. */
+    skeleton?: {mark?: boolean; heading?: boolean}
     /** Drawn in place of the rows when every group is empty. */
     empty?: ReactNode
     /**

@@ -1,17 +1,13 @@
-/**
- * MarkdownToolbar
- *
- * A formatting toolbar for the rich-text Lexical editor: heading, bold, italic, lists, link, inline
- * code, quote, and tables. It reads the editor from composer context, so it must render inside an
- * `EditorProvider` (e.g. mounted by `MarkdownEditor` above the editor). Formatting applies to the
- * rich-text (rendered) view; pass `disabled` while the editor shows raw Markdown source.
- *
- * The link button opens a small popover that asks for the URL (and removes the link when one is
- * already under the caret) instead of blindly applying a placeholder. The table button opens a
- * size picker to insert a table; when the caret is inside a table, a second menu exposes row/column
- * insert + delete operations (mirroring the Lexical playground's table controls).
- */
-import {type ReactNode, useCallback, useEffect, useState} from "react"
+/** Formatting toolbar for the rich-text Lexical editor; render it inside an `EditorProvider`. */
+import {
+    type KeyboardEvent,
+    type ReactElement,
+    type ReactNode,
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+} from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -54,6 +50,8 @@ import {
     $createParagraphNode,
     $getSelection,
     $isRangeSelection,
+    $setSelection,
+    type BaseSelection,
     type ElementNode,
     FORMAT_TEXT_COMMAND,
     type TextFormatType,
@@ -69,6 +67,8 @@ import {
 } from "../components/ui/dropdown-menu"
 import {Input} from "../components/ui/input"
 import {Popover, PopoverContent, PopoverTrigger} from "../components/ui/popover"
+import {SimpleTooltip} from "../components/ui/tooltip-composed"
+import {useScrollFadeEdges} from "../hooks/useScrollFadeEdges"
 import {cn} from "../utils/styles"
 
 const BLOCK_TYPES = [
@@ -83,32 +83,20 @@ const BLOCK_TYPES = [
 export interface MarkdownToolbarProps {
     /** Disable the buttons (e.g. while the editor shows raw Markdown source or is read-only). */
     disabled?: boolean
-    /** `default`: the panel bar (F01 f3): a bordered block-type select, then B, I, S, code, bullet
-     * list and table. `inline`: H1 / H2 / H3 buttons instead of the select, plus numbered list,
-     * quote and link. */
+    /** `default`: block select, B, I, S, code, list, table. `inline`: H1-H3, lists, quote, link. */
     layout?: "default" | "inline"
 }
 
-const BTN_BASE =
-    "flex shrink-0 items-center justify-center border-0 bg-transparent transition-colors"
-const btnClass = (disabled: boolean, isActive: boolean, layout: "default" | "inline") =>
-    layout === "default"
-        ? cn(
-              BTN_BASE,
-              "size-6 rounded",
-              disabled
-                  ? "cursor-not-allowed text-muted-foreground"
-                  : "cursor-pointer text-muted-foreground hover:bg-accent",
-              isActive && "bg-secondary text-foreground",
-          )
-        : cn(
-              BTN_BASE,
-              "h-7 w-7 rounded",
-              disabled
-                  ? "cursor-not-allowed text-muted-foreground opacity-50"
-                  : "cursor-pointer text-muted-foreground hover:bg-accent",
-              isActive && "bg-selected !text-foreground",
-          )
+// Quiet icon buttons; aria-pressed shows the kit's selected look.
+const TOOL_CLASS =
+    "text-muted-foreground hover:text-foreground aria-pressed:bg-selected aria-pressed:text-foreground"
+
+/** A tooltip over a Radix `asChild` trigger: the span keeps the two triggers apart. */
+const Tip = ({title, children}: {title: string; children: ReactElement}) => (
+    <SimpleTooltip title={title}>
+        <span className="inline-flex shrink-0">{children}</span>
+    </SimpleTooltip>
+)
 
 /** Keep focus (and the Lexical selection) in the editor when a menu item is pressed. */
 const keepEditorSelection = (e: {preventDefault: () => void}) => e.preventDefault()
@@ -172,6 +160,11 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
     const [linkOpen, setLinkOpen] = useState(false)
     const [linkDraft, setLinkDraft] = useState("")
     const [tableOpen, setTableOpen] = useState(false)
+    // The editor selection when the link popover opened, restored before the link applies.
+    const linkSelection = useRef<BaseSelection | null>(null)
+    const scrollRef = useRef<HTMLDivElement | null>(null)
+    useScrollFadeEdges(scrollRef, {axis: "x"})
+    const iconSize = layout === "default" ? "icon-xs" : "icon-compact"
 
     useEffect(() => {
         return editor.registerUpdateListener(({editorState}) => {
@@ -227,11 +220,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
         [editor],
     )
 
-    // Convert the current block to the chosen type. Headings/quote/paragraph go through
-    // `$setBlocksType`; the markdown serializer maps them back to `#`, `>` and fenced blocks.
-    // CodeIcon is special: with a multi-line selection, `$setBlocksType` makes one code node per line
-    // (the stacked-chips bug), so mirror the Lexical playground — insert one code node and write
-    // the text back with its line breaks preserved as code lines.
+    // A multi-line code block is one code node with the text written back (not one node per line).
     const formatBlock = useCallback(
         (key: string) => {
             if (key === "code") {
@@ -257,18 +246,32 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
         [editor, setBlock],
     )
 
-    // Apply / clear the link on the current selection. The editor keeps its last RangeSelection
-    // while focus sits in the popover input, so the command still targets the selected text.
-    const applyLink = useCallback(() => {
-        const url = linkDraft.trim()
-        editor.dispatchCommand(TOGGLE_LINK_COMMAND, url || null)
-        setLinkOpen(false)
-    }, [editor, linkDraft])
+    const toggleLink = useCallback(
+        (url: string | null) => {
+            const saved = linkSelection.current
+            editor.update(() => {
+                if (saved) $setSelection(saved.clone())
+                editor.dispatchCommand(TOGGLE_LINK_COMMAND, url)
+            })
+            setLinkOpen(false)
+        },
+        [editor],
+    )
 
-    const removeLink = useCallback(() => {
-        editor.dispatchCommand(TOGGLE_LINK_COMMAND, null)
-        setLinkOpen(false)
-    }, [editor])
+    const applyLink = useCallback(
+        () => toggleLink(linkDraft.trim() || null),
+        [toggleLink, linkDraft],
+    )
+    const removeLink = useCallback(() => toggleLink(null), [toggleLink])
+
+    // Keep Enter and Escape out of the editor: Enter there would replace the selected text.
+    const onLinkKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+        if (e.key !== "Enter" && e.key !== "Escape") return
+        e.preventDefault()
+        e.stopPropagation()
+        if (e.key === "Enter") applyLink()
+        else setLinkOpen(false)
+    }
 
     const insertTable = useCallback(
         (rows: number, cols: number) => {
@@ -303,21 +306,22 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
         onClick: () => void,
         isActive = false,
     ) => (
-        <button
-            key={key}
-            type="button"
-            title={label}
-            aria-label={label}
-            aria-pressed={isActive}
-            disabled={disabled}
-            // Keep focus (and the selection) in the editor so the command applies to the selected
-            // text instead of being lost when the button steals focus.
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={onClick}
-            className={btnClass(disabled, isActive, layout)}
-        >
-            {icon}
-        </button>
+        <SimpleTooltip key={key} title={label}>
+            <Button
+                type="button"
+                variant="ghost"
+                size={iconSize}
+                aria-label={label}
+                aria-pressed={isActive}
+                disabled={disabled}
+                // Keep focus (and the selection) in the editor.
+                onMouseDown={keepEditorSelection}
+                onClick={onClick}
+                className={TOOL_CLASS}
+            >
+                {icon}
+            </Button>
+        </SimpleTooltip>
     )
 
     const divider =
@@ -346,14 +350,13 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
         )
 
     return (
-        // Below sm the row scrolls sideways instead of wrapping: a second row of buttons ate
-        // vertical space the editor needs in a phone drawer.
+        // Narrow widths scroll sideways with faded edges instead of wrapping.
         <div
-            className={
-                layout === "inline"
-                    ? "flex min-w-0 flex-nowrap items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                    : "flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] sm:flex-wrap sm:overflow-x-visible [&::-webkit-scrollbar]:hidden"
-            }
+            ref={scrollRef}
+            className={cn(
+                "ag-scroll-fade-x flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+                layout === "inline" ? "flex-nowrap" : "sm:flex-wrap sm:overflow-x-visible",
+            )}
         >
             {layout === "inline" ? (
                 <>
@@ -362,30 +365,25 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                     {headingButton("h3")}
                 </>
             ) : (
-                /* Block type — paragraph / headings / quote / code block. */
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild disabled={disabled}>
-                        <button
+                        <Button
                             type="button"
-                            title={t("ui.editor.textStyle")}
+                            variant="outline"
+                            size="xs"
                             aria-label={t("ui.editor.textStyle")}
                             disabled={disabled}
-                            onMouseDown={(e) => e.preventDefault()}
-                            // A bordered select at the control-xs height.
-                            className={cn(
-                                "flex h-control-xs min-w-[112px] shrink-0 items-center justify-between gap-1 rounded-md border border-solid border-border bg-background px-1.5 font-[inherit] text-meta text-foreground",
-                                disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
-                            )}
+                            onMouseDown={keepEditorSelection}
+                            className="min-w-28 justify-between gap-1 px-1.5 text-meta font-normal"
                         >
                             <span className="truncate">{blockLabel}</span>
                             <CaretDownIcon size={12} className="shrink-0 text-muted-foreground" />
-                        </button>
+                        </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
                         {BLOCK_TYPES.map((b) => (
                             <DropdownMenuItem
                                 key={b.key}
-                                // antd `selectable` + `selectedKeys`: the active block is highlighted.
                                 className={cn(b.key === blockType && "bg-selected text-foreground")}
                                 onMouseDown={keepEditorSelection}
                                 onSelect={() => formatBlock(b.key)}
@@ -454,29 +452,35 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                 : null}
             {layout === "inline" ? divider : null}
 
-            {/* Link — popover asks for the URL (and removes an existing link). The panel bar
-                (F01 f3) has no link button. */}
+            {/* The panel bar (default layout) has no link button. */}
             {layout === "inline" ? (
                 <Popover
                     open={disabled ? false : linkOpen}
                     onOpenChange={(next) => {
                         setLinkOpen(next)
-                        if (next) setLinkDraft(linkUrl)
+                        if (!next) return
+                        setLinkDraft(linkUrl)
+                        linkSelection.current = editor
+                            .getEditorState()
+                            .read(() => $getSelection()?.clone() ?? null)
                     }}
                 >
-                    <PopoverTrigger asChild disabled={disabled}>
-                        <button
-                            type="button"
-                            title={t("ui.editor.link")}
-                            aria-label={t("ui.editor.link")}
-                            aria-pressed={active.link}
-                            disabled={disabled}
-                            onMouseDown={(e) => e.preventDefault()}
-                            className={btnClass(disabled, active.link, layout)}
-                        >
-                            <LinkIcon size={14} />
-                        </button>
-                    </PopoverTrigger>
+                    <Tip title={t("ui.editor.link")}>
+                        <PopoverTrigger asChild disabled={disabled}>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size={iconSize}
+                                aria-label={t("ui.editor.link")}
+                                aria-pressed={active.link}
+                                disabled={disabled}
+                                onMouseDown={keepEditorSelection}
+                                className={TOOL_CLASS}
+                            >
+                                <LinkIcon size={14} />
+                            </Button>
+                        </PopoverTrigger>
+                    </Tip>
                     <PopoverContent side="bottom" align="center" className="p-3">
                         <div className="flex w-60 flex-col gap-2">
                             <Input
@@ -484,9 +488,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                                 value={linkDraft}
                                 placeholder="https://example.com"
                                 onChange={(e) => setLinkDraft(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter") applyLink()
-                                }}
+                                onKeyDown={onLinkKeyDown}
                             />
                             <div className="flex items-center justify-between gap-2">
                                 {active.link ? (
@@ -510,22 +512,24 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                 </Popover>
             ) : null}
 
-            {/* Table — one control: inside a table it opens the row/column ops menu; otherwise a
-                size picker to insert one. The chevron signals the menu when the caret is in a table. */}
+            {/* Inside a table: the row/column menu. Elsewhere: the size picker. */}
             {active.insideTable && !disabled ? (
                 <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <button
-                            type="button"
-                            title={t("ui.editor.tableOptions")}
-                            aria-label={t("ui.editor.tableOptions")}
-                            onMouseDown={(e) => e.preventDefault()}
-                            className={`${btnClass(false, false, layout)} !w-auto gap-0.5 px-1`}
-                        >
-                            <TableIcon size={14} />
-                            <CaretDownIcon size={12} />
-                        </button>
-                    </DropdownMenuTrigger>
+                    <Tip title={t("ui.editor.tableOptions")}>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size={layout === "default" ? "xs" : "compact"}
+                                aria-label={t("ui.editor.tableOptions")}
+                                onMouseDown={keepEditorSelection}
+                                className={cn(TOOL_CLASS, "gap-0.5 px-1")}
+                            >
+                                <TableIcon size={14} />
+                                <CaretDownIcon size={12} />
+                            </Button>
+                        </DropdownMenuTrigger>
+                    </Tip>
                     <DropdownMenuContent align="start">
                         <DropdownMenuItem
                             onMouseDown={keepEditorSelection}
@@ -575,23 +579,26 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                 </DropdownMenu>
             ) : (
                 <Popover open={disabled ? false : tableOpen} onOpenChange={setTableOpen}>
-                    <PopoverTrigger asChild disabled={disabled}>
-                        <button
-                            type="button"
-                            title={t("ui.editor.insertTable")}
-                            aria-label={t("ui.editor.insertTable")}
-                            disabled={disabled}
-                            onMouseDown={(e) => e.preventDefault()}
-                            className={btnClass(disabled, false, layout)}
-                        >
-                            <TableIcon size={14} />
-                        </button>
-                    </PopoverTrigger>
+                    <Tip title={t("ui.editor.insertTable")}>
+                        <PopoverTrigger asChild disabled={disabled}>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size={iconSize}
+                                aria-label={t("ui.editor.insertTable")}
+                                disabled={disabled}
+                                onMouseDown={keepEditorSelection}
+                                className={TOOL_CLASS}
+                            >
+                                <TableIcon size={14} />
+                            </Button>
+                        </PopoverTrigger>
+                    </Tip>
                     <PopoverContent
                         side="bottom"
                         align="center"
                         className="p-3"
-                        // antd left focus in the editor; keep the grid cells from being focused.
+                        // Leave focus in the editor.
                         onOpenAutoFocus={(e) => e.preventDefault()}
                     >
                         <TableSizePicker onPick={insertTable} />

@@ -7,18 +7,21 @@ import {FileText} from "@phosphor-icons/react"
 
 const tNow = createT(skillsEditorCatalog)
 
+// Trims each part but keeps empty ones, so `a//b.md` is reported, not silently fixed.
 const cleanPath = (raw: string) =>
     raw
         .split("/")
         .map((part) => part.trim())
-        .filter(Boolean)
         .join("/")
 
 /** Why a path cannot be used, or null when it can. */
 export const filePathProblem = (path: string, taken: ReadonlySet<string>): string | null => {
     if (!path) return tNow("skills.editor.nameFile")
     if (path.includes("\\")) return tNow("skills.editor.useSlash")
-    if (path.split("/").some((part) => part === "." || part === ".."))
+    const parts = path.split("/")
+    if (!parts[parts.length - 1]) return tNow("skills.editor.nameFile")
+    if (parts.some((part) => !part)) return tNow("skills.editor.useSlash")
+    if (parts.some((part) => part === "." || part === ".."))
         return tNow("skills.editor.plainName")
     if (path.toLowerCase() === "skill.md") return tNow("skills.editor.skillMdReserved")
     if (path.length > 255) return tNow("skills.editor.shorterName")
@@ -81,7 +84,7 @@ export function SkillFileNameRow({
 
     return (
         <div className="flex flex-col gap-1">
-            <div className="flex h-row-single items-center gap-2 px-2">
+            <div className="flex min-h-row-single items-center gap-2 px-2 max-sm:min-h-11">
                 <IconTile size={24} aria-hidden>
                     <FileText />
                 </IconTile>

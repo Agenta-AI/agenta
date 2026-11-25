@@ -110,5 +110,7 @@
     "bulkArchiveFailed_other": "Não foi possível arquivar {{count}} habilidades",
     "bulkRestoreFailed_one": "Não foi possível restaurar {{count}} habilidade",
     "bulkRestoreFailed_many": "Não foi possível restaurar {{count}} habilidades",
-    "bulkRestoreFailed_other": "Não foi possível restaurar {{count}} habilidades"
+    "bulkRestoreFailed_other": "Não foi possível restaurar {{count}} habilidades",
+    "downloaded": "Habilidade baixada",
+    "checkingUpdates": "Verificando atualizações…"
 }

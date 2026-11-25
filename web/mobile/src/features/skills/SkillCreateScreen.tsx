@@ -77,16 +77,13 @@ export const SkillCreateScreen = ({
         else if (start === "upload" && pendingUpload) {
             upload(pendingUpload)
             setPendingUpload(null)
+        } else if (start === "upload") {
+            // The picked files do not survive a reload: drop the stale `start`.
+            const query = {...router.query}
+            delete query.start
+            void router.replace({pathname: router.pathname, query}, undefined, {shallow: true})
         }
-    }, [
-        pendingUpload,
-        router.isReady,
-        router.query.start,
-        setPendingUpload,
-        setStep,
-        upload,
-        write,
-    ])
+    }, [pendingUpload, router, setPendingUpload, setStep, upload, write])
 
     // The page header's slot for the editor's Files toggle (wide windows).
     const [filesSlot, setFilesSlot] = useState<HTMLDivElement | null>(null)
@@ -98,7 +95,7 @@ export const SkillCreateScreen = ({
 
     const stepHeading = (title: string, hint: string) => (
         <div className="flex flex-col gap-1">
-            <h2 className="m-0 text-title text-foreground">{title}</h2>
+            <h2 className="m-0 text-subtitle text-foreground">{title}</h2>
             <p className="m-0 text-body text-muted-foreground">{hint}</p>
         </div>
     )
@@ -170,7 +167,7 @@ export const SkillCreateScreen = ({
                     />
                     {errorAlert}
                     <div className="sticky bottom-0 z-sticky mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 border-0 border-t border-solid border-border-muted bg-background py-3">
-                        <span className="flex-[1_1_240px] text-meta text-muted-foreground">
+                        <span className="grow basis-60 text-meta text-muted-foreground">
                             {t("skills.editor.trustNote")}
                         </span>
                         <LoadingButton
@@ -227,7 +224,9 @@ export const SkillCreateScreen = ({
                         <SkillNameTitle
                             value={flow.draft.name}
                             onChange={(name) => flow.setDraft({...flow.draft, name})}
+                            disabled={flow.busy}
                             invalid={flow.attempted && !flow.draft.name.trim()}
+                            error={t("skills.editor.nameMissing")}
                             autoFocus={!flow.draft.name}
                         />
                     ) : (
@@ -244,7 +243,7 @@ export const SkillCreateScreen = ({
                         ? t("skills.page.importHint")
                         : flow.step === "write"
                           ? undefined
-                          : t("skills.page.createDescription")
+                          : t("skills.page.createDescriptionManual")
                 }
                 actions={
                     flow.step === "write" ? (
@@ -264,8 +263,12 @@ export const SkillCreateScreen = ({
                     ) : undefined
                 }
             >
-                {/* Each step swaps in with the kit view transition (MOTION-01). */}
-                <div key={flow.step} className="ag-view-enter">
+                {/* Each step swaps in with the kit view transition (MOTION-01); inert while a create runs. */}
+                <div
+                    key={flow.step}
+                    className="ag-view-enter"
+                    inert={flow.step === "write" && flow.busy}
+                >
                     {body}
                 </div>
             </PageLayout>

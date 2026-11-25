@@ -9,6 +9,7 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
+    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {
     Archive,
@@ -27,20 +28,12 @@ import {useSkillUpdates} from "./useSkillUpdates"
 
 const tNow = createT(skillsListCatalog)
 
-/**
- * A skill's own actions — the row's only control, and a card's.
- *
- * A kebab, because none of these is a thing to do often and one of them puts the skill away.
- * Archive goes through the same confirm modal every destructive action on this app uses and
- * names the skill, so it is never a generic "are you sure". Check for updates is only offered
- * for a GitHub import, where there is an upstream to check against.
- */
+/** A skill's kebab menu on a row or a card; Check for updates only for a GitHub import. */
 export const SkillActionsMenu = ({
     row,
     onOpen,
 }: {
     row: SkillListRow
-    /** The row's own click already does this; the menu offers it in words. */
     onOpen: (row: SkillListRow) => void
 }) => {
     const t = useT(skillsListCatalog)
@@ -52,7 +45,7 @@ export const SkillActionsMenu = ({
         confirm({
             title: tNow("skills.list.archiveTitle", {name: row.title}),
             message: tNow("skills.list.archiveMessage"),
-            okText: tNow("skills.list.archiveSkill"),
+            okText: tNow("skills.list.archive"),
             danger: true,
             onOk: () => archive(row.id),
         })
@@ -61,16 +54,21 @@ export const SkillActionsMenu = ({
     return (
         <>
             <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button
-                        type="button"
-                        size="icon-xs"
-                        variant="ghost"
-                        aria-label={t("skills.list.skillActions")}
-                    >
-                        <DotsThree aria-hidden />
-                    </Button>
-                </DropdownMenuTrigger>
+                {/* The span takes the tooltip, so two asChild triggers do not share one element. */}
+                <SimpleTooltip title={t("skills.list.skillActions")}>
+                    <span className="inline-flex">
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                type="button"
+                                size="icon-xs"
+                                variant="ghost"
+                                aria-label={t("skills.list.skillActions")}
+                            >
+                                <DotsThree aria-hidden />
+                            </Button>
+                        </DropdownMenuTrigger>
+                    </span>
+                </SimpleTooltip>
                 <DropdownMenuContent align="end" className="w-popover-sm">
                     <DropdownMenuItem onSelect={() => onOpen(row)}>
                         <ArrowSquareOut aria-hidden />

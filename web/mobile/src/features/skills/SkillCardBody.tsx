@@ -14,12 +14,7 @@ import {
 } from "./skillListView"
 import {SkillUpdateCell} from "./SkillUpdateCell"
 
-/**
- * What a skill's card holds — the frame draws the tile around it.
- *
- * The same facts as the row, stacked: identity on top, two lines of description, and the
- * source and date along the bottom, where a reader scanning cards looks last.
- */
+/** A skill card's contents; the frame draws the tile. */
 export const SkillCardBody = ({
     row,
     group,
@@ -32,7 +27,6 @@ export const SkillCardBody = ({
     useT(skillsListCatalog)
     return (
         <>
-            {/* The Mark on its own row, the menu at its right. */}
             <span className="flex min-w-0 items-center justify-between gap-2">
                 <ListTableSelectMark dim={row.archived}>
                     <SkillMark size={32} />
@@ -46,7 +40,6 @@ export const SkillCardBody = ({
                     <SkillActionsMenu row={row} onOpen={onOpen} />
                 </span>
             </span>
-            {/* The Archived tag sits beside the title, as it does on the row. */}
             <span className="flex min-w-0 items-center gap-1.5">
                 <span
                     className={`min-w-0 truncate text-body font-medium text-foreground ${row.archived ? "opacity-60" : ""}`}
@@ -55,11 +48,11 @@ export const SkillCardBody = ({
                 </span>
                 {row.archived ? <SkillArchivedTag /> : null}
             </span>
-            <span className="line-clamp-2 min-h-10 text-body-sm text-muted-foreground">
+            <span
+                className={`line-clamp-2 min-h-10 text-body-sm text-muted-foreground ${row.archived ? "opacity-60" : ""}`}
+            >
                 {row.description || noDescriptionLabel()}
             </span>
-            {/* Source on the left, date on the right — the card's two corners, the way the row's
-            columns read. */}
             <span className="mt-auto flex min-w-0 items-center gap-2 pt-1 text-meta text-muted-foreground">
                 <span className="min-w-0 truncate">{provenanceLabel(row, group)}</span>
                 <span className="ml-auto shrink-0">{lastUpdatedLabel(row.age)}</span>

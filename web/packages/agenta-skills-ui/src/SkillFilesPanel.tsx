@@ -5,7 +5,12 @@ import {useT} from "@agenta/i18n"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import type {SkillFile} from "@agenta/skills"
 import {message} from "@agenta/ui/app-message"
-import {useScrollFadeEdges} from "@agenta/ui/hooks"
+import {
+    COARSE_POINTER_QUERY,
+    COMPACT_WINDOW_QUERY,
+    useScrollFadeEdges,
+    useWindowMatch,
+} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
 import {
     Badge,
@@ -34,11 +39,11 @@ import {filePathProblem, SkillFileNameRow} from "./SkillFileNameRow"
 
 // The row draws its button's focus ring inset, so the list scroller cannot clip it.
 const ROW =
-    "group relative flex h-row-single items-center gap-2 rounded-md px-2 text-label transition-colors duration-[var(--duration-fast)] motion-reduce:transition-none has-[>button:focus-visible]:outline-solid has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:outline-offset-[-2px] has-[>button:focus-visible]:outline-ring"
+    "group relative flex min-h-row-single items-center gap-2 rounded-md px-2 text-label transition-colors duration-[var(--duration-fast)] max-sm:min-h-11 motion-reduce:transition-none has-[>button:focus-visible]:outline-solid has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:outline-offset-[-2px] has-[>button:focus-visible]:outline-ring"
 const ROW_BUTTON =
     "min-w-0 flex-1 cursor-pointer truncate border-0 bg-transparent p-0 text-left font-[inherit] text-label text-foreground outline-none after:absolute after:inset-0 after:content-['']"
 const ROW_ACTIONS =
-    "relative z-[1] flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-[var(--duration-fast)] focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none"
+    "relative z-sticky flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-[var(--duration-fast)] focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none"
 
 /** Reads uploads as text; binary, unreadable and unusable paths (SKILL.md, taken) are skipped. */
 async function readUploads(list: FileList | File[], existing: ReadonlySet<string>) {
@@ -99,6 +104,8 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
     const switchId = useId()
     const hintId = useId()
     const pickerRef = useRef<HTMLInputElement>(null)
+    // Phones and touch screens cannot drop files, so the empty copy leaves dropping out.
+    const noDrop = useWindowMatch(`${COARSE_POINTER_QUERY}, ${COMPACT_WINDOW_QUERY}`)
     const listRef = useRef<HTMLDivElement>(null)
     useScrollFadeEdges(listRef, {enabled: docked})
 
@@ -129,18 +136,24 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
         }
     }
     const removeFile = (path: string) => {
-        const removed = files.find((file) => file.path === path)
+        const index = files.findIndex((file) => file.path === path)
+        if (index < 0) return
+        // A copy of the whole file, so Undo restores its content and program flag as they were.
+        const removed = {...files[index]}
         onFiles((current) => current.filter((file) => file.path !== path))
         onMoved(path, null)
-        if (!removed) return
-        const close: () => void = message.success({
+        message.open({
+            type: "success",
             content: t("skills.editor.removed", {name: baseOf(path)}),
-            linkText: t("skills.editor.undo"),
-            onNavigate: () => {
-                close()
-                onFiles((current) =>
-                    current.some((file) => file.path === path) ? current : [...current, removed],
-                )
+            duration: 6,
+            action: {
+                label: t("skills.editor.undo"),
+                onClick: () =>
+                    onFiles((current) =>
+                        current.some((file) => file.path === path)
+                            ? current
+                            : [...current.slice(0, index), removed, ...current.slice(index)],
+                    ),
             },
         })
     }
@@ -277,7 +290,7 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
                     </span>
                 ) : (
                     <SimpleTooltip title={t("skills.editor.turnOnPrograms")}>
-                        <span className="relative z-[1] inline-flex shrink-0">
+                        <span className="relative z-sticky inline-flex shrink-0">
                             <Badge variant="warning" icon={<Warning />}>
                                 {t("skills.editor.program")}
                             </Badge>
@@ -306,7 +319,7 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
                         >
                             <Button
                                 type="button"
-                                variant="destructive-ghost"
+                                variant="ghost"
                                 size="icon-sm"
                                 aria-label={t("skills.editor.removeNamed", {
                                     name: baseOf(file.path),
@@ -416,7 +429,11 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
                     ))}
                 {files.length === 0 && !naming ? (
                     <p className="m-0 px-2 py-3 text-meta text-muted-foreground">
-                        {readOnly ? t("skills.editor.noFilesReadOnly") : t("skills.editor.noFiles")}
+                        {readOnly
+                            ? t("skills.editor.noFilesReadOnly")
+                            : noDrop
+                              ? t("skills.editor.noFilesNoDrop")
+                              : t("skills.editor.noFiles")}
                     </p>
                 ) : null}
             </div>

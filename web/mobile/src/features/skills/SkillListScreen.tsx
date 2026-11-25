@@ -27,7 +27,6 @@ import {useRouter} from "next/router"
 import {useAgentOwners} from "../agents/useAgentOwners"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
-import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {PageLayout} from "../page-layout/PageLayout"
 
 import {pendingSkillUploadAtom} from "./pendingSkillUpload"
@@ -49,16 +48,7 @@ import {useSkillActions} from "./useSkillActions"
 
 const EMPTY_KEYS: ReadonlySet<string> = new Set()
 
-/**
- * The skill registry — where the nav's Skills entry lands.
- *
- * The registry is the shared `ListTable` — the frame the agents and automations lists use — with
- * this app's columns, and it is the first list here to offer the frame's card view as well: the
- * same groups drawn as tiles, switched from the toolbar.
- *
- * Search and the filter menu sit in one toolbar above the results, the same row the agents list
- * opens with. A row opens the skill page; New skill opens the create page.
- */
+/** The skills registry: rows or cards in the shared list frame; a row opens the skill page. */
 export const SkillListScreen = ({
     workspaceId,
     projectId,
@@ -76,39 +66,38 @@ export const SkillListScreen = ({
     // The search is a server query, so it waits for a pause in typing.
     const [typed, setTyped] = useDebounceInput<string>(search, setSearch, 250, "")
     const setShowArchived = useSetAtom(skillsShowArchivedAtom)
-    // One cached request, shared with the agents roster: a row names its author under a source
-    // heading, and cannot from an id alone.
+    // Shared with the agents roster: resolves a creator id to a name.
     const {ownerNames} = useAgentOwners()
 
-    // Grouping and the view mode are how a reader chose to read the list; the filters are a
-    // question they were asking at the time, so only the first two survive a reload.
+    // Only grouping and view mode survive a reload.
     const [view, setView] = useFilterMenuView<SkillListView>({
         key: "agenta:skills:view",
         fallback: DEFAULT_SKILL_LIST_VIEW,
         persist: ["group", "mode"],
     })
 
-    // The switch is half a query: off leaves archived skills out of the fetch, on brings them
-    // in, and the predicate in `deriveSkillList` then keeps only the ones that are.
+    // The archived switch also decides whether the query fetches archived skills.
     useEffect(() => {
         setShowArchived(view.archived)
     }, [setShowArchived, view.archived])
 
-    // The registry query already took the search, so every row here matches it. The shared
-    // sections do the item mapping — provenance, age, origin — so a row and the desktop's card
-    // describe a skill the same way; this screen only re-cuts them.
     const youLabel = t("common.you")
     const rows = useMemo<SkillListRow[]>(() => {
-        // The sections drop the raw item, and the author id lives only there.
-        const creators = new Map(
-            projectSkills.map((item) => [item.workflow_id ?? item.id ?? "", item.created_by_id]),
-        )
-        // The reader's own skills say "You", as every owner and creator column in the app does.
+        // The sections drop the raw item, so the author and the date are read from it here.
+        const raw = new Map(projectSkills.map((item) => [item.workflow_id ?? item.id ?? "", item]))
         const creatorName = (id: string) =>
             me?.id && id === String(me.id) ? youLabel : (ownerNames.get(id) ?? "")
         return buildRegistrySections(projectSkills)
             .sections.flatMap((section) => section.skills)
-            .map((item) => toSkillListRow(item, creatorName(creators.get(item.id) ?? "")))
+            .map((item) => {
+                const source = raw.get(item.id)
+                const date = Date.parse(source?.updated_at ?? source?.created_at ?? "")
+                return toSkillListRow(
+                    item,
+                    creatorName(source?.created_by_id ?? ""),
+                    Number.isNaN(date) ? 0 : date,
+                )
+            })
     }, [me?.id, ownerNames, projectSkills, youLabel])
     const repositories = useMemo(() => listRepositories(rows), [rows])
     // The group headings are text, so the groups are cut again when the language changes.
@@ -162,12 +151,9 @@ export const SkillListScreen = ({
 
     const term = search.trim()
     const isLoading = query.isPending
-    // "This project has no skills" is a claim about the project, so it is only ever made about
-    // the unnarrowed list — a search that matches nothing empties this one too.
     const projectHasSkills = rows.length > 0
     const retry = useCallback(() => invalidateSkillsListCache(), [])
     const resetFilters = useCallback(
-        // The grouping and the mode survive: they are how the reader chose to read the list.
         () => setView({...DEFAULT_SKILL_LIST_VIEW, group: view.group, mode: view.mode}),
         [setView, view.group, view.mode],
     )
@@ -254,8 +240,6 @@ export const SkillListScreen = ({
     )
 
     const body = query.isError ? (
-        // A failed fetch must not read as an empty project, so the error replaces the results
-        // rather than sitting under a header row that is no longer describing anything.
         <LoadError
             framed
             title={t("skills.list.loadFailed")}
@@ -333,16 +317,10 @@ export const SkillListScreen = ({
                 )
             }
             actions={
-                <>
-                    {projectEmpty ? null : (
-                        <HowThisWorksButton guide="skills" className="max-sm:hidden" />
-                    )}
-                    {/* One New skill button; the create page offers every way in (the design's F). */}
-                    <Button type="button" onClick={onNew}>
-                        <Plus aria-hidden />
-                        {compact ? t("skills.list.new") : t("skills.list.newSkill")}
-                    </Button>
-                </>
+                <Button type="button" onClick={onNew}>
+                    <Plus aria-hidden />
+                    {compact ? t("skills.list.new") : t("skills.list.newSkill")}
+                </Button>
             }
         >
             {projectEmpty ? (

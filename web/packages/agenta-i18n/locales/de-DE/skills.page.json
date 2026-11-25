@@ -53,5 +53,7 @@
     "branch": "Branch",
     "defaultBranch": "Standard-Branch",
     "version": "Version",
-    "unknown": "Unbekannt"
+    "unknown": "Unbekannt",
+    "backToSkills": "Zurück zu den Skills",
+    "createDescriptionManual": "Schreibe ihn, lade ihn hoch oder importiere ihn von GitHub."
 }

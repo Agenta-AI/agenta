@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {useT} from "@agenta/i18n"
+import {formatList, useT} from "@agenta/i18n"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {projectIdAtom} from "@agenta/shared/state"
 import {querySkillReferencedBy} from "@agenta/skills"
@@ -62,7 +62,7 @@ export const SkillBulkArchiveDialog = ({
                             {t("skills.list.bulkArchiveSkills")}
                         </span>
                         <span className="text-body text-foreground">
-                            {rows.map((row) => row.title).join(", ")}
+                            {formatList(rows.map((row) => row.title))}
                         </span>
                     </div>
                     {/* The counts said some agent uses them, but the lookup found none: no row. */}
@@ -76,7 +76,7 @@ export const SkillBulkArchiveDialog = ({
                                     ? t("skills.list.bulkArchiveNoAgents")
                                     : loadingAgents
                                       ? t("skills.list.bulkArchiveCheckingAgents")
-                                      : agents.join(", ")}
+                                      : formatList(agents)}
                             </span>
                         </div>
                     )}

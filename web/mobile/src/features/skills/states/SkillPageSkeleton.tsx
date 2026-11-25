@@ -13,12 +13,12 @@ export const SkillPageSkeleton = () => {
     return (
         <div role="status" aria-busy="true" className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
-                <SkeletonBlock className="h-[18px] w-24" />
+                <SkeletonBlock className="h-4.5 w-24" />
                 <SkeletonBlock shape="soft" className="h-15" />
             </div>
             <div className="flex flex-col gap-1">
                 <div className="flex h-7 items-center justify-between gap-3">
-                    <SkeletonBlock className="h-[18px] w-24" />
+                    <SkeletonBlock className="h-4.5 w-24" />
                     <SkeletonBlock className="h-5 w-48 max-sm:w-28" />
                 </div>
                 <SkeletonBlock shape="soft" className="h-[60dvh]" />

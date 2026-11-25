@@ -90,5 +90,7 @@
     "bulkArchived_other": "已归档 {{count}} 个 Skill",
     "bulkRestored_other": "已恢复 {{count}} 个 Skill",
     "bulkArchiveFailed_other": "无法归档 {{count}} 个 Skill",
-    "bulkRestoreFailed_other": "无法恢复 {{count}} 个 Skill"
+    "bulkRestoreFailed_other": "无法恢复 {{count}} 个 Skill",
+    "downloaded": "Skill 已下载",
+    "checkingUpdates": "正在检查更新…"
 }

@@ -89,5 +89,8 @@
     "fieldInvalid": "Confira o campo {{field}}.",
     "createFailed": "A habilidade não foi criada. Tente de novo.",
     "folderHasFile": "{{dir}} já tem um arquivo chamado {{name}}.",
-    "topLevelHasFile": "O nível superior já tem um arquivo chamado {{name}}."
+    "topLevelHasFile": "O nível superior já tem um arquivo chamado {{name}}.",
+    "created": "Habilidade criada",
+    "issueDescriptionTooLong": "A descrição tem mais de 1.024 caracteres.",
+    "noFilesNoDrop": "Nenhum arquivo ainda. Adicione scripts, modelos ou exemplos."
 }

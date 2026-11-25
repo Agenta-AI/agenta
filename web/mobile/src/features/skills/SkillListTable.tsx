@@ -5,6 +5,7 @@ import {useT} from "@agenta/i18n"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {
+    LIST_CARD_MIN_WIDTH,
     LIST_COLUMN_WIDTH,
     ListTable,
     type ListTableColumn,
@@ -16,15 +17,6 @@ import type {SkillGrouping, SkillListGroup, SkillListRow} from "./skillListView"
 import {SkillRowCells} from "./SkillRowCells"
 import {SkillSourceUpdateAction} from "./SkillSourceUpdateAction"
 
-/**
- * The columns, shared by the header row and every body row so the two can never drift.
- *
- * Identity takes twice the share of the reading columns; the kebab is fixed at the button's own
- * width so the reading columns keep their proportions.
- *
- * A phone drops Source and Used by rather than scrolling them off: the rows sit under a heading
- * that already names the source, and the drawer's header carries the usage.
- */
 type ListText = ReturnType<typeof useT<[typeof skillsListCatalog]>>
 
 const nameColumn = (t: ListText): ListTableColumn => ({
@@ -61,13 +53,13 @@ const wideColumns = (t: ListText, group: SkillGrouping): ListTableColumn[] => [
     usedByColumn(t),
     provenanceColumn(t, group),
     updatedColumn(t, LIST_COLUMN_WIDTH.time),
-    actionsColumn(t, "52px"),
+    actionsColumn(t, LIST_COLUMN_WIDTH.actionsWide),
 ]
 // A phone row is the Mark, the name, the time and the kebab.
 const narrowColumns = (t: ListText): ListTableColumn[] => [
     nameColumn(t),
     updatedColumn(t, LIST_COLUMN_WIDTH.timeCompact),
-    actionsColumn(t, "24px"),
+    actionsColumn(t, LIST_COLUMN_WIDTH.actions),
 ]
 
 /** Tailwind's `sm`. Below it Source and Used by go; the minima then fit a 375px screen. */
@@ -79,15 +71,7 @@ const NARROW_MIN_WIDTH = 320
 const repositoryIds = (group: SkillListGroup): string[] =>
     group.rows[0]?.repository ? group.rows.map((row) => row.id) : []
 
-/**
- * The skills registry in the shared frame — rows or cards over the same groups, in the same
- * frame the agents and automations lists use.
- *
- * Every row answers what it is, where it came from and when it last changed, and the whole row
- * opens the drawer; its only controls are the kebab and, once a check found one, an Update
- * mark. A repository's heading carries the one action that belongs to the group rather than
- * to a skill: checking upstream.
- */
+/** The skills registry in the shared list frame; a repository heading carries Check for updates. */
 export const SkillListTable = ({
     groups,
     view,
@@ -117,9 +101,6 @@ export const SkillListTable = ({
     collapsedKeys: ReadonlySet<string>
     onToggleGroup: (key: string) => void
 }) => {
-    // Picks the COLUMN SET, not a `display` value: header and body read one array. Asked as
-    // "wide?" because the shared hook starts false before it reads the viewport, and a phone
-    // is the common case here.
     const t = useT(skillsListCatalog)
     const narrow = !useMediaQuery(WIDE_QUERY)
 
@@ -138,12 +119,10 @@ export const SkillListTable = ({
             columns={narrow ? narrowColumns(t) : wideColumns(t, group)}
             minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
             view={view}
-            // A card holds three lines of description; narrower than this they wrap to four
-            // and the grid reads as a wall of text.
-            cardMinWidth={300}
-            // The column names stay put while the list scrolls, as they do on agents.
+            cardMinWidth={LIST_CARD_MIN_WIDTH}
             stickyHeader
             loading={isLoading}
+            skeleton={{mark: true, heading: group === "source"}}
             groups={groups}
             rowKey={(row) => row.id}
             onOpenRow={onOpen}

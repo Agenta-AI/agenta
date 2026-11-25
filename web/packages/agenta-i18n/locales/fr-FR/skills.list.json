@@ -110,5 +110,7 @@
     "bulkArchiveFailed_other": "Impossible d’archiver {{count}} skills",
     "bulkRestoreFailed_one": "Impossible de restaurer {{count}} skill",
     "bulkRestoreFailed_many": "Impossible de restaurer {{count}} skills",
-    "bulkRestoreFailed_other": "Impossible de restaurer {{count}} skills"
+    "bulkRestoreFailed_other": "Impossible de restaurer {{count}} skills",
+    "downloaded": "Skill téléchargé",
+    "checkingUpdates": "Recherche de mises à jour…"
 }

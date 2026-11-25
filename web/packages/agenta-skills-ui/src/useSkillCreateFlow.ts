@@ -6,6 +6,7 @@ import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {createSkillWorkflow, skillContentSchema} from "@agenta/skills"
 import {invalidateSkillsListCache, skillsResolveDataAtom} from "@agenta/skills/state"
+import {message} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
 
 import type {SkillCandidate} from "./SkillCandidateList"
@@ -44,6 +45,8 @@ export function useSkillCreateFlow({
     const [draft, setDraft] = useState<SkillDraft>(EMPTY_SKILL_DRAFT)
     const [attempted, setAttempted] = useState(false)
     const [busy, setBusy] = useState(false)
+    // Set once a create succeeds: the page stays locked until it navigates away.
+    const [done, setDone] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [scan, setScan] = useState<SkillUploadScan | null>(null)
     const [picked, setPicked] = useState<Set<string>>(new Set())
@@ -56,6 +59,7 @@ export function useSkillCreateFlow({
     const setStep = useCallback((next: SkillCreateStep) => {
         run.current += 1
         setBusy(false)
+        setDone(false)
         showStep(next)
     }, [])
 
@@ -66,6 +70,7 @@ export function useSkillCreateFlow({
         setDraft(EMPTY_SKILL_DRAFT)
         setAttempted(false)
         setBusy(false)
+        setDone(false)
         setError(null)
         setScan(null)
         setPicked(new Set())
@@ -76,6 +81,7 @@ export function useSkillCreateFlow({
         setDraft(next)
         setAttempted(false)
         setBusy(false)
+        setDone(false)
         setError(null)
         showStep("write")
     }, [])
@@ -140,11 +146,13 @@ export function useSkillCreateFlow({
         setError(null)
         try {
             const created = await createOne(toSkillContent(draft))
-            invalidateSkillsListCache()
+            // Stays busy: editing is locked while the page navigates away.
+            setDone(true)
             onCreated([created])
+            message.success(tNow("skills.editor.created"))
+            invalidateSkillsListCache()
         } catch (err) {
             setError(failure(err, tNow("skills.editor.createFailed")))
-        } finally {
             setBusy(false)
         }
     }, [createOne, draft, onCreated])
@@ -153,25 +161,27 @@ export function useSkillCreateFlow({
         if (!scan) return
         setBusy(true)
         setError(null)
-        const done = new Set<string>()
+        const added = new Set<string>()
         try {
             for (const candidate of scan.candidates.filter((c) => picked.has(c.dir))) {
                 const skill = candidate.skill as unknown as Record<string, unknown>
                 createdSoFar.current.push(await createOne(toSkillContent(toSkillDraft(skill))))
-                done.add(candidate.dir)
+                added.add(candidate.dir)
             }
             const created = createdSoFar.current
             createdSoFar.current = []
+            setDone(true)
             onCreated(created)
+            message.success(tNow("skills.editor.imported", {count: created.length}))
         } catch (err) {
             // Stay on the step: the created ones leave the list, the failed ones stay picked.
             setError(failure(err, tNow("skills.editor.importFailed")))
-            if (done.size) {
-                setScan({...scan, candidates: scan.candidates.filter((c) => !done.has(c.dir))})
-                setPicked((current) => new Set([...current].filter((key) => !done.has(key))))
+            if (added.size) {
+                setScan({...scan, candidates: scan.candidates.filter((c) => !added.has(c.dir))})
+                setPicked((current) => new Set([...current].filter((key) => !added.has(key))))
             }
         } finally {
-            if (done.size) invalidateSkillsListCache()
+            if (added.size) invalidateSkillsListCache()
             setBusy(false)
         }
     }, [createOne, onCreated, picked, scan])
@@ -198,12 +208,13 @@ export function useSkillCreateFlow({
     )
 
     const name = draftSkillName(draft)
+    // Not after a create: the list then holds the skill just made.
     const duplicate = useMemo(
         () =>
-            name
+            name && !done
                 ? registry.find((item) => (item.skill_name ?? item.name) === name && !item.archived)
                 : undefined,
-        [name, registry],
+        [done, name, registry],
     )
 
     return {
@@ -212,7 +223,7 @@ export function useSkillCreateFlow({
         draft,
         setDraft,
         attempted,
-        busy,
+        busy: busy || done,
         error,
         reset,
         write,

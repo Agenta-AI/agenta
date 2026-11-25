@@ -5,14 +5,7 @@ import {ArrowCircleUp, CheckCircle} from "@phosphor-icons/react"
 
 import {useSkillUpdates, useSkillUpdateStatus} from "./useSkillUpdates"
 
-/**
- * What a row or a card says beside its kebab once someone checked upstream: an Update control
- * while one is waiting, a mark once it landed, nothing otherwise. Reads the shared answer, so
- * the group heading's count and this control can never disagree.
- *
- * `compact` is the row's form — an icon at the kebab's own size, so the actions column stays one
- * width whether or not a row has something to update. A card has room for the word.
- */
+/** Beside the kebab after a check: Update while one waits, a mark once applied. `compact` is the row's icon form. */
 export const SkillUpdateCell = ({
     workflowId,
     compact = false,

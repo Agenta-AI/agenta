@@ -1,6 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {createT, useT} from "@agenta/i18n"
+import {createT, formatList, useT} from "@agenta/i18n"
 import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
 import {extractApiErrorMessage, timeAgo} from "@agenta/shared/utils"
 import {
@@ -180,6 +180,8 @@ export const SkillPageScreen = ({
                 message: t("skills.page.saveOwnBody", {repository: origin.repository ?? ""}),
                 okText: t("skills.page.save"),
                 cancelText: t("skills.page.keepEditing"),
+                // Not destructive: the primary button, not the red one (ACT-03).
+                danger: false,
                 onOk: commit,
             })
         else void commit()
@@ -192,7 +194,7 @@ export const SkillPageScreen = ({
             message: agents.length
                 ? t("skills.page.archiveUsedBody", {
                       count: agents.length,
-                      agents: agents.join(", "),
+                      agents: formatList(agents),
                   })
                 : t("skills.page.archiveBody"),
             okText: t("skills.page.archive"),
@@ -264,9 +266,14 @@ export const SkillPageScreen = ({
 
     let body: React.ReactNode
     const notFound = (
-        <p className="m-0 py-16 text-center text-label text-muted-foreground">
-            {t("skills.page.notFound")}
-        </p>
+        <div className="flex flex-col items-center gap-3 py-16">
+            <p className="m-0 text-center text-label text-muted-foreground">
+                {t("skills.page.notFound")}
+            </p>
+            <Button variant="outline" asChild>
+                <Link href={listHref}>{t("skills.page.backToSkills")}</Link>
+            </Button>
+        </div>
     )
     if (!item) {
         body = query.isPending ? (

@@ -83,5 +83,8 @@
     "fieldInvalid": "Check the {{field}} field.",
     "createFailed": "The skill was not created. Try again.",
     "folderHasFile": "{{dir}} already has a file named {{name}}.",
-    "topLevelHasFile": "The top level already has a file named {{name}}."
+    "topLevelHasFile": "The top level already has a file named {{name}}.",
+    "created": "Skill created",
+    "issueDescriptionTooLong": "The description is longer than 1,024 characters.",
+    "noFilesNoDrop": "No files yet. Add scripts, templates or examples."
 }

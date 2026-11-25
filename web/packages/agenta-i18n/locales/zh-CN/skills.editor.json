@@ -77,5 +77,8 @@
     "fieldInvalid": "请检查 {{field}} 字段。",
     "createFailed": "Skill 未创建。请重试。",
     "folderHasFile": "{{dir}} 中已有名为 {{name}} 的文件。",
-    "topLevelHasFile": "顶层已有名为 {{name}} 的文件。"
+    "topLevelHasFile": "顶层已有名为 {{name}} 的文件。",
+    "created": "Skill 已创建",
+    "issueDescriptionTooLong": "描述超过 1,024 个字符。",
+    "noFilesNoDrop": "还没有文件。添加脚本、模板或示例。"
 }

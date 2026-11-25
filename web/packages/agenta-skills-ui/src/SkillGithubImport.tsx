@@ -3,7 +3,12 @@ import {useState} from "react"
 import {createT, richText, useT} from "@agenta/i18n"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
-import {importSkillSource, scanSkillSource, type ScanCandidate} from "@agenta/skills"
+import {
+    importSkillSource,
+    scanSkillSource,
+    type ScanCandidate,
+    type SkillIssue,
+} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {message} from "@agenta/ui/app-message"
 import {Alert, Button, Field, Input, LoadingButton, SkeletonRows} from "@agenta/ui/ui"
@@ -23,6 +28,8 @@ interface Found {
     repo: string
     candidates: SkillCandidate[]
     unavailable: UnavailableSkill[]
+    /** Files the import leaves out (not text, or too large), by candidate. */
+    leftOut: Map<string, string[]>
 }
 
 const tNow = createT(skillsEditorCatalog)
@@ -37,6 +44,26 @@ const errorText = (err: unknown, fallback: string) => {
     if (/not a github repository/i.test(raw ?? "")) return tNow("skills.editor.notARepo")
     return raw || fallback
 }
+
+/** A parser issue in plain words; known codes get a sentence, others lose their code marks. */
+const issueText = (issue: SkillIssue | undefined): string | undefined => {
+    if (!issue) return undefined
+    switch (issue.code) {
+        case "description_too_long":
+            return tNow("skills.editor.issueDescriptionTooLong")
+        case "description_missing":
+            return tNow("skills.editor.descriptionMissing")
+        case "name_invalid":
+            return tNow("skills.editor.nameHint")
+        case "name_too_long":
+            return tNow("skills.editor.shorterName")
+        case "body_missing":
+            return tNow("skills.editor.instructionsMissing")
+    }
+    return issue.message?.replace(/`/g, "") || undefined
+}
+
+const SKIPPED_FILE = new Set(["file_not_text", "file_too_large"])
 
 const repoLabel = (url: string) =>
     url
@@ -81,6 +108,7 @@ export function SkillGithubImport({
             const already = new Set(response?.already_imported_paths ?? [])
             const candidates: SkillCandidate[] = []
             const unavailable: UnavailableSkill[] = []
+            const leftOut = new Map<string, string[]>()
             for (const c of response?.scan?.candidates ?? []) {
                 const title = c.skill?.name || c.path_in_repo
                 if (already.has(c.path_in_repo))
@@ -94,17 +122,22 @@ export function SkillGithubImport({
                         key: c.path_in_repo,
                         title,
                         reason: t("skills.editor.notValid"),
-                        detail: c.issues?.find((issue) => issue.message)?.message ?? undefined,
+                        detail: issueText(c.issues?.find((issue) => issue.code || issue.message)),
                     })
-                else
+                else {
+                    const skippedFiles = (c.warnings ?? []).flatMap((warning) =>
+                        warning.path && SKIPPED_FILE.has(warning.code ?? "") ? [warning.path] : [],
+                    )
+                    if (skippedFiles.length) leftOut.set(c.path_in_repo, skippedFiles)
                     candidates.push({
                         key: c.path_in_repo,
                         title,
                         description: c.skill?.description,
                         runsPrograms: runsPrograms(c),
                     })
+                }
             }
-            setFound({url: repoUrl, repo: repoLabel(repoUrl), candidates, unavailable})
+            setFound({url: repoUrl, repo: repoLabel(repoUrl), candidates, unavailable, leftOut})
             setPicked(new Set())
         } catch (err) {
             setError(errorText(err, t("skills.editor.readRepoFailed")))
@@ -135,10 +168,10 @@ export function SkillGithubImport({
                 return
             }
             const skipped = response?.skipped?.length ?? 0
-            if (skipped) {
-                const done = t("skills.editor.imported", {count: imported.length})
-                message.success(`${done} ${t("skills.editor.skippedCount", {count: skipped})}`)
-            }
+            const done = t("skills.editor.imported", {count: imported.length})
+            message.success(
+                skipped ? `${done} ${t("skills.editor.skippedCount", {count: skipped})}` : done,
+            )
             onImported(imported)
         } catch (err) {
             setError(errorText(err, t("skills.editor.importFailed")))
@@ -147,6 +180,14 @@ export function SkillGithubImport({
         }
     }
 
+    // Only the picked skills' left-out files, or every skill's while none is picked.
+    const leftOutFiles = found
+        ? [...found.leftOut].flatMap(([dir, paths]) =>
+              !picked.size || picked.has(dir)
+                  ? paths.map((path) => (dir && dir !== "." ? `${dir}/${path}` : path))
+                  : [],
+          )
+        : []
     const allPicked = Boolean(found?.candidates.length) && picked.size === found?.candidates.length
     const toggle = (key: string) =>
         setPicked((current) => {
@@ -165,7 +206,7 @@ export function SkillGithubImport({
                     if (url.trim() && !busy) void find()
                 }}
             >
-                <Field label={t("skills.editor.repoLink")} className="min-w-0 flex-[1_1_280px]">
+                <Field label={t("skills.editor.repoLink")} className="min-w-0 grow basis-70">
                     <Input
                         autoFocus
                         value={url}
@@ -236,9 +277,19 @@ export function SkillGithubImport({
                         unavailable={found.unavailable}
                         disabled={busy !== null}
                     />
+                    {leftOutFiles.length ? (
+                        <Alert
+                            type="warning"
+                            showIcon
+                            message={t("skills.editor.filesSkipped", {
+                                count: leftOutFiles.length,
+                                names: leftOutFiles.join(", "),
+                            })}
+                        />
+                    ) : null}
                     {found.candidates.length ? (
                         <div className="sticky bottom-0 z-sticky mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 border-0 border-t border-solid border-border-muted bg-background py-3">
-                            <span className="flex-[1_1_240px] text-meta text-muted-foreground">
+                            <span className="grow basis-60 text-meta text-muted-foreground">
                                 {t("skills.editor.trustNote")}
                             </span>
                             <LoadingButton

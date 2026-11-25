@@ -85,6 +85,7 @@ export const ListTable = <Row,>({
     minWidth = 572,
     loading = false,
     skeletonRows = 5,
+    skeleton,
     collapsedKeys,
     onToggleGroup,
     empty,
@@ -157,14 +158,17 @@ export const ListTable = <Row,>({
         )
     // `min(100%, …)`, so a container narrower than one card still gets one card, not a scroller.
     const cardGrid = `repeat(auto-fill, minmax(min(100%, ${cardMinWidth}px), 1fr))`
-    // One value for the rows AND their skeleton, so loading holds the rhythm the rows arrive in.
-    // One row height per list (ROW-01), the same on every screen: a meta line fills the row.
-    // A phone row is at least 44px, the tap target (one-line rows are shorter on a pointer).
+    // ROW-01: shared by rows and skeleton; py-1 keeps a Mark + two-line row at exactly row-double.
     const rowPad =
-        density === "compact" ? "min-h-row-single py-1 max-sm:min-h-11" : "min-h-row-double py-1.5"
+        density === "compact" ? "min-h-row-single py-1 max-sm:min-h-11" : "min-h-row-double py-1"
     // ROW-04: 4px between one-line rows, 8px between two-line rows.
     const rowGap = density === "compact" ? "mb-1 last:mb-0" : "mb-2 last:mb-0"
     const isEmpty = groups.every((group) => group.rows.length === 0)
+    const skeletonHeading = skeleton?.heading ? (
+        <div className="flex items-center pb-1.5 pt-3.5">
+            <SkeletonBlock active className="h-4.5 w-32 rounded" />
+        </div>
+    ) : null
     // A grid has no column header, so a stuck heading sits at the scroller's own top.
     // Selection lives in the header row (select all, the bulk bar), so it keeps the header.
     const hideHeader = hideHeaderProp && !selecting
@@ -273,39 +277,35 @@ export const ListTable = <Row,>({
 
                 {loading ? (
                     isGrid ? (
-                        // Card-shaped, in the real grid: a mark, a name and two lines of description,
-                        // so the cards arrive into the slots the skeleton was already holding.
-                        <div
-                            aria-hidden
-                            className="grid gap-3"
-                            style={{gridTemplateColumns: cardGrid}}
-                        >
-                            {Array.from({length: skeletonRows}, (_, tile) => (
-                                <div key={tile} className={CARD_CHROME}>
-                                    <div className="flex items-center gap-2">
+                        // Card-shaped, in the real grid: a mark, a name and two lines of description.
+                        <div aria-hidden>
+                            {skeletonHeading}
+                            <div className="grid gap-3" style={{gridTemplateColumns: cardGrid}}>
+                                {Array.from({length: skeletonRows}, (_, tile) => (
+                                    <div key={tile} className={CARD_CHROME}>
+                                        <div className="flex items-center gap-2">
+                                            <SkeletonBlock
+                                                active
+                                                className="size-8 shrink-0 rounded-md"
+                                            />
+                                            <SkeletonBlock active className="h-4 w-1/2 rounded" />
+                                        </div>
+                                        <SkeletonBlock active className="h-3.5 w-full rounded" />
                                         <SkeletonBlock
                                             active
-                                            className="size-7 shrink-0 rounded-md"
+                                            className={cn(
+                                                "h-3.5 rounded",
+                                                SKELETON_WIDTHS[tile % SKELETON_WIDTHS.length],
+                                            )}
                                         />
-                                        <SkeletonBlock active className="h-4 w-1/2 rounded" />
                                     </div>
-                                    <SkeletonBlock active className="h-3.5 w-full rounded" />
-                                    <SkeletonBlock
-                                        active
-                                        className={cn(
-                                            "h-3.5 rounded",
-                                            SKELETON_WIDTHS[tile % SKELETON_WIDTHS.length],
-                                        )}
-                                    />
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
                     ) : (
-                        // The real columns, in the real row rhythm: a list that loads as a spinner and
-                        // then snaps into a table moves everything under the reader's cursor. Bars
-                        // vary in width down each column so the block reads as text, not as a grid of
-                        // identical pills.
+                        // STATE-02: the real columns in the real row rhythm.
                         <div aria-hidden>
+                            {skeletonHeading}
                             {Array.from({length: skeletonRows}, (_, row) => (
                                 <div
                                     key={row}
@@ -317,26 +317,54 @@ export const ListTable = <Row,>({
                                     )}
                                     style={{gridTemplateColumns: grid}}
                                 >
-                                    {allColumns.map((column, index) => (
-                                        // `SkeletonBlock`, not `Skeleton`: the latter is antd's
-                                        // composite (avatar + title + paragraph) and paints nothing
-                                        // of its own — a bare one renders a transparent box.
-                                        <SkeletonBlock
-                                            active
-                                            key={column.key}
-                                            className={cn(
-                                                // The height of the line the cell's text will sit on,
-                                                // not a hair less: a thinner bar reads as a rule
-                                                // between rows rather than as text on its way.
-                                                "h-5 rounded",
-                                                SKELETON_WIDTHS[
-                                                    (row + index) % SKELETON_WIDTHS.length
-                                                ],
-                                                // A control column holds an icon, not a phrase.
-                                                column.srOnly && "w-full",
-                                            )}
-                                        />
-                                    ))}
+                                    {allColumns.map((column, index) =>
+                                        skeleton?.mark && index === (selecting ? 1 : 0) ? (
+                                            <span
+                                                key={column.key}
+                                                className="flex min-w-0 items-center gap-3"
+                                            >
+                                                <SkeletonBlock
+                                                    active
+                                                    className="size-8 shrink-0 rounded-md"
+                                                />
+                                                <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                                                    <SkeletonBlock
+                                                        active
+                                                        className={cn(
+                                                            "h-4 rounded",
+                                                            SKELETON_WIDTHS[
+                                                                row % SKELETON_WIDTHS.length
+                                                            ],
+                                                        )}
+                                                    />
+                                                    <SkeletonBlock
+                                                        active
+                                                        className={cn(
+                                                            "h-3 rounded",
+                                                            SKELETON_WIDTHS[
+                                                                (row + 2) % SKELETON_WIDTHS.length
+                                                            ],
+                                                        )}
+                                                    />
+                                                </span>
+                                            </span>
+                                        ) : (
+                                            // `SkeletonBlock`, not antd's `Skeleton`, which paints nothing alone.
+                                            <SkeletonBlock
+                                                active
+                                                key={column.key}
+                                                className={cn(
+                                                    // The text line's height; thinner reads as a rule.
+                                                    "h-5 rounded",
+                                                    SKELETON_WIDTHS[
+                                                        (row + index) % SKELETON_WIDTHS.length
+                                                    ],
+                                                    // A control column holds an icon, not a phrase.
+                                                    column.srOnly && "w-full",
+                                                )}
+                                            />
+                                        ),
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -448,9 +476,9 @@ export const ListTable = <Row,>({
                                                         className={cn(
                                                             "group",
                                                             CARD_CHROME,
-                                                            // Hover: the `accent` fill only, no shadow or lift (SURF-04).
+                                                            // Fill fades in and the card rises 2px (user decision), none under reduced motion.
                                                             opens(row) &&
-                                                                "cursor-pointer transition-colors duration-[var(--duration-fast)] ease-out hover:bg-accent motion-reduce:transition-none",
+                                                                "cursor-pointer transition-[background-color,translate] duration-[var(--duration-base)] ease-out hover:-translate-y-0.5 hover:bg-accent motion-reduce:transition-none motion-reduce:hover:translate-y-0",
                                                             opens(row) && FOCUS_RING,
                                                             isSelected(row) &&
                                                                 "bg-selected hover:bg-selected",

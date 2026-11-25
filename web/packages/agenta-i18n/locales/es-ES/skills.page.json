@@ -56,5 +56,7 @@
     "branch": "Rama",
     "defaultBranch": "Rama predeterminada",
     "version": "Versión",
-    "unknown": "Desconocida"
+    "unknown": "Desconocida",
+    "backToSkills": "Volver a las skills",
+    "createDescriptionManual": "Escríbela, súbela o impórtala desde GitHub."
 }

@@ -90,5 +90,7 @@
     "bulkArchived_other": "{{count}} 個のスキルをアーカイブしました",
     "bulkRestored_other": "{{count}} 個のスキルを復元しました",
     "bulkArchiveFailed_other": "{{count}} 個のスキルをアーカイブできませんでした",
-    "bulkRestoreFailed_other": "{{count}} 個のスキルを復元できませんでした"
+    "bulkRestoreFailed_other": "{{count}} 個のスキルを復元できませんでした",
+    "downloaded": "スキルをダウンロードしました",
+    "checkingUpdates": "更新を確認しています…"
 }

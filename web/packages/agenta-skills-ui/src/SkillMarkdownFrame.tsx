@@ -42,7 +42,7 @@ export function SkillMarkdownFrame({
                 <div
                     className={cn(
                         "flex flex-col",
-                        fill ? "min-h-0 flex-1" : "min-h-[280px] [&_.md-prose]:min-h-[280px]",
+                        fill ? "min-h-0 flex-1" : "min-h-70 [&_.md-prose]:min-h-70",
                     )}
                 >
                     <MarkdownEditor

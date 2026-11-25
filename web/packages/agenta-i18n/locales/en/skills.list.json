@@ -100,5 +100,7 @@
     "bulkArchiveFailed_one": "Couldn't archive {{count}} skill",
     "bulkArchiveFailed_other": "Couldn't archive {{count}} skills",
     "bulkRestoreFailed_one": "Couldn't restore {{count}} skill",
-    "bulkRestoreFailed_other": "Couldn't restore {{count}} skills"
+    "bulkRestoreFailed_other": "Couldn't restore {{count}} skills",
+    "downloaded": "Skill downloaded",
+    "checkingUpdates": "Checking for updates…"
 }
