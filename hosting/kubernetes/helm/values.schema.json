@@ -1093,6 +1093,11 @@
         "enabled": {
           "type": "boolean",
           "description": "AGENTA_TELEMETRY_ENABLED."
+        },
+        "instanceKind": {
+          "type": "string",
+          "enum": ["", "production", "development", "ci", "test"],
+          "description": "AGENTA_TELEMETRY_INSTANCE_KIND. Empty lets the API detect it."
         }
       }
     },

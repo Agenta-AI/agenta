@@ -26,7 +26,10 @@ async def test_install_ping_table_matches_the_payload_on_the_wire(monkeypatch):
     await telemetry_service.capture(
         telemetry_service.INSTANCE_INSTALLED_EVENT,
         str(instance_id),
-        dict(telemetry_service.INSTANCE_INSTALLED_PROPERTIES),
+        {
+            **telemetry_service.INSTANCE_INSTALLED_PROPERTIES,
+            "instance_kind": "production",
+        },
     )
     telemetry_service._sync_client.cache_clear()
 
