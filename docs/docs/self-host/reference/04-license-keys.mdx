@@ -61,16 +61,20 @@ The free registration key puts the instance on the Registered plan (`self_hosted
 To request a free key:
 
 1. Sign in as the instance admin.
-2. Open **Settings > License**. With no key on the instance, the tab shows **Get a free key**.
-3. Enter an email, select "Send me product updates. The free key needs this.", and select **Send me a key**.
+2. Open **Settings > License**. With no key on the instance, the tab shows **Register this instance for free**.
+3. Enter an email and select **Send me a free key**. The box "Send me security and product updates (about once a month)." starts selected. You can clear it. The key does not need it.
 
-The instance sends the email, the instance id, the Agenta version and the value of `AGENTA_WEB_URL` to Agenta. Agenta uses `AGENTA_WEB_URL` only to build the link in the email. Agenta keeps the email, the Agenta version and the instance id in its contact list. Registration links the instance to the email. Agenta sends product updates to that address. Agenta sends an email to that address with the key and a link to your instance. Open the link while signed in as the instance admin, and confirm **Add this license key?** to add the key. You can also paste the key in **License key**.
+The instance sends the email, the instance id, your user id on the instance, the Agenta version and the value of `AGENTA_WEB_URL` to Agenta. Agenta uses `AGENTA_WEB_URL` only to build the link in the email. Agenta keeps the email, the Agenta version and the instance id in its contact list. Agenta sends security notices to every registered email. Agenta sends product updates only when the box is selected.
 
-The instance admin also sees the same offer once, after the onboarding questions.
+Registering links your instance to your email in our analytics. Instances that do not register stay anonymous. This happens on Agenta's side when you register, also when the instance has telemetry off.
 
-The free key does not expire and has no seat count. It does not change the telemetry switch.
+Agenta sends an email to that address with the key and a link to your instance. Open the link while signed in as the instance admin, and confirm **Add this license key?** to add the key. You can also select **Add a license key** on the License tab and paste the key.
 
-The OSS image also shows **Get a free key**, but only the EE image can add a key.
+The instance admin also sees the same offer once as a step after the onboarding questions. When you register from that step, it also sends your answers to the onboarding questions (role, team size, how you found Agenta), as the chosen options only. An instance that upgrades to this version shows the offer once to the instance admin, because that admin does not see the onboarding again. **Skip** hides it for the whole instance.
+
+You keep what your key unlocks. The free key does not expire and has no seat count. It does not change the telemetry switch.
+
+The OSS image also shows the offer, but only the EE image can add a key.
 
 ## When a key expires
 
