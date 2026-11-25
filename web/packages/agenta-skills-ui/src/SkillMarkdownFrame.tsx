@@ -11,6 +11,7 @@ export function SkillMarkdownFrame({
     readOnly = false,
     invalid = false,
     toolbar,
+    fill = false,
 }: {
     value: string
     onChange: (next: string) => void
@@ -21,6 +22,8 @@ export function SkillMarkdownFrame({
     invalid?: boolean
     /** Where the formatting tools go; null until the host's slot mounts. */
     toolbar: HTMLElement | null
+    /** Take the parent's height and scroll inside, instead of growing with the text. */
+    fill?: boolean
 }) {
     const writing = !readOnly
 
@@ -28,11 +31,17 @@ export function SkillMarkdownFrame({
         <div
             className={cn(
                 "md-doc flex min-w-0 flex-col rounded-lg border border-solid",
+                fill && "h-full min-h-0 overflow-hidden",
                 invalid ? "border-destructive" : "border-border-muted",
             )}
         >
             {writing ? (
-                <div className="flex min-h-[280px] flex-col [&_.md-prose]:min-h-[280px]">
+                <div
+                    className={cn(
+                        "flex flex-col",
+                        fill ? "min-h-0 flex-1" : "min-h-[280px] [&_.md-prose]:min-h-[280px]",
+                    )}
+                >
                     <MarkdownEditor
                         value={value}
                         onChange={onChange}
@@ -43,10 +52,11 @@ export function SkillMarkdownFrame({
                         bordered={false}
                         defaultView="rendered"
                         hideHeader
+                        grow={fill}
                     />
                 </div>
             ) : value.trim() ? (
-                <div className="px-4 py-3">
+                <div className={cn("px-4 py-3", fill && "min-h-0 flex-1 overflow-y-auto")}>
                     <MarkdownPreview content={value} />
                 </div>
             ) : (

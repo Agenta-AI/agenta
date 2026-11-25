@@ -19,6 +19,7 @@ import {
 } from "./skillDraft"
 import {SkillFilesPanel} from "./SkillFilesPanel"
 import {SkillMarkdownFrame} from "./SkillMarkdownFrame"
+import {useFillPageHeight} from "./useFillPageHeight"
 
 export interface SkillEditorProps {
     draft: SkillDraft
@@ -62,6 +63,8 @@ export function SkillEditor({
     // Slots in the label rows that the markdown formatting tools render into.
     const [bodyTools, setBodyTools] = useState<HTMLDivElement | null>(null)
     const [fileTools, setFileTools] = useState<HTMLDivElement | null>(null)
+    const [fileBox, setFileBox] = useState<HTMLDivElement | null>(null)
+    const fileHeight = useFillPageHeight(fileBox)
 
     // Latest draft and handler in refs, so the files panel gets stable callbacks and skips keystrokes.
     const latest = useRef(draft)
@@ -143,6 +146,7 @@ export function SkillEditor({
             {current.executable && !draft.allowExecutable ? (
                 <p className="m-0 text-meta text-warning">{t("skills.editor.turnOnPrograms")}</p>
             ) : null}
+            <div ref={setFileBox} style={{height: fileHeight}} className="flex min-h-0 flex-col">
             {isMarkdownPath(current.path) ? (
                 <SkillMarkdownFrame
                     value={current.content}
@@ -151,6 +155,7 @@ export function SkillEditor({
                     empty={t("skills.editor.nothingWritten")}
                     readOnly={readOnly}
                     toolbar={fileTools}
+                    fill
                 />
             ) : (
                 <Textarea
@@ -158,11 +163,11 @@ export function SkillEditor({
                     value={current.content}
                     readOnly={readOnly}
                     spellCheck={false}
-                    rows={18}
                     onChange={(event) => setFile({content: event.target.value})}
-                    className="field-sizing-content resize-none font-mono text-code"
+                    className="h-full resize-none font-mono text-code"
                 />
             )}
+            </div>
         </section>
     ) : null
 

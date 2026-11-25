@@ -22,7 +22,7 @@
     "filesCount_one": "Archivos · {{count}}",
     "filesCount_many": "Archivos · {{count}}",
     "filesCount_other": "Archivos · {{count}}",
-    "filesHint": "Scripts, plantillas y ejemplos que el agente puede abrir mientras sigue las instrucciones.",
+    "filesHint": "Scripts y plantillas que el agente puede abrir.",
     "add": "Añadir",
     "newFile": "Archivo nuevo",
     "uploadFiles": "Subir archivos",

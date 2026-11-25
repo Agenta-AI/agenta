@@ -20,7 +20,7 @@
     "nothingWritten": "このスキルには手順がありません。",
     "files": "ファイル",
     "filesCount_other": "ファイル · {{count}}",
-    "filesHint": "エージェントが手順に従う間に開けるスクリプト、テンプレート、例です。",
+    "filesHint": "エージェントが開けるスクリプトとテンプレートです。",
     "add": "追加",
     "newFile": "新しいファイル",
     "uploadFiles": "ファイルをアップロード",

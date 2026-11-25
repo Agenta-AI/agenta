@@ -20,7 +20,7 @@
     "nothingWritten": "此 Skill 没有说明。",
     "files": "文件",
     "filesCount_other": "文件 · {{count}}",
-    "filesHint": "Agent 在遵循说明时可以打开的脚本、模板和示例。",
+    "filesHint": "Agent 可以打开的脚本和模板。",
     "add": "添加",
     "newFile": "新建文件",
     "uploadFiles": "上传文件",

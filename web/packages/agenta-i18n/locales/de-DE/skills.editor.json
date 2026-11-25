@@ -21,7 +21,7 @@
     "files": "Dateien",
     "filesCount_one": "Dateien · {{count}}",
     "filesCount_other": "Dateien · {{count}}",
-    "filesHint": "Skripte, Vorlagen und Beispiele, die der Agent öffnen kann, während er den Anweisungen folgt.",
+    "filesHint": "Skripte und Vorlagen, die der Agent öffnen kann.",
     "add": "Hinzufügen",
     "newFile": "Neue Datei",
     "uploadFiles": "Dateien hochladen",

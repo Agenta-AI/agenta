@@ -21,7 +21,7 @@
     "files": "Files",
     "filesCount_one": "Files · {{count}}",
     "filesCount_other": "Files · {{count}}",
-    "filesHint": "Scripts, templates and examples the agent can open while it follows the instructions.",
+    "filesHint": "Scripts and templates the agent can open.",
     "add": "Add",
     "newFile": "New file",
     "uploadFiles": "Upload files",
