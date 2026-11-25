@@ -90,11 +90,11 @@ def install_row(monkeypatch):
     return state
 
 
-def _request(path="/apps", method="POST", **state):
+def _request(path="/apps", method="POST", headers=None, **state):
     return SimpleNamespace(
         url=SimpleNamespace(path=path),
         method=method,
-        headers={"Authorization": "ApiKey abc"},
+        headers={"Authorization": "ApiKey abc", **(headers or {})},
         cookies={},
         state=SimpleNamespace(**state),
     )
@@ -126,7 +126,8 @@ def _assert_no_personal_data(call):
     assert "username" not in text
     assert "organization_name" not in text
     assert "cloud_url" not in text
-    assert "$set" not in call.get("properties", {})
+    # The one person property a self-hosted event may set is the user's role.
+    assert set(call.get("properties", {}).get("$set", {})) <= {"role"}
 
 
 # --- the gate ---------------------------------------------------------------
@@ -335,6 +336,118 @@ async def test_self_hosted_sign_up_has_no_email_or_url(
     assert call["distinct_id"] == f"{INSTANCE_ID}:{USER_ID}"
     assert "agenta.example.internal" not in " ".join(_flatten(call))
     _assert_no_personal_data(call)
+
+
+@pytest.mark.asyncio
+async def test_self_hosted_event_carries_the_version_and_sets_the_role(
+    monkeypatch, self_hosted, queued
+):
+    monkeypatch.setattr(analytics, "get_agenta_version", lambda: "v0.129.0")
+    monkeypatch.setattr(analytics, "_request_role", AsyncMock(return_value="editor"))
+
+    await analytics.analytics_middleware(
+        _request(user_email=EMAIL, user_id=str(USER_ID), project_id="p1"),
+        _call_next,
+    )
+
+    [call] = queued.calls
+    assert call["properties"]["agenta_version"] == "v0.129.0"
+    assert call["properties"]["$set"] == {"role": "editor"}
+    _assert_no_personal_data(call)
+
+
+@pytest.mark.asyncio
+async def test_self_hosted_event_without_a_role_sets_nothing(self_hosted, queued):
+    # No memberships service in a unit test: the lookup fails and sets no role.
+    await analytics.analytics_middleware(
+        _request(user_email=EMAIL, user_id=str(USER_ID), project_id="p1"),
+        _call_next,
+    )
+
+    [call] = queued.calls
+    assert "$set" not in call["properties"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "membership, expected",
+    [
+        (None, None),
+        (SimpleNamespace(is_organization_owner=True, role="admin"), "owner"),
+        (SimpleNamespace(is_organization_owner=False, role="viewer"), "viewer"),
+    ],
+)
+async def test_role_comes_from_the_cached_membership(monkeypatch, membership, expected):
+    service = SimpleNamespace(resolve=AsyncMock(return_value=membership))
+    monkeypatch.setattr(analytics, "get_memberships_service", lambda: service)
+
+    role = await analytics._request_role(
+        _request(user_id=str(USER_ID), project_id=str(INSTANCE_ID))
+    )
+
+    assert role == expected
+    service.resolve.assert_awaited_once_with(user_id=USER_ID, project_id=INSTANCE_ID)
+
+
+@pytest.mark.parametrize(
+    "headers, expected",
+    [
+        (
+            {"x-fern-sdk-name": "agenta", "x-fern-sdk-version": "0.70.1"},
+            {"sdk_name": "agenta", "sdk_version": "0.70.1"},
+        ),
+        (
+            {"user-agent": "python-httpx/0.28.1"},
+            {"sdk_name": "python-httpx", "sdk_version": "0.28.1"},
+        ),
+        (
+            {"user-agent": "OTel-OTLP-Exporter-Python/1.30.0"},
+            {"sdk_name": "OTel-OTLP-Exporter-Python", "sdk_version": "1.30.0"},
+        ),
+        ({"user-agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/131.0"}, {}),
+        ({"user-agent": "curl"}, {}),
+        ({}, {}),
+    ],
+)
+def test_sdk_name_and_version_come_from_the_client_headers(headers, expected):
+    assert analytics._client_sdk(_request(headers=headers)) == expected
+
+
+@pytest.mark.asyncio
+async def test_api_event_carries_the_sdk_that_called(self_hosted, queued):
+    await analytics.analytics_middleware(
+        _request(
+            user_email=EMAIL,
+            user_id=str(USER_ID),
+            headers={"user-agent": "python-httpx/0.28.1"},
+        ),
+        _call_next,
+    )
+
+    [call] = queued.calls
+    assert call["properties"]["sdk_name"] == "python-httpx"
+    assert call["properties"]["sdk_version"] == "0.28.1"
+
+
+@pytest.mark.asyncio
+async def test_sign_up_carries_the_version(monkeypatch, self_hosted, queued):
+    monkeypatch.setattr(
+        overrides,
+        "ensure_auth_info_not_blocked",
+        AsyncMock(side_effect=lambda auth_info: auth_info),
+    )
+    monkeypatch.setattr(overrides, "get_user_with_email", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        overrides,
+        "create_accounts",
+        AsyncMock(return_value=SimpleNamespace(id=USER_ID, email=EMAIL)),
+    )
+    monkeypatch.setattr(overrides, "get_agenta_version", lambda: "v0.129.0")
+
+    await overrides._create_account(EMAIL, "uid")
+
+    [call] = queued.calls
+    assert call["properties"]["agenta_version"] == "v0.129.0"
 
 
 # --- cloud: as today --------------------------------------------------------
@@ -561,10 +674,12 @@ async def test_docs_list_every_api_event_field(monkeypatch, self_hosted, queued)
         "create_accounts",
         AsyncMock(return_value=SimpleNamespace(id=USER_ID, email=EMAIL)),
     )
+    monkeypatch.setattr(analytics, "_request_role", AsyncMock(return_value="editor"))
 
     await analytics.analytics_middleware(
         _request(
             path="/organizations/x/invite",
+            headers={"user-agent": "python-httpx/0.28.1"},
             user_email=EMAIL,
             user_id=str(USER_ID),
             project_id="p1",

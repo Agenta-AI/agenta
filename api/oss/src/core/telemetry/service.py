@@ -7,6 +7,7 @@ from posthog import Posthog
 
 from oss.src.core.instances.service import get_instance_id, instances_dao
 from oss.src.core.telemetry.dtos import InstanceTelemetry, TelemetryStatus
+from oss.src.core.telemetry.runtime import InstanceStarted, collect_runtime_facts
 from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -23,8 +24,12 @@ INSTALL_PING_TIMEOUT_SECONDS = 5
 # The free key from registration. It does not turn telemetry on.
 REGISTERED_PLAN = "self_hosted_registered"
 
-# What the PostHog library adds to every event. Instance events send only their own
-# properties, so these are dropped before the send.
+INSTANCE_STARTED_EVENT = "instance_started"
+STARTUP_EVENT_TIMEOUT_SECONDS = 5
+
+# What the PostHog library adds to every event. The install ping is sent even with the
+# switch off, so it sends only its own properties and these are dropped before the send.
+# Every other event keeps them.
 _LIBRARY_PROPERTIES = (
     "$lib",
     "$lib_version",
@@ -96,7 +101,11 @@ async def instance_telemetry_for(user_id: UUID, email: str) -> InstanceTelemetry
     )
 
 
-def _without_library_properties(message: Dict[str, Any]) -> Dict[str, Any]:
+def _install_ping_without_library_properties(
+    message: Dict[str, Any],
+) -> Dict[str, Any]:
+    if message.get("event") != INSTANCE_INSTALLED_EVENT:
+        return message
     properties = message.get("properties") or {}
     for key in _LIBRARY_PROPERTIES:
         properties.pop(key, None)
@@ -110,7 +119,7 @@ def _sync_client(timeout: int) -> Posthog:
         host=env.posthog.api_url,
         sync_mode=True,
         timeout=timeout,
-        before_send=_without_library_properties,
+        before_send=_install_ping_without_library_properties,
     )
 
 
@@ -124,8 +133,9 @@ async def capture(
 ) -> None:
     """Send one event and return once PostHog accepted it; raise when it did not.
 
-    For instance events only (install ping, telemetry heartbeat). Per-user events use
-    the queued client from `_load_posthog()`. A fixed `uuid` lets PostHog drop a copy.
+    For instance events only (install ping, startup event, telemetry heartbeat).
+    Per-user events use the queued client from `_load_posthog()`. A fixed `uuid`
+    lets PostHog drop a copy.
     """
 
     sent = await asyncio.to_thread(
@@ -197,15 +207,54 @@ async def send_install_ping() -> None:
         )
 
 
+async def send_startup_event() -> None:
+    """Send `instance_started` once per API process start, when telemetry is on.
+
+    A failed send is logged and not retried: the next start sends a new one.
+    """
+
+    if env.stripe.enabled:
+        return
+
+    try:
+        if not await telemetry_enabled():
+            return
+        instance_id = str(await get_instance_id())
+        facts = await collect_runtime_facts()
+        started = InstanceStarted(instance_id=instance_id, **facts.model_dump())
+        await capture(
+            INSTANCE_STARTED_EVENT,
+            instance_id,
+            {
+                **started.model_dump(mode="json"),
+                "$groups": {"instance": instance_id},
+                "$process_person_profile": False,
+            },
+            timeout=STARTUP_EVENT_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Startup event not sent", reason=type(exc).__name__)
+
+
 _background_tasks: set[asyncio.Task] = set()
+
+
+def _run_in_background(coroutine) -> None:
+    task = asyncio.create_task(coroutine)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 def schedule_install_ping() -> None:
     """Send the install ping without holding up the caller."""
 
-    task = asyncio.create_task(send_install_ping())
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
+    _run_in_background(send_install_ping())
+
+
+def schedule_startup_event() -> None:
+    """Send the startup event without holding up the start."""
+
+    _run_in_background(send_startup_event())
 
 
 _STATUS_REASONS = {
