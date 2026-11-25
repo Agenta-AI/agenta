@@ -36,15 +36,17 @@ OTHER_INSTANCE = "other_instance"
 
 
 async def _this_instance_id() -> Optional[UUID]:
-    """This instance's id, or None when the image cannot tell it yet."""
-    try:
-        # The instance id module ships with the telemetry change; hoist when it lands.
-        from oss.src.core.instances.service import get_instance_id  # noqa: PLC0415
+    """This instance's id, or None when the image has no instance id module (#8237).
 
-        return await get_instance_id()
-    except Exception:  # pylint: disable=broad-exception-caught
-        log.warning("[licenses] the instance id is not available", exc_info=True)
+    Any other error raises, so a failed read never drops a valid free key and never
+    puts a state without the key in the shared cache."""
+    try:
+        # The instance id module ships with #8237; hoist this import when it lands.
+        from oss.src.core.instances.service import get_instance_id  # noqa: PLC0415
+    except ImportError:
+        log.warning("[licenses] the instance id module is not in this image")
         return None
+    return await get_instance_id()
 
 
 async def check_instance(license_key: LicenseKey) -> None:

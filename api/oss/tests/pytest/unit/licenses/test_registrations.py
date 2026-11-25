@@ -36,6 +36,7 @@ def agenta(monkeypatch):
         registrations, "_instance_id", AsyncMock(return_value=INSTANCE_ID)
     )
     monkeypatch.setattr(registrations, "_agenta_version", lambda: "v0.128.11")
+    monkeypatch.setattr(registrations, "_instance_kind", lambda: "production")
     return state
 
 
@@ -82,12 +83,24 @@ async def test_registration_sends_the_instance_details_to_agenta(admin, agenta):
     assert json.loads(call.content) == {
         "email": "ada@example.com",
         "instance_id": str(INSTANCE_ID),
+        "instance_kind": "production",
         "agenta_version": "v0.128.11",
         "web_url": "https://agenta.example.com",
         "user_id": str(admin.user_id),
         "product_updates": True,
         "survey": SURVEY,
     }
+
+
+@pytest.mark.asyncio
+async def test_registration_sends_the_test_kind_of_a_test_stack(
+    admin, agenta, monkeypatch
+):
+    monkeypatch.setattr(registrations, "_instance_kind", lambda: "test")
+
+    await _register()
+
+    assert json.loads(agenta.calls[0].content)["instance_kind"] == "test"
 
 
 @pytest.mark.asyncio
@@ -129,7 +142,7 @@ async def test_registration_answers_502_when_agenta_fails(admin, agenta):
         await _register()
 
     assert error.value.status_code == 502
-    assert error.value.detail == "We could not reach Agenta. Try again later."
+    assert error.value.detail == "We could not send your key. Try again later."
 
 
 @pytest.mark.asyncio
@@ -172,50 +185,70 @@ async def test_registration_answers_502_when_the_instance_id_is_not_wired(
     assert agenta.calls == []
 
 
+@pytest.mark.asyncio
+async def test_registration_answers_502_when_the_instance_kind_is_not_wired(
+    admin, agenta, monkeypatch
+):
+    def missing():
+        raise ModuleNotFoundError(name="oss.src.core.instances.service")
+
+    monkeypatch.setattr(registrations, "_instance_kind", missing)
+
+    with pytest.raises(HTTPException) as error:
+        await _register()
+
+    assert error.value.status_code == 502
+    assert agenta.calls == []
+
+
 @pytest.fixture
-def prompt(monkeypatch):
+def dismiss_offer(monkeypatch):
     dismiss = AsyncMock()
-    monkeypatch.setattr(licenses_router, "dismiss_registration_prompt", dismiss)
+    monkeypatch.setattr(licenses_router, "dismiss_registration_offer", dismiss)
     return dismiss
 
 
 @pytest.mark.asyncio
-async def test_the_instance_admin_dismisses_the_registration_prompt(admin, prompt):
-    await licenses_router.LicensesRouter().dismiss_instance_registration_prompt(
+async def test_the_instance_admin_dismisses_the_registration_offer(
+    admin, dismiss_offer
+):
+    await licenses_router.LicensesRouter().dismiss_instance_registration_offer(
         request=None
     )
 
-    prompt.assert_awaited_once()
+    dismiss_offer.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_a_member_cannot_dismiss_the_registration_prompt(admin, prompt):
+async def test_a_member_cannot_dismiss_the_registration_offer(admin, dismiss_offer):
     admin.return_value = False
 
     with pytest.raises(HTTPException) as error:
-        await licenses_router.LicensesRouter().dismiss_instance_registration_prompt(
+        await licenses_router.LicensesRouter().dismiss_instance_registration_offer(
             request=None
         )
 
     assert error.value.status_code == 403
-    prompt.assert_not_awaited()
+    dismiss_offer.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_the_registration_prompt_is_not_on_cloud(admin, prompt, monkeypatch):
+async def test_the_registration_offer_is_not_on_cloud(
+    admin, dismiss_offer, monkeypatch
+):
     monkeypatch.setattr(licenses_router, "_is_cloud", lambda: True)
 
     with pytest.raises(HTTPException) as error:
-        await licenses_router.LicensesRouter().dismiss_instance_registration_prompt(
+        await licenses_router.LicensesRouter().dismiss_instance_registration_offer(
             request=None
         )
 
     assert error.value.status_code == 404
-    prompt.assert_not_awaited()
+    dismiss_offer.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_the_oss_license_reports_whether_the_prompt_was_dismissed(
+async def test_the_oss_license_reports_whether_the_offer_was_dismissed(
     admin, monkeypatch
 ):
     monkeypatch.setattr(licenses_router, "is_ee", lambda: False)
@@ -226,7 +259,7 @@ async def test_the_oss_license_reports_whether_the_prompt_was_dismissed(
     )
     monkeypatch.setattr(
         licenses_router,
-        "is_registration_prompt_dismissed",
+        "is_registration_offer_dismissed",
         AsyncMock(return_value=True),
     )
 
@@ -234,4 +267,4 @@ async def test_the_oss_license_reports_whether_the_prompt_was_dismissed(
         request=None
     )
 
-    assert response.registration_prompt_dismissed is True
+    assert response.registration_offer_dismissed is True

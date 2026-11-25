@@ -22,9 +22,9 @@ from oss.src.apis.fastapi.licenses.models import (
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.dtos import PrincipalKind, RequestCredentialKind
 from oss.src.core.licenses.admins import count_users, is_instance_admin
-from oss.src.core.licenses.prompts import (
-    dismiss_registration_prompt,
-    is_registration_prompt_dismissed,
+from oss.src.core.licenses.offers import (
+    dismiss_registration_offer,
+    is_registration_offer_dismissed,
 )
 from oss.src.core.licenses.registrations import create_registration
 from oss.src.core.licenses.types import RegistrationFailed
@@ -106,10 +106,10 @@ class LicensesRouter:
         )
 
         self.router.add_api_route(
-            "/license/registration-prompt/dismiss",
-            self.dismiss_instance_registration_prompt,
+            "/license/registration-offer/dismiss",
+            self.dismiss_instance_registration_offer,
             methods=["POST"],
-            operation_id="dismiss_instance_registration_prompt",
+            operation_id="dismiss_instance_registration_offer",
             status_code=status.HTTP_204_NO_CONTENT,
         )
 
@@ -133,7 +133,7 @@ class LicensesRouter:
             return InstanceLicenseResponse(
                 plan=COMMUNITY_PLAN,
                 usage=await _usage(request),
-                registration_prompt_dismissed=await is_registration_prompt_dismissed(),
+                registration_offer_dismissed=await is_registration_offer_dismissed(),
             )
 
         from ee.src.core.licenses.service import (  # noqa: PLC0415
@@ -193,8 +193,14 @@ class LicensesRouter:
         """The counts behind the create dialogs, for any person signed in to the app:
         a member also sees the limit before they try to create. `projects` counts the
         request's organization; `organizations` counts the instance."""
-        if _is_cloud():
-            raise _not_available()
+        # The ee cloud check directly, not this module's `_is_cloud`: the one-image
+        # runtime change replaces that helper with `oss.src.utils.common.is_cloud`,
+        # and this route must work before and after that change.
+        if is_ee():
+            from ee.src.core.licenses.cloud import is_cloud  # noqa: PLC0415
+
+            if is_cloud():
+                raise _not_available()
         access = get_request_access()
         if (
             access is None
@@ -233,18 +239,18 @@ class LicensesRouter:
         except RegistrationFailed:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="We could not reach Agenta. Try again later.",
+                detail="We could not send your key. Try again later.",
             ) from None
 
         return InstanceRegistrationResponse(email=body.email)
 
     @intercept_exceptions()
-    async def dismiss_instance_registration_prompt(self, request: Request) -> None:
+    async def dismiss_instance_registration_offer(self, request: Request) -> None:
         if _is_cloud():
             raise _not_available()
         await require_instance_admin()
 
-        await dismiss_registration_prompt()
+        await dismiss_registration_offer()
 
 
 def _organization_id(request: Request) -> Optional[UUID]:
@@ -270,5 +276,5 @@ async def _response(state, request: Request) -> InstanceLicenseResponse:
             else None
         ),
         usage=await _usage(request),
-        registration_prompt_dismissed=await is_registration_prompt_dismissed(),
+        registration_offer_dismissed=await is_registration_offer_dismissed(),
     )

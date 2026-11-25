@@ -8,7 +8,7 @@ import {useMutation} from "@tanstack/react-query"
 import {
     createInstanceRegistration,
     isRegistrationRefused,
-    isRegistrationUnreachable,
+    isRegistrationNotSent,
     type RegistrationSurvey,
 } from "./licenseApi"
 
@@ -89,8 +89,8 @@ export const RegistrationForm = ({
             </label>
             {register.isError && !refused ? (
                 <p role="alert" className="text-colorError m-0 text-sm">
-                    {isRegistrationUnreachable(register.error)
-                        ? t("settings.license.registrationUnreachable")
+                    {isRegistrationNotSent(register.error)
+                        ? t("settings.license.registrationNotSent")
                         : t("settings.license.registrationSendFailed")}
                 </p>
             ) : null}

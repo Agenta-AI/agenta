@@ -9,7 +9,12 @@ import {useMutation, useQueryClient} from "@tanstack/react-query"
 
 import {AddLicenseKeyDialog} from "./AddLicenseKeyDialog"
 import {ConfirmModal} from "./ConfirmModal"
-import {activateInstanceLicense, isInvalidLicenseKey, isOtherInstanceKey} from "./licenseApi"
+import {
+    activateInstanceLicense,
+    isInvalidLicenseKey,
+    isOtherInstanceKey,
+    REGISTERED_PLAN,
+} from "./licenseApi"
 import {LicenseSummary} from "./LicenseSummary"
 import {RegistrationForm} from "./RegistrationForm"
 import {RegistrationGains} from "./RegistrationGains"
@@ -30,8 +35,6 @@ const errorMessage = (error: unknown) =>
         : isInvalidLicenseKey(error)
           ? tNow("settings.license.invalidKey")
           : tNow("settings.license.addFailed")
-
-const REGISTERED_PLAN = "self_hosted_registered"
 
 const externalLink = (href: string) => (text: string) => (
     <a href={href} target="_blank" rel="noreferrer" className="text-foreground underline">

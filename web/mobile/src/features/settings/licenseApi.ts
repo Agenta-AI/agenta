@@ -10,8 +10,11 @@ export interface InstanceLicenseKey {
     telemetry: "required" | "exempt"
 }
 
+/** The plan of a free registration key. */
+export const REGISTERED_PLAN = "self_hosted_registered"
+
 /** A count against its plan limit; a `null` limit is unlimited. */
-export interface LicenseLimitUsage {
+export interface InstanceLimitUsage {
     count: number
     limit: number | null
 }
@@ -23,8 +26,8 @@ export interface InstanceLicense {
     license: InstanceLicenseKey | null
     /** Projects and organizations: read them from `fetchLicenseUsage`, the one source. */
     usage: {users: number}
-    /** The admin skipped the one-time registration prompt on this instance. */
-    registration_prompt_dismissed?: boolean
+    /** The admin skipped the one-time registration offer on this instance. */
+    registration_offer_dismissed?: boolean
 }
 
 const status = (error: unknown) =>
@@ -62,9 +65,9 @@ export const activateInstanceLicense = async (
 /** `GET /instance/license/usage`: the counts against the plan limits, for any signed-in person. */
 export interface LicenseUsage {
     /** The projects of this project's organization, not of the instance. */
-    projects: LicenseLimitUsage | null
+    projects: InstanceLimitUsage | null
     /** The organizations on the instance. */
-    organizations: LicenseLimitUsage | null
+    organizations: InstanceLimitUsage | null
 }
 
 export const fetchLicenseUsage = async (projectId: string): Promise<LicenseUsage> => {
@@ -75,11 +78,11 @@ export const fetchLicenseUsage = async (projectId: string): Promise<LicenseUsage
 }
 
 /** At or above its limit; an unlimited usage never is. */
-export const isAtLimit = (usage: LicenseLimitUsage | null | undefined): boolean =>
+export const isAtLimit = (usage: InstanceLimitUsage | null | undefined): boolean =>
     Boolean(usage && usage.limit !== null && usage.count >= usage.limit)
 
-/** The API could not reach Agenta's registration service. */
-export const isRegistrationUnreachable = (error: unknown) => status(error) === 502
+/** Agenta's registration service did not send the key (unreachable, or it refused). */
+export const isRegistrationNotSent = (error: unknown) => status(error) === 502
 
 /** The API refused the request body, which in this form means the email address. */
 export const isRegistrationRefused = (error: unknown) => [400, 422].includes(status(error) ?? 0)
@@ -108,10 +111,10 @@ export const createInstanceRegistration = async (
     return data
 }
 
-/** `POST /instance/license/registration-prompt/dismiss`: the prompt does not come back. */
-export const dismissRegistrationPrompt = async (projectId: string): Promise<void> => {
+/** `POST /instance/license/registration-offer/dismiss`: the offer does not come back. */
+export const dismissRegistrationOffer = async (projectId: string): Promise<void> => {
     await axios.post(
-        `${getAgentaApiUrl()}/instance/license/registration-prompt/dismiss`,
+        `${getAgentaApiUrl()}/instance/license/registration-offer/dismiss`,
         undefined,
         {params: {project_id: projectId}},
     )

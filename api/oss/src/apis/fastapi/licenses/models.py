@@ -15,7 +15,7 @@ class InstanceLicenseKey(BaseModel):
     telemetry: Literal["required", "exempt"]
 
 
-class LicenseLimitUsage(BaseModel):
+class InstanceLimitUsage(BaseModel):
     count: int
     # None: the plan has no limit.
     limit: Optional[int] = None
@@ -26,9 +26,9 @@ class LicenseUsageResponse(BaseModel):
     (the OSS image, or a failed plan read)."""
 
     # The projects of the request's organization, not of the instance.
-    projects: Optional[LicenseLimitUsage] = None
+    projects: Optional[InstanceLimitUsage] = None
     # The organizations on the instance.
-    organizations: Optional[LicenseLimitUsage] = None
+    organizations: Optional[InstanceLimitUsage] = None
 
 
 class InstanceLicenseUsage(LicenseUsageResponse):
@@ -40,8 +40,8 @@ class InstanceLicenseResponse(BaseModel):
     source: Optional[Literal["environment", "database"]] = None
     license: Optional[InstanceLicenseKey] = None
     usage: InstanceLicenseUsage
-    # The admin skipped the one-time registration prompt on this instance.
-    registration_prompt_dismissed: bool = False
+    # The admin skipped the one-time registration offer on this instance.
+    registration_offer_dismissed: bool = False
 
 
 class InstanceLicenseActivateRequest(BaseModel):
