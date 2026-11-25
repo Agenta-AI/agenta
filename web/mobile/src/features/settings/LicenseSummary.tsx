@@ -22,12 +22,12 @@ const PLANS: Record<string, {name: LicenseKey; badge: LicenseKey; variant: Badge
         [REGISTERED_PLAN]: {
             name: "settings.license.planCommunity",
             badge: "settings.license.badgeRegistered",
-            variant: "success",
+            variant: "green",
         },
         self_hosted_enterprise: {
             name: "settings.license.planEnterprise",
             badge: "settings.license.badgeActive",
-            variant: "success",
+            variant: "green",
         },
     }
 
@@ -69,7 +69,7 @@ export const LicenseSummary = ({
                     {plan ? t(plan.name) : license.plan}
                 </h3>
                 {expired ? (
-                    <Badge variant="error">{t("settings.license.expired")}</Badge>
+                    <Badge variant="red">{t("settings.license.expired")}</Badge>
                 ) : plan ? (
                     <Badge variant={plan.variant}>{t(plan.badge)}</Badge>
                 ) : null}

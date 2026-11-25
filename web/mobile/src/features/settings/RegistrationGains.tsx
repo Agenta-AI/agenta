@@ -20,7 +20,7 @@ export const RegistrationGains = () => {
                         <Check size={14} weight="bold" className="text-success mt-[3px] shrink-0" />
                         <span>
                             {richText(t(gain), {
-                                strong: (text) => <strong className="font-medium">{text}</strong>,
+                                strong: (text) => <strong className="font-semibold">{text}</strong>,
                             })}
                         </span>
                     </li>

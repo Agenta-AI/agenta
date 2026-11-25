@@ -49,7 +49,7 @@ export const LockedEnterpriseFeatures = ({
     const present = ORDER.filter((feature) => features.includes(feature))
     useUpgradePromptViewed(present, screen)
     if (present.length === 0) return null
-    const strong = {strong: (text: string) => <strong className="font-medium">{text}</strong>}
+    const strong = {strong: (text: string) => <strong className="font-semibold">{text}</strong>}
     const rows = present.flatMap((feature) => {
         const row = ROWS[feature]
         return row ? [{feature, ...row}] : []
@@ -59,7 +59,7 @@ export const LockedEnterpriseFeatures = ({
         <div className="flex flex-col gap-5">
             <section className="bg-card ring-border flex flex-col gap-3 rounded-2xl px-5 py-[18px] ring-1 ring-inset">
                 <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="info">{t("settings.license.lockedBadge")}</Badge>
+                    <Badge variant="blue">{t("settings.license.lockedBadge")}</Badge>
                     <h3 className="text-foreground m-0 text-sm font-semibold">
                         {t("settings.license.lockedTitle")}
                     </h3>
@@ -86,7 +86,7 @@ export const LockedEnterpriseFeatures = ({
                 <section key={row.feature} aria-disabled className="flex flex-col gap-1 opacity-70">
                     <div className="flex items-center gap-2">
                         <h3 className="text-foreground m-0 text-sm font-semibold">{t(row.name)}</h3>
-                        <Badge variant="info">{t("settings.license.lockedBadge")}</Badge>
+                        <Badge variant="blue">{t("settings.license.lockedBadge")}</Badge>
                     </div>
                     <p className="text-muted-foreground m-0 text-[13px]">{t(row.line)}</p>
                 </section>
