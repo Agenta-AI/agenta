@@ -54,14 +54,14 @@ export const ChannelAgentPicker = ({
                                 variant="ghost"
                                 onClick={() => onSelect(agent.id)}
                                 data-testid={`channels-agent-${agent.id}`}
-                                className={`${ROW_BUTTON} w-full gap-3 px-1 py-3`}
+                                className={`${ROW_BUTTON} box-border min-h-row-double w-full gap-3 px-1 py-1`}
                             >
                                 <AgentMark agentId={agent.id} />
                                 <span className="flex min-w-0 flex-1 flex-col gap-px">
                                     <span className="truncate text-label text-foreground">
                                         {agent.name}
                                     </span>
-                                    <span className="truncate text-label text-muted-foreground">
+                                    <span className="truncate text-meta text-muted-foreground">
                                         {live
                                             ? t("channels.agentPicker.channelsLive", {
                                                   count: live,

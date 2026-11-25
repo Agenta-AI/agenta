@@ -51,14 +51,14 @@ export const ChannelConnectionList = ({
                             disabled={!id}
                             onClick={() => id && onSelect(id)}
                             data-testid={`channels-connection-${id}`}
-                            className={`${ROW_BUTTON} w-full gap-3 rounded-none border-0 border-b border-solid border-border px-1 py-3`}
+                            className={`${ROW_BUTTON} box-border min-h-row-double w-full gap-3 px-1 py-1`}
                         >
                             <span className="flex size-8 flex-none items-center justify-center rounded-md bg-secondary text-label font-semibold text-muted-foreground">
                                 {title.replace(/^@/, "").charAt(0).toUpperCase()}
                             </span>
                             <span className="flex min-w-0 flex-1 flex-col gap-px">
                                 <span className="truncate text-label text-foreground">{title}</span>
-                                <span className="truncate text-label text-muted-foreground">
+                                <span className="truncate text-meta text-muted-foreground">
                                     {detail}
                                 </span>
                             </span>
@@ -76,10 +76,10 @@ export const ChannelConnectionList = ({
                 <Button
                     variant="ghost"
                     onClick={onAdd}
-                    className={`${ROW_BUTTON} w-full gap-3 px-1 py-3 text-muted-foreground`}
+                    className={`${ROW_BUTTON} box-border min-h-row-double w-full gap-3 px-1 py-1 text-muted-foreground`}
                     data-testid="channels-connection-add"
                 >
-                    <span className="flex size-8 flex-none items-center justify-center rounded-lg border border-dashed border-border">
+                    <span className="flex size-8 flex-none items-center justify-center rounded-md bg-muted">
                         <Plus size={14} />
                     </span>
                     <span className="text-body">
