@@ -8,7 +8,7 @@ import {Sheet, SheetContent, SheetTitle} from "../components/ui/sheet"
 import {useIsPhone} from "../phone/useIsPhone"
 
 import {useViewStack} from "./context"
-import {DrawerCloseContext, DrawerViewChrome} from "./DrawerViewChrome"
+import {DrawerBareContext, DrawerCloseContext, DrawerViewChrome} from "./DrawerViewChrome"
 import {PhoneViewChrome} from "./PhoneViewChrome"
 import type {ViewDef, ViewStack, ViewTarget} from "./types"
 import {ViewStackHost} from "./ViewStackHost"
@@ -38,6 +38,7 @@ export const ViewDrawerHost = <P,>({
     title,
     stackRef: outerStackRef,
     presentation = "drawer",
+    bare = false,
 }: {
     request: ViewRequest<P>
     /** The stack is empty: the caller drops the request. */
@@ -49,6 +50,8 @@ export const ViewDrawerHost = <P,>({
     stackRef?: MutableRefObject<ViewStack | null>
     /** `dialog`: a centred modal on wide screens; a phone still covers the screen. */
     presentation?: "drawer" | "dialog"
+    /** No header row: for a view that heads itself (a logo and a title); Close moves beside it. */
+    bare?: boolean
 }) => {
     const t = useT(commonCatalog)
     const [open, setOpen] = useState(true)
@@ -64,6 +67,7 @@ export const ViewDrawerHost = <P,>({
     const body = (
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[inherit] p-0 text-field-md text-foreground">
             <DrawerCloseContext.Provider value={close}>
+                <DrawerBareContext.Provider value={bare && !phone}>
                 <ViewStackHost
                     chrome={phone ? PhoneViewChrome : DrawerViewChrome}
                     phone={phone}
@@ -75,6 +79,7 @@ export const ViewDrawerHost = <P,>({
                         onEmpty={finish}
                     />
                 </ViewStackHost>
+                </DrawerBareContext.Provider>
             </DrawerCloseContext.Provider>
         </div>
     )

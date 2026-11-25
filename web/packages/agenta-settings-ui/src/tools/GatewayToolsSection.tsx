@@ -258,6 +258,7 @@ export default function GatewayToolsSection({
                     }}
                     onClosed={() => setConnectTarget(null)}
                     presentation="dialog"
+                    bare
                 />
             ) : null}
         </>

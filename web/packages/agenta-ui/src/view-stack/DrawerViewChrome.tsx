@@ -15,6 +15,9 @@ import {ViewFormActions} from "./ViewFormActions"
 /** Set by `ViewDrawerHost`: the drawer's guarded close. */
 export const DrawerCloseContext = createContext<(() => void) | null>(null)
 
+/** Set by `ViewDrawerHost`: no header row; Close sits at the top right of the view itself. */
+export const DrawerBareContext = createContext(false)
+
 /**
  * The chrome of a container that keeps a drawer: the breadcrumb and Close at the top, the view
  * edge to edge, and the view's action row at the bottom.
@@ -33,8 +36,24 @@ export const DrawerViewChrome = ({
 }: ViewChromeProps) => {
     const t = useT(viewStackCatalog, commonCatalog)
     const close = useContext(DrawerCloseContext)
+    const bare = useContext(DrawerBareContext) && !showBack
+    const closeButton = close ? (
+        <SimpleTooltip title={t("ui.viewStack.close")}>
+            <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("ui.viewStack.close")}
+                onClick={close}
+            >
+                <X size={16} />
+            </Button>
+        </SimpleTooltip>
+    ) : null
     return (
-        <div className="flex h-full min-h-0 flex-col">
+        <div className="relative flex h-full min-h-0 flex-col">
+            {bare ? (
+                <div className="absolute right-3 top-4 z-10">{closeButton}</div>
+            ) : (
             <div className="flex h-12 shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted px-3">
                 {showBack ? (
                     <SimpleTooltip title={t("common.back")}>
@@ -78,19 +97,9 @@ export const DrawerViewChrome = ({
                         </span>
                     ))}
                 </nav>
-                {close ? (
-                    <SimpleTooltip title={t("ui.viewStack.close")}>
-                        <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={t("ui.viewStack.close")}
-                            onClick={close}
-                        >
-                            <X size={16} />
-                        </Button>
-                    </SimpleTooltip>
-                ) : null}
+                {closeButton}
             </div>
+            )}
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
             {hideActionRow ? null : (
                 <div className="shrink-0 border-0 border-t border-solid border-border-muted px-4 py-3">
