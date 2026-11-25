@@ -12,7 +12,8 @@ const state = vi.hoisted(() => ({
     replace: vi.fn(),
     endOnboarding: vi.fn(),
     flow: null as Record<string, (...args: never[]) => unknown> | null,
-    offer: null as {open: boolean; largeCompany: boolean} | null,
+    billing: false,
+    dismissPrompt: vi.fn(),
     license: {isInstanceAdmin: true, data: {license: null} as {license: unknown}},
     templates: [
         {key: "lead-qualifier", name: "Lead qualifier", category: "Sales"},
@@ -29,11 +30,9 @@ vi.mock("@/features/onboarding/OnboardingFlow", () => ({
         return null
     },
 }))
-vi.mock("@/features/onboarding/RegistrationOffer", () => ({
-    RegistrationOffer: (props: {open: boolean; largeCompany: boolean}) => {
-        state.offer = props
-        return null
-    },
+vi.mock("@/features/onboarding/RegistrationOffer", () => ({RegistrationOffer: () => null}))
+vi.mock("@/features/settings/licenseApi", () => ({
+    dismissRegistrationPrompt: state.dismissPrompt,
 }))
 vi.mock("@/features/settings/useInstanceLicense", () => ({
     useInstanceLicense: () => state.license,
@@ -86,7 +85,7 @@ vi.mock("@agenta/entities/workflow", async () => {
     }
 })
 vi.mock("@agenta/shared/api/env", () => ({
-    isBillingEnabled: () => false,
+    isBillingEnabled: () => state.billing,
     isToolsEnabled: () => false,
     isWalletsEnabled: () => false,
 }))
@@ -130,6 +129,10 @@ const mount = () => {
     rerender()
 }
 
+/** The registration step's props while the flow shows it in place of the next step. */
+const offer = () =>
+    (state.flow?.interstitial as unknown as {props: Record<string, unknown>} | undefined)?.props
+
 const flow = () =>
     state.flow as unknown as ComponentProps<
         typeof import("@/features/onboarding/OnboardingFlow").OnboardingFlow
@@ -144,7 +147,8 @@ beforeEach(() => {
     state.endOnboarding.mockClear()
     state.capture.mockClear()
     state.captureIntent.mockClear()
-    state.offer = null
+    state.billing = false
+    state.dismissPrompt.mockReset().mockResolvedValue(undefined)
     state.license = {isInstanceAdmin: true, data: {license: null}}
     window.localStorage.clear()
 })
@@ -164,11 +168,31 @@ describe("the onboarding's PostHog events", () => {
         expect(surveyEvents()).toHaveLength(1)
         expect(surveyEvents()[0][1]).toMatchObject({
             $survey_id: "019f3812-8ce3-0000-1123-8c254a48750d",
-            "$survey_response_d6c2d8aa-d624-4736-a71b-25fe0b74d0e9": "person@example.com",
         })
 
         flow().onStepCompleted("credits", draft)
         expect(surveyEvents()).toHaveLength(1)
+    })
+
+    it("never sends the email with the self-hosted survey event", () => {
+        mount()
+        flow().onStepCompleted("source", draft)
+
+        const properties = surveyEvents()[0][1] as Record<string, unknown>
+        expect(properties).not.toHaveProperty(
+            "$survey_response_d6c2d8aa-d624-4736-a71b-25fe0b74d0e9",
+        )
+        expect(JSON.stringify(properties)).not.toContain("person@example.com")
+    })
+
+    it("sends the email with the survey event on cloud", () => {
+        state.billing = true
+        mount()
+        flow().onStepCompleted("source", draft)
+
+        expect(surveyEvents()[0][1]).toMatchObject({
+            "$survey_response_d6c2d8aa-d624-4736-a71b-25fe0b74d0e9": "person@example.com",
+        })
     })
 
     it("asks an invited person the questions only, then opens the project", () => {
@@ -237,51 +261,57 @@ describe("the onboarding's PostHog events", () => {
     })
 })
 
-describe("the registration offer after the survey", () => {
-    it("opens for the instance admin with no key once the survey is done", () => {
+describe("the registration step after the survey", () => {
+    it("shows in place of the next step for the instance admin with no key", () => {
         mount()
         act(() => flow().onStepCompleted("size", draft))
-        expect(state.offer?.open).toBe(false)
+        expect(offer()).toBeUndefined()
 
         act(() => flow().onStepCompleted("source", draft))
-        expect(state.offer).toMatchObject({open: true, largeCompany: true})
+        expect(offer()).toMatchObject({
+            largeCompany: true,
+            email: "person@example.com",
+            survey: {role: "Marketing", team_size: "51-200", heard_from: "GitHub"},
+        })
+        // Shown once: the prompt after an upgrade does not ask again.
+        expect(state.dismissPrompt).toHaveBeenCalledWith("p")
     })
 
-    it("stays closed when the instance already has a key", () => {
+    it("stays away when the instance already has a key", () => {
         state.license = {isInstanceAdmin: true, data: {license: {key_id: "k"}}}
         mount()
         act(() => flow().onStepCompleted("source", draft))
-        expect(state.offer?.open).toBe(false)
+        expect(offer()).toBeUndefined()
     })
 
-    it("opens when the license answer arrives after the survey", () => {
+    it("shows when the license answer arrives after the survey", () => {
         state.license = {isInstanceAdmin: false, data: {license: null}}
         mount()
         act(() => flow().onStepCompleted("source", draft))
-        expect(state.offer?.open).toBe(false)
+        expect(offer()).toBeUndefined()
 
         state.license = {isInstanceAdmin: true, data: {license: null}}
         rerender()
-        expect(state.offer?.open).toBe(true)
+        expect(offer()).toBeDefined()
     })
 
-    it("does not open again after Skip, also in a new tab", () => {
+    it("does not show again after Skip, also in a new tab", () => {
         mount()
         act(() => flow().onStepCompleted("source", draft))
-        expect(state.offer?.open).toBe(true)
-        act(() => (state.offer as unknown as {onClose: () => void}).onClose())
-        expect(state.offer?.open).toBe(false)
+        expect(offer()).toBeDefined()
+        act(() => (offer()!.onSkip as () => void)())
+        expect(offer()).toBeUndefined()
 
         act(() => root!.unmount())
         mount()
         act(() => flow().onStepCompleted("source", draft))
-        expect(state.offer?.open).toBe(false)
+        expect(offer()).toBeUndefined()
     })
 
-    it("stays closed for a user who is not the instance admin", () => {
+    it("stays away for a user who is not the instance admin", () => {
         state.license = {isInstanceAdmin: false, data: {license: null}}
         mount()
         act(() => flow().onStepCompleted("source", draft))
-        expect(state.offer?.open).toBe(false)
+        expect(offer()).toBeUndefined()
     })
 })

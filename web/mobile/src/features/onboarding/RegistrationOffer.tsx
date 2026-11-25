@@ -1,61 +1,85 @@
-import {useState} from "react"
+import {useState, type ReactNode} from "react"
 
-import {useT} from "@agenta/i18n"
+import {richText, useT} from "@agenta/i18n"
 import onboardingRegistrationOfferCatalog from "@agenta/i18n/catalogs/onboarding.registrationOffer"
-import {
-    Button,
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 
+import type {RegistrationSurvey} from "../settings/licenseApi"
 import {RegistrationForm} from "../settings/RegistrationForm"
-import {CONTACT_URL} from "../settings/upgradePrompt"
+import {RegistrationGains} from "../settings/RegistrationGains"
+import {CONTACT_URL, FREE_KEY_DOCS_URL} from "../settings/upgradePrompt"
 
-/** After the setup survey: register this self-hosted instance with the admin's email. */
+import {ONBOARDING_STYLE} from "./onboardingStyle"
+
+const link = (href: string) => (text: string) => (
+    <a href={href} target="_blank" rel="noreferrer" className="text-foreground underline">
+        {text}
+    </a>
+)
+
+/**
+ * Register this self-hosted instance with the admin's email: what the free key unlocks, the
+ * form, and Skip. A step of the onboarding flow, and the same step once after an upgrade.
+ */
 export const RegistrationOffer = ({
-    open,
     projectId,
     email,
+    survey,
     largeCompany,
-    onClose,
+    headingId,
+    renderTitle,
+    onSkip,
+    onDone,
 }: {
-    open: boolean
     projectId: string
     email: string | null
+    /** The setup answers, when the survey just ran. */
+    survey?: RegistrationSurvey
     /** 51 or more people: also offer to talk about Enterprise. */
     largeCompany: boolean
-    onClose: () => void
+    headingId?: string
+    /** The heading element; a dialog passes its own title. */
+    renderTitle?: (title: string) => ReactNode
+    onSkip: () => void
+    /** Continue, after the key request went out. */
+    onDone: () => void
 }) => {
     const t = useT(onboardingRegistrationOfferCatalog)
     const [registered, setRegistered] = useState(false)
+    const title = t("onboarding.registrationOffer.title")
 
     return (
-        <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>{t("onboarding.registrationOffer.title")}</DialogTitle>
-                    <DialogDescription>
-                        {t("onboarding.registrationOffer.description")}
-                    </DialogDescription>
-                </DialogHeader>
-                <RegistrationForm
-                    projectId={projectId}
-                    defaultEmail={email ?? undefined}
-                    onRegistered={() => setRegistered(true)}
-                    secondary={
-                        <Button type="button" variant="ghost" onClick={onClose}>
-                            {t("onboarding.registrationOffer.skip")}
-                        </Button>
-                    }
-                />
-                {registered ? (
-                    <Button type="button" className="self-start" onClick={onClose}>
-                        {t("onboarding.registrationOffer.continue")}
+        <div className="flex flex-col gap-6">
+            {renderTitle ? (
+                renderTitle(title)
+            ) : (
+                <h1 id={headingId} tabIndex={-1} className={ONBOARDING_STYLE.headingClass}>
+                    {title}
+                </h1>
+            )}
+            <RegistrationGains />
+            <RegistrationForm
+                projectId={projectId}
+                defaultEmail={email ?? undefined}
+                survey={survey}
+                onRegistered={() => setRegistered(true)}
+                secondary={
+                    <Button type="button" variant="ghost" onClick={onSkip}>
+                        {t("onboarding.registrationOffer.skip")}
                     </Button>
-                ) : null}
+                }
+            />
+            {registered ? (
+                <Button type="button" className="self-start" onClick={onDone}>
+                    {t("onboarding.registrationOffer.continue")}
+                </Button>
+            ) : null}
+            <div className="flex flex-col gap-2">
+                <p className="text-muted-foreground m-0 text-xs">
+                    {richText(t("onboarding.registrationOffer.keepPromise"), {
+                        link: link(FREE_KEY_DOCS_URL),
+                    })}
+                </p>
                 {largeCompany ? (
                     <a
                         href={CONTACT_URL}
@@ -66,7 +90,7 @@ export const RegistrationOffer = ({
                         {t("onboarding.registrationOffer.talkAboutEnterprise")}
                     </a>
                 ) : null}
-            </DialogContent>
-        </Dialog>
+            </div>
+        </div>
     )
 }
