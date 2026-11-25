@@ -89,7 +89,7 @@ export function SkillCreateWays({
             />
             <Way
                 icon={<GithubLogo size={16} />}
-                tint="bg-foreground text-background"
+                tint="bg-foreground/10 text-foreground"
                 title={t("skills.agent.importTitle")}
                 hint={t("skills.agent.importHint")}
                 onClick={onImport}

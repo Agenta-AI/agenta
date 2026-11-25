@@ -173,7 +173,7 @@ export const SkillCreateScreen = ({
                 title={
                     flow.step === "import" ? (
                         <span className="flex items-center gap-3">
-                            <IconTile size={32} className="bg-foreground text-background">
+                            <IconTile size={32} className="bg-foreground/10 text-foreground">
                                 <GithubLogo />
                             </IconTile>
                             {t("skills.page.importTitle")}
