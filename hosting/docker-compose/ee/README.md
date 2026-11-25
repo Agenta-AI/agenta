@@ -93,22 +93,22 @@ Add `--no-cache` for a clean rebuild from scratch.
 
 If you need to build images outside of `run.sh` -- for example, to push to your own registry or to build for a different CPU architecture -- you can use `docker build` directly.
 
-The project has three images. Each has its own Dockerfile and build context:
+The project has three images. Each has its own Dockerfile and build context. The API and Services Dockerfiles are the same for both editions:
 
 | Image | Dockerfile | Build context |
 |-------|-----------|---------------|
-| API | `api/ee/docker/Dockerfile.gh` | repo root (`.`) |
+| API | `api/docker/Dockerfile.gh` | repo root (`.`) |
 | Web | `web/ee/docker/Dockerfile.gh` | `web/` |
-| Services | `services/ee/docker/Dockerfile.gh` | repo root (`.`) |
+| Services | `services/docker/Dockerfile.gh` | repo root (`.`) |
 
 ### Step 1: Build
 
 API and Services use the repo root as their build context so the local Python SDK and generated Python client are available directly at `sdks/python` and `clients/python` during the build.
 
 ```bash
-docker build -f api/ee/docker/Dockerfile.gh -t agenta-api-ee:latest .
+docker build -f api/docker/Dockerfile.gh -t agenta-api:latest .
 docker build -f web/ee/docker/Dockerfile.gh -t agenta-web-ee:latest web/
-docker build -f services/ee/docker/Dockerfile.gh -t agenta-services-ee:latest .
+docker build -f services/docker/Dockerfile.gh -t agenta-services:latest .
 ```
 
 ### Step 2: Deploy with Docker Compose
@@ -126,18 +126,18 @@ docker compose \
 To point the compose file at your custom images, set these variables in your `.env` file:
 
 ```bash
-AGENTA_API_IMAGE_NAME=agenta-api-ee
+AGENTA_API_IMAGE_NAME=agenta-api
 AGENTA_API_IMAGE_TAG=latest
 AGENTA_WEB_IMAGE_NAME=agenta-web-ee
 AGENTA_WEB_IMAGE_TAG=latest
-AGENTA_SERVICES_IMAGE_NAME=agenta-services-ee
+AGENTA_SERVICES_IMAGE_NAME=agenta-services
 AGENTA_SERVICES_IMAGE_TAG=latest
 ```
 
 If you pushed the images to a private registry, use the full registry path:
 
 ```bash
-AGENTA_API_IMAGE_NAME=registry.example.com/agenta-api-ee
+AGENTA_API_IMAGE_NAME=registry.example.com/agenta-api
 AGENTA_API_IMAGE_TAG=v1.0.0
 ```
 
@@ -152,10 +152,10 @@ docker buildx create --name multiarch --use
 
 docker buildx build \
   --platform linux/arm64 \
-  -f api/ee/docker/Dockerfile.gh \
-  -t agenta-api-ee:latest \
+  -f api/docker/Dockerfile.gh \
+  -t agenta-api:latest \
   --load \
-  api/
+  .
 ```
 
 Use the same approach for the `web` and `services` images.
@@ -203,13 +203,13 @@ The compose stack runs these services:
 
 | Service | Image | Role |
 |---------|-------|------|
-| `api` | `agenta-api-ee` | FastAPI backend (gunicorn + uvicorn) |
+| `api` | `agenta-api` | FastAPI backend (gunicorn + uvicorn) |
 | `web` | `agenta-web-ee` | Next.js frontend |
-| `services` | `agenta-services-ee` | LLM proxy and evaluator execution |
-| `worker-streams` | `agenta-api-ee` | Stream consumers: tracing, events, records |
-| `worker-queues` | `agenta-api-ee` | Queue consumers: webhooks, triggers, interactions, evaluations |
-| `cron` | `agenta-api-ee` | Scheduled tasks (cleanup, metering) |
-| `alembic` | `agenta-api-ee` | Runs database migrations on startup |
+| `services` | `agenta-services` | LLM proxy and evaluator execution |
+| `worker-streams` | `agenta-api` | Stream consumers: tracing, events, records |
+| `worker-queues` | `agenta-api` | Queue consumers: webhooks, triggers, interactions, evaluations |
+| `cron` | `agenta-api` | Scheduled tasks (cleanup, metering) |
+| `alembic` | `agenta-api` | Runs database migrations on startup |
 | `postgres` | `postgres:18` | PostgreSQL (three databases: core, tracing, supertokens) |
 | `redis-volatile` | `redis:8` | Cache with LRU eviction |
 | `redis-durable` | `redis:8` | Persistent queues with append-only file |
