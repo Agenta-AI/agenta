@@ -7,17 +7,39 @@ import {MarkdownPreview} from "@agenta/ui"
 import {cn} from "@agenta/ui/styles"
 import {Segmented} from "@agenta/ui/ui"
 
-type MarkdownView = "write" | "preview"
+export type MarkdownView = "write" | "preview"
 
-/** One bordered markdown box: the formatting tools and Write/Preview in its top bar, then the text. */
+/** Write/Preview for a SkillMarkdownFrame; the host puts it in its label row. */
+export function SkillMarkdownViewSwitch({
+    value,
+    onChange,
+}: {
+    value: MarkdownView
+    onChange: (next: MarkdownView) => void
+}) {
+    const t = useT(skillsEditorCatalog)
+    return (
+        <Segmented
+            size="sm"
+            value={value}
+            onChange={(next) => onChange(next as MarkdownView)}
+            options={[
+                {value: "write", label: t("skills.editor.write")},
+                {value: "preview", label: t("skills.editor.preview")},
+            ]}
+        />
+    )
+}
+
+/** One bordered markdown box: in Write, the formatting tools on top of the text; in Preview, the text only. */
 export function SkillMarkdownFrame({
     value,
     onChange,
     placeholder,
     empty,
+    view,
     readOnly = false,
     invalid = false,
-    defaultView = "preview",
 }: {
     value: string
     onChange: (next: string) => void
@@ -26,10 +48,8 @@ export function SkillMarkdownFrame({
     empty: string
     readOnly?: boolean
     invalid?: boolean
-    defaultView?: MarkdownView
+    view: MarkdownView
 }) {
-    const t = useT(skillsEditorCatalog)
-    const [view, setView] = useState<MarkdownView>(readOnly ? "preview" : defaultView)
     const [toolbarHost, setToolbarHost] = useState<HTMLDivElement | null>(null)
     const writing = view === "write" && !readOnly
 
@@ -40,20 +60,12 @@ export function SkillMarkdownFrame({
                 invalid ? "border-destructive" : "border-border-muted",
             )}
         >
-            {readOnly ? null : (
-                <div className="flex min-h-10 items-center gap-2 border-0 border-b border-solid border-border-muted px-2">
-                    <div ref={setToolbarHost} className="flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none]" />
-                    <Segmented
-                        size="sm"
-                        value={view}
-                        onChange={(next) => setView(next as MarkdownView)}
-                        options={[
-                            {value: "write", label: t("skills.editor.write")},
-                            {value: "preview", label: t("skills.editor.preview")},
-                        ]}
-                    />
-                </div>
-            )}
+            {writing ? (
+                <div
+                    ref={setToolbarHost}
+                    className="flex min-h-10 min-w-0 items-center overflow-x-auto border-0 border-b border-solid border-border-muted px-2 [scrollbar-width:none]"
+                />
+            ) : null}
             {writing ? (
                 <div className="flex min-h-[280px] flex-col [&_.md-prose]:min-h-[280px]">
                     <MarkdownEditor
