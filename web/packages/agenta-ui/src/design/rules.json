@@ -616,7 +616,7 @@
                     "rule": "Cap the content width",
                     "why": "Text across a wide window is hard to read.",
                     "avoid": "Text and lists stretched across the window; a width of its own (880, 920, 960, 1120)",
-                    "do": "`content-sm`, `content-md` or `content-lg`, centered, at least `page-margin` on each side; full width only for workbench pages",
+                    "do": "`content-sm`, `content-md` or `content-lg`, centered, with margins that follow the page area (16px under 640px, 32px under 960px, then `page-margin`), so a docked right pane or sidebar shrinks them; full width only for workbench pages",
                     "checkedBy": [
                         "ratchet",
                         "review"
