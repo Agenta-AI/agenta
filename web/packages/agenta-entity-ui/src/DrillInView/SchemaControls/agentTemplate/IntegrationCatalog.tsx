@@ -896,6 +896,11 @@ export function IntegrationCatalog({
     const yoursFooter =
         yours?.error ?? (!filtering && yoursGroups.length === 0 ? yours?.empty : null)
 
+    // Settings' Connected footer: a failed personal read on every tab, the empty note on Personal.
+    const connectedFooter = !showsOwner("user")
+        ? null
+        : (yours?.error ?? (controls?.owner === "user" ? yoursFooter : null))
+
     const search = (
         <SearchInput
             className={cn(
@@ -972,8 +977,9 @@ export function IntegrationCatalog({
                 >
                     {controls ? (
                         // Settings: one Connected list, narrow owners first, chips in All.
-                        (showsOwner("user") && (yoursGroups.length > 0 || yoursFooter)) ||
-                        (showsOwner("project") && connectedGroups.length > 0) ? (
+                        (showsOwner("user") && yoursGroups.length > 0) ||
+                        (showsOwner("project") && connectedGroups.length > 0) ||
+                        connectedFooter ? (
                             <RowGroup
                                 label={t("entityUi.integrationDrawer.connected")}
                                 list
@@ -983,11 +989,8 @@ export function IntegrationCatalog({
                                 }
                                 page={page}
                                 footer={
-                                    // A failed read shows on every tab; the empty note on Personal.
-                                    showsOwner("user") &&
-                                    (yours?.error ||
-                                        (controls.owner === "user" && yoursFooter)) ? (
-                                        <div className="pt-2">{yours?.error ?? yoursFooter}</div>
+                                    connectedFooter ? (
+                                        <div className="pt-2">{connectedFooter}</div>
                                     ) : null
                                 }
                             >
