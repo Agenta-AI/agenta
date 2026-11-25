@@ -164,7 +164,7 @@ Installs older than v0.104.0 are checked by a static review of the runner's revi
 ### Decision 10: Registration in onboarding and a one-time prompt (decided 2026-11-25)
 
 - Registration is a full onboarding step in `/m` right after the survey, not a dialog over the next step. It names the gain (more than 1 project, security notices, future free features) and has "Send me a free key" and "Skip".
-- The admin of an upgraded install, who never sees onboarding, gets the same step once as a prompt. Skipping it calls `POST /instance/license/registration-prompt/dismiss`; the skip is stored on the server, and `GET /instance/license` reports it, so the prompt does not come back on another browser.
+- The admin of an upgraded install, who never sees onboarding, gets the same step once as a prompt. Skipping it calls `POST /instance/license/registration-offer/dismiss`; the skip is stored on the server, and `GET /instance/license` reports it, so the prompt does not come back on another browser.
 - Other places to register: a card on the License tab, the project limit dialog (in place), and Settings > Projects.
 - The box "Send me security and product updates (about once a month)" starts ticked and is optional. Unticked still gets the key. Security notices go to every registrant.
 - The setup answers (role, team size, how they found Agenta; option labels only, never typed text) go with every registration, with no box. One line under the button says so.
@@ -177,7 +177,7 @@ The worker writes the instance id into the free key payload. The API accepts a `
 ### Decision 12: Registration in PostHog and Loops (decided 2026-11-25)
 
 - The API forwards the updates choice, the setup answers and the signed-in user id with the registration.
-- The website worker sends the key email (Loops transactional `LOOPS_TRANSACTIONAL_ID`) and stores the contact with `source` "self-hosted registration", `userGroup` "self-hosted", and the fields `agentaVersion`, `agentaRegisteredAt`, `agentaPlan`, `agentaInstanceId`, `agentaRole`, `agentaTeamSize`, `agentaHeardFrom` and `agentaProductUpdates` (true when ticked). No Loops list; campaigns target `userGroup` self-hosted with `agentaProductUpdates` true.
+- The website worker sends the key email (Loops transactional `LOOPS_TRANSACTIONAL_ID`) and stores the contact with `source` "self-hosted registration", `userGroup` "self-hosted", and the fields `agentaVersion`, `agentaRegisteredAt`, `agentaPlan`, `agentaInstanceId`, `agentaRole`, `agentaTeamSize`, `agentaHeardFrom` and `agentaProductUpdates` (set to true when ticked; an unticked box leaves the stored value unchanged, and a contact leaves product updates through the Loops unsubscribe link). No Loops list; campaigns target `userGroup` self-hosted with `agentaProductUpdates` true.
 - The worker then sends to the self-hosted PostHog project, whatever the instance's telemetry switch: `instance_registered` with distinct id the instance id, the email, version, plan and setup answers, in group `instance`; a `$groupidentify` with `registered_email`; and `$set: {email}` on the person `<instance_id>:<user_id>` of the registering admin.
 - The docs say: "Registering links your instance to your email in our analytics. Instances that do not register stay anonymous."
 - The self-hosted survey event does not carry the email (this avoids a merge trap with #8237).
@@ -186,7 +186,15 @@ The worker writes the instance id into the free key payload. The API accepts a `
 
 - `GET /instance/license` adds `usage.projects` (in the request's organization) and `usage.organizations` (on the instance), each `{count, limit}`, with `limit` null for no limit.
 - `GET /instance/license/usage` gives the same counts to any person signed in to the app, so a member sees the limit before creating.
-- The License tab shows them as bars (and seats for a paid key), with a "Community" or "Registered" badge, the days left for a paid key, and the key box moved into an "Add a license key" dialog. Each locked enterprise page shows one compact "Available on the Enterprise plan" box.
+- The License tab shows them as bars (and seats for a paid key), the plan name and its badge, the days left for a paid key, and the key box moved into an "Add a license key" dialog. Each locked enterprise page shows one compact "Available on the Enterprise plan" box.
+- `GET /instance/license` also reports `registration_offer_dismissed`, the skip stored by `POST /instance/license/registration-offer/dismiss`. "Skip" or finishing the step, in onboarding or in the one-time offer, stores it, so the offer never asks again in any browser.
+- Plan names and badges, one row per plan value (as in the approved screens). The "Registered plan" of the license text is the Community plan with the Registered badge.
+
+| Plan value | Plan name | Badge |
+| --- | --- | --- |
+| `self_hosted_community` (no key) | Community | Free |
+| `self_hosted_registered` (free key) | Community | Registered |
+| `self_hosted_enterprise` (paid key) | Enterprise | Active |
 
 ## Risks / Trade-offs
 
