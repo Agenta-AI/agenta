@@ -94,6 +94,8 @@ export function SkillEditor({
     const [bodyTools, setBodyTools] = useState<HTMLDivElement | null>(null)
     const [fileTools, setFileTools] = useState<HTMLDivElement | null>(null)
     const [addSlot, setAddSlot] = useState<HTMLDivElement | null>(null)
+    // The inline Files header's slot for Add, on the Back + title row.
+    const [inlineAddSlot, setInlineAddSlot] = useState<HTMLDivElement | null>(null)
     const [fileBox, setFileBox] = useState<HTMLDivElement | null>(null)
     const fileHeight = useFillPageHeight(fileBox)
     const [bodyBox, setBodyBox] = useState<HTMLDivElement | null>(null)
@@ -316,7 +318,7 @@ export function SkillEditor({
             onFiles={updateFiles}
             onAllowExecutable={setAllowExecutable}
             docked={!inline}
-            addSlot={inline ? undefined : addSlot}
+            addSlot={inline ? inlineAddSlot : addSlot}
         />
     )
     const filesTitle = (
@@ -329,9 +331,10 @@ export function SkillEditor({
     if (inline) {
         // One Files panel: a column at 672px and wider; below, it takes the fields' place while open.
         return (
-            <div className="@container min-w-0">
+            // Fills its host's height, so the Files panel can pin the programs card to the bottom.
+            <div className="@container flex min-w-0 flex-1 flex-col">
                 {filesToggle}
-                <div className="flex min-w-0 gap-6">
+                <div className="flex min-w-0 flex-1 gap-6">
                     <div
                         className={cn(
                             "min-w-0 flex-1 flex-col gap-4",
@@ -371,6 +374,7 @@ export function SkillEditor({
                                 </Button>
                             </SimpleTooltip>
                             <span className="flex-1">{filesTitle}</span>
+                            {readOnly ? null : <div ref={setInlineAddSlot} className="flex" />}
                         </div>
                         {filesPanel}
                     </aside>

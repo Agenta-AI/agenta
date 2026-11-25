@@ -471,7 +471,7 @@ const RegistrySkillEditor = ({
                     <LoadFailed onRetry={() => void revisionsQuery.refetch()} />
                 ) : (
                     // The same editor as the skill page, with Files beside or over the fields.
-                    <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
+                    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4 pt-3">
                         <SkillEditor
                             draft={toSkillDraft(value)}
                             onChange={(next) => setDraft(fromDraft(next))}
