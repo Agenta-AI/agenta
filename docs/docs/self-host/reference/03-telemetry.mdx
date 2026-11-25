@@ -10,7 +10,7 @@ A self-hosted Agenta instance sends a small amount of usage data to Agenta. We u
 
 ## What is never sent
 
-Agenta never receives your content, such as prompts, traces, test sets or model outputs. It never receives email addresses, user names, organization or project names, secrets or license keys. Of the address of your instance, it receives only the host name (for example `agenta.example.com`), never the full address or a path.
+Agenta never receives your content, such as prompts, traces, test sets or model outputs. From the instance, it never receives email addresses, user names, organization or project names, secrets or license keys. The one email it receives is the one you give when you [register](#registration). Of the address of your instance, it receives only the host name (for example `agenta.example.com`), never the full address or a path.
 
 ## What is sent
 
@@ -35,6 +35,18 @@ A paid license key keeps telemetry on, so the switch has no effect on an instanc
 ## Update check
 
 While people use the instance, it also checks `https://agenta.ai/releases.json`, at most once every 12 hours, so it can tell you when a newer version or a security fix is available. The check sends no data. Turn it off with `AGENTA_UPDATE_CHECK_ENABLED=false`.
+
+## Registration
+
+Registering links your instance to your email in our analytics. Instances that do not register stay anonymous.
+
+When an admin registers the instance for a free key, agenta.ai (not the instance) records the registration in the same analytics project. It does this whatever the instance's telemetry switch says, because the admin asked to register. It records three things:
+
+| Event | Distinct id | What it carries |
+|---|---|---|
+| `instance_registered` | The instance id | `email` (the email you registered with), `agenta_version`, `plan` (`self_hosted_registered`), the answers to the registration questions (role, team size, where you heard of Agenta), and `$groups` with the instance |
+| `$groupidentify` | The instance id | Sets `registered_email` on the `instance` group |
+| `$set` | `<instance id>:<user id>` of the admin who registered | Sets `email` on that user |
 
 ## Settings
 
