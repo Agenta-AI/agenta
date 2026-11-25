@@ -1,59 +1,129 @@
 import {useT, type CatalogKey} from "@agenta/i18n"
 import settingsLicenseCatalog from "@agenta/i18n/catalogs/settings.license"
+import {Badge, type BadgeProps} from "@agenta/ui/ui"
 
 import {formatDate} from "../wallet/walletFormat"
 
-import type {InstanceLicense} from "./licenseApi"
+import type {InstanceLicense, LicenseLimitUsage} from "./licenseApi"
+import {LicenseUsageRow} from "./LicenseUsageRow"
 
-const PLAN_NAMES: Record<string, CatalogKey<typeof settingsLicenseCatalog>> = {
-    self_hosted_community: "settings.license.planCommunity",
-    self_hosted_registered: "settings.license.planRegistered",
-    self_hosted_enterprise: "settings.license.planEnterprise",
-}
+type LicenseKey = CatalogKey<typeof settingsLicenseCatalog>
 
-const Row = ({label, value}: {label: string; value: string}) => (
-    <div className="flex items-baseline justify-between gap-3 text-[13px]">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="text-foreground truncate text-right">{value}</span>
-    </div>
-)
+const REGISTERED_PLAN = "self_hosted_registered"
 
-/** The instance plan, and the key behind it: customer, seats, expiry. */
-export const LicenseSummary = ({license}: {license: InstanceLicense}) => {
+/** The plan name and its badge. The free key keeps the Community name, as a registered badge. */
+const PLANS: Record<string, {name: LicenseKey; badge: LicenseKey; variant: BadgeProps["variant"]}> =
+    {
+        self_hosted_community: {
+            name: "settings.license.planCommunity",
+            badge: "settings.license.badgeFree",
+            variant: "default",
+        },
+        [REGISTERED_PLAN]: {
+            name: "settings.license.planCommunity",
+            badge: "settings.license.badgeRegistered",
+            variant: "green",
+        },
+        self_hosted_enterprise: {
+            name: "settings.license.planEnterprise",
+            badge: "settings.license.badgeActive",
+            variant: "green",
+        },
+    }
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** The instance plan in one line, its usage against the limits, and the key behind it. */
+export const LicenseSummary = ({
+    license,
+    now = Date.now(),
+}: {
+    license: InstanceLicense
+    now?: number
+}) => {
     const t = useT(settingsLicenseCatalog)
     const key = license.license
-    const users = license.usage.users
-    const expired = Boolean(key?.expires_at && new Date(key.expires_at) <= new Date())
+    const {users, projects, organizations} = license.usage
+    const expiresAt = key?.expires_at ? new Date(key.expires_at).getTime() : null
+    const expired = expiresAt !== null && expiresAt <= now
+    const plan = PLANS[license.plan]
+    const registered = license.plan === REGISTERED_PLAN
+
+    const usage = (label: LicenseKey, value: LicenseLimitUsage) => (
+        <LicenseUsageRow
+            label={t(label)}
+            value={
+                value.limit === null
+                    ? t("settings.license.usageOfUnlimited", {count: value.count})
+                    : t("settings.license.usageOf", {count: value.count, limit: value.limit})
+            }
+            count={value.count}
+            limit={value.limit}
+        />
+    )
 
     return (
-        <section className="bg-card ring-border flex flex-col gap-2.5 rounded-2xl px-5 py-[18px] ring-1 ring-inset">
-            <span className="text-muted-foreground text-[13px]">{t("settings.license.plan")}</span>
-            <span className="text-[26px] font-semibold leading-8 tracking-[-0.02em]">
-                {PLAN_NAMES[license.plan] ? t(PLAN_NAMES[license.plan]) : license.plan}
-            </span>
-            {key ? (
-                <div className="flex flex-col gap-1.5 pt-1">
-                    <Row label={t("settings.license.licensedTo")} value={key.customer} />
-                    <Row
+        <section className="bg-card ring-border flex flex-col gap-3 rounded-2xl px-5 py-[18px] ring-1 ring-inset">
+            <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-foreground m-0 text-xl font-semibold leading-7 tracking-[-0.01em]">
+                    {plan ? t(plan.name) : license.plan}
+                </h3>
+                {expired ? (
+                    <Badge variant="red">{t("settings.license.expired")}</Badge>
+                ) : plan ? (
+                    <Badge variant={plan.variant}>{t(plan.badge)}</Badge>
+                ) : null}
+            </div>
+            {!key ? (
+                <p className="text-muted-foreground m-0 text-[13px]">
+                    {t("settings.license.communitySummary")}
+                </p>
+            ) : registered ? (
+                <p className="text-muted-foreground m-0 text-[13px]">
+                    {t("settings.license.registeredSummary", {email: key.customer})}
+                </p>
+            ) : null}
+            <div className="flex flex-col gap-2.5">
+                {key && !registered ? (
+                    <LicenseUsageRow
+                        label={t("settings.license.licensedTo")}
+                        value={key.customer}
+                    />
+                ) : null}
+                {projects ? usage("settings.license.usageProjects", projects) : null}
+                {organizations ? usage("settings.license.usageOrganizations", organizations) : null}
+                {key && key.seats !== null ? (
+                    <LicenseUsageRow
                         label={t("settings.license.seats")}
+                        value={t("settings.license.usageOf", {count: users, limit: key.seats})}
+                        count={users}
+                        limit={key.seats}
+                    />
+                ) : (
+                    <LicenseUsageRow label={t("settings.license.users")} value={String(users)} />
+                )}
+                {key ? (
+                    <LicenseUsageRow
+                        label={t(
+                            registered
+                                ? "settings.license.keyExpires"
+                                : expired
+                                  ? "settings.license.expired"
+                                  : "settings.license.expires",
+                        )}
                         value={
-                            key.seats === null
-                                ? t("settings.license.seatsUsed", {users})
-                                : t("settings.license.seatsUsedOf", {users, seats: key.seats})
+                            !key.expires_at || expiresAt === null
+                                ? t("settings.license.never")
+                                : expired
+                                  ? formatDate(key.expires_at)
+                                  : t("settings.license.expiresIn", {
+                                        date: formatDate(key.expires_at),
+                                        count: Math.ceil((expiresAt - now) / DAY_MS),
+                                    })
                         }
                     />
-                    <Row
-                        label={t(expired ? "settings.license.expired" : "settings.license.expires")}
-                        value={
-                            key.expires_at
-                                ? formatDate(key.expires_at)
-                                : t("settings.license.never")
-                        }
-                    />
-                </div>
-            ) : (
-                <Row label={t("settings.license.users")} value={String(users)} />
-            )}
+                ) : null}
+            </div>
         </section>
     )
 }

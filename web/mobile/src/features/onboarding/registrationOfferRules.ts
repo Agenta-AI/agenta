@@ -37,3 +37,24 @@ export const isRegistrationOfferSeen = (userId: string): boolean => {
         return false
     }
 }
+
+/**
+ * The registration prompt once after an upgrade: the offer rule, for an admin who has not
+ * skipped it on this instance, outside the onboarding that already offers it.
+ */
+export const shouldPromptRegistration = ({
+    selfHosted,
+    isInstanceAdmin,
+    hasKey,
+    dismissed,
+    onboardingPending,
+}: {
+    selfHosted: boolean
+    isInstanceAdmin: boolean
+    hasKey: boolean
+    dismissed: boolean
+    onboardingPending: boolean
+}) =>
+    shouldOfferRegistration({selfHosted, isInstanceAdmin, hasKey}) &&
+    !dismissed &&
+    !onboardingPending
