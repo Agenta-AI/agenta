@@ -38,7 +38,13 @@ def _parse_feed(payload: Any) -> Optional[ReleaseFeed]:
 async def _read_feed_body() -> bytes:
     body = bytearray()
     async with httpx.AsyncClient(timeout=FETCH_TIMEOUT_SECONDS) as client:
-        async with client.stream("GET", env.releases.feed_url) as response:
+        async with client.stream(
+            "GET",
+            env.releases.feed_url,
+            # The running version, as other self-hosted products send with their update
+            # check. AGENTA_UPDATE_CHECK_ENABLED=false stops the request.
+            params={"version": get_agenta_version()},
+        ) as response:
             response.raise_for_status()
             async for chunk in response.aiter_bytes():
                 body += chunk
@@ -48,7 +54,6 @@ async def _read_feed_body() -> bytes:
 
 
 async def _download_feed() -> Optional[ReleaseFeed]:
-    # A plain GET: no instance id, no version, no other data about the instance.
     try:
         # The client timeout applies per read; this one bounds the whole download.
         body = await asyncio.wait_for(_read_feed_body(), FETCH_TIMEOUT_SECONDS)
@@ -73,13 +78,20 @@ class ReleasesService:
     async def fetch_instance_releases(self) -> InstanceReleases:
         version = get_agenta_version()
 
+        # How the instance was deployed, so the app can show the matching upgrade commands.
+        deployment_method = env.telemetry.deployment_method
+
         if not env.releases.update_check_enabled:
-            return InstanceReleases(version=version)
+            return InstanceReleases(
+                version=version,
+                deployment_method=deployment_method,
+            )
 
         feed = await self._fetch_feed()
 
         return InstanceReleases(
             version=version,
+            deployment_method=deployment_method,
             releases=feed.releases,
             notices=feed.notices,
         )

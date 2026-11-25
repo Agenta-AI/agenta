@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -12,3 +12,5 @@ class ReleaseFeed(BaseModel):
 
 class InstanceReleases(ReleaseFeed):
     version: str
+    # compose, helm, railway, kubernetes or docker (AGENTA_DEPLOYMENT_METHOD); None when unknown.
+    deployment_method: Optional[str] = None

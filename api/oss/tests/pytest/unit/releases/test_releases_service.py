@@ -94,17 +94,17 @@ async def test_returns_the_feed_and_the_running_version(cache, requests):
     assert cache.writes[0]["key"] == "feed"
 
 
-async def test_request_carries_no_instance_data(cache, requests):
+async def test_request_carries_only_the_version(cache, requests):
     await ReleasesService().fetch_instance_releases()
 
     assert len(requests) == 1
     request = requests[0]
     assert request.method == "GET"
-    assert str(request.url) == env.releases.feed_url
+    assert str(request.url) == f"{env.releases.feed_url}?version=v0.128.11"
+    assert dict(request.url.params) == {"version": "v0.128.11"}
     assert request.content == b""
     sent = json.dumps(dict(request.headers)).lower()
-    assert "v0.128.11" not in sent
-    assert "0.128.11" not in str(request.url)
+    assert "0.128.11" not in sent
     assert not any(name.lower().startswith("x-") for name in request.headers)
     assert "authorization" not in {name.lower() for name in request.headers}
     assert "cookie" not in {name.lower() for name in request.headers}
@@ -130,8 +130,19 @@ async def test_download_uses_the_configured_feed_url(cache, requests, monkeypatc
 
     result = await ReleasesService().fetch_instance_releases()
 
-    assert [str(request.url) for request in requests] == [preview]
+    assert [str(request.url) for request in requests] == [
+        f"{preview}?version=v0.128.11"
+    ]
     assert result.releases == FEED["releases"]
+
+
+@pytest.mark.parametrize("method", ["compose", "helm", None])
+async def test_returns_the_deployment_method(cache, requests, monkeypatch, method):
+    monkeypatch.setattr(env.telemetry, "deployment_method", method)
+
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert result.deployment_method == method
 
 
 async def test_update_check_off_makes_no_request(cache, requests, monkeypatch):
@@ -144,6 +155,7 @@ async def test_update_check_off_makes_no_request(cache, requests, monkeypatch):
     assert result.version == "v0.128.11"
     assert result.releases == []
     assert result.notices == []
+    assert result.deployment_method == env.telemetry.deployment_method
 
 
 async def test_cached_feed_makes_no_request(cache, requests):

@@ -2381,6 +2381,52 @@ class SuperTokensConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# telemetry
+# ---------------------------------------------------------------------------
+
+_DEPLOYMENT_METHODS = ("compose", "helm", "railway", "kubernetes", "docker")
+
+DeploymentMethod = Literal["compose", "helm", "railway", "kubernetes", "docker"]
+
+
+def _detect_deployment_method() -> Optional[DeploymentMethod]:
+    """How the API runs, when AGENTA_DEPLOYMENT_METHOD does not say."""
+
+    if os.getenv("KUBERNETES_SERVICE_HOST"):
+        return "kubernetes"
+    if os.path.exists("/.dockerenv"):
+        return "docker"
+    return None
+
+
+def _parse_deployment_method() -> Optional[DeploymentMethod]:
+    value = (os.getenv("AGENTA_DEPLOYMENT_METHOD") or "").strip().lower()
+    if not value:
+        return _detect_deployment_method()
+    if value in _DEPLOYMENT_METHODS:
+        return value
+    warnings.warn(
+        f"AGENTA_DEPLOYMENT_METHOD={value!r} is not recognized; "
+        "expected one of compose, helm, railway, kubernetes, docker. "
+        "Reporting no deployment method.",
+        stacklevel=2,
+    )
+    return None
+
+
+class TelemetryConfig(BaseModel):
+    """What a self-hosted instance sends to Agenta's PostHog project."""
+
+    enabled: bool = _parse_bool_env("AGENTA_TELEMETRY_ENABLED", default=True)
+    # Whether the operator set the switch, so the startup log can name the reason.
+    enabled_set: bool = bool((os.getenv("AGENTA_TELEMETRY_ENABLED") or "").strip())
+    deployment_method: Optional[DeploymentMethod] = _parse_deployment_method()
+    ci: bool = bool(os.getenv("CI"))
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # Triggers
 # ---------------------------------------------------------------------------
 
@@ -2529,6 +2575,7 @@ class EnvironSettings(BaseModel):
     store: StoreConfig = StoreConfig()
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()
+    telemetry: TelemetryConfig = TelemetryConfig()
     triggers: TriggersConfig = TriggersConfig()
     typesafe: TypeSafeConfig = TypeSafeConfig()
     wallets: WalletsConfig = WalletsConfig()
