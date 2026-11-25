@@ -11,9 +11,9 @@ import {cn} from "@agenta/ui/styles"
 import {IconTile} from "@agenta/ui/ui"
 import {ArrowUp, CaretRight, GithubLogo, PencilSimple} from "@phosphor-icons/react"
 
-// A two-line list row: no border, the hover fill hangs 12px outside the alignment line (ALIGN-01).
+// A filled row: its edge is visible at rest, so it sits on the alignment line (ALIGN-01).
 const WAY =
-    "-mx-3 box-border flex min-h-row-double w-[calc(100%+24px)] cursor-pointer appearance-none items-center gap-3 rounded-md border-0 bg-transparent px-3 py-2 text-left font-[inherit] transition-colors duration-[var(--duration-fast)] ease-out hover:bg-accent focus-ring-inset motion-reduce:transition-none"
+    "box-border flex min-h-row-double w-full cursor-pointer appearance-none items-center gap-3 rounded-lg border-0 bg-muted px-3 py-3 text-left font-[inherit] transition-colors duration-[var(--duration-fast)] ease-out hover:bg-accent focus-ring motion-reduce:transition-none"
 
 function Way({
     icon,
@@ -60,7 +60,7 @@ export function SkillCreateWays({
     const fileInput = useRef<HTMLInputElement>(null)
     const [over, setOver] = useState(false)
     return (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-2">
             <Way
                 icon={<PencilSimple size={16} />}
                 tint="bg-data-1/10 text-data-1"
