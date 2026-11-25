@@ -17,8 +17,8 @@ export interface ListTableRowSelect {
 export const ListTableRowSelectContext = createContext<ListTableRowSelect | null>(null)
 
 /**
- * Wraps a row's or a card's Mark. Under `selection.markAsCheckbox` the Mark turns into a check on
- * hover and focus and while anything is selected; on touch, a small check sits on its corner until
+ * Wraps a row's or a card's Mark. Under `selection.markAsCheckbox` the Mark turns into a check when
+ * the pointer is on the Mark itself, on focus and while anything is selected; on touch, a small check sits on its corner until
  * then. Without it, the Mark as is. `dim` fades the Mark only (an archived row), never the check.
  */
 export const ListTableSelectMark = ({
@@ -57,16 +57,17 @@ export const ListTableSelectMark = ({
                     checked
                         ? "bg-foreground text-background opacity-100"
                         : cn(
-                              "bg-selected pointer-fine:group-hover:opacity-100",
+                              "bg-selected pointer-fine:peer-hover:opacity-100",
                               shown ? "opacity-100" : "opacity-0",
                           ),
                 )}
             >
-                {checked ? (
-                    <CheckIcon size={16} weight="bold" />
-                ) : (
-                    <span className="box-border size-control-check rounded-control-check border border-solid border-border-strong bg-background" />
-                )}
+                {/* Unchecked, a quiet check icon says "click to select"; checked, it fills. */}
+                <CheckIcon
+                    size={16}
+                    weight={checked ? "bold" : "regular"}
+                    className={checked ? undefined : "text-muted-foreground"}
+                />
             </span>
             {/* Touch has no hover: the Mark stays, with a small check on its corner. */}
             {shown ? null : (
