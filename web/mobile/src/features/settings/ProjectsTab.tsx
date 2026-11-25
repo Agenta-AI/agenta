@@ -1,3 +1,5 @@
+import {useEffect} from "react"
+
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsProjectsTabCatalog from "@agenta/i18n/catalogs/settings.projectsTab"
@@ -17,7 +19,10 @@ import {useQueryClient} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
 import {useProjectPermission} from "../context/useProjectPermission"
+import {readLimitRefusal} from "../limits/limitRefusal"
+import {LimitRefusalNotice} from "../limits/LimitRefusalNotice"
 import {ProjectLimitNotice} from "../limits/ProjectLimitNotice"
+import {useLimitRefusal} from "../limits/useLimitRefusal"
 
 import {isAtLimit} from "./licenseApi"
 import {NameDialog} from "./NameDialog"
@@ -71,11 +76,15 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                         projectId: project.project_id,
                     })
                 }
-                renderCreateDialog={({open, onClose, onSubmit, pending}) => (
+                // The dialog shows a limit refusal itself, as the drawer's sheet does.
+                handlesCreateError={(error) => readLimitRefusal(error) !== null}
+                renderCreateDialog={({open, onClose, onSubmit, pending, error}) => (
                     <CreateProjectDialog
                         open={open}
+                        workspaceId={workspaceId}
                         projectId={projectId}
                         pending={pending}
+                        error={error}
                         onClose={onClose}
                         onSubmit={(name) => onSubmit({name})}
                     />
@@ -129,17 +138,25 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     )
 }
 
-/** The create dialog, which reads the project usage again each time it opens. */
+/**
+ * The create dialog, which reads the project usage again each time it opens. A limit refusal
+ * from submit shows the same notice as the drawer's sheet, until a newer usage read shows room.
+ */
 export const CreateProjectDialog = ({
     open,
+    workspaceId,
     projectId,
     pending,
+    error,
     onClose,
     onSubmit,
 }: {
     open: boolean
+    workspaceId: string
     projectId: string
     pending: boolean
+    /** The last submit's failure, from the page. */
+    error?: unknown
     onClose: () => void
     onSubmit: (name: string) => void
 }) => {
@@ -147,13 +164,26 @@ export const CreateProjectDialog = ({
     const usage = useLicenseUsage(projectId, open)
     const projects = usage.data?.projects
     const atLimit = isAtLimit(projects)
+    const {refusal, refuse, clear} = useLimitRefusal(usage, projects)
+    useEffect(() => {
+        const next = readLimitRefusal(error)
+        if (next) refuse(next)
+        else clear()
+    }, [error, refuse, clear])
     return (
         <NameDialog
             open={open}
-            submitDisabled={atLimit}
+            submitDisabled={atLimit || Boolean(refusal)}
             notice={
                 atLimit && projects ? (
                     <ProjectLimitNotice usage={projects} projectId={projectId} />
+                ) : refusal ? (
+                    <LimitRefusalNotice
+                        refusal={refusal}
+                        workspaceId={workspaceId}
+                        projectId={projectId}
+                        onNavigate={onClose}
+                    />
                 ) : null
             }
             title={t("settings.projectsTab.newTitle")}

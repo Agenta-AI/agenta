@@ -64,11 +64,13 @@ describe("the create project dialog", () => {
         focusManager.setFocused(undefined)
     })
 
-    const dialog = (open: boolean) => (
+    const dialog = (open: boolean, error?: unknown) => (
         <CreateProjectDialog
             open={open}
+            workspaceId="ws-1"
             projectId="proj-1"
             pending={false}
+            error={error}
             onClose={() => undefined}
             onSubmit={() => undefined}
         />
@@ -76,10 +78,12 @@ describe("the create project dialog", () => {
     // One client for the whole test, as the app keeps one.
     const mount = () => {
         const client = new QueryClient({defaultOptions: {queries: {retry: false}}})
-        return async (open: boolean) => {
+        return async (open: boolean, error?: unknown) => {
             await act(async () => {
                 root.render(
-                    <QueryClientProvider client={client}>{dialog(open)}</QueryClientProvider>,
+                    <QueryClientProvider client={client}>
+                        {dialog(open, error)}
+                    </QueryClientProvider>,
                 )
             })
         }
@@ -128,5 +132,40 @@ describe("the create project dialog", () => {
 
         await vi.waitFor(() => expect(create()?.hasAttribute("disabled")).toBe(false))
         expect(fixture.fetchUsage).toHaveBeenCalledTimes(2)
+    })
+
+    it("shows a refusal from submit as the limit notice, then lifts it after a newer read", async () => {
+        // The usage read failed, so the dialog opened with Create on.
+        fixture.fetchUsage.mockRejectedValueOnce(new Error("network"))
+        const render = mount()
+        await render(true)
+        typeName()
+        await vi.waitFor(() => expect(fixture.fetchUsage).toHaveBeenCalledTimes(1))
+        expect(create()?.hasAttribute("disabled")).toBe(false)
+
+        // Submit is refused at the limit; the usage is read again and still fails.
+        fixture.fetchUsage.mockRejectedValueOnce(new Error("network"))
+        const refused = {
+            response: {
+                status: 403,
+                data: {detail: {code: "project_limit_reached", message: "m", limit: 1}},
+            },
+        }
+        await render(true, refused)
+        await vi.waitFor(() => expect(fixture.fetchUsage).toHaveBeenCalledTimes(2))
+        expect(document.body.textContent).toContain(
+            "Register this instance for free to create more projects.",
+        )
+        expect(create()?.hasAttribute("disabled")).toBe(true)
+
+        // A key is activated in another tab; the reader comes back to this one.
+        fixture.usage = UNLIMITED
+        await act(async () => {
+            focusManager.setFocused(false)
+            focusManager.setFocused(true)
+        })
+
+        await vi.waitFor(() => expect(create()?.hasAttribute("disabled")).toBe(false))
+        expect(document.body.textContent).not.toContain("Register this instance for free")
     })
 })
