@@ -13,8 +13,6 @@ from oss.src.utils.version import get_agenta_version
 
 log = get_module_logger(__name__)
 
-RELEASE_FEED_URL = "https://agenta.ai/releases.json"
-
 CACHE_NAMESPACE = "releases:feed"
 CACHE_KEY = "feed"
 FEED_TTL_SECONDS = 12 * 60 * 60
@@ -40,7 +38,7 @@ def _parse_feed(payload: Any) -> Optional[ReleaseFeed]:
 async def _read_feed_body() -> bytes:
     body = bytearray()
     async with httpx.AsyncClient(timeout=FETCH_TIMEOUT_SECONDS) as client:
-        async with client.stream("GET", RELEASE_FEED_URL) as response:
+        async with client.stream("GET", env.releases.feed_url) as response:
             response.raise_for_status()
             async for chunk in response.aiter_bytes():
                 body += chunk

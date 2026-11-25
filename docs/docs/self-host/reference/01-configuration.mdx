@@ -1533,6 +1533,7 @@ What users see, and who sees it, is on the [update notices page](/self-host/upda
 | Env var | env.py path | values.yaml path |
 |---|---|---|
 | `AGENTA_UPDATE_CHECK_ENABLED` | `releases.update_check_enabled` | `releases.updateCheckEnabled` |
+| `AGENTA_RELEASE_FEED_URL` | `releases.feed_url` | Not mapped; set it in the API's environment |
 
 The update check is on by default. The API downloads the public release feed at
 `https://agenta.ai/releases.json` when someone uses Agenta, and keeps it for 12 hours (each API
@@ -1544,6 +1545,10 @@ warning to organization owners and admins when a newer release fixes a security 
 Set `AGENTA_UPDATE_CHECK_ENABLED=false` to stop the download. Agenta then shows only the
 releases that shipped with the version you run. This setting does not follow
 `AGENTA_TELEMETRY_ENABLED`.
+
+`AGENTA_RELEASE_FEED_URL` is the address of the release feed. The default is
+`https://agenta.ai/releases.json`. An empty value uses the default. Change it only to test a
+different feed.
 
 ## smtp
 

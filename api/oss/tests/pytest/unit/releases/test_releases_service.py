@@ -10,10 +10,9 @@ from oss.src.core.releases.service import (
     FAILED_FEED_TTL_SECONDS,
     FEED_TTL_SECONDS,
     MAX_FEED_BYTES,
-    RELEASE_FEED_URL,
     ReleasesService,
 )
-from oss.src.utils.env import env
+from oss.src.utils.env import ReleasesConfig, env
 
 FEED = {
     "releases": [
@@ -101,7 +100,7 @@ async def test_request_carries_no_instance_data(cache, requests):
     assert len(requests) == 1
     request = requests[0]
     assert request.method == "GET"
-    assert str(request.url) == RELEASE_FEED_URL
+    assert str(request.url) == env.releases.feed_url
     assert request.content == b""
     sent = json.dumps(dict(request.headers)).lower()
     assert "v0.128.11" not in sent
@@ -109,6 +108,30 @@ async def test_request_carries_no_instance_data(cache, requests):
     assert not any(name.lower().startswith("x-") for name in request.headers)
     assert "authorization" not in {name.lower() for name in request.headers}
     assert "cookie" not in {name.lower() for name in request.headers}
+
+
+def test_feed_url_defaults_to_agenta_ai():
+    assert ReleasesConfig().feed_url == "https://agenta.ai/releases.json"
+
+
+@pytest.mark.parametrize("value", ["", None])
+def test_empty_feed_url_uses_the_default(monkeypatch, value):
+    if value is None:
+        monkeypatch.delenv("AGENTA_RELEASE_FEED_URL", raising=False)
+    else:
+        monkeypatch.setenv("AGENTA_RELEASE_FEED_URL", value)
+
+    assert ReleasesConfig().feed_url == "https://agenta.ai/releases.json"
+
+
+async def test_download_uses_the_configured_feed_url(cache, requests, monkeypatch):
+    preview = "https://preview.example.com/releases.json"
+    monkeypatch.setattr(env.releases, "feed_url", preview)
+
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert [str(request.url) for request in requests] == [preview]
+    assert result.releases == FEED["releases"]
 
 
 async def test_update_check_off_makes_no_request(cache, requests, monkeypatch):

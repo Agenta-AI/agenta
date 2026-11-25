@@ -2126,6 +2126,10 @@ class ReleasesConfig(BaseModel):
     nothing about the instance. It does not follow AGENTA_TELEMETRY_ENABLED."""
 
     update_check_enabled: bool = _parse_bool_env("AGENTA_UPDATE_CHECK_ENABLED", True)
+    # Change it only to test a different feed. An empty value uses the default.
+    feed_url: str = (
+        os.getenv("AGENTA_RELEASE_FEED_URL") or "https://agenta.ai/releases.json"
+    )
 
     model_config = ConfigDict(extra="ignore")
 
