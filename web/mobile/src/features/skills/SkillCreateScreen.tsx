@@ -255,7 +255,10 @@ export const SkillCreateScreen = ({
                     ) : undefined
                 }
             >
-                {body}
+                {/* Each step swaps in with the kit view transition (MOTION-01). */}
+                <div key={flow.step} className="ag-view-enter">
+                    {body}
+                </div>
             </PageLayout>
             {modal}
         </>
