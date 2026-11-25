@@ -183,7 +183,7 @@ class LicensesRouter:
     async def fetch_instance_usage(self, request: Request) -> InstanceUsageResponse:
         """The counts behind the create dialogs, for any person signed in to the app:
         a member also sees the limit before they try to create."""
-        if _is_cloud():
+        if is_cloud():
             raise _not_available()
         access = get_request_access()
         if (
@@ -230,7 +230,7 @@ class LicensesRouter:
 
     @intercept_exceptions()
     async def dismiss_instance_registration_offer(self, request: Request) -> None:
-        if _is_cloud():
+        if is_cloud():
             raise _not_available()
         await require_instance_admin()
 
