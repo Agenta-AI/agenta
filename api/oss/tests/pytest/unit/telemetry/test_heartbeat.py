@@ -22,6 +22,7 @@ from oss.src.core.telemetry import heartbeat, runtime
 from oss.src.dbs.postgres.instances import dao as instances_dao_module
 from oss.src.core.telemetry import service as telemetry_service
 from oss.src.utils.env import env
+from oss.tests.pytest.unit.telemetry._edition import set_edition
 
 INSTANCE_ID = UUID("3f0c9a52-6d1e-4b8a-9f7e-2a5c8d4e1b07")
 LICENSE_KEY_ID = UUID("0b6c2e7d-8a4f-4c1e-9d3b-5f7a9c1e3b5d")
@@ -218,7 +219,7 @@ def self_hosted(monkeypatch):
     monkeypatch.setattr(env.telemetry, "enabled_set", False)
     monkeypatch.setattr(env.telemetry, "deployment_method", "compose")
     monkeypatch.setattr(env.telemetry, "ci", False)
-    monkeypatch.setattr(env.agenta, "license", "oss")
+    set_edition(monkeypatch, "oss")
     monkeypatch.setattr(env.agenta, "web_url", "https://agenta.example.com")
     monkeypatch.setattr(runtime, "get_agenta_version", lambda: "v0.128.11")
     monkeypatch.setattr(runtime.os, "cpu_count", lambda: 8)
@@ -468,7 +469,7 @@ LICENSE_SERVICE = "ee.src.core.licenses.service"
 
 @pytest.mark.asyncio
 async def test_ee_reads_plan_and_license_key_id(monkeypatch, dao, posthog):
-    monkeypatch.setattr(env.agenta, "license", "ee")
+    set_edition(monkeypatch, "ee")
     monkeypatch.setitem(
         sys.modules,
         LICENSE_SERVICE,
@@ -501,7 +502,7 @@ async def test_ee_reads_plan_and_license_key_id(monkeypatch, dao, posthog):
 async def test_ee_without_the_license_module_sends_the_plan_with_no_key(
     monkeypatch, dao, posthog
 ):
-    monkeypatch.setattr(env.agenta, "license", "ee")
+    set_edition(monkeypatch, "ee")
     # None in sys.modules makes the import raise ImportError, as a missing module does.
     monkeypatch.setitem(sys.modules, LICENSE_SERVICE, None)
 

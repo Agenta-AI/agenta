@@ -20,6 +20,7 @@ from oss.src.middlewares import analytics
 from oss.src.utils import env as env_module
 from oss.src.utils import lazy
 from oss.src.utils.env import env
+from oss.tests.pytest.unit.telemetry._edition import set_edition
 
 INSTANCE_ID = UUID("3f0c9a52-6d1e-4b8a-9f7e-2a5c8d4e1b07")
 USER_ID = UUID("8b2d4f6a-1c3e-4a5b-8d7f-9e0a1b2c3d4e")
@@ -44,7 +45,7 @@ class _Recorder:
 @pytest.fixture
 def self_hosted(monkeypatch):
     monkeypatch.setattr(env.stripe, "api_key", None)
-    monkeypatch.setattr(env.agenta, "license", "oss")
+    set_edition(monkeypatch, "oss")
     monkeypatch.setattr(env.telemetry, "enabled", True)
     monkeypatch.setattr(env.telemetry, "enabled_set", False)
     monkeypatch.setattr(env.telemetry, "instance_kind", "test")
@@ -659,7 +660,7 @@ def _license(plan, telemetry="required"):
 
 @pytest.fixture
 def switch_off_on_ee(monkeypatch, self_hosted):
-    monkeypatch.setattr(env.agenta, "license", "ee")
+    set_edition(monkeypatch, "ee")
     monkeypatch.setattr(env.telemetry, "enabled", False)
     monkeypatch.setattr(env.telemetry, "enabled_set", True)
 
@@ -696,7 +697,7 @@ async def test_license_and_switch_off(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("switch", [True, False])
 async def test_no_license_module_gives_the_switch(monkeypatch, self_hosted, switch):
-    monkeypatch.setattr(env.agenta, "license", "ee")
+    set_edition(monkeypatch, "ee")
     monkeypatch.setattr(env.telemetry, "enabled", switch)
     monkeypatch.setattr(env.telemetry, "enabled_set", True)
     # None in sys.modules makes the import raise ImportError, as a missing module does.
@@ -707,7 +708,7 @@ async def test_no_license_module_gives_the_switch(monkeypatch, self_hosted, swit
 
 @pytest.mark.asyncio
 async def test_oss_never_reads_a_license(monkeypatch, self_hosted):
-    monkeypatch.setattr(env.agenta, "license", "oss")
+    set_edition(monkeypatch, "oss")
     monkeypatch.setattr(env.telemetry, "enabled", False)
     active_license = AsyncMock(return_value=_license("self_hosted_enterprise"))
     monkeypatch.setitem(
