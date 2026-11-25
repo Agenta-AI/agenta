@@ -11,7 +11,8 @@ import {
     type CreatedSkill,
     type ImportedSkill,
 } from "@agenta/skills-ui"
-import {Alert, Button, Spinner} from "@agenta/ui/ui"
+import {Alert, Button, IconTile, Spinner} from "@agenta/ui/ui"
+import {GithubLogo} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -124,10 +125,7 @@ export const SkillCreateScreen = ({
         )
     } else if (flow.step === "import") {
         body = (
-            <div className="flex flex-col gap-6">
-                {stepHeading(t("skills.page.importTitle"), t("skills.page.importHint"))}
-                <SkillGithubImport projectId={projectId} onImported={showAdded} />
-            </div>
+            <SkillGithubImport projectId={projectId} onImported={showAdded} />
         )
     } else if (flow.step === "upload") {
         body = (
@@ -171,8 +169,27 @@ export const SkillCreateScreen = ({
                 projectId={projectId}
                 width="sm"
                 back={back}
-                title={t("skills.page.newSkill")}
-                description={t("skills.page.createDescription")}
+                // The GitHub step is its own page in the design: its Mark, title and hint on top.
+                title={
+                    flow.step === "import" ? (
+                        <span className="flex items-center gap-3">
+                            <IconTile size={32} className="bg-data-3/10 text-data-3">
+                                <GithubLogo />
+                            </IconTile>
+                            {t("skills.page.importTitle")}
+                        </span>
+                    ) : (
+                        t("skills.page.newSkill")
+                    )
+                }
+                documentTitle={
+                    flow.step === "import" ? t("skills.page.importTitle") : t("skills.page.newSkill")
+                }
+                description={
+                    flow.step === "import"
+                        ? t("skills.page.importHint")
+                        : t("skills.page.createDescription")
+                }
                 actions={
                     flow.step === "write" ? (
                         <>

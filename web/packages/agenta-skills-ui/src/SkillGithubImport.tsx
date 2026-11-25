@@ -162,14 +162,15 @@ export function SkillGithubImport({
 
     return (
         <div className="flex flex-col gap-6">
+            {/* One row on a wide window: the link, the branch, then the search (the design's import page). */}
             <form
-                className="flex flex-col gap-4"
+                className="flex flex-wrap items-end gap-2"
                 onSubmit={(event) => {
                     event.preventDefault()
                     if (url.trim() && !busy) void find()
                 }}
             >
-                <Field label={t("skills.editor.repoLink")}>
+                <Field label={t("skills.editor.repoLink")} className="min-w-0 flex-[2_1_280px]">
                     <Input
                         autoFocus
                         value={url}
@@ -180,33 +181,31 @@ export function SkillGithubImport({
                         placeholder="https://github.com/owner/repo"
                     />
                 </Field>
-                <div className="flex flex-wrap items-end gap-2">
-                    <Field
-                        label={
-                            <>
-                                {t("skills.editor.branch")}{" "}
-                                <span className="font-normal text-muted-foreground">
-                                    {t("skills.editor.optional")}
-                                </span>
-                            </>
-                        }
-                        className="min-w-0 flex-[1_1_200px]"
-                    >
-                        <Input
-                            value={branch}
-                            onChange={(event) => setBranch(event.target.value)}
-                            placeholder="main"
-                        />
-                    </Field>
-                    <Button
-                        type="submit"
-                        variant={found ? "outline" : "default"}
-                        disabled={!url.trim() || busy !== null}
-                    >
-                        {busy === "scan" ? <Spinner size="small" /> : null}
-                        {found ? t("skills.editor.searchAgain") : t("skills.editor.findSkills")}
-                    </Button>
-                </div>
+                <Field
+                    label={
+                        <>
+                            {t("skills.editor.branch")}{" "}
+                            <span className="font-normal text-muted-foreground">
+                                {t("skills.editor.optional")}
+                            </span>
+                        </>
+                    }
+                    className="min-w-0 flex-[1_1_140px]"
+                >
+                    <Input
+                        value={branch}
+                        onChange={(event) => setBranch(event.target.value)}
+                        placeholder="main"
+                    />
+                </Field>
+                <Button
+                    type="submit"
+                    variant={found ? "outline" : "default"}
+                    disabled={!url.trim() || busy !== null}
+                >
+                    {busy === "scan" ? <Spinner size="small" /> : null}
+                    {found ? t("skills.editor.searchAgain") : t("skills.editor.findSkills")}
+                </Button>
             </form>
 
             {error ? <Alert type="error" showIcon message={error} /> : null}

@@ -1,8 +1,7 @@
 import {useT} from "@agenta/i18n"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import {cn} from "@agenta/ui/styles"
-import {Badge} from "@agenta/ui/ui"
-import {Check, Lightning, TerminalWindow} from "@phosphor-icons/react"
+import {Check, Compass, Warning} from "@phosphor-icons/react"
 
 export interface SkillCandidate {
     key: string
@@ -23,12 +22,12 @@ export interface UnavailableSkill {
 const LAYER =
     "absolute inset-0 flex items-center justify-center transition-opacity duration-[var(--duration-fast)] motion-reduce:transition-none"
 
-/** The row's Mark; on hover (always on touch) it shows the check box it is. */
+/** The row's skill Mark (32px, a two-line row); on hover (always on touch) it shows a check. */
 const MarkCheck = ({checked}: {checked: boolean}) => (
     <span
         aria-hidden
         className={cn(
-            "relative box-border flex size-6 shrink-0 items-center justify-center rounded-md transition-colors duration-[var(--duration-fast)] motion-reduce:transition-none [&_svg]:size-3.5",
+            "relative box-border flex size-8 shrink-0 items-center justify-center rounded-md transition-colors duration-[var(--duration-fast)] motion-reduce:transition-none [&_svg]:size-4",
             checked ? "bg-foreground text-background" : "bg-secondary text-muted-foreground",
         )}
     >
@@ -40,7 +39,7 @@ const MarkCheck = ({checked}: {checked: boolean}) => (
                     : "group-hover/pick:opacity-0 group-has-[:focus-visible]/pick:opacity-0 pointer-coarse:opacity-0",
             )}
         >
-            <Lightning />
+            <Compass />
         </span>
         <span
             className={cn(
@@ -50,11 +49,7 @@ const MarkCheck = ({checked}: {checked: boolean}) => (
                     : "opacity-0 group-hover/pick:opacity-100 group-has-[:focus-visible]/pick:opacity-100 pointer-coarse:opacity-100",
             )}
         >
-            {checked ? (
-                <Check weight="bold" />
-            ) : (
-                <span className="box-border size-3.5 rounded-sm border border-solid border-border-strong bg-background" />
-            )}
+            <Check weight={checked ? "bold" : "regular"} />
         </span>
     </span>
 )
@@ -83,7 +78,7 @@ export function SkillCandidateList({
                         <label
                             key={candidate.key}
                             className={cn(
-                                "group/pick relative -mx-3 box-border flex min-h-row-double cursor-pointer items-center gap-2 rounded-md px-3 py-1.5 transition-colors duration-[var(--duration-fast)] motion-reduce:transition-none",
+                                "group/pick relative -mx-3 box-border flex min-h-row-double cursor-pointer items-center gap-3 rounded-md px-3 py-1.5 transition-colors duration-[var(--duration-fast)] motion-reduce:transition-none",
                                 on ? "bg-selected" : "hover:bg-accent",
                             )}
                         >
@@ -97,8 +92,16 @@ export function SkillCandidateList({
                             />
                             <MarkCheck checked={on} />
                             <span className="flex min-w-0 flex-1 flex-col">
-                                <span className="truncate text-label font-medium text-foreground">
-                                    {candidate.title}
+                                <span className="flex min-w-0 items-center gap-2">
+                                    <span className="truncate text-label font-medium text-foreground">
+                                        {candidate.title}
+                                    </span>
+                                    {candidate.runsPrograms ? (
+                                        <span className="flex shrink-0 items-center gap-1 text-meta text-warning">
+                                            <Warning aria-hidden size={12} />
+                                            {t("skills.editor.runsPrograms")}
+                                        </span>
+                                    ) : null}
                                 </span>
                                 {candidate.description ? (
                                     <span
@@ -109,19 +112,13 @@ export function SkillCandidateList({
                                     </span>
                                 ) : null}
                             </span>
-                            {candidate.runsPrograms ? (
-                                <Badge variant="warning" className="shrink-0">
-                                    <TerminalWindow aria-hidden size={12} />
-                                    {t("skills.editor.runsPrograms")}
-                                </Badge>
-                            ) : null}
                         </label>
                     )
                 })}
             </div>
             {unavailable.length ? (
                 <div className="flex flex-col gap-1">
-                    <span className="text-meta font-medium text-muted-foreground">
+                    <span className="text-label text-muted-foreground">
                         {t("skills.editor.notAvailable")}
                     </span>
                     {unavailable.map((item) => (
@@ -130,10 +127,12 @@ export function SkillCandidateList({
                             title={item.detail}
                             className="flex min-h-row-single items-center gap-2"
                         >
-                            <span className="min-w-0 flex-1 truncate text-label text-muted-foreground">
+                            <span className="min-w-0 flex-1 truncate text-label text-foreground">
                                 {item.title}
                             </span>
-                            <Badge className="shrink-0">{item.reason}</Badge>
+                            <span className="shrink-0 text-label text-muted-foreground">
+                                {item.reason}
+                            </span>
                         </div>
                     ))}
                 </div>
