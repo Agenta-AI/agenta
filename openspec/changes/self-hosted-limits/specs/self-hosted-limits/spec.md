@@ -72,6 +72,11 @@ On an install that is not cloud, `POST /organizations/` SHALL refuse a new organ
 - **WHEN** an instance with no key already has 3 organizations
 - **THEN** all 3 stay, and a fourth is refused
 
+#### Scenario: Two requests at the same moment (accepted race)
+
+- **WHEN** an instance with no paid key and no organization gets two organization creations at the same moment
+- **THEN** both can pass the check, because the check counts and then creates with no lock; the instance keeps both organizations, and every later creation is refused
+
 ### Requirement: Sign-up skips the personal organization at the limit
 
 During sign-up, `create_accounts` SHALL skip the personal organization, without raising, when the instance is at its organization limit, and the new user SHALL stay signed up.

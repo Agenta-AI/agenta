@@ -15,7 +15,7 @@ All PRs target v0.130.1. The spec PR is the base of the stack. M1 to M4 start to
 | M4 Images, hosting, builds | 4.x | spec; check needs M2 and M3 | A | `/data/mahmoud/agenta-limits-m4` | `feat/one-image-spec` | starting |
 | M5 License text, docs, QA | 5.x | M1 to M4 | B | `/data/mahmoud/agenta-limits-m5` | `feat/one-image-spec` | waiting |
 
-Shared files: M1 and M2 both touch `api/oss/src/services/commoners.py` (limit check and the analytics call). Merge order: spec, M1, M2, M3, M4, M5; a later PR merges the base into its branch to resolve conflicts.
+Shared files: M1 and M2 both touch `api/oss/src/services/commoners.py` (limit check, and the `env` import). Merge order: spec, M1, M2, M3, M4, M5; a later PR merges the base into its branch to resolve conflicts.
 
 ## M1. Limits in `ee/` (API and /m)
 
@@ -33,8 +33,8 @@ Shared files: M1 and M2 both touch `api/oss/src/services/commoners.py` (limit ch
 
 - [ ] 2.1 `api/oss/src/utils/env.py` and `common.py`: `is_ee()` true when the `ee` package imports, with docstrings that say so; `AGENTA_LICENSE` is read only as the database prefix fallback (default `oss`). Move every other reader of `env.agenta.license` and `_LICENSE` (lock key, alembic ini paths for core and tracing) off it. Env examples for new installs set `POSTGRES_DB_PREFIX`.
 - [ ] 2.2 Throttling: outside `is_cloud()`, no fallback to the free cloud plan's throttles.
-- [ ] 2.3 SDK vault: read provider keys from the environment unless `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=false`. Note in the PR that cloud must set it before the new services image deploys.
-- [ ] 2.4 Server analytics: replace `oss_deployment_created` with `self_hosted_deployment_created` (`deployment_type="self_hosted"`, sent when `not is_cloud()`), and the sign-up property `is_ee` with `is_cloud`.
+- [x] 2.3 SDK vault: no change. Provider keys from the environment keep today's rule, decided 2026-11-25 (on unless `AGENTA_LICENSE=ee`; `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` overrides it).
+- [ ] 2.4 Server analytics: replace the sign-up property `is_ee` with `is_cloud`. Do not add an install event: the install event is `instance_installed` from #8237, which replaces `oss_deployment_created`; M2 keeps main's `oss_deployment_created` code so the merge takes #8237's version.
 - [ ] 2.5 Default plan for new subscriptions outside cloud: `self_hosted_community`.
 - [ ] 2.6 `web/entrypoint.sh`: drop the edition condition from the cloud key check that sets `AGENTA_BILLING_ENABLED`; `@agenta/shared` adds `isCloud()` that reads that same value. `isBillingEnabled()` calls `isCloud()`. The entrypoint drops the edition condition from the Turnstile gate too. In `web/mobile` and `web/packages`, every `isEE()` branch takes the EE side, except the cloud branches (analytics `OSS_CONFIG` renamed `SELF_HOSTED_CONFIG`, `DrillInBridgeProvider.tsx`, `providerKey.ts`), which use `isCloud()`. Remove the `isEE()` branch in `LicenseTab.tsx`.
 - [ ] 2.7 `run-tests.py` (api, sdks/python, services): stop selecting tests by `AGENTA_LICENSE`; the EE path is the only path.
@@ -54,9 +54,10 @@ Shared files: M1 and M2 both touch `api/oss/src/services/commoners.py` (limit ch
 - [ ] 4.4 Railway: check the wrappers start on the new images; no template change needed if 4.2 holds.
 - [ ] 4.5 Public workflows 17 and 42 build from the combined Dockerfiles; 12 and 44 run the EE path.
 - [ ] 4.6 Cloud repo PR: workflows 19 and 63 drop the edition loop for API, services and runner and push one digest under both the public mirror source and `internal-ee-*`; workflow 43 mirrors it to the public names.
+- [x] 4.7 Removed: cloud sets no provider keys flag. Provider keys from the environment keep today's rule, decided 2026-11-25.
 
 ## M5. License text, docs and QA
 
 - [ ] 5.1 Enterprise License text in `ee/LICENSE`, `api/ee/LICENSE`, `web/ee/LICENSE`, `services/ee/LICENSE` and `hosting/docker-compose/ee/LICENSE`: replace the first paragraph with the wording in design Decision 8 (approved by Mahmoud 2026-11-21); flag a lawyer review in the PR.
-- [ ] 5.2 Docs: editions page `docs/docs/misc/01-opensource.mdx` (one image, plans, limits), license keys page `docs/docs/self-host/reference/04-license-keys.mdx` (every image reads keys), the OSS to EE switch page (replace with "add a key"), `docs/docs/self-host/upgrade-and-migrate/01-upgrading.mdx` (backup, first-start migration), the configuration reference (`AGENTA_LICENSE` is the database prefix choice, `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED`), `02-restrict-organization-creation.mdx` (one organization without a paid key), Helm and compose guides.
+- [ ] 5.2 Docs: editions page `docs/docs/misc/01-opensource.mdx` (one image, plans, limits), license keys page `docs/docs/self-host/reference/04-license-keys.mdx` (every image reads keys), the OSS to EE switch page (replace with "add a key"), `docs/docs/self-host/upgrade-and-migrate/01-upgrading.mdx` (backup, first-start migration), the configuration reference (`AGENTA_LICENSE` is the database prefix choice; it also keeps its job for provider keys from the environment), `02-restrict-organization-creation.mdx` (one organization without a paid key), Helm and compose guides.
 - [ ] 5.3 QA in `/m` from fresh accounts: upgrade a real v0.129 OSS compose stack by pull and restart; data and member access intact; second project refused; free key added; second project created; second organization refused; second person signs up with and without an invitation; playground uses the env provider key. Record the headline journey.

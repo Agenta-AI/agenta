@@ -29,8 +29,8 @@ From the runtime research:
 2. The OSS runner skips `core_ee`, so `check_entitlements` raises "No subscription found" (`entitlements/service.py:285-288`).
 3. EE checks project access by project rows; OSS gives every member every project (`api/entrypoints/access.py:38-43`). Members lose access unless rows are written (`memberships_check --materialize`, a manual step today).
 4. With no key, the throttling middleware falls back to the `cloud_v0_hobby` throttles (`api/ee/src/middlewares/throttling.py:297-325`): on slow routes a burst of 120, then 1 request per minute. Self-hosted EE with no key has this bug today.
-5. The SDK uses provider keys from the environment only when `AGENTA_LICENSE != "ee"` (`sdks/python/agenta/sdk/middlewares/running/vault.py:70-74`).
-6. `/m` treats EE as cloud: analytics settings (session recording, email as id) and the "unavailable in cloud" label (`web/mobile/src/features/analytics/client.ts:35`, `web/mobile/src/features/chat/DrillInBridgeProvider.tsx:73`). Server analytics stop sending the OSS deployment event (`api/oss/src/middlewares/analytics.py:118`).
+5. The SDK uses provider keys from the environment only when `AGENTA_LICENSE != "ee"` (`sdks/python/agenta/sdk/middlewares/running/vault.py:70-74`). This rule stays. An upgraded open source install keeps `AGENTA_LICENSE=oss`, so its keys keep working (decision 2026-11-25).
+6. `/m` treats EE as cloud: analytics settings (session recording, email as id) and the "unavailable in cloud" label (`web/mobile/src/features/analytics/client.ts:35`, `web/mobile/src/features/chat/DrillInBridgeProvider.tsx:73`). Server analytics stop sending the OSS deployment event (`api/oss/src/middlewares/analytics.py:118`). #8237 replaces that event with the anonymous `instance_installed` event.
 7. Stored plan rows say `self_hosted_enterprise` (`api/ee/src/core/subscriptions/types.py:31-47`); most reads replace it, a few do not.
 
 Harmless on self-hosted: Loops (no key), fraud checks (no key), Stripe and the meters cron (no key), roles (community offers admin and member, as OSS), SSO and audit (shown locked).
@@ -76,10 +76,10 @@ What "the EE path always on" means in code:
 | Today's rule | New rule |
 | --- | --- |
 | Throttling falls back to the free cloud plan's throttles for a plan with none | Outside `is_cloud()`, a plan with no throttles has none |
-| SDK reads provider keys from the environment when `AGENTA_LICENSE != "ee"` | It reads them unless `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=false`. The cloud deploy sets it to false before it deploys the new services image (the services image and the API can be on different versions) |
+| SDK reads provider keys from the environment when `AGENTA_LICENSE != "ee"` | No change. Provider keys from the environment keep today's rule, decided 2026-11-25: on unless `AGENTA_LICENSE=ee`, and `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` overrides it. Open source installs (`AGENTA_LICENSE=oss` or unset) keep using `OPENAI_API_KEY` and the others from the environment. EE and cloud (`AGENTA_LICENSE=ee`) keep them off, and users store their keys in the app. Cloud sets no new flag |
 | `/m` uses `isEE()` for cloud analytics (`OSS_CONFIG` or `CLOUD_CONFIG`), cloud labels and the provider key guard | `/m` uses `isCloud()`. It reads the value `web/entrypoint.sh` already derives from the cloud key for billing (`AGENTA_BILLING_ENABLED`, `web/entrypoint.sh:64-76`); `isBillingEnabled()` becomes a call to `isCloud()`, so one value has one source. The entrypoint drops the edition condition from that check and from the Turnstile gate. No new flag. `OSS_CONFIG` becomes `SELF_HOSTED_CONFIG` |
 | `/m` hides the add-a-key form when not EE (`LicenseTab.tsx`) | The form shows on every self-hosted install; the `isEE()` branch goes away |
-| Server analytics: `oss_deployment_created` under `is_oss()` (`api/oss/src/middlewares/analytics.py:118-126`); sign-up event property `is_ee` (`api/oss/src/core/auth/supertokens/overrides.py:211`) | New event `self_hosted_deployment_created` (`deployment_type="self_hosted"`) under `not is_cloud()`; sign-up property `is_cloud`. The old names stop in v0.130.1; the release notes for the analytics dashboards say so |
+| Server analytics: `oss_deployment_created` under `is_oss()` (`api/oss/src/middlewares/analytics.py:118-126`); sign-up event property `is_ee` (`api/oss/src/core/auth/supertokens/overrides.py:211`) | No new install event. The install event is `instance_installed` from #8237 (instance id only, no email), which replaces `oss_deployment_created`. Sign-up property `is_cloud` instead of `is_ee`. The old property stops in v0.130.1; the release notes for the analytics dashboards say so |
 | New subscriptions outside cloud store `self_hosted_enterprise` | They store `self_hosted_community`; reads keep using the instance plan |
 
 ### Decision 3: Images and names
@@ -161,7 +161,6 @@ No extra notice in `/m`. The release notes, the editions page and the upgrade pa
 - Migration on first start for every open source install. The adoption only adds tables and rows, but a bad legacy chain choice cannot be undone. The runner stops before any change on an unknown revision. Release notes ask for a backup.
 - Rollback: an OSS image v0.104.0 or later can start again on an adopted database with `ALEMBIC_AUTO_MIGRATIONS=false`; the added tables and rows do not affect it.
 - The open source image now contains code under the Enterprise License. Community packagers may object.
-- Services and API version skew: cloud must set `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=false` before it deploys the new services image.
 - CI: `12-check-unit-tests.yml` and `44-railway-tests.yml` pin `oss`. The OSS-only test paths in the three `run-tests.py` stop matching what ships; CI moves to the EE path.
 - Existing open source teams hit the project limit after upgrade. The refusal names the free key.
 - Self-hosted installs now store events with no retention and write meters on ingest, as self-hosted EE does today.
