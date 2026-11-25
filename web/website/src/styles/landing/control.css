@@ -81,7 +81,8 @@
 /* Governance is a dark grey band in both themes, the grey of the live site's controls section. */
 html body .lp .ctlx section.nsec, html body .lp .ctlx .nc { background:#413f3e !important; }
 html body .lp .ctlx .nhd h2 { color:#fff !important; }
-html body .lp .ctlx .ngrid { background:rgba(255, 255, 255, 0.07); border-color:rgba(255, 255, 255, 0.07); }
+html body .lp .ctlx section.nsec.nsec { border-color:rgba(255, 255, 255, 0.07) !important; }
+html body .lp .ctlx .ngrid.ngrid { background:rgba(255, 255, 255, 0.07); border-color:rgba(255, 255, 255, 0.07) !important; }
 html body .lp .ctlx .ntx b { color:#f7f6f4; }
 html body .lp .ctlx .ntx p { color:rgba(255, 255, 255, 0.55); }
 html body .lp .ctlx .stk .ghost1, html body .lp .ctlx .stk .ghost2 { height:60px; overflow:hidden; }
