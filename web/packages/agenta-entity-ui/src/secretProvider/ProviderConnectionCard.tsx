@@ -138,8 +138,8 @@ export interface ProviderConnectionCardProps {
     /** Publishes the save wiring so the host can draw Cancel and Save outside the form. */
     onSaveStateChange?: (state: ProviderCardSaveState) => void
     /**
-     * Set for an organization connection: it saves to the organization, names itself
-     * "{provider} (Organization)", and ends with "Projects that can use it". Read-only for a
+     * Set for an organization connection: it saves to the organization and ends with
+     * "Projects that can use it". Read-only for a
      * member, for whom the form checks the stored key as saved.
      */
     organization?: OrganizationConnectionScope
@@ -501,10 +501,10 @@ const ProviderConnectionCard = ({
     const previewPool =
         ownerChoice && owner === "organization" ? ownerChoice.connections : connections
     const otherConnections = previewPool.filter((candidate) => candidate.id !== connection?.id)
-    // An organization connection's default name says it is the organization's, as the API's does.
+    // No owner in the name: the Owner field and the group already say whose it is.
     const namePreview = organization
         ? nextConnectionName(
-              `${title} (Organization)`,
+              title,
               otherConnections.map((candidate) => candidate.name),
           )
         : defaultNamePreview(kind, otherConnections)

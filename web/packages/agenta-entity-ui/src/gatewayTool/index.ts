@@ -15,10 +15,15 @@ export {
 // The one integration list: the "Add integration" view body, and the Settings page.
 export {
     IntegrationCatalog,
+    type IntegrationCatalogControls,
     type IntegrationCatalogProps,
     type IntegrationCatalogRun,
     type IntegrationCatalogYours,
 } from "../DrillInView/SchemaControls/agentTemplate/IntegrationCatalog"
+export {
+    categoryLabel,
+    type CategorySelection,
+} from "../DrillInView/SchemaControls/agentTemplate/integrationCatalogFilters"
 export type {ConnectionAction} from "../DrillInView/SchemaControls/agentTemplate/ConnectionActionConfirm"
 export {default as ConnectionManagerDrawer} from "./drawers/ConnectionManagerDrawer"
 export {default as ToolExecutionDrawer} from "./drawers/ToolExecutionDrawer"

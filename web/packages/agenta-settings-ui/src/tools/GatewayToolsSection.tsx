@@ -5,15 +5,19 @@ import {
     makeDefaultToolConnection,
     toolExecutionDrawerAtom,
     usePersonalToolConnections,
+    useToolCatalogCategories,
     useToolConnectionActions,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {
+    categoryLabel,
     IntegrationCatalog,
     integrationConnectView,
     ToolExecutionDrawer,
+    type CategorySelection,
     type ConnectionAction,
+    type IntegrationCatalogControls,
     type IntegrationCatalogYours,
 } from "@agenta/entity-ui/gatewayTool"
 import {useT} from "@agenta/i18n"
@@ -21,12 +25,22 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import settingsToolsCatalog from "@agenta/i18n/catalogs/settings.tools"
 import {message} from "@agenta/ui/app-message"
+import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
+import {PageToolbar} from "@agenta/ui/ui"
 import {ViewDrawerHost} from "@agenta/ui/view-stack"
+import {SquaresFour, Tag} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {ConfirmDestructive} from "../confirm"
-import {addAccountOwners, showsYours} from "../shared/accountOwners"
+import {SettingsPageToolbar} from "../SettingsPageShell"
+import {
+    addAccountOwners,
+    ownersWithDefault,
+    showsYours,
+    type OwnerFilter,
+} from "../shared/accountOwners"
 import {LoadFailed} from "../shared/LoadFailed"
+import {useOwnerFilterSection} from "../shared/ownerFilterSection"
 import {YoursEmpty} from "../shared/YoursEmpty"
 
 /** Nouns for the page; a host that calls them something else passes its own. */
@@ -81,6 +95,51 @@ export default function GatewayToolsSection({
     const {handleDelete, handleRevoke} = useToolConnectionActions()
     const setExecutionDrawer = useSetAtom(toolExecutionDrawerAtom)
     const [connectTarget, setConnectTarget] = useState<string | null>(null)
+    const [query, setQuery] = useState("")
+    const [category, setCategory] = useState<CategorySelection | null>(null)
+    const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all")
+    const {categories} = useToolCatalogCategories()
+    const ownerSection = useOwnerFilterSection(connectOwners ?? [], ownerFilter, setOwnerFilter)
+    const categorySection = useMemo<FilterMenuSection | null>(
+        () =>
+            categories.length
+                ? {
+                      key: "category",
+                      label: t("settings.shared.filterCategory"),
+                      icon: <Tag size={14} />,
+                      value: category?.id ?? "all",
+                      defaultValue: "all",
+                      searchable: true,
+                      options: [
+                          {
+                              value: "all",
+                              label: t("settings.shared.ownerAll"),
+                              icon: <SquaresFour size={14} />,
+                          },
+                          ...categories.map((item) => ({
+                              value: item.id,
+                              label: categoryLabel(item.name),
+                          })),
+                      ],
+                      onChange: (value) => {
+                          const picked = categories.find((item) => item.id === value)
+                          setCategory(picked ? {id: picked.id, name: picked.name} : null)
+                      },
+                  }
+                : null,
+        [categories, category, t],
+    )
+    const sections = [ownerSection, categorySection].filter(
+        (section): section is FilterMenuSection => section !== null,
+    )
+    const controls = useMemo<IntegrationCatalogControls>(
+        () => ({
+            query,
+            category,
+            owner: ownerFilter === "user" || ownerFilter === "project" ? ownerFilter : "all",
+        }),
+        [category, ownerFilter, query],
+    )
 
     const run = useMemo(
         () => ({
@@ -162,6 +221,27 @@ export default function GatewayToolsSection({
 
     return (
         <>
+            <SettingsPageToolbar>
+                <PageToolbar
+                    search={query}
+                    onSearchChange={setQuery}
+                    searchPlaceholder={copy.searchPlaceholder}
+                    actions={
+                        sections.length ? (
+                            <FilterMenu
+                                sections={sections}
+                                align="start"
+                                size="default"
+                                onReset={() => {
+                                    setOwnerFilter("all")
+                                    setCategory(null)
+                                }}
+                                resetDisabled={ownerFilter === "all" && category === null}
+                            />
+                        ) : null
+                    }
+                />
+            </SettingsPageToolbar>
             <section className="ph-no-capture">
                 <IntegrationCatalog
                     layout="page"
@@ -171,6 +251,7 @@ export default function GatewayToolsSection({
                     run={run}
                     confirmConnectionAction={confirm ? confirmConnectionAction : undefined}
                     onConnect={setConnectTarget}
+                    controls={controls}
                 />
             </section>
 
@@ -181,7 +262,10 @@ export default function GatewayToolsSection({
                 <ViewDrawerHost
                     request={{
                         view: integrationConnectView,
-                        params: {integrationKey: connectTarget, owners: connectOwners},
+                        params: {
+                            integrationKey: connectTarget,
+                            owners: connectOwners && ownersWithDefault(connectOwners, ownerFilter),
+                        },
                         target: {kind: "project"},
                     }}
                     onClosed={() => setConnectTarget(null)}

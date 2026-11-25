@@ -149,6 +149,19 @@ export interface IntegrationCatalogProps {
      * the catalog asks and runs it.
      */
     confirmConnectionAction?: (action: ConnectionAction, connection: ToolConnection) => void
+    /**
+     * A host that draws its own toolbar (Settings) holds the search, the category and the owner;
+     * the catalog then draws no search or category control of its own.
+     */
+    controls?: IntegrationCatalogControls
+}
+
+/** The catalog's filters, held by the host. */
+export interface IntegrationCatalogControls {
+    query: string
+    category: CategorySelection | null
+    /** Which connected groups show: the person's, the project's, or both. */
+    owner: "all" | "user" | "project"
 }
 
 interface ConnectedGroup {
@@ -648,6 +661,7 @@ export function IntegrationCatalog({
     yours,
     run,
     confirmConnectionAction,
+    controls,
 }: IntegrationCatalogProps) {
     const t = useT(integrationDrawerCatalog)
     const page = layout === "page"
@@ -655,8 +669,10 @@ export function IntegrationCatalog({
     // stay in a drawer host and scroll under the drawer's lock. On a page they open over the page.
     const [container, setContainer] = useState<HTMLDivElement | null>(null)
     const dialogContainer = page ? null : container
-    const [query, setQuery] = useState("")
-    const [category, setCategoryState] = useState<CategorySelection | null>(null)
+    const [ownQuery, setQuery] = useState("")
+    const [ownCategory, setCategoryState] = useState<CategorySelection | null>(null)
+    const query = controls?.query ?? ownQuery
+    const category = controls ? controls.category : ownCategory
     const [connectedCollapsed, setConnectedCollapsed] = useAtom(connectedCollapsedAtom)
     const [yoursCollapsed, setYoursCollapsed] = useAtom(yoursCollapsedAtom)
     // Fades the list's top and bottom edges while there is more to scroll that way.
@@ -729,6 +745,12 @@ export function IntegrationCatalog({
         setCategoryState(next)
         setCategory?.(next?.id ?? null)
     }
+    const controlledCategoryId = controls ? (controls.category?.id ?? null) : undefined
+    useEffect(() => {
+        if (controlledCategoryId !== undefined) setCategory?.(controlledCategoryId)
+    }, [controlledCategoryId, setCategory])
+    const showsOwner = (owner: "user" | "project") =>
+        !controls || controls.owner === "all" || controls.owner === owner
 
     const allConnectedGroups = useMemo(() => groupConnections(connections), [connections])
     const showsYours = Boolean(yours)
@@ -908,7 +930,7 @@ export function IntegrationCatalog({
             {/* One column: the category filter sits beside the search, so apps get the width. */}
             {/* min-w-0: without it the one-line descriptions stretch the column past the drawer. */}
             <div className={page ? "flex flex-col" : "flex min-h-0 min-w-0 flex-1 flex-col"}>
-                {page ? (
+                {controls ? null : page ? (
                     // Pinned to the page's top while it scrolls, as Settings pins its search.
                     <div className="sticky top-0 z-10 -mx-3 bg-background px-3 pb-3 pt-1">
                         <div className="flex">{search}</div>
@@ -938,7 +960,7 @@ export function IntegrationCatalog({
                             : "ag-scroll-fade flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4"
                     }
                 >
-                    {yours && (yoursGroups.length > 0 || yoursFooter) ? (
+                    {yours && showsOwner("user") && (yoursGroups.length > 0 || yoursFooter) ? (
                         <RowGroup
                             label={yours.label}
                             count={yoursGroups.length}
@@ -953,7 +975,7 @@ export function IntegrationCatalog({
                         </RowGroup>
                     ) : null}
 
-                    {showConnected ? (
+                    {showConnected && showsOwner("project") ? (
                         <RowGroup
                             label={projectHeading ?? t("entityUi.integrationDrawer.connected")}
                             count={connectedGroups.length}

@@ -15,6 +15,7 @@
 import {type ReactNode, useCallback, useMemo, useState} from "react"
 
 import {
+    usePersonalMcpSignIn,
     mcpReconnectTarget,
     connectionNameProblem,
     deleteMcpEndpointAtom,
@@ -34,40 +35,48 @@ import {McpConnectionDetail, mcpConnectView, mcpServerView} from "@agenta/entity
 import {useT, createT, type CatalogKey} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsMcpCatalog from "@agenta/i18n/catalogs/settings.mcp"
+import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {projectIdAtom} from "@agenta/shared/state"
 import {McpServerMark} from "@agenta/ui/agent-icon"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
-import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
+import {
+    LIST_COLUMN_WIDTH,
+    ListTable,
+    ListTableNameCell,
+    type ListTableColumn,
+} from "@agenta/ui/list-table"
+import {Button, PageToolbar} from "@agenta/ui/ui"
 import {ViewDrawerHost} from "@agenta/ui/view-stack"
 import {
     ArrowsClockwise,
     LinkBreak,
     PencilSimpleLine,
+    Key,
     Plus,
+    SignOut,
+    SquaresFour,
     Trash,
     Wrench,
 } from "@phosphor-icons/react"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
-import {atomWithStorage} from "jotai/utils"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import type {ConfirmDestructive} from "../confirm"
-import {SettingsPageActions} from "../SettingsPageShell"
+import {SettingsPageActions, SettingsPageToolbar} from "../SettingsPageShell"
 import {showsYours} from "../shared/accountOwners"
 import {InlineName} from "../shared/InlineName"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
-import {SettingsGroupHeading} from "../shared/SettingsGroupHeading"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {usePhoneColumns} from "../shared/usePhoneColumns"
 
-import {McpYoursTable, personalSignInServers} from "./McpYoursTable"
+import {asksForSignIn, McpSignInCell} from "./McpSignInCell"
+import {McpTokenSignInDialog} from "./McpTokenSignInDialog"
 
 const tNow = createT(commonCatalog, settingsMcpCatalog)
 
-/** Per viewer, like the other pages' groups: "Yours" folds away and stays folded. */
-const yoursCollapsedAtom = atomWithStorage("agenta:settings:mcps-yours-collapsed", false)
+type AuthFilter = "all" | MCPEndpoint["auth_mode"]
 
 /** Nouns for the rows; a host that calls them something else passes its own. */
 export interface McpServersSectionCopy {
@@ -112,24 +121,35 @@ const STATUS_TONE: Record<McpConnectionStatus, "success" | "warning" | "error"> 
 const hasGrantToRevoke = (endpoint: MCPEndpoint) =>
     endpoint.auth_mode === "oauth" && Boolean(endpoint.secret_id)
 
-const COLUMNS: (ListTableColumn & {
-    label: CatalogKey<typeof commonCatalog | typeof settingsMcpCatalog>
-})[] = [
-    {key: "name", label: "common.name", width: "minmax(0,2fr)"},
-    {key: "url", label: "settings.mcp.serverUrl", width: "minmax(0,2fr)"},
-    {key: "auth", label: "settings.mcp.auth", width: "minmax(0,1fr)"},
-    {key: "status", label: "common.status", width: "minmax(0,1.2fr)"},
-]
+type ColumnLabel = CatalogKey<typeof commonCatalog | typeof settingsMcpCatalog>
 
-const ACTIONS_COLUMN: ListTableColumn & {
-    label: CatalogKey<typeof commonCatalog | typeof settingsMcpCatalog>
-} = {
+const NAME_COLUMN = {key: "name", label: "common.name", width: LIST_COLUMN_WIDTH.primary}
+const AUTH_COLUMN = {key: "auth", label: "settings.mcp.auth", width: LIST_COLUMN_WIDTH.secondary}
+const STATUS_COLUMN = {key: "status", label: "common.status", width: LIST_COLUMN_WIDTH.secondary}
+/** The person's own sign-in: run-as, never ownership, so a status cell beside the server's. */
+const SIGN_IN_COLUMN = {key: "signin", label: "settings.mcp.yourSignIn", width: LIST_COLUMN_WIDTH.name}
+const ACTIONS_COLUMN = {
     key: "actions",
     label: "common.actions",
     srOnly: true,
-    width: "32px",
+    width: LIST_COLUMN_WIDTH.actions,
 }
-const PHONE_KEYS = ["name", "status", "actions"]
+
+const columnsFor = (personal: boolean): (ListTableColumn & {label: ColumnLabel})[] =>
+    personal
+        ? [NAME_COLUMN, AUTH_COLUMN, STATUS_COLUMN, SIGN_IN_COLUMN, ACTIONS_COLUMN]
+        : [NAME_COLUMN, AUTH_COLUMN, STATUS_COLUMN, ACTIONS_COLUMN]
+
+/** A phone keeps the name, the person's sign-in when there is one, else the server's status. */
+const phoneKeysFor = (personal: boolean) =>
+    personal ? ["name", "signin", "actions"] : ["name", "status", "actions"]
+
+const matches = (endpoint: MCPEndpoint, term: string) =>
+    !term ||
+    [endpoint.name, endpoint.slug, endpoint.data.route.base_url].some((value) =>
+        value?.toLowerCase().includes(term),
+    )
+
 
 export interface McpServersSectionProps {
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
@@ -142,10 +162,8 @@ export interface McpServersSectionProps {
      */
     canListTools?: boolean
     copy?: Partial<McpServersSectionCopy>
-    /** The project group's heading: the project switch. Shown with "Yours". */
+    /** The list's heading: the project switch. Shown with personal accounts on. */
     projectSwitch?: ReactNode
-    /** How many projects the person has in the organization, for the empty "Yours" note. */
-    projectCount?: number
 }
 
 export default function McpServersSection({
@@ -154,9 +172,8 @@ export default function McpServersSection({
     canListTools = true,
     copy: copyOverrides,
     projectSwitch,
-    projectCount,
 }: McpServersSectionProps) {
-    const t = useT(commonCatalog, settingsMcpCatalog)
+    const t = useT(commonCatalog, settingsMcpCatalog, settingsSharedCatalog)
     const copy = useMemo<McpServersSectionCopy>(
         () => ({
             connect: t(DEFAULT_COPY.connect),
@@ -172,8 +189,11 @@ export default function McpServersSection({
     const disconnect = useSetAtom(disconnectMcpEndpointAtom)
     const deleteEndpoint = useSetAtom(deleteMcpEndpointAtom)
     const namedSecrets = useAtomValue(customNamedSecretsAtom)
-    const access = useAtomValue(personalAccountsAccessAtom)
-    const [yoursCollapsed, setYoursCollapsed] = useAtom(yoursCollapsedAtom)
+    const personal = showsYours(useAtomValue(personalAccountsAccessAtom))
+    const signIn = usePersonalMcpSignIn()
+    const [tokenFor, setTokenFor] = useState<MCPEndpoint | null>(null)
+    const [search, setSearch] = useState("")
+    const [authFilter, setAuthFilter] = useState<AuthFilter>("all")
 
     const [connecting, setConnecting] = useState(false)
     const [reconnecting, setReconnecting] = useState<MCPEndpoint | null>(null)
@@ -190,22 +210,56 @@ export default function McpServersSection({
     const [renamingKey, setRenamingKey] = useState<string | null>(null)
     const projectId = useAtomValue(projectIdAtom)
 
-    const rows = useMemo(() => endpoints ?? [], [endpoints])
-    // A person signs in to the project's servers.
-    const yoursServers = useMemo(() => personalSignInServers(rows), [rows])
-    const names = useMemo(() => rows.map((row) => row.name), [rows])
+    const allRows = useMemo(() => endpoints ?? [], [endpoints])
+    const term = search.trim().toLowerCase()
+    const rows = useMemo(
+        () =>
+            allRows.filter(
+                (row) =>
+                    matches(row, term) && (authFilter === "all" || row.auth_mode === authFilter),
+            ),
+        [allRows, authFilter, term],
+    )
+    const narrowed = Boolean(term) || authFilter !== "all"
+    const names = useMemo(() => allRows.map((row) => row.name), [allRows])
     const rowKey = useCallback((record: MCPEndpoint) => record.id ?? record.slug ?? "", [])
     const viewing = useMemo(
-        () => rows.find((row) => rowKey(row) === viewingKey) ?? null,
-        [rowKey, rows, viewingKey],
+        () => allRows.find((row) => rowKey(row) === viewingKey) ?? null,
+        [allRows, rowKey, viewingKey],
     )
     const setViewing = useCallback(
         (record: MCPEndpoint | null) => setViewingKey(record ? rowKey(record) : null),
         [rowKey],
     )
     const viewingTools = useMemo(
-        () => rows.find((row) => rowKey(row) === toolsKey) ?? null,
-        [rowKey, rows, toolsKey],
+        () => allRows.find((row) => rowKey(row) === toolsKey) ?? null,
+        [allRows, rowKey, toolsKey],
+    )
+
+    // An OAuth sign-in opens its popup inside the click; a token server asks for the token.
+    const startSignIn = useCallback(
+        (endpoint: MCPEndpoint) => {
+            if (endpoint.auth_mode === "api_key") setTokenFor(endpoint)
+            else signIn.signIn(endpoint)
+        },
+        [signIn],
+    )
+
+    const confirmSignOut = useCallback(
+        (endpoint: MCPEndpoint) => {
+            const run = () => signIn.signOut(endpoint)
+            if (!confirm) return void run()
+            confirm({
+                title: tNow("settings.mcp.signOutOf", {
+                    name: endpoint.name || endpoint.slug || tNow("settings.mcp.thisServer"),
+                }),
+                message: tNow("settings.mcp.signOutMessage"),
+                okText: tNow("common.signOut"),
+                danger: true,
+                onOk: run,
+            })
+        },
+        [confirm, signIn],
     )
 
     /**
@@ -305,15 +359,28 @@ export default function McpServersSection({
     )
 
     const allColumns = useMemo(
-        () =>
-            (readOnly ? COLUMNS : [...COLUMNS, ACTIONS_COLUMN]).map((column) => ({
-                ...column,
-                label: t(column.label),
-            })),
-        [readOnly, t],
+        () => columnsFor(personal).map((column) => ({...column, label: t(column.label)})),
+        [personal, t],
     )
-    const {columns, shows} = usePhoneColumns(allColumns, PHONE_KEYS)
-    const empty = !isPending && rows.length === 0
+    const {columns, shows} = usePhoneColumns(allColumns, phoneKeysFor(personal))
+
+    const authSection = useMemo<FilterMenuSection>(
+        () => ({
+            key: "auth",
+            label: t("settings.shared.filterAuth"),
+            icon: <Key size={14} />,
+            value: authFilter,
+            defaultValue: "all",
+            options: [
+                {value: "all", label: t("settings.shared.ownerAll"), icon: <SquaresFour size={14} />},
+                {value: "oauth", label: t("settings.mcp.oauth")},
+                {value: "api_key", label: t("settings.shared.authApiKey")},
+                {value: "none", label: t("settings.shared.authNone")},
+            ],
+            onChange: (value) => setAuthFilter(value as AuthFilter),
+        }),
+        [authFilter, t],
+    )
 
     const connect = (
         <Button data-testid="mcp-connect-open" onClick={openConnect}>
@@ -325,20 +392,40 @@ export default function McpServersSection({
     const projectTable = (
         <ListTable<MCPEndpoint>
             columns={columns}
-            groups={[{key: "servers", label: null, rows}]}
+            groups={[{key: "servers", label: personal ? (projectSwitch ?? null) : null, rows}]}
             rowKey={rowKey}
             minWidth={0}
             loading={isPending}
             skeletonRows={3}
-            hideHeader={empty}
+            showGroupCount
             onOpenRow={(record) => setViewing(record)}
             empty={
-                <SettingsEmpty
-                    icon={getSettingsSidebarIcon("mcpEndpoints")}
-                    title={copy.emptyTitle}
-                    description={copy.emptyBody}
-                    action={readOnly ? null : connect}
-                />
+                narrowed ? (
+                    <SettingsEmpty
+                        plain
+                        icon={getSettingsSidebarIcon("mcpEndpoints")}
+                        title={t("settings.shared.noMatchTitle")}
+                        description={t("settings.shared.noMatchBody")}
+                        action={
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setSearch("")
+                                    setAuthFilter("all")
+                                }}
+                            >
+                                {t("settings.shared.resetFilters")}
+                            </Button>
+                        }
+                    />
+                ) : (
+                    <SettingsEmpty
+                        icon={getSettingsSidebarIcon("mcpEndpoints")}
+                        title={copy.emptyTitle}
+                        description={copy.emptyBody}
+                        action={readOnly ? null : connect}
+                    />
+                )
             }
             renderRow={(record) => {
                 const status = getMcpConnectionStatus(record)
@@ -349,52 +436,49 @@ export default function McpServersSection({
                     : undefined
                 return (
                     <>
-                        <span className="flex min-w-0 items-center gap-2.5">
-                            {/* One glyph for every server; the tile color follows the name. */}
-                            <McpServerMark size={24} name={record.name || record.slug} />
-                            <InlineName
-                                value={record.name || record.slug || ""}
-                                editing={!readOnly && renamingKey === rowKey(record)}
-                                ariaLabel={t("settings.mcp.connectionName")}
-                                testId="mcp-connection-name"
-                                onStart={
-                                    readOnly ? undefined : () => setRenamingKey(rowKey(record))
-                                }
-                                onDone={() => setRenamingKey(null)}
-                                validate={(name) =>
-                                    connectionNameProblem({
-                                        name,
-                                        existingNames: names,
-                                        currentName: record.name,
-                                    })
-                                }
-                                onSave={async (name) => {
-                                    if (!record.id) return
-                                    // A full replace: the edit route writes what it is given.
-                                    await editMcpEndpoint(
-                                        {
-                                            id: record.id,
+                        {renamingKey === rowKey(record) && !readOnly ? (
+                            <span className="flex min-w-0 items-center gap-3">
+                                <McpServerMark size={32} name={record.name || record.slug} />
+                                <InlineName
+                                    value={record.name || record.slug || ""}
+                                    editing
+                                    ariaLabel={t("settings.mcp.connectionName")}
+                                    testId="mcp-connection-name"
+                                    onDone={() => setRenamingKey(null)}
+                                    validate={(name) =>
+                                        connectionNameProblem({
                                             name,
-                                            description: record.description,
-                                            auth_mode: record.auth_mode,
-                                            secret_id: record.secret_id,
-                                            data: record.data,
-                                            flags: record.flags,
-                                        },
-                                        projectId ?? undefined,
-                                    )
-                                    void refresh()
-                                }}
-                            />
-                        </span>
-                        {shows("url") ? (
-                            <span
-                                className="truncate text-label text-muted-foreground"
-                                title={record.data.route.base_url ?? undefined}
-                            >
-                                {record.data.route.base_url}
+                                            existingNames: names,
+                                            currentName: record.name,
+                                        })
+                                    }
+                                    onSave={async (name) => {
+                                        if (!record.id) return
+                                        // A full replace: the edit route writes what it is given.
+                                        await editMcpEndpoint(
+                                            {
+                                                id: record.id,
+                                                name,
+                                                description: record.description,
+                                                auth_mode: record.auth_mode,
+                                                secret_id: record.secret_id,
+                                                data: record.data,
+                                                flags: record.flags,
+                                            },
+                                            projectId ?? undefined,
+                                        )
+                                        void refresh()
+                                    }}
+                                />
                             </span>
-                        ) : null}
+                        ) : (
+                            <ListTableNameCell
+                                // One glyph for every server; the tile color follows the name.
+                                mark={<McpServerMark size={32} name={record.name || record.slug} />}
+                                title={record.name || record.slug || ""}
+                                meta={record.data.route.base_url ?? undefined}
+                            />
+                        )}
                         {!shows("auth") ? null : record.auth_mode === "oauth" ? (
                             <span className="truncate">{t("settings.mcp.oauth")}</span>
                         ) : record.auth_mode === "none" ? (
@@ -408,6 +492,7 @@ export default function McpServersSection({
                         ) : (
                             <span className="truncate">{t("settings.mcp.apiKey")}</span>
                         )}
+                        {!shows("status") ? null : (
                         <span
                             data-testid="mcp-connection-status"
                             className="flex min-w-0 items-center gap-2"
@@ -430,21 +515,29 @@ export default function McpServersSection({
                                 ) : null}
                             </span>
                         </span>
-                        {readOnly ? null : (
-                            <SettingsRowMenu
+                        )}
+                        {shows("signin") ? (
+                            <McpSignInCell
+                                endpoint={record}
+                                pending={signIn.pendingId !== null}
+                                onSignIn={startSignIn}
+                            />
+                        ) : null}
+                        <SettingsRowMenu
                                 label={t("settings.mcp.serverActions")}
                                 items={[
                                     {
                                         key: "reconnect",
                                         label: t("common.reconnect"),
                                         icon: <ArrowsClockwise size={14} />,
+                                        hidden: readOnly,
                                         onClick: () => openReconnect(record),
                                     },
                                     {
                                         key: "view-tools",
                                         label: t("settings.mcp.viewTools"),
                                         icon: <Wrench size={14} />,
-                                        hidden: !canListTools,
+                                        hidden: readOnly || !canListTools,
                                         onClick: () => setToolsKey(rowKey(record)),
                                     },
                                     {
@@ -452,7 +545,17 @@ export default function McpServersSection({
                                         label: t("common.rename"),
                                         icon: <PencilSimpleLine size={14} />,
                                         deferred: true,
+                                        hidden: readOnly,
                                         onClick: () => setRenamingKey(rowKey(record)),
+                                    },
+                                    {
+                                        key: "sign-out",
+                                        label: t("common.signOut"),
+                                        icon: <SignOut size={14} />,
+                                        // Only a sign-in the person has can be removed.
+                                        hidden: !personal || !record.user_sign_in || !asksForSignIn(record),
+                                        disabled: signIn.pendingId !== null,
+                                        onClick: () => confirmSignOut(record),
                                     },
                                     {type: "divider"},
                                     {
@@ -461,7 +564,7 @@ export default function McpServersSection({
                                         icon: <LinkBreak size={14} />,
                                         danger: true,
                                         // Only an OAuth grant can be revoked; anything else is a 400.
-                                        hidden: !hasGrantToRevoke(record),
+                                        hidden: readOnly || !hasGrantToRevoke(record),
                                         onClick: () => handleDisconnect(record),
                                     },
                                     {
@@ -469,11 +572,11 @@ export default function McpServersSection({
                                         label: t("common.remove"),
                                         icon: <Trash size={14} />,
                                         danger: true,
+                                        hidden: readOnly,
                                         onClick: () => handleRemove(record),
                                     },
                                 ]}
                             />
-                        )}
                     </>
                 )
             }}
@@ -484,26 +587,36 @@ export default function McpServersSection({
         <div className="flex flex-col">
             {readOnly ? null : <SettingsPageActions>{connect}</SettingsPageActions>}
 
-            {showsYours(access) ? (
-                <div className="flex flex-col gap-8">
-                    <McpYoursTable
-                        servers={yoursServers}
-                        collapsed={yoursCollapsed}
-                        onToggle={() => setYoursCollapsed((value) => !value)}
-                        confirm={confirm}
-                        projectCount={projectCount}
-                    />
-                    <section className="flex flex-col gap-3">
-                        <SettingsGroupHeading
-                            label={projectSwitch ?? t("common.project")}
-                            count={rows.length}
+            <SettingsPageToolbar>
+                <PageToolbar
+                    search={search}
+                    onSearchChange={setSearch}
+                    searchPlaceholder={t("settings.mcp.searchServers")}
+                    actions={
+                        <FilterMenu
+                            sections={[authSection]}
+                            align="start"
+                            size="default"
+                            onReset={() => setAuthFilter("all")}
+                            resetDisabled={authFilter === "all"}
                         />
-                        {projectTable}
-                    </section>
-                </div>
-            ) : (
-                projectTable
-            )}
+                    }
+                />
+            </SettingsPageToolbar>
+            {signIn.error && !tokenFor ? (
+                <p className="m-0 mb-2 text-meta text-destructive">{signIn.error}</p>
+            ) : null}
+            {projectTable}
+
+            <McpTokenSignInDialog
+                open={Boolean(tokenFor)}
+                serverName={tokenFor?.name || tokenFor?.slug || t("settings.mcp.thisServer")}
+                error={tokenFor && signIn.pendingId === null ? signIn.error : null}
+                onSubmit={(token) =>
+                    tokenFor ? signIn.signInWithToken(tokenFor, token) : Promise.resolve(false)
+                }
+                onClose={() => setTokenFor(null)}
+            />
 
             {connecting ? (
                 // The connect step, the same view the agent opens, in a drawer of its own. A new
