@@ -31,9 +31,9 @@ const Card = ({card}: {card: SubscriptionCard}) => {
               ? t("common.connected")
               : t("settings.providers.needsSignIn")
     return (
-        <div className="flex min-w-0 flex-col gap-3 rounded-lg bg-muted p-3">
+        <div className="flex min-w-0 flex-col gap-3 rounded-lg bg-background p-3">
             <div className="flex min-w-0 items-center gap-3">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background text-foreground">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
                     {card.logo}
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col">
@@ -84,7 +84,7 @@ const Card = ({card}: {card: SubscriptionCard}) => {
 export const SubscriptionCards = ({cards}: {cards: SubscriptionCard[]}) => {
     const t = useT(settingsProvidersCatalog)
     return (
-        <section className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1.1fr)_repeat(2,minmax(0,1fr))]">
+        <section className="grid grid-cols-1 gap-2 rounded-xl bg-muted p-2 md:grid-cols-[minmax(0,1.1fr)_repeat(2,minmax(0,1fr))]">
             <div className="flex min-w-0 flex-col justify-center gap-2 p-2">
                 <div className="flex flex-col gap-0.5">
                     <h2 className="m-0 text-title text-foreground">

@@ -34,7 +34,6 @@ import {LoadFailed} from "../shared/LoadFailed"
 
 import {
     providerTitle,
-    ProvidersEmptyNote,
     type ProvidersGroup,
     type ProvidersSource,
 } from "./ProvidersPanel"
@@ -162,12 +161,6 @@ export const useOrganizationProvidersGroup = (
                               ? projectsQuery.refetch()
                               : query.refetch())
                     }
-                />
-            ) : undefined,
-            emptyFooter: manage ? (
-                <ProvidersEmptyNote
-                    title={t("settings.providers.orgEmptyTitle")}
-                    body={t("settings.providers.orgEmptyBody")}
                 />
             ) : undefined,
             organization: drawerScope,

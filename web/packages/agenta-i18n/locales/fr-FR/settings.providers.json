@@ -17,8 +17,6 @@
     "modelProviders": "Fournisseurs de modèles",
     "needsSignIn": "Connexion requise",
     "noProjects": "Aucun projet",
-    "orgEmptyBody": "Connectez un fournisseur ci-dessous. Choisissez ensuite quels projets peuvent l’utiliser.",
-    "orgEmptyTitle": "Aucune connexion d’organisation pour le moment",
     "orgLoadFailed": "Impossible de charger les connexions de l’organisation.",
     "projectConnectionsLoadFailed": "Impossible de charger les connexions du projet.",
     "removeFailed": "Agenta n’a pas pu retirer {{name}}. Réessayez.",
@@ -27,6 +25,5 @@
     "modelsDefaults": "Par défaut",
     "modelsActive": "{{active}} sur {{total}} actifs",
     "searchProviders": "Rechercher des fournisseurs",
-    "projectEmptyTitle": "Aucune connexion de projet pour l’instant",
-    "projectEmptyBody": "Connectez un fournisseur ci-dessous."
+    "subscriptions": "Abonnements"
 }

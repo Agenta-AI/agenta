@@ -69,8 +69,6 @@ export interface ProvidersSource {
     manage: boolean
     remove: (connection: ProviderConnection) => Promise<void>
     removeFailed: (failure: unknown, connection: ProviderConnection) => string
-    /** Under an empty list; without it an empty group hides. */
-    emptyFooter?: ReactNode
     /** A load failure, shown under the group whether or not it has rows. */
     failure?: ReactNode
     /** Set for the organization's connections: the drawer and the sign-in save to the organization. */
@@ -114,14 +112,6 @@ export const providerTitle = (kind: string, title: string, t: ReturnType<typeof 
 
 export const ProviderLogo = ({kind}: {kind: string}) =>
     createElement(providerIconFor(kind), {className: "size-4"})
-
-/** An owner's note under an empty Connected list. */
-export const ProvidersEmptyNote = ({title, body}: {title: string; body?: string}) => (
-    <div className="flex flex-col gap-0.5">
-        <span className="text-body font-medium leading-5 text-foreground">{title}</span>
-        {body ? <span className="text-label text-muted-foreground">{body}</span> : null}
-    </div>
-)
 
 /** What a credential-set kind's form asks for, read off its fields in `providerFields.ts`. */
 const FORM_FIELDS_BY_KIND: Record<
@@ -346,18 +336,12 @@ export const ProvidersPanel = ({
             return {
                 key: groupKey,
                 label: null,
-                items: [...held, ...offered].filter(matches),
-                held: held.length,
+                items: held.filter(matches),
+                // Sign-ins an owner may start: not connections, so they list apart.
+                offered: offered.filter(matches),
                 // A group still loading holds its place with one skeleton row.
                 pendingRows: source.loading && !held.length ? 1 : 0,
                 footer: source.failure,
-                // Carded subscriptions are not rows, so emptiness reads every connection.
-                empty:
-                    !!source.emptyFooter &&
-                    !source.failure &&
-                    !source.loading &&
-                    !source.connections.length,
-                emptyFooter: source.emptyFooter,
             }
         })
         // The deployment's own models: no owner, shown with the project's rows.
@@ -375,17 +359,9 @@ export const ProvidersPanel = ({
                       },
                   ].filter(matches)
                 : []
-        // Empty notes show only when no owner in the list holds a row and no search is on.
-        const showEmpty =
-            !term && !builtin.length && !owned.some((group) => group.held || group.pendingRows)
-        const footers = owned.flatMap((group) => [
-            ...(group.footer
-                ? [<Fragment key={`${group.key}:failure`}>{group.footer}</Fragment>]
-                : []),
-            ...(showEmpty && group.empty
-                ? [<Fragment key={`${group.key}:empty`}>{group.emptyFooter}</Fragment>]
-                : []),
-        ])
+        const footers = owned.flatMap((group) =>
+            group.footer ? [<Fragment key={`${group.key}:failure`}>{group.footer}</Fragment>] : [],
+        )
         // One Connected list: every owner's rows, narrow owners first.
         const items = [...builtin, ...owned.flatMap((group) => group.items)]
         const connected: SettingsCatalogGroup = {
@@ -393,12 +369,16 @@ export const ProvidersPanel = ({
             label: connectedLabel ?? t("common.connected"),
             list: true,
             items,
-            // The count is of the rows shown, offered sign-ins included.
             count: items.length,
             pendingRows: owned.some((group) => group.pendingRows) ? 1 : 0,
             footer: footers.length ? <>{footers}</> : undefined,
         }
-        if (!projectGroup) return [connected]
+        const subscriptionsGroup: SettingsCatalogGroup = {
+            key: "subscriptions",
+            label: t("settings.providers.subscriptions"),
+            items: owned.flatMap((group) => group.offered),
+        }
+        if (!projectGroup) return [connected, subscriptionsGroup]
         const catalogRow = (entry: ProviderCatalogEntry): SettingsCatalogItem => ({
             key: entry.kind,
             logo: <ProviderLogo kind={entry.kind} />,
@@ -414,6 +394,7 @@ export const ProvidersPanel = ({
         })
         return [
             connected,
+            subscriptionsGroup,
             {
                 key: "model-providers",
                 label: t("settings.providers.modelProviders"),

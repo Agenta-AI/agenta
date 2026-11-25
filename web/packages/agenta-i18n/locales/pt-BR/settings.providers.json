@@ -17,8 +17,6 @@
     "modelProviders": "Provedores de modelos",
     "needsSignIn": "Requer login",
     "noProjects": "Nenhum projeto",
-    "orgEmptyBody": "Conecte um provedor abaixo. Depois, escolha quais projetos podem usá-lo.",
-    "orgEmptyTitle": "Nenhuma conexão da organização ainda",
     "orgLoadFailed": "Não foi possível carregar as conexões da organização.",
     "projectConnectionsLoadFailed": "Não foi possível carregar as conexões do projeto.",
     "removeFailed": "A Agenta não conseguiu remover {{name}}. Tente novamente.",
@@ -27,6 +25,5 @@
     "modelsDefaults": "Padrões",
     "modelsActive": "{{active}} de {{total}} ativos",
     "searchProviders": "Pesquisar provedores",
-    "projectEmptyTitle": "Ainda não há conexões do projeto",
-    "projectEmptyBody": "Conecte um provedor abaixo."
+    "subscriptions": "Assinaturas"
 }
