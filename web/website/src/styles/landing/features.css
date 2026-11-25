@@ -114,7 +114,7 @@
 .sx-feat .kd { position:relative; height:26px; margin-left:16px; padding-left:18px; display:flex; align-items:center; font-size:12px; color:var(--lp-body); }
 .sx-feat .kd::before { content: ""; position:absolute; left:0px; top:-4px; height:17px; width:10px; border-left:1px solid var(--lp-line); border-bottom:1px solid var(--lp-line); border-bottom-left-radius:4px; }
 .sx-feat .kd:not(.last)::after { content: ""; position:absolute; left:0px; top:13px; bottom:0px; border-left:1px solid var(--lp-line); }
-html body .lp section.fgx, html body .lp .sx-feat .fgx .grid > div { background:var(--lp-surface-3) !important; }
+html body .lp section.fgx, html body .lp .sx-feat .fgx .grid > div { background:var(--lp-surface) !important; }
 html body .lp section.fgx .bxh .abr { height:16px !important; line-height:16px !important; padding:0px 6px !important; font-size:9px !important; border-radius:4px !important; align-self:center !important; }
 [data-theme="dark"] .sx-feat .pl .hl em { color:var(--lp-body); }
 /* Icons on yellow tiles draw in the tile's ink, not the theme text colour. */

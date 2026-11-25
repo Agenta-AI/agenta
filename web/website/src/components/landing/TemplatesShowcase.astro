@@ -1,5 +1,6 @@
 ---
 import "../../styles/landing/templates.css";
+import Badge from "../Badge.astro";
 import { templates } from "../../lib/templates";
 import { SHOWCASE_KEYS } from "../../lib/landingTemplates";
 import { templateByKey } from "../../lib/templates";
@@ -8,7 +9,7 @@ const showcase = SHOWCASE_KEYS.map((key) => templateByKey(key)!);
 ---
 
 <div class="sx-site"><section class="ag-section ag-secpad lp-tpl tplx" data-screen-label="Templates" style="background:var(--th-bg-1);padding:var(--section-pad-y) 24px;">
-  <div class="lp-tplin"><header class="ag-sechead" style="display:flex;flex-direction:column;gap:16px;align-items:center;text-align:center;max-width:677px;"><h2 class="ag-sectitle" style="margin:0;font:var(--text-display-lg);color:var(--st-title);text-wrap:pretty;">Start from an agent that already works</h2><p style="margin:0;font:var(--text-body-md);color:var(--st-sub);text-wrap:pretty;">Pick a template, connect your apps, and change it for your team or your client.</p></header>
+  <div class="lp-tplin"><header class="ag-sechead" style="display:flex;flex-direction:column;gap:16px;align-items:center;text-align:center;max-width:677px;"><Badge>Templates</Badge><h2 class="ag-sectitle" style="margin:0;font:var(--text-display-lg);color:var(--st-title);text-wrap:pretty;">Start from an agent that already works</h2><p style="margin:0;font:var(--text-body-md);color:var(--st-sub);text-wrap:pretty;">Pick a template, connect your apps, and change it for your team or your client.</p></header>
     <div class="tsp"></div>
     <div class="grid lp-grid"><a href={`/marketplace/${SHOWCASE_KEYS[0]}`} class="c">
         <div class="bn"><div class="art"><div class="chat"><span class="p white">Follow up with Acme?</span><span class="p dark ans">Drafted a recap, the pricing link and next steps.</span><span class="p y"><span class="gl"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.2l2.3 2.3 4.7-5"></path></svg></span>Approve and send</span></div></div></div>
