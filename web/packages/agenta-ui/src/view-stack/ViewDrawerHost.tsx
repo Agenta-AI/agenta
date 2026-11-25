@@ -105,7 +105,15 @@ export const ViewDrawerHost = <P,>({
                     className="max-h-[85dvh] gap-0 rounded-t-2xl pt-2"
                     style={{paddingBottom: "env(safe-area-inset-bottom)"}}
                     aria-describedby={undefined}
-                    onOpenAutoFocus={(e) => e.preventDefault()}
+                    // A control that focused itself keeps focus; else Radix moves focus inside.
+                    onOpenAutoFocus={(e) => {
+                        if (
+                            (e.currentTarget as HTMLElement | null)?.contains(
+                                document.activeElement,
+                            )
+                        )
+                            e.preventDefault()
+                    }}
                     onCloseAutoFocus={() => onClosed()}
                     onEscapeKeyDown={(e) => {
                         e.preventDefault()

@@ -177,11 +177,14 @@ export function SecretForm({controller, textOnly = false, popupZIndex, nameHelp}
                         ) : null}
                     </span>
                     {/* The slug follows the name, so it shows here and opens only on Edit. */}
-                    {slug && !slugOpen ? (
+                    {/* Edit shows for a new secret even when the name gives no slug (e.g. Japanese). */}
+                    {!slugOpen && (slug || !isEditing) ? (
                         <span className="flex min-w-0 items-center gap-1.5 text-meta text-muted-foreground">
-                            <span className="truncate font-mono" title={slug}>
-                                {slug}
-                            </span>
+                            {slug ? (
+                                <span className="truncate font-mono" title={slug}>
+                                    {slug}
+                                </span>
+                            ) : null}
                             {isEditing ? null : (
                                 <Button
                                     variant="link"
