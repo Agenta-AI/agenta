@@ -43,12 +43,26 @@ vi.mock("@agenta/entities/secret", () => ({
     personalAccountsAccessAtom: {toString: () => "personalAccessAtom"},
 }))
 
-// The connect step and the server view are views of @agenta/entity-ui, opened here in a drawer
-// (`ViewDrawerHost`). Neither is this file's subject: the drawer host stands in for itself and
-// draws what it was asked to open, which is what these cases assert on.
+// The connect dialog and the tools sheet are @agenta/entity-ui components. Neither is this file's
+// subject: each stands in for itself and draws what it was handed, which is what these cases assert.
 vi.mock("@agenta/entity-ui/mcpEndpoint", () => ({
-    mcpConnectView: {id: "mcp.connect"},
-    mcpServerView: {id: "mcp.server"},
+    McpConnectJourney: ({
+        open,
+        reconnect,
+    }: {
+        open: boolean
+        reconnect?: {slug?: string; name?: string} | null
+    }) => {
+        if (!open) return null
+        // Records what it is handed, so a case can assert the reconnect reaches it. A journey
+        // opened without one starts at address entry, which repairs nothing and invites a
+        // second connection (D131's remainder, after D132).
+        opened.push(reconnect ?? null)
+        return <div data-testid="mcp-connect-journey" />
+    },
+    McpServerToolsSheet: ({endpoint}: {endpoint: {slug?: string}}) => (
+        <div data-testid="mcp-permission-drawer" data-slug={endpoint.slug} />
+    ),
     McpConnectionDetail: ({
         endpoint,
         readOnly,
@@ -68,33 +82,6 @@ vi.mock("@agenta/entity-ui/mcpEndpoint", () => ({
                 <span data-testid="detail-secret">{endpoint.secret_id ?? "none"}</span>
             </div>
         ) : null,
-}))
-
-vi.mock("@agenta/ui/view-stack", () => ({
-    ViewDrawerHost: ({
-        request,
-    }: {
-        request: {
-            view: {id: string}
-            params: {reconnect?: {slug?: string; name?: string} | null; connectionSlug?: string}
-            target: {kind: string}
-        }
-    }) => {
-        if (request.view.id === "mcp.connect") {
-            // Records what it is handed, so a case can assert the reconnect reaches it. A step
-            // opened without one starts at address entry, which repairs nothing and invites a
-            // second connection (D131's remainder, after D132).
-            opened.push(request.params.reconnect ?? null)
-            return <div data-testid="mcp-connect-journey" data-target={request.target.kind} />
-        }
-        return (
-            <div
-                data-testid="mcp-permission-drawer"
-                data-slug={request.params.connectionSlug}
-                data-target={request.target.kind}
-            />
-        )
-    },
 }))
 
 const setters = vi.hoisted(() => ({remove: vi.fn(), refresh: vi.fn(), disconnect: vi.fn()}))
@@ -429,11 +416,8 @@ describe("viewing a connection's tools", () => {
         act(() => {
             fireEvent.click(screen.getByRole("menuitem", {name: "View tools"}))
         })
-        const drawer = screen.getByTestId("mcp-permission-drawer")
-        expect(drawer.getAttribute("data-slug")).toBe("linear")
-        // A Settings row belongs to no agent: the server view opens on the project's connection,
-        // read-only, with no agent to remove it from.
-        expect(drawer.getAttribute("data-target")).toBe("project")
+        // A Settings row belongs to no agent: the sheet shows the project's connection, read-only.
+        expect(screen.getByTestId("mcp-permission-drawer").getAttribute("data-slug")).toBe("linear")
     })
 
     it("opens the server view on the row it was asked about", () => {

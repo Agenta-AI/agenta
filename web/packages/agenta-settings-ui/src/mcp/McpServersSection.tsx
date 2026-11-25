@@ -31,7 +31,11 @@ import {
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
 import {customNamedSecretsAtom, personalAccountsAccessAtom} from "@agenta/entities/secret"
-import {McpConnectionDetail, mcpConnectView, mcpServerView} from "@agenta/entity-ui/mcpEndpoint"
+import {
+    McpConnectJourney,
+    McpConnectionDetail,
+    McpServerToolsSheet,
+} from "@agenta/entity-ui/mcpEndpoint"
 import {useT, createT, type CatalogKey} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsMcpCatalog from "@agenta/i18n/catalogs/settings.mcp"
@@ -49,7 +53,6 @@ import {
     type ListTableColumn,
 } from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {ViewDrawerHost} from "@agenta/ui/view-stack"
 import {
     ArrowsClockwise,
     LinkBreak,
@@ -666,36 +669,22 @@ export default function McpServersSection({
                 onClose={() => setTokenFor(null)}
             />
 
-            {connecting ? (
-                // The connect step, the same view the agent opens, in a dialog of its own. A new
-                // dialog per attempt: a reconnect chosen while one is open starts over.
-                <ViewDrawerHost
-                    key={reconnecting?.id ?? "new"}
-                    request={{
-                        view: mcpConnectView,
-                        params: {
-                            reconnect: mcpReconnectTarget(reconnecting),
-                            onConnected: () => void refresh(),
-                        },
-                        target: {kind: "project"},
-                    }}
-                    onClosed={closeConnect}
-                    presentation="dialog"
-                />
-            ) : null}
+            {/* A new journey per attempt: a reconnect chosen while one is open starts over. */}
+            <McpConnectJourney
+                key={reconnecting?.id ?? "new"}
+                open={connecting}
+                onClose={closeConnect}
+                existingNames={names}
+                reconnect={mcpReconnectTarget(reconnecting)}
+                onConnected={() => void refresh()}
+            />
 
-            {/*
-                "View tools" is the agent's server view with nothing to set: a Settings row
-                belongs to no agent, so the view shows the project's connection read-only.
-            */}
+            {/* "View tools": the project's connection, read-only; a permission belongs to an agent. */}
             {viewingTools?.slug ? (
-                <ViewDrawerHost
+                <McpServerToolsSheet
                     key={rowKey(viewingTools)}
-                    request={{
-                        view: mcpServerView,
-                        params: {connectionSlug: viewingTools.slug},
-                        target: {kind: "project"},
-                    }}
+                    endpoint={viewingTools}
+                    onReconnect={() => openReconnect(viewingTools)}
                     onClosed={() => setToolsKey(null)}
                 />
             ) : null}
