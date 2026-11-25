@@ -55,6 +55,7 @@ export const AutomationDetailBody = ({
     actions,
     runNow,
     panel = false,
+    headless = false,
 }: {
     /** The saved row — the identity half of the screen. */
     automation: Automation
@@ -101,6 +102,8 @@ export const AutomationDetailBody = ({
      * under it, and no Agent field (the panel opens over the agent that runs it).
      */
     panel?: boolean
+    /** The page frame draws the name, the switch line and the menu; the body starts at its sections. */
+    headless?: boolean
 }) => {
     const t = useT(automationsPanelCatalog)
     const tEditor = useT(automationsEditorCatalog)
@@ -200,9 +203,11 @@ export const AutomationDetailBody = ({
                 "mx-auto box-border flex w-full max-w-content-md flex-col px-4 pb-16 pt-1 sm:px-8"
             }
         >
-            {header}
+            {headless ? null : header}
             {onOpenRunHistory ? (
-                <div className={`flex flex-col ${panel ? "mt-4 gap-4" : "mt-6 gap-6"}`}>
+                <div
+                    className={`flex flex-col ${panel ? "mt-4 gap-4" : headless ? "gap-6" : "mt-6 gap-6"}`}
+                >
                     <AutomationRunsSection
                         automation={automation}
                         runNow={runNow}
@@ -215,7 +220,7 @@ export const AutomationDetailBody = ({
             ) : (
                 <>
                     <AutomationFailureBanner reason={failureReason} />
-                    <div className="mt-6">{fields}</div>
+                    <div className={headless ? undefined : "mt-6"}>{fields}</div>
                 </>
             )}
             {/* Next to the save it is about: right above the bar, or last in a drawer whose

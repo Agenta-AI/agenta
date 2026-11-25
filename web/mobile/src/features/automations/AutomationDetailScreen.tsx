@@ -3,7 +3,9 @@ import {useCallback, useEffect, useRef, useState} from "react"
 import {
     AutomationDetailBody,
     AutomationDetailSkeleton,
+    AutomationMetaRow,
     AutomationRunHistoryView,
+    AutomationTitle,
     AutomationTriggerDrawers,
     useAutomationEditor,
 } from "@agenta/automation-ui"
@@ -19,12 +21,12 @@ import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {PageBackBar} from "../page-layout/PageBackBar"
 import {PageBackControl} from "../page-layout/PageBackControl"
+import {PageLayout} from "../page-layout/PageLayout"
 import {useConfirmModal} from "../settings/useConfirmModal"
 
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
 import {AutomationRunConversation} from "./AutomationRunConversation"
 import {AutomationRunNowButton} from "./AutomationRunNowButton"
-import {AutomationScreenHeader} from "./AutomationScreenHeader"
 import {useUnsavedGuard} from "./useUnsavedGuard"
 
 /**
@@ -124,28 +126,26 @@ export const AutomationDetailScreen = ({
     const listHref = `${base}/automations`
     const automationName = automation?.name || t("automations.screens.detailFallbackTitle")
 
-    return (
-        <>
-            <PageTitle title={t("automations.screens.pageTitle")} context={automation?.name} />
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    fill={showRuns}
-                    header={
-                        // The runs view draws its crumb inside the column it centres; below lg its
-                        // Back returns to the automation, as the crumb's name does.
-                        showRuns ? (
+    const runNow = automation ? (
+        <AutomationRunNowButton automation={automation} base={base} dirty={dirty} />
+    ) : null
+
+    // The run history is a workbench view (a list and a transcript, full height): its own frame.
+    if (showRuns) {
+        return (
+            <>
+                <PageTitle title={t("automations.screens.pageTitle")} context={automation?.name} />
+                <AppShell workspaceId={workspaceId} projectId={projectId}>
+                    <ScreenScaffold
+                        fill
+                        header={
+                            // Below lg, Back returns to the automation, as the link's name does.
                             <PageBackBar
                                 back={{label: automationName, onBack: closeRuns}}
                                 column="mx-auto box-border w-full max-w-content-md px-4 sm:pl-7.5 sm:pr-5"
                             />
-                        ) : (
-                            <AutomationScreenHeader
-                                back={{label: t("automations.screens.pageTitle"), href: listHref}}
-                            />
-                        )
-                    }
-                >
-                    {showRuns ? (
+                        }
+                    >
                         <AutomationRunHistoryView
                             automation={automation}
                             header={
@@ -162,59 +162,89 @@ export const AutomationDetailScreen = ({
                             renderConversation={renderConversation}
                             initialRunId={openRunId}
                             phone={phone}
-                            runNow={
-                                automation ? (
-                                    <AutomationRunNowButton
-                                        automation={automation}
-                                        base={base}
-                                        dirty={dirty}
-                                    />
-                                ) : null
-                            }
+                            runNow={runNow}
                         />
-                    ) : automation && preview ? (
-                        <AutomationDetailBody
-                            automation={automation}
-                            preview={preview}
-                            agentName={agentName}
-                            onOpenRunHistory={openRuns}
-                            failureReason={failureReason}
-                            dirty={dirty}
-                            saving={saving}
+                    </ScreenScaffold>
+                </AppShell>
+                <AutomationTriggerDrawers />
+                {modal}
+            </>
+        )
+    }
+
+    // The automation itself is a general page: back link, name, the switch line, a form.
+    return (
+        <>
+            <PageLayout
+                workspaceId={workspaceId}
+                projectId={projectId}
+                width="md"
+                back={{label: t("automations.screens.pageTitle"), href: listHref}}
+                documentTitle={t("automations.screens.pageTitle")}
+                documentContext={automation?.name}
+                title={
+                    automation ? (
+                        // The name renames in place, so it draws its own heading.
+                        <AutomationTitle
+                            name={automation.name}
+                            description={automation.description}
                             onRename={onRename}
-                            onSelectAgent={setAgent}
-                            onChangeCron={setCron}
-                            onSelectEvent={setEvent}
-                            onChangeInputs={setInputs}
-                            includeEvent={draft.includeEvent}
-                            onChangeIncludeEvent={setIncludeEvent}
-                            onToggle={onToggle}
-                            runNow={
-                                <AutomationRunNowButton
-                                    automation={automation}
-                                    base={base}
-                                    dirty={dirty}
-                                />
-                            }
-                            actions={
-                                <AutomationActionsMenu
-                                    automation={automation}
-                                    base={base}
-                                    onLeave={leave}
-                                />
-                            }
-                            onDiscard={discard}
-                            onSave={() => void save()}
                         />
-                    ) : loading ? (
-                        <AutomationDetailSkeleton />
-                    ) : missing ? (
-                        <p className="m-0 px-8 py-16 text-center text-label text-muted-foreground">
-                            {t("automations.screens.noLongerExists")}
-                        </p>
-                    ) : null}
-                </ScreenScaffold>
-            </AppShell>
+                    ) : (
+                        automationName
+                    )
+                }
+                description={
+                    automation ? (
+                        <AutomationMetaRow
+                            active={automation.isActive}
+                            agentName={agentName}
+                            updatedAt={automation.updatedAt}
+                            onToggle={onToggle}
+                        />
+                    ) : undefined
+                }
+                actions={
+                    automation ? (
+                        <AutomationActionsMenu
+                            automation={automation}
+                            base={base}
+                            onLeave={leave}
+                        />
+                    ) : undefined
+                }
+            >
+                {automation && preview ? (
+                    <AutomationDetailBody
+                        headless
+                        className="flex flex-col"
+                        automation={automation}
+                        preview={preview}
+                        agentName={agentName}
+                        onOpenRunHistory={openRuns}
+                        failureReason={failureReason}
+                        dirty={dirty}
+                        saving={saving}
+                        onRename={onRename}
+                        onSelectAgent={setAgent}
+                        onChangeCron={setCron}
+                        onSelectEvent={setEvent}
+                        onChangeInputs={setInputs}
+                        includeEvent={draft.includeEvent}
+                        onChangeIncludeEvent={setIncludeEvent}
+                        onToggle={onToggle}
+                        runNow={runNow}
+                        onDiscard={discard}
+                        onSave={() => void save()}
+                    />
+                ) : loading ? (
+                    <AutomationDetailSkeleton />
+                ) : missing ? (
+                    <p className="m-0 py-16 text-center text-label text-muted-foreground">
+                        {t("automations.screens.noLongerExists")}
+                    </p>
+                ) : null}
+            </PageLayout>
             <AutomationTriggerDrawers />
             {modal}
         </>

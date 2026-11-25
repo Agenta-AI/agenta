@@ -24,10 +24,15 @@ import {
 export interface PageLayoutProps {
     workspaceId: string
     projectId: string
-    /** The page title: the h1, and the browser tab unless `documentTitle` names it. */
-    title: string
+    /**
+     * The page title. Text becomes the h1 and the browser tab; an element (an editable name) draws
+     * its own heading, and then `documentTitle` names the tab.
+     */
+    title: ReactNode
     /** The browser tab's title when it is not the h1 (Settings names the tab, not the section). */
     documentTitle?: string
+    /** What the page is about, after the title in the browser tab (an automation's name). */
+    documentContext?: string
     /** Replaces the main nav in the sidebar and the drawer (Settings). */
     scope?: SidebarScope
     /** One line under the title. */
@@ -64,6 +69,7 @@ export const PageLayout = ({
     projectId,
     title,
     documentTitle,
+    documentContext,
     scope,
     description,
     back,
@@ -95,16 +101,22 @@ export const PageLayout = ({
                 <div className={pageColumn(width)}>
                     {back && expanded ? <PageBackControl back={back} className="mb-2" /> : null}
                     <div className={PAGE_TITLE_ROW}>
-                        <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
-                            {title}
-                        </h1>
+                        {typeof title === "string" ? (
+                            <h1 className="m-0 min-w-0 flex-1 truncate text-heading text-foreground">
+                                {title}
+                            </h1>
+                        ) : (
+                            <div className="min-w-0 flex-1">{title}</div>
+                        )}
                         {expanded && actions ? (
                             <div className="flex shrink-0 items-center gap-2">{actions}</div>
                         ) : null}
                     </div>
-                    {description ? (
+                    {typeof description === "string" ? (
                         <p className="m-0 mt-1 text-body text-muted-foreground">{description}</p>
-                    ) : null}
+                    ) : (
+                        description
+                    )}
                     {toolbar ? <div className="mt-6">{toolbar}</div> : null}
                 </div>
             </div>
@@ -113,7 +125,10 @@ export const PageLayout = ({
 
     return (
         <>
-            <PageTitle title={documentTitle ?? title} />
+            <PageTitle
+                title={documentTitle ?? (typeof title === "string" ? title : undefined)}
+                context={documentContext}
+            />
             <AppShell workspaceId={workspaceId} projectId={projectId} scope={scope}>
                 <ScreenScaffold
                     header={header}
