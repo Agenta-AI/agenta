@@ -6,7 +6,7 @@ services:
         image: agenta-oss-dev-api:latest
         build:
             context: ../../..
-            dockerfile: api/oss/docker/Dockerfile.dev
+            dockerfile: api/docker/Dockerfile.dev
         # === EXECUTION ============================================ #
         command: ["true"]
 
@@ -27,7 +27,7 @@ services:
         image: agenta-oss-dev-services:latest
         build:
             context: ../../..
-            dockerfile: services/oss/docker/Dockerfile.dev
+            dockerfile: services/docker/Dockerfile.dev
         # === EXECUTION ============================================ #
         command: ["true"]
 
@@ -136,6 +136,10 @@ services:
                 "--reload-dir",
                 "/app/oss/databases",
                 "--reload-dir",
+                "/app/ee/src",
+                "--reload-dir",
+                "/app/ee/databases",
+                "--reload-dir",
                 "/app/entrypoints",
                 "--reload-dir",
                 "/sdks/python/agenta",
@@ -158,7 +162,7 @@ services:
             ]
         # === STORAGE ============================================== #
         volumes:
-            #
+            - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdks/python:/sdks/python
@@ -334,11 +338,13 @@ services:
         command: supercronic /app/crontab
         # === STORAGE ============================================== #
         volumes:
-            #
             - ../../../api/oss/src/crons/queries.sh:/queries.sh
             - ../../../api/oss/src/crons/triggers.sh:/triggers.sh
             - ../../../api/oss/src/crons/gateways.sh:/gateways.sh
             - ../../../api/oss/src/crons/telemetry.sh:/telemetry.sh
+            - ../../../api/ee/src/crons/meters.sh:/meters.sh
+            - ../../../api/ee/src/crons/spans.sh:/spans.sh
+            - ../../../api/ee/src/crons/events.sh:/events.sh
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -364,7 +370,7 @@ services:
         command: sh -c "python -m oss.databases.postgres.migrations.runner"
         # === STORAGE ============================================== #
         volumes:
-            #
+            - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdks/python:/sdks/python
