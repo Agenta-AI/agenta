@@ -92,10 +92,11 @@ describe("shared desktop and mobile analytics", () => {
         ).toEqual({cloud_region: "EU", cloud_url: "https://eu.cloud.agenta.ai"})
     })
 
-    const recordingClient = (distinctId: string) => {
+    const recordingClient = (distinctId: string, userState: "anonymous" | "identified") => {
         const calls: string[] = []
         const client = {
             get_distinct_id: () => distinctId,
+            get_property: (name: string) => (name === "$user_state" ? userState : undefined),
             reset: () => calls.push("reset"),
             identify: (id: string, properties?: Record<string, unknown>) =>
                 calls.push(`identify ${id}${properties ? ` ${JSON.stringify(properties)}` : ""}`),
@@ -106,8 +107,18 @@ describe("shared desktop and mobile analytics", () => {
         return {client, calls}
     }
 
-    it("starts over before it identifies a browser that holds another id", () => {
-        const {client, calls} = recordingClient("person@example.test")
+    it("keeps the events of an anonymous browser: no reset, it identifies with the API id", () => {
+        const {client, calls} = recordingClient("0190-random-anonymous-id", "anonymous")
+        adoptInstanceIdentity(
+            client,
+            {enabled: true, distinct_id: "user-1", groups: null, properties: null},
+            {email: "person@example.test"},
+        )
+        expect(calls).toEqual(['identify user-1 {"email":"person@example.test"}'])
+    })
+
+    it("starts over before it identifies a browser identified as an email", () => {
+        const {client, calls} = recordingClient("person@example.test", "identified")
         adoptInstanceIdentity(client, {
             enabled: true,
             distinct_id: "instance-1:user-1",
@@ -117,8 +128,8 @@ describe("shared desktop and mobile analytics", () => {
         expect(calls).toEqual(["reset", "identify instance-1:user-1", "group instance instance-1"])
     })
 
-    it("identifies a cloud browser by user id, with no alias, and tags its events", () => {
-        const {client, calls} = recordingClient("old-device-id")
+    it("starts over a browser identified as an old device id, then identifies it by user id", () => {
+        const {client, calls} = recordingClient("old-device-id", "identified")
         adoptInstanceIdentity(
             client,
             {
@@ -137,7 +148,7 @@ describe("shared desktop and mobile analytics", () => {
     })
 
     it("does not start over when the browser already holds the user id", () => {
-        const {client, calls} = recordingClient("user-1")
+        const {client, calls} = recordingClient("user-1", "identified")
         adoptInstanceIdentity(client, {
             enabled: true,
             distinct_id: "user-1",

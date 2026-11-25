@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
     listeners: new Set<() => void>(),
     reporter: null as ((payload: Record<string, unknown>) => void) | null,
     distinctId: "anonymous",
+    userState: "anonymous" as "anonymous" | "identified",
     capture: vi.fn(),
     alias: vi.fn(),
     identify: vi.fn(),
@@ -52,6 +53,7 @@ vi.mock("posthog-js", () => ({
         group: state.group,
         register: state.register,
         get_distinct_id: () => state.distinctId,
+        get_property: (name: string) => (name === "$user_state" ? state.userState : undefined),
         opt_out_capturing: state.optOut,
         reset: state.reset,
     },
@@ -93,9 +95,11 @@ beforeEach(async () => {
     vi.clearAllMocks()
     state.identify.mockImplementation((id: string) => {
         state.distinctId = id
+        state.userState = "identified"
     })
     state.reset.mockImplementation(() => {
         state.distinctId = "anonymous-after-reset"
+        state.userState = "anonymous"
     })
     state.key = "test-project-key"
     state.user = CLOUD_USER
@@ -103,6 +107,7 @@ beforeEach(async () => {
     state.get.mockImplementation(async () => ({data: state.telemetry}))
     queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
     state.distinctId = "anonymous"
+    state.userState = "anonymous"
     state.path = "/w/ws/p/project/sessions/one"
     state.listeners.clear()
     localStorage.clear()
@@ -121,6 +126,7 @@ beforeEach(async () => {
             group: state.group,
             register: state.register,
             get_distinct_id: () => state.distinctId,
+            get_property: (name: string) => (name === "$user_state" ? state.userState : undefined),
             opt_out_capturing: state.optOut,
             reset: state.reset,
         })
@@ -189,8 +195,21 @@ describe("mobile PostHog parity", () => {
             email: CLOUD_USER.email,
             username: "Renamed",
         })
-        // The browser already holds the user id: no new start.
+        // The browser was anonymous, then held the user id: it never starts over.
+        expect(state.reset).not.toHaveBeenCalled()
+    })
+
+    it("starts over a browser identified under another id before it identifies the user", async () => {
+        state.distinctId = "old-device-id"
+        state.userState = "identified"
+        await render()
         expect(state.reset).toHaveBeenCalledTimes(1)
+        expect(state.reset.mock.invocationCallOrder[0]).toBeLessThan(
+            state.identify.mock.invocationCallOrder[0],
+        )
+        expect(state.identify.mock.calls).toEqual([
+            ["user-1", {email: CLOUD_USER.email, username: CLOUD_USER.username}],
+        ])
     })
 
     it("tags every cloud browser event with the region and the deployment", async () => {

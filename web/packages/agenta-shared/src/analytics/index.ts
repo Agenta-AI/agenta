@@ -106,6 +106,7 @@ export const isCloudTelemetry = (telemetry: InstanceTelemetry) =>
 
 interface IdentityClient {
     get_distinct_id: () => string
+    get_property: (name: string) => unknown
     reset: () => void
     identify: (id: string, properties?: Record<string, unknown>) => void
     group: (type: string, key: string) => void
@@ -115,8 +116,10 @@ interface IdentityClient {
 /**
  * Identify with the API's id before the first event: the user id on cloud,
  * `<instance_id>:<user_id>` on self-hosted. Every device of a user then sends the same
- * id, so PostHog sees one person. A browser that holds another id (a device id or an
- * email from before) starts over, so nothing stored under that id is sent again.
+ * id, so PostHog sees one person. A browser already identified under another id (a
+ * device id or an email from before) starts over, so nothing stored under that id is
+ * sent again. An anonymous browser is identified as it is, so PostHog joins the events
+ * from before sign-up to the person.
  */
 export const adoptInstanceIdentity = (
     client: IdentityClient,
@@ -124,7 +127,9 @@ export const adoptInstanceIdentity = (
     personProperties?: Record<string, unknown>,
 ) => {
     if (!telemetry?.distinct_id) return
-    if (client.get_distinct_id() !== telemetry.distinct_id) client.reset()
+    // posthog-js persists `$user_state`; its own check, `_isIdentified()`, is internal.
+    const identified = client.get_property("$user_state") === "identified"
+    if (identified && client.get_distinct_id() !== telemetry.distinct_id) client.reset()
     if (personProperties) client.identify(telemetry.distinct_id, personProperties)
     else client.identify(telemetry.distinct_id)
     if (telemetry.groups) client.group("instance", telemetry.groups.instance)
