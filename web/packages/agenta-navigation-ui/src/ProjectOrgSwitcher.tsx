@@ -96,11 +96,25 @@ const CHECK_CLASS = "size-4 shrink-0 text-foreground"
 const Divider = () => <div className="my-1 h-px shrink-0 bg-border-muted" />
 
 /** A one-letter Mark (16px in menus and nav); the current one takes the brand tint. */
-const EntryMark = ({name, current}: {name: string; current?: boolean}) => (
-    <IconTile size={16} tone={current ? "brand" : "neutral"} className="shrink-0">
-        {name.trim().charAt(0).toUpperCase() || "?"}
-    </IconTile>
-)
+/** One soft data colour per first letter, so a project or an organization keeps its colour. */
+const MARK_TINTS = [
+    "bg-data-1/15 text-data-1",
+    "bg-data-2/15 text-data-2",
+    "bg-data-3/15 text-data-3",
+    "bg-data-4/15 text-data-4",
+    "bg-data-5/15 text-data-5",
+    "bg-data-6/15 text-data-6",
+] as const
+
+const EntryMark = ({name}: {name: string}) => {
+    const letter = name.trim().charAt(0).toUpperCase() || "?"
+    const tint = MARK_TINTS[letter.charCodeAt(0) % MARK_TINTS.length]
+    return (
+        <IconTile size={20} className={clsx("shrink-0", tint)}>
+            {letter}
+        </IconTile>
+    )
+}
 
 const Row = ({
     onClick,
@@ -176,7 +190,7 @@ export const EntryList = ({entries, close}: {entries: SwitcherEntry[]; close: ()
                     if (!entry.isActive) entry.onSelect()
                 }}
             >
-                <EntryMark name={entry.name} current={entry.isActive} />
+                <EntryMark name={entry.name} />
                 <span className="min-w-0 flex-1 truncate">{entry.name}</span>
                 {entry.isActive && <Check className={CHECK_CLASS} />}
             </Row>
@@ -359,7 +373,7 @@ export const ProjectOrgSwitcherView = ({
                 )}
                 title={collapsed ? undefined : `${projectLabel} · ${orgLabel}`}
             >
-                <EntryMark name={projectLabel} current />
+                <EntryMark name={projectLabel} />
                 {/* One line: the org names itself on the panel's caption. */}
                 {!collapsed && (
                     <>
