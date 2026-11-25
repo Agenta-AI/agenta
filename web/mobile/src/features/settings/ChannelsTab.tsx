@@ -11,18 +11,15 @@ import {useAtomValue} from "jotai"
 
 import {isMyPrivateAgent} from "../agents/myPrivateAgent"
 import {useAgentChannels} from "../agents/useAgentChannels"
-import {useCurrentProject} from "../context/useCurrentProject"
 
-import type {SettingsTabProps} from "./settingsTabProps"
 import {useConfirmModal} from "./useConfirmModal"
 
 /**
  * Settings > Channels: every connection in the project. The panel acts for one agent at a
  * time, so the channels actions are rebuilt whenever the user picks another.
  */
-export const ChannelsTab = ({workspaceId, projectId}: SettingsTabProps) => {
+export const ChannelsTab = () => {
     const {confirm, modal: confirmModal} = useConfirmModal()
-    const project = useCurrentProject(workspaceId, projectId)
     const me = useAtomValue(userAtom)
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo(
@@ -68,7 +65,6 @@ export const ChannelsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                 actions={actions}
                 renderPanel={(props: ChannelsPanelRenderProps) => <ChannelsPanelSheet {...props} />}
                 confirm={confirm}
-                projectName={project?.project_name}
             />
             {confirmModal}
         </>

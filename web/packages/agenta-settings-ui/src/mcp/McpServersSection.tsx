@@ -142,8 +142,8 @@ const ACTIONS_COLUMN: McpColumn = {
     width: LIST_COLUMN_WIDTH.actions,
 }
 
-const columnsFor = (personal: boolean): McpColumn[] =>
-    personal
+const columnsFor = (personal: boolean, signIn: boolean): McpColumn[] =>
+    personal && signIn
         ? [NAME_COLUMN, URL_COLUMN, STATUS_COLUMN, SIGN_IN_COLUMN, ACTIONS_COLUMN]
         : [NAME_COLUMN, URL_COLUMN, STATUS_COLUMN, ACTIONS_COLUMN]
 
@@ -370,9 +370,15 @@ export default function McpServersSection({
         [confirm, deleteEndpoint, setViewing],
     )
 
+    // No sign-in column when no server asks for one; kept while the list loads.
+    const anySignIn = isPending || allRows.some(asksForSignIn)
     const allColumns = useMemo(
-        () => columnsFor(layoutPersonal).map((column) => ({...column, label: t(column.label)})),
-        [layoutPersonal, t],
+        () =>
+            columnsFor(layoutPersonal, anySignIn).map((column) => ({
+                ...column,
+                label: t(column.label),
+            })),
+        [anySignIn, layoutPersonal, t],
     )
     const {columns, shows, wide} = usePhoneColumns(allColumns, phoneKeysFor(layoutPersonal))
 
@@ -524,10 +530,11 @@ export default function McpServersSection({
                                                 : t("settings.mcp.notSignedIn")
                                             : (record.data.route.base_url ?? undefined)
                                 }
+                                // Red only where the dot is red; a warning dot keeps a muted line.
                                 metaTone={
-                                    shows("url") || !personal || status === "connected"
-                                        ? "muted"
-                                        : "danger"
+                                    !shows("url") && personal && STATUS_TONE[status] === "error"
+                                        ? "danger"
+                                        : "muted"
                                 }
                             />
                         )}

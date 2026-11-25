@@ -1,7 +1,7 @@
 import {useT} from "@agenta/i18n"
 import channelsAgentPickerCatalog from "@agenta/i18n/catalogs/channels.agentPicker"
 import {Alert, Button} from "@agenta/ui/ui"
-import {CaretRight, Users} from "@phosphor-icons/react"
+import {CaretRight} from "@phosphor-icons/react"
 
 import {AgentMark} from "./AgentMark"
 import {liveCountOf, platformLabel, ROW_BUTTON} from "./helpers"
@@ -14,8 +14,6 @@ export interface ChannelAgentPickerProps {
     onSelect: (agentId: string) => void
     /** The platform being connected; the audience note names it. No note without it. */
     platform?: ChannelPlatform
-    /** The project's name, for the audience note. No note without it. */
-    projectName?: string
 }
 
 /** The first step of a connection made outside an agent's page: which agent answers there. */
@@ -24,20 +22,18 @@ export const ChannelAgentPicker = ({
     connections,
     onSelect,
     platform,
-    projectName,
 }: ChannelAgentPickerProps) => {
     const t = useT(channelsAgentPickerCatalog)
     const label = platform ? platformLabel(platform) : null
 
     return (
         <div className="flex flex-col gap-2.5" data-testid="channels-agent-picker">
-            {label && projectName ? (
+            {label ? (
                 <Alert
                     type="info"
                     showIcon
                     role="note"
-                    icon={<Users />}
-                    message={copy.audienceNote(projectName, label)}
+                    message={copy.audienceNote(label)}
                     data-testid="channels-picker-audience"
                 />
             ) : null}

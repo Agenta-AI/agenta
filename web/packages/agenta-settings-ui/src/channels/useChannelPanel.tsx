@@ -2,6 +2,7 @@ import {Suspense, useCallback, useRef, useState} from "react"
 
 import {useT, type CatalogKey} from "@agenta/i18n"
 import channelsPanelCatalog from "@agenta/i18n/catalogs/channels.panel"
+import {message} from "@agenta/ui/app-message"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner} from "@agenta/ui/ui"
 import {Broadcast, ChatCircleText, Code} from "@phosphor-icons/react"
 
@@ -108,8 +109,6 @@ export interface UseChannelPanelOptions {
     agents?: ChannelsPanelAgent[]
     /** Switch the panel to another agent; it reopens on that agent's hub. */
     onAgentChange?: (agentId: string) => void
-    /** The project's name, for the agent step's audience note. */
-    projectName?: string
 }
 
 export interface EmbedViewProps {
@@ -178,7 +177,6 @@ export const useChannelPanel = ({
     embed,
     agents,
     onAgentChange,
-    projectName,
 }: UseChannelPanelOptions) => {
     const t = useT(channelsPanelCatalog)
     const agentName = agentNameOption ?? t("channels.panel.yourAgent")
@@ -251,6 +249,26 @@ export const useChannelPanel = ({
         [connections, connectRoute],
     )
 
+    /** Another agent's platform: its list, or connect when it has none there. */
+    const platformRouteFor = useCallback(
+        (id: string, platform: ChannelPlatform): ChannelsRoute => {
+            const all = connections.allConnections
+            const theirs = all?.filter(
+                (c) => c.platform === platform && c.agent?.id === id && c.status !== "pending",
+            )
+            if (theirs && theirs.length === 0) {
+                return {
+                    view: "connect",
+                    platform,
+                    mode: "hosted",
+                    known: knownIds(connections, platform),
+                }
+            }
+            return {view: "platform", platform}
+        },
+        [connections],
+    )
+
     const open = useCallback(
         (platform: ChannelPlatform) => openRoute(entryRoute(platform)),
         [openRoute, entryRoute],
@@ -308,6 +326,7 @@ export const useChannelPanel = ({
                 !agentConnectionsOf(next, platform).some((c) => c.connectionId === connectionId)
             if (!gone) throw failure
         }
+        message.success(t("channels.panel.disconnected", {platform: platformLabel(platform)}))
         if (stack.length > 1) {
             setDirection(-1)
             setStack((s) => s.slice(0, -1))
@@ -442,12 +461,11 @@ export const useChannelPanel = ({
                         agents={agents ?? []}
                         connections={connections}
                         platform={route.platform}
-                        projectName={projectName}
                         onSelect={(id) => {
                             onAgentChange?.(id)
                             push(
                                 route.platform
-                                    ? {view: "platform", platform: route.platform}
+                                    ? platformRouteFor(id, route.platform)
                                     : {view: "hub"},
                             )
                         }}
@@ -461,7 +479,7 @@ export const useChannelPanel = ({
             case "hub":
                 return {title: t("channels.panel.publish"), icon: <Broadcast size={18} />}
             case "api":
-                return {title: "API", icon: <Code size={18} weight="bold" />}
+                return {title: t("channels.panel.api"), icon: <Code size={18} weight="bold" />}
             case "embed":
                 return {
                     title: t("channels.panel.embed"),
@@ -492,8 +510,13 @@ export const useChannelPanel = ({
         reloadAfterConnect()
         onAgentChange?.(id)
         setDirection(1)
-        // A picked agent keeps the picker under its hub, so back still offers the others.
-        setStack((s) => (s[0]?.view === "agents" ? [s[0], {view: "hub"}] : [{view: "hub"}]))
+        // Keep the open platform; the picker stays under the hub so back still offers the others.
+        const platform = top && top.view !== "agents" && "platform" in top ? top.platform : null
+        setStack((s) => [
+            ...(s[0]?.view === "agents" ? [s[0]] : []),
+            {view: "hub"},
+            ...(platform ? [platformRouteFor(id, platform)] : []),
+        ])
     }
 
     const subtitle =

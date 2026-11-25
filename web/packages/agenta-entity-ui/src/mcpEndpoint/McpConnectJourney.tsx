@@ -894,17 +894,18 @@ export function useMcpConnectScreens({
             ) : null}
 
             {screen === "url_failed" ? (
-                <InlineError id={URL_PROBLEM_ID} headline={failureHeadline}>
-                    {failureBody}{" "}
-                    {/* Only where the check carried an answer to show. See
-                                `readMcpProbeResponse`. */}
+                <>
+                    <InlineError id={URL_PROBLEM_ID} headline={failureHeadline}>
+                        {failureBody}
+                    </InlineError>
+                    {/* Outside the red card; only when the check carried an answer. */}
                     {probeResponse ? (
                         <ShowResponsePanel
                             statusLine={probeResponse.status}
                             body={probeResponse.body}
                         />
                     ) : null}
-                </InlineError>
+                </>
             ) : null}
 
             {screen === "oauth" || screen === "api_key" || screen === "no_auth" ? (

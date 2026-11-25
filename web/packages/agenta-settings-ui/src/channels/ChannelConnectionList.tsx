@@ -26,6 +26,7 @@ export const ChannelConnectionList = ({
     const t = useT(channelsListCatalog)
     const isSlack = platform === "slack"
     const hostedHere = connections.some((c) => c.kind === "hosted")
+    const empty = connections.length === 0
     return (
         <div className="flex flex-col gap-2.5" data-testid="channels-connection-list">
             <div className="flex items-baseline justify-between px-0.5">
@@ -84,9 +85,9 @@ export const ChannelConnectionList = ({
                     </span>
                     <span className="text-body">
                         {isSlack
-                            ? t("channels.list.addWorkspace")
+                            ? t(empty ? "channels.list.addFirstWorkspace" : "channels.list.addWorkspace")
                             : platform === "whatsapp"
-                              ? t("channels.list.addNumber")
+                              ? t(empty ? "channels.list.addFirstNumber" : "channels.list.addNumber")
                               : hostedHere
                                 ? t("channels.list.addOwnBot")
                                 : t("channels.list.addBot")}

@@ -47,6 +47,7 @@ import {
     fieldPatternError,
     platformLabel,
     slackHandleFrom,
+    unescapeUnicode,
 } from "./helpers"
 import {platformLogo} from "./icons"
 import {PanelFooter} from "./PanelFooter"
@@ -621,7 +622,7 @@ export const ChannelConnectFlow = ({
                 description: slackIdentity.description.trim() || undefined,
             })
             if (!alive.current) return
-            setNamedManifest(info.manifest)
+            setNamedManifest(info.manifest ? unescapeUnicode(info.manifest) : null)
             setSlackStep("guide")
         } catch (e) {
             if (!alive.current) return

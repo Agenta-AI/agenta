@@ -512,3 +512,11 @@ export const splitIdList = (text: string): string[] =>
         .split(/[,，、]/)
         .map((value) => value.trim())
         .filter(Boolean)
+
+/** Turns `\uXXXX` escapes into the characters, keeping the ones JSON must escape. */
+export const unescapeUnicode = (text: string): string =>
+    text.replace(/(?<!\\)((?:\\\\)*)\\u([0-9a-fA-F]{4})/g, (match, slashes: string, hex: string) => {
+        const code = parseInt(hex, 16)
+        if (code < 0x20 || code === 0x22 || code === 0x5c) return match
+        return slashes + String.fromCharCode(code)
+    })

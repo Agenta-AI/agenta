@@ -71,5 +71,6 @@
     "noServersYet": "Aún no hay servidores MCP en este proyecto",
     "noServersYetBody": "Conecta un servidor MCP mediante su URL. Inicias sesión o añades una clave una vez, y todos los agentes del proyecto podrán usarlo.",
     "searchServers": "Buscar servidores",
-    "noServersMatch": "Ningún servidor coincide"
+    "noServersMatch": "Ningún servidor coincide",
+    "serverResponse": "Respuesta del servidor"
 }

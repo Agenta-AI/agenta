@@ -67,5 +67,6 @@
     "noServersYet": "このプロジェクトにはまだ MCP サーバーがありません",
     "noServersYetBody": "URL で MCP サーバーを接続します。サインインまたはキーの追加は一度だけで、プロジェクトのすべてのエージェントが使用できます。",
     "searchServers": "サーバーを検索",
-    "noServersMatch": "一致するサーバーはありません"
+    "noServersMatch": "一致するサーバーはありません",
+    "serverResponse": "サーバーの応答"
 }

@@ -1254,10 +1254,12 @@ export const ChannelManagePanel = ({
                 {confirming ? (
                     <div className="flex w-full flex-col gap-2.5">
                         <span className="text-label text-foreground">
-                            {t("channels.manage.disconnectConfirm", {
-                                subject: disconnectSubject(connection),
-                                agent: agentName,
-                            })}
+                            {t(
+                                connection.status === "pending"
+                                    ? "channels.manage.disconnectPendingConfirm"
+                                    : "channels.manage.disconnectConfirm",
+                                {subject: disconnectSubject(connection), agent: agentName},
+                            )}
                         </span>
                         <div className="flex justify-end gap-2">
                             <Button

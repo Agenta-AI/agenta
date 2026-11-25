@@ -207,7 +207,8 @@ export default function McpConnectionDetail({
 
     return (
         <Dialog open={!!endpoint} onOpenChange={(next) => !next && onClose()}>
-            <DialogContent>
+            {/* No autofocus: viewing must not open a phone keyboard on Name. */}
+            <DialogContent onOpenAutoFocus={(event) => event.preventDefault()}>
                 <DialogHeader>
                     <DialogTitle>
                         {endpoint?.name || endpoint?.slug || t("entityUi.mcpDetail.connection")}
@@ -258,9 +259,9 @@ export default function McpConnectionDetail({
                             </span>
                             {readOnly ? null : (
                                 <Button
-                                    variant="link"
+                                    variant="ghost"
                                     size="xs"
-                                    className="ml-auto px-0 text-meta"
+                                    className="ml-auto text-meta"
                                     onClick={() => onReconnect(endpoint)}
                                 >
                                     {t("entityUi.mcpDetail.change")}

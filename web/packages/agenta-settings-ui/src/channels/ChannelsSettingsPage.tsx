@@ -53,8 +53,6 @@ export interface ChannelsSettingsPageProps {
     hostedHandle?: string
     /** Confirms a disconnect; without it the row menu offers no Disconnect. */
     confirm?: ConfirmDestructive
-    /** The project's name, for the agent step's audience note. */
-    projectName?: string
 }
 
 const PLATFORM_DESCRIPTIONS: Record<
@@ -104,7 +102,6 @@ export const ChannelsSettingsPage = ({
     renderPanel,
     hostedHandle = "@agenta",
     confirm,
-    projectName,
 }: ChannelsSettingsPageProps) => {
     const t = useT(channelsPageCatalog, commonCatalog)
     const [retrying, setRetrying] = useState(false)
@@ -136,7 +133,6 @@ export const ChannelsSettingsPage = ({
         hostedHandle,
         agents,
         onAgentChange,
-        projectName,
     })
     const {openRoute, openConnection: openPanelConnection} = panel
 

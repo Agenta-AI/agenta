@@ -1128,7 +1128,9 @@
         "bots": "f17c0acbd8e5",
         "connectedCount_other": "2b8b9e543b77",
         "numbers": "b0640f0fc460",
-        "workspaces": "1377264ba3b0"
+        "workspaces": "1377264ba3b0",
+        "addFirstWorkspace": "e9be14fd919a",
+        "addFirstNumber": "50c5d2c86a72"
     },
     "channels.manage": {
         "access": "ec5ba0abb717",
@@ -1144,7 +1146,7 @@
         "appSecret": "1cdbce289333",
         "appUninstalled": "4a8644ea4b88",
         "botToken": "5bb9aecca021",
-        "botUserOAuthToken": "d6b64bf5e951",
+        "botUserOAuthToken": "b801a66be4e9",
         "channels": "4c8906cf76f5",
         "channelsItsIn": "63ba4b27b381",
         "chats": "ef5b4049bb36",
@@ -1194,7 +1196,7 @@
         "revokedHelpWhatsApp": "5032bb3f5ee3",
         "runInviteFirst": "65d980d41f11",
         "searchChannels": "7fbc58c98558",
-        "signingSecret": "f5e81453d0e9",
+        "signingSecret": "e7ee22e117a1",
         "since": "a2fb65db8367",
         "telegramRevokedToken": "c62108ef91f0",
         "turnOnFailed": "8e9e58e06e14",
@@ -1203,7 +1205,8 @@
         "updateToken": "ec221bf44bb7",
         "useOwnApp": "bc5364b2332f",
         "useOwnBot": "b63b4d116a66",
-        "webhook": "4814f62c108d"
+        "webhook": "4814f62c108d",
+        "disconnectPendingConfirm": "6ee1d3903bc6"
     },
     "channels.page": {
         "channelActions": "d8b6908bddda",
@@ -1239,7 +1242,9 @@
         "noIdYet": "39662e41f386",
         "publish": "859390eb495b",
         "yourAgent": "bb00a1931d44",
-        "yourWorkspace": "f981bd62fb8b"
+        "yourWorkspace": "f981bd62fb8b",
+        "api": "c8e5998f6a39",
+        "disconnected": "7aa765a8e0bf"
     },
     "channels.people": {
         "addAtLeastOneAccount": "0e22faeff976",
@@ -1281,7 +1286,7 @@
         "loadFailed": "f99bbfa7d196"
     },
     "channels.sharing": {
-        "audienceNote": "175a2c99d685",
+        "audienceNote": "2daccb72a885",
         "off": "ca7981b46ecf",
         "offIn": "d4931e59bb66",
         "turnOn": "5a1f096a0d8d"
@@ -3406,7 +3411,8 @@
         "noServersYet": "cfe371bb9cf7",
         "noServersYetBody": "06e132b9e99f",
         "searchServers": "3d7d709f953e",
-        "noServersMatch": "6c98afe733d3"
+        "noServersMatch": "6c98afe733d3",
+        "serverResponse": "17ad5d4bdaff"
     },
     "entityUi.mcpDetail": {
         "connectionRenamed": "e8150aac20f0",
@@ -3574,9 +3580,9 @@
         "searchProjects": "9e079c7df9f1",
         "noProjectsMatch": "625c8db6301b",
         "projectsThatCanUse": "b34da7f3c48b",
-        "everyProjectIn": "4f268ddd8ac0",
+        "everyProjectIn": "7ef737b909ba",
         "allProjects": "4b87271b6b81",
-        "everyProjectInIncludingNew": "b7ef989ab307",
+        "everyProjectInIncludingNew": "e9ac80321f9d",
         "selectedProjects": "747132704a73",
         "onlyProjectsYouPick": "7be80f8c14d7",
         "choosingProjectsPlan": "253e12c79660",
@@ -3761,7 +3767,6 @@
         "incompatible": "a87d5b527ddd",
         "harnessAddsModels": "a43882030dae",
         "selectAll": "1fc9a387654d",
-        "searchModels": "fdff527d88f8",
         "addTerm": "cf20d91dbe0a",
         "enterKey": "dc8659db6d41",
         "noModelsYet": "3e511f8cbff3",
@@ -3780,7 +3785,9 @@
         "keyConfiguredLabel": "2ff5cb51f5de",
         "modelCount_other": "b8da2febc493",
         "savedUntested": "6b1a7a916978",
-        "testBeforeSaving": "aef3492f92a5"
+        "testBeforeSaving": "aef3492f92a5",
+        "searchModels_one": "52044178c926",
+        "searchModels_other": "f548d145bfe2"
     },
     "entityUi.providerCredentials": {
         "openaiCompatible": "be400a6edf75",
@@ -3868,7 +3875,8 @@
         "bedrockAccessKeys": "81b42f5d8dd2",
         "bedrockAccessKeysHint": "97450ac20218",
         "secretAccessKey": "3de6b754f572",
-        "apiKeyOptional": "c52dc612ce3a"
+        "apiKeyOptional": "c52dc612ce3a",
+        "theCustomEndpoint": "ae20e223c36d"
     },
     "entityUi.revisionDrawer": {
         "noParameters": "8697dadde1db",
@@ -4094,7 +4102,7 @@
         "switchFormatClears": "dc03c6816878",
         "nameRequired": "f83a4bc1f3f4",
         "contentRequired": "bb0f587815fa",
-        "saved": "75cf0b84d500",
+        "saved": "3164fd0b3bfc",
         "saveFailed": "10198498ebb5",
         "invalidJson": "70fddef4dd5b",
         "flatObjectOnly": "8afb8cb05bba",
@@ -4104,7 +4112,8 @@
         "createSecret": "b72a982613b6",
         "availableToEveryAgent": "017086649266",
         "savedThenSelected": "bde4d643da6e",
-        "whoCanUseIt": "82d9af69e1a1"
+        "whoCanUseIt": "82d9af69e1a1",
+        "slugHintPersonal": "ff0fdc861d77"
     },
     "entityUi.secretViews": {
         "attachLeaveDescription": "b2533950d5bf",
@@ -4461,7 +4470,8 @@
         "output": "b2439bcb8dee",
         "noOutputYet": "7b7658d702d8",
         "fillInputsHint": "9cc39e2fcc09",
-        "runAction": "6df427955ff8"
+        "runAction": "6df427955ff8",
+        "actionsLoadFailed": "770e81eed11a"
     },
     "entityUi.toolForm": {
         "connection": "639a40e82b9a",
@@ -6738,7 +6748,9 @@
         "vertexFields": "e863b6c19e06",
         "modelsDefaults": "610b7468ce69",
         "modelsActive": "dd382a8d56d2",
-        "searchProviders": "c63a3f5870fa"
+        "searchProviders": "c63a3f5870fa",
+        "projectEmptyTitle": "a5dcec915e3a",
+        "projectEmptyBody": "6b792bfc1a45"
     },
     "settings.resetPasswordLinkDialog": {
         "emailed": "70f29e943735",
@@ -6754,7 +6766,6 @@
         "createSecret": "b72a982613b6",
         "description": "2b029535ad7f",
         "editTitle": "b5068d24eb4f",
-        "everyoneIn": "ea1c225ea3c9",
         "everyoneNote": "e025f4d948df",
         "expectedObject": "e6a653fe5ad5",
         "format": "2f343666aaa8",
@@ -6762,7 +6773,6 @@
         "jsonHint": "e23bd03d95f6",
         "namePlaceholder": "3dce4395b280",
         "nestedNotSupported": "0feefe3b1725",
-        "onlyMe": "bdc0857b99a9",
         "onlyMeNote": "e27e70e36ea7",
         "saveFailed": "fc97fa1f5423",
         "saving": "23e39291d613",
@@ -6791,7 +6801,8 @@
     "settings.secretsTab": {
         "deleteBody": "f3f8ed15ce1d",
         "deleteFailed": "e94aa1d73ef1",
-        "deleteTitle": "1a48c8c83043"
+        "deleteTitle": "1a48c8c83043",
+        "deleted": "50c9e2de86db"
     },
     "settings.shared": {
         "notUsedByAnyAgent": "14ad172dfd9a",

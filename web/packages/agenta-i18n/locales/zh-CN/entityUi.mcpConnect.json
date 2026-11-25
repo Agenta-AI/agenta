@@ -67,5 +67,6 @@
     "noServersYet": "此项目中还没有 MCP 服务器",
     "noServersYetBody": "通过 URL 连接 MCP 服务器。你只需登录或添加一次密钥，项目中的每个 Agent 都可以使用它。",
     "searchServers": "搜索服务器",
-    "noServersMatch": "没有匹配的服务器"
+    "noServersMatch": "没有匹配的服务器",
+    "serverResponse": "服务器响应"
 }

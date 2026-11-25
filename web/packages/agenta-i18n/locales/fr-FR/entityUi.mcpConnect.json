@@ -71,5 +71,6 @@
     "noServersYet": "Aucun serveur MCP dans ce projet pour l’instant",
     "noServersYetBody": "Connectez un serveur MCP par son URL. Vous vous connectez ou ajoutez une clé une seule fois, et chaque agent du projet peut l’utiliser.",
     "searchServers": "Rechercher des serveurs",
-    "noServersMatch": "Aucun serveur ne correspond"
+    "noServersMatch": "Aucun serveur ne correspond",
+    "serverResponse": "Réponse du serveur"
 }

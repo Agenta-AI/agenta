@@ -69,5 +69,6 @@
     "noServersYet": "Noch keine MCP-Server in diesem Projekt",
     "noServersYetBody": "Verbinden Sie einen MCP-Server per URL. Sie melden sich einmal an oder fügen einmal einen Schlüssel hinzu, und jeder Agent im Projekt kann ihn nutzen.",
     "searchServers": "Server durchsuchen",
-    "noServersMatch": "Keine passenden Server"
+    "noServersMatch": "Keine passenden Server",
+    "serverResponse": "Serverantwort"
 }

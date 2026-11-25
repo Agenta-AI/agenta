@@ -69,5 +69,6 @@
     "noServersYet": "No MCP servers in this project yet",
     "noServersYetBody": "Connect an MCP server by URL. You'll sign in or add a key once, and every agent in the project can use it.",
     "searchServers": "Search servers",
-    "noServersMatch": "No servers match"
+    "noServersMatch": "No servers match",
+    "serverResponse": "Server response"
 }

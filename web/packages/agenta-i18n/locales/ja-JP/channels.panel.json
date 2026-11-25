@@ -13,5 +13,7 @@
     "noIdYet": "この接続にはまだ ID がありません。",
     "publish": "公開",
     "yourAgent": "あなたのエージェント",
-    "yourWorkspace": "あなたのワークスペース"
+    "yourWorkspace": "あなたのワークスペース",
+    "api": "API",
+    "disconnected": "{{platform}} の接続を解除しました"
 }
