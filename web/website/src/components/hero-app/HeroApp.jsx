@@ -28,6 +28,7 @@ export const PRESETS = {
     rail: "builder",
     agent: "seo",
     panel: null,
+    typeBuild: true,
   },
   work: {
     page: "session",
@@ -90,7 +91,14 @@ export default function HeroApp({ preset = "hero", autoType = false }) {
     agents: () => set({ page: "agents", rail: "main", panel: null }),
     skills: () =>
       set({ page: "skills", rail: "main", panel: null, skill: null }),
-    automations: () => set({ page: "automations", rail: "main", panel: null }),
+    automations: () =>
+      set({
+        page: "automations",
+        rail: "main",
+        panel: null,
+        automation: null,
+        automationView: null,
+      }),
     settings: (tab = "llms") =>
       set({
         page: "settings",
@@ -118,6 +126,36 @@ export default function HeroApp({ preset = "hero", autoType = false }) {
       set((p) => ({ panel: p.panel === name ? null : name })),
     builder: () =>
       set((p) => ({ panel: p.panel === "builder" ? null : "builder" })),
+    // The Builder row of the main sidebar: the Builder page. Back returns to this screen.
+    builderPage: () =>
+      set((p) =>
+        p.page === "builder"
+          ? {}
+          : {
+              page: "builder",
+              rail: "builder",
+              typeBuild: false,
+              collapsed: false,
+              back: {
+                page: p.page,
+                rail: p.rail,
+                panel: p.panel,
+                view: p.view,
+                session: p.session,
+                settingsTab: p.settingsTab,
+                agent: p.agent,
+              },
+              panel: null,
+            },
+      ),
+    builderBack: () =>
+      set((p) => ({
+        page: "home",
+        rail: "main",
+        homeTab: null,
+        ...(p.back ?? {}),
+        back: null,
+      })),
     card: (id, value) => set((p) => ({ cards: { ...p.cards, [id]: value } })),
   };
 
@@ -130,11 +168,13 @@ export default function HeroApp({ preset = "hero", autoType = false }) {
     main = <HomePage a={a} s={s} key={s.homeTab ?? "agents"} />;
   else if (s.page === "agents") main = <AgentsPage a={a} />;
   else if (s.page === "skills") main = <SkillsPage a={a} s={s} />;
-  else if (s.page === "automations") main = <AutomationsPage a={a} />;
+  else if (s.page === "automations") main = <AutomationsPage a={a} s={s} />;
   else if (s.page === "settings") main = <SettingsPage a={a} s={s} />;
   else if (s.page === "agent") main = <AgentPage a={a} s={s} agent={agent} />;
   else if (s.page === "builder")
-    main = <BuilderPageView a={a} agent={agent} autoType={autoType} />;
+    main = (
+      <BuilderPageView a={a} agent={agent} autoType={autoType && s.typeBuild} />
+    );
   else main = <SessionView a={a} s={s} agent={agent} />;
 
   let pane = null;

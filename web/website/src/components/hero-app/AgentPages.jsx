@@ -43,8 +43,19 @@ import {
   WORKSPACE,
   sessionsOf,
 } from "./data.js";
-import { AppLogo, Bullet, Ib, Mi, Pop, Switch, cx } from "./Common.jsx";
+import { AUTOMATIONS } from "./data.js";
+import {
+  AppLogo,
+  Bullet,
+  Ib,
+  Mi,
+  Pop,
+  Switch,
+  cx,
+  onPress,
+} from "./Common.jsx";
 import { PolicySelect } from "./Panes.jsx";
+import { ModelPicker, ProviderIcon } from "./Providers.jsx";
 
 /** AgentPagesHeader: 48px bar, the title, the page's controls, a divider and the Builder button. */
 export function PageHeader({ a, s, title, children }) {
@@ -103,7 +114,7 @@ export function AgentPage({ a, s, agent }) {
 
 const Tri = () => <span className="caret r" />;
 
-function Section({ id, title, action, children, refs }) {
+function Section({ id, title, action, actionNode, children, refs }) {
   return (
     <div
       className="cps"
@@ -113,16 +124,17 @@ function Section({ id, title, action, children, refs }) {
       <div className="cps-h">
         <span className="cps-t">{title}</span>
         <span className="grow" />
-        {action ? (
-          <button type="button" className="btn hx-compact">
-            {action === "Add" ? (
-              <Plus size={14} />
-            ) : action === "Edit" ? (
-              <PencilSimple size={14} />
-            ) : null}
-            {action}
-          </button>
-        ) : null}
+        {actionNode ??
+          (action ? (
+            <button type="button" className="btn hx-compact">
+              {action === "Add" ? (
+                <Plus size={14} />
+              ) : action === "Edit" ? (
+                <PencilSimple size={14} />
+              ) : null}
+              {action}
+            </button>
+          ) : null)}
       </div>
       <div className="cpc">{children}</div>
     </div>
@@ -133,6 +145,7 @@ const Prow = ({ icon, name, sub, mono, right, onClick, tile = true }) => (
   <div
     className={cx("cpr", onClick && "hx-click")}
     onClick={onClick}
+    onKeyDown={onClick ? onPress(onClick) : undefined}
     role={onClick ? "button" : undefined}
     tabIndex={onClick ? 0 : undefined}
   >
@@ -167,6 +180,7 @@ export function ConfigurationPage({ a, s, agent }) {
   const refs = useRef({});
   const [cur, setCur] = useState("model");
   const [mdOpen, setMdOpen] = useState(false);
+  const [model, setModel] = useState(agent.model);
   const [policy, setPolicy] = useState(agent.permission);
   const [access, setAccess] = useState("Shared with project");
   const tab = s.cfgTab;
@@ -218,23 +232,48 @@ export function ConfigurationPage({ a, s, agent }) {
             <div className="cpg">
               <nav className="cpn" aria-label="Sections">
                 {NAV.map(([id, l]) => (
-                  <a
+                  <button
+                    type="button"
                     key={id}
                     className={cx(cur === id && "on")}
                     onClick={() => go(id)}
-                    role="button"
-                    tabIndex={0}
                   >
                     {l}
-                  </a>
+                  </button>
                 ))}
               </nav>
               <div className="col" style={{ gap: 28, minWidth: 0 }}>
-                <Section id="model" title="Model" action="Change" refs={refs}>
+                <Section
+                  id="model"
+                  title="Model"
+                  refs={refs}
+                  actionNode={
+                    <ModelPicker
+                      value={model.id}
+                      onPick={(m) =>
+                        setModel({
+                          ...model,
+                          name: m.label,
+                          id: m.id,
+                          provider: m.provider,
+                        })
+                      }
+                      trigger={({ toggle }) => (
+                        <button
+                          type="button"
+                          className="btn hx-compact"
+                          onClick={toggle}
+                        >
+                          Change
+                        </button>
+                      )}
+                    />
+                  }
+                >
                   <Prow
-                    icon={<Cpu size={16} />}
-                    name={agent.model.name}
-                    sub={`${agent.model.id} · via ${agent.model.harness}`}
+                    icon={<ProviderIcon kind={model.provider} size={16} />}
+                    name={model.name}
+                    sub={`${model.id} · via ${model.harness}`}
                   />
                 </Section>
                 <Section
@@ -420,6 +459,17 @@ export function ConfigurationPage({ a, s, agent }) {
                           name={x.name}
                           sub={x.when}
                           right={<span className="hx-pill on">On</span>}
+                          onClick={() =>
+                            a.set({
+                              page: "automations",
+                              rail: "main",
+                              panel: null,
+                              automationView: null,
+                              automation:
+                                AUTOMATIONS.find((y) => y.name === x.name)
+                                  ?.id ?? null,
+                            })
+                          }
                         />
                       ))
                     ) : (
@@ -608,80 +658,191 @@ export function ChannelList({
   );
 }
 
-const CODE = {
-  Python:
-    'import requests\n\nresponse = requests.post(\n    "https://cloud.agenta.ai/api/agents/run",\n    headers={"Authorization": "ApiKey $AGENTA_API_KEY"},\n    json={"agent": "seo-content-agent", "message": "Write a brief for agency pricing"},\n)\nprint(response.json()["output"])',
-  TypeScript:
-    'const response = await fetch("https://cloud.agenta.ai/api/agents/run", {\n  method: "POST",\n  headers: { Authorization: `ApiKey ${process.env.AGENTA_API_KEY}` },\n  body: JSON.stringify({ agent: "seo-content-agent", message: "Write a brief for agency pricing" }),\n});\nconsole.log((await response.json()).output);',
-  cURL: 'curl https://cloud.agenta.ai/api/agents/run \\\n  -H "Authorization: ApiKey $AGENTA_API_KEY" \\\n  -d \'{"agent": "seo-content-agent", "message": "Write a brief for agency pricing"}\'',
+// The agent invoke request and snippets, copied from
+// web/packages/agenta-settings-ui/src/publish/snippets on main (request, python, typescript, curl).
+const AGENT_INVOKE_DOCS_URL =
+  "https://agenta.ai/docs/reference/agents/invoke-an-agent";
+const HOST = "https://cloud.agenta.ai";
+const PROJECT_ID = "0196f3a2-7c41-7d0e-9a52-3b8e1f6c2d94";
+const AGENT_IDS = {
+  support: "0196f3a2-81d4-7f62-b1a7-5c2e9d4f0a13",
+  seo: "0196f3a2-8a09-7e15-8c3d-6f1b2a7e9c58",
+  lead: "0196f3a2-90b7-7a48-9e21-4d6c8b3f1e07",
+  report: "0196f3a2-97e2-7c93-a4f5-2e8d1c6b9a34",
+  invoice: "0196f3a2-9f14-7b26-8d7e-1a5c4e9f2b61",
+};
+const agentInvokeUrl = () =>
+  `${HOST}/services/agent/v0/invoke?project_id=${PROJECT_ID}`;
+const agentInvokeBody = (agentId) => ({
+  references: { workflow: { id: agentId } },
+  data: { inputs: { messages: [{ role: "user", content: "Hello" }] } },
+});
+const acceptHeader = (stream) =>
+  stream ? "text/event-stream" : "application/json";
+const SNIPPETS = {
+  Python: ({ agentId, apiKey, stream }) => {
+    const head = `import json
+
+import requests
+
+url = "${agentInvokeUrl()}"
+headers = {
+    "Authorization": "ApiKey ${apiKey}",
+    "Content-Type": "application/json",
+    "Accept": "${acceptHeader(stream)}",
+}
+payload = ${JSON.stringify(agentInvokeBody(agentId), null, 4)}
+`;
+    return stream
+      ? `${head}
+with requests.post(url, json=payload, headers=headers, stream=True) as response:
+    response.raise_for_status()
+    for line in response.iter_lines(decode_unicode=True):
+        if line.startswith("data:"):
+            print(json.loads(line[len("data:"):]))
+`
+      : `${head}
+response = requests.post(url, json=payload, headers=headers)
+response.raise_for_status()
+
+print(json.dumps(response.json(), indent=4))
+`;
+  },
+  TypeScript: ({ agentId, apiKey, stream }) => {
+    const head = `const url = "${agentInvokeUrl()}"
+const headers = {
+    Authorization: "ApiKey ${apiKey}",
+    "Content-Type": "application/json",
+    Accept: "${acceptHeader(stream)}",
+}
+const payload = ${JSON.stringify(agentInvokeBody(agentId), null, 4)}
+
+const response = await fetch(url, {method: "POST", headers, body: JSON.stringify(payload)})
+if (!response.ok) throw new Error(\`HTTP \${response.status}\`)
+`;
+    return stream
+      ? `${head}
+const reader = response.body!.getReader()
+const decoder = new TextDecoder()
+let buffer = ""
+while (true) {
+    const {done, value} = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, {stream: true})
+    const lines = buffer.split("\\n")
+    buffer = lines.pop() ?? ""
+    for (const line of lines) {
+        if (line.startsWith("data:")) console.log(JSON.parse(line.slice("data:".length)))
+    }
+}
+`
+      : `${head}
+console.log(JSON.stringify(await response.json(), null, 4))
+`;
+  },
+  cURL: ({
+    agentId,
+    apiKey,
+    stream,
+  }) => `curl ${stream ? "-N " : ""}-X POST "${agentInvokeUrl()}" \\
+  -H "Authorization: ApiKey ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  -H "Accept: ${acceptHeader(stream)}" \\
+  -d '${JSON.stringify(agentInvokeBody(agentId), null, 2)}'
+`,
+};
+const SNIPPET_FILE = {
+  Python: "request.py",
+  TypeScript: "request.ts",
+  cURL: "request.sh",
 };
 
 function Flow({ k, agent, onDone }) {
   const [opt, setOpt] = useState(0);
   const [lang, setLang] = useState("Python");
-  const [stream, setStream] = useState(false);
+  const [stream, setStream] = useState(true);
   const [key, setKey] = useState(false);
   const [embed, setEmbed] = useState(false);
   const [theme, setTheme] = useState("Light");
   const handle = agent.name.toLowerCase().replace(/\s+/g, "-");
-  if (k === "api")
+  if (k === "api") {
+    const apiKey = key ? "ag-Qe4rT8vN2xLp7mZp" : "YOUR_API_KEY";
+    const code = SNIPPETS[lang]({
+      agentId: AGENT_IDS[agent.id],
+      apiKey,
+      stream,
+    });
     return (
-      <div className="col" style={{ gap: 16 }}>
+      <div className="col" style={{ gap: 18 }}>
         <div className="col g6">
           <span className="hx-flabel">Endpoint</span>
-          <div className="field mono13">
-            <span className="cut grow">
-              https://cloud.agenta.ai/api/agents/run
+          <div className="hx-endpoint">
+            <span className="hx-method">POST</span>
+            <span className="cut grow mono" title={agentInvokeUrl()}>
+              {agentInvokeUrl()}
             </span>
-            <Copy size={14} className="t3" />
+            <Ib label="Copy" className="sm6">
+              <Copy size={14} />
+            </Ib>
           </div>
+          <span className="t2" style={{ fontSize: 12.5 }}>
+            Authenticate with a project API key.
+          </span>
         </div>
         <div className="col g6">
           <span className="hx-flabel">API key</span>
           <div className="row g8">
-            <div className="field mono13 grow">
-              {key ? "ag-Qe4r…7mZp" : <span className="t3">No key yet</span>}
-            </div>
+            <input
+              className="field grow mono13"
+              placeholder="Enter existing API key"
+              value={key ? apiKey : ""}
+              readOnly
+              aria-label="API key"
+            />
             <button type="button" className="btn" onClick={() => setKey(true)}>
-              {key ? (
-                <>
-                  <Check size={14} />
-                  Created
-                </>
-              ) : (
-                "Create API key"
-              )}
+              Create API key
             </button>
           </div>
         </div>
-        <div className="hx-code">
-          <div className="hx-codebar">
-            {Object.keys(CODE).map((l) => (
-              <button
-                type="button"
-                key={l}
-                className={cx(lang === l && "on")}
-                onClick={() => setLang(l)}
-              >
-                {l}
-              </button>
-            ))}
-            <span className="grow" />
-            <span className="xs t2 row g6">
+        <div className="col g8">
+          <div className="row g8" style={{ justifyContent: "space-between" }}>
+            <span className="seg">
+              {Object.keys(SNIPPETS).map((l) => (
+                <button
+                  type="button"
+                  key={l}
+                  className={cx(lang === l && "on")}
+                  onClick={() => setLang(l)}
+                >
+                  {l}
+                </button>
+              ))}
+            </span>
+            <span className="sm row g8">
               <Switch on={stream} onChange={setStream} label="Streaming" />
               Streaming
             </span>
           </div>
-          <pre>{CODE[lang]}</pre>
-          <div className="hx-codefoot xs t2">
-            {stream ? "Streaming response" : "JSON response"}
+          <div className="hx-code">
+            <div className="hx-codebar">
+              <span className="xs t2 mono">{SNIPPET_FILE[lang]}</span>
+              <span className="grow" />
+              <Copy size={14} className="t3" />
+            </div>
+            <pre>{code}</pre>
           </div>
         </div>
-        <a className="hx-link sm" href="#" onClick={(e) => e.preventDefault()}>
-          Read the docs <ArrowSquareOut size={12} />
+        <a
+          className="hx-link sm"
+          href={AGENT_INVOKE_DOCS_URL}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Read the docs <ArrowSquareOut size={14} />
         </a>
       </div>
     );
+  }
   if (k === "embed")
     return embed ? (
       <div className="col" style={{ gap: 16 }}>
@@ -1451,6 +1612,7 @@ function AgentSessions({ a, agent }) {
                 role="button"
                 tabIndex={0}
                 onClick={() => a.openSession(x.id, agent.id)}
+                onKeyDown={onPress(() => a.openSession(x.id, agent.id))}
               >
                 <span className="pscell">
                   <Bullet status={x.status} />

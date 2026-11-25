@@ -65,8 +65,8 @@
 .sx-site .tplx .bn .art { transform:scale(0.88); transform-origin:center center; }
 .sx-site .tplx .ag-btn--outline { height:40px; padding:0px 16px; display:inline-flex; align-items:center; border-radius:8px !important; background:var(--lp-surface) !important; box-shadow:var(--lp-key-glow) 0px 3px 6px inset, rgb(229, 229, 227) 0px 0px 0px 1px !important; border:0px !important; color:var(--lp-text) !important; }
 a.btn, .ag-btn { transition:none !important; transform:none !important; }
-html body .lp .sx-site section.tplx, html body .lp .sx-site .tplx .c { background:var(--lp-surface-3) !important; }
-html body .lp .sx-site .tplx .c:hover { background:var(--lp-surface-3) !important; }
+html body .lp .sx-site section.tplx, html body .lp .sx-site .tplx .c { background:var(--lp-surface) !important; }
+html body .lp .sx-site .tplx .c:hover { background:var(--lp-surface) !important; }
 .lp a.btn.btn-o, .lp .sx-site .ag-btn--outline, .lp .sx-site .tplx .ag-btn--outline { background:linear-gradient(var(--lp-surface-5) 0%, var(--lp-page) 100%) !important; border:1px solid var(--lp-frame) !important; box-shadow:var(--lp-key-glow) 0px 3px 6px inset !important; color:var(--lp-text) !important; }
 .lp .sx-site .tplx .ag-btn--outline { height:36px !important; padding:0px 12px !important; border-radius:8px !important; font:500 14px / 20px var(--font-sans) !important; }
 html body .lp section.tplx .chat .p.dark { background:var(--lp-surface) !important; color:var(--lp-text) !important; box-shadow:rgb(229, 229, 227) 0px 0px 0px 1px !important; }

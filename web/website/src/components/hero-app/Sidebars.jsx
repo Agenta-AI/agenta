@@ -45,7 +45,7 @@ import {
 } from "./icons.jsx";
 import { AgentaWordmark } from "./logos.jsx";
 import { AGENTS, SESSIONS, WORKSPACE, sessionsOf } from "./data.js";
-import { AgentChip, Bullet, Ib, Mi, Pop, cx } from "./Common.jsx";
+import { AgentChip, Bullet, Ib, Mi, Pop, cx, onPress } from "./Common.jsx";
 
 export const Row = ({ icon, label, sel, onClick, children, style }) => (
   <div
@@ -54,7 +54,7 @@ export const Row = ({ icon, label, sel, onClick, children, style }) => (
     tabIndex={0}
     onClick={onClick}
     style={style}
-    onKeyDown={(e) => e.key === "Enter" && onClick?.()}
+    onKeyDown={onClick ? onPress(onClick) : undefined}
   >
     {icon}
     <span className="cut">{label}</span>
@@ -63,16 +63,10 @@ export const Row = ({ icon, label, sel, onClick, children, style }) => (
 );
 
 const SessionRow = ({ session, sel, onClick }) => (
-  <div
-    className={cx("srow2", sel && "sel")}
-    role="button"
-    tabIndex={0}
-    onClick={onClick}
-    onKeyDown={(e) => e.key === "Enter" && onClick()}
-  >
+  <button type="button" className={cx("srow2", sel && "sel")} onClick={onClick}>
     <Bullet status={session.status} />
     <span className="fade">{session.title}</span>
-  </div>
+  </button>
 );
 
 const Collapse = ({ a, s }) => (
@@ -198,7 +192,8 @@ export function MainRail({ a, s }) {
       <Row
         icon={<BuilderIcon size={16} />}
         label="Builder"
-        onClick={a.builder}
+        sel={page === "builder"}
+        onClick={a.builderPage}
       />
       <Row
         icon={<BotIcon size={16} />}
@@ -255,7 +250,7 @@ export function MainRail({ a, s }) {
                   className="ib sm6 hov"
                   aria-label={`New session in ${g.name}`}
                   title="New session"
-                  onClick={() => a.openSession(sessionsOf(g.id)[0].id, g.id)}
+                  onClick={() => a.openSession("new", g.id)}
                 >
                   <Plus size={14} />
                 </button>
@@ -375,7 +370,7 @@ export function AgentRail({ a, s, agent }) {
       <button
         type="button"
         className="newsess"
-        onClick={() => a.openSession(list[0].id, agent.id)}
+        onClick={() => a.openSession("new", agent.id)}
       >
         <Plus size={14} />
         New session

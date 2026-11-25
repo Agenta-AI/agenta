@@ -185,7 +185,7 @@
 .sx-share .s5.hl .tx5 { padding:40px 40px 0px; }
 .sx-share .s5.hl .vs5 { margin-top:28px; }
 html body .lp section.s5 { background:var(--lp-surface-3) !important; }
-html body .lp section.s5.s5 { background:var(--lp-surface) !important; }
+html body .lp section.s5.s5 { background:var(--lp-surface-3) !important; }
 /* keyframes */
 @keyframes sh5Dot { 
   0%, 60%, 100% { transform:none; opacity:0.5; }

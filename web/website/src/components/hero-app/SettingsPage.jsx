@@ -32,6 +32,19 @@ import {
   initialsOf,
 } from "./Common.jsx";
 import { SETTINGS_NAV } from "./Sidebars.jsx";
+import { ProvidersPage, IntegrationsPage } from "./Providers.jsx";
+
+// Docs links: web/packages/agenta-settings/src/navigation.ts (main).
+const DOCS_BASE = "https://docs.agenta.ai";
+const DOCS = {
+  llms: `${DOCS_BASE}/faq/integrations/llm-providers`,
+  tools: `${DOCS_BASE}/concepts/tools-and-integrations`,
+  apiKeys: `${DOCS_BASE}/reference/api-guide/overview`,
+  members: `${DOCS_BASE}/administration/access-control/rbac`,
+  orgs: `${DOCS_BASE}/administration/access-control/organizations`,
+  projects: `${DOCS_BASE}/administration/access-control/organizations`,
+  access: `${DOCS_BASE}/administration/access-control/sso`,
+};
 
 // Subtitles and docs links: web/packages/agenta-i18n/locales/en/settingsTabs.json (main).
 const COPY = {
@@ -107,8 +120,9 @@ function Shell({ tab, actions, children }) {
               <>
                 {" "}
                 <a
-                  href="#"
-                  onClick={(e) => e.preventDefault()}
+                  href={DOCS[tab]}
+                  target="_blank"
+                  rel="noreferrer"
                   className="hx-link"
                 >
                   {docs}
@@ -120,109 +134,6 @@ function Shell({ tab, actions, children }) {
         </div>
         {children}
       </div>
-    </div>
-  );
-}
-
-const Tile = ({ name }) => <span className="hx-provtile">{name[0]}</span>;
-
-function Providers() {
-  const [on, setOn] = useState(() =>
-    Object.fromEntries(
-      [...PROVIDERS, ...CLOUDS].map((p) => [p.name, !!p.status]),
-    ),
-  );
-  const group = (title, list) => (
-    <div className="col g8">
-      <div className="row">
-        <span className="hx-grouphead">{title}</span>
-        <span className="grow" />
-        <span className="xs t2">
-          {list.filter((p) => on[p.name]).length} of {list.length} active
-        </span>
-      </div>
-      <div className="cpc">
-        {list.map((p) => (
-          <div className="cpr" key={p.name}>
-            <Tile name={p.name} />
-            <div className="col grow" style={{ minWidth: 0 }}>
-              <span style={{ fontSize: 14 }}>{p.name}</span>
-              <span className="xs t2 cut">{p.sub}</span>
-            </div>
-            {on[p.name] ? (
-              <span className="hx-pill on">
-                <Check size={11} weight="bold" />
-                Active
-              </span>
-            ) : (
-              <button
-                type="button"
-                className="btn hx-compact"
-                onClick={() => setOn((o) => ({ ...o, [p.name]: true }))}
-              >
-                Connect
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-  return (
-    <div className="col" style={{ gap: 28 }}>
-      {group("Model providers", PROVIDERS)}
-      {group("Cloud platforms", CLOUDS)}
-    </div>
-  );
-}
-
-const INTEGRATIONS = [
-  ["zendesk", "Zendesk", true, "Used by Support triage"],
-  [
-    "google_search_console",
-    "Google Search Console",
-    true,
-    "Used by SEO Content Agent",
-  ],
-  ["notion", "Notion", true, "Used by SEO Content Agent"],
-  ["hubspot", "HubSpot", true, "Used by Lead Qualifier"],
-  ["gmail", "Gmail", false, "Read, send and label email"],
-  ["googlecalendar", "Google Calendar", false, "Read and create events"],
-  ["linear", "Linear", false, "Create and update issues"],
-  ["github", "GitHub", false, "Issues, pull requests and code"],
-];
-
-function Integrations() {
-  const [on, setOn] = useState(() =>
-    Object.fromEntries(INTEGRATIONS.map(([k, , c]) => [k, c])),
-  );
-  return (
-    <div className="cpc">
-      {INTEGRATIONS.map(([slug, name, , sub]) => (
-        <div className="cpr" key={slug}>
-          <span className="cpl">
-            <AppLogo slug={slug} name={name} size={18} />
-          </span>
-          <div className="col grow" style={{ minWidth: 0 }}>
-            <span style={{ fontSize: 14 }}>{name}</span>
-            <span className="xs t2 cut">{on[slug] ? sub : sub}</span>
-          </div>
-          {on[slug] ? (
-            <span className="hx-pill on">
-              <Check size={11} weight="bold" />
-              Connected
-            </span>
-          ) : (
-            <button
-              type="button"
-              className="btn hx-compact"
-              onClick={() => setOn((o) => ({ ...o, [slug]: true }))}
-            >
-              Connect
-            </button>
-          )}
-        </div>
-      ))}
     </div>
   );
 }
@@ -512,8 +423,8 @@ export function SettingsPage({ s }) {
     ]);
   let body;
   let actions = null;
-  if (tab === "llms") body = <Providers />;
-  else if (tab === "tools") body = <Integrations />;
+  if (tab === "llms") body = <ProvidersPage />;
+  else if (tab === "tools") body = <IntegrationsPage />;
   else if (tab === "members") {
     actions = (
       <button

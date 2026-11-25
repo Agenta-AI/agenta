@@ -25,6 +25,7 @@ export const AGENTS = [
       name: "Claude Sonnet 5.5",
       id: "claude-sonnet-5-5",
       harness: "Claude Code",
+      provider: "anthropic",
     },
     instructions: {
       words: 33,
@@ -78,6 +79,7 @@ export const AGENTS = [
       name: "Claude Sonnet 5.5",
       id: "claude-sonnet-5-5",
       harness: "Claude Code",
+      provider: "anthropic",
     },
     instructions: {
       words: 41,
@@ -126,7 +128,12 @@ export const AGENTS = [
     group: "This week",
     version: "v7",
     savedAgo: "3 d ago",
-    model: { name: "GPT-5.5 mini", id: "gpt-5.5-mini", harness: "Pi" },
+    model: {
+      name: "GPT-5.5 mini",
+      id: "gpt-5.5-mini",
+      harness: "Pi",
+      provider: "openai",
+    },
     instructions: {
       words: 28,
       text: "You are the Lead Qualifier. You score each new lead from the website form against our criteria and add it to HubSpot. You post hot leads in #sales.",
@@ -168,6 +175,7 @@ export const AGENTS = [
       name: "Claude Sonnet 5.5",
       id: "claude-sonnet-5-5",
       harness: "Claude Code",
+      provider: "anthropic",
     },
     instructions: {
       words: 30,
@@ -194,7 +202,12 @@ export const AGENTS = [
     group: "Older",
     version: "v2",
     savedAgo: "3 w ago",
-    model: { name: "GPT-5.5 mini", id: "gpt-5.5-mini", harness: "Pi" },
+    model: {
+      name: "GPT-5.5 mini",
+      id: "gpt-5.5-mini",
+      harness: "Pi",
+      provider: "openai",
+    },
     instructions: {
       words: 22,
       text: "You follow up on unpaid invoices by email, politely and in plain words.",
@@ -367,8 +380,17 @@ export const SESSIONS = [
 
 export const sessionsOf = (agentId) =>
   SESSIONS.filter((s) => s.agent === agentId);
+// "new" is a blank session that has no messages yet (New session in the sidebars).
+export const NEW_SESSION = {
+  id: "new",
+  title: "Untitled session",
+  status: "idle",
+  isNew: true,
+};
 export const sessionById = (id) =>
-  SESSIONS.find((s) => s.id === id) ?? SESSIONS[0];
+  id === "new"
+    ? NEW_SESSION
+    : (SESSIONS.find((s) => s.id === id) ?? SESSIONS[0]);
 
 // Builder chats. "safari" holds the proposed change from the builder design (S03).
 export const BUILDER_CHATS = [
@@ -687,4 +709,82 @@ export const API_KEYS = [
     expires: "Feb 18, 2027",
     used: "Never used",
   },
+];
+
+// Automations (features/automations on main): schedules and app events, always in UTC.
+export const AUTOMATIONS = [
+  {
+    id: "daily-summary",
+    name: "Daily summary",
+    kind: "schedule",
+    when: "Daily at 09:00 UTC",
+    agent: "support",
+    status: "Working",
+    last: "2h ago",
+    runs: "24 runs in 30 days",
+    next: "Wed, Nov 26, 09:00 UTC · in 15 hours",
+    lastRun: "Today 09:00",
+    lastOk: true,
+    edited: "edited 3d ago",
+    instruction:
+      "Post the open tickets by urgency in #support-urgent. Start with the high ones.",
+  },
+  {
+    id: "new-ticket",
+    name: "New Zendesk ticket",
+    kind: "event",
+    when: "When ticket created in Zendesk",
+    agent: "support",
+    status: "Working",
+    last: "12m ago",
+    runs: "183 runs in 30 days",
+    lastRun: "Today 17:48",
+    lastOk: true,
+    edited: "edited 2w ago",
+    instruction:
+      "Triage the new ticket: pick its urgency and category, label it, and draft a first reply.",
+  },
+  {
+    id: "keyword-report",
+    name: "Weekly keyword report",
+    kind: "schedule",
+    when: "Weekly on Monday at 08:00 UTC",
+    agent: "seo",
+    status: "Working",
+    last: "1d ago",
+    runs: "4 runs in 30 days",
+    next: "Mon, Dec 1, 08:00 UTC · in 6 days",
+    lastRun: "Mon 08:00",
+    lastOk: true,
+    edited: "edited just now",
+    instruction:
+      "Read last week's Search Console data and write a short report on the keywords that moved.",
+  },
+  {
+    id: "form-entry",
+    name: "New form entry",
+    kind: "event",
+    when: "When form submitted in HubSpot",
+    agent: "lead",
+    status: "Paused",
+    last: "3d ago",
+    runs: "41 runs in 30 days",
+    lastRun: "Sat 11:02",
+    lastOk: false,
+    edited: "edited 3d ago",
+    instruction:
+      "Score the new lead against our criteria and add it to HubSpot. Post hot leads in #sales.",
+  },
+];
+export const RUNS = [
+  [
+    "Today",
+    [
+      ["Scheduled run", "09:00", "ok", "took 1m 12s"],
+      ["Test run", "08:41", "ok", "took 58s"],
+    ],
+  ],
+  ["Yesterday", [["Scheduled run", "09:00", "ok", "took 1m 4s"]]],
+  ["Mon", [["Scheduled run", "09:00", "fail", "did not finish"]]],
+  ["Sun", [["Scheduled run", "09:00", "ok", "took 49s"]]],
 ];

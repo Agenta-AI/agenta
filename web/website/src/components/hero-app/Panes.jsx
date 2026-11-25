@@ -39,9 +39,10 @@ import {
   agentById,
   sessionById,
 } from "./data.js";
-import { AppLogo, Ib, Mi, Pop, cx } from "./Common.jsx";
+import { AppLogo, Ib, Mi, Pop, cx, onPress } from "./Common.jsx";
 import { Composer } from "./Session.jsx";
 import { ChannelList } from "./AgentPages.jsx";
+import { ProviderIcon } from "./Providers.jsx";
 
 /* ---------------------------------------------------------------- builder */
 
@@ -743,7 +744,7 @@ function Acc({ icon, title, sum, add, open, onToggle, children }) {
         tabIndex={0}
         aria-expanded={open}
         onClick={onToggle}
-        onKeyDown={(e) => e.key === "Enter" && onToggle()}
+        onKeyDown={onPress(onToggle)}
       >
         {icon}
         <span className="acc-t">{title}</span>
@@ -853,7 +854,7 @@ export function AgentPaneBody({ agent, tab }) {
         onToggle={() => t("model")}
       >
         <Irow
-          icon={<Cpu size={16} />}
+          icon={<ProviderIcon kind={agent.model.provider} size={16} />}
           name={agent.model.name}
           sub={`${agent.model.id} · via ${agent.model.harness}`}
         />

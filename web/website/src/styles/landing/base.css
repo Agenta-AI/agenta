@@ -114,9 +114,6 @@ html body .lp section.tp .grid {
 .lp[data-lp-anim] > :not([data-lp-in]),
 .lp[data-lp-anim] > :not([data-lp-in]) *,
 .lp[data-lp-anim] > :not([data-lp-in]) *::before,
-.lp[data-lp-anim] > :not([data-lp-in]) *::after,
-.lp[data-lp-anim] [data-lp-gate]:not([data-lp-in]) *,
-.lp[data-lp-anim] [data-lp-gate]:not([data-lp-in]) *::before,
-.lp[data-lp-anim] [data-lp-gate]:not([data-lp-in]) *::after {
+.lp[data-lp-anim] > :not([data-lp-in]) *::after {
   animation-play-state: paused !important;
 }

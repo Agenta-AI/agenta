@@ -24,7 +24,16 @@ import {
 } from "./ph.jsx";
 import { BotIcon, BuilderIcon } from "./icons.jsx";
 import { MEMBERS, WORKSPACE, sessionById, sessionsOf } from "./data.js";
-import { Avatar, Bullet, Ib, Mi, Pop, cx, initialsOf } from "./Common.jsx";
+import {
+  AgentChip,
+  Avatar,
+  Bullet,
+  Ib,
+  Mi,
+  Pop,
+  cx,
+  initialsOf,
+} from "./Common.jsx";
 
 /** "Worked for 5 s" with its steps (ActivityTimeline). */
 function Worked({ label, steps }) {
@@ -166,7 +175,13 @@ export function SessionStrip({ a, s, agent, session }) {
               </Mi>
             ))}
             <div className="msep" />
-            <Mi icon={<Plus size={16} />} onClick={close}>
+            <Mi
+              icon={<Plus size={16} />}
+              onClick={() => {
+                close();
+                a.openSession("new", agent.id);
+              }}
+            >
               New session
             </Mi>
             <Mi
@@ -216,29 +231,42 @@ export function SessionView({ a, s, agent }) {
     <>
       <SessionStrip a={a} s={s} agent={agent} session={session} />
       <div className="thread">
-        <div className="in" key={session.id}>
-          <div className="ub">{session.user}</div>
-          <Worked label={session.worked} steps={session.steps} />
-          <div className="as">
-            {session.reply.map((p) => (
-              <p key={p}>{p}</p>
-            ))}
+        {session.isNew ? (
+          <div className="empty" key="new">
+            <AgentChip agent={agent} size={40} radius={10} glyph={20} />
+            <span
+              className="b6"
+              style={{ fontSize: 16, color: "var(--colorText)" }}
+            >
+              {agent.name}
+            </span>
+            <span className="sm">{agent.desc}</span>
           </div>
-          {session.status === "waiting" ? (
-            <div className="hx-approval">
-              <span className="b5 sm">
-                Add the draft reply to ticket #48219?
-              </span>
-              <span className="grow" />
-              <button type="button" className="btn ghost">
-                Deny
-              </button>
-              <button type="button" className="btn primary">
-                Approve
-              </button>
+        ) : (
+          <div className="in" key={session.id}>
+            <div className="ub">{session.user}</div>
+            <Worked label={session.worked} steps={session.steps} />
+            <div className="as">
+              {session.reply.map((p) => (
+                <p key={p}>{p}</p>
+              ))}
             </div>
-          ) : null}
-        </div>
+            {session.status === "waiting" ? (
+              <div className="hx-approval">
+                <span className="b5 sm">
+                  Add the draft reply to ticket #48219?
+                </span>
+                <span className="grow" />
+                <button type="button" className="btn ghost">
+                  Deny
+                </button>
+                <button type="button" className="btn primary">
+                  Approve
+                </button>
+              </div>
+            ) : null}
+          </div>
+        )}
       </div>
       <div style={{ padding: "0 32px 16px" }}>
         <Composer

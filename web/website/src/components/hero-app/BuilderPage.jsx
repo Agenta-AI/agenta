@@ -17,6 +17,7 @@ import {
 } from "./ph.jsx";
 import { BuilderIcon } from "./icons.jsx";
 import { BuilderRing } from "./BuilderRing.jsx";
+import { ComposerModel } from "./Providers.jsx";
 import { AgentPaneBody } from "./Panes.jsx";
 import { WorkspaceFoot, Row } from "./Sidebars.jsx";
 import { SquaresFour, Gear } from "./ph.jsx";
@@ -36,7 +37,7 @@ export function BuilderRail({ a, s }) {
   return (
     <nav className="side real hx-builderrail" aria-label="Builder">
       <div className="brand" style={{ padding: "0 4px" }}>
-        <button type="button" className="hx-back" onClick={a.home}>
+        <button type="button" className="hx-back" onClick={a.builderBack}>
           <CaretLeft size={14} />
           Back
         </button>
@@ -71,16 +72,15 @@ export function BuilderRail({ a, s }) {
       </div>
       <div className="sscroll">
         <div className="shead">Today</div>
-        <div className="srow2 sel" role="button" tabIndex={0}>
+        <button type="button" className="srow2 sel">
           <Bullet status="idle" />
           <span className="fade">New chat</span>
-        </div>
+        </button>
         <div className="shead">Earlier</div>
         {BUILDER_CHATS.slice(0, 4).map((c) => (
-          <div
+          <button
+            type="button"
             className="srow2"
-            role="button"
-            tabIndex={0}
             key={c.id}
             onClick={() =>
               a.set({
@@ -94,7 +94,7 @@ export function BuilderRail({ a, s }) {
           >
             <Bullet status="idle" />
             <span className="fade">{c.title}</span>
-          </div>
+          </button>
         ))}
       </div>
       <Row
@@ -113,19 +113,6 @@ export function BuilderRail({ a, s }) {
     </nav>
   );
 }
-
-/** The Anthropic mark of the composer's model button. */
-const AnthropicMark = () => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    aria-hidden="true"
-  >
-    <path d="M13.827 3.52h3.603L24 20h-3.603l-6.57-16.48zm-7.258 0h3.767L16.906 20h-3.674l-1.343-3.461H5.017l-1.344 3.46H0L6.57 3.522zm4.132 9.959L8.453 7.687 6.205 13.48H10.7z" />
-  </svg>
-);
 
 // The requests the quick actions put in the composer (builder.page.json on main).
 const QUICK = [
@@ -229,11 +216,7 @@ function NewChat({ autoType }) {
             <Microphone size={16} className="t2" />
             <Paperclip size={16} className="t2" />
             <span className="grow" />
-            <button type="button" className="hx-modelbtn">
-              <AnthropicMark />
-              opus[1m]
-              <CaretDown size={12} className="t3" />
-            </button>
+            <ComposerModel />
             <button
               type="button"
               className="send"
@@ -260,6 +243,12 @@ const PANE_TABS = [
 
 function BuilderAgentPane({ a, agent, onHide }) {
   const [tab, setTab] = useState("agent");
+  // The agent tabs stay mounted under Drives and Sessions, so their choices are kept.
+  const [agentTab, setAgentTab] = useState("agent");
+  const pick = (k) => {
+    setTab(k);
+    if (k !== "drives" && k !== "sessions") setAgentTab(k);
+  };
   const sessions = sessionsOf(agent.id);
   return (
     <section className="hx-bpane" aria-label="Open items">
@@ -296,7 +285,7 @@ function BuilderAgentPane({ a, agent, onHide }) {
             key={k}
             aria-selected={tab === k}
             className={cx(tab === k && "on")}
-            onClick={() => setTab(k)}
+            onClick={() => pick(k)}
           >
             {l}
             {k === "sessions" ? (
@@ -333,9 +322,10 @@ function BuilderAgentPane({ a, agent, onHide }) {
               </button>
             ))}
           </div>
-        ) : (
-          <AgentPaneBody agent={agent} tab={tab} key={agent.id} />
-        )}
+        ) : null}
+        <div hidden={tab === "drives" || tab === "sessions"}>
+          <AgentPaneBody agent={agent} tab={agentTab} key={agent.id} />
+        </div>
       </div>
     </section>
   );

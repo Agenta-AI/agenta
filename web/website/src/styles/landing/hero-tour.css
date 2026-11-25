@@ -1,12 +1,15 @@
 /* The tour hero (components/hero-app/HeroTour.jsx): the app, then the dashes that fill and the step title. */
+/* A grid, so the tab order (stage, previous, dashes, next, title) matches what you see. */
 .hxt {
   width: min(1120px, 100%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  justify-items: center;
   margin-top: 24px;
 }
 .hxt-dashes {
+  grid-row: 2;
+  grid-column: 2;
   display: flex;
   gap: 8px;
   margin-top: 28px;
@@ -50,17 +53,20 @@
   outline-offset: 3px;
   border-radius: 4px;
 }
+/* The landing's small serif heading (.ntx b, .fgx .txt h3). */
 .hxt-title {
+  grid-row: 3;
+  grid-column: 2;
   margin: 8px 0 0;
   font:
-    500 18px/26px "Inter",
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
+    400 24px / 1.2 "GT Alpina",
+    Georgia,
+    serif;
   color: var(--lp-text);
 }
 .hxt-stage {
+  grid-row: 1;
+  grid-column: 1 / -1;
   position: relative;
   width: 100%;
 }
@@ -98,11 +104,10 @@
   }
 }
 .hxt-arrow {
-  position: absolute;
-  top: 50%;
+  grid-row: 1;
+  align-self: center;
   width: 40px;
   height: 40px;
-  margin-top: -20px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -117,30 +122,34 @@
   color: var(--lp-text);
 }
 .hxt-arrow.prev {
-  left: -64px;
+  grid-column: 1;
+  justify-self: start;
+  margin-left: -64px;
 }
 .hxt-arrow.next {
-  right: -64px;
+  grid-column: 3;
+  justify-self: end;
+  margin-right: -64px;
 }
 
-/* Without room beside the app, the arrows sit at both ends of the dashes and title row. */
+/* Without room beside the app, the arrows sit at both ends of the dashes and title rows. */
 @media (max-width: 1279px) {
-  .hxt {
-    position: relative;
-  }
-  .hxt-stage {
-    position: static;
-  }
   .hxt-arrow {
-    top: auto;
-    bottom: 5px;
-    margin-top: 0;
+    grid-row: 2 / span 2;
+    /* The dashes' top margin, so the arrows centre on the dashes and the title. */
+    margin-top: 28px;
   }
   .hxt-arrow.prev {
-    left: 0;
+    margin-left: 0;
   }
   .hxt-arrow.next {
-    right: 0;
+    margin-right: 0;
+  }
+}
+/* Phones: the desktop app would be about 3px text, so the hero keeps its text and buttons only. */
+@media (max-width: 860px) {
+  .hxt {
+    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {

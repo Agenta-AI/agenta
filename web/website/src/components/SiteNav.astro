@@ -211,6 +211,11 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
       #ag-menu-toggle { display: none !important; }
       .ag-mobile-menu { display: flex !important; position: static !important; }
     }
+    /* No JavaScript: desktop mega menus open on hover and on keyboard focus. */
+    @media (min-width: 861px) {
+      .ag-navdd[data-mega]:hover > .ag-mega,
+      .ag-navdd[data-mega]:focus-within > .ag-mega { display: grid; }
+    }
   </style>
 </noscript>
 

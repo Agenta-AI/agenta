@@ -3,7 +3,6 @@ import Site from "../layouts/Site.astro";
 import "../styles/landing/tokens.css";
 import "../styles/landing/base.css";
 import LandingHero from "../components/landing/LandingHero.astro";
-import WorkInChat from "../components/landing/WorkInChat.astro";
 import WorkWithAgents from "../components/landing/WorkWithAgents.astro";
 import TemplatesShowcase from "../components/landing/TemplatesShowcase.astro";
 import EverythingYouNeed from "../components/landing/EverythingYouNeed.astro";
@@ -52,7 +51,7 @@ const orgJsonLd = {
 
   <div class="lp">
     <LandingHero />
-    <WorkInChat />
+    {/* "How it works" (WorkInChat.astro) is hidden for now. */}
     <EverythingYouNeed />
     <TemplatesShowcase />
     <WorkWithAgents />
@@ -72,23 +71,6 @@ const orgJsonLd = {
         { rootMargin: "0px 0px -15% 0px" },
       );
       for (const section of root.children) if (section.tagName !== "SCRIPT") io.observe(section);
-      // [data-lp-gate] demos start only when most of the demo is on screen.
-      const gate = new IntersectionObserver(
-        (entries) => {
-          for (const e of entries) {
-            const seen = e.intersectionRect.height;
-            const viewH = e.rootBounds?.height ?? innerHeight;
-            let need = 0.6 * Math.min(e.boundingClientRect.height, viewH);
-            // A demo that starts on the first screen (the hero) can never show 60%
-            // before the visitor scrolls, so it needs only what that screen shows.
-            const firstScreen = viewH - (e.boundingClientRect.top + scrollY);
-            if (firstScreen > 0) need = Math.min(need, firstScreen);
-            e.target.toggleAttribute("data-lp-in", e.isIntersecting && seen >= need);
-          }
-        },
-        { threshold: Array.from({ length: 21 }, (_, i) => i / 20) },
-      );
-      for (const el of root.querySelectorAll("[data-lp-gate]")) gate.observe(el);
     })();
   </script>
   <script is:inline>

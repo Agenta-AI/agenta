@@ -1592,3 +1592,472 @@
   line-height: 20px;
   color: var(--colorTextTertiary);
 }
+
+/* Rows that are real buttons keep the look of the div rows they replace. */
+.hx button.srow2 {
+  width: 100%;
+  text-align: left;
+}
+.hx .cpn button {
+  width: 100%;
+  text-align: left;
+  font-size: 13px;
+  color: var(--colorTextSecondary);
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 8px;
+}
+.hx .cpn button.on {
+  background: var(--accent);
+  color: var(--colorText);
+  font-weight: 500;
+}
+.hx .cpn button:hover:not(.on) {
+  color: var(--colorText);
+}
+.hx .hx-endpoint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--muted);
+  padding: 4px 4px 4px 8px;
+}
+.hx .hx-endpoint .mono {
+  font-size: 12.5px;
+}
+.hx .hx-method {
+  flex: none;
+  border-radius: 4px;
+  background: var(--background);
+  padding: 2px 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+}
+.hx .hx-code pre {
+  max-height: 420px;
+}
+
+/* ---------- AI providers, model picker, integrations (Providers.jsx) ---------- */
+.hx .hx-pvicon {
+  display: inline-flex;
+  flex: none;
+  color: var(--colorText);
+}
+.hx .hx-pvicon svg {
+  width: 100%;
+  height: 100%;
+}
+.hx .hx-ptag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 16px;
+  background: var(--colorBgContainer);
+  color: var(--colorTextSecondary);
+  box-shadow: inset 0 0 0 1px var(--colorBorderSecondary);
+  flex: none;
+}
+.hx .hx-ptag.olive {
+  background: #f5f5d6;
+  color: #5e5e08;
+  box-shadow: none;
+}
+.hx .hx-pvlist {
+  border: 1px solid var(--colorBorderSecondary);
+  border-radius: 10px;
+  background: var(--background);
+  padding-top: 8px;
+  overflow: hidden;
+}
+.hx .hx-pvgroup {
+  padding: 14px 16px 4px;
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--colorTextTertiary);
+}
+.hx .hx-pvrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 16px;
+}
+.hx .hx-pvname {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--colorText);
+}
+.hx .hx-pvfoot {
+  border-top: 1px solid var(--colorBorderSecondary);
+  padding: 12px;
+  margin-top: 8px;
+}
+.hx .btn.hx-pvadd {
+  width: 100%;
+  height: 32px;
+  justify-content: center;
+}
+.hx .hx-catgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  column-gap: 32px;
+  row-gap: 2px;
+}
+.hx .hx-catrow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 -12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+.hx .hx-catrow:hover {
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.hx .hx-cattile {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  box-shadow: 0 1px 2px rgba(16, 18, 22, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.hx .hx-catname {
+  font-size: 14.5px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--colorText);
+}
+.hx .hx-catsub {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--colorTextSecondary);
+}
+.hx .hx-catchip {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
+  color: var(--colorTextSecondary);
+}
+.hx .hx-catchip.on {
+  background: var(--colorText);
+  color: var(--background);
+}
+.hx .hx-subhead {
+  font-size: 12px;
+  color: var(--colorTextTertiary);
+  display: inline-flex;
+  gap: 6px;
+}
+.hx .hx-pvdrawer {
+  width: 440px;
+}
+.hx .hx-pick {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 16px;
+  min-height: 40px;
+  border-bottom: 1px solid var(--accent);
+  text-align: left;
+}
+.hx .hx-pick:hover {
+  background: var(--colorFillTertiary);
+}
+.hx .hx-pickhint {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--colorTextTertiary);
+}
+.hx .menu.hx-modelmenu {
+  width: 340px;
+  padding: 6px;
+  border-radius: 12px;
+}
+.hx .menu.hx-modelmenu.up {
+  top: auto;
+  bottom: 34px;
+}
+.hx .hx-msearch {
+  width: 100%;
+  margin: 2px 0 4px;
+  border-color: var(--colorBorderSecondary);
+}
+.hx .hx-mscroll {
+  max-height: 320px;
+  overflow: auto;
+}
+.hx .hx-mghead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 4px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--colorTextSecondary);
+}
+.hx .hx-mrow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  text-align: left;
+}
+.hx .hx-mrow:hover,
+.hx .hx-mrow.on {
+  background: var(--accent);
+}
+.hx .hx-mfoot {
+  border-top: 1px solid var(--accent);
+  margin-top: 6px;
+  padding-top: 6px;
+}
+.hx .hx-modelbtn {
+  max-width: 220px;
+}
+.hx .hx-modelbtn.open {
+  background: var(--accent);
+  color: var(--colorText);
+}
+
+/* ---------- automations (features/automations, agenta-automation-ui) ---------- */
+.hx .hx-akind {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+/* --ag-preset-orange / --ag-preset-purple (agenta-ui theme-variables.css on main). */
+.hx .hx-akind.event {
+  background: var(--colorWarningBg);
+  color: var(--colorWarning);
+}
+.hx .hx-akind.schedule {
+  background: var(--colorInfoBg);
+  color: var(--colorInfo);
+}
+.hx .hx-astatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+}
+.hx .hx-astatus i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.hx .hx-astatus.ok {
+  color: var(--colorSuccess);
+}
+.hx .hx-astatus.ok i {
+  background: var(--colorSuccess);
+}
+.hx .hx-astatus.off {
+  color: var(--colorTextSecondary);
+}
+.hx .hx-astatus.off i {
+  background: var(--colorTextSecondary);
+}
+.hx .hx-atable {
+  min-width: 680px;
+}
+.hx .hx-athead,
+.hx .hx-atrow {
+  display: grid;
+  grid-template-columns:
+    minmax(140px, 2fr) minmax(100px, 0.8fr) minmax(130px, 1fr)
+    minmax(110px, 0.9fr) minmax(120px, 1fr) 24px;
+  gap: 12px;
+  align-items: center;
+}
+.hx .hx-athead {
+  padding: 8px 0;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--colorTextSecondary);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+}
+.hx .hx-atrow {
+  padding: 13px 12px;
+  margin: 0 -12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.hx .hx-atrow:hover {
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.hx .hx-adetail {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 30px 32px 70px;
+}
+.hx .hx-aback {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--colorTextSecondary);
+}
+.hx .hx-aback:hover {
+  color: var(--colorText);
+}
+.hx .hx-atitle {
+  font-size: 18px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.hx .hx-ameta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 16px;
+}
+.hx .hx-asec {
+  margin-top: 26px;
+}
+.hx .hx-asec h2 {
+  font-size: 13px;
+  font-weight: 600;
+}
+.hx .hx-abox {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.hx .hx-arow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  text-align: left;
+}
+.hx .hx-arow + .hx-arow {
+  border-top: 1px solid var(--accent);
+}
+.hx button.hx-arow:hover {
+  background: var(--ag-surface-raised);
+}
+.hx .hx-alabel {
+  width: 72px;
+  flex: none;
+  font-size: 12px;
+  color: var(--colorTextSecondary);
+}
+.hx .hx-rdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  display: inline-block;
+}
+.hx .hx-rdot.ok {
+  background: var(--colorSuccess);
+}
+.hx .hx-rdot.fail {
+  background: var(--colorError);
+}
+.hx .hx-ainstr {
+  border: 0;
+  outline: 0;
+  resize: none;
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--colorText);
+  background: none;
+  width: 100%;
+}
+.hx .hx-asave {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid var(--colorBorderSecondary);
+}
+.hx .hx-acrumbs {
+  height: 48px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 20px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--colorBorderSecondary);
+}
+.hx .hx-acrumbs button {
+  color: var(--colorTextSecondary);
+}
+.hx .hx-acrumbs button:hover {
+  color: var(--colorText);
+}
+.hx .hx-runlist {
+  width: 300px;
+  flex: none;
+  border-right: 1px solid var(--colorBorderSecondary);
+  padding: 16px 12px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+.hx .hx-runday {
+  padding: 12px 10px 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--colorTextSecondary);
+}
+.hx .hx-runrow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  text-align: left;
+}
+.hx .hx-runrow:hover {
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.hx .hx-runrow.on {
+  background: var(--accent);
+}
+.hx .hx-runhead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--accent);
+}
+/* The Agenta mark: the Tailwind fills of LLMIcons/Agenta.tsx (#1E1C1D, dark #F2F25C). */
+.hx .hx-pvicon .hx-mark {
+  fill: #1e1c1d;
+}
+[data-theme="dark"] .hx .hx-pvicon .hx-mark {
+  fill: #f2f25c;
+}

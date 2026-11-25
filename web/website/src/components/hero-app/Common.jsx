@@ -11,6 +11,15 @@ import {
 
 export const cx = (...c) => c.filter(Boolean).join(" ");
 
+/** Enter and Space press a role="button" element, as they press a real button. */
+export const onPress = (fn) => (e) => {
+  if (e.target !== e.currentTarget) return;
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    fn(e);
+  }
+};
+
 const GLYPHS = {
   headset: Headset,
   pen: PenNib,
@@ -159,9 +168,8 @@ export function AppLogo({ slug, name, size = 20 }) {
   const [failed, setFailed] = useState(false);
   if (failed || !slug)
     return (
-      <span className="hx-applogo-fb" style={{ width: size, height: size }}>
-        {name[0]}
-      </span>
+      // The app's fallback when a logo is missing: Phosphor Plugs (sectionGroups.tsx ProviderLogo).
+      <Plugs size={size} className="t2" aria-label={name} />
     );
   return (
     <img

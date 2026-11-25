@@ -40,6 +40,7 @@ export default function HeroTour() {
     hover: false,
     focus: false,
     offscreen: false,
+    hidden: false,
     until: 0,
   });
   const stepRef = useRef(0);
@@ -67,6 +68,17 @@ export default function HeroTour() {
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
+  }, []);
+
+  // Below 860px the tour is hidden (hero-tour.css): the timer waits.
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 860px)");
+    const on = () => {
+      pause.current.hidden = mq.matches;
+    };
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
   }, []);
 
   // Off screen: the timer waits.
@@ -112,6 +124,7 @@ export default function HeroTour() {
         ps.hover ||
         ps.focus ||
         ps.offscreen ||
+        ps.hidden ||
         document.hidden ||
         now < ps.until;
       rootRef.current?.toggleAttribute("data-paused", paused);
@@ -139,14 +152,6 @@ export default function HeroTour() {
   return (
     <div className="hxt" ref={rootRef} onKeyDown={onKey}>
       <div className="hxt-stage">
-        <button
-          type="button"
-          className="hxt-arrow prev"
-          aria-label="Previous step"
-          onClick={() => go(step - 1)}
-        >
-          <CaretLeft size={20} />
-        </button>
         <div
           className="hx-frame"
           data-hx-frame
@@ -192,15 +197,15 @@ export default function HeroTour() {
             <HeroApp preset={cur.preset} autoType={cur.preset === "build"} />
           </div>
         </div>
-        <button
-          type="button"
-          className="hxt-arrow next"
-          aria-label="Next step"
-          onClick={() => go(step + 1)}
-        >
-          <CaretRight size={20} />
-        </button>
       </div>
+      <button
+        type="button"
+        className="hxt-arrow prev"
+        aria-label="Previous step"
+        onClick={() => go(step - 1)}
+      >
+        <CaretLeft size={20} />
+      </button>
       <div className="hxt-dashes" role="tablist" aria-label="Tour steps">
         {STEPS.map((s, i) => (
           <button
@@ -219,6 +224,14 @@ export default function HeroTour() {
           </button>
         ))}
       </div>
+      <button
+        type="button"
+        className="hxt-arrow next"
+        aria-label="Next step"
+        onClick={() => go(step + 1)}
+      >
+        <CaretRight size={20} />
+      </button>
       <p className="hxt-title" aria-live="polite">
         {cur.title}
       </p>

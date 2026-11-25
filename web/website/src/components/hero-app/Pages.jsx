@@ -26,10 +26,15 @@ import {
   Lightning,
   ClockCounterClockwise,
   Compass,
+  ClockClockwise,
+  Play,
+  Pause,
+  ArrowLeft,
+  CaretRight,
 } from "./ph.jsx";
 import { BotIcon } from "./icons.jsx";
-import { AGENTS, SKILLS, WORKSPACE } from "./data.js";
-import { AgentChip, Ib, Mi, Pop, Switch, cx } from "./Common.jsx";
+import { AGENTS, AUTOMATIONS, RUNS, SKILLS, WORKSPACE } from "./data.js";
+import { AgentChip, Ib, Mi, Pop, Switch, cx, onPress } from "./Common.jsx";
 
 const TEMPLATES = [
   [
@@ -385,6 +390,7 @@ export function AgentsPage({ a }) {
                       role="button"
                       tabIndex={0}
                       onClick={() => a.openAgent(ag.id)}
+                      onKeyDown={onPress(() => a.openAgent(ag.id))}
                     >
                       <span className="row g12" style={{ minWidth: 0 }}>
                         <AgentChip agent={ag} size={28} radius={7} glyph={15} />
@@ -758,6 +764,7 @@ export function SkillsPage({ a, s }) {
                 role="button"
                 tabIndex={0}
                 onClick={() => a.set({ skill: sk.id })}
+                onKeyDown={onPress(() => a.set({ skill: sk.id }))}
               >
                 <span className="row g12" style={{ minWidth: 0 }}>
                   <SkillMark />
@@ -793,64 +800,407 @@ export function SkillsPage({ a, s }) {
 
 /* ---------------------------------------------------------------- automations */
 
-export function AutomationsPage({ a }) {
-  const rows = AGENTS.flatMap((ag) => [
-    ...ag.automations.scheduled.map((x) => ({ ...x, ag, kind: "schedule" })),
-    ...ag.automations.app.map((x) => ({ ...x, ag, kind: "app" })),
-  ]);
+/** AutomationKindMark: a 28px tile, orange Lightning for events, purple ClockClockwise for schedules. */
+const KindMark = ({ kind }) => (
+  <span className={cx("hx-akind", kind)}>
+    {kind === "event" ? <Lightning size={15} /> : <ClockClockwise size={15} />}
+  </span>
+);
+/** AutomationStatusMark: a 6px dot and a word. */
+const StatusMark = ({ status }) => (
+  <span className={cx("hx-astatus", status === "Working" ? "ok" : "off")}>
+    <i />
+    {status}
+  </span>
+);
+
+function AutomationMenu({ a, x, on, setOn, detail }) {
+  return (
+    <Pop
+      align="right"
+      trigger={({ toggle }) => (
+        <Ib label="Actions" className="sm6" onClick={toggle}>
+          <DotsThreeVertical size={detail ? 16 : 14} weight="bold" />
+        </Ib>
+      )}
+      menuClass="hx-w200"
+    >
+      {(close) =>
+        detail ? (
+          <Mi icon={<Trash size={14} />} onClick={close}>
+            <span className="hx-red">Delete</span>
+          </Mi>
+        ) : (
+          <>
+            <Mi icon={<Play size={14} />} onClick={close}>
+              Run now
+            </Mi>
+            <Mi
+              icon={<ClockCounterClockwise size={14} />}
+              onClick={() => {
+                close();
+                a.set({ automation: x.id, automationView: "runs" });
+              }}
+            >
+              Run history
+            </Mi>
+            <Mi
+              icon={on ? <Pause size={14} /> : <Play size={14} />}
+              onClick={() => {
+                setOn(!on);
+                close();
+              }}
+            >
+              {on ? "Deactivate" : "Activate"}
+            </Mi>
+            <div className="msep" />
+            <Mi icon={<Trash size={14} />} onClick={close}>
+              <span className="hx-red">Delete</span>
+            </Mi>
+          </>
+        )
+      }
+    </Pop>
+  );
+}
+
+function AutomationList({ a }) {
+  const [q, setQ] = useState("");
+  const [paused, setPaused] = useState(() =>
+    Object.fromEntries(AUTOMATIONS.map((x) => [x.id, x.status === "Paused"])),
+  );
+  const rows = AUTOMATIONS.filter((x) =>
+    x.name.toLowerCase().includes(q.toLowerCase()),
+  );
   return (
     <div className="hx-scroll">
-      <div className="hx-list960">
+      <div className="hx-list1248 hx-autolist">
         <div className="row g8 hx-pagetitle">
           <h1>Automations</h1>
           <span className="grow" />
-          <button type="button" className="btn primary hx-r6">
+          <button type="button" className="btn">
+            <BookOpen size={14} />
+            How automations work
+          </button>
+          <button type="button" className="btn primary hx-btn32">
             <Plus size={14} />
-            Add automation
+            New automation
           </button>
         </div>
-        <div className="atbl hx-autotbl" style={{ marginTop: 20 }}>
-          <div className="ath">
-            <span>Automation</span>
-            <span>Agent</span>
-            <span>Runs</span>
-            <span />
-          </div>
-          {rows.map((r) => (
-            <div
-              className="atr"
-              key={r.name}
-              role="button"
-              tabIndex={0}
-              onClick={() => a.openAgent(r.ag.id, "configuration")}
-            >
-              <span className="row g12" style={{ minWidth: 0 }}>
-                <span className="cpl t2">
-                  {r.kind === "schedule" ? (
-                    <ClockCounterClockwise size={16} />
-                  ) : (
-                    <Lightning size={16} />
-                  )}
-                </span>
-                <span className="col" style={{ minWidth: 0 }}>
-                  <span className="b5 cut" style={{ fontSize: 14 }}>
-                    {r.name}
-                  </span>
-                  <span className="cut t2 sm">{r.when}</span>
-                </span>
-              </span>
-              <span className="row g8 sm" style={{ minWidth: 0 }}>
-                <AgentChip agent={r.ag} size={20} radius={5} glyph={12} />
-                <span className="cut">{r.ag.name}</span>
-              </span>
-              <span className="hx-pill on">On</span>
+        <div className="row g8" style={{ margin: "20px 0 12px" }}>
+          <label className="hx-search" style={{ width: 340 }}>
+            <MagnifyingGlass size={14} className="t3" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search automations"
+              aria-label="Search automations"
+            />
+          </label>
+          <button
+            type="button"
+            className="hx-iconbtn"
+            aria-label="Filter automations"
+          >
+            <Funnel size={14} />
+          </button>
+          <span className="grow" />
+          <span className="seg">
+            <button type="button" className="on" aria-label="List">
+              <ListBullets size={14} />
+            </button>
+            <button type="button" aria-label="Cards">
+              <SquaresFour size={14} />
+            </button>
+          </span>
+        </div>
+        {rows.length ? (
+          <div className="hx-atable">
+            <div className="hx-athead">
+              <span>Automation</span>
+              <span>Status</span>
+              <span>Runs when</span>
+              <span>Last run</span>
+              <span>Agent</span>
               <span />
             </div>
-          ))}
+            {rows.map((x) => {
+              const ag = AGENTS.find((g) => g.id === x.agent);
+              const on = !paused[x.id];
+              const open = () =>
+                a.set({ automation: x.id, automationView: null });
+              return (
+                <div
+                  className="hx-atrow"
+                  key={x.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={open}
+                  onKeyDown={onPress(open)}
+                >
+                  <span className="row g8" style={{ minWidth: 0 }}>
+                    <KindMark kind={x.kind} />
+                    <span className="cut" style={{ fontSize: 14 }}>
+                      {x.name}
+                    </span>
+                  </span>
+                  <StatusMark status={on ? "Working" : "Paused"} />
+                  <span className="cut sm t2">{x.when}</span>
+                  <span className="col" style={{ minWidth: 0 }}>
+                    <span className="sm">{x.last}</span>
+                    <span className="xs t2">{x.runs}</span>
+                  </span>
+                  <span className="row g6" style={{ minWidth: 0 }}>
+                    <AgentChip agent={ag} size={20} radius={5} glyph={13} />
+                    <span className="cut sm">{ag.name}</span>
+                  </span>
+                  <span
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    <AutomationMenu
+                      a={a}
+                      x={x}
+                      on={on}
+                      setOn={(v) => setPaused((p) => ({ ...p, [x.id]: !v }))}
+                    />
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="hx-emptybox">
+            <span className="b5">Nothing matches “{q}”</span>
+            <span className="sm t2">
+              Try a shorter search, or check the filters — they narrow this list
+              too.
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AutomationDetail({ a, x }) {
+  const ag = AGENTS.find((g) => g.id === x.agent);
+  const [on, setOn] = useState(x.status !== "Paused");
+  const [text, setText] = useState(x.instruction);
+  const dirty = text !== x.instruction;
+  const back = () => a.set({ automation: null, automationView: null });
+  const runs = () => a.set({ automationView: "runs" });
+  return (
+    <div className="hx-scroll">
+      <div className="hx-adetail">
+        <button type="button" className="hx-aback" onClick={back}>
+          <ArrowLeft size={13} />
+          Automations
+        </button>
+        <div
+          className="row g8"
+          style={{ alignItems: "flex-start", marginTop: 12 }}
+        >
+          <h1 className="hx-atitle grow">{x.name}</h1>
+          <AutomationMenu a={a} x={x} detail />
+        </div>
+        <div className="hx-ameta">
+          <span className="row g8">
+            <Switch on={on} onChange={setOn} label="On" />
+            <span style={{ fontSize: 14 }}>{on ? "On" : "Off"}</span>
+          </span>
+          <span className="vsep" style={{ height: 16 }} />
+          <span className="sm t2">
+            Runs {ag.name} · {x.edited}
+          </span>
+        </div>
+        <div className="hx-asec">
+          <div className="row">
+            <h2>Runs</h2>
+            <span className="grow" />
+            <button
+              type="button"
+              className="btn hx-compact"
+              title="Run this automation now in a new session"
+            >
+              <Play size={14} />
+              Run now
+            </button>
+          </div>
+          <div className="hx-abox">
+            {x.next && on ? (
+              <div className="hx-arow">
+                <span className="hx-alabel">Next run</span>
+                <span className="grow sm">{x.next}</span>
+              </div>
+            ) : null}
+            <button type="button" className="hx-arow" onClick={runs}>
+              <span className="hx-alabel">Last run</span>
+              <span className="grow sm row g8">
+                <i className={cx("hx-rdot", x.lastOk ? "ok" : "fail")} />
+                {x.lastRun}
+                {x.lastOk ? "" : " · did not finish"}
+              </span>
+              <CaretRight size={12} className="t3" />
+            </button>
+            <button type="button" className="hx-arow" onClick={runs}>
+              <span className="hx-alabel">History</span>
+              <span className="grow sm">See all runs</span>
+              <CaretRight size={12} className="t3" />
+            </button>
+          </div>
+        </div>
+        <div className="hx-asec">
+          <h2>Settings</h2>
+          <div className="col" style={{ gap: 22, marginTop: 12 }}>
+            <div className="col" style={{ gap: 7 }}>
+              <span className="hx-flabel">Agent</span>
+              <button type="button" className="field hx-selectfield row g8">
+                <AgentChip agent={ag} size={20} radius={5} glyph={13} />
+                <span className="grow cut">{ag.name}</span>
+                <CaretUpDown size={14} className="t3" />
+              </button>
+              <span className="xs t2">The agent this automation runs.</span>
+            </div>
+            <div className="col" style={{ gap: 7 }}>
+              <span className="hx-flabel">Runs when</span>
+              <button type="button" className="field hx-selectfield row g8">
+                <KindMark kind={x.kind} />
+                <span className="grow cut">{x.when}</span>
+                <CaretUpDown size={14} className="t3" />
+              </button>
+              <span className="xs t2">
+                {!on
+                  ? "Paused — it won't run until you switch it on."
+                  : x.kind === "event"
+                    ? "Runs each time this event arrives."
+                    : ""}
+              </span>
+            </div>
+            <div className="col" style={{ gap: 7 }}>
+              <span className="hx-flabel">Instruction</span>
+              <div className="composer" style={{ margin: 0 }}>
+                <textarea
+                  className="hx-ainstr"
+                  rows={3}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  aria-label="Instruction"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="hx-asave">
+          <button
+            type="button"
+            className="btn"
+            disabled={!dirty}
+            onClick={() => setText(x.instruction)}
+          >
+            Discard
+          </button>
+          <button type="button" className="btn primary" disabled={!dirty}>
+            Save
+          </button>
         </div>
       </div>
     </div>
   );
+}
+
+function AutomationRuns({ a, x }) {
+  const [sel, setSel] = useState("Today-0");
+  const flat = RUNS.flatMap(([d, rs]) =>
+    rs.map((r, i) => ({ key: `${d}-${i}`, day: d, r })),
+  );
+  const cur = flat.find((f) => f.key === sel) ?? flat[0];
+  return (
+    <div className="col grow" style={{ minHeight: 0 }}>
+      <div className="hx-acrumbs">
+        <button
+          type="button"
+          onClick={() => a.set({ automation: null, automationView: null })}
+        >
+          Automations
+        </button>
+        <span className="t3">›</span>
+        <button type="button" onClick={() => a.set({ automationView: null })}>
+          {x.name}
+        </button>
+        <span className="t3">›</span>
+        <span className="b6">Run history</span>
+      </div>
+      <div className="row grow" style={{ minHeight: 0, alignItems: "stretch" }}>
+        <div className="hx-runlist">
+          <div className="row" style={{ padding: "0 4px" }}>
+            <h1 className="grow" style={{ fontSize: 16, fontWeight: 600 }}>
+              Run history
+            </h1>
+            <Ib label="Filter runs">
+              <Funnel size={14} />
+            </Ib>
+          </div>
+          <span className="sm t2" style={{ padding: "0 4px 8px" }}>
+            {x.runs}
+          </span>
+          {RUNS.map(([d, rs]) => (
+            <div key={d}>
+              <div className="hx-runday">{d}</div>
+              {rs.map(([label, time, st], i) => (
+                <button
+                  type="button"
+                  key={i}
+                  className={cx("hx-runrow", sel === `${d}-${i}` && "on")}
+                  onClick={() => setSel(`${d}-${i}`)}
+                >
+                  <i className={cx("hx-rdot", st)} />
+                  <span className="grow sm">{label}</span>
+                  <span className="xs t2">{time}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+        <div className="col grow" style={{ minWidth: 0 }}>
+          <div className="hx-runhead">
+            <i className={cx("hx-rdot", cur.r[2])} />
+            <span className="b5" style={{ fontSize: 14 }}>
+              {cur.r[0]}
+            </span>
+            <span className="xs t2">
+              {cur.day} {cur.r[1]} · {cur.r[3]}
+            </span>
+          </div>
+          <div className="thread">
+            <div className="in">
+              <div className="ub">{x.instruction}</div>
+              <div className="as">
+                {cur.r[2] === "ok" ? (
+                  <p>
+                    Done. I posted 14 open tickets in #support-urgent: 3 high, 7
+                    medium and 4 low.
+                  </p>
+                ) : (
+                  <div className="errbox">
+                    The run stopped before it finished: the Zendesk connection
+                    had expired.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AutomationsPage({ a, s }) {
+  const x = AUTOMATIONS.find((y) => y.id === s.automation);
+  if (!x) return <AutomationList a={a} />;
+  if (s.automationView === "runs") return <AutomationRuns a={a} x={x} />;
+  return <AutomationDetail a={a} x={x} key={x.id} />;
 }
 
 export { BotIcon };
