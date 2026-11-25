@@ -138,27 +138,6 @@ export default function HeroTour() {
   const cur = STEPS[step];
   return (
     <div className="hxt" ref={rootRef} onKeyDown={onKey}>
-      <div className="hxt-dashes" role="tablist" aria-label="Tour steps">
-        {STEPS.map((s, i) => (
-          <button
-            key={s.preset}
-            type="button"
-            role="tab"
-            aria-selected={i === step}
-            aria-label={`Step ${i + 1}: ${s.title}`}
-            className={i === step ? "on" : ""}
-            onClick={() => {
-              elapsed.current = 0;
-              if (i !== step) go(i);
-            }}
-          >
-            <i ref={(el) => (fills.current[i] = el)} />
-          </button>
-        ))}
-      </div>
-      <p className="hxt-title" aria-live="polite">
-        {cur.title}
-      </p>
       <div className="hxt-stage">
         <button
           type="button"
@@ -222,6 +201,27 @@ export default function HeroTour() {
           <CaretRight size={20} />
         </button>
       </div>
+      <div className="hxt-dashes" role="tablist" aria-label="Tour steps">
+        {STEPS.map((s, i) => (
+          <button
+            key={s.preset}
+            type="button"
+            role="tab"
+            aria-selected={i === step}
+            aria-label={`Step ${i + 1}: ${s.title}`}
+            className={i === step ? "on" : ""}
+            onClick={() => {
+              elapsed.current = 0;
+              if (i !== step) go(i);
+            }}
+          >
+            <i ref={(el) => (fills.current[i] = el)} />
+          </button>
+        ))}
+      </div>
+      <p className="hxt-title" aria-live="polite">
+        {cur.title}
+      </p>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-/* The tour hero (components/hero-app/HeroTour.jsx): dashes that fill, the step title, the app. */
+/* The tour hero (components/hero-app/HeroTour.jsx): the app, then the dashes that fill and the step title. */
 .hxt {
   width: min(1120px, 100%);
   display: flex;
@@ -9,6 +9,7 @@
 .hxt-dashes {
   display: flex;
   gap: 8px;
+  margin-top: 28px;
 }
 .hxt-dashes button {
   position: relative;
@@ -50,7 +51,7 @@
   border-radius: 4px;
 }
 .hxt-title {
-  margin: 12px 0 20px;
+  margin: 8px 0 0;
   font:
     500 18px/26px "Inter",
     -apple-system,
@@ -122,7 +123,7 @@
   right: -64px;
 }
 
-/* Without room beside the app, the arrows sit beside the title. */
+/* Without room beside the app, the arrows sit at both ends of the dashes and title row. */
 @media (max-width: 1279px) {
   .hxt {
     position: relative;
@@ -131,7 +132,8 @@
     position: static;
   }
   .hxt-arrow {
-    top: 20px;
+    top: auto;
+    bottom: 5px;
     margin-top: 0;
   }
   .hxt-arrow.prev {
