@@ -78,12 +78,6 @@ export const skillRevisionsQueryKey = (projectId: string, workflowId: string) =>
 export const SkillAgentHrefContext = createContext<((agentId: string) => string) | null>(null)
 
 /** The Skills page with this skill open, in this project: the "skill registry" link. */
-const skillsPageHref = (slug: string): string | null => {
-    if (typeof window === "undefined") return null
-    const project = window.location.pathname.match(/^(.*?\/p\/[^/]+)/)?.[1]
-    return project ? `${project}/skills?skill=${encodeURIComponent(slug)}` : null
-}
-
 /** The editor's draft back as the form value, the name kept as typed. */
 const fromDraft = (draft: SkillDraft): Record<string, unknown> => ({
     name: draft.name,
@@ -359,25 +353,8 @@ const RegistrySkillEditor = ({
                     : []),
             ]
 
-    const registryLink = skill.workflowSlug ? skillsPageHref(skill.workflowSlug) : null
     const status = isBuiltin ? (
         <span>{t("skills.gallery.builtinReadOnly")}</span>
-    ) : inAgent ? (
-        richText(t("entityUi.skillView.registryStatus"), {
-            link: (text) =>
-                registryLink ? (
-                    <a
-                        href={registryLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={cn("text-inherit underline underline-offset-2")}
-                    >
-                        {text}
-                    </a>
-                ) : (
-                    text
-                ),
-        })
     ) : skill.archived ? (
         t("skills.gallery.archived")
     ) : null
