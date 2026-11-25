@@ -115,9 +115,7 @@ Everything else works, with no limit on users. SSO login that you configure with
 Before v0.131.1, the open source images did not read license keys and had no limits. From v0.131.1, every install runs the same images. When you upgrade an instance that ran the open source images and you do not add a key:
 
 - The first start migrates the database to the full schema. Every member keeps access to the projects they could open before. See [Upgrading to 0.131.1](/self-host/upgrading#upgrading-to-0131-1) for the steps.
-- The instance runs on the Community plan. All existing projects and organizations stay.
-- An organization that has 1 project or more cannot create another project. Add the free key to remove this limit.
-- An instance that has 1 organization or more cannot get another organization. A person who signs up gets no organization and joins by invitation. Add a paid key to remove this limit.
+- The instance runs on the Community plan. All existing projects and organizations stay, and the [limits](#limits-by-plan) apply to new ones. The free key removes the project limit. A paid key removes both limits.
 - The **Access & Security** and **Audit Log** settings show the enterprise features as locked, with **Add a license key** and **Talk to us**.
 
 ## Upgrade an existing Enterprise instance

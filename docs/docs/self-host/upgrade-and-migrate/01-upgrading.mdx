@@ -44,6 +44,8 @@ If the job stops partway, the next start runs the steps that did not finish. You
 
 On an Enterprise database, the job runs the new migrations only, and writes no membership rows.
 
+If your env file sets `ALEMBIC_AUTO_MIGRATIONS=false`, the job skips the membership rows and the Enterprise tables at start. Run the [manual migration command](#manual-migration-process) once before people use the instance.
+
 ### Installs older than v0.104.0
 
 The migration job cannot upgrade a database older than v0.104.0. It stops before it changes anything and logs:
@@ -56,12 +58,7 @@ Upgrade to the latest 0.129.x release, let its migrations finish, then upgrade t
 
 ### The limits apply to new projects and organizations only
 
-Without a key, the instance runs on the Community plan. Projects and organizations that exist before the upgrade stay. After the upgrade:
-
-- An organization that has 1 project or more cannot create another one. The [free key](/self-host/license-keys#get-a-free-registration-key) removes this limit.
-- An instance that has 1 organization or more cannot get another one. A person who signs up gets no organization and joins one by invitation. A paid key removes this limit.
-
-See [Upgrade an open source instance](/self-host/license-keys#upgrade-an-open-source-instance) for the full list.
+Without a key, the instance runs on the Community plan. Projects and organizations that exist before the upgrade stay. The [limits by plan](/self-host/license-keys#limits-by-plan) apply to new projects and organizations. See [Upgrade an open source instance](/self-host/license-keys#upgrade-an-open-source-instance) for the full list of changes.
 
 The first time the instance admin opens the app after the upgrade, the app offers to register the instance for a free key, once. **Skip** hides the offer for the whole instance. You can register later from **Settings > License**.
 
@@ -435,7 +432,7 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml pull
 Before updating services, apply any database schema changes. This runs the `alembic` migration job once, from the image you just pulled:
 
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh run --rm alembic
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh run --rm -e ALEMBIC_AUTO_MIGRATIONS=true alembic
 ```
 
 Use the compose file and env file of your deployment. On an Enterprise install, they are `hosting/docker-compose/ee/docker-compose.gh.yml` and `hosting/docker-compose/ee/.env.ee.gh`.
@@ -661,7 +658,7 @@ Check the release notes to see if a version requires database migrations. Not al
 Apply all pending migrations by running the `alembic` migration job once, from the image in your compose file:
 
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh run --rm alembic
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh run --rm -e ALEMBIC_AUTO_MIGRATIONS=true alembic
 ```
 
 Use the compose file and env file of your deployment. On an Enterprise install, they are `hosting/docker-compose/ee/docker-compose.gh.yml` and `hosting/docker-compose/ee/.env.ee.gh`.
