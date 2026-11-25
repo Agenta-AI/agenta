@@ -1,9 +1,9 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
-import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
+import skillsAgentCatalog from "@agenta/i18n/catalogs/skills.agent"
 import {useDrillInUI} from "@agenta/ui/drill-in"
-import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
+import {useViewForm, useViewTitle, ViewFooterStart, type ViewProps} from "@agenta/ui/view-stack"
 
 import {isEmbedRefSkill, staticEmbedSlug} from "../itemDescriptors"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
@@ -18,43 +18,94 @@ const skillsOf = (agent: Skill): unknown[] => (Array.isArray(agent.skills) ? age
 const embedSlugOf = (entry: unknown): string | undefined =>
     isEmbedRefSkill(entry) ? staticEmbedSlug(entry as Skill) : undefined
 
-/** The registry list of the skills bridge, writing each click into the agent configuration. */
+/** Staged picks: registry skills to add (by slug) and slugs to remove. Done writes them. */
+interface Picks {
+    add: Map<string, Skill>
+    remove: Set<string>
+}
+
+const NO_PICKS: Picks = {add: new Map(), remove: new Set()}
+
+/** The registry list of the skills bridge; Done writes the staged picks into the agent. */
 const SkillAddViewBody = ({target, nav}: ViewProps<SkillAddViewParams>) => {
-    const t = useT(skillsGalleryCatalog)
-    useViewTitle(t("skills.gallery.addSkills"))
+    const t = useT(skillsAgentCatalog)
+    useViewTitle(t("skills.agent.addTitle"))
     const {skills: bridge} = useDrillInUI()
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     const skills = skillsOf(writer.agent)
-    const addedSlugs = useMemo(
+    const [picks, setPicks] = useState<Picks>(NO_PICKS)
+
+    const onAgent = useMemo(
         () => skills.map(embedSlugOf).filter((slug): slug is string => Boolean(slug)),
         [skills],
     )
+    const addedSlugs = useMemo(
+        () => [...onAgent.filter((slug) => !picks.remove.has(slug)), ...picks.add.keys()],
+        [onAgent, picks],
+    )
+    const count = skills.length - picks.remove.size + picks.add.size
+
+    const onAdd = useCallback((entry: Skill) => {
+        const slug = embedSlugOf(entry)
+        if (!slug) return
+        setPicks((current) => {
+            const remove = new Set(current.remove)
+            // Back on the agent: undo the staged remove, nothing to add.
+            if (remove.delete(slug)) return {...current, remove}
+            return {...current, add: new Map(current.add).set(slug, entry)}
+        })
+    }, [])
+    const onRemove = useCallback((slug: string) => {
+        setPicks((current) => {
+            const add = new Map(current.add)
+            if (add.delete(slug)) return {...current, add}
+            return {...current, remove: new Set(current.remove).add(slug)}
+        })
+    }, [])
+
     const {update} = writer
-    const onAdd = useCallback(
-        (entry: Skill) => {
-            const slug = embedSlugOf(entry)
+    const save = useCallback(async () => {
+        if (picks.add.size || picks.remove.size)
             update((agent) => {
-                const current = skillsOf(agent)
-                if (slug && current.some((s) => embedSlugOf(s) === slug)) return agent
-                return {...agent, skills: [...current, entry]}
+                const kept = skillsOf(agent).filter((s) => {
+                    const slug = embedSlugOf(s)
+                    return !slug || !picks.remove.has(slug)
+                })
+                const present = new Set(kept.map(embedSlugOf))
+                const added = [...picks.add].filter(([slug]) => !present.has(slug))
+                return {...agent, skills: [...kept, ...added.map(([, entry]) => entry)]}
             })
-        },
-        [update],
-    )
-    const onRemove = useCallback(
-        (slug: string) =>
-            update((agent) => ({
-                ...agent,
-                skills: skillsOf(agent).filter((s) => embedSlugOf(s) !== slug),
-            })),
-        [update],
-    )
+        return true
+    }, [picks, update])
+
+    const dirty = picks.add.size > 0 || picks.remove.size > 0
+    useViewForm({
+        dirty,
+        valid: true,
+        save,
+        saveLabel: t("skills.agent.done"),
+        saveWhenClean: true,
+        leaveDescription: t("skills.agent.leavePicks"),
+    })
+
     const {push} = nav
     const onNewSkill = useCallback(() => void push?.(skillNewView, {}, target), [push, target])
     const Body = bridge?.AddSkillsBody
     if (!Body) return null
     return (
-        <Body addedSlugs={addedSlugs} onAdd={onAdd} onRemove={onRemove} onNewSkill={onNewSkill} />
+        <>
+            <Body
+                addedSlugs={addedSlugs}
+                onAdd={onAdd}
+                onRemove={onRemove}
+                onNewSkill={onNewSkill}
+            />
+            <ViewFooterStart>
+                <span className="text-meta text-muted-foreground">
+                    {t("skills.agent.onAgent", {count})}
+                </span>
+            </ViewFooterStart>
+        </>
     )
 }
 

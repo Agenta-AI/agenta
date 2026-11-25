@@ -102,6 +102,7 @@ import {mcpAddView} from "./agentTemplate/views/mcpAddView"
 import {mcpServerView} from "./agentTemplate/views/mcpServerView"
 import {modelView} from "./agentTemplate/views/modelView"
 import {skillAddView} from "./agentTemplate/views/skillAddView"
+import {skillNewView} from "./agentTemplate/views/skillNewView"
 import {skillItemRef, skillView} from "./agentTemplate/views/skillView"
 import {subagentAddView} from "./agentTemplate/views/subagentAddView"
 import {subagentView} from "./agentTemplate/views/subagentView"
@@ -448,6 +449,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // "Add manually" opens "Add skills"; a host with no skills bridge keeps the inline editor.
     const handleAddSkill = useCallback(() => {
         if (skillsBridge?.enabled && viewTarget) void openView(skillAddView, {}, viewTarget)
+        else openCreate("skill", ITEM_KINDS.skill.createSeed())
+    }, [openCreate, openView, skillsBridge, viewTarget])
+    // "+" goes straight to the create chooser; without a bridge it is the inline editor too.
+    const handleNewSkill = useCallback(() => {
+        if (skillsBridge?.enabled && viewTarget) void openView(skillNewView, {}, viewTarget)
         else openCreate("skill", ITEM_KINDS.skill.createSeed())
     }, [openCreate, openView, skillsBridge, viewTarget])
 
@@ -901,6 +907,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             disabled,
             skills,
             handleAddSkill,
+            handleNewSkill,
             openSkillItem,
             removeItem,
             closeEditor,

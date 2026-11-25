@@ -2,6 +2,7 @@ import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
 import {MarkdownEditor} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import {SKILL_DESCRIPTION_MAX, type SkillFile} from "@agenta/skills"
 import {MarkdownPreview} from "@agenta/ui"
@@ -45,6 +46,11 @@ export interface SkillEditorProps {
     defaultView?: InstructionsView
     /** Above the fields (banners). */
     notices?: ReactNode
+    /**
+     * Where Files goes: the page's right pane, or "inline" for a host that is itself a drawer or a
+     * panel (a column beside the fields when it is wide, a Files row that swaps in when it is not).
+     */
+    filesPlacement?: "pane" | "inline"
 }
 
 const EDITOR_FRAME = "flex min-h-[320px] flex-col [&_.md-prose]:min-h-[280px]"
@@ -59,9 +65,12 @@ export function SkillEditor({
     showMissing = false,
     defaultView = "preview",
     notices,
+    filesPlacement = "pane",
 }: SkillEditorProps) {
     const t = useT(skillsEditorCatalog)
-    const expanded = useIsExpandedWindow()
+    const tCommon = useT(commonCatalog)
+    const inline = filesPlacement === "inline"
+    const expanded = useIsExpandedWindow() && !inline
     const [filesOpen, setFilesOpen] = useState(expanded)
     // Docked beside the editor on a wide window; a drill-in a tap away on a narrow one.
     useEffect(() => setFilesOpen(expanded), [expanded])
@@ -113,7 +122,10 @@ export function SkillEditor({
         <button
             type="button"
             onClick={() => setFilesOpen(true)}
-            className="-mx-2 flex h-row-single cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left font-[inherit] text-label text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent max-sm:min-h-11 motion-reduce:transition-none"
+            className={cn(
+                inline && "@2xl:hidden",
+                "-mx-2 flex h-row-single cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left font-[inherit] text-label text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent max-sm:min-h-11 motion-reduce:transition-none",
+            )}
         >
             <IconTile size={20} aria-hidden>
                 <Files />
@@ -295,31 +307,73 @@ export function SkillEditor({
         </div>
     )
 
+    const filesPanel = (
+        <SkillFilesPanel
+            files={draft.files}
+            allowExecutable={draft.allowExecutable}
+            readOnly={readOnly}
+            openPath={openPath}
+            onOpen={openFile}
+            onMoved={moved}
+            onFiles={updateFiles}
+            onAllowExecutable={setAllowExecutable}
+        />
+    )
+    const filesTitle = (
+        <span className="flex items-center gap-2">
+            <FileText aria-hidden size={16} />
+            {t("skills.editor.files")}
+        </span>
+    )
+
+    if (inline) {
+        // One Files panel: a column at 672px and wider; below, it takes the fields' place while open.
+        return (
+            <div className="@container min-w-0">
+                <div className="flex min-w-0 gap-6">
+                    <div
+                        className={cn(
+                            "min-w-0 flex-1 flex-col gap-4",
+                            filesOpen ? "hidden @2xl:flex" : "flex",
+                        )}
+                    >
+                        {notices}
+                        {filesRow}
+                        {fileView ?? skillView}
+                    </div>
+                    <aside
+                        className={cn(
+                            "min-w-0 flex-col gap-3 @2xl:flex @2xl:w-64 @2xl:shrink-0",
+                            filesOpen ? "flex flex-1" : "hidden",
+                        )}
+                    >
+                        <div className="flex min-h-8 items-center gap-2 text-label font-medium text-foreground">
+                            <span className="flex-1">{filesTitle}</span>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                className="@2xl:hidden"
+                                aria-label={tCommon("common.close")}
+                                onClick={() => setFilesOpen(false)}
+                            >
+                                <X />
+                            </Button>
+                        </div>
+                        {filesPanel}
+                    </aside>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className="flex min-w-0 flex-col gap-4">
             {notices}
             {filesRow}
             {fileView ?? skillView}
-            <RightPane
-                open={filesOpen}
-                onOpenChange={setFilesOpen}
-                title={
-                    <span className="flex items-center gap-2">
-                        <FileText aria-hidden size={16} />
-                        {t("skills.editor.files")}
-                    </span>
-                }
-            >
-                <SkillFilesPanel
-                    files={draft.files}
-                    allowExecutable={draft.allowExecutable}
-                    readOnly={readOnly}
-                    openPath={openPath}
-                    onOpen={openFile}
-                    onMoved={moved}
-                    onFiles={updateFiles}
-                    onAllowExecutable={setAllowExecutable}
-                />
+            <RightPane open={filesOpen} onOpenChange={setFilesOpen} title={filesTitle}>
+                {filesPanel}
             </RightPane>
         </div>
     )

@@ -10,7 +10,7 @@ import type {SkillNewViewParams} from "./skillNewView"
 type Skill = Record<string, unknown>
 
 /** The create steps of the skills bridge; each created skill is added to the agent. */
-const SkillNewViewBody = ({target}: ViewProps<SkillNewViewParams>) => {
+const SkillNewViewBody = ({target, nav}: ViewProps<SkillNewViewParams>) => {
     const {skills: bridge} = useDrillInUI()
     const {update} = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
     // The writer of the revision on screen now: auto-save can move it while a create runs.
@@ -25,7 +25,7 @@ const SkillNewViewBody = ({target}: ViewProps<SkillNewViewParams>) => {
         [],
     )
     const Body = bridge?.NewSkillBody
-    return Body ? <Body onCreated={onCreated} /> : null
+    return Body ? <Body onCreated={onCreated} onDone={nav.cancel} /> : null
 }
 
 export default SkillNewViewBody

@@ -238,6 +238,8 @@ export interface AddSkillsBodyProps {
 export interface NewSkillBodyProps {
     /** Each created or imported skill, as the `@ag.embed` entry the agent adds. */
     onCreated: (entries: Record<string, unknown>[]) => void
+    /** Leaves the view without its Save (an import that added its skills, a discarded draft). */
+    onDone?: () => void
 }
 
 /**

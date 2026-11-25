@@ -2,12 +2,12 @@
 import {useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
-import skillNewCatalog from "@agenta/i18n/catalogs/entityUi.skillNew"
+import skillsAgentCatalog from "@agenta/i18n/catalogs/skills.agent"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {skillsResolveDataAtom, skillsResolveQueryAtom} from "@agenta/skills/state"
 import {SkillMark} from "@agenta/ui/agent-icon"
 import type {AddSkillsBodyProps} from "@agenta/ui/drill-in"
-import {Button, EmptyState, SearchInput, SkeletonBlock} from "@agenta/ui/ui"
+import {Button, EmptyState, SearchInput, SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
 import {Check, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -16,46 +16,43 @@ import {toSourceInfo} from "./registrySections"
 import {skillTitle} from "./skillTitle"
 import type {SkillListItem} from "./types"
 
-/** Canvas F04 f2: rows on the search field's edge, 8 px above and below, 60 px apart; the hover
- *  fill bleeds 8 px past the column. */
+/** A two-line row (48px); its hover fill hangs 8px past the column so the Mark stays on the line. */
 const ROW =
-    "box-border flex w-full cursor-pointer appearance-none items-center gap-2.5 rounded-md border-0 bg-transparent px-2 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
+    "box-border flex min-h-row-double w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 transition-colors duration-[var(--duration-fast)] ease-out hover:bg-accent motion-reduce:transition-none"
 
 function SkillRow({option, onToggle}: {option: SkillListItem; onToggle: () => void}) {
-    const t = useT(skillsGalleryCatalog, skillNewCatalog)
+    const t = useT(skillsGalleryCatalog, skillsAgentCatalog)
     const title = skillTitle(option)
     const description = option.description?.trim() || t("skills.gallery.noDescription")
+    const label = t(option.added ? "skills.agent.removeFromAgent" : "skills.agent.addToAgent")
     return (
-        <button
-            type="button"
-            onClick={onToggle}
-            aria-pressed={Boolean(option.added)}
-            aria-label={t(
-                option.added
-                    ? "entityUi.skillNew.removeSkillAria"
-                    : "entityUi.skillNew.addSkillAria",
-                {name: title},
-            )}
-            className={ROW}
-        >
+        // The row is a large mouse target; the button is the control for the keyboard and readers.
+        <div className={ROW} onClick={onToggle}>
             <SkillMark size={24} />
             <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-label font-medium leading-5 text-foreground">
                     {title}
                 </span>
                 <span className="truncate text-meta text-muted-foreground">
-                    {option.source ? `${description} · ${option.source.label}` : description}
+                    {option.source ? `${option.source.label} · ${description}` : description}
                 </span>
             </span>
-            {option.added ? (
-                <span className="flex shrink-0 items-center gap-1 pl-2 text-meta text-muted-foreground">
-                    <Check aria-hidden size={14} />
-                    {t("entityUi.skillNew.added")}
-                </span>
-            ) : (
-                <Plus aria-hidden size={14} className="ml-2 shrink-0 text-muted-foreground" />
-            )}
-        </button>
+            <SimpleTooltip title={label}>
+                <Button
+                    variant={option.added ? "secondary" : "ghost"}
+                    size="icon-sm"
+                    aria-label={`${label}: ${title}`}
+                    aria-pressed={Boolean(option.added)}
+                    className="shrink-0"
+                    onClick={(event) => {
+                        event.stopPropagation()
+                        onToggle()
+                    }}
+                >
+                    {option.added ? <Check size={14} /> : <Plus size={14} />}
+                </Button>
+            </SimpleTooltip>
+        </div>
     )
 }
 
@@ -76,11 +73,13 @@ function RowsSkeleton() {
 }
 
 export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkillsBodyProps) {
-    const t = useT(skillsGalleryCatalog)
+    const t = useT(skillsGalleryCatalog, skillsAgentCatalog)
     // The unfiltered registry: the Skills page search must not narrow this list.
     const query = useAtomValue(skillsResolveQueryAtom)
     const registry = useAtomValue(skillsResolveDataAtom)
     const [search, setSearch] = useState("")
+    // The order is fixed when the list opens, so a row does not move away from a click.
+    const [first] = useState(() => new Set(addedSlugs))
 
     const options = useMemo<SkillListItem[]>(() => {
         const added = new Map(addedSlugs.map((slug) => [slug, {}]))
@@ -98,14 +97,17 @@ export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkil
                 })
                 .filter((item): item is SkillListItem => item !== null)
                 // The agent's skills first (F04 f2); the sort keeps the registry order within each part.
-                .sort((a, b) => Number(Boolean(b.added)) - Number(Boolean(a.added)))
+                .sort((a, b) => Number(first.has(b.slug)) - Number(first.has(a.slug)))
         )
-    }, [addedSlugs, registry])
+    }, [addedSlugs, first, registry])
     const visible = useMemo(() => filterSkillOptions(options, search), [options, search])
     const searching = Boolean(search.trim())
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 pb-3 pt-3.5">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-3 pt-3.5">
+            <p className="m-0 text-body text-muted-foreground">
+                {t("skills.agent.addDescription")}
+            </p>
             <div className="flex items-center gap-2">
                 <SearchInput
                     size="compact-search"
@@ -117,7 +119,7 @@ export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkil
                 />
                 <Button variant="outline" size="compact" onClick={onNewSkill} className="shrink-0">
                     <Plus size={14} />
-                    {t("skills.gallery.newSkill")}
+                    {t("skills.agent.newSkill")}
                 </Button>
             </div>
             {query.isPending ? (

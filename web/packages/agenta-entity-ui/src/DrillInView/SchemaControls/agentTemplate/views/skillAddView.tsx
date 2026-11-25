@@ -6,10 +6,10 @@ import {lazyView} from "./lazyView"
 
 export type SkillAddViewParams = Record<string, never>
 
-/** "Add skills": a click adds or removes a registry skill at once; "New skill" opens at depth 2. */
+/** "Add skills": clicks stage adds and removes, Done writes them; "New skill" opens at depth 2. */
 export const skillAddView = defineView<SkillAddViewParams>({
     id: "agent.skill.add",
-    apply: "immediate",
+    apply: "on_save",
     Component: lazyView(
         () => import("./SkillAddViewBody"),
         <div className="px-4 py-3">

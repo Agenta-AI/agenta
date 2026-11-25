@@ -10,7 +10,7 @@ import type {SkillsBridge} from "@agenta/ui/drill-in"
 import {getDefaultStore, useAtomValue} from "jotai"
 
 import {AddSkillsBody} from "./AddSkillsBody"
-import {NewSkillBody} from "./NewSkillBody"
+import {AgentSkillCreateBody} from "./AgentSkillCreateBody"
 import {RegistrySkillBody} from "./registrySkillView"
 
 const tNow = createT(skillsGalleryCatalog)
@@ -72,7 +72,7 @@ export function useSkillsBridge(): SkillsBridge {
         () => ({
             enabled: true,
             AddSkillsBody,
-            NewSkillBody,
+            NewSkillBody: AgentSkillCreateBody,
             RegistrySkillBody,
             useHeadVersions,
             publishInlineSkill,

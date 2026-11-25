@@ -24,6 +24,8 @@ export type SkillCreateStep = "choose" | "write" | "upload" | "import"
 export interface CreatedSkill {
     workflowSlug: string
     name: string
+    workflowId?: string
+    description?: string
 }
 
 const tNow = createT(skillsEditorCatalog)
@@ -102,7 +104,12 @@ export function useSkillCreateFlow({
                 throw new Error(tNow("skills.editor.fieldInvalid", {field}))
             }
             const created = await createSkillWorkflow({projectId, skill: result.data})
-            return {workflowSlug: created.slug, name: result.data.name}
+            return {
+                workflowSlug: created.slug,
+                name: result.data.name,
+                workflowId: created.workflowId,
+                description: result.data.description,
+            }
         },
         [projectId],
     )

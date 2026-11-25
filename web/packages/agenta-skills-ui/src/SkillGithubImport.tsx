@@ -13,6 +13,8 @@ import {SkillCandidateList, type SkillCandidate, type UnavailableSkill} from "./
 export interface ImportedSkill {
     workflowSlug?: string
     name?: string
+    workflowId?: string
+    description?: string
 }
 
 interface Found {
@@ -127,6 +129,8 @@ export function SkillGithubImport({
             const imported = (response?.imported ?? []).map((entry) => ({
                 workflowSlug: entry.workflow_slug ?? undefined,
                 name: entry.name ?? undefined,
+                workflowId: entry.workflow_id ?? undefined,
+                description: entry.description ?? undefined,
             }))
             if (!imported.length) {
                 setError(t("skills.editor.noneImported"))
