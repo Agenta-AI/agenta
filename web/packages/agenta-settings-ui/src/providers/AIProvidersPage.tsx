@@ -106,11 +106,7 @@ const useProjectProvidersSource = (): ProvidersSource => {
     }, [connections, loading, capabilities, deleteSecret, mutate, t])
 }
 
-/**
- * Settings → AI providers: the ChatGPT and Claude cards, the project's connections under the
- * project switch, the organization's, then the catalog to connect from. The owner segment narrows
- * the owner groups and sets the new connection's default Owner (Project or Organization).
- */
+/** Settings → AI providers: plan cards, one Connected list, then the catalog to connect from. */
 export const AIProvidersPage = ({
     renderRemoveDialog,
     subscriptionDocsUrl = SUBSCRIPTION_DOCS_URL,

@@ -1,4 +1,4 @@
-import {createElement, type ReactNode, useCallback, useMemo, useState} from "react"
+import {createElement, Fragment, type ReactNode, useCallback, useMemo, useState} from "react"
 
 import {
     PROVIDER_CATALOG,
@@ -141,11 +141,7 @@ const SUBSCRIPTION_HINT: Record<
     claude: "settings.providers.claudeHint",
 }
 
-/**
- * The AI providers list: the project's ChatGPT and Claude cards, one group per owner with Edit and
- * Delete in each row's menu, then the catalog to connect from. A new connection starts in the
- * project's group and asks for its Owner when the organization may hold it.
- */
+/** The AI providers list: plan cards, every owner's rows in one Connected list, the catalog. */
 export const ProvidersPanel = ({
     groups: ownerGroups,
     projectGroup,
@@ -328,7 +324,11 @@ export const ProvidersPanel = ({
             count: owned.reduce((sum, group) => sum + (group.count ?? 0), 0),
             pendingRows: owned.some((group) => group.pendingRows) ? 1 : 0,
             footer: owned.some((group) => group.footer) ? (
-                <>{owned.map((group) => group.footer)}</>
+                <>
+                    {owned.map((group) => (
+                        <Fragment key={group.key}>{group.footer}</Fragment>
+                    ))}
+                </>
             ) : undefined,
         }
         if (!projectGroup) return [connected]

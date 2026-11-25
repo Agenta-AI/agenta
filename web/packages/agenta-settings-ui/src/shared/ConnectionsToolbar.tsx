@@ -23,10 +23,7 @@ export interface ConnectionsToolbarProps {
     onOwnerChange?: (next: OwnerFilter) => void
 }
 
-/**
- * A connections page's pinned toolbar: search, the Filter menu, and the owner segment (All, then
- * each owner narrow to wide) at the far end, or full width under the search on a phone.
- */
+/** A connections page's pinned toolbar: search, Filter, then the owner segment. */
 export const ConnectionsToolbar = ({
     search,
     onSearchChange,

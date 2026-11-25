@@ -971,8 +971,7 @@ export function IntegrationCatalog({
                     }
                 >
                     {controls ? (
-                        // Settings: one Connected list, narrow owners first; chips name the
-                        // owner when the All tab mixes them.
+                        // Settings: one Connected list, narrow owners first, chips in All.
                         (showsOwner("user") && (yoursGroups.length > 0 || yoursFooter)) ||
                         (showsOwner("project") && connectedGroups.length > 0) ? (
                             <RowGroup
@@ -984,8 +983,11 @@ export function IntegrationCatalog({
                                 }
                                 page={page}
                                 footer={
-                                    controls.owner === "user" && yoursFooter ? (
-                                        <div className="pt-2">{yoursFooter}</div>
+                                    // A failed read shows on every tab; the empty note on Personal.
+                                    showsOwner("user") &&
+                                    (yours?.error ||
+                                        (controls.owner === "user" && yoursFooter)) ? (
+                                        <div className="pt-2">{yours?.error ?? yoursFooter}</div>
                                     ) : null
                                 }
                             >

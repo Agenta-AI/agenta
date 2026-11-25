@@ -383,7 +383,7 @@ export default function McpServersSection({
                 },
                 {
                     value: "attention",
-                    label: getMcpConnectionStatusLabel("not_signed_in"),
+                    label: t("common.needsAttention"),
                     icon: <span aria-hidden className="size-1.5 rounded-round bg-warning" />,
                 },
             ],
