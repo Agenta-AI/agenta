@@ -124,15 +124,22 @@ What it does, and the invariants that keep it safe:
 
 **One API route, `POST /api/license-registrations`** (`worker/registrations.ts`). A
 self-hosted instance asks for a free registration key. The worker checks the body (`email`,
-`instance_id`, `agenta_version`, `web_url`), signs a license key on the
+`instance_id`, `agenta_version`, `web_url`, and the optional `product_updates`, `survey` with
+`role`, `team_size` and `heard_from` as choice labels, and `user_id`), signs a license key on the
 `self_hosted_registered` plan with WebCrypto Ed25519, and emails the key and its activation
-link (`<web_url>/m/settings?tab=license#key=<key>`) through Loops. Then it upserts the Loops
+link (`<web_url>/m/settings?tab=license#key=<key>`) through Loops. Every registrant joins the
+Loops audience, for security notices. Then it upserts the Loops
 contact (`PUT /api/v1/contacts/update`) with `source: "self-hosted registration"`,
 `userGroup: "self-hosted"` and the custom properties `agentaVersion`, `agentaRegisteredAt`,
-`agentaInstanceId` and `agentaPlan`; these properties must exist in Loops first. The instance id is
-stored on the contact, and registration links the instance to the email in PostHog. It adds the
-contact to the mailing list in the plain worker variable `LOOPS_PRODUCT_UPDATES_LIST_ID` when that
-is set. A failed contact update is logged and does not fail the registration, because the key email
+`agentaInstanceId`, `agentaPlan`, `agentaRole`, `agentaTeamSize` and `agentaHeardFrom`; these
+properties must exist in Loops first. It adds the contact to the mailing list in the plain worker
+variable `LOOPS_PRODUCT_UPDATES_LIST_ID` only when `product_updates` is true and the variable is
+set, so campaigns must target that list, not the whole audience. Last, it sends to the
+self-hosted PostHog project (the same public project token as the API fallback key) the
+`instance_registered` event and a `$groupidentify` for the group type `instance` under the instance
+id, and a `$set` of the email on the person `<instance_id>:<user_id>`. It does this whatever the
+instance's own telemetry switch is. A failed contact update or PostHog call is logged and does
+not fail the registration, because the key email
 already went out. It stores nothing itself and answers `202 {}`. It runs before the negotiation `try/catch`, so a failure answers JSON and never falls
 back to an asset. Worker secrets, set with `wrangler secret put` and never committed:
 `LICENSE_SIGNING_KEY` (the private key of the registration key pair, Ed25519, PKCS#8 PEM) and

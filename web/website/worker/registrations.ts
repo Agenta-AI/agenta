@@ -1,7 +1,8 @@
 // POST /api/license-registrations: a self-hosted instance asks for a free
 // registration key. The worker signs a `self_hosted_registered` license key for
 // the email and sends it with the activation link. It stores nothing itself; Loops
-// keeps the contact, marked as a self-hosted registration.
+// keeps the contact, marked as a self-hosted registration, and PostHog links the
+// instance to the email.
 //
 // Worker secrets (set with `wrangler secret put`, never committed):
 //   LICENSE_SIGNING_KEY  Ed25519 private key of the registration key pair, PKCS#8 PEM
@@ -9,7 +10,8 @@
 // Worker variable (`vars` in both wrangler configs, not secret):
 //   LOOPS_TRANSACTIONAL_ID  id of the Loops transactional email that carries the key
 //   LOOPS_PRODUCT_UPDATES_LIST_ID  id of the Loops mailing list for product updates;
-//                                  empty, the contact joins no list
+//                                  a contact joins it only when the person ticked the
+//                                  updates box; empty, no contact joins a list
 
 export const REGISTRATION_PATH = "/api/license-registrations";
 
@@ -24,6 +26,13 @@ export const REGISTRATION_SIGNING_KEY_ID = "registration-1";
 
 const LOOPS_URL = "https://app.loops.so/api/v1/transactional";
 const LOOPS_CONTACT_URL = "https://app.loops.so/api/v1/contacts/update";
+
+// The self-hosted PostHog project ("Agenta OSS"). The token is public: it is the same
+// project key the API falls back to (`PostHogConfig.api_key` in api/oss/src/utils/env.py).
+// us.posthog.com is the app of the US region; us.i.posthog.com takes its events.
+export const POSTHOG_BATCH_URL = "https://us.i.posthog.com/batch/";
+export const POSTHOG_PROJECT_TOKEN =
+  "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7";
 
 /** A Workers rate limit binding. */
 export interface RateLimiter {
@@ -41,7 +50,7 @@ export interface RegistrationEnv {
   REGISTRATION_EMAIL_LIMIT?: RateLimiter;
 }
 
-// The body is four short fields; anything larger is not a registration.
+// The body is a few short fields; anything larger is not a registration.
 const MAX_BODY_BYTES = 2048;
 
 export interface RegistrationEmail {
@@ -59,24 +68,64 @@ export interface ContactRecorder {
   record(registration: Registration, registeredAt: Date): Promise<void>;
 }
 
+/** Links the registered instance to the email in analytics. */
+export interface AnalyticsRecorder {
+  record(registration: Registration, registeredAt: Date): Promise<void>;
+}
+
+/** The setup survey answers: the chosen option labels, never typed text. */
+export interface RegistrationSurvey {
+  role?: string;
+  team_size?: string;
+  heard_from?: string;
+}
+
 export interface Registration {
   email: string;
   instance_id: string;
   agenta_version: string;
   web_url: string;
+  /** The person ticked "Send me security and product updates". */
+  product_updates: boolean;
+  survey: RegistrationSurvey;
+  /** The signed-in admin who registered, as the instance knows them. */
+  user_id: string | null;
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VERSION = /^v\d+\.\d+\.\d+\S*$/;
+// An option label: short, printable, one line.
+const LABEL = /^[^\p{Cc}]{1,64}$/u;
+const SURVEY_FIELDS = ["role", "team_size", "heard_from"] as const;
+
+/** The survey answers, or null when one is not a short label. Missing is empty. */
+function parseSurvey(value: unknown): RegistrationSurvey | null {
+  if (value === undefined || value === null) return {};
+  if (typeof value !== "object" || Array.isArray(value)) return null;
+  const survey: RegistrationSurvey = {};
+  for (const field of SURVEY_FIELDS) {
+    const answer = (value as Record<string, unknown>)[field];
+    if (answer === undefined || answer === null) continue;
+    if (typeof answer !== "string" || !LABEL.test(answer)) return null;
+    survey[field] = answer;
+  }
+  return survey;
+}
 
 /** The registration in the body, or null when a field is missing or wrong. */
 export function parseRegistration(body: unknown): Registration | null {
   if (!body || typeof body !== "object") return null;
-  const { email, instance_id, agenta_version, web_url } = body as Record<
-    string,
-    unknown
-  >;
+  const {
+    email,
+    instance_id,
+    agenta_version,
+    web_url,
+    product_updates,
+    survey,
+    user_id,
+  } = body as Record<string, unknown>;
+  const answers = parseSurvey(survey);
   if (
     typeof email !== "string" ||
     email.length > 254 ||
@@ -87,11 +136,24 @@ export function parseRegistration(body: unknown): Registration | null {
     !VERSION.test(agenta_version) ||
     typeof web_url !== "string" ||
     web_url.length > 512 ||
-    !isHttpUrl(web_url)
+    !isHttpUrl(web_url) ||
+    (product_updates !== undefined && typeof product_updates !== "boolean") ||
+    answers === null ||
+    (user_id !== undefined &&
+      user_id !== null &&
+      (typeof user_id !== "string" || !UUID.test(user_id)))
   ) {
     return null;
   }
-  return { email, instance_id, agenta_version, web_url };
+  return {
+    email,
+    instance_id,
+    agenta_version,
+    web_url,
+    product_updates: product_updates === true,
+    survey: answers,
+    user_id: typeof user_id === "string" ? user_id : null,
+  };
 }
 
 function isHttpUrl(value: string): boolean {
@@ -179,7 +241,8 @@ export function loopsMailSender(
         body: JSON.stringify({
           transactionalId,
           email: email.to,
-          // The person asked for product updates when they registered.
+          // Every registrant gets security notices, so the contact joins the audience.
+          // Campaigns target the product updates list, which only ticked contacts join.
           addToAudience: true,
           dataVariables: {
             licenseKey: email.licenseKey,
@@ -193,8 +256,8 @@ export function loopsMailSender(
 }
 
 // The contact properties must exist in Loops before the first call (Audience page or
-// API settings): agentaVersion, agentaInstanceId and agentaPlan as strings,
-// agentaRegisteredAt as a date.
+// API settings): agentaVersion, agentaInstanceId, agentaPlan, agentaRole,
+// agentaTeamSize and agentaHeardFrom as strings, agentaRegisteredAt as a date.
 export function loopsContactRecorder(
   apiKey: string,
   productUpdatesListId: string | undefined,
@@ -217,12 +280,74 @@ export function loopsContactRecorder(
           // Loops reads `YYYY-MM-DDTHH:mm:ss` without an offset as UTC.
           agentaRegisteredAt: registeredAt.toISOString().slice(0, 19),
           agentaPlan: REGISTERED_PLAN,
-          ...(productUpdatesListId
+          ...surveyProperties(registration.survey),
+          ...(productUpdatesListId && registration.product_updates
             ? { mailingLists: { [productUpdatesListId]: true } }
             : {}),
         }),
       });
       if (!response.ok) throw new Error(`Loops answered ${response.status}`);
+    },
+  };
+}
+
+function surveyProperties(survey: RegistrationSurvey): Record<string, string> {
+  return {
+    ...(survey.role ? { agentaRole: survey.role } : {}),
+    ...(survey.team_size ? { agentaTeamSize: survey.team_size } : {}),
+    ...(survey.heard_from ? { agentaHeardFrom: survey.heard_from } : {}),
+  };
+}
+
+/**
+ * The registration in the self-hosted PostHog project: the `instance_registered` event
+ * and the `instance` group under the instance id, and the email on the registering
+ * admin's person (`<instance_id>:<user_id>`). It runs whatever the instance's own
+ * telemetry setting is, because the person asked to register.
+ */
+export function posthogRecorder(): AnalyticsRecorder {
+  return {
+    async record(registration, registeredAt) {
+      const instanceId = registration.instance_id;
+      const timestamp = registeredAt.toISOString();
+      const batch: Record<string, unknown>[] = [
+        {
+          event: "instance_registered",
+          distinct_id: instanceId,
+          timestamp,
+          properties: {
+            email: registration.email,
+            agenta_version: registration.agenta_version,
+            plan: REGISTERED_PLAN,
+            ...registration.survey,
+            $groups: { instance: instanceId },
+          },
+        },
+        {
+          event: "$groupidentify",
+          distinct_id: instanceId,
+          timestamp,
+          properties: {
+            $group_type: "instance",
+            $group_key: instanceId,
+            $group_set: { registered_email: registration.email },
+          },
+        },
+      ];
+      if (registration.user_id) {
+        batch.push({
+          event: "$set",
+          distinct_id: `${instanceId}:${registration.user_id}`,
+          timestamp,
+          properties: { $set: { email: registration.email } },
+        });
+      }
+      const response = await fetch(POSTHOG_BATCH_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ api_key: POSTHOG_PROJECT_TOKEN, batch }),
+      });
+      if (!response.ok) throw new Error(`PostHog answered ${response.status}`);
     },
   };
 }
@@ -280,10 +405,17 @@ export async function handleRegistration(
   env: RegistrationEnv,
   mailSender?: MailSender,
   contactRecorder?: ContactRecorder,
+  analyticsRecorder: AnalyticsRecorder = posthogRecorder(),
 ): Promise<Response> {
   // A limiter or body read that throws must still answer the JSON error, not a platform page.
   try {
-    return await register(request, env, mailSender, contactRecorder);
+    return await register(
+      request,
+      env,
+      mailSender,
+      contactRecorder,
+      analyticsRecorder,
+    );
   } catch {
     return error(503, "unavailable", "Registration is not available.");
   }
@@ -292,8 +424,9 @@ export async function handleRegistration(
 async function register(
   request: Request,
   env: RegistrationEnv,
-  mailSender?: MailSender,
-  contactRecorder?: ContactRecorder,
+  mailSender: MailSender | undefined,
+  contactRecorder: ContactRecorder | undefined,
+  analyticsRecorder: AnalyticsRecorder,
 ): Promise<Response> {
   if (request.method !== "POST") {
     return new Response(null, { status: 405, headers: { Allow: "POST" } });
@@ -355,7 +488,9 @@ async function register(
     return error(502, "mail_failed", "The email could not be sent.");
   }
 
-  // The key already went out, so a failed contact update must not fail the registration.
+  // The key already went out, so a failed contact or analytics update must not fail
+  // the registration.
+  const registeredAt = new Date();
   const recorder =
     contactRecorder ??
     (env.LOOPS_API_KEY
@@ -366,10 +501,15 @@ async function register(
       : null);
   if (recorder) {
     try {
-      await recorder.record(registration, new Date());
+      await recorder.record(registration, registeredAt);
     } catch (cause) {
       console.error("Loops contact update failed", cause);
     }
+  }
+  try {
+    await analyticsRecorder.record(registration, registeredAt);
+  } catch (cause) {
+    console.error("PostHog registration event failed", cause);
   }
 
   return json(202, {});

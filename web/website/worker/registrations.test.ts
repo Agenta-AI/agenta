@@ -1,6 +1,16 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import worker from "./index";
 import {
+  POSTHOG_BATCH_URL,
+  POSTHOG_PROJECT_TOKEN,
   REGISTRATION_PATH,
   handleRegistration,
   parseRegistration,
@@ -17,6 +27,28 @@ const VALID = {
   agenta_version: "v0.128.11",
   web_url: "https://agenta.example.com/",
 };
+
+const USER_ID = "7c1d2e3f-4a5b-4c6d-8e9f-0a1b2c3d4e5f";
+const SURVEY = {
+  role: "Engineer (AI, SWE, ML)",
+  team_size: "11-50",
+  heard_from: "GitHub",
+};
+const FULL = {
+  ...VALID,
+  product_updates: true,
+  survey: SURVEY,
+  user_id: USER_ID,
+};
+
+// No test reaches the network: PostHog runs on every registration, so `fetch`
+// answers 200 unless a test stubs it.
+beforeEach(() => {
+  vi.stubGlobal("fetch", async () => new Response("{}", { status: 200 }));
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 // A throwaway key pair made for the test run; it signs nothing real.
 let privatePem: string;
@@ -77,8 +109,17 @@ function fromBase64url(text: string): Uint8Array {
 }
 
 describe("parseRegistration", () => {
-  it("accepts a full registration", () => {
-    expect(parseRegistration(VALID)).toEqual(VALID);
+  it("accepts a registration with only the instance fields", () => {
+    expect(parseRegistration(VALID)).toEqual({
+      ...VALID,
+      product_updates: false,
+      survey: {},
+      user_id: null,
+    });
+  });
+
+  it("accepts the updates choice, the survey answers and the user id", () => {
+    expect(parseRegistration(FULL)).toEqual(FULL);
   });
 
   it.each([
@@ -94,6 +135,20 @@ describe("parseRegistration", () => {
       "a web url with a user name",
       { ...VALID, web_url: "https://user:pass@agenta.example.com" },
     ],
+    [
+      "an updates choice that is not a boolean",
+      { ...VALID, product_updates: "yes" },
+    ],
+    ["a survey that is not an object", { ...VALID, survey: "Engineer" }],
+    [
+      "a survey answer that is too long",
+      { ...VALID, survey: { role: "x".repeat(65) } },
+    ],
+    [
+      "a survey answer on two lines",
+      { ...VALID, survey: { role: "Other\nmy text" } },
+    ],
+    ["a user id that is not a UUID", { ...VALID, user_id: "42" }],
   ])("refuses %s", (_, body) => {
     expect(parseRegistration(body)).toBeNull();
   });
@@ -336,7 +391,7 @@ describe("Loops email", () => {
     );
 
     expect(response.status).toBe(202);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     expect(calls[0].url).toBe("https://app.loops.so/api/v1/transactional");
     expect(
       (calls[0].init.headers as Record<string, string>).Authorization,
@@ -345,6 +400,7 @@ describe("Loops email", () => {
     expect(body).toMatchObject({
       transactionalId: "tmpl_unit",
       email: "ada@example.com",
+      addToAudience: true,
     });
     expect(body.dataVariables.licenseKey).toMatch(/^agenta_license_v1\./);
   });
@@ -375,7 +431,7 @@ describe("Loops contact", () => {
     const calls = stubLoops();
 
     const response = await handleRegistration(
-      post(VALID),
+      post(FULL),
       withLimits({
         LICENSE_SIGNING_KEY: privatePem,
         ...LOOPS_ENV,
@@ -387,6 +443,7 @@ describe("Loops contact", () => {
     expect(calls.map((call) => call.url)).toEqual([
       "https://app.loops.so/api/v1/transactional",
       "https://app.loops.so/api/v1/contacts/update",
+      POSTHOG_BATCH_URL,
     ]);
     const contact = calls[1];
     expect(contact.init.method).toBe("PUT");
@@ -404,15 +461,36 @@ describe("Loops contact", () => {
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/,
       ),
       agentaPlan: "self_hosted_registered",
+      agentaRole: "Engineer (AI, SWE, ML)",
+      agentaTeamSize: "11-50",
+      agentaHeardFrom: "GitHub",
       mailingLists: { list_unit: true },
     });
+  });
+
+  it("adds no mailing list when the person did not tick product updates", async () => {
+    const calls = stubLoops();
+
+    const response = await handleRegistration(
+      post({ ...FULL, product_updates: false }),
+      withLimits({
+        LICENSE_SIGNING_KEY: privatePem,
+        ...LOOPS_ENV,
+        LOOPS_PRODUCT_UPDATES_LIST_ID: "list_unit",
+      }),
+    );
+
+    expect(response.status).toBe(202);
+    const body = JSON.parse(calls[1].init.body as string);
+    expect(body).not.toHaveProperty("mailingLists");
+    expect(body.agentaRole).toBe("Engineer (AI, SWE, ML)");
   });
 
   it("adds no mailing list when the list id is empty", async () => {
     const calls = stubLoops();
 
     await handleRegistration(
-      post(VALID),
+      post(FULL),
       withLimits({
         LICENSE_SIGNING_KEY: privatePem,
         ...LOOPS_ENV,
@@ -480,6 +558,122 @@ describe("Loops contact", () => {
 
     expect(response.status).toBe(502);
     expect(recorded).toEqual([]);
+  });
+});
+
+describe("PostHog", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function stubPostHog(status = 200) {
+    const calls: { url: string; init: RequestInit }[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      return new Response("{}", { status });
+    });
+    return calls;
+  }
+
+  it("links the instance and the registering admin to the email", async () => {
+    const calls = stubPostHog();
+    const { sender } = fakeSender();
+
+    const response = await handleRegistration(
+      post(FULL),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem }),
+      sender,
+    );
+
+    expect(response.status).toBe(202);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe(POSTHOG_BATCH_URL);
+    const body = JSON.parse(calls[0].init.body as string);
+    expect(body.api_key).toBe(POSTHOG_PROJECT_TOKEN);
+    const timestamp = expect.any(String);
+    expect(body.batch).toEqual([
+      {
+        event: "instance_registered",
+        distinct_id: VALID.instance_id,
+        timestamp,
+        properties: {
+          email: "ada@example.com",
+          agenta_version: "v0.128.11",
+          plan: "self_hosted_registered",
+          role: "Engineer (AI, SWE, ML)",
+          team_size: "11-50",
+          heard_from: "GitHub",
+          $groups: { instance: VALID.instance_id },
+        },
+      },
+      {
+        event: "$groupidentify",
+        distinct_id: VALID.instance_id,
+        timestamp,
+        properties: {
+          $group_type: "instance",
+          $group_key: VALID.instance_id,
+          $group_set: { registered_email: "ada@example.com" },
+        },
+      },
+      {
+        event: "$set",
+        distinct_id: `${VALID.instance_id}:${USER_ID}`,
+        timestamp,
+        properties: { $set: { email: "ada@example.com" } },
+      },
+    ]);
+  });
+
+  it("sends no person update without a user id", async () => {
+    const calls = stubPostHog();
+    const { sender } = fakeSender();
+
+    await handleRegistration(
+      post(VALID),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem }),
+      sender,
+    );
+
+    const body = JSON.parse(calls[0].init.body as string);
+    expect(body.batch.map((event: { event: string }) => event.event)).toEqual([
+      "instance_registered",
+      "$groupidentify",
+    ]);
+  });
+
+  it("still answers 202 when PostHog fails", async () => {
+    stubPostHog(500);
+    const { sender, sent } = fakeSender();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await handleRegistration(
+      post(FULL),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem }),
+      sender,
+    );
+
+    expect(response.status).toBe(202);
+    expect(sent).toHaveLength(1);
+    expect(logged).toHaveBeenCalledOnce();
+  });
+
+  it("sends nothing to PostHog when the key email fails", async () => {
+    const calls = stubPostHog();
+    const sender: MailSender = {
+      async send() {
+        throw new Error("down");
+      },
+    };
+
+    const response = await handleRegistration(
+      post(FULL),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem }),
+      sender,
+    );
+
+    expect(response.status).toBe(502);
+    expect(calls).toEqual([]);
   });
 });
 
