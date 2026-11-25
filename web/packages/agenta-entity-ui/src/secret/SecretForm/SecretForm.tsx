@@ -9,8 +9,11 @@
  * the antd ConfigProvider token scope, so antd controls fall back to their default LIGHT
  * palette and render as white boxes in dark mode. The shared set reads `--ag-*` off <html>.
  */
+import {useState} from "react"
+
 import {CustomSecretFormat} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
 import {TypeChip} from "@agenta/ui/type-chip"
 import {
@@ -113,7 +116,8 @@ const HintText = ({children}: {children: React.ReactNode}) => (
 )
 
 export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFormProps) {
-    const t = useT(secretFormCatalog)
+    const t = useT(secretFormCatalog, commonCatalog)
+    const [slugOpen, setSlugOpen] = useState(false)
     const popupStyle = popupZIndex != null ? {zIndex: popupZIndex} : undefined
     const {
         isEditing,
@@ -154,7 +158,27 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
     return (
         <div className="flex flex-col gap-4 ph-no-capture">
             <div className="flex flex-col gap-1">
-                <FieldLabel>{t("entityUi.secretForm.name")}</FieldLabel>
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                    <FieldLabel>{t("entityUi.secretForm.name")}</FieldLabel>
+                    {/* The slug follows the name, so it shows here and opens only on Edit. */}
+                    {slug && !slugOpen ? (
+                        <span className="flex min-w-0 items-center gap-1.5 text-meta text-muted-foreground">
+                            <span className="truncate font-mono" title={slug}>
+                                {slug}
+                            </span>
+                            {isEditing ? null : (
+                                <Button
+                                    variant="link"
+                                    size="sm"
+                                    className="h-auto shrink-0 p-0 text-meta"
+                                    onClick={() => setSlugOpen(true)}
+                                >
+                                    {t("common.edit")}
+                                </Button>
+                            )}
+                        </span>
+                    ) : null}
+                </div>
                 <Input
                     placeholder={t("entityUi.secretForm.namePlaceholder")}
                     value={name}
@@ -162,21 +186,23 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                 />
             </div>
 
-            <div className="flex flex-col gap-1">
-                <FieldLabel>{t("entityUi.secretForm.slug")}</FieldLabel>
-                <Input
-                    className="font-mono"
-                    placeholder="github-token"
-                    value={slug}
-                    disabled={isEditing}
-                    onChange={(e) => onChangeSlug(e.target.value)}
-                />
-                <HintText>
-                    {isEditing
-                        ? t("entityUi.secretForm.slugImmutable")
-                        : t("entityUi.secretForm.slugHint")}
-                </HintText>
-            </div>
+            {slugOpen ? (
+                <div className="flex flex-col gap-1">
+                    <FieldLabel>{t("entityUi.secretForm.slug")}</FieldLabel>
+                    <Input
+                        className="font-mono"
+                        placeholder="github-token"
+                        value={slug}
+                        disabled={isEditing}
+                        onChange={(e) => onChangeSlug(e.target.value)}
+                    />
+                    <HintText>
+                        {isEditing
+                            ? t("entityUi.secretForm.slugImmutable")
+                            : t("entityUi.secretForm.slugHint")}
+                    </HintText>
+                </div>
+            ) : null}
 
             {textOnly ? null : (
                 <div className="flex flex-col gap-1">
