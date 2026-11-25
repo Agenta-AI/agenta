@@ -1291,6 +1291,10 @@ failureThreshold: 3
   value: "helm"
 - name: AGENTA_TELEMETRY_ENABLED
   value: {{ ternary "true" "false" (ne $telemetry.enabled false) | quote }}
+{{- with $telemetry.instanceKind }}
+- name: AGENTA_TELEMETRY_INSTANCE_KIND
+  value: {{ . | quote }}
+{{- end }}
 - name: AGENTA_UPDATE_CHECK_ENABLED
   value: {{ ternary "true" "false" (ne $releases.updateCheckEnabled false) | quote }}
 - name: SENDGRID_FROM_ADDRESS

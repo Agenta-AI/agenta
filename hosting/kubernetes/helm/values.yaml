@@ -185,6 +185,9 @@ posthog:
 # ================================================================== #
 telemetry:
   enabled: true
+  # production, development, ci or test. Empty lets the API detect it.
+  # Set test on an instance that only runs tests, so its events can be left out.
+  instanceKind: ""
 
 # ================================================================== #
 # releases: the update check that reads Agenta's public release list.

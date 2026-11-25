@@ -187,6 +187,7 @@ async def test_switch_off_sends_only_the_install_ping(
                 "$geoip_disable": True,
                 "$ip": "",
                 "$process_person_profile": False,
+                "instance_kind": "test",
             },
             "uuid": uuid5(INSTANCE_ID, "instance_installed"),
         }
@@ -240,6 +241,7 @@ async def test_install_ping_on_the_wire_has_only_its_properties(
         "$geoip_disable": True,
         "$ip": "",
         "$process_person_profile": False,
+        "instance_kind": "test",
     }
     assert install_row.committed
 
