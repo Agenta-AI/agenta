@@ -34,9 +34,14 @@ import {
   notFoundMarkdown,
   type Representation,
 } from "./negotiate";
+import {
+  REGISTRATION_PATH,
+  handleRegistration,
+  type RegistrationEnv,
+} from "./registrations";
 
 // The entire Workers runtime surface this script uses.
-interface Env {
+interface Env extends RegistrationEnv {
   ASSETS: { fetch(request: Request): Promise<Response> };
   MEDIA: {
     head(key: string): Promise<{ size: number } | null>;
@@ -68,6 +73,17 @@ const JSON_TYPE = "application/json; charset=utf-8";
 
 export default {
   async fetch(request: Request, env: Env, ctx?: Context): Promise<Response> {
+    // An API route, not a page: it answers for itself and never falls back to assets.
+    if (new URL(request.url).pathname === REGISTRATION_PATH) {
+      return handleRegistration(
+        request,
+        env,
+        undefined,
+        undefined,
+        undefined,
+        ctx ? (promise) => ctx.waitUntil(promise) : undefined,
+      );
+    }
     try {
       if (new URL(request.url).pathname === "/releases.json") {
         return await serveReleases(request, env, ctx);
