@@ -44,8 +44,7 @@ export function ConnectionRowMenu({
                         size="icon-sm"
                         variant="ghost"
                         aria-label={t("entityUi.integrationDrawer.connectionActions")}
-                        // Shown on row hover where there is hover; always on touch. The row already
-                        // hovers to accent; the translucent accent stacks on it.
+                        // Shown on row hover, always on touch.
                         className={`hover:bg-accent focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[state=open]:opacity-100 [@media(hover:hover)]:opacity-0`}
                     >
                         <DotsThreeVertical aria-hidden weight="bold" />

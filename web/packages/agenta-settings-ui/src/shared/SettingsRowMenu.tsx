@@ -32,10 +32,7 @@ export interface SettingsRowAction {
 
 export type SettingsRowMenuItem = SettingsRowAction | {type: "divider"}
 
-/**
- * Hidden items are dropped, a destructive item gets a divider before it (ACT-03: last, after a
- * separator), and a divider survives only with a real item on both sides.
- */
+/** Drops hidden items, puts a divider before a destructive one (ACT-03), trims stray dividers. */
 const visibleItems = (items: SettingsRowMenuItem[]): SettingsRowMenuItem[] => {
     const kept = items.filter((item) => "type" in item || !item.hidden)
     const shown = kept.flatMap<SettingsRowMenuItem>((item, index) =>

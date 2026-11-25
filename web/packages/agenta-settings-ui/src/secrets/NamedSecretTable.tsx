@@ -130,11 +130,7 @@ const useUsedBy = (rows: SecretRow[]): Map<string, string[]> | null => {
     }, [key, query.data])
 }
 
-/**
- * Settings → Secrets. With personal accounts on, the person's own secrets ("Personal", each with
- * the agents that use it) come first, then the project's under the project switch. The Owner
- * filter narrows to one group.
- */
+/** Settings → Secrets: the person's own secrets first, then the project's; Owner narrows. */
 export const NamedSecretTable = ({
     renderConfigureDialog,
     renderDeleteDialog,

@@ -58,10 +58,7 @@ export interface OwnerFieldProps<Owner extends OwnerKind> {
     organizationName?: string
 }
 
-/**
- * The Owner field of an add form: a segment of the allowed owners, each with its word and the
- * sentence that says who can use what is added. Every connections page asks it the same way.
- */
+/** The add form's Owner segment: each owner with the sentence saying who can use it. */
 export function OwnerField<Owner extends OwnerKind>({
     value,
     owners,

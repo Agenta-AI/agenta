@@ -51,8 +51,7 @@ const SubscriptionSignInViewBody = ({params, nav}: ViewProps<SubscriptionViewPar
         if (draft.changed) void draft.apply()
     }, [draft.projects])
 
-    // A Connect click starts the sign-in on open; an Edit or a ready connection waits. Once per
-    // mount; the timer keeps React's double development mount from starting two sign-ins.
+    // Only a Connect click starts the sign-in; the timer stops a dev double mount starting two.
     const readyOnOpen = useRef(isReady)
     const startOnOpen = useRef(Boolean(params.start))
     useEffect(() => {
