@@ -133,7 +133,7 @@ Event name: `instance_heartbeat`. An hourly job asks the API for it, and the API
 | `total_evaluators` | Of these, evaluators |
 | `total_snippets` | Of these, snippets |
 | `total_api_keys` | API keys that are not deleted |
-| `users_by_role` | Organization members by role, such as `{"owner": 1, "editor": 4}` |
+| `users_by_role` | Organization members by role, such as `{"owner": 1, "editor": 4}`. Role names that are not a plain word count under `custom`. |
 | `window_start` | The start of the window: the last heartbeat, or the install date |
 | `window_end` | The end of the window |
 | `window_spans` | Spans that started in the window |
@@ -202,7 +202,7 @@ Each of these events has these properties:
 | `workspace_id` | The workspace id, when the route has one |
 | `organization_id` | The organization id, when the route has one |
 | `$groups` | The instance, as a PostHog group of type `instance` |
-| `$set` | Sets `role` on the user: `owner`, `admin`, `editor`, `viewer` or another role the user has in the project of the event |
+| `$set` | Sets `role` on the user: `owner`, `admin`, `editor`, `viewer` or another role the user has in the project of the event. A role name that is not a plain word is sent as `custom`. |
 
 The PostHog library also adds its own name and version, the Python version and the operating system.
 

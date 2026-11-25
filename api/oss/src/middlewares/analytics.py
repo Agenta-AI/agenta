@@ -33,7 +33,7 @@ _APIKEY_TOKEN_PREFIX = "ApiKey "
 _SECRET_TOKEN_PREFIX = "Secret "
 
 # The first product token of a User-Agent, such as `python-httpx/0.28.1`.
-_USER_AGENT_PRODUCT = re.compile(r"^([A-Za-z][\w.\-]{0,63})/([\w.\-+]{1,32})")
+_USER_AGENT_PRODUCT = re.compile(r"^([A-Za-z][\w.\-]{0,63})/([\w.\-+]{1,32})(?:\s|$)")
 # The caller sets these headers, so only a plain product name and version pass; text
 # such as an email address is dropped.
 _SDK_NAME = re.compile(r"[A-Za-z][\w.\-]{0,63}")

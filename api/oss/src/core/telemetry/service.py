@@ -49,7 +49,7 @@ _LIBRARY_PROPERTIES = (
 
 async def active_license() -> Optional[Any]:
     """The EE license key in force, or None on OSS and on an EE image without the
-    license module. Cached by the license service, so it reads no database row."""
+    license module. The license service caches it, so most calls read no database row."""
 
     if not is_ee():
         return None

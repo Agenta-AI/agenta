@@ -411,6 +411,7 @@ async def test_role_comes_from_the_cached_membership(monkeypatch, membership, ex
         ({"user-agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/131.0"}, {}),
         ({"user-agent": "curl"}, {}),
         ({"user-agent": "person@example.com/1.0"}, {}),
+        ({"user-agent": "tool/alice.smith+x@corp.com"}, {}),
         ({"x-fern-sdk-name": "person@example.com", "x-fern-sdk-version": "1"}, {}),
         (
             {

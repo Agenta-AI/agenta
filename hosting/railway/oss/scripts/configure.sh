@@ -455,7 +455,8 @@ main() {
 
     set_optional_vars api \
         "COMPOSIO_API_KEY=${COMPOSIO_API_KEY:-}" \
-        "AGENTA_STORE_NAMESPACE=${AGENTA_STORE_NAMESPACE:-}"
+        "AGENTA_STORE_NAMESPACE=${AGENTA_STORE_NAMESPACE:-}" \
+        "AGENTA_TELEMETRY_INSTANCE_KIND=${AGENTA_TELEMETRY_INSTANCE_KIND:-}"
 
     # The bundled store's entrypoint reads these to generate s3.json + iam.json. JWT_ISSUER is
     # the API URL its OIDC IAM fetches the JWKS from (it does NOT hold the private key).
