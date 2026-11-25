@@ -129,10 +129,14 @@ export const SubscriptionSignInCard = ({
                                     })}
                                 </span>
                             ) : null}
-                            <span className="flex-1" />
-                            <Button variant="outline" size="sm" onClick={onCancel}>
-                                {t("entityUi.subscriptionSignIn.cancel")}
-                            </Button>
+                            {actionsPlacement === "footer" ? null : (
+                                <>
+                                    <span className="flex-1" />
+                                    <Button variant="outline" size="sm" onClick={onCancel}>
+                                        {t("entityUi.subscriptionSignIn.cancel")}
+                                    </Button>
+                                </>
+                            )}
                         </div>
                         {copied ? (
                             <div
@@ -193,14 +197,16 @@ export const SubscriptionSignInCard = ({
                 ) : null}
             </section>
             {footer}
-            {actionsPlacement === "footer" && phase === "idle" ? (
+            {actionsPlacement === "footer" && (phase === "idle" || waiting) ? (
                 <div className="flex items-center justify-end gap-2">
                     <Button variant="outline" onClick={onCancel}>
-                        {t("common.cancel")}
+                        {waiting ? t("entityUi.subscriptionSignIn.cancel") : t("common.cancel")}
                     </Button>
-                    <Button onClick={onConnect}>
-                        {t("entityUi.subscriptionSignIn.connectName", {name})}
-                    </Button>
+                    {waiting ? null : (
+                        <Button onClick={onConnect}>
+                            {t("entityUi.subscriptionSignIn.connectName", {name})}
+                        </Button>
+                    )}
                 </div>
             ) : null}
         </div>
