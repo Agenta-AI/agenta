@@ -20,6 +20,7 @@ import {capture, captureIntent} from "@/features/analytics/client"
 import {newId} from "@/lib/ids"
 
 import {useNewAgentAction} from "../agents/useNewAgentAction"
+import {dismissRegistrationPrompt, type RegistrationSurvey} from "../settings/licenseApi"
 import {useInstanceLicense} from "../settings/useInstanceLicense"
 
 import {connectedApps} from "./onboardingApps"
@@ -34,7 +35,13 @@ import {
 import {OnboardingFlow} from "./OnboardingFlow"
 import {endOnboarding, isOnboardingInvited, isOnboardingPending} from "./onboardingPending"
 import {personProperties, signupSurveyProperties} from "./onboardingQuestions"
-import {isFixedStep, onboardingSteps, stepIndex, type OnboardingStep} from "./onboardingRoute"
+import {
+    isFixedStep,
+    onboardingSteps,
+    REGISTRATION_HEADING_ID,
+    stepIndex,
+    type OnboardingStep,
+} from "./onboardingRoute"
 import {RegistrationOffer} from "./RegistrationOffer"
 import {
     isLargeCompany,
@@ -42,6 +49,7 @@ import {
     markRegistrationOfferSeen,
     shouldOfferRegistration,
 } from "./registrationOfferRules"
+import {registrationSurvey} from "./registrationSurvey"
 import {useOnboardingModel} from "./useOnboardingModel"
 import {useSeedToolConnections} from "./useSeedToolConnections"
 
@@ -107,7 +115,10 @@ export const OnboardingFlowHost = ({
     const draftKey = onboardingDraftKey(userId ?? "anonymous")
     const license = useInstanceLicense(projectId)
     // Set when the survey ends; the offer opens once the license answer allows it, even late.
-    const [survey, setSurvey] = useState<{largeCompany: boolean} | null>(null)
+    const [survey, setSurvey] = useState<{
+        largeCompany: boolean
+        answers: RegistrationSurvey
+    } | null>(null)
     const [offerClosed, setOfferClosed] = useState(false)
     const offerOpen =
         survey !== null &&
@@ -118,8 +129,11 @@ export const OnboardingFlowHost = ({
             hasKey: Boolean(license.data?.license),
         })
     useEffect(() => {
-        if (offerOpen && userId) markRegistrationOfferSeen(userId)
-    }, [offerOpen, userId])
+        if (!offerOpen || !userId) return
+        markRegistrationOfferSeen(userId)
+        // Shown here, so the prompt after an upgrade never asks again, in any browser.
+        void dismissRegistrationPrompt(projectId).catch(() => undefined)
+    }, [offerOpen, userId, projectId])
     const track = (event: string, properties?: Record<string, unknown>) => {
         if (!preview) capture(event, properties)
     }
@@ -149,9 +163,16 @@ export const OnboardingFlowHost = ({
             $set: personProperties(draft.answers),
         })
         if (step === steps.findLast((shown) => !isFixedStep(shown))) {
-            track("survey sent", signupSurveyProperties(draft.answers, userEmail))
+            // Self-hosted telemetry is anonymous: the survey event never carries the email.
+            track(
+                "survey sent",
+                signupSurveyProperties(draft.answers, isBillingEnabled() ? userEmail : null),
+            )
             if (!preview && !invited && !(userId && isRegistrationOfferSeen(userId))) {
-                setSurvey({largeCompany: isLargeCompany(draft.answers)})
+                setSurvey({
+                    largeCompany: isLargeCompany(draft.answers),
+                    answers: registrationSurvey(draft.answers),
+                })
             }
         }
     }
@@ -224,30 +245,36 @@ export const OnboardingFlowHost = ({
         void router.replace(homeUrl)
     }
 
+    const closeOffer = () => setOfferClosed(true)
+
     return (
-        <>
-            <OnboardingFlow
-                onboardingPath={`${base}/onboarding`}
-                draftKey={draftKey}
-                steps={steps}
-                catalog={catalog}
-                model={model}
-                connectedApps={apps}
-                creating={newAgent.creating}
-                error={newAgent.error}
-                attachments={attachments}
-                onStepCompleted={onStepCompleted}
-                onQuestionsDone={invited ? onQuestionsDone : undefined}
-                onCreate={onCreate}
-                onSkip={onSkip}
-            />
-            <RegistrationOffer
-                open={offerOpen}
-                projectId={projectId}
-                email={userEmail}
-                largeCompany={survey?.largeCompany ?? false}
-                onClose={() => setOfferClosed(true)}
-            />
-        </>
+        <OnboardingFlow
+            onboardingPath={`${base}/onboarding`}
+            draftKey={draftKey}
+            steps={steps}
+            catalog={catalog}
+            model={model}
+            connectedApps={apps}
+            creating={newAgent.creating}
+            error={newAgent.error}
+            attachments={attachments}
+            onStepCompleted={onStepCompleted}
+            onQuestionsDone={invited ? onQuestionsDone : undefined}
+            onCreate={onCreate}
+            onSkip={onSkip}
+            interstitial={
+                offerOpen ? (
+                    <RegistrationOffer
+                        projectId={projectId}
+                        email={userEmail}
+                        survey={survey?.answers}
+                        largeCompany={survey?.largeCompany ?? false}
+                        headingId={REGISTRATION_HEADING_ID}
+                        onSkip={closeOffer}
+                        onDone={closeOffer}
+                    />
+                ) : undefined
+            }
+        />
     )
 }

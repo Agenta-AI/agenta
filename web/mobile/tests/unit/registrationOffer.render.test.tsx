@@ -20,7 +20,12 @@ vi.mock("../../src/features/settings/licenseApi", async (importOriginal) => ({
 }))
 
 import {RegistrationOffer} from "@/features/onboarding/RegistrationOffer"
-import {isLargeCompany, shouldOfferRegistration} from "@/features/onboarding/registrationOfferRules"
+import {
+    isLargeCompany,
+    shouldOfferRegistration,
+    shouldPromptRegistration,
+} from "@/features/onboarding/registrationOfferRules"
+import {registrationSurvey} from "@/features/onboarding/registrationSurvey"
 
 import {WithQueryClient} from "../support/queryClient"
 
@@ -38,6 +43,34 @@ describe("registration offer rules", () => {
         expect(shouldOfferRegistration({...base, selfHosted: false})).toBe(false)
         expect(shouldOfferRegistration({...base, isInstanceAdmin: false})).toBe(false)
         expect(shouldOfferRegistration({...base, hasKey: true})).toBe(false)
+    })
+
+    it("prompts after an upgrade only until skipped, and never during onboarding", () => {
+        const base = {
+            selfHosted: true,
+            isInstanceAdmin: true,
+            hasKey: false,
+            dismissed: false,
+            onboardingPending: false,
+        }
+        expect(shouldPromptRegistration(base)).toBe(true)
+        expect(shouldPromptRegistration({...base, dismissed: true})).toBe(false)
+        expect(shouldPromptRegistration({...base, onboardingPending: true})).toBe(false)
+        expect(shouldPromptRegistration({...base, hasKey: true})).toBe(false)
+        expect(shouldPromptRegistration({...base, isInstanceAdmin: false})).toBe(false)
+        expect(shouldPromptRegistration({...base, selfHosted: false})).toBe(false)
+    })
+
+    it("sends the chosen labels only, never the typed Other line", () => {
+        expect(
+            registrationSurvey({
+                persona: "Other: Chief tinkerer",
+                size: "11-50",
+                source: "Other: a podcast",
+            }),
+        ).toEqual({role: "Other", team_size: "11-50", heard_from: "Other"})
+        expect(registrationSurvey({size: "Solo", unknown: "x"})).toEqual({team_size: "Solo"})
+        expect(registrationSurvey({persona: "Not a choice"})).toEqual({})
     })
 })
 
@@ -57,83 +90,114 @@ describe("RegistrationOffer", () => {
         host.remove()
     })
 
-    const mount = async (largeCompany: boolean, onClose = vi.fn()) => {
+    const SURVEY = {role: "Marketing", team_size: "11-50", heard_from: "GitHub"}
+
+    const mount = async ({
+        largeCompany = false,
+        survey = SURVEY as typeof SURVEY | undefined,
+    } = {}) => {
+        const onSkip = vi.fn()
+        const onDone = vi.fn()
         await act(async () => {
             root.render(
                 <WithQueryClient>
                     <RegistrationOffer
-                        open
                         projectId="proj-1"
                         email="ada@example.com"
+                        survey={survey}
                         largeCompany={largeCompany}
-                        onClose={onClose}
+                        onSkip={onSkip}
+                        onDone={onDone}
                     />
                 </WithQueryClient>,
             )
         })
-        return onClose
+        return {onSkip, onDone}
     }
     const button = (label: string) =>
         Array.from(document.querySelectorAll("button")).find(
             (node) => node.textContent?.trim() === label,
         )
+    const text = () => document.body.textContent ?? ""
 
-    it("fills in the email and leaves out the Enterprise line for a small team", async () => {
-        await mount(false)
+    it("names the gain, fills in the email, and leaves out the Enterprise line for a small team", async () => {
+        await mount()
 
+        expect(document.querySelector("h1")?.textContent).toBe("Register this instance for free")
+        expect(text()).toContain(
+            "Unlimited projects. Without a key, each organization has 1 project.",
+        )
+        expect(text()).toContain("New free features.")
+        expect(text()).toContain("Security notices.")
         expect(document.querySelector<HTMLInputElement>("input[type=email]")?.value).toBe(
             "ada@example.com",
         )
-        expect(document.body.textContent).not.toContain("Talk to us about Enterprise")
+        expect(text()).toContain("You keep what your key unlocks.")
+        expect(text()).not.toContain("Talk to us about Enterprise")
+    })
+
+    it("says the setup answers go with the email", async () => {
+        await mount()
+
+        expect(text()).toContain(
+            "We save your setup answers (role, team size, how you found Agenta) with your email, so our updates fit your setup.",
+        )
     })
 
     it("shows the Enterprise line for a larger company", async () => {
-        await mount(true)
+        await mount({largeCompany: true})
 
-        expect(document.body.textContent).toContain("Talk to us about Enterprise")
+        expect(text()).toContain("Talk to us about Enterprise")
     })
 
-    it("closes on Skip", async () => {
-        const onClose = await mount(false)
+    it("skips on Skip", async () => {
+        const {onSkip} = await mount()
 
         act(() => button("Skip")!.click())
 
-        expect(onClose).toHaveBeenCalledOnce()
+        expect(onSkip).toHaveBeenCalledOnce()
         expect(fixture.register).not.toHaveBeenCalled()
     })
 
-    it("leaves the consent box clear, and sends nothing until the user checks it", async () => {
-        await mount(false)
+    it("ticks the updates box to start, and registers with the answers", async () => {
+        const {onDone} = await mount()
 
-        const consent = document.querySelector<HTMLElement>("[role=checkbox]")!
-        expect(consent.getAttribute("aria-checked")).toBe("false")
-        expect(button("Send me a key")!.hasAttribute("disabled")).toBe(true)
-
+        const updates = document.querySelector<HTMLElement>("[role=checkbox]")!
+        expect(updates.getAttribute("aria-checked")).toBe("true")
         await act(async () => {
-            button("Send me a key")!.click()
+            button("Send me a free key")!.click()
         })
-        expect(fixture.register).not.toHaveBeenCalled()
+
+        expect(fixture.register).toHaveBeenCalledWith("proj-1", {
+            email: "ada@example.com",
+            productUpdates: true,
+            survey: SURVEY,
+        })
+        expect(text()).toContain("We sent a key to ada@example.com.")
+        act(() => button("Continue")!.click())
+        expect(onDone).toHaveBeenCalledOnce()
     })
 
-    it("registers with the email and consent to product updates", async () => {
-        await mount(false)
+    it("still registers when the updates box is cleared", async () => {
+        await mount()
 
         act(() => document.querySelector<HTMLElement>("[role=checkbox]")!.click())
         await act(async () => {
-            button("Send me a key")!.click()
+            button("Send me a free key")!.click()
         })
 
-        expect(fixture.register).toHaveBeenCalledWith("proj-1", "ada@example.com", true)
-        expect(document.body.textContent).toContain("We sent a key to ada@example.com.")
+        expect(fixture.register).toHaveBeenCalledWith(
+            "proj-1",
+            expect.objectContaining({productUpdates: false}),
+        )
     })
 
     it("says the email is not valid when the API refuses it, with no retry prompt", async () => {
         fixture.register.mockReset().mockRejectedValue({response: {status: 422}})
-        await mount(false)
+        await mount()
 
-        act(() => document.querySelector<HTMLElement>("[role=checkbox]")!.click())
         await act(async () => {
-            button("Send me a key")!.click()
+            button("Send me a free key")!.click()
         })
 
         await vi.waitFor(() =>
@@ -144,6 +208,6 @@ describe("RegistrationOffer", () => {
         expect(document.querySelector("input[type=email]")?.getAttribute("aria-invalid")).toBe(
             "true",
         )
-        expect(document.body.textContent).not.toContain("Try again")
+        expect(text()).not.toContain("Try again")
     })
 })

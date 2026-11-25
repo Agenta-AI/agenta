@@ -9,6 +9,7 @@ import {
     createInstanceRegistration,
     isRegistrationRefused,
     isRegistrationUnreachable,
+    type RegistrationSurvey,
 } from "./licenseApi"
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -17,20 +18,25 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 export const RegistrationForm = ({
     projectId,
     defaultEmail,
+    survey,
     secondary,
     onRegistered,
 }: {
     projectId: string
     defaultEmail?: string
+    /** The setup answers; sent with the registration, and said so under the button. */
+    survey?: RegistrationSurvey
     /** A quieter step beside the submit button, such as Skip. */
     secondary?: ReactNode
     onRegistered?: () => void
 }) => {
     const t = useT(settingsLicenseCatalog)
     const [email, setEmail] = useState(defaultEmail ?? "")
-    const [productUpdates, setProductUpdates] = useState(false)
+    // Optional and ticked to start: the key never depends on it.
+    const [productUpdates, setProductUpdates] = useState(true)
     const register = useMutation({
-        mutationFn: (value: string) => createInstanceRegistration(projectId, value, productUpdates),
+        mutationFn: (value: string) =>
+            createInstanceRegistration(projectId, {email: value, productUpdates, survey}),
         onSuccess: () => onRegistered?.(),
     })
     const trimmed = email.trim()
@@ -50,7 +56,7 @@ export const RegistrationForm = ({
             className="flex flex-col gap-3"
             onSubmit={(event) => {
                 event.preventDefault()
-                if (valid && productUpdates) register.mutate(trimmed)
+                if (valid) register.mutate(trimmed)
             }}
         >
             <label className="flex flex-col gap-1.5">
@@ -89,13 +95,18 @@ export const RegistrationForm = ({
                 </p>
             ) : null}
             <div className="flex items-center gap-2">
-                <Button type="submit" disabled={!valid || !productUpdates || register.isPending}>
+                <Button type="submit" disabled={!valid || register.isPending}>
                     {register.isPending
                         ? t("settings.license.registrationSending")
                         : t("settings.license.registrationSubmit")}
                 </Button>
                 {secondary}
             </div>
+            {survey ? (
+                <p className="text-muted-foreground m-0 text-xs">
+                    {t("settings.license.registrationAnswersNotice")}
+                </p>
+            ) : null}
         </form>
     )
 }

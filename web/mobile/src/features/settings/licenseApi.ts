@@ -10,12 +10,25 @@ export interface InstanceLicenseKey {
     telemetry: "required" | "exempt"
 }
 
+/** A count against its plan limit; a `null` limit is unlimited. */
+export interface LicenseLimitUsage {
+    count: number
+    limit: number | null
+}
+
 /** `GET /instance/license`: the instance plan and its key. Only the instance admin may read it. */
 export interface InstanceLicense {
     plan: string
     source: "environment" | "database" | null
     license: InstanceLicenseKey | null
-    usage: {users: number}
+    /** Projects and organizations come only from an API that counts them against limits. */
+    usage: {
+        users: number
+        projects?: LicenseLimitUsage | null
+        organizations?: LicenseLimitUsage | null
+    }
+    /** The admin skipped the one-time registration prompt on this instance. */
+    registration_prompt_dismissed?: boolean
 }
 
 const status = (error: unknown) =>
@@ -51,16 +64,35 @@ export const isRegistrationUnreachable = (error: unknown) => status(error) === 5
 /** The API refused the request body, which in this form means the email address. */
 export const isRegistrationRefused = (error: unknown) => [400, 422].includes(status(error) ?? 0)
 
+/** The setup survey answers as choice labels, never typed text. */
+export interface RegistrationSurvey {
+    role?: string
+    team_size?: string
+    heard_from?: string
+}
+
 /** `POST /instance/license/registrations`: Agenta emails a free registration key. */
 export const createInstanceRegistration = async (
     projectId: string,
-    email: string,
-    productUpdates: boolean,
+    registration: {email: string; productUpdates: boolean; survey?: RegistrationSurvey},
 ): Promise<{email: string}> => {
     const {data} = await axios.post(
         `${getAgentaApiUrl()}/instance/license/registrations`,
-        {email, product_updates: productUpdates},
+        {
+            email: registration.email,
+            product_updates: registration.productUpdates,
+            ...(registration.survey ? {survey: registration.survey} : {}),
+        },
         {params: {project_id: projectId}},
     )
     return data
+}
+
+/** `POST /instance/license/registration-prompt/dismiss`: the prompt does not come back. */
+export const dismissRegistrationPrompt = async (projectId: string): Promise<void> => {
+    await axios.post(
+        `${getAgentaApiUrl()}/instance/license/registration-prompt/dismiss`,
+        undefined,
+        {params: {project_id: projectId}},
+    )
 }
