@@ -83,7 +83,8 @@ export const CopyButton = memo(function CopyButton({
     ...props
 }: CopyButtonProps) {
     const t = useT(uiChatActionsCatalog, commonCatalog)
-    const buttonText = buttonTextProp ?? t("common.copy")
+    // `null` means icon only, so only `undefined` falls back to the default label.
+    const buttonText = buttonTextProp === undefined ? t("common.copy") : buttonTextProp
     const successMessage = successMessageProp ?? t("ui.chatActions.copiedBang")
     const [copied, setCopied] = useState(false)
 
