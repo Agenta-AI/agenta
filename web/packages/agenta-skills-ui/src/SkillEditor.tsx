@@ -65,6 +65,9 @@ export function SkillEditor({
     const [fileTools, setFileTools] = useState<HTMLDivElement | null>(null)
     const [fileBox, setFileBox] = useState<HTMLDivElement | null>(null)
     const fileHeight = useFillPageHeight(fileBox)
+    const [bodyBox, setBodyBox] = useState<HTMLDivElement | null>(null)
+    // On a page the instructions take the rest of the height; in a drawer they grow with the text.
+    const bodyHeight = useFillPageHeight(inline ? null : bodyBox)
 
     // Latest draft and handler in refs, so the files panel gets stable callbacks and skips keystrokes.
     const latest = useRef(draft)
@@ -225,7 +228,13 @@ export function SkillEditor({
                 error={missingBody ? t("skills.editor.instructionsMissing") : undefined}
                 labelEnd={readOnly ? null : <div ref={setBodyTools} className={TOOLS_SLOT} />}
             >
+                <div
+                    ref={setBodyBox}
+                    style={inline ? undefined : {height: bodyHeight}}
+                    className="flex min-h-0 flex-col"
+                >
                 <SkillMarkdownFrame
+                    fill={!inline}
                     value={draft.body}
                     onChange={(body) => set({body})}
                     placeholder={t("skills.editor.instructionsPlaceholder")}
@@ -234,6 +243,7 @@ export function SkillEditor({
                     invalid={missingBody}
                     toolbar={bodyTools}
                 />
+                </div>
             </Field>
         </div>
     )
