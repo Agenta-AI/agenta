@@ -1,7 +1,7 @@
 /**
- * "Add skills" and "New skill" in the agent: a row click adds or removes the registry reference in
- * the agent configuration; "New skill" opens at depth 2 and a created skill is added to the agent.
- * The Skills section's bin asks first.
+ * "Add skills" and "New skill" in the agent: row clicks stage adds and removes, and Done writes
+ * them to the agent configuration; "New skill" opens at depth 2 and a created skill is added to
+ * the agent. The Skills section header has Manage and "+"; its bin asks first.
  */
 import {act, createElement} from "react"
 
@@ -139,22 +139,33 @@ describe("Add skills", () => {
         await findByText("add refund-check")
     }
 
-    it("a click adds the reference at once, and a click on an added row removes it", async () => {
+    it("clicks stage the adds and removes; Done writes them to the agent", async () => {
         await open()
         expect(byText("added:ticket-triage-8f2a")).toBeTruthy()
         expect(byText("crumb:Add skills")).toBeTruthy()
         await click(byText("add refund-check"))
-        expect(slugs()).toBe("ticket-triage,ticket-labels,refund-check")
         await click(byText("remove ticket-triage"))
+        // Staged only: the list shows the picks, the agent is unchanged until Done.
+        expect(byText("added:refund-check-7c1d")).toBeTruthy()
+        expect(slugs()).toBe("ticket-triage,ticket-labels")
+        await click(byText("Done", "button"))
         expect(slugs()).toBe("ticket-labels,refund-check")
         // The agent-only skill is never touched by the registry list.
         expect((writer.agent.skills as unknown[])[0]).toBe(INLINE)
+    })
+
+    it("Done with no picks closes and changes nothing", async () => {
+        await open()
+        await click(byText("Done", "button"))
+        expect(writer.update).not.toHaveBeenCalled()
+        expect(slugs()).toBe("ticket-triage,ticket-labels")
     })
 
     it("does not add the same registry skill twice", async () => {
         writer.agent = {skills: [embed("refund-check-7c1d", "refund-check")]}
         await open()
         await click(byText("add refund-check"))
+        await click(byText("Done", "button"))
         expect(slugs()).toBe("refund-check")
     })
 
@@ -176,6 +187,7 @@ describe("Skills section remove", () => {
             sectionIndicator: () => undefined,
             skills: [TRIAGE, INLINE],
             handleAddSkill: () => undefined,
+            handleNewSkill: () => undefined,
             openSkillItem: () => undefined,
             removeItem: removeItem as never,
             closeEditor: () => undefined,
@@ -192,12 +204,36 @@ describe("Skills section remove", () => {
             sectionIndicator: () => undefined,
             skills: [],
             handleAddSkill: () => undefined,
+            handleNewSkill: () => undefined,
             openSkillItem: () => undefined,
             removeItem: () => undefined,
             closeEditor: () => undefined,
             skillStatusFor: () => undefined,
         })
         expect(section && section.summary).toBe("None")
+    })
+    it("the header's Manage opens the registry list and + opens the create chooser", async () => {
+        const handleAddSkill = vi.fn()
+        const handleNewSkill = vi.fn()
+        const section = skillsSection({
+            t: ((key: string) => key) as never,
+            hasSkills: true,
+            fieldTitle: (_f, fallback) => fallback,
+            sectionIndicator: () => undefined,
+            skills: [],
+            handleAddSkill,
+            handleNewSkill,
+            openSkillItem: () => undefined,
+            removeItem: () => undefined,
+            closeEditor: () => undefined,
+            skillStatusFor: () => undefined,
+        })
+        if (!section) throw new Error("no section")
+        await render(<>{section.extra}</>)
+        await click(byText("Manage", "button"))
+        expect(handleAddSkill).toHaveBeenCalledTimes(1)
+        await click(document.querySelector<HTMLElement>('button[aria-label="New skill"]')!)
+        expect(handleNewSkill).toHaveBeenCalledTimes(1)
     })
     const bins = () => [...document.querySelectorAll<HTMLElement>('button[aria-label="Remove"]')]
 

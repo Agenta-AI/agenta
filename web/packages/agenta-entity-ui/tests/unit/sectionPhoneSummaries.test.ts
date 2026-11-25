@@ -28,6 +28,7 @@ const skills = (list: unknown[]) =>
         hasSkills: true,
         skills: list,
         handleAddSkill: vi.fn(),
+        handleNewSkill: vi.fn(),
         openSkillItem: vi.fn(),
         removeItem: vi.fn(),
         closeEditor: vi.fn(),
