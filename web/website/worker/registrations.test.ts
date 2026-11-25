@@ -1,9 +1,20 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import worker from "./index";
 import {
+  POSTHOG_BATCH_URL,
+  POSTHOG_PROJECT_TOKEN,
   REGISTRATION_PATH,
   handleRegistration,
   parseRegistration,
+  type ContactRecorder,
   type MailSender,
   type RateLimiter,
   type RegistrationEmail,
@@ -16,6 +27,28 @@ const VALID = {
   agenta_version: "v0.128.11",
   web_url: "https://agenta.example.com/",
 };
+
+const USER_ID = "7c1d2e3f-4a5b-4c6d-8e9f-0a1b2c3d4e5f";
+const SURVEY = {
+  role: "Engineer (AI, SWE, ML)",
+  team_size: "11-50",
+  heard_from: "GitHub",
+};
+const FULL = {
+  ...VALID,
+  product_updates: true,
+  survey: SURVEY,
+  user_id: USER_ID,
+};
+
+// No test reaches the network: PostHog runs on every registration, so `fetch`
+// answers 200 unless a test stubs it.
+beforeEach(() => {
+  vi.stubGlobal("fetch", async () => new Response("{}", { status: 200 }));
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 // A throwaway key pair made for the test run; it signs nothing real.
 let privatePem: string;
@@ -76,8 +109,17 @@ function fromBase64url(text: string): Uint8Array {
 }
 
 describe("parseRegistration", () => {
-  it("accepts a full registration", () => {
-    expect(parseRegistration(VALID)).toEqual(VALID);
+  it("accepts a registration with only the instance fields", () => {
+    expect(parseRegistration(VALID)).toEqual({
+      ...VALID,
+      product_updates: false,
+      survey: {},
+      user_id: null,
+    });
+  });
+
+  it("accepts the updates choice, the survey answers and the user id", () => {
+    expect(parseRegistration(FULL)).toEqual(FULL);
   });
 
   it.each([
@@ -93,6 +135,20 @@ describe("parseRegistration", () => {
       "a web url with a user name",
       { ...VALID, web_url: "https://user:pass@agenta.example.com" },
     ],
+    [
+      "an updates choice that is not a boolean",
+      { ...VALID, product_updates: "yes" },
+    ],
+    ["a survey that is not an object", { ...VALID, survey: "Engineer" }],
+    [
+      "a survey answer that is too long",
+      { ...VALID, survey: { role: "x".repeat(65) } },
+    ],
+    [
+      "a survey answer on two lines",
+      { ...VALID, survey: { role: "Other\nmy text" } },
+    ],
+    ["a user id that is not a UUID", { ...VALID, user_id: "42" }],
   ])("refuses %s", (_, body) => {
     expect(parseRegistration(body)).toBeNull();
   });
@@ -136,6 +192,7 @@ describe("handleRegistration", () => {
       seats: null,
       expires_at: null,
       telemetry: "required",
+      instance_id: VALID.instance_id,
     });
     expect(payload.key_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(Number.isNaN(Date.parse(payload.issued_at))).toBe(false);
@@ -335,7 +392,7 @@ describe("Loops email", () => {
     );
 
     expect(response.status).toBe(202);
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(3);
     expect(calls[0].url).toBe("https://app.loops.so/api/v1/transactional");
     expect(
       (calls[0].init.headers as Record<string, string>).Authorization,
@@ -344,8 +401,262 @@ describe("Loops email", () => {
     expect(body).toMatchObject({
       transactionalId: "tmpl_unit",
       email: "ada@example.com",
+      addToAudience: true,
     });
     expect(body.dataVariables.licenseKey).toMatch(/^agenta_license_v1\./);
+  });
+});
+
+describe("Loops contact", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function stubLoops(contactStatus = 200) {
+    const calls: { url: string; init: RequestInit }[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      const status = url.endsWith("/contacts/update") ? contactStatus : 200;
+      return new Response("{}", { status });
+    });
+    return calls;
+  }
+
+  const LOOPS_ENV = {
+    LOOPS_API_KEY: "loops_unit",
+    LOOPS_TRANSACTIONAL_ID: "tmpl_unit",
+  };
+
+  it("marks the contact as a self-hosted registration after the key email", async () => {
+    const calls = stubLoops();
+
+    const response = await handleRegistration(
+      post(FULL),
+      withLimits({
+        LICENSE_SIGNING_KEY: privatePem,
+        ...LOOPS_ENV,
+      }),
+    );
+
+    expect(response.status).toBe(202);
+    expect(calls.map((call) => call.url)).toEqual([
+      "https://app.loops.so/api/v1/transactional",
+      "https://app.loops.so/api/v1/contacts/update",
+      POSTHOG_BATCH_URL,
+    ]);
+    const contact = calls[1];
+    expect(contact.init.method).toBe("PUT");
+    expect((contact.init.headers as Record<string, string>).Authorization).toBe(
+      "Bearer loops_unit",
+    );
+    const body = JSON.parse(contact.init.body as string);
+    expect(body).toEqual({
+      email: "ada@example.com",
+      source: "self-hosted registration",
+      userGroup: "self-hosted",
+      agentaVersion: "v0.128.11",
+      agentaInstanceId: "0f8b8a52-6a3e-4a1c-9d8e-2b7c4f1e9a10",
+      agentaRegisteredAt: expect.stringMatching(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/,
+      ),
+      agentaPlan: "self_hosted_registered",
+      agentaProductUpdates: true,
+      agentaRole: "Engineer (AI, SWE, ML)",
+      agentaTeamSize: "11-50",
+      agentaHeardFrom: "GitHub",
+    });
+  });
+
+  it("marks the contact as not wanting product updates when the box was clear", async () => {
+    const calls = stubLoops();
+
+    const response = await handleRegistration(
+      post({ ...FULL, product_updates: false }),
+      withLimits({
+        LICENSE_SIGNING_KEY: privatePem,
+        ...LOOPS_ENV,
+      }),
+    );
+
+    expect(response.status).toBe(202);
+    const body = JSON.parse(calls[1].init.body as string);
+    expect(body.agentaProductUpdates).toBe(false);
+    expect(body).not.toHaveProperty("mailingLists");
+    expect(body.agentaRole).toBe("Engineer (AI, SWE, ML)");
+  });
+
+  it("still answers 202 when the contact update fails", async () => {
+    stubLoops(500);
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await handleRegistration(
+      post(VALID),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem, ...LOOPS_ENV }),
+    );
+
+    expect(response.status).toBe(202);
+    expect(logged).toHaveBeenCalledOnce();
+  });
+
+  it("still answers 202 when a contact recorder throws", async () => {
+    const { sender, sent } = fakeSender();
+    const recorder: ContactRecorder = {
+      async record() {
+        throw new Error("down");
+      },
+    };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await handleRegistration(
+      post(VALID),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem }),
+      sender,
+      recorder,
+    );
+
+    expect(response.status).toBe(202);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("does not update the contact when the key email fails", async () => {
+    const recorded: string[] = [];
+    const recorder: ContactRecorder = {
+      async record(registration) {
+        recorded.push(registration.email);
+      },
+    };
+    const sender: MailSender = {
+      async send() {
+        throw new Error("down");
+      },
+    };
+
+    const response = await handleRegistration(
+      post(VALID),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem }),
+      sender,
+      recorder,
+    );
+
+    expect(response.status).toBe(502);
+    expect(recorded).toEqual([]);
+  });
+});
+
+describe("PostHog", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function stubPostHog(status = 200) {
+    const calls: { url: string; init: RequestInit }[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      return new Response("{}", { status });
+    });
+    return calls;
+  }
+
+  it("links the instance and the registering admin to the email", async () => {
+    const calls = stubPostHog();
+    const { sender } = fakeSender();
+
+    const response = await handleRegistration(
+      post(FULL),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem }),
+      sender,
+    );
+
+    expect(response.status).toBe(202);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe(POSTHOG_BATCH_URL);
+    const body = JSON.parse(calls[0].init.body as string);
+    expect(body.api_key).toBe(POSTHOG_PROJECT_TOKEN);
+    const timestamp = expect.any(String);
+    expect(body.batch).toEqual([
+      {
+        event: "instance_registered",
+        distinct_id: VALID.instance_id,
+        timestamp,
+        properties: {
+          email: "ada@example.com",
+          agenta_version: "v0.128.11",
+          plan: "self_hosted_registered",
+          role: "Engineer (AI, SWE, ML)",
+          team_size: "11-50",
+          heard_from: "GitHub",
+          $groups: { instance: VALID.instance_id },
+        },
+      },
+      {
+        event: "$groupidentify",
+        distinct_id: VALID.instance_id,
+        timestamp,
+        properties: {
+          $group_type: "instance",
+          $group_key: VALID.instance_id,
+          $group_set: { registered_email: "ada@example.com" },
+        },
+      },
+      {
+        event: "$set",
+        distinct_id: `${VALID.instance_id}:${USER_ID}`,
+        timestamp,
+        properties: { $set: { email: "ada@example.com" } },
+      },
+    ]);
+  });
+
+  it("sends no person update without a user id", async () => {
+    const calls = stubPostHog();
+    const { sender } = fakeSender();
+
+    await handleRegistration(
+      post(VALID),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem }),
+      sender,
+    );
+
+    const body = JSON.parse(calls[0].init.body as string);
+    expect(body.batch.map((event: { event: string }) => event.event)).toEqual([
+      "instance_registered",
+      "$groupidentify",
+    ]);
+  });
+
+  it("still answers 202 when PostHog fails", async () => {
+    stubPostHog(500);
+    const { sender, sent } = fakeSender();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await handleRegistration(
+      post(FULL),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem }),
+      sender,
+    );
+
+    expect(response.status).toBe(202);
+    expect(sent).toHaveLength(1);
+    expect(logged).toHaveBeenCalledOnce();
+  });
+
+  it("sends nothing to PostHog when the key email fails", async () => {
+    const calls = stubPostHog();
+    const sender: MailSender = {
+      async send() {
+        throw new Error("down");
+      },
+    };
+
+    const response = await handleRegistration(
+      post(FULL),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem }),
+      sender,
+    );
+
+    expect(response.status).toBe(502);
+    expect(calls).toEqual([]);
   });
 });
 

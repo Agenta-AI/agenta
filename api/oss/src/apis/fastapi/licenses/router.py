@@ -18,6 +18,10 @@ from oss.src.apis.fastapi.licenses.models import (
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.dtos import PrincipalKind, RequestCredentialKind
 from oss.src.core.licenses.admins import count_users, is_instance_admin
+from oss.src.core.licenses.prompts import (
+    dismiss_registration_prompt,
+    is_registration_prompt_dismissed,
+)
 from oss.src.core.licenses.registrations import create_registration
 from oss.src.core.licenses.types import RegistrationFailed
 from oss.src.utils.common import is_cloud, is_ee
@@ -78,6 +82,14 @@ class LicensesRouter:
             response_model=InstanceRegistrationResponse,
         )
 
+        self.router.add_api_route(
+            "/license/registration-prompt/dismiss",
+            self.dismiss_instance_registration_prompt,
+            methods=["POST"],
+            operation_id="dismiss_instance_registration_prompt",
+            status_code=status.HTTP_204_NO_CONTENT,
+        )
+
         if is_ee():
             self.router.add_api_route(
                 "/license",
@@ -98,6 +110,7 @@ class LicensesRouter:
             return InstanceLicenseResponse(
                 plan=COMMUNITY_PLAN,
                 usage=InstanceLicenseUsage(users=await count_users()),
+                registration_prompt_dismissed=await is_registration_prompt_dismissed(),
             )
 
         from ee.src.core.licenses.service import (  # noqa: PLC0415
@@ -118,6 +131,7 @@ class LicensesRouter:
         await require_instance_admin()
 
         from ee.src.core.licenses.service import (  # noqa: PLC0415
+            OTHER_INSTANCE,
             get_licenses_service,
         )
         from ee.src.core.licenses.types import (  # noqa: PLC0415
@@ -130,7 +144,15 @@ class LicensesRouter:
                 key=body.key,
                 user_id=get_request_access().principal.id,
             )
-        except InvalidLicenseKey:
+        except InvalidLicenseKey as e:
+            if e.reason == OTHER_INSTANCE:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": OTHER_INSTANCE,
+                        "message": "This free key was issued for another instance.",
+                    },
+                ) from None
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="This license key is not valid",
@@ -154,14 +176,15 @@ class LicensesRouter:
             raise _not_available()
         await require_instance_admin()
 
-        if not body.product_updates:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="A registration needs consent to product updates.",
-            )
-
         try:
-            await create_registration(body.email)
+            await create_registration(
+                email=body.email,
+                user_id=get_request_access().principal.id,
+                product_updates=body.product_updates,
+                survey=(
+                    body.survey.model_dump(exclude_none=True) if body.survey else None
+                ),
+            )
         except RegistrationFailed:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -169,6 +192,14 @@ class LicensesRouter:
             ) from None
 
         return InstanceRegistrationResponse(email=body.email)
+
+    @intercept_exceptions()
+    async def dismiss_instance_registration_prompt(self, request: Request) -> None:
+        if is_cloud():
+            raise _not_available()
+        await require_instance_admin()
+
+        await dismiss_registration_prompt()
 
 
 async def _response(state) -> InstanceLicenseResponse:
@@ -181,4 +212,5 @@ async def _response(state) -> InstanceLicenseResponse:
             else None
         ),
         usage=InstanceLicenseUsage(users=await count_users()),
+        registration_prompt_dismissed=await is_registration_prompt_dismissed(),
     )

@@ -104,12 +104,12 @@ describe("locked enterprise settings", () => {
         })
     }
 
-    it("shows Audit Log as locked on self-hosted, with a license key and the contact page", async () => {
+    it("shows Audit Log as locked on self-hosted, with the contact page and a license key", async () => {
         await mount(<AuditLogTab workspaceId="ws-1" projectId="proj-1" />)
 
-        expect(document.body.textContent).toContain("Audit Log is not available on your plan")
-        expect(document.body.textContent).toContain("Available with an Enterprise license.")
-        expect(labels()).toEqual(expect.arrayContaining(["Add a license key", "Talk to us"]))
+        expect(document.body.textContent).toContain("Available on the Enterprise plan")
+        expect(document.body.textContent).toContain("Audit log.")
+        expect(labels()).toEqual(["Talk to us", "Add a license key"])
         expect(control("Talk to us")?.getAttribute("href")).toBe(
             "https://agenta.ai/contact?feature=audit",
         )
@@ -141,7 +141,7 @@ describe("locked enterprise settings", () => {
         ])
     })
 
-    it("shows each Access & Security feature as locked on self-hosted and calls none of their routes", async () => {
+    it("shows one Enterprise box for the locked Access & Security features and calls none of their routes", async () => {
         await mount(<AccessSecurityTab workspaceId="ws-1" projectId="proj-1" />)
 
         expect(events("upgrade_prompt_viewed")).toEqual([
@@ -149,7 +149,15 @@ describe("locked enterprise settings", () => {
             {feature: "domains", screen: "organization"},
             {feature: "sso", screen: "organization"},
         ])
-        expect(labels().filter((label) => label === "Talk to us")).toHaveLength(3)
+        const text = document.body.textContent ?? ""
+        expect(text.match(/Available on the Enterprise plan/g)).toHaveLength(1)
+        expect(text).toContain("Access controls.")
+        expect(text).toContain("Verified domains.")
+        expect(text).toContain("SSO providers.")
+        // Each setting stays visible below the box, read only.
+        expect(text).toContain("Sign-in methods, join rules.")
+        expect(text).toContain("No domains.")
+        expect(labels().filter((label) => label === "Talk to us")).toHaveLength(1)
         expect(fixture.api.fetchOrganizationDomains).not.toHaveBeenCalled()
         expect(fixture.api.fetchOrganizationProviders).not.toHaveBeenCalled()
     })
@@ -186,7 +194,7 @@ describe("locked enterprise settings", () => {
 })
 
 describe("availableUpgradeActions", () => {
-    it("offers a license key, then the contact page, on every self-hosted install", () => {
-        expect(availableUpgradeActions()).toEqual(["add_license_key", "talk_to_us"])
+    it("offers the contact page, then a license key, on every self-hosted install", () => {
+        expect(availableUpgradeActions()).toEqual(["talk_to_us", "add_license_key"])
     })
 })

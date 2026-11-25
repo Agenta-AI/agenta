@@ -59,7 +59,7 @@ Both runner modules SHALL run the same chains, pick the legacy chain from the da
 
 ### Requirement: Self-hosted installs are not treated as cloud
 
-Outside cloud, the API SHALL apply no throttles for a plan that has none, the SDK SHALL read provider keys from the environment unless `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` is false, and `/m` SHALL use cloud settings only on cloud.
+Outside cloud, the API SHALL apply no throttles for a plan that has none, the SDK SHALL keep today's rule for provider keys from the environment (on unless `AGENTA_LICENSE` is `ee`, and `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` overrides it; decided 2026-11-25), and `/m` SHALL use cloud settings only on cloud.
 
 #### Scenario: Slow routes on an instance with no key
 
@@ -78,9 +78,42 @@ Outside cloud, the API SHALL apply no throttles for a plan that has none, the SD
 
 ### Requirement: Old compose, Helm and Railway files keep working
 
-An install SHALL upgrade by pulling the new images under today's public names and restarting, with no edits to its compose file, Helm values or Railway template.
+An install at v0.104.0 or later SHALL upgrade by pulling the new images under today's public names and restarting, with no edits to its compose file, Helm values or Railway template. An older install first upgrades to v0.129.x (Decision 4 in design.md).
 
 #### Scenario: Compose pull and restart
 
 - **WHEN** an open source compose install runs `docker compose pull` and `docker compose up -d` with its existing files
 - **THEN** every service starts, the migration job succeeds, and the existing data is there
+
+#### Scenario: Install older than v0.104.0
+
+- **WHEN** an open source install older than v0.104.0 pulls the new images and starts
+- **THEN** the migration runner stops before any change and tells the operator to upgrade to v0.129.x first; this path is checked by a static review of the runner, not by a live upgrade test
+
+### Requirement: Sign-in methods follow the deployment without the access entitlement
+
+On every plan without the access entitlement, the sign-in check SHALL read `allow_email` and `allow_social` from the deployment settings instead of the organization's stored flags, and SHALL keep the stored SSO and root flags.
+
+#### Scenario: Open source organization after the upgrade
+
+- **WHEN** an organization created on an open source install stored `allow_social` false, and the operator later turned on social sign-in for the deployment
+- **THEN** after the upgrade a member can sign in with social sign-in on a plan without the access entitlement
+
+#### Scenario: SSO after a paid key expires
+
+- **WHEN** an organization set up SSO under a paid key and the key expires
+- **THEN** the stored SSO flag stays and SSO sign-in keeps working
+
+### Requirement: One install event
+
+The one image SHALL NOT add an install event of its own. The install event SHALL be the anonymous `instance_installed` from #8237, and the sign-up event SHALL carry `is_cloud` instead of `is_ee`.
+
+#### Scenario: Upgraded open source install starts
+
+- **WHEN** an upgraded open source install starts for the first time
+- **THEN** it sends no `self_hosted_deployment_created` event, and the install event comes only from the #8237 code
+
+#### Scenario: Sign-up on self-hosted
+
+- **WHEN** a person signs up on a self-hosted install
+- **THEN** the sign-up event carries `is_cloud` false and no `is_ee`

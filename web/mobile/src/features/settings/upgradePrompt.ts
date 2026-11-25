@@ -8,52 +8,31 @@ import {capture} from "@/features/analytics/client"
 export type UpgradeFeature = "access" | "audit" | "domains" | "sso"
 /** The settings tab that shows the locked section. */
 export type UpgradeScreen = "organization" | "auditLog"
-export type UpgradeAction = "get_free_key" | "add_license_key" | "talk_to_us"
+export type UpgradeAction = "add_license_key" | "talk_to_us"
 
 export const CONTACT_URL = "https://agenta.ai/contact"
+export const PRICING_URL = "https://agenta.ai/pricing"
+export const FREE_KEY_DOCS_URL =
+    "https://docs.agenta.ai/self-host/license-keys#get-a-free-registration-key"
 export const contactUrl = (feature: UpgradeFeature) => `${CONTACT_URL}?feature=${feature}`
 
-/**
- * The actions a locked section offers on a self-hosted instance, in display order.
- * `get_free_key` joins when the registered plan includes a feature; no plan does yet.
- */
-export const availableUpgradeActions = (): UpgradeAction[] => ["add_license_key", "talk_to_us"]
-
-export interface UpgradePrompt {
-    /** Self-hosted (no billing). Cloud keeps its plan notice and sends no upgrade events. */
-    selfHosted: boolean
-    actions: UpgradeAction[]
-}
+/** The actions a locked section offers on a self-hosted instance, in display order. */
+export const availableUpgradeActions = (): UpgradeAction[] => ["talk_to_us", "add_license_key"]
 
 /**
- * The locked state of one enterprise feature: which actions apply, and the
- * `upgrade_prompt_viewed` event each time it is shown. `capture` sends nothing
- * when the instance has telemetry off.
+ * One `upgrade_prompt_viewed` event per locked feature each time the box mounts.
+ * `capture` sends nothing when the instance has telemetry off.
  */
-export const useUpgradePrompt = ({
-    feature,
-    screen,
-    shown,
-}: {
-    feature: UpgradeFeature
-    screen: UpgradeScreen
-    shown: boolean
-}): UpgradePrompt => {
-    const selfHosted = !isBillingEnabled()
+export const useUpgradePromptViewed = (features: UpgradeFeature[], screen: UpgradeScreen) => {
     // One event per view: StrictMode runs the effect twice in development.
     const viewed = useRef(false)
+    const key = features.join(",")
 
     useEffect(() => {
-        if (!shown || !selfHosted) {
-            viewed.current = false
-            return
-        }
-        if (viewed.current) return
+        if (viewed.current || isBillingEnabled()) return
         viewed.current = true
-        capture("upgrade_prompt_viewed", {feature, screen})
-    }, [shown, selfHosted, feature, screen])
-
-    return {selfHosted, actions: selfHosted ? availableUpgradeActions() : []}
+        for (const feature of key.split(",")) capture("upgrade_prompt_viewed", {feature, screen})
+    }, [key, screen])
 }
 
 export const captureUpgradeClick = (

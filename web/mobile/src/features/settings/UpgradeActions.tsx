@@ -12,7 +12,6 @@ import {
 } from "./upgradePrompt"
 
 const LABELS: Record<UpgradeAction, CatalogKey<typeof settingsLicenseCatalog>> = {
-    get_free_key: "settings.license.actionGetFreeKey",
     add_license_key: "settings.license.actionAddLicenseKey",
     talk_to_us: "settings.license.actionTalkToUs",
 }
@@ -35,11 +34,12 @@ export const UpgradeActions = ({
         })
 
     return (
-        <div className="flex flex-wrap justify-center gap-2">
+        <div className="flex flex-wrap gap-2">
             {actions.map((action, index) => {
+                const label = LABELS[action]
                 const variant = index === 0 ? "default" : "outline"
                 const onClick = () => captureUpgradeClick(feature, screen, action)
-                if (action === "get_free_key" || action === "add_license_key") {
+                if (action === "add_license_key") {
                     return (
                         <Button
                             key={action}
@@ -50,7 +50,7 @@ export const UpgradeActions = ({
                                 openLicense()
                             }}
                         >
-                            {t(LABELS[action])}
+                            {t(label)}
                         </Button>
                     )
                 }
@@ -62,7 +62,7 @@ export const UpgradeActions = ({
                             rel="noreferrer"
                             onClick={onClick}
                         >
-                            {t(LABELS[action])}
+                            {t(label)}
                         </a>
                     </Button>
                 )

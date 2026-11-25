@@ -30,7 +30,7 @@ import {plainAccessError} from "./accessErrors"
 import {AddDomainDialog} from "./AddDomainDialog"
 import {ConfirmModal} from "./ConfirmModal"
 import {DomainDnsInstructions} from "./DomainDnsInstructions"
-import {LockedAccessFeature} from "./LockedAccessFeature"
+import {LockedEnterpriseFeatures} from "./LockedEnterpriseFeatures"
 import {OrganizationSlugField} from "./OrganizationSlugField"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {SsoProviderDialog, type SsoProviderFormValues} from "./SsoProviderDialog"
@@ -212,11 +212,11 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
         !entitlements.hasDomains && "domains",
         !entitlements.hasSSO && "sso",
     ].filter(Boolean) as AccessFeature[]
-    // Self-hosted shows each locked feature with its own actions, so demand is measured per feature.
+    // Self-hosted shows one box with the upgrade actions; demand is still measured per feature.
     const lockedNotices = isBillingEnabled() ? (
         <AccessUpgradeNotice locked={locked} />
     ) : (
-        locked.map((feature) => <LockedAccessFeature key={feature} feature={feature} />)
+        <LockedEnterpriseFeatures features={locked} screen="organization" />
     )
     // With nothing included there is no organization setting to read.
     if (locked.length === 3) return <div className="flex flex-col gap-8">{lockedNotices}</div>
