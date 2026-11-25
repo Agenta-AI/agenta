@@ -9,8 +9,8 @@ context, decisions, and the design source live in
 ## Asset hosting — proprietary and large files (IMPORTANT)
 
 **This repo is public / open source. Never commit proprietary, licensed, or large
-binary assets.** We may be licensed to *use* an asset on our site but not to
-*redistribute* its source binary, and a public repo redistributes everything in it,
+binary assets.** We may be licensed to _use_ an asset on our site but not to
+_redistribute_ its source binary, and a public repo redistributes everything in it,
 forever, in history.
 
 The rule: **proprietary/large assets live in the deployed output, never in git.**
@@ -71,8 +71,8 @@ Every PR that touches `web/website/**` gets an automatically deployed preview, v
 `.github/workflows/15-website-preview.yml`.
 
 - **How:** the workflow builds the site and runs `wrangler versions upload
-  --preview-alias pr-<number>` against the single `agenta-website-preview` worker.
-  This publishes a new *version* with its own shareable preview URL and does **not**
+--preview-alias pr-<number>` against the single `agenta-website-preview` worker.
+  This publishes a new _version_ with its own shareable preview URL and does **not**
   touch the worker's production deployment, so one worker serves every PR's preview
   (no per-PR worker sprawl, no cleanup job). The stable alias makes the URL
   deterministic per PR: `https://pr-<number>-agenta-website-preview.<subdomain>.workers.dev`.
@@ -122,6 +122,43 @@ What it does, and the invariants that keep it safe:
   so markdown responses are `Cache-Control: private, max-age=0` — a shared cache
   must never be able to hand a markdown body to a browser.
 
+**One API route, `POST /api/license-registrations`** (`worker/registrations.ts`). A
+self-hosted instance asks for a free registration key. The worker checks the body (`email`,
+`instance_id`, `agenta_version`, `web_url`, and the optional `product_updates`, `survey` with
+`role`, `team_size` and `heard_from` as choice labels, and `user_id`), signs a license key on the
+`self_hosted_registered` plan with WebCrypto Ed25519, and emails the key and its activation
+link (`<web_url>/m/settings?tab=license#key=<key>`) through Loops. Every registrant joins the
+Loops audience, for security notices. Then it upserts the Loops
+contact (`PUT /api/v1/contacts/update`) with `source: "self-hosted registration"`,
+`userGroup: "self-hosted"` and the custom properties `agentaVersion`, `agentaRegisteredAt`,
+`agentaInstanceId`, `agentaPlan`, `agentaProductUpdates`, `agentaRole`, `agentaTeamSize` and
+`agentaHeardFrom`; these
+properties must exist in Loops first. It sets the boolean property `agentaProductUpdates` to true when the
+person ticks the box, and leaves it alone otherwise, because the request does not prove the
+caller owns the email (a contact opts out through the Loops unsubscribe link); there is no
+mailing list, so product update campaigns target `userGroup`
+"self-hosted" with `agentaProductUpdates` true. The signed key carries the `instance_id`, and the
+API accepts a free key only on that instance. Last, it sends to the
+self-hosted PostHog project (the same public project token as the API fallback key) the
+`instance_registered` event and a `$groupidentify` for the group type `instance` under the instance
+id, and a `$set` of the email on the person `<instance_id>:<user_id>`. It does this whatever the
+instance's own telemetry switch is. A failed contact update or PostHog call is logged and does
+not fail the registration, because the key email
+already went out. It stores nothing itself and answers `202 {}`. It runs before the negotiation `try/catch`, so a failure answers JSON and never falls
+back to an asset. Worker secrets, set with `wrangler secret put` and never committed:
+`LICENSE_SIGNING_KEY` (the private key of the registration key pair, Ed25519, PKCS#8 PEM) and
+`LOOPS_API_KEY`. The Loops email template id is the plain worker variable
+`LOOPS_TRANSACTIONAL_ID`, in the `vars` block of both wrangler configs (not a secret; preview and
+production can use different templates). Without any of the three the route answers 503. The key
+it signs carries `signing_key_id: "registration-1"`; the API accepts that key pair only for the
+`self_hosted_registered` plan, so this worker can never mint a paid or cloud key. The
+release private key never goes in this worker.
+The route is public, so it refuses a body over 2 KiB (413) and checks two rate limit bindings
+from the `ratelimits` block of both wrangler configs before it signs: `REGISTRATION_IP_LIMIT`
+(per caller IP) and `REGISTRATION_EMAIL_LIMIT` (per email). Over a limit it answers 429; with a
+binding missing it answers 503. These limits count per minute and per Cloudflare location; they are
+not a daily cap.
+
 `/openapi.json` is published by `scripts/copy-openapi.mjs` (a `prebuild` step)
 from the committed `docs/docs/reference/openapi.json`: it rewrites the spec's
 relative `/api` server to the real `us`/`eu.cloud.agenta.ai` base URLs and drops
@@ -141,7 +178,7 @@ Every merge to `main` that touches `web/website/**` deploys production, via
 `.github/workflows/16-website-production.yml` (also `workflow_dispatch`).
 
 - **How:** builds with the same R2 font secrets, then runs `wrangler deploy
-  --config wrangler.production.jsonc` — a real deploy (not `versions upload`) to the
+--config wrangler.production.jsonc` — a real deploy (not `versions upload`) to the
   separate production worker `agenta-website` (`preview_urls: false`, no routes yet;
   the `agenta.ai` domain is attached in the Cloudflare dashboard).
 - **Canonical URL:** after the worker deploy, `scripts/configure-canonical-redirect.mjs`
@@ -180,13 +217,13 @@ and case, a button with its own gradient) and then drifting when the original ch
 The rule: **a shared element is drawn in exactly one place, and pages only use it.**
 `pnpm lint:ui` (also run by `pnpm build`) fails when a page draws one of these itself.
 
-| Element | Use | Defined in |
-| --- | --- | --- |
-| Page column (1440, flat) | `Site` layout | `.ag-wrap` in `styles/global.css` |
-| Band border (the page grid) | `<Section tone="grid" \| "dark" \| "flat">` | `components/Section.astro`, `.ag-section` |
-| Eyebrow chip ("HOW IT WORKS") | `<Badge variant=...>` | `components/Badge.astro`, `.ag-badge` |
-| Button | `<Button variant=...>` or `class="ag-btn ag-btn--<variant>"` | `components/Button.astro`, `.ag-btn` |
-| Section header (chip + title + subtitle) | `<SectionTitle>` | `components/SectionTitle.astro` |
+| Element                                  | Use                                                          | Defined in                                |
+| ---------------------------------------- | ------------------------------------------------------------ | ----------------------------------------- |
+| Page column (1440, flat)                 | `Site` layout                                                | `.ag-wrap` in `styles/global.css`         |
+| Band border (the page grid)              | `<Section tone="grid" \| "dark" \| "flat">`                  | `components/Section.astro`, `.ag-section` |
+| Eyebrow chip ("HOW IT WORKS")            | `<Badge variant=...>`                                        | `components/Badge.astro`, `.ag-badge`     |
+| Button                                   | `<Button variant=...>` or `class="ag-btn ag-btn--<variant>"` | `components/Button.astro`, `.ag-btn`      |
+| Section header (chip + title + subtitle) | `<SectionTitle>`                                             | `components/SectionTitle.astro`           |
 
 - `Section` owns `border: 1px solid var(--th-section-border)` and the `-1px` overlap.
   `tone="dark"` is for bands that are dark in both themes (a paper line between two

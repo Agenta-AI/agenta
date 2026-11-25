@@ -54,6 +54,30 @@ When the key comes from the environment, the **License** tab shows it with the m
 
 Do not confuse `AGENTA_LICENSE_KEY` with `AGENTA_LICENSE`, which selects the edition (`oss` or `ee`).
 
+## Get a free registration key
+
+The free registration key puts the instance on the Registered plan (`self_hosted_registered`). Today the Registered plan has the same features as the Community plan, which an instance without a key gets.
+
+To request a free key:
+
+1. Sign in as the instance admin.
+2. Open **Settings > License**. With no key on the instance, the tab shows **Register this instance for free**.
+3. Enter an email and select **Send me a free key**. The box "Send me security and product updates (about once a month)." starts selected. You can clear it. The key does not need it.
+
+The instance sends the email, the instance id, your user id on the instance, the Agenta version and the value of `AGENTA_WEB_URL` to Agenta. Agenta uses `AGENTA_WEB_URL` only to build the link in the email. Agenta keeps the email, the Agenta version and the instance id in its contact list. Agenta sends security notices to every registered email. Agenta sends product updates only when the box is selected. Each update email has a link to stop them.
+
+Registering links your instance to your email in our analytics. Instances that do not register stay anonymous. This happens on Agenta's side when you register, also when the instance has telemetry off.
+
+Agenta sends an email to that address with the key and a link to your instance. Open the link while signed in as the instance admin, and confirm **Add this license key?** to add the key. You can also select **Add a license key** on the License tab and paste the key.
+
+The instance admin also sees the same offer once as a step after the onboarding questions. When you register from that step, it also sends your answers to the onboarding questions (role, team size, how you found Agenta), as the chosen options only. An instance that upgrades to this version shows the offer once to the instance admin, because that admin does not see the onboarding again. **Skip** hides it for the whole instance.
+
+The free key works only on the instance that requested it. The key names that instance, and another instance refuses it with "This free key was issued for another instance." Register each instance to get its own key.
+
+You keep what your key unlocks. The free key does not expire and has no seat count. It does not change the telemetry switch.
+
+The OSS image also shows the offer, but only the EE image can add a key.
+
 ## When a key expires
 
 Starting 30 days before the expiry date, the **License** tab shows "This license expires on" with the date. After the expiry date, the instance runs on the Community plan, and the tab shows "This license expired on" with the date. Enterprise features stop working, but no data is deleted. Add a new key to turn them on again.
@@ -62,7 +86,7 @@ A key with seats shows the number of users against the seats on the **License** 
 
 ## An Enterprise instance without a key
 
-An EE instance with no key, or with a key that is not valid, runs every organization on the Community plan (`self_hosted_community`). The Community plan has no enterprise features:
+An EE instance with no key, or with a key that is not valid, runs every organization on the Community plan (`self_hosted_community`). The Community plan, and the Registered plan of the free key, have no enterprise features:
 
 - SSO providers per organization, set up in the app
 - Sign-in method enforcement per organization
@@ -79,7 +103,7 @@ Everything else works as on OSS, with no limit on users. SSO login that you conf
 Before this release, an EE instance without a key gave every organization the enterprise plan. After the upgrade, an instance without a key runs on the Community plan. If you upgrade an EE instance and do not add a key:
 
 - Every organization moves to the Community plan. Adding a key later turns the enterprise features back on.
-- The **Access & Security** and **Audit Log** settings show the enterprise features as locked.
+- The **Access & Security** and **Audit Log** settings show the enterprise features as locked, with **Add a license key** and **Talk to us**.
 - Invitations and role changes offer only admin and member. Members who already have another role keep it.
 - SSO providers, verified domains and sign-in settings that organizations saved before the upgrade stay in the database. Owners cannot change them until you add a key.
 - `AGENTA_ACCESS_DEFAULT_PLAN` no longer sets the plan. The API logs a warning at startup when it is set.

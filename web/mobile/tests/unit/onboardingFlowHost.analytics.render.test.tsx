@@ -13,6 +13,12 @@ const state = vi.hoisted(() => ({
     replace: vi.fn(),
     endOnboarding: vi.fn(),
     flow: null as Record<string, (...args: never[]) => unknown> | null,
+    billing: false,
+    dismissPrompt: vi.fn(),
+    license: {
+        isInstanceAdmin: true,
+        data: {license: null} as {license: unknown; registration_offer_dismissed?: boolean},
+    },
     templates: [
         {key: "lead-qualifier", name: "Lead qualifier", category: "Sales"},
     ] as readonly unknown[],
@@ -31,6 +37,18 @@ vi.mock("@/features/onboarding/OnboardingFlow", () => ({
     OnboardingFlow: (props: Record<string, (...args: never[]) => unknown>) => {
         state.flow = props
         return null
+    },
+}))
+vi.mock("@/features/onboarding/RegistrationOffer", () => ({RegistrationOffer: () => null}))
+vi.mock("@/features/settings/useInstanceLicense", () => ({
+    useInstanceLicense: () => state.license,
+    // Like the real hook: the cached license says dismissed, and the instance is told.
+    useDismissRegistrationOffer: (projectId: string) => () => {
+        state.license = {
+            ...state.license,
+            data: {...state.license.data, registration_offer_dismissed: true},
+        }
+        void state.dismissPrompt(projectId)
     },
 }))
 vi.mock("@/features/onboarding/onboardingPending", () => ({
@@ -81,6 +99,7 @@ vi.mock("@agenta/entities/workflow", async () => {
     }
 })
 vi.mock("@agenta/shared/api/env", () => ({
+    isBillingEnabled: () => state.billing,
     isToolsEnabled: () => false,
     isWalletsEnabled: () => false,
 }))
@@ -106,6 +125,9 @@ const draft = {
 }
 
 let root: Root | undefined
+let rendered: ComponentProps<typeof OnboardingFlowHost> | undefined
+
+const rerender = () => act(() => root!.render(<OnboardingFlowHost {...rendered!} />))
 
 const mount = () => {
     root = createRoot(document.createElement("div"))
@@ -117,8 +139,13 @@ const mount = () => {
         userEmail: "person@example.com",
         homeUrl: "/home",
     }
-    act(() => root!.render(<OnboardingFlowHost {...props} />))
+    rendered = props
+    rerender()
 }
+
+/** The registration step's props while the flow shows it in place of the next step. */
+const offer = () =>
+    (state.flow?.interstitial as unknown as {props: Record<string, unknown>} | undefined)?.props
 
 const flow = () =>
     state.flow as unknown as ComponentProps<
@@ -135,6 +162,10 @@ beforeEach(() => {
     state.endOnboarding.mockClear()
     state.capture.mockClear()
     state.captureIntent.mockClear()
+    state.billing = false
+    state.dismissPrompt.mockReset().mockResolvedValue(undefined)
+    state.license = {isInstanceAdmin: true, data: {license: null}}
+    window.localStorage.clear()
 })
 
 afterEach(() => {
@@ -152,7 +183,6 @@ describe("the onboarding's PostHog events", () => {
         expect(surveyEvents()).toHaveLength(1)
         expect(surveyEvents()[0][1]).toMatchObject({
             $survey_id: "019f3812-8ce3-0000-1123-8c254a48750d",
-            "$survey_response_d6c2d8aa-d624-4736-a71b-25fe0b74d0e9": "person@example.com",
         })
 
         flow().onStepCompleted("credits", draft)
@@ -244,5 +274,60 @@ describe("the onboarding's PostHog events", () => {
         mount()
         flow().onSkip()
         expect(state.captureIntent).toHaveBeenCalledWith({source: "skipped"})
+    })
+})
+
+describe("the registration step after the survey", () => {
+    it("shows in place of the next step for the instance admin with no key", () => {
+        mount()
+        act(() => flow().onStepCompleted("size", draft))
+        expect(offer()).toBeUndefined()
+
+        act(() => flow().onStepCompleted("source", draft))
+        expect(offer()).toMatchObject({
+            largeCompany: true,
+            email: "person@example.com",
+            survey: {role: "Marketing", team_size: "51-200", heard_from: "GitHub"},
+        })
+        // Shown once: the offer after an upgrade does not ask again.
+        expect(state.dismissPrompt).toHaveBeenCalledWith("p")
+    })
+
+    it("stays away when the instance already has a key", () => {
+        state.license = {isInstanceAdmin: true, data: {license: {key_id: "k"}}}
+        mount()
+        act(() => flow().onStepCompleted("source", draft))
+        expect(offer()).toBeUndefined()
+    })
+
+    it("shows when the license answer arrives after the survey", () => {
+        state.license = {isInstanceAdmin: false, data: {license: null}}
+        mount()
+        act(() => flow().onStepCompleted("source", draft))
+        expect(offer()).toBeUndefined()
+
+        state.license = {isInstanceAdmin: true, data: {license: null}}
+        rerender()
+        expect(offer()).toBeDefined()
+    })
+
+    it("does not show again once the instance has it dismissed", () => {
+        mount()
+        act(() => flow().onStepCompleted("source", draft))
+        expect(offer()).toBeDefined()
+        act(() => (offer()!.onSkip as () => void)())
+        expect(offer()).toBeUndefined()
+
+        act(() => root!.unmount())
+        mount()
+        act(() => flow().onStepCompleted("source", draft))
+        expect(offer()).toBeUndefined()
+    })
+
+    it("stays away for a user who is not the instance admin", () => {
+        state.license = {isInstanceAdmin: false, data: {license: null}}
+        mount()
+        act(() => flow().onStepCompleted("source", draft))
+        expect(offer()).toBeUndefined()
     })
 })

@@ -11,7 +11,7 @@ import {
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {classifyAgentIntent} from "@agenta/shared/analytics"
-import {isToolsEnabled, isWalletsEnabled} from "@agenta/shared/api/env"
+import {isBillingEnabled, isToolsEnabled, isWalletsEnabled} from "@agenta/shared/api/env"
 import {loadAgentIconCatalog} from "@agenta/ui/agent-icon"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {useRouter} from "next/router"
@@ -21,6 +21,8 @@ import {useInstanceTelemetry} from "@/features/analytics/useInstanceTelemetry"
 import {newId} from "@/lib/ids"
 
 import {useNewAgentAction} from "../agents/useNewAgentAction"
+import {type RegistrationSurvey} from "../settings/licenseApi"
+import {useDismissRegistrationOffer, useInstanceLicense} from "../settings/useInstanceLicense"
 
 import {connectedApps} from "./onboardingApps"
 import type {OnboardingCatalog} from "./onboardingChoices"
@@ -34,7 +36,16 @@ import {
 import {OnboardingFlow} from "./OnboardingFlow"
 import {endOnboarding, isOnboardingInvited, isOnboardingPending} from "./onboardingPending"
 import {personProperties, signupSurveyProperties} from "./onboardingQuestions"
-import {isFixedStep, onboardingSteps, stepIndex, type OnboardingStep} from "./onboardingRoute"
+import {
+    isFixedStep,
+    onboardingSteps,
+    REGISTRATION_HEADING_ID,
+    stepIndex,
+    type OnboardingStep,
+} from "./onboardingRoute"
+import {RegistrationOffer} from "./RegistrationOffer"
+import {isLargeCompany, shouldOfferRegistration} from "./registrationOfferRules"
+import {registrationSurvey} from "./registrationSurvey"
 import {useOnboardingModel} from "./useOnboardingModel"
 import {useSeedToolConnections} from "./useSeedToolConnections"
 
@@ -101,6 +112,26 @@ export const OnboardingFlowHost = ({
     const telemetry = useInstanceTelemetry(userId)
     // Self-hosted surveys go out without the email answer.
     const surveyEmail = telemetry && isCloudTelemetry(telemetry) ? userEmail : null
+    const license = useInstanceLicense(projectId)
+    // Set when the survey ends; the offer opens once the license answer allows it, even late.
+    const [survey, setSurvey] = useState<{
+        largeCompany: boolean
+        answers: RegistrationSurvey
+    } | null>(null)
+    const [offerClosed, setOfferClosed] = useState(false)
+    const offerOpen =
+        survey !== null &&
+        !offerClosed &&
+        shouldOfferRegistration({
+            selfHosted: !isBillingEnabled(),
+            isInstanceAdmin: license.isInstanceAdmin,
+            hasKey: Boolean(license.data?.license),
+        })
+    const dismissOffer = useDismissRegistrationOffer(projectId)
+    useEffect(() => {
+        // Shown here, so the offer after an upgrade never asks again, in any browser.
+        if (offerOpen) dismissOffer()
+    }, [offerOpen, dismissOffer])
     const track = (event: string, properties?: Record<string, unknown>) => {
         if (!preview) capture(event, properties)
     }
@@ -131,6 +162,12 @@ export const OnboardingFlowHost = ({
         })
         if (step === steps.findLast((shown) => !isFixedStep(shown))) {
             track("survey sent", signupSurveyProperties(draft.answers, surveyEmail))
+            if (!preview && !invited && !license.data?.registration_offer_dismissed) {
+                setSurvey({
+                    largeCompany: isLargeCompany(draft.answers),
+                    answers: registrationSurvey(draft.answers),
+                })
+            }
         }
     }
 
@@ -202,6 +239,8 @@ export const OnboardingFlowHost = ({
         void router.replace(homeUrl)
     }
 
+    const closeOffer = () => setOfferClosed(true)
+
     return (
         <OnboardingFlow
             onboardingPath={`${base}/onboarding`}
@@ -217,6 +256,19 @@ export const OnboardingFlowHost = ({
             onQuestionsDone={invited ? onQuestionsDone : undefined}
             onCreate={onCreate}
             onSkip={onSkip}
+            interstitial={
+                offerOpen ? (
+                    <RegistrationOffer
+                        projectId={projectId}
+                        email={userEmail}
+                        survey={survey?.answers}
+                        largeCompany={survey?.largeCompany ?? false}
+                        headingId={REGISTRATION_HEADING_ID}
+                        onSkip={closeOffer}
+                        onDone={closeOffer}
+                    />
+                ) : undefined
+            }
         />
     )
 }

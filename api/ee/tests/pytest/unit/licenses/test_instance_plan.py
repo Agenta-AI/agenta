@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from oss.src.utils.env import env
 
+import ee.src.core.licenses.service as licenses_service_module
 from ee.src.core.licenses import keys, types
 from ee.src.core.licenses.service import LicensesService
 from ee.src.core.licenses.types import (
@@ -22,6 +23,16 @@ from .conftest import sign_key
 
 COMMUNITY = "self_hosted_community"
 ENTERPRISE = "self_hosted_enterprise"
+# This instance: the free keys in these tests were issued for it.
+HERE_ID = uuid4()
+HERE = str(HERE_ID)
+
+
+@pytest.fixture(autouse=True)
+def _this_instance(monkeypatch):
+    monkeypatch.setattr(
+        licenses_service_module, "_this_instance_id", AsyncMock(return_value=HERE_ID)
+    )
 
 
 def _service(stored_key=None) -> LicensesService:
@@ -97,7 +108,9 @@ async def test_the_environment_key_wins_over_the_stored_key(
     self_hosted, signing_key, monkeypatch
 ):
     monkeypatch.setattr(
-        env.license, "key", sign_key(signing_key, plan="self_hosted_registered")
+        env.license,
+        "key",
+        sign_key(signing_key, plan="self_hosted_registered", instance_id=HERE),
     )
     service = _service(sign_key(signing_key, plan=ENTERPRISE))
 
@@ -159,7 +172,7 @@ async def test_activate_refuses_when_the_key_is_set_in_the_environment(
 async def test_a_changed_environment_key_applies_at_once_after_a_restart(
     self_hosted, signing_key, monkeypatch, shared_cache
 ):
-    stored = sign_key(signing_key, plan="self_hosted_registered")
+    stored = sign_key(signing_key, plan="self_hosted_registered", instance_id=HERE)
     assert (await _service(stored).read_state()).source == "database"
     assert shared_cache
 
@@ -170,7 +183,9 @@ async def test_a_changed_environment_key_applies_at_once_after_a_restart(
     assert state.license.customer == "First"
     assert state.plan == ENTERPRISE
 
-    second = sign_key(signing_key, plan="self_hosted_registered", customer="Second")
+    second = sign_key(
+        signing_key, plan="self_hosted_registered", instance_id=HERE, customer="Second"
+    )
     monkeypatch.setattr(env.license, "key", second)
     state = await _service(stored).read_state()
     assert state.license.customer == "Second"
@@ -185,7 +200,9 @@ async def test_a_removed_environment_key_falls_back_to_the_stored_key(
     assert (await _service().read_state()).source == "environment"
 
     monkeypatch.setattr(env.license, "key", None)
-    stored = sign_key(signing_key, plan="self_hosted_registered", customer="Stored")
+    stored = sign_key(
+        signing_key, plan="self_hosted_registered", instance_id=HERE, customer="Stored"
+    )
     state = await _service(stored).read_state()
     assert state.source == "database"
     assert state.license.customer == "Stored"

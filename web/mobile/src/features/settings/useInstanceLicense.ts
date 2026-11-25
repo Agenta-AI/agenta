@@ -1,7 +1,14 @@
-import {isBillingEnabled} from "@agenta/shared/api"
-import {useQuery} from "@tanstack/react-query"
+import {useCallback} from "react"
 
-import {fetchInstanceLicense, isNotInstanceAdmin} from "./licenseApi"
+import {isBillingEnabled} from "@agenta/shared/api"
+import {useQuery, useQueryClient} from "@tanstack/react-query"
+
+import {
+    dismissRegistrationOffer,
+    fetchInstanceLicense,
+    isNotInstanceAdmin,
+    type InstanceLicense,
+} from "./licenseApi"
 
 export const instanceLicenseQueryKey = (projectId: string) => ["instance", "license", projectId]
 
@@ -23,4 +30,18 @@ export const useInstanceLicense = (projectId: string) => {
         isInstanceAdmin: query.isSuccess,
         notInstanceAdmin: query.isError && isNotInstanceAdmin(query.error),
     }
+}
+
+/**
+ * Records that the instance admin saw the registration offer: in the cached license at once, so
+ * no other surface offers it again in this session, and on the instance, for every browser.
+ */
+export const useDismissRegistrationOffer = (projectId: string) => {
+    const queryClient = useQueryClient()
+    return useCallback(() => {
+        queryClient.setQueryData<InstanceLicense>(instanceLicenseQueryKey(projectId), (data) =>
+            data ? {...data, registration_offer_dismissed: true} : data,
+        )
+        void dismissRegistrationOffer(projectId).catch(() => undefined)
+    }, [projectId, queryClient])
 }
