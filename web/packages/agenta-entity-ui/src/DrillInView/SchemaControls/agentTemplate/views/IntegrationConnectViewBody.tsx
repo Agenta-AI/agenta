@@ -2,7 +2,7 @@ import {toolIntegrationDetailQueryFamily} from "@agenta/entities/gatewayTool"
 import {useT} from "@agenta/i18n"
 import connectFormCatalog from "@agenta/i18n/catalogs/entityUi.connectForm"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
-import {Button} from "@agenta/ui/ui"
+import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
@@ -12,7 +12,6 @@ import {
     ConnectFormFields,
     useConnectForm,
 } from "../../../../gatewayTool/components/ConnectForm"
-import {CatalogRowSkeleton} from "../CatalogRowSkeleton"
 
 import type {IntegrationConnectViewParams} from "./integrationConnectView"
 
@@ -33,14 +32,8 @@ const IntegrationConnectViewBody = ({params}: ViewProps<IntegrationConnectViewPa
             </div>
         )
     }
-    // The form starts from the app's sign-in methods, so it waits for them.
-    if (!integration) {
-        return (
-            <div className="px-4 py-3">
-                <CatalogRowSkeleton count={1} />
-            </div>
-        )
-    }
+    // The form starts from the app's sign-in methods, so it waits for them in its own shape.
+    if (!integration) return <ConnectFormSkeleton askOwner={Boolean(params.owners && params.owners.length > 1)} />
     return (
         <ConnectForm
             params={params}
@@ -49,6 +42,49 @@ const IntegrationConnectViewBody = ({params}: ViewProps<IntegrationConnectViewPa
             description={params.description ?? integration.description}
             authSchemes={(integration.auth_schemes as string[] | null | undefined) ?? []}
         />
+    )
+}
+
+/** The connect form's outline while the app loads: the same blocks at the same heights. */
+const ConnectFormSkeleton = ({askOwner}: {askOwner: boolean}) => {
+    const t = useT(integrationViewsCatalog, connectFormCatalog)
+    // The action row keeps its Connect label, disabled, so it does not change when the form lands.
+    useViewForm({
+        dirty: false,
+        valid: false,
+        leaveDescription: t("entityUi.integrationViews.connectLeaveDescription"),
+        saveLabel: t("entityUi.connectForm.connect"),
+        save: async () => false,
+    })
+    const line = (width: string) => (
+        <span className="flex h-5 items-center">
+            <SkeletonBlock className={`h-3 ${width}`} />
+        </span>
+    )
+    return (
+        <div aria-busy className="flex flex-col gap-3 px-4 py-3.5">
+            <SkeletonBlock shape="mark" className="size-8" />
+            <div className="flex flex-col gap-1">
+                {line("w-40")}
+                {line("w-full")}
+            </div>
+            <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1">
+                    <span className="flex h-4 items-center">
+                        <SkeletonBlock className="h-2.5 w-12" />
+                    </span>
+                    <SkeletonBlock shape="soft" className="h-control" />
+                </div>
+                {askOwner ? (
+                    <div className="flex flex-col gap-1">
+                        <span className="flex h-[18px] items-center">
+                            <SkeletonBlock className="h-3 w-14" />
+                        </span>
+                        <SkeletonBlock shape="soft" className="h-[76px]" />
+                    </div>
+                ) : null}
+            </div>
+        </div>
     )
 }
 
