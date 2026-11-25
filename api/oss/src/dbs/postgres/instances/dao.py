@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import AsyncIterator, List, Optional, Tuple
+from typing import AsyncIterator, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from sqlalchemy import bindparam, func, literal_column, select, text, update
@@ -20,7 +20,7 @@ _COMMITTED_REVISION = (
     " OR tags IS NOT NULL OR meta IS NOT NULL)"
 )
 
-HEARTBEAT_INTERVAL = literal_column("interval '12 hours'")
+HEARTBEAT_INTERVAL = literal_column("interval '6 hours'")
 # `evaluation_runs`, `session_turns`, `workflow_revisions` and `environment_revisions`
 # have no index on `created_at`, so their window counts scan the table. The workflow
 # kind counts read the revisions of every workflow. A count that runs longer is sent
@@ -73,6 +73,26 @@ async def _row_or_none(scope, statement, params) -> Optional[Tuple[int, ...]]:
         if not _is_statement_timeout(error):
             raise
         return None
+
+
+async def _counts_by_key_or_none(scope, statement, params) -> Optional[Dict[str, int]]:
+    """Run one `SELECT key, count(*) ... GROUP BY key` like `_row_or_none`."""
+
+    try:
+        async with scope() as executor:
+            await executor.execute(WINDOW_COUNT_TIMEOUT)
+            rows = (await executor.execute(statement, params)).all()
+            return {str(key): int(count) for key, count in rows}
+    except DBAPIError as error:
+        if not _is_statement_timeout(error):
+            raise
+        return None
+
+
+def _window_count(table: str, column: str = "created_at"):
+    return text(
+        f"SELECT count(*) FROM {table} WHERE {column} >= :start AND {column} < :end"
+    )
 
 
 async def _count_or_none(scope, statement, params) -> Optional[int]:
@@ -300,6 +320,144 @@ class InstancesDAO:
                 "end": window_end,
             },
         )
+
+    async def count_window_traces(
+        self,
+        *,
+        project_ids: List[UUID],
+        window_start: datetime,
+        window_end: datetime,
+    ) -> Optional[Tuple[int, int]]:
+        """`(traces, annotations)` whose root span started in the window, by the same
+        per-project range scans as `count_window_spans`."""
+
+        if not project_ids:
+            return 0, 0
+
+        statement = text(
+            "SELECT coalesce(sum(per_project.traces), 0),"
+            " coalesce(sum(per_project.annotations), 0)"
+            " FROM unnest(:project_ids) AS p(id)"
+            " CROSS JOIN LATERAL (SELECT"
+            "  count(*) AS traces,"
+            "  count(*) FILTER (WHERE trace_type::text IN ('ANNOTATION', 'annotation'))"
+            "  AS annotations"
+            "  FROM spans"
+            "  WHERE spans.project_id = p.id AND spans.parent_id IS NULL"
+            "  AND spans.start_time >= :start AND spans.start_time < :end"
+            ") AS per_project"
+        ).bindparams(
+            bindparam("project_ids", type_=ARRAY(PG_UUID(as_uuid=True))),
+        )
+
+        return await _row_or_none(
+            get_analytics_engine().session,
+            statement,
+            {
+                "project_ids": project_ids,
+                "start": window_start,
+                "end": window_end,
+            },
+        )
+
+    async def count_window_evaluation_runs_by_status(
+        self, *, window_start: datetime, window_end: datetime
+    ) -> Optional[Dict[str, int]]:
+        """Evaluation runs created in the window, by their status now."""
+
+        return await _counts_by_key_or_none(
+            get_transactions_engine().transaction,
+            text(
+                "SELECT coalesce(status, 'unknown'), count(*) FROM evaluation_runs"
+                " WHERE created_at >= :start AND created_at < :end GROUP BY 1"
+            ),
+            {"start": window_start, "end": window_end},
+        )
+
+    async def count_window_agent_turns_by_outcome(
+        self, *, window_start: datetime, window_end: datetime
+    ) -> Optional[Dict[str, int]]:
+        """Agent turns (session executions) that ended in the window, by outcome:
+        completed, failed, stopped, lost or continued."""
+
+        return await _counts_by_key_or_none(
+            get_transactions_engine().transaction,
+            text(
+                "SELECT coalesce(terminal_outcome, 'unknown'), count(*)"
+                " FROM session_executions"
+                " WHERE settled_at >= :start AND settled_at < :end GROUP BY 1"
+            ),
+            {"start": window_start, "end": window_end},
+        )
+
+    async def count_window_evaluation_scenarios(
+        self, *, window_start: datetime, window_end: datetime
+    ) -> Optional[int]:
+        return await _count_or_none(
+            get_transactions_engine().transaction,
+            _window_count("evaluation_scenarios"),
+            {"start": window_start, "end": window_end},
+        )
+
+    async def count_window_testsets(
+        self, *, window_start: datetime, window_end: datetime
+    ) -> Optional[int]:
+        return await _count_or_none(
+            get_transactions_engine().transaction,
+            _window_count("testset_artifacts"),
+            {"start": window_start, "end": window_end},
+        )
+
+    async def count_window_testcases(
+        self, *, window_start: datetime, window_end: datetime
+    ) -> Optional[int]:
+        return await _count_or_none(
+            get_transactions_engine().transaction,
+            _window_count("testcase_blobs"),
+            {"start": window_start, "end": window_end},
+        )
+
+    async def count_api_keys(self) -> Optional[int]:
+        """API keys that are not deleted."""
+
+        return await _count_or_none(
+            get_transactions_engine().transaction,
+            text("SELECT count(*) FROM api_keys WHERE deleted_at IS NULL"),
+            {},
+        )
+
+    async def count_users_by_role(self) -> Optional[Dict[str, int]]:
+        """Organization members by role. A user in two organizations counts once in
+        each of their roles."""
+
+        return await _counts_by_key_or_none(
+            get_transactions_engine().transaction,
+            text(
+                "SELECT role, count(DISTINCT user_id) FROM organization_members"
+                " WHERE deleted_at IS NULL GROUP BY 1"
+            ),
+            {},
+        )
+
+    async def has_organization_sso_providers(self) -> bool:
+        """True when an organization set up its own SSO provider (EE only; the OSS
+        database has no `organization_providers` table)."""
+
+        async with get_transactions_engine().transaction() as connection:
+            exists = (
+                await connection.execute(
+                    text("SELECT to_regclass('organization_providers') IS NOT NULL")
+                )
+            ).scalar_one()
+            if not exists:
+                return False
+            return bool(
+                (
+                    await connection.execute(
+                        text("SELECT EXISTS (SELECT 1 FROM organization_providers)")
+                    )
+                ).scalar_one()
+            )
 
     async def top_email_domains(self, *, limit: int) -> List[Tuple[str, int]]:
         """`(domain, users)` for the most common email domains, lowercased."""

@@ -26,7 +26,7 @@ class TelemetryRouter:
         )
 
         self.admin_router = APIRouter()
-        # The hourly `telemetry.sh` cron calls it; it sends when 12 hours have passed.
+        # The hourly `telemetry.sh` cron calls it; it sends when 6 hours have passed.
         self.admin_router.add_api_route(
             "/heartbeat",
             self.send_telemetry_heartbeat,

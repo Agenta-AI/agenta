@@ -6,7 +6,7 @@ AGENTA_AUTH_KEY="${AGENTA_AUTH_KEY:-replace-me}"
 echo "--------------------------------------------------------"
 echo "[$(date)] telemetry.sh running from cron"
 
-# Ask the API for the telemetry heartbeat. The API sends it only when 12 hours have
+# Ask the API for the telemetry heartbeat. The API sends it only when 6 hours have
 # passed and telemetry is on, so an hourly call retries a failed send within the hour.
 #
 # Make POST request with bounded timeouts; decode curl/HTTP failures instead of

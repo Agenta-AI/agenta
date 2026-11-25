@@ -38,13 +38,40 @@ async def test_install_ping_table_matches_the_payload_on_the_wire(monkeypatch):
     assert not documented - sent, f"not in the payload: {sorted(documented - sent)}"
 
 
-def test_heartbeat_table_matches_the_model():
-    documented = documented_fields("Heartbeat")
-    # The PostHog client adds `$geoip_disable` to every event it sends.
-    sent = set(InstanceHeartbeat.model_fields) | {"$groups", "$geoip_disable"}
+@pytest.mark.asyncio
+async def test_heartbeat_table_matches_the_payload_on_the_wire(monkeypatch):
+    """Reads the properties the PostHog client really posts, library additions included."""
+    batches = []
+    monkeypatch.setattr(
+        "posthog.client.batch_post",
+        lambda api_key, host=None, **kwargs: batches.append(kwargs["batch"]),
+    )
+    telemetry_service._sync_client.cache_clear()
+    # Values do not matter here, only the keys: every field of the model is sent.
+    heartbeat = InstanceHeartbeat.model_construct(
+        **{name: None for name in InstanceHeartbeat.model_fields},
+    )
+    heartbeat.instance_id = "3f0c9a52-6d1e-4b8a-9f7e-2a5c8d4e1b07"
+    heartbeat.user_domains = []
 
+    await telemetry_service.capture(
+        "instance_heartbeat",
+        heartbeat.instance_id,
+        {
+            **heartbeat.model_dump(mode="json"),
+            "$groups": {"instance": heartbeat.instance_id},
+        },
+    )
+    telemetry_service._sync_client.cache_clear()
+
+    [[message]] = batches
+    sent = set(message["properties"])
+    documented = documented_fields("Heartbeat")
+    # The library adds `$os_distro` on Linux only.
     assert not sent - documented, f"not on the docs page: {sorted(sent - documented)}"
-    assert not documented - sent, f"not in the payload: {sorted(documented - sent)}"
+    assert not documented - sent - {"$os_distro"}, (
+        f"not in the payload: {sorted(documented - sent)}"
+    )
 
 
 @pytest.mark.asyncio

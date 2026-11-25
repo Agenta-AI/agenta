@@ -18,7 +18,7 @@ from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from oss.src.core.telemetry import heartbeat
+from oss.src.core.telemetry import heartbeat, runtime
 from oss.src.dbs.postgres.instances import dao as instances_dao_module
 from oss.src.core.telemetry import service as telemetry_service
 from oss.src.utils.env import env
@@ -34,8 +34,23 @@ CONTRACT_FIELDS = {
     "agenta_version",
     "edition",
     "deployment_method",
+    "instance_host",
+    "cpu_count",
+    "memory_mb",
+    "memory_limit_mb",
+    "postgres_version",
     "plan",
     "license_key_id",
+    "license_expires_at",
+    "license_days_left",
+    "license_seats",
+    "email_configured",
+    "sso_configured",
+    "social_login_configured",
+    "otel_export_configured",
+    "composio_configured",
+    "llm_gateway_enabled",
+    "timezone",
     "total_organizations",
     "total_projects",
     "total_users",
@@ -44,15 +59,37 @@ CONTRACT_FIELDS = {
     "total_agents",
     "total_evaluators",
     "total_snippets",
+    "total_api_keys",
+    "users_by_role",
     "window_start",
     "window_end",
     "window_spans",
+    "window_traces",
+    "window_annotations",
     "window_evaluation_runs",
+    "window_evaluation_runs_by_status",
+    "window_evaluation_scenarios",
     "window_agent_turns",
+    "window_agent_turns_by_outcome",
     "window_revisions",
     "window_deployments",
+    "window_testsets",
+    "window_testcases",
     "user_domains",
 }
+
+# The autouse fixture replaces it; the config flag test calls the real one.
+_real_config_flags = heartbeat._config_flags
+
+CONFIG_FLAGS = heartbeat.ConfigFlags(
+    email_configured=True,
+    sso_configured=False,
+    social_login_configured=True,
+    otel_export_configured=False,
+    composio_configured=False,
+    llm_gateway_enabled=True,
+    timezone="UTC",
+)
 
 
 class _PostHog:
@@ -90,7 +127,7 @@ class _InstancesDAO:
 
     def _due(self):
         return self.heartbeat_sent_at is None or self.heartbeat_sent_at < (
-            self.now - timedelta(hours=12)
+            self.now - timedelta(hours=6)
         )
 
     async def fetch_due_heartbeat_window(self):
@@ -132,6 +169,33 @@ class _InstancesDAO:
     async def count_window_spans(self, *, project_ids, window_start, window_end):
         return 8
 
+    async def count_window_traces(self, *, project_ids, window_start, window_end):
+        return 11, 3
+
+    async def count_window_evaluation_runs_by_status(self, *, window_start, window_end):
+        return {"success": 5, "failure": 1}
+
+    async def count_window_agent_turns_by_outcome(self, *, window_start, window_end):
+        return {"completed": 6, "failed": 1}
+
+    async def count_window_evaluation_scenarios(self, *, window_start, window_end):
+        return 12
+
+    async def count_window_testsets(self, *, window_start, window_end):
+        return 2
+
+    async def count_window_testcases(self, *, window_start, window_end):
+        return 40
+
+    async def count_api_keys(self):
+        return 3
+
+    async def count_users_by_role(self):
+        return {"owner": 2, "editor": 2}
+
+    async def has_organization_sso_providers(self):
+        return False
+
     async def top_email_domains(self, *, limit):
         return self.domain_rows[:limit]
 
@@ -159,7 +223,14 @@ def self_hosted(monkeypatch):
     monkeypatch.setattr(env.telemetry, "ci", False)
     monkeypatch.setattr(env.agenta, "license", "oss")
     monkeypatch.setattr(env.agenta, "web_url", "https://agenta.example.com")
-    monkeypatch.setattr(heartbeat, "get_agenta_version", lambda: "v0.128.11")
+    monkeypatch.setattr(runtime, "get_agenta_version", lambda: "v0.128.11")
+    monkeypatch.setattr(runtime.os, "cpu_count", lambda: 8)
+    monkeypatch.setattr(runtime, "_memory_mb", lambda: 32000)
+    monkeypatch.setattr(runtime, "_memory_limit_mb", lambda: None)
+    monkeypatch.setattr(runtime, "_postgres_version", AsyncMock(return_value="16.4"))
+    monkeypatch.setattr(
+        heartbeat, "_config_flags", AsyncMock(return_value=CONFIG_FLAGS)
+    )
 
 
 def _flatten(value):
@@ -191,8 +262,23 @@ async def test_payload_has_exactly_the_contract_fields(dao, posthog):
         "agenta_version": "v0.128.11",
         "edition": "oss",
         "deployment_method": "compose",
+        "instance_host": "agenta.example.com",
+        "cpu_count": 8,
+        "memory_mb": 32000,
+        "memory_limit_mb": None,
+        "postgres_version": "16.4",
         "plan": "self_hosted_community",
         "license_key_id": None,
+        "license_expires_at": None,
+        "license_days_left": None,
+        "license_seats": None,
+        "email_configured": True,
+        "sso_configured": False,
+        "social_login_configured": True,
+        "otel_export_configured": False,
+        "composio_configured": False,
+        "llm_gateway_enabled": True,
+        "timezone": "UTC",
         "total_organizations": 2,
         "total_projects": 3,
         "total_users": 4,
@@ -201,13 +287,22 @@ async def test_payload_has_exactly_the_contract_fields(dao, posthog):
         "total_agents": 2,
         "total_evaluators": 1,
         "total_snippets": 1,
+        "total_api_keys": 3,
+        "users_by_role": {"owner": 2, "editor": 2},
         "window_start": "2026-11-01T08:00:00+00:00",
         "window_end": "2026-11-09T20:00:00+00:00",
         "window_spans": 8,
+        "window_traces": 11,
+        "window_annotations": 3,
         "window_evaluation_runs": 6,
+        "window_evaluation_runs_by_status": {"success": 5, "failure": 1},
+        "window_evaluation_scenarios": 12,
         "window_agent_turns": 7,
+        "window_agent_turns_by_outcome": {"completed": 6, "failed": 1},
         "window_revisions": 9,
         "window_deployments": 10,
+        "window_testsets": 2,
+        "window_testcases": 40,
         "user_domains": [
             {"domain": "example.com", "users": 3},
             {"domain": "navy.example.org", "users": 1},
@@ -221,14 +316,17 @@ async def test_payload_has_exactly_the_contract_fields(dao, posthog):
 async def test_payload_has_no_email_url_or_ip(dao, posthog):
     await heartbeat.send_heartbeat()
 
+    properties = posthog.captures[0]["properties"]
     text = " ".join(_flatten(posthog.captures[0])).lower()
     for email in EMAILS:
         assert email not in text
     assert "@" not in text
     assert "http" not in text
-    assert "agenta.example.com" not in text
+    # The host name is the one part of the web address that is sent.
+    assert properties["instance_host"] == "agenta.example.com"
+    assert text.count("agenta.example.com") == 1
     assert "$ip" not in text
-    assert "email" not in text
+    assert "email" not in text.replace("email_configured", "")
 
 
 @pytest.mark.asyncio
@@ -244,7 +342,11 @@ async def test_group_properties_come_from_the_heartbeat(dao, posthog):
                 "agenta_version": "v0.128.11",
                 "edition": "oss",
                 "deployment_method": "compose",
+                "instance_host": "agenta.example.com",
+                "postgres_version": "16.4",
                 "plan": "self_hosted_community",
+                "license_expires_at": None,
+                "license_seats": None,
                 "total_organizations": 2,
                 "total_projects": 3,
                 "total_users": 4,
@@ -253,15 +355,16 @@ async def test_group_properties_come_from_the_heartbeat(dao, posthog):
                 "total_agents": 2,
                 "total_evaluators": 1,
                 "total_snippets": 1,
+                "total_api_keys": 3,
             },
         )
     ]
 
 
 @pytest.mark.asyncio
-async def test_second_call_within_12_hours_sends_nothing(dao, posthog):
+async def test_second_call_within_6_hours_sends_nothing(dao, posthog):
     assert await heartbeat.send_heartbeat() == "sent"
-    dao.now += timedelta(hours=11)
+    dao.now += timedelta(hours=5)
 
     assert await heartbeat.send_heartbeat() == "not_due"
     assert len(posthog.captures) == 1
@@ -374,7 +477,12 @@ async def test_ee_reads_plan_and_license_key_id(monkeypatch, dao, posthog):
         LICENSE_SERVICE,
         SimpleNamespace(
             active_license=AsyncMock(
-                return_value=SimpleNamespace(key_id=LICENSE_KEY_ID)
+                return_value=SimpleNamespace(
+                    key_id=LICENSE_KEY_ID,
+                    customer="Analytical Engines Ltd",
+                    seats=25,
+                    expires_at=datetime(2026, 12, 9, 20, 0, tzinfo=timezone.utc),
+                )
             ),
             instance_plan=AsyncMock(return_value="self_hosted_enterprise"),
         ),
@@ -386,6 +494,10 @@ async def test_ee_reads_plan_and_license_key_id(monkeypatch, dao, posthog):
     assert properties["edition"] == "ee"
     assert properties["plan"] == "self_hosted_enterprise"
     assert properties["license_key_id"] == str(LICENSE_KEY_ID)
+    assert properties["license_expires_at"] == "2026-12-09T20:00:00+00:00"
+    assert properties["license_days_left"] == 30
+    assert properties["license_seats"] == 25
+    assert "Analytical Engines" not in str(properties)
 
 
 @pytest.mark.asyncio
@@ -451,31 +563,11 @@ def test_domains_hold_domains_only():
     ]
 
 
-def test_model_refuses_more_than_100_domains_or_an_email():
-    base = dict(
-        instance_id=str(INSTANCE_ID),
-        instance_kind="production",
-        agenta_version="v0.128.11",
-        edition="oss",
-        deployment_method=None,
-        plan="self_hosted_community",
-        license_key_id=None,
-        total_organizations=0,
-        total_projects=0,
-        total_users=0,
-        total_workflows=0,
-        total_prompts=0,
-        total_agents=0,
-        total_evaluators=0,
-        total_snippets=0,
-        window_start="2026-11-01T08:00:00+00:00",
-        window_end="2026-11-09T20:00:00+00:00",
-        window_spans=0,
-        window_evaluation_runs=0,
-        window_agent_turns=0,
-        window_revisions=0,
-        window_deployments=0,
-    )
+@pytest.mark.asyncio
+async def test_model_refuses_more_than_100_domains_or_an_email(dao, posthog):
+    await heartbeat.send_heartbeat()
+    base = dict(posthog.captures[0]["properties"])
+    del base["$groups"], base["user_domains"]
 
     with pytest.raises(ValidationError):
         heartbeat.InstanceHeartbeat(
@@ -562,3 +654,102 @@ async def test_count_with_another_database_error_raises():
         await instances_dao_module._count_or_none(
             _scope(executor), text("SELECT count(*) FROM x"), {}
         )
+
+
+@pytest.mark.asyncio
+async def test_grouped_counts_past_their_timeout_are_sent_as_null(
+    monkeypatch, dao, posthog
+):
+    for name in (
+        "count_window_evaluation_runs_by_status",
+        "count_window_agent_turns_by_outcome",
+        "count_users_by_role",
+        "count_window_traces",
+        "count_api_keys",
+    ):
+        monkeypatch.setattr(dao, name, AsyncMock(return_value=None))
+
+    assert await heartbeat.send_heartbeat() == "sent"
+
+    properties = posthog.captures[0]["properties"]
+    for name in (
+        "window_evaluation_runs_by_status",
+        "window_agent_turns_by_outcome",
+        "users_by_role",
+        "window_traces",
+        "window_annotations",
+        "total_api_keys",
+    ):
+        assert properties[name] is None
+    assert properties["window_spans"] == 8
+
+
+@pytest.mark.asyncio
+async def test_config_flags_are_booleans_from_the_settings(monkeypatch, dao):
+    monkeypatch.setattr(env.smtp, "host", None)
+    monkeypatch.setattr(env.sendgrid, "api_key", "SG.not-a-real-key")
+    monkeypatch.setattr(env.sendgrid, "from_email", "noreply@example.com")
+    monkeypatch.setattr(env.identity.okta, "client_id", None)
+    monkeypatch.setattr(env.identity.github, "client_id", "gh-id")
+    monkeypatch.setattr(env.identity.github, "client_secret", "gh-secret")
+    monkeypatch.setattr(env.composio, "api_key", None)
+    monkeypatch.setattr(env.llm_gateway, "enabled", False)
+    monkeypatch.setattr(env.agenta.logging, "otlp_enabled", False)
+    monkeypatch.setattr(env.agenta.server_tracing, "endpoint", "http://collector:4318")
+    monkeypatch.setattr(
+        dao, "has_organization_sso_providers", AsyncMock(return_value=True)
+    )
+
+    flags = (await _real_config_flags()).model_dump()
+
+    assert flags["email_configured"] is True
+    assert flags["sso_configured"] is True
+    assert flags["social_login_configured"] is True
+    assert flags["otel_export_configured"] is True
+    assert flags["composio_configured"] is False
+    assert flags["llm_gateway_enabled"] is False
+    text = str(flags)
+    for secret in (
+        "SG.not-a-real-key",
+        "gh-id",
+        "gh-secret",
+        "collector",
+        "example.com",
+    ):
+        assert secret not in text
+
+
+def test_a_key_without_an_expiry_has_no_days_left():
+    detail = heartbeat._license_detail_from(
+        "self_hosted_business",
+        SimpleNamespace(key_id=LICENSE_KEY_ID, seats=None, expires_at=None),
+        datetime(2026, 11, 9, tzinfo=timezone.utc),
+    )
+
+    assert detail.model_dump() == {
+        "plan": "self_hosted_business",
+        "license_key_id": str(LICENSE_KEY_ID),
+        "license_expires_at": None,
+        "license_days_left": None,
+        "license_seats": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_grouped_count_past_the_statement_timeout_gives_none():
+    executor = _Executor(
+        _PostgresError("canceling statement due to statement timeout", "57014")
+    )
+
+    counts = await instances_dao_module._counts_by_key_or_none(
+        _scope(executor),
+        text("SELECT status, count(*) FROM evaluation_runs GROUP BY 1"),
+        {},
+    )
+
+    assert counts is None
+    assert "statement_timeout" in executor.statements[0]
+
+
+def test_the_heartbeat_interval_is_6_hours():
+    assert "6 hours" in str(instances_dao_module.HEARTBEAT_INTERVAL)
