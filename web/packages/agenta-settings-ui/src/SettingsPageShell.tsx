@@ -1,4 +1,11 @@
-import {createContext, useContext, useState, type ReactNode, type Ref} from "react"
+import {
+    createContext,
+    useContext,
+    useLayoutEffect,
+    useState,
+    type ReactNode,
+    type Ref,
+} from "react"
 
 import {Button} from "@agenta/ui/ui"
 import {ArrowSquareOut, PlayCircle} from "@phosphor-icons/react"
@@ -34,6 +41,27 @@ export const SettingsPageActions = ({children}: {children: ReactNode}) => {
     const target = useContext(HeaderActionsContext)
     if (target === undefined) return <div className="mb-3 flex justify-end gap-2">{children}</div>
     return target ? createPortal(children, target) : null
+}
+
+/** Where a tab's toolbar renders: the page's pinned toolbar row, and how a tab claims it. */
+export interface SettingsToolbarSlot {
+    target: HTMLElement | null
+    /** Shows the row while a tab's toolbar is mounted; returns the release. */
+    register: () => () => void
+}
+
+const ToolbarSlotContext = createContext<SettingsToolbarSlot | undefined>(undefined)
+
+/** Hands a tab's toolbar the host's pinned row, under the title and outside the scroll. */
+export const SettingsToolbarSlotProvider = ToolbarSlotContext.Provider
+
+/** A tab's toolbar (`PageToolbar`): pinned in the host's row, or in place outside one. */
+export const SettingsPageToolbar = ({children}: {children: ReactNode}) => {
+    const slot = useContext(ToolbarSlotContext)
+    const register = slot?.register
+    useLayoutEffect(() => register?.(), [register])
+    if (slot === undefined) return <>{children}</>
+    return slot.target ? createPortal(children, slot.target) : null
 }
 
 /** The centered column both the title and the body sit in, so their edges line up. */

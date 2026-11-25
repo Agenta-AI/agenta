@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -8,6 +8,7 @@ import {
     SettingsHeaderActionsProvider,
     SettingsPageDescription,
     SettingsPageShell,
+    SettingsToolbarSlotProvider,
     SettingsVideoButton,
 } from "@agenta/settings-ui"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
@@ -113,6 +114,17 @@ export const SettingsScreen = ({
         : undefined
     // Where a tab portals its primary action: the compact bar, or the title row on lg.
     const [actionsSlot, setActionsSlot] = useState<HTMLDivElement | null>(null)
+    // Where a tab portals its toolbar: pinned under the title, drawn only while a tab has one.
+    const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null)
+    const [toolbarCount, setToolbarCount] = useState(0)
+    const registerToolbar = useCallback(() => {
+        setToolbarCount((count) => count + 1)
+        return () => setToolbarCount((count) => count - 1)
+    }, [])
+    const toolbarSlot = useMemo(
+        () => ({target: toolbarTarget, register: registerToolbar}),
+        [toolbarTarget, registerToolbar],
+    )
 
     // The default: the settings nav takes over the sidebar and the page is a general page.
     if (!nestedNav) {
@@ -138,9 +150,11 @@ export const SettingsScreen = ({
                         />
                     </>
                 }
+                toolbar={toolbarCount > 0 ? <div ref={setToolbarTarget} /> : undefined}
                 scrollRef={scrollRef}
                 scrollClassName="ag-scroll-fade"
             >
+                <SettingsToolbarSlotProvider value={toolbarSlot}>
                 <SettingsHeaderActionsProvider value={actionsSlot}>
                     {/* The tab body's own frame from SettingsPageShell: a column on the body text. */}
                     <div className="flex flex-col pb-4 text-body">
@@ -151,6 +165,7 @@ export const SettingsScreen = ({
                         />
                     </div>
                 </SettingsHeaderActionsProvider>
+                </SettingsToolbarSlotProvider>
             </PageLayout>
         )
     }

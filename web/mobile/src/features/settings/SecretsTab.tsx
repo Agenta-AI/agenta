@@ -19,14 +19,14 @@ import {useSettingsProjectGroup} from "./useSettingsProjectGroup"
 /**
  * Mobile binding: the shared vault table, with create and edit in the one secret form (a view with
  * the target "project", in a drawer) and delete in a modal. `edit_secret` decides whether a new
- * secret asks "Who can use it".
+ * secret asks for its Owner.
  */
 export const SecretsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const t = useT(settingsSecretsTabCatalog, commonCatalog)
     const {handleDeleteVaultSecret} = useVaultSecret()
     const [deleting, setDeleting] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const {projectSwitch, projectCount} = useSettingsProjectGroup(workspaceId, projectId)
+    const {projectSwitch} = useSettingsProjectGroup(workspaceId, projectId)
     const canEdit = useProjectPermission(projectId, "edit_secret")
     const access = useAtomValue(personalAccountsAccessAtom)
     const owners = addAccountOwners(access, canEdit)
@@ -34,13 +34,13 @@ export const SecretsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     return (
         <NamedSecretTable
             projectSwitch={projectSwitch}
-            projectCount={projectCount}
-            renderConfigureDialog={({selectedSecret, open, onClose}) =>
+            owners={owners}
+            renderConfigureDialog={({selectedSecret, open, owners: formOwners, onClose}) =>
                 open ? (
                     <ViewDrawerHost
                         request={{
                             view: secretFormView,
-                            params: {secretId: selectedSecret?.id, owners},
+                            params: {secretId: selectedSecret?.id, owners: formOwners},
                             target: {kind: "project"},
                         }}
                         onClosed={onClose}

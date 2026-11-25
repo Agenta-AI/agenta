@@ -7,12 +7,13 @@ import {
     Broadcast,
     Buildings,
     ChartLineUp,
-    Coins,
     ClockCounterClockwise,
+    Coins,
     Cpu,
     FolderSimple,
     HardDrives,
     Key,
+    Plugs,
     Receipt,
     ShieldCheck,
     SlidersHorizontal,
@@ -20,7 +21,6 @@ import {
     UsersThree,
     Vault,
     WebhooksLogo,
-    Wrench,
 } from "@phosphor-icons/react"
 
 import {SETTINGS_SCOPES, type SettingsScopeKey, type SettingsTabKey} from "./navigation"
@@ -39,7 +39,7 @@ export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {
         case "analytics":
             return <ChartLineUp size={16} />
         case "tools":
-            return <Wrench size={16} />
+            return <Plugs size={16} />
         case "channels":
             return <Broadcast size={16} />
         case "webhooks":

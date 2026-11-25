@@ -65,10 +65,11 @@ export interface ListTableCsvColumn<Row> {
 /**
  * A run of rows under one heading. `label: null` is the ungrouped case — the frame draws no
  * heading at all, so a list with grouping switched off is byte-for-byte the list without it.
+ * A node label (a switch) must not sit in a folding heading, which is itself a button.
  */
 export interface ListTableGroup<Row> {
     key: string
-    label: string | null
+    label: ReactNode | null
     rows: Row[]
     /** The number beside the label under `showGroupCount`. `rows.length` by default; set it when rows are paged. */
     count?: number
