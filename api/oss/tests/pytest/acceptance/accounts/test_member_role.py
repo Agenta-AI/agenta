@@ -15,6 +15,10 @@ from uuid import uuid4
 import pytest
 
 from oss.src.utils.common import is_ee
+from oss.tests.pytest.utils.membership_accounts import (
+    add_project_member,
+    create_project,
+)
 
 _OWNER_PLAN = "cloud_v0_pro" if is_ee() else None
 # Any trace id: the role check answers before the trace is looked up.
@@ -326,6 +330,8 @@ def test_admin_cannot_delete_a_project(admin_api, team):
 def test_member_creates_and_renames_a_project_but_cannot_delete_or_make_default(
     admin_api, team
 ):
+    # The member passes the permission check; a stack without a license key then refuses
+    # a second project, so the project to rename comes from the platform admin route.
     created = admin_api(
         "POST",
         "/projects/",
@@ -333,9 +339,17 @@ def test_member_creates_and_renames_a_project_but_cannot_delete_or_make_default(
         headers=team["headers"]["member"],
         json={"name": f"member-{uuid4().hex[:8]}"},
     )
-    assert created.status_code == 201, created.text
-    new_id = created.json()["project_id"]
-    assert created.json()["user_role"] == "member"
+    if is_ee():
+        assert created.status_code == 403, created.text
+        assert created.json()["detail"]["code"] == "project_limit_reached"
+    else:
+        assert created.status_code == 201, created.text
+    new_id = create_project(
+        admin_api, organization_id=team["organization_id"], name="member"
+    )
+    add_project_member(
+        admin_api, project_id=new_id, user_id=team["user_ids"]["member"], role="member"
+    )
 
     # A key belongs to one project, so the member gets a key for the new project. The
     # accounts, with their projects, go when the fixture ends.
@@ -376,6 +390,8 @@ def test_member_creates_and_renames_a_project_but_cannot_delete_or_make_default(
         json={"name": f"member-{uuid4().hex[:8]}", "make_default": True},
     )
     assert created_default.status_code == 403, created_default.text
+    # The admin check runs before the project limit: this is the role's refusal.
+    assert isinstance(created_default.json()["detail"], str), created_default.text
 
 
 def test_a_stored_viewer_keeps_viewer_permissions(admin_api, team):

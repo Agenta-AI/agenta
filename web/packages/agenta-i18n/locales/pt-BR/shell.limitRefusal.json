@@ -1,0 +1,19 @@
+{
+    "askInstanceAdmin": "Peça ao administrador da sua instância.",
+    "openLicenseSettings": "Abrir configurações de licença",
+    "organizationLimitInfo": "Uma segunda organização precisa de uma licença Enterprise. Para trabalhar com as pessoas que já estão aqui, peça ao proprietário de uma organização existente para convidar você.",
+    "organizationLimit_many": "Esta instância permite {{count}} organizações. Peça um convite para uma organização existente ou adicione uma chave de licença paga.",
+    "organizationLimit_one": "Esta instância permite {{count}} organização. Peça um convite para uma organização existente ou adicione uma chave de licença paga.",
+    "organizationLimit_other": "Esta instância permite {{count}} organizações. Peça um convite para uma organização existente ou adicione uma chave de licença paga.",
+    "projectLimitAskAdmin": "Peça ao administrador da sua instância para registrar esta instância e ter mais projetos.",
+    "projectLimitCloud": "O plano Hobby inclui 1 projeto. Faça upgrade para o Starter para ter projetos ilimitados.",
+    "projectLimitRegister": "Registre esta instância gratuitamente para criar mais projetos.",
+    "projectLimit_many": "Esta organização atingiu o limite de {{count}} projetos.",
+    "projectLimit_one": "Esta organização atingiu o limite de {{count}} projeto.",
+    "projectLimit_other": "Esta organização atingiu o limite de {{count}} projetos.",
+    "projectsUsage": "Esta organização usa {{count}} de {{limit}} projetos. Registre esta instância gratuitamente para criar mais.",
+    "register": "Registrar",
+    "registerInstance": "Registrar esta instância",
+    "registerTitle": "Registre-se para criar mais projetos",
+    "upgradePlan": "Fazer upgrade do plano"
+}

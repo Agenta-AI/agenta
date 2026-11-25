@@ -1,12 +1,15 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import contextResolver from "@agenta/i18n/catalogs/context.resolver"
 import {Button} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useLogout} from "@/features/auth/useLogout"
+import {NoOrganization} from "@/features/context/NoOrganization"
 import {HomePageSkeleton} from "@/features/home/states/HomePageSkeleton"
 import {readPendingInvite} from "@/features/invite/pendingInvite"
 import {
@@ -44,8 +47,9 @@ interface ContextResolverProps {
  * all of them from the same project list.
  */
 export const ContextResolver = ({workspaceId, forwardTo}: ContextResolverProps = {}) => {
-    const t = useT(contextResolver)
+    const t = useT(contextResolver, commonCatalog)
     const router = useRouter()
+    const logout = useLogout()
     // useState initializer: read once, client-only (SSR renders the loading branch).
     const [stored] = useState<LastContext | null>(() =>
         typeof window === "undefined" ? null : readLastContext(),
@@ -120,18 +124,40 @@ export const ContextResolver = ({workspaceId, forwardTo}: ContextResolverProps =
 
     if (hasInvite) return <HomePageSkeleton />
 
-    if (result?.kind === "error" || (result?.kind === "ok" && groups.length === 0)) {
+    // No project at all: a person without an organization (sign-up skips the personal one
+    // when the instance is at its organization limit) needs an invitation.
+    if (result?.kind === "ok" && groups.length === 0) {
+        return (
+            <ScreenScaffold>
+                <NoOrganization
+                    onCheckAgain={() => void query.refetch()}
+                    onSignOut={() => void logout()}
+                />
+            </ScreenScaffold>
+        )
+    }
+
+    if (result?.kind === "error") {
         return (
             <ScreenScaffold>
                 <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">
                     <p className="text-muted-foreground text-xs">
-                        {result?.kind === "ok"
-                            ? t("context.resolver.noProjects")
-                            : t("context.resolver.somethingWrong")}
+                        {t("context.resolver.somethingWrong")}
                     </p>
-                    <Button type="button" variant="outline" onClick={() => void query.refetch()}>
-                        {t("context.resolver.retry")}
-                    </Button>
+                    {/* Signing out is the way to another account for a person with no
+                        organization. */}
+                    <div className="flex gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => void query.refetch()}
+                        >
+                            {t("context.resolver.retry")}
+                        </Button>
+                        <Button type="button" variant="ghost" onClick={() => void logout()}>
+                            {t("common.signOut")}
+                        </Button>
+                    </div>
                 </div>
             </ScreenScaffold>
         )

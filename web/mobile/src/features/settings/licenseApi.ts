@@ -66,6 +66,23 @@ export const activateInstanceLicense = async (
     return data
 }
 
+/** `GET /instance/license/usage`: the counts behind the create dialogs, for any signed-in person. */
+export interface InstanceUsage {
+    projects: LicenseLimitUsage | null
+    organizations: LicenseLimitUsage | null
+}
+
+export const fetchInstanceUsage = async (projectId: string): Promise<InstanceUsage> => {
+    const {data} = await axios.get(`${getAgentaApiUrl()}/instance/license/usage`, {
+        params: {project_id: projectId},
+    })
+    return data
+}
+
+/** At or above its limit; an unlimited usage never is. */
+export const isAtLimit = (usage: LicenseLimitUsage | null | undefined): boolean =>
+    Boolean(usage && usage.limit !== null && usage.count >= usage.limit)
+
 /** Agenta's registration service did not send the key (unreachable, or it refused). */
 export const isRegistrationNotSent = (error: unknown) => status(error) === 502
 

@@ -82,6 +82,18 @@ async def test_project_list_without_memberships_returns_todays_404(memberships):
     assert response.body == b'{"message":"No projects found."}'
 
 
+async def test_project_list_read_failure_is_not_a_404(memberships):
+    class _Failing(_Memberships):
+        async def list_for_user(self, *, user_id):
+            raise RuntimeError("database unavailable")
+
+    memberships(_Failing())
+
+    response = await projects_router.get_projects(request=_request())
+
+    assert response.status_code == 500
+
+
 async def test_project_fetch_current_uses_fetch_for_user(memberships):
     service = memberships(_Memberships(fetched=None))
     project_id = uuid4()

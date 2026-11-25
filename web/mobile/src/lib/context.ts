@@ -290,6 +290,9 @@ async function fetchProjectsOnce(): Promise<ProjectsResult> {
     } catch (error) {
         const status = (error as {statusCode?: number} | null)?.statusCode
         if (status === 401 || status === 403) return {kind: "unauthenticated"}
+        // The API answers 404 for a person with no project, for example one who signed up
+        // when the instance was at its organization limit.
+        if (status === 404) return {kind: "ok", projects: []}
         return {kind: "error"}
     }
 }

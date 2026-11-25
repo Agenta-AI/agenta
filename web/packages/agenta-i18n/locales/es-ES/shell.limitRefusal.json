@@ -1,0 +1,19 @@
+{
+    "askInstanceAdmin": "Pídeselo al administrador de tu instancia.",
+    "openLicenseSettings": "Abrir la configuración de la licencia",
+    "organizationLimitInfo": "Una segunda organización necesita una licencia Enterprise. Para trabajar con las personas que ya están aquí, pide al propietario de una organización existente que te invite.",
+    "organizationLimit_many": "Esta instancia permite {{count}} organizaciones. Pide una invitación a una organización existente o añade una clave de licencia de pago.",
+    "organizationLimit_one": "Esta instancia permite {{count}} organización. Pide una invitación a una organización existente o añade una clave de licencia de pago.",
+    "organizationLimit_other": "Esta instancia permite {{count}} organizaciones. Pide una invitación a una organización existente o añade una clave de licencia de pago.",
+    "projectLimitAskAdmin": "Pide al administrador de tu instancia que registre esta instancia para tener más proyectos.",
+    "projectLimitCloud": "El plan Hobby incluye 1 proyecto. Cambia a Starter para tener proyectos ilimitados.",
+    "projectLimitRegister": "Registra esta instancia gratis para crear más proyectos.",
+    "projectLimit_many": "Esta organización ha alcanzado su límite de {{count}} proyectos.",
+    "projectLimit_one": "Esta organización ha alcanzado su límite de {{count}} proyecto.",
+    "projectLimit_other": "Esta organización ha alcanzado su límite de {{count}} proyectos.",
+    "projectsUsage": "Esta organización usa {{count}} de {{limit}} proyectos. Registra esta instancia gratis para crear más.",
+    "register": "Registrar",
+    "registerInstance": "Registrar esta instancia",
+    "registerTitle": "Regístrate para crear más proyectos",
+    "upgradePlan": "Mejorar plan"
+}

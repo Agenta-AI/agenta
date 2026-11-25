@@ -17,10 +17,14 @@ import {useQueryClient} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
 import {useProjectPermission} from "../context/useProjectPermission"
+import {ProjectLimitNotice} from "../limits/ProjectLimitNotice"
 
+import {isAtLimit} from "./licenseApi"
 import {NameDialog} from "./NameDialog"
+import {ProjectsUsageNotice} from "./ProjectsUsageNotice"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {switchSettingsContext} from "./switchContext"
+import {useInstanceUsage} from "./useInstanceUsage"
 import {useOrganizationOwner} from "./useOrganizationOwner"
 import {useSettingsOrg} from "./useSettingsOrg"
 
@@ -44,80 +48,98 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     // Deleting a project loses its data for good: the route checks `delete_workspace`, which only
     // the owner role holds by default.
     const canDelete = useProjectPermission(projectId, "delete_workspace")
+    // Read with the page, so the create dialog shows the limit when it opens.
+    const usage = useInstanceUsage(projectId)
+    const projectsAtLimit = isAtLimit(usage.data?.projects)
     return (
-        <ProjectsPage
-            projects={query.data ?? []}
-            isLoading={query.isPending}
-            workspaceId={workspaceId}
-            currentProjectId={projectId}
-            canCreate={canCreate}
-            canEdit={canEdit}
-            canSetDefault={canSetDefault}
-            canDelete={canDelete}
-            // The nav switcher reads its own projects list.
-            onChanged={() => void queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})}
-            onSwitch={(project) =>
-                switchSettingsContext(router, {
-                    workspaceId: project.organization_id ?? project.workspace_id ?? workspaceId,
-                    projectId: project.project_id,
-                })
-            }
-            renderCreateDialog={({open, onClose, onSubmit, pending}) => (
-                <NameDialog
-                    open={open}
-                    title={t("settings.projectsTab.newTitle")}
-                    description={t("settings.projectsTab.newDescription")}
-                    placeholder={t("settings.projectsTab.namePlaceholder")}
-                    submitLabel={t("common.create")}
-                    pending={pending}
-                    onClose={onClose}
-                    onSubmit={(name) => onSubmit({name})}
-                />
-            )}
-            renderDeleteDialog={({open, onClose, onSubmit, pending, project}) => (
-                <AlertDialog
-                    open={open}
-                    onOpenChange={(next) => (next || pending ? undefined : onClose())}
-                >
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>
-                                {t("settings.projectsTab.deleteTitle")}
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                                {t("common.thisCannotBeUndone")}
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <p className="m-0 text-sm">
-                            {t("settings.projectsTab.deleteBody", {
-                                name: project?.project_name ?? "",
-                            })}
-                        </p>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel asChild>
-                                <Button variant="outline" onClick={onClose} disabled={pending}>
-                                    {t("common.cancel")}
-                                </Button>
-                            </AlertDialogCancel>
-                            {/* The page closes it once the delete lands. */}
-                            <AlertDialogAction asChild>
-                                <Button
-                                    variant="destructive"
-                                    disabled={pending}
-                                    onClick={(event) => {
-                                        event.preventDefault()
-                                        onSubmit()
-                                    }}
-                                >
-                                    {pending
-                                        ? t("settings.projectsTab.deleting")
-                                        : t("settings.projectsTab.deleteTitle")}
-                                </Button>
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            )}
-        />
+        <>
+            <ProjectsUsageNotice projectId={projectId} />
+            <ProjectsPage
+                projects={query.data ?? []}
+                isLoading={query.isPending}
+                workspaceId={workspaceId}
+                currentProjectId={projectId}
+                canCreate={canCreate}
+                canEdit={canEdit}
+                canSetDefault={canSetDefault}
+                canDelete={canDelete}
+                // The nav switcher reads its own projects list.
+                onChanged={() => {
+                    void queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})
+                    void queryClient.invalidateQueries({queryKey: ["instance"]})
+                }}
+                onSwitch={(project) =>
+                    switchSettingsContext(router, {
+                        workspaceId: project.organization_id ?? project.workspace_id ?? workspaceId,
+                        projectId: project.project_id,
+                    })
+                }
+                renderCreateDialog={({open, onClose, onSubmit, pending}) => (
+                    <NameDialog
+                        open={open}
+                        submitDisabled={projectsAtLimit}
+                        notice={
+                            projectsAtLimit && usage.data?.projects ? (
+                                <ProjectLimitNotice
+                                    usage={usage.data.projects}
+                                    projectId={projectId}
+                                />
+                            ) : null
+                        }
+                        title={t("settings.projectsTab.newTitle")}
+                        description={t("settings.projectsTab.newDescription")}
+                        placeholder={t("settings.projectsTab.namePlaceholder")}
+                        submitLabel={t("common.create")}
+                        pending={pending}
+                        onClose={onClose}
+                        onSubmit={(name) => onSubmit({name})}
+                    />
+                )}
+                renderDeleteDialog={({open, onClose, onSubmit, pending, project}) => (
+                    <AlertDialog
+                        open={open}
+                        onOpenChange={(next) => (next || pending ? undefined : onClose())}
+                    >
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                    {t("settings.projectsTab.deleteTitle")}
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    {t("common.thisCannotBeUndone")}
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <p className="m-0 text-sm">
+                                {t("settings.projectsTab.deleteBody", {
+                                    name: project?.project_name ?? "",
+                                })}
+                            </p>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel asChild>
+                                    <Button variant="outline" onClick={onClose} disabled={pending}>
+                                        {t("common.cancel")}
+                                    </Button>
+                                </AlertDialogCancel>
+                                {/* The page closes it once the delete lands. */}
+                                <AlertDialogAction asChild>
+                                    <Button
+                                        variant="destructive"
+                                        disabled={pending}
+                                        onClick={(event) => {
+                                            event.preventDefault()
+                                            onSubmit()
+                                        }}
+                                    >
+                                        {pending
+                                            ? t("settings.projectsTab.deleting")
+                                            : t("settings.projectsTab.deleteTitle")}
+                                    </Button>
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                )}
+            />
+        </>
     )
 }

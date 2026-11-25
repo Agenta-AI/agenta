@@ -36,8 +36,12 @@ interface ProjectFormValues {
 
 /** Axios surfaces the backend's reason on `response.data.detail`. */
 const errorDetail = (error: unknown, fallback: string): string => {
-    const axiosLike = error as {response?: {data?: {detail?: string}}; message?: string}
-    return axiosLike?.response?.data?.detail || axiosLike?.message || fallback
+    const axiosLike = error as {
+        response?: {data?: {detail?: string | {message?: string}}}
+        message?: string
+    }
+    const detail = axiosLike?.response?.data?.detail
+    return (typeof detail === "object" ? detail?.message : detail) || axiosLike?.message || fallback
 }
 
 interface ProjectRow extends ProjectsResponse {
