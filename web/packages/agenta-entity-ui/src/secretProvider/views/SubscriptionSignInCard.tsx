@@ -61,7 +61,7 @@ export const SubscriptionSignInCard = ({
     const t = useT(subscriptionSignInCatalog, subscriptionViewsCatalog)
     const waiting = phase === "waiting" && attempt
     return (
-        <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-3.5">
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
             <section className="flex flex-col gap-2.5 rounded-lg bg-muted p-3 text-label">
                 <div className="flex flex-col gap-0.5">
                     <span className="text-label font-medium text-foreground">{name}</span>

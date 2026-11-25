@@ -15,15 +15,16 @@ import {
 import {builtinModelEndpointsQueryAtom} from "@agenta/entities/workflow"
 import {OwnerChip} from "@agenta/entity-ui/secret"
 import {
-    builtinModelsView,
+    BuiltinModelsSheet,
     ProviderDrawer,
     providerIconFor,
     ProviderOwnerChoiceContext,
     SubscriptionOwnerContext,
     subscriptionStatusLine,
-    subscriptionViewFor,
+    SubscriptionSheet,
     type OrganizationConnectionScope,
     type ProviderOwnerChoice,
+    type SubscriptionViewParams,
 } from "@agenta/entity-ui/secretProvider"
 import {useT, type CatalogKey} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -31,7 +32,6 @@ import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import type {OwnerKind} from "@agenta/shared/types"
-import {useViewOpener, type ViewTarget} from "@agenta/ui/view-stack"
 import {MagnifyingGlass, PencilSimpleLine, Trash, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -102,7 +102,6 @@ interface DrawerTarget {
 
 type SubscriptionProvider = "chatgpt" | "claude"
 
-const PROJECT: ViewTarget = {kind: "project"}
 
 const subscriptionProviderOf = (connection: ProviderConnection): SubscriptionProvider | null => {
     const provider = connection.subscription?.provider
@@ -213,7 +212,12 @@ export const ProvidersPanel = ({
         : null
     // The group whose subscription view is open; it stays set while the drawer closes.
     const [signInGroupKey, setSignInGroupKey] = useState<string | null>(null)
-    const views = useViewOpener()
+    // The open subscription or built-in models sheet; a new id remounts it fresh.
+    const [sheet, setSheet] = useState<
+        | {id: number; view: "subscription"; params: SubscriptionViewParams}
+        | {id: number; view: "builtin"}
+        | null
+    >(null)
     const [pendingRemoval, setPendingRemoval] = useState<{
         groupKey: string
         connection: ProviderConnection
@@ -235,13 +239,13 @@ export const ProvidersPanel = ({
             start = false,
         ) => {
             setSignInGroupKey(groupKey)
-            void views.open(
-                subscriptionViewFor(provider),
-                {provider, connectionId, start},
-                PROJECT,
-            )
+            setSheet({
+                id: Date.now(),
+                view: "subscription",
+                params: {provider, connectionId, start},
+            })
         },
-        [views],
+        [],
     )
 
     const requestRemoval = useCallback((groupKey: string, connection: ProviderConnection) => {
@@ -367,7 +371,7 @@ export const ProvidersPanel = ({
                           description: t("entityUi.providerList.builtIn"),
                           status: "connected",
                           statusLabel: t("common.connected"),
-                          onOpen: () => void views.open(builtinModelsView, {}, PROJECT),
+                          onOpen: () => setSheet({id: Date.now(), view: "builtin"}),
                       },
                   ].filter(matches)
                 : []
@@ -431,7 +435,6 @@ export const ProvidersPanel = ({
         canRemoveIn,
         requestRemoval,
         openSignIn,
-        views,
         t,
     ])
 
@@ -517,7 +520,7 @@ export const ProvidersPanel = ({
                 onClose: () => setPendingRemoval(null),
             })}
 
-            {/* The views find this group's connections, and sign in on the organization's routes. */}
+            {/* The sheets find this group's connections, and sign in on the organization's routes. */}
             <SubscriptionOwnerContext.Provider
                 value={
                     signInGroup?.source.organization
@@ -529,7 +532,15 @@ export const ProvidersPanel = ({
                 }
             >
                 <ProviderOwnerChoiceContext.Provider value={ownerChoiceFor ?? null}>
-                    {views.drawer}
+                    {sheet?.view === "subscription" ? (
+                        <SubscriptionSheet
+                            key={sheet.id}
+                            params={sheet.params}
+                            onClosed={() => setSheet(null)}
+                        />
+                    ) : sheet?.view === "builtin" ? (
+                        <BuiltinModelsSheet key={sheet.id} onClosed={() => setSheet(null)} />
+                    ) : null}
                 </ProviderOwnerChoiceContext.Provider>
             </SubscriptionOwnerContext.Provider>
 
