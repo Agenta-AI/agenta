@@ -52,12 +52,26 @@ interface Env {
   };
 }
 
+// The part of the Workers execution context this script uses.
+interface Context {
+  waitUntil(promise: Promise<unknown>): void;
+}
+
+// The self-hosted PostHog project: the same public key the Agenta API uses as its fallback.
+const POSTHOG_CAPTURE_URL = "https://us.posthog.com/i/v0/e/";
+const POSTHOG_PROJECT_KEY = "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7";
+// The same policy public/_headers gives the feed; _headers does not reach worker responses.
+const RELEASES_CACHE = "public, max-age=3600, stale-while-revalidate=86400";
+
 const MARKDOWN = "text/markdown; charset=utf-8";
 const JSON_TYPE = "application/json; charset=utf-8";
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx?: Context): Promise<Response> {
     try {
+      if (new URL(request.url).pathname === "/releases.json") {
+        return await serveReleases(request, env, ctx);
+      }
       return await handle(request, env);
     } catch {
       // Negotiation is a nicety; serving the site is not.
@@ -132,6 +146,74 @@ async function handle(request: Request, env: Env): Promise<Response> {
     // Point agents that do not guess at the markdown twin (RFC 8288).
     Link: `<${twin}>; rel="alternate"; type="text/markdown"`,
   });
+}
+
+/**
+ * The release feed. An Agenta API asks for it with the running version, the instance kind and,
+ * when it has one, the instance id (`?version=v0.131.0&kind=production&instance_id=...`). That
+ * request is recorded as one `instance_update_check` event, the way other self-hosted products
+ * count their update checks. The kind lets Agenta filter out its own test stacks.
+ * The feed itself is the same static file for everyone, and a PostHog failure never touches it.
+ */
+async function serveReleases(
+  request: Request,
+  env: Env,
+  ctx?: Context,
+): Promise<Response> {
+  const url = new URL(request.url);
+  const version = url.searchParams.get("version");
+  const instanceId = url.searchParams.get("instance_id");
+  const kind = url.searchParams.get("kind");
+  if (version || instanceId) {
+    const sent = recordUpdateCheck(version, instanceId, kind).catch(
+      () => undefined,
+    );
+    if (ctx) ctx.waitUntil(sent);
+    else await sent;
+  }
+
+  // The asset server matches the path only; the query is for the event.
+  const feed = await env.ASSETS.fetch(
+    new Request(new URL("/releases.json", url.origin).toString(), {
+      method: request.method,
+      headers: request.headers,
+    }),
+  );
+  if (feed.status !== 200) return feed;
+  const headers = new Headers(feed.headers);
+  headers.set("Cache-Control", RELEASES_CACHE);
+  return new Response(feed.body, { status: feed.status, headers });
+}
+
+// Bounded like the API's own feed request, so a slow PostHog cannot hold the worker.
+const POSTHOG_TIMEOUT_MS = 3000;
+const MAX_PARAM_LENGTH = 100;
+// The instance kinds the API sends; any other value is dropped.
+const INSTANCE_KINDS = new Set(["production", "development", "ci", "test"]);
+
+async function recordUpdateCheck(
+  version: string | null,
+  instanceId: string | null,
+  kind: string | null,
+): Promise<void> {
+  const id = instanceId?.slice(0, MAX_PARAM_LENGTH) || null;
+  const response = await fetch(POSTHOG_CAPTURE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: POSTHOG_PROJECT_KEY,
+      event: "instance_update_check",
+      distinct_id: id ?? "anonymous",
+      properties: {
+        agenta_version: version?.slice(0, MAX_PARAM_LENGTH) ?? null,
+        instance_kind: kind && INSTANCE_KINDS.has(kind) ? kind : null,
+        $process_person_profile: false,
+        ...(id ? { $groups: { instance: id } } : {}),
+      },
+    }),
+    signal: AbortSignal.timeout(POSTHOG_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error(`PostHog answered ${response.status}`);
 }
 
 async function serveMedia(
