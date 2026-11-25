@@ -7,6 +7,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     Alert,
     Button,
+    Field,
     Input,
     InputAffix,
     PasswordInput,
@@ -1721,16 +1722,18 @@ const IdentityField = ({
     help?: string
     children: React.ReactNode
 }) => (
-    <label className="flex flex-col gap-1.5">
-        <span className="flex items-baseline justify-between">
-            <span className="text-label font-medium text-foreground">{label}</span>
+    <Field
+        label={label}
+        tooltip={help}
+        className="gap-1.5"
+        labelEnd={
             <span className="text-meta tabular-nums text-muted-foreground">
                 {length}/{max}
             </span>
-        </span>
+        }
+    >
         {children}
-        {help ? <span className="text-meta text-muted-foreground">{help}</span> : null}
-    </label>
+    </Field>
 )
 
 const SetupFieldInput = ({
@@ -1749,23 +1752,28 @@ const SetupFieldInput = ({
     const t = useT(channelsConnectCatalog, commonCatalog)
     const patternError = fieldPatternError(field, value)
     return (
-        <label className="flex flex-col gap-1.5" aria-label={hideLabel ? field.label : undefined}>
-            {hideLabel ? null : (
-                <span className="flex items-baseline justify-between">
-                    <span className="text-label font-medium text-foreground">{field.label}</span>
-                    {field.required ? (
-                        <span className="text-meta text-muted-foreground">
-                            {t("common.required")}
-                        </span>
-                    ) : null}
-                </span>
-            )}
+        <Field
+            label={hideLabel ? undefined : field.label}
+            tooltip={field.help || undefined}
+            className="gap-1.5"
+            labelEnd={
+                !hideLabel && field.required ? (
+                    <span className="text-meta text-muted-foreground">{t("common.required")}</span>
+                ) : undefined
+            }
+            error={
+                patternError ? (
+                    <span data-testid={`channels-field-${field.name}-error`}>{patternError}</span>
+                ) : undefined
+            }
+        >
             {field.secret ? (
                 <PasswordInput
                     value={value}
                     placeholder={placeholder}
                     onChange={(e) => onChange(e.target.value)}
                     className="text-code"
+                    aria-label={hideLabel ? field.label : undefined}
                     data-testid={`channels-field-${field.name}`}
                 />
             ) : (
@@ -1774,20 +1782,11 @@ const SetupFieldInput = ({
                     placeholder={placeholder}
                     onChange={(e) => onChange(e.target.value)}
                     className="text-code"
+                    aria-label={hideLabel ? field.label : undefined}
                     data-testid={`channels-field-${field.name}`}
                     aria-invalid={patternError ? true : undefined}
                 />
             )}
-            {patternError ? (
-                <span
-                    className="text-meta text-destructive"
-                    data-testid={`channels-field-${field.name}-error`}
-                >
-                    {patternError}
-                </span>
-            ) : field.help ? (
-                <span className="text-meta text-muted-foreground">{field.help}</span>
-            ) : null}
-        </label>
+        </Field>
     )
 }

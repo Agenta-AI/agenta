@@ -235,8 +235,7 @@ export default function McpConnectionDetail({
                         <Field
                             label={t("entityUi.mcpDetail.name")}
                             error={nameProblem ?? undefined}
-                            // Said out loud: renaming something an agent uses invites the opposite assumption.
-                            description={t("entityUi.mcpDetail.renameNote")}
+                            tooltip={t("entityUi.mcpDetail.renameNote")}
                         >
                             <Input
                                 value={name}

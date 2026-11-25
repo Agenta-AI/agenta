@@ -856,10 +856,7 @@ export function useMcpConnectScreens({
             {showUrlField ? (
                 <HintedField
                     label={t("entityUi.mcpJourney.serverUrl")}
-                    // Only before the first check: once the server has answered, the box below
-                    // says what it found, and once the check has failed, the box below says
-                    // what is wrong with this address.
-                    hint={screen === "url" ? t("entityUi.mcpJourney.urlHelp") : null}
+                    tooltip={t("entityUi.mcpJourney.urlHelp")}
                 >
                     <Input
                         ref={urlInputRef}
