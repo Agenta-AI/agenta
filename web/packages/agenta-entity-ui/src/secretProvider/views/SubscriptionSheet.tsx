@@ -128,6 +128,7 @@ export const SubscriptionSheet = ({
                             params={params}
                             onDone={close}
                             onCancel={close}
+                            actionsPlacement="footer"
                         />
                     )}
                 </SubscriptionOwnerContext.Provider>

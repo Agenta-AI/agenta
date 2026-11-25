@@ -6,6 +6,7 @@ import type {ReactNode} from "react"
 
 import {subscriptionProviderName} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import subscriptionViewsCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionViews"
 import {Button, SkeletonBlock, Spinner} from "@agenta/ui/ui"
@@ -42,6 +43,8 @@ export interface SubscriptionSignInCardProps {
     onConnect: () => void
     /** Under the card (the organization's "Projects that can use it"). */
     footer?: ReactNode
+    /** "footer": Cancel and Connect in a footer row at the end (a dialog); else inline. */
+    actionsPlacement?: "inline" | "footer"
 }
 
 export const SubscriptionSignInCard = ({
@@ -57,8 +60,9 @@ export const SubscriptionSignInCard = ({
     onCancel,
     onConnect,
     footer,
+    actionsPlacement = "inline",
 }: SubscriptionSignInCardProps) => {
-    const t = useT(subscriptionSignInCatalog, subscriptionViewsCatalog)
+    const t = useT(subscriptionSignInCatalog, subscriptionViewsCatalog, commonCatalog)
     const waiting = phase === "waiting" && attempt
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -166,7 +170,7 @@ export const SubscriptionSignInCard = ({
                             {t("entityUi.subscriptionSignIn.signInAgain")}
                         </Button>
                     </>
-                ) : (
+                ) : actionsPlacement === "footer" ? null : (
                     <Button className="w-fit" onClick={onConnect}>
                         {t("entityUi.subscriptionSignIn.connectName", {name})}
                     </Button>
@@ -189,6 +193,16 @@ export const SubscriptionSignInCard = ({
                 ) : null}
             </section>
             {footer}
+            {actionsPlacement === "footer" && phase === "idle" ? (
+                <div className="flex items-center justify-end gap-2">
+                    <Button variant="outline" onClick={onCancel}>
+                        {t("common.cancel")}
+                    </Button>
+                    <Button onClick={onConnect}>
+                        {t("entityUi.subscriptionSignIn.connectName", {name})}
+                    </Button>
+                </div>
+            ) : null}
         </div>
     )
 }

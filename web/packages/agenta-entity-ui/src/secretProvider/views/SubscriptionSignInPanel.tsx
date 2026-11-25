@@ -26,6 +26,8 @@ export interface SubscriptionSignInPanelProps {
     onCancel: () => void
     /** A host that titles itself from the name (the view stack). */
     useTitle?: (name: string) => void
+    /** Where the idle Connect sits; "footer" for a dialog. */
+    actionsPlacement?: "inline" | "footer"
 }
 
 const noTitle = (_name: string) => undefined
@@ -36,6 +38,7 @@ export const SubscriptionSignInPanel = ({
     onDone,
     onCancel,
     useTitle = noTitle,
+    actionsPlacement,
 }: SubscriptionSignInPanelProps) => {
     const {connection, organization} = useSubscriptionViewConnection(params)
     // Set on unmount and on the first leave, so a late sign-in never moves the stack again.
@@ -111,6 +114,7 @@ export const SubscriptionSignInPanel = ({
             // The sign-in ends with the view (above), so Cancel only leaves.
             onCancel={onCancel}
             onConnect={() => void connect()}
+            actionsPlacement={actionsPlacement}
             footer={
                 editProjects && organization ? (
                     <SubscriptionProjectsBlock organization={organization} draft={draft} />
