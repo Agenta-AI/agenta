@@ -18,9 +18,8 @@ export interface ImportedSkill {
 }
 
 interface Found {
-    /** The link and branch that were scanned; the import uses them, not the edited fields. */
+    /** The link that was scanned; the import uses it, not the edited field. */
     url: string
-    ref?: string
     repo: string
     candidates: SkillCandidate[]
     unavailable: UnavailableSkill[]
@@ -62,7 +61,6 @@ export function SkillGithubImport({
 }) {
     const t = useT(skillsEditorCatalog)
     const [url, setUrl] = useState("")
-    const [branch, setBranch] = useState("")
     const [found, setFound] = useState<Found | null>(null)
     const [picked, setPicked] = useState<Set<string>>(new Set())
     const [busy, setBusy] = useState<"scan" | "import" | null>(null)
@@ -74,11 +72,10 @@ export function SkillGithubImport({
             setError(t("skills.editor.notARepo"))
             return
         }
-        const ref = branch.trim() || undefined
         setBusy("scan")
         setError(null)
         try {
-            const response = await scanSkillSource({projectId, repoUrl, ref})
+            const response = await scanSkillSource({projectId, repoUrl})
             const already = new Set(response?.already_imported_paths ?? [])
             const candidates: SkillCandidate[] = []
             const unavailable: UnavailableSkill[] = []
@@ -105,7 +102,7 @@ export function SkillGithubImport({
                         runsPrograms: runsPrograms(c),
                     })
             }
-            setFound({url: repoUrl, ref, repo: repoLabel(repoUrl), candidates, unavailable})
+            setFound({url: repoUrl, repo: repoLabel(repoUrl), candidates, unavailable})
             setPicked(new Set())
         } catch (err) {
             setError(errorText(err, t("skills.editor.readRepoFailed")))
@@ -122,7 +119,6 @@ export function SkillGithubImport({
             const response = await importSkillSource({
                 projectId,
                 repoUrl: found.url,
-                ref: found.ref,
                 paths: [...picked],
             })
             invalidateSkillsListCache()
@@ -162,7 +158,7 @@ export function SkillGithubImport({
 
     return (
         <div className="flex flex-col gap-6">
-            {/* One row on a wide window: the link, the branch, then the search (the design's import page). */}
+            {/* One row: the link, then the search. */}
             <form
                 className="flex flex-wrap items-end gap-2"
                 onSubmit={(event) => {
@@ -170,7 +166,7 @@ export function SkillGithubImport({
                     if (url.trim() && !busy) void find()
                 }}
             >
-                <Field label={t("skills.editor.repoLink")} className="min-w-0 flex-[2_1_280px]">
+                <Field label={t("skills.editor.repoLink")} className="min-w-0 flex-[1_1_280px]">
                     <Input
                         autoFocus
                         value={url}
@@ -179,23 +175,6 @@ export function SkillGithubImport({
                             setError(null)
                         }}
                         placeholder="https://github.com/owner/repo"
-                    />
-                </Field>
-                <Field
-                    label={
-                        <>
-                            {t("skills.editor.branch")}{" "}
-                            <span className="font-normal text-muted-foreground">
-                                {t("skills.editor.optional")}
-                            </span>
-                        </>
-                    }
-                    className="min-w-0 flex-[1_1_140px]"
-                >
-                    <Input
-                        value={branch}
-                        onChange={(event) => setBranch(event.target.value)}
-                        placeholder="main"
                     />
                 </Field>
                 <Button
