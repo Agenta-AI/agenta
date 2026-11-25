@@ -2,7 +2,7 @@ import {useT} from "@agenta/i18n"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import {useIsExpandedWindow} from "@agenta/ui/hooks"
 import {RightPane, SkeletonBlock} from "@agenta/ui/ui"
-import {FileText} from "@phosphor-icons/react"
+import {Files} from "@phosphor-icons/react"
 
 const FILE_ROWS = 8
 
@@ -29,7 +29,7 @@ export const SkillPageSkeleton = () => {
                 onOpenChange={() => undefined}
                 title={
                     <span className="flex items-center gap-2">
-                        <FileText aria-hidden size={16} />
+                        <Files aria-hidden size={16} />
                         {t("skills.editor.files")}
                     </span>
                 }

@@ -19,7 +19,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@agenta/ui/ui"
-import {CaretRight, Files, FileText, X} from "@phosphor-icons/react"
+import {CaretRight, Files, X} from "@phosphor-icons/react"
 
 import {
     baseOf,
@@ -314,7 +314,7 @@ export function SkillEditor({
     )
     const filesTitle = (
         <span className="flex items-center gap-2">
-            <FileText aria-hidden size={16} />
+            <Files aria-hidden size={16} />
             {t("skills.editor.files")}
         </span>
     )
