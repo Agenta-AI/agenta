@@ -43,6 +43,7 @@
     "noticeExpired": "此许可证已于 {{date}} 过期。实例现在使用 Community 套餐。",
     "noticeExpires": "此许可证将于 {{date}} 过期。",
     "noticeOverSeats": "此实例有 {{users}}，超出了许可证允许的数量（{{seats}}）。",
+    "otherInstanceKey": "此免费密钥是为另一个实例签发的。请注册此实例以获取它自己的密钥。",
     "planCommunity": "Community",
     "planEnterprise": "Enterprise",
     "registeredSummary": "已注册到 {{email}}。我们添加新的免费功能后，你即可使用。",

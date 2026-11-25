@@ -131,10 +131,12 @@ link (`<web_url>/m/settings?tab=license#key=<key>`) through Loops. Every registr
 Loops audience, for security notices. Then it upserts the Loops
 contact (`PUT /api/v1/contacts/update`) with `source: "self-hosted registration"`,
 `userGroup: "self-hosted"` and the custom properties `agentaVersion`, `agentaRegisteredAt`,
-`agentaInstanceId`, `agentaPlan`, `agentaRole`, `agentaTeamSize` and `agentaHeardFrom`; these
-properties must exist in Loops first. It adds the contact to the mailing list in the plain worker
-variable `LOOPS_PRODUCT_UPDATES_LIST_ID` only when `product_updates` is true and the variable is
-set, so campaigns must target that list, not the whole audience. Last, it sends to the
+`agentaInstanceId`, `agentaPlan`, `agentaProductUpdates`, `agentaRole`, `agentaTeamSize` and
+`agentaHeardFrom`; these
+properties must exist in Loops first. It sets the boolean property `agentaProductUpdates` to the
+person's choice; there is no mailing list, so product update campaigns target `userGroup`
+"self-hosted" with `agentaProductUpdates` true. The signed key carries the `instance_id`, and the
+API accepts a free key only on that instance. Last, it sends to the
 self-hosted PostHog project (the same public project token as the API fallback key) the
 `instance_registered` event and a `$groupidentify` for the group type `instance` under the instance
 id, and a `$set` of the email on the person `<instance_id>:<user_id>`. It does this whatever the

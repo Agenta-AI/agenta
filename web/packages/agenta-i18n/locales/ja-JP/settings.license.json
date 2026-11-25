@@ -43,6 +43,7 @@
     "noticeExpired": "このライセンスは {{date}} に有効期限が切れました。インスタンスは Community プランになっています。",
     "noticeExpires": "このライセンスは {{date}} に有効期限が切れます。",
     "noticeOverSeats": "このインスタンスのユーザー数は {{users}} で、ライセンスの上限（{{seats}}）を超えています。",
+    "otherInstanceKey": "この無料キーは別のインスタンス向けに発行されたものです。このインスタンスを登録して専用のキーを取得してください。",
     "planCommunity": "Community",
     "planEnterprise": "Enterprise",
     "registeredSummary": "{{email}} で登録済みです。新しい無料機能は追加され次第ご利用いただけます。",

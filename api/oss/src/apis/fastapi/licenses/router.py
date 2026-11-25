@@ -140,6 +140,7 @@ class LicensesRouter:
         await require_instance_admin()
 
         from ee.src.core.licenses.service import (  # noqa: PLC0415
+            OTHER_INSTANCE,
             get_licenses_service,
         )
         from ee.src.core.licenses.types import (  # noqa: PLC0415
@@ -152,7 +153,15 @@ class LicensesRouter:
                 key=body.key,
                 user_id=get_request_access().principal.id,
             )
-        except InvalidLicenseKey:
+        except InvalidLicenseKey as e:
+            if e.reason == OTHER_INSTANCE:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": OTHER_INSTANCE,
+                        "message": "This free key was issued for another instance.",
+                    },
+                ) from None
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="This license key is not valid",

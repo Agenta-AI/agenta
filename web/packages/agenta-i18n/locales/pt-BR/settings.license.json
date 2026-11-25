@@ -45,6 +45,7 @@
     "noticeExpired": "Esta licença expirou em {{date}}. A instância está no plano Community.",
     "noticeExpires": "Esta licença expira em {{date}}.",
     "noticeOverSeats": "Esta instância tem {{users}}, mais do que a licença permite ({{seats}}).",
+    "otherInstanceKey": "Esta chave gratuita foi emitida para outra instância. Registre esta instância para obter a própria chave dela.",
     "planCommunity": "Community",
     "planEnterprise": "Enterprise",
     "registeredSummary": "Registrada para {{email}}. Você recebe novos recursos gratuitos à medida que os adicionamos.",

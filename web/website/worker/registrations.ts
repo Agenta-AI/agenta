@@ -9,9 +9,6 @@
 //   LOOPS_API_KEY        Loops API key for the transactional email
 // Worker variable (`vars` in both wrangler configs, not secret):
 //   LOOPS_TRANSACTIONAL_ID  id of the Loops transactional email that carries the key
-//   LOOPS_PRODUCT_UPDATES_LIST_ID  id of the Loops mailing list for product updates;
-//                                  a contact joins it only when the person ticked the
-//                                  updates box; empty, no contact joins a list
 
 export const REGISTRATION_PATH = "/api/license-registrations";
 
@@ -45,7 +42,6 @@ export interface RegistrationEnv {
   // The Loops transactional email, made with the data variables `licenseKey` and
   // `activationUrl`.
   LOOPS_TRANSACTIONAL_ID?: string;
-  LOOPS_PRODUCT_UPDATES_LIST_ID?: string;
   REGISTRATION_IP_LIMIT?: RateLimiter;
   REGISTRATION_EMAIL_LIMIT?: RateLimiter;
 }
@@ -194,6 +190,7 @@ function pemToDer(pem: string): ArrayBuffer {
 export async function signRegistrationKey(
   privateKeyPem: string,
   email: string,
+  instanceId: string,
   now: Date = new Date(),
 ): Promise<string> {
   const payload = {
@@ -205,6 +202,8 @@ export async function signRegistrationKey(
     issued_at: now.toISOString(),
     expires_at: null,
     telemetry: "required",
+    // The key works only on this instance; the API checks it.
+    instance_id: instanceId,
   };
   const body = base64url(new TextEncoder().encode(JSON.stringify(payload)));
   const key = await crypto.subtle.importKey(
@@ -242,7 +241,7 @@ export function loopsMailSender(
           transactionalId,
           email: email.to,
           // Every registrant gets security notices, so the contact joins the audience.
-          // Campaigns target the product updates list, which only ticked contacts join.
+          // Campaigns go only to contacts with agentaProductUpdates true.
           addToAudience: true,
           dataVariables: {
             licenseKey: email.licenseKey,
@@ -257,11 +256,10 @@ export function loopsMailSender(
 
 // The contact properties must exist in Loops before the first call (Audience page or
 // API settings): agentaVersion, agentaInstanceId, agentaPlan, agentaRole,
-// agentaTeamSize and agentaHeardFrom as strings, agentaRegisteredAt as a date.
-export function loopsContactRecorder(
-  apiKey: string,
-  productUpdatesListId: string | undefined,
-): ContactRecorder {
+// agentaTeamSize and agentaHeardFrom as strings, agentaRegisteredAt as a date, and
+// agentaProductUpdates as a boolean. Product update campaigns target userGroup
+// "self-hosted" with agentaProductUpdates true.
+export function loopsContactRecorder(apiKey: string): ContactRecorder {
   return {
     async record(registration, registeredAt) {
       const response = await fetch(LOOPS_CONTACT_URL, {
@@ -280,10 +278,8 @@ export function loopsContactRecorder(
           // Loops reads `YYYY-MM-DDTHH:mm:ss` without an offset as UTC.
           agentaRegisteredAt: registeredAt.toISOString().slice(0, 19),
           agentaPlan: REGISTERED_PLAN,
+          agentaProductUpdates: registration.product_updates,
           ...surveyProperties(registration.survey),
-          ...(productUpdatesListId && registration.product_updates
-            ? { mailingLists: { [productUpdatesListId]: true } }
-            : {}),
         }),
       });
       if (!response.ok) throw new Error(`Loops answered ${response.status}`);
@@ -474,6 +470,7 @@ async function register(
     licenseKey = await signRegistrationKey(
       env.LICENSE_SIGNING_KEY,
       registration.email,
+      registration.instance_id,
     );
   } catch {
     return error(503, "unavailable", "Registration is not available.");
@@ -493,12 +490,7 @@ async function register(
   const registeredAt = new Date();
   const recorder =
     contactRecorder ??
-    (env.LOOPS_API_KEY
-      ? loopsContactRecorder(
-          env.LOOPS_API_KEY,
-          env.LOOPS_PRODUCT_UPDATES_LIST_ID,
-        )
-      : null);
+    (env.LOOPS_API_KEY ? loopsContactRecorder(env.LOOPS_API_KEY) : null);
   if (recorder) {
     try {
       await recorder.record(registration, registeredAt);

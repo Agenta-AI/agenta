@@ -45,6 +45,7 @@
     "noticeExpired": "Cette licence a expiré le {{date}}. L’instance est sur l’offre Community.",
     "noticeExpires": "Cette licence expire le {{date}}.",
     "noticeOverSeats": "Cette instance compte {{users}}, plus que la licence n’en autorise ({{seats}}).",
+    "otherInstanceKey": "Cette clé gratuite a été émise pour une autre instance. Enregistrez cette instance pour obtenir sa propre clé.",
     "planCommunity": "Community",
     "planEnterprise": "Enterprise",
     "registeredSummary": "Enregistrée au nom de {{email}}. Vous recevez les nouvelles fonctionnalités gratuites dès que nous les ajoutons.",

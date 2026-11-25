@@ -44,6 +44,7 @@
     "noticeExpired": "Diese Lizenz ist am {{date}} abgelaufen. Die Instanz nutzt den Community-Tarif.",
     "noticeExpires": "Diese Lizenz läuft am {{date}} ab.",
     "noticeOverSeats": "Diese Instanz hat {{users}}, mehr als die Lizenz erlaubt ({{seats}}).",
+    "otherInstanceKey": "Dieser kostenlose Schlüssel wurde für eine andere Instanz ausgestellt. Registrieren Sie diese Instanz, um einen eigenen Schlüssel zu erhalten.",
     "planCommunity": "Community",
     "planEnterprise": "Enterprise",
     "registeredSummary": "Registriert für {{email}}. Sie erhalten neue kostenlose Funktionen, sobald wir sie hinzufügen.",

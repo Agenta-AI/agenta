@@ -45,6 +45,7 @@
     "noticeExpired": "Esta licencia caducó el {{date}}. La instancia está en el plan Community.",
     "noticeExpires": "Esta licencia caduca el {{date}}.",
     "noticeOverSeats": "Esta instancia tiene {{users}}, más de lo que permite la licencia ({{seats}}).",
+    "otherInstanceKey": "Esta clave gratuita se emitió para otra instancia. Registra esta instancia para obtener su propia clave.",
     "planCommunity": "Community",
     "planEnterprise": "Enterprise",
     "registeredSummary": "Registrada a nombre de {{email}}. Recibes las nuevas funciones gratuitas a medida que las añadimos.",

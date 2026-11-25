@@ -192,6 +192,7 @@ describe("handleRegistration", () => {
       seats: null,
       expires_at: null,
       telemetry: "required",
+      instance_id: VALID.instance_id,
     });
     expect(payload.key_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(Number.isNaN(Date.parse(payload.issued_at))).toBe(false);
@@ -435,7 +436,6 @@ describe("Loops contact", () => {
       withLimits({
         LICENSE_SIGNING_KEY: privatePem,
         ...LOOPS_ENV,
-        LOOPS_PRODUCT_UPDATES_LIST_ID: "list_unit",
       }),
     );
 
@@ -461,14 +461,14 @@ describe("Loops contact", () => {
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/,
       ),
       agentaPlan: "self_hosted_registered",
+      agentaProductUpdates: true,
       agentaRole: "Engineer (AI, SWE, ML)",
       agentaTeamSize: "11-50",
       agentaHeardFrom: "GitHub",
-      mailingLists: { list_unit: true },
     });
   });
 
-  it("adds no mailing list when the person did not tick product updates", async () => {
+  it("marks the contact as not wanting product updates when the box was clear", async () => {
     const calls = stubLoops();
 
     const response = await handleRegistration(
@@ -476,31 +476,14 @@ describe("Loops contact", () => {
       withLimits({
         LICENSE_SIGNING_KEY: privatePem,
         ...LOOPS_ENV,
-        LOOPS_PRODUCT_UPDATES_LIST_ID: "list_unit",
       }),
     );
 
     expect(response.status).toBe(202);
     const body = JSON.parse(calls[1].init.body as string);
+    expect(body.agentaProductUpdates).toBe(false);
     expect(body).not.toHaveProperty("mailingLists");
     expect(body.agentaRole).toBe("Engineer (AI, SWE, ML)");
-  });
-
-  it("adds no mailing list when the list id is empty", async () => {
-    const calls = stubLoops();
-
-    await handleRegistration(
-      post(FULL),
-      withLimits({
-        LICENSE_SIGNING_KEY: privatePem,
-        ...LOOPS_ENV,
-        LOOPS_PRODUCT_UPDATES_LIST_ID: "",
-      }),
-    );
-
-    const body = JSON.parse(calls[1].init.body as string);
-    expect(body).not.toHaveProperty("mailingLists");
-    expect(body.userGroup).toBe("self-hosted");
   });
 
   it("still answers 202 when the contact update fails", async () => {

@@ -164,6 +164,35 @@ describe("License tab", () => {
         expect(button("Replace key")).toBeDefined()
     })
 
+    it("says when a free key was issued for another instance", async () => {
+        fixture.license = community()
+        fixture.activate.mockRejectedValue({
+            response: {status: 400, data: {detail: {code: "other_instance"}}},
+        })
+        await mount()
+
+        act(() => button("Add a license key")!.click())
+        await vi.waitFor(() => expect(document.querySelector("textarea")).not.toBeNull())
+        const textarea = document.querySelector("textarea")!
+        const setValue = Object.getOwnPropertyDescriptor(
+            HTMLTextAreaElement.prototype,
+            "value",
+        )!.set!
+        act(() => {
+            setValue.call(textarea, "agenta_license_v1.a.b")
+            textarea.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+        await act(async () => {
+            button("Add key")!.click()
+        })
+
+        await vi.waitFor(() =>
+            expect(text()).toContain(
+                "This free key was issued for another instance. Register this instance to get its own key.",
+            ),
+        )
+    })
+
     it("on the OSS image, points to the Enterprise image instead of the key dialog", async () => {
         fixture.edition = "oss"
         fixture.license = community()

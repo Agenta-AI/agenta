@@ -39,6 +39,11 @@ export const isNotInstanceAdmin = (error: unknown) => status(error) === 403
 
 export const isInvalidLicenseKey = (error: unknown) => status(error) === 400
 
+/** A free key issued for another instance: it works only where it was registered. */
+export const isOtherInstanceKey = (error: unknown) =>
+    (error as {response?: {data?: {detail?: {code?: unknown}}}} | null)?.response?.data?.detail
+        ?.code === "other_instance"
+
 export const fetchInstanceLicense = async (projectId: string): Promise<InstanceLicense> => {
     const {data} = await axios.get(`${getAgentaApiUrl()}/instance/license`, {
         params: {project_id: projectId},
