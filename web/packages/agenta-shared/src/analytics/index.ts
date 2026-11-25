@@ -15,11 +15,15 @@ const isInstanceUrlProperty = (key: string) =>
     INSTANCE_URL_PROPERTIES.includes(key) ||
     INSTANCE_URL_PREFIXES.some((prefix) => key.startsWith(prefix))
 
-// Typed text, such as a survey answer, can hold an email address.
+// Typed text, such as a survey answer, can hold an email address or a link with a
+// token in it.
 const EMAIL_ADDRESS = /[^\s@]+@[^\s@]+\.[^\s@]+/g
+const LINK = /\b[a-z][a-z0-9+.-]*:\/\/\S+/gi
 
 const withoutEmails = (value: unknown): unknown => {
-    if (typeof value === "string") return value.replace(EMAIL_ADDRESS, "[email]")
+    if (typeof value === "string") {
+        return value.replace(LINK, "[link]").replace(EMAIL_ADDRESS, "[email]")
+    }
     if (Array.isArray(value)) return value.map(withoutEmails)
     if (value && typeof value === "object") {
         return Object.fromEntries(

@@ -67,6 +67,16 @@ describe("shared desktop and mobile analytics", () => {
         expect(sent?.$set).toEqual({company_other: "x [email]"})
     })
 
+    it("removes links from typed answers on a self-hosted event", () => {
+        const sent = stripInstanceUrl({
+            properties: {heard_from_other: "via https://example.com/invite?token=SECRET ok"},
+            $set: {heard_from_other: "ftp://user:pass@host/x"},
+        })
+        expect(JSON.stringify(sent)).not.toContain("SECRET")
+        expect(JSON.stringify(sent)).not.toContain("pass")
+        expect(sent?.properties.heard_from_other).toBe("via [link] ok")
+    })
+
     it("answers cloud only when telemetry is on and names no instance group", () => {
         expect(
             isCloudTelemetry(

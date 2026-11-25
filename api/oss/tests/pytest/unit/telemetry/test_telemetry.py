@@ -418,6 +418,7 @@ async def test_role_comes_from_the_cached_membership(monkeypatch, membership, ex
         ({"user-agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/131.0"}, {}),
         ({"user-agent": "curl"}, {}),
         ({"user-agent": "person@example.com/1.0"}, {}),
+        ({"user-agent": "tool/alice.smith+x@corp.com"}, {}),
         ({"x-fern-sdk-name": "person@example.com", "x-fern-sdk-version": "1"}, {}),
         (
             {
@@ -590,6 +591,37 @@ async def test_cloud_activation_uses_the_user_id_and_names_the_deployment(
         assert call["distinct_id"] == str(USER_ID)
         assert call["properties"]["cloud_region"] == "US"
         assert call["properties"]["cloud_url"] == CLOUD_URL
+
+
+@pytest.mark.asyncio
+async def test_activation_mark_cache_is_keyed_by_the_distinct_id(
+    monkeypatch, cloud, queued
+):
+    # A mark cached under the old email identity must not stop the mark on the user id.
+    get_cache = AsyncMock(return_value=None)
+    set_cache = AsyncMock()
+    monkeypatch.setattr(analytics, "get_cache", get_cache)
+    monkeypatch.setattr(analytics, "set_cache", set_cache)
+
+    await analytics.analytics_middleware(
+        _request(
+            path="/organizations/x/invite",
+            user_email=EMAIL,
+            user_id=str(USER_ID),
+            project_id="p1",
+        ),
+        _call_next,
+    )
+
+    activation_reads = [
+        call.kwargs["key"]
+        for call in get_cache.await_args_list
+        if call.kwargs.get("namespace") == "posthog:activations"
+    ]
+    assert activation_reads == [
+        {"property": "invited_user_v1", "distinct_id": str(USER_ID)}
+    ]
+    assert set_cache.await_args.kwargs["key"] == activation_reads[0]
 
 
 @pytest.mark.asyncio

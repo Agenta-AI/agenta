@@ -33,7 +33,7 @@ _APIKEY_TOKEN_PREFIX = "ApiKey "
 _SECRET_TOKEN_PREFIX = "Secret "
 
 # The first product token of a User-Agent, such as `python-httpx/0.28.1`.
-_USER_AGENT_PRODUCT = re.compile(r"^([A-Za-z][\w.\-]{0,63})/([\w.\-+]{1,32})")
+_USER_AGENT_PRODUCT = re.compile(r"^([A-Za-z][\w.\-]{0,63})/([\w.\-+]{1,32})(?:\s|$)")
 # The caller sets these headers, so only a plain product name and version pass; text
 # such as an email address is dropped.
 _SDK_NAME = re.compile(r"[A-Za-z][\w.\-]{0,63}")
@@ -83,7 +83,9 @@ async def _set_activation_property(
         return
 
     # Check if we've already set this property for this user
-    cache_key = {"property": property_name}
+    # Keyed by the distinct id too: a mark cached under an earlier identity (the email
+    # on cloud) must not stop the mark on the person the events go to now.
+    cache_key = {"property": property_name, "distinct_id": distinct_id}
 
     already_set = await get_cache(
         project_id=project_id,
