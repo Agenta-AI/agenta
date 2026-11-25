@@ -248,6 +248,7 @@ export function SkillEditor({
             onMoved={moved}
             onFiles={updateFiles}
             onAllowExecutable={setAllowExecutable}
+            docked={!inline}
         />
     )
     const filesTitle = (

@@ -60,6 +60,8 @@ export interface SkillFilesPanelProps {
     /** Applies a change to the latest files, so a stale list never overwrites a newer one. */
     onFiles: (update: (files: SkillFile[]) => SkillFile[]) => void
     onAllowExecutable: (allow: boolean) => void
+    /** In the right pane: the programs switch stays pinned to the pane's bottom edge. */
+    docked?: boolean
 }
 
 /** The files navigator of a skill. Memoized with stable callbacks, so typing elsewhere skips it. */
@@ -72,6 +74,7 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
     onMoved,
     onFiles,
     onAllowExecutable,
+    docked = false,
 }: SkillFilesPanelProps) {
     const t = useT(skillsEditorCatalog)
     const [dragging, setDragging] = useState(false)
@@ -352,7 +355,12 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
             </div>
 
             <Field
-                className="mt-auto border-0 border-t border-solid border-border-muted pt-3"
+                className={cn(
+                    "mt-auto border-0 border-t border-solid border-border-muted pt-3",
+                    // The negative margins mirror the right pane's body padding (px-4 sm:px-6 pb-6).
+                    docked &&
+                        "sticky -bottom-6 z-[1] -mx-4 -mb-6 bg-muted px-4 pb-6 sm:-mx-6 sm:px-6",
+                )}
                 label={t("skills.editor.allowPrograms")}
                 tooltip={t("skills.editor.allowProgramsHint")}
                 tooltipPlacement="top"
