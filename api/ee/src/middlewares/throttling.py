@@ -223,8 +223,10 @@ async def _get_plan(organization_id: str) -> str | None:
         if not subscription:
             return None
 
+        # The entitlements share this cache entry and meter by its anchor.
         subscription_data = {
             "plan": subscription.plan,
+            "anchor": subscription.anchor,
         }
 
         await set_cache(
@@ -290,6 +292,11 @@ async def _plan_checks(
     plan = await _get_plan(organization_id)
 
     entitlements = get_plan_entitlements(plan) if plan else None
+
+    # The free plan is a cloud plan. Self-hosted, an organization with no plan, an
+    # unknown plan or a plan without throttles has none.
+    if not is_cloud() and not (entitlements or {}).get(Tracker.THROTTLES):
+        return [], Algorithm.GCRA
 
     # Unknown plan or plan without enforced throttles: fall back to the free
     # plan's throttle bucket so misconfigured / orphaned subscriptions still

@@ -254,3 +254,92 @@ async def test_platform_bookkeeping_over_its_budget_gets_a_429_with_retry_after(
     assert response.status_code == 429
     assert response.headers["Retry-After"] == "2"
     call_next.assert_not_awaited()
+
+
+@pytest.mark.parametrize("plan", ["self_hosted_community", None])
+async def test_self_hosted_plan_without_throttles_is_not_throttled(plan):
+    request = _request("/evaluations/runs/query")
+    call_next = AsyncMock(return_value=Response(status_code=200))
+
+    with (
+        patch(
+            "ee.src.middlewares.throttling._get_plan",
+            new_callable=AsyncMock,
+            return_value=plan,
+        ),
+        patch("ee.src.middlewares.throttling.is_cloud", return_value=False),
+        patch(
+            "ee.src.middlewares.throttling.check_throttles", new_callable=AsyncMock
+        ) as check_throttles,
+    ):
+        for _ in range(200):
+            response = await throttling_middleware(request, call_next)
+            assert response.status_code == 200
+
+    check_throttles.assert_not_awaited()
+
+
+async def test_cloud_plan_without_throttles_falls_back_to_the_free_plan():
+    request = _request("/evaluations/runs/query")
+    call_next = AsyncMock(return_value=Response(status_code=200))
+    standard = Throttle(
+        categories=[Category.STANDARD],
+        mode=Mode.INCLUDE,
+        bucket=Bucket(capacity=10, rate=10),
+    )
+    allowed = SimpleNamespace(allow=True, tokens_remaining=9, retry_after_seconds=0)
+
+    def entitlements(plan):
+        return {Tracker.THROTTLES: [standard]} if plan == "free-plan" else {}
+
+    with (
+        patch(
+            "ee.src.middlewares.throttling._get_plan",
+            new_callable=AsyncMock,
+            return_value="no-throttles-plan",
+        ),
+        patch("ee.src.middlewares.throttling.is_cloud", return_value=True),
+        patch("ee.src.middlewares.throttling.get_free_plan", return_value="free-plan"),
+        patch(
+            "ee.src.middlewares.throttling.get_plan_entitlements",
+            side_effect=entitlements,
+        ),
+        patch(
+            "ee.src.middlewares.throttling.check_throttles",
+            new_callable=AsyncMock,
+            return_value=[allowed],
+        ) as check_throttles,
+    ):
+        await throttling_middleware(request, call_next)
+
+    (checks,), _ = check_throttles.await_args
+    assert checks and all(key["plan"] == "free-plan" for key, _, _ in checks)
+
+
+async def test_plan_cache_entry_keeps_the_billing_anchor():
+    """The entitlements meter monthly usage by the anchor of this shared entry."""
+    from ee.src.middlewares.throttling import _get_plan
+
+    subscription = SimpleNamespace(plan="self_hosted_community", anchor=17)
+    with (
+        patch(
+            "ee.src.middlewares.throttling.get_cache",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "ee.src.middlewares.throttling.set_cache", new_callable=AsyncMock
+        ) as set_cache,
+        patch(
+            "ee.src.middlewares.throttling.subscriptions_service.read",
+            new_callable=AsyncMock,
+            return_value=subscription,
+        ),
+        patch("ee.src.middlewares.throttling.is_cloud", return_value=True),
+    ):
+        assert await _get_plan("organization-1") == "self_hosted_community"
+
+    assert set_cache.await_args.kwargs["value"] == {
+        "plan": "self_hosted_community",
+        "anchor": 17,
+    }

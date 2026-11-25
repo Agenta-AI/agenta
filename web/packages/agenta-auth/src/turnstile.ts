@@ -22,20 +22,12 @@ export const TURNSTILE_HEADER = "x-turnstile-token"
 let pendingTurnstileToken: string | null = null
 let fetchPatched = false
 
-/** `@agenta/shared`'s `isEE`, read through the injected env so tests and apps agree. */
-const isEELicense = (): boolean => {
-    const license = authEnv("NEXT_PUBLIC_AGENTA_LICENSE").toLowerCase()
-    return license === "ee" || license.startsWith("cloud")
-}
-
 export const getTurnstileSiteKey = (): string => {
     // TEST: ENFORCE CHALLENGE
     // const siteKey = "3x00000000000000000000FF"
     // TEST: BYPASS CHALLENGE
     // const siteKey = "1x00000000000000000000AA"
-    const siteKey = authEnv("NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY").trim()
-
-    return isEELicense() ? siteKey : ""
+    return authEnv("NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY").trim()
 }
 
 export const isTurnstileEnabled = (): boolean => Boolean(getTurnstileSiteKey())

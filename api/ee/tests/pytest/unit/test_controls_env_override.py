@@ -773,7 +773,7 @@ class TestDefaultPlanEnv:
             "print(get_default_plan())",
             env_extra={"STRIPE_API_KEY": ""},
         )
-        assert out.strip() == "self_hosted_enterprise"
+        assert out.strip() == "self_hosted_community"
 
     def test_unset_falls_back_to_hobby_on_cloud(self):
         # Cloud is a cloud license key (signed here by a throwaway key pair), not Stripe.
@@ -811,7 +811,7 @@ class TestDefaultPlanEnv:
             "print(get_default_plan())",
             env_extra={"STRIPE_API_KEY": "sk_test_dummy", "AGENTA_LICENSE_KEY": ""},
         )
-        assert out.strip() == "self_hosted_enterprise"
+        assert out.strip() == "self_hosted_community"
 
     def test_default_plan_not_in_effective_set_fails_startup(self):
         _fails(

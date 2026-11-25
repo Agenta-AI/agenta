@@ -49,7 +49,7 @@ from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.types import RecipeUserId, AccountInfo
 
 
-from oss.src.utils.common import is_ee
+from oss.src.utils.common import is_cloud, is_ee
 from oss.src.utils.env import env
 from oss.src.utils.validators import is_input_email
 from oss.src.core.auth.helper import (

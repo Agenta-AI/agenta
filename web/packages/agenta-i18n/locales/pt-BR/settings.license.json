@@ -1,7 +1,6 @@
 {
     "actionAddLicenseKey": "Adicionar uma chave de licença",
     "actionTalkToUs": "Fale conosco",
-    "actionUpgradeDocs": "Como fazer o upgrade",
     "addFailed": "Não foi possível adicionar a chave. Tente novamente.",
     "addKey": "Adicionar chave",
     "adding": "Adicionando…",
@@ -40,7 +39,6 @@
     "lockedSso": "<strong>Provedores de SSO.</strong> Os membros entram com o provedor de identidade da sua empresa.",
     "lockedSsoRow": "Nenhum provedor.",
     "lockedTitle": "Disponível no plano Enterprise",
-    "needsEnterpriseImage": "As chaves de licença precisam da imagem Enterprise. <link>Como fazer o upgrade</link>",
     "never": "Nunca",
     "noticeExpired": "Esta licença expirou em {{date}}. A instância está no plano Community.",
     "noticeExpires": "Esta licença expira em {{date}}.",
