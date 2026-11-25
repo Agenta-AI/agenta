@@ -80,5 +80,22 @@
     "usedByNone": "No agents",
     "noArchivedTitle": "No archived skills",
     "noArchivedBody": "Skills you archive show up here.",
-    "backToActive": "Back to active"
+    "backToActive": "Back to active",
+    "selectSkill": "Select {{name}}",
+    "new": "New",
+    "bulkArchiveTitle_one": "Archive {{count}} skill?",
+    "bulkArchiveTitle_other": "Archive {{count}} skills?",
+    "bulkArchiveMessage": "They leave the registry and agents can no longer run them. You can restore them later.",
+    "bulkArchiveSkills": "Skills",
+    "bulkArchiveAgents": "Used by",
+    "bulkArchiveNoAgents": "No agent uses these skills.",
+    "bulkArchiveCheckingAgents": "Checking which agents use them…",
+    "bulkArchived_one": "Skill archived",
+    "bulkArchived_other": "{{count}} skills archived",
+    "bulkRestored_one": "Skill restored",
+    "bulkRestored_other": "{{count}} skills restored",
+    "bulkArchiveFailed_one": "Couldn't archive {{count}} skill",
+    "bulkArchiveFailed_other": "Couldn't archive {{count}} skills",
+    "bulkRestoreFailed_one": "Couldn't restore {{count}} skill",
+    "bulkRestoreFailed_other": "Couldn't restore {{count}} skills"
 }

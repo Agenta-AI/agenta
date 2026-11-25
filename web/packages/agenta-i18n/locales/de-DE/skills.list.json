@@ -80,5 +80,22 @@
     "usedByNone": "Keine Agents",
     "noArchivedTitle": "Keine archivierten Skills",
     "noArchivedBody": "Archivierte Skills erscheinen hier.",
-    "backToActive": "Zurück zu aktiven"
+    "backToActive": "Zurück zu aktiven",
+    "selectSkill": "{{name}} auswählen",
+    "new": "Neu",
+    "bulkArchiveTitle_one": "{{count}} Skill archivieren?",
+    "bulkArchiveTitle_other": "{{count}} Skills archivieren?",
+    "bulkArchiveMessage": "Sie verschwinden aus der Registry und Agents können sie nicht mehr ausführen. Du kannst sie später wiederherstellen.",
+    "bulkArchiveSkills": "Skills",
+    "bulkArchiveAgents": "Verwendet von",
+    "bulkArchiveNoAgents": "Kein Agent verwendet diese Skills.",
+    "bulkArchiveCheckingAgents": "Prüfe, welche Agents sie verwenden…",
+    "bulkArchived_one": "Skill archiviert",
+    "bulkArchived_other": "{{count}} Skills archiviert",
+    "bulkRestored_one": "Skill wiederhergestellt",
+    "bulkRestored_other": "{{count}} Skills wiederhergestellt",
+    "bulkArchiveFailed_one": "{{count}} Skill konnte nicht archiviert werden",
+    "bulkArchiveFailed_other": "{{count}} Skills konnten nicht archiviert werden",
+    "bulkRestoreFailed_one": "{{count}} Skill konnte nicht wiederhergestellt werden",
+    "bulkRestoreFailed_other": "{{count}} Skills konnten nicht wiederhergestellt werden"
 }

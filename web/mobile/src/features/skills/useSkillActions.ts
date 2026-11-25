@@ -43,6 +43,33 @@ export const useSkillActions = () => {
         [projectId],
     )
 
+    // Every call runs; the list refreshes once, and a failure names how many did not go through.
+    const archiveMany = useCallback(
+        async (workflowIds: string[]) => {
+            const results = await Promise.allSettled(
+                workflowIds.map((workflowId) => archiveSkill({projectId, workflowId})),
+            )
+            invalidateSkillsListCache()
+            const failed = results.filter((result) => result.status === "rejected").length
+            if (failed) message.error(tNow("skills.list.bulkArchiveFailed", {count: failed}))
+            else message.success(tNow("skills.list.bulkArchived", {count: workflowIds.length}))
+        },
+        [projectId],
+    )
+
+    const restoreMany = useCallback(
+        async (workflowIds: string[]) => {
+            const results = await Promise.allSettled(
+                workflowIds.map((workflowId) => unarchiveSkill({projectId, workflowId})),
+            )
+            invalidateSkillsListCache()
+            const failed = results.filter((result) => result.status === "rejected").length
+            if (failed) message.error(tNow("skills.list.bulkRestoreFailed", {count: failed}))
+            else message.success(tNow("skills.list.bulkRestored", {count: workflowIds.length}))
+        },
+        [projectId],
+    )
+
     // The drawer's query key, so an open drawer shares the head this fetch brings.
     const download = useCallback(
         async (workflowId: string) => {
@@ -63,5 +90,5 @@ export const useSkillActions = () => {
         [projectId, queryClient],
     )
 
-    return {archive, restore, download}
+    return {archive, restore, archiveMany, restoreMany, download}
 }

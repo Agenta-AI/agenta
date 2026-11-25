@@ -75,5 +75,17 @@
     "usedByNone": "无 Agent",
     "noArchivedTitle": "没有已归档的 Skill",
     "noArchivedBody": "你归档的 Skill 会显示在这里。",
-    "backToActive": "返回活跃项"
+    "backToActive": "返回活跃项",
+    "selectSkill": "选择 {{name}}",
+    "new": "新建",
+    "bulkArchiveTitle_other": "归档 {{count}} 个 Skill？",
+    "bulkArchiveMessage": "它们会从注册表中移除，Agent 将无法再运行它们。之后可以恢复。",
+    "bulkArchiveSkills": "Skill",
+    "bulkArchiveAgents": "使用方",
+    "bulkArchiveNoAgents": "没有 Agent 使用这些 Skill。",
+    "bulkArchiveCheckingAgents": "正在检查哪些 Agent 使用它们…",
+    "bulkArchived_other": "已归档 {{count}} 个 Skill",
+    "bulkRestored_other": "已恢复 {{count}} 个 Skill",
+    "bulkArchiveFailed_other": "无法归档 {{count}} 个 Skill",
+    "bulkRestoreFailed_other": "无法恢复 {{count}} 个 Skill"
 }

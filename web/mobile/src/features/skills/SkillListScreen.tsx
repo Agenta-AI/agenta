@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import type {SkillUploadScan} from "@agenta/entity-ui/drill-in"
 
@@ -17,8 +17,10 @@ import {
 import {buildRegistrySections, NewSkillMenuButton} from "@agenta/skills-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
-import {ListTableViewToggle} from "@agenta/ui/list-table"
-import {PageToolbar} from "@agenta/ui/ui"
+import {COMPACT_WINDOW_QUERY, useWindowMatch} from "@agenta/ui/hooks"
+import {ListTableSelectionToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
+import {Button, PageToolbar} from "@agenta/ui/ui"
+import {Archive, ArrowUUpLeft, Plus} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -29,6 +31,7 @@ import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {PageLayout} from "../page-layout/PageLayout"
 
 import {pendingSkillUploadAtom} from "./pendingSkillUpload"
+import {SkillBulkArchiveDialog} from "./SkillBulkArchiveDialog"
 import {SkillCreateOptions} from "./SkillCreateOptions"
 import {SkillFilterMenu} from "./SkillFilterMenu"
 import {SkillListTable} from "./SkillListTable"
@@ -43,6 +46,9 @@ import {
 } from "./skillListView"
 import {skillCreateHref, skillPageHref} from "./skillRoutes"
 import {SkillsNoMatch} from "./states/SkillsNoMatch"
+import {useSkillActions} from "./useSkillActions"
+
+const EMPTY_KEYS: ReadonlySet<string> = new Set()
 
 /**
  * The skill registry — where the nav's Skills entry lands.
@@ -110,6 +116,37 @@ export const SkillListScreen = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const groups = useMemo(() => deriveSkillList(rows, view), [rows, t, view])
 
+    // Selection, by workflow id. Only rows still on screen count, so a filter or an archive drops them.
+    const [picked, setPicked] = useState<ReadonlySet<string>>(EMPTY_KEYS)
+    const visibleIds = useMemo(
+        () => groups.flatMap((run) => run.rows.map((row) => row.id)),
+        [groups],
+    )
+    const selectedRows = useMemo(
+        () => groups.flatMap((run) => run.rows).filter((row) => picked.has(row.id)),
+        [groups, picked],
+    )
+    const selectedKeys = useMemo(() => new Set(selectedRows.map((row) => row.id)), [selectedRows])
+    const clearSelection = useCallback(() => setPicked(EMPTY_KEYS), [])
+    // Active and archived skills take different bulk verbs, so switching lists starts over.
+    useEffect(() => clearSelection(), [clearSelection, view.archived])
+    const {archiveMany, restoreMany} = useSkillActions()
+    const [archiveOpen, setArchiveOpen] = useState(false)
+    const [bulkPending, setBulkPending] = useState(false)
+    const runBulk = useCallback(
+        async (run: (ids: string[]) => Promise<void>) => {
+            setBulkPending(true)
+            try {
+                await run([...selectedKeys])
+                clearSelection()
+                setArchiveOpen(false)
+            } finally {
+                setBulkPending(false)
+            }
+        },
+        [clearSelection, selectedKeys],
+    )
+
     const term = search.trim()
     const isLoading = query.isPending
     // "This project has no skills" is a claim about the project, so it is only ever made about
@@ -136,7 +173,12 @@ export const SkillListScreen = ({
         },
         [base, router],
     )
-    const onWrite = useCallback(() => void router.push(skillCreateHref(base, "write")), [base, router])
+    const compact = useWindowMatch(COMPACT_WINDOW_QUERY)
+    const onNew = useCallback(() => void router.push(skillCreateHref(base)), [base, router])
+    const onWrite = useCallback(
+        () => void router.push(skillCreateHref(base, "write")),
+        [base, router],
+    )
     const onImport = useCallback(
         () => void router.push(skillCreateHref(base, "import")),
         [base, router],
@@ -148,6 +190,31 @@ export const SkillListScreen = ({
         },
         [base, router, setPendingUpload],
     )
+    // `?fresh=<slug,...>` after a multi-import: flash those rows once, then drop the param.
+    const freshParam = typeof router.query.fresh === "string" ? router.query.fresh : ""
+    const [freshSlugs, setFreshSlugs] = useState<string[]>([])
+    const [flashKeys, setFlashKeys] = useState<ReadonlySet<string>>(EMPTY_KEYS)
+    useEffect(() => {
+        if (!freshParam) return
+        setFreshSlugs(freshParam.split(",").filter(Boolean))
+        const {fresh: _fresh, ...rest} = router.query
+        void router.replace({pathname: router.pathname, query: rest}, undefined, {shallow: true})
+    }, [freshParam, router])
+    useEffect(() => {
+        if (!freshSlugs.length || !rows.length) return
+        const slugs = new Set(freshSlugs)
+        setFlashKeys(
+            new Set(
+                rows
+                    .filter(
+                        (row) => slugs.has(row.item.workflowSlug ?? "") || slugs.has(row.item.slug),
+                    )
+                    .map((row) => row.id),
+            ),
+        )
+        setFreshSlugs([])
+    }, [freshSlugs, rows])
+
     // The old `?skill=<workflow slug>` link (an agent's skill view) now lands on the skill's page.
     const linkedSkill = typeof router.query.skill === "string" ? router.query.skill : ""
     useEffect(() => {
@@ -185,6 +252,9 @@ export const SkillListScreen = ({
             isLoading={isLoading}
             onOpen={openRow}
             empty={emptyState}
+            selectedKeys={selectedKeys}
+            onSelectionChange={setPicked}
+            flashKeys={flashKeys}
         />
     )
 
@@ -195,7 +265,38 @@ export const SkillListScreen = ({
             title={t("skills.list.pageTitle")}
             description={t("skills.list.pageDescription")}
             toolbar={
-                projectEmpty ? undefined : (
+                projectEmpty ? undefined : selectedKeys.size > 0 ? (
+                    <ListTableSelectionToolbar
+                        count={selectedKeys.size}
+                        onSelectAll={() => setPicked(new Set(visibleIds))}
+                        allSelected={selectedKeys.size === visibleIds.length}
+                        onClear={clearSelection}
+                        actions={
+                            view.archived ? (
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={bulkPending}
+                                    onClick={() => void runBulk(restoreMany)}
+                                >
+                                    <ArrowUUpLeft aria-hidden />
+                                    {t("skills.list.restore")}
+                                </Button>
+                            ) : (
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setArchiveOpen(true)}
+                                >
+                                    <Archive aria-hidden />
+                                    {t("skills.list.archive")}
+                                </Button>
+                            )
+                        }
+                    />
+                ) : (
                     <PageToolbar
                         search={typed}
                         onSearchChange={setTyped}
@@ -216,25 +317,36 @@ export const SkillListScreen = ({
                     {projectEmpty ? null : (
                         <HowThisWorksButton guide="skills" className="max-sm:hidden" />
                     )}
-                    <NewSkillMenuButton
-                        onWrite={onWrite}
-                        onUpload={onUpload}
-                        onImport={onImport}
-                    />
+                    {compact ? (
+                        // A phone has one header: the menu and New, which opens the create page.
+                        <Button type="button" size="sm" onClick={onNew}>
+                            <Plus aria-hidden />
+                            {t("skills.list.new")}
+                        </Button>
+                    ) : (
+                        <NewSkillMenuButton
+                            onWrite={onWrite}
+                            onUpload={onUpload}
+                            onImport={onImport}
+                        />
+                    )}
                 </>
             }
         >
             {projectEmpty ? (
                 <FeatureOnboarding guideKey="skills" base={base}>
-                    <SkillCreateOptions
-                        onWrite={onWrite}
-                        onUpload={onUpload}
-                        onImport={onImport}
-                    />
+                    <SkillCreateOptions onWrite={onWrite} onUpload={onUpload} onImport={onImport} />
                 </FeatureOnboarding>
             ) : (
                 body
             )}
+            <SkillBulkArchiveDialog
+                open={archiveOpen}
+                rows={selectedRows}
+                pending={bulkPending}
+                onConfirm={() => void runBulk(archiveMany)}
+                onClose={() => setArchiveOpen(false)}
+            />
         </PageLayout>
     )
 }

@@ -64,11 +64,10 @@ const wideColumns = (t: ListText, group: SkillGrouping): ListTableColumn[] => [
     updatedColumn(t, LIST_COLUMN_WIDTH.time),
     actionsColumn(t),
 ]
+// A phone row is the Mark, the name and the time; the actions wait for the skill's own page.
 const narrowColumns = (t: ListText): ListTableColumn[] => [
     nameColumn(t),
     updatedColumn(t, LIST_COLUMN_WIDTH.timeCompact),
-    // The menu alone: the Update mark waits for the skill's own page on a phone.
-    {...actionsColumn(t), width: LIST_COLUMN_WIDTH.actions},
 ]
 
 /** Tailwind's `sm`. Below it Source and Used by go; the minima then fit a 375px screen. */
@@ -96,6 +95,9 @@ export const SkillListTable = ({
     isLoading,
     onOpen,
     empty,
+    selectedKeys,
+    onSelectionChange,
+    flashKeys,
 }: {
     groups: SkillListGroup[]
     view: ListTableView
@@ -104,6 +106,11 @@ export const SkillListTable = ({
     isLoading: boolean
     onOpen: (row: SkillListRow) => void
     empty: ReactNode
+    /** The rows picked with their Mark, by workflow id. */
+    selectedKeys: ReadonlySet<string>
+    onSelectionChange: (next: Set<string>) => void
+    /** Rows just imported, flashed once. */
+    flashKeys?: ReadonlySet<string>
 }) => {
     // Picks the COLUMN SET, not a `display` value: header and body read one array. Asked as
     // "wide?" because the shared hook starts false before it reads the viewport, and a phone
@@ -150,6 +157,13 @@ export const SkillListTable = ({
             onToggleGroup={toggleGroup}
             groupActions={groupActions}
             empty={empty}
+            selection={{
+                selectedKeys,
+                onChange: onSelectionChange,
+                rowLabel: (row) => t("skills.list.selectSkill", {name: row.title}),
+                markAsCheckbox: true,
+            }}
+            flashKeys={flashKeys}
             renderRow={(row) => (
                 <SkillRowCells row={row} narrow={narrow} group={group} onOpen={onOpen} />
             )}

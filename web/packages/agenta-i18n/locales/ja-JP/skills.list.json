@@ -75,5 +75,17 @@
     "usedByNone": "エージェントなし",
     "noArchivedTitle": "アーカイブ済みのスキルはありません",
     "noArchivedBody": "アーカイブしたスキルがここに表示されます。",
-    "backToActive": "アクティブに戻る"
+    "backToActive": "アクティブに戻る",
+    "selectSkill": "{{name}} を選択",
+    "new": "新規",
+    "bulkArchiveTitle_other": "{{count}} 個のスキルをアーカイブしますか?",
+    "bulkArchiveMessage": "レジストリから削除され、エージェントは実行できなくなります。後で復元できます。",
+    "bulkArchiveSkills": "スキル",
+    "bulkArchiveAgents": "使用元",
+    "bulkArchiveNoAgents": "これらのスキルを使用しているエージェントはありません。",
+    "bulkArchiveCheckingAgents": "使用しているエージェントを確認しています…",
+    "bulkArchived_other": "{{count}} 個のスキルをアーカイブしました",
+    "bulkRestored_other": "{{count}} 個のスキルを復元しました",
+    "bulkArchiveFailed_other": "{{count}} 個のスキルをアーカイブできませんでした",
+    "bulkRestoreFailed_other": "{{count}} 個のスキルを復元できませんでした"
 }

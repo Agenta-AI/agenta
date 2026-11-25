@@ -1,6 +1,7 @@
 import {useT} from "@agenta/i18n"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {SkillMark} from "@agenta/ui/agent-icon"
+import {ListTableSelectMark} from "@agenta/ui/list-table"
 
 import {SkillActionsMenu} from "./SkillActionsMenu"
 import {SkillArchivedTag} from "./SkillArchivedTag"
@@ -37,7 +38,9 @@ export const SkillRowCells = ({
     return (
         <>
             <span className={`flex min-w-0 items-center gap-3 ${row.archived ? "opacity-60" : ""}`}>
-                <SkillMark size={32} />
+                <ListTableSelectMark>
+                    <SkillMark size={32} />
+                </ListTableSelectMark>
                 {/* Tight leading and a hairline gap: the frame's own row padding is fixed and
                 shared, so the two lines are where a row can give height back. */}
                 <span className="flex min-w-0 flex-1 flex-col gap-px">
@@ -76,16 +79,17 @@ export const SkillRowCells = ({
                 {lastUpdatedLabel(row.age)}
             </span>
 
-            {/* The menu's own clicks are not the row's: without this every menu press would also
-            open the drawer. */}
-            <span
-                className="flex items-center justify-end gap-1"
-                onClick={(event) => event.stopPropagation()}
-                onKeyDown={(event) => event.stopPropagation()}
-            >
-                {narrow ? null : <SkillUpdateCell workflowId={row.id} compact />}
-                <SkillActionsMenu row={row} onOpen={onOpen} />
-            </span>
+            {/* A phone row is the Mark, the name and the time; the menu is on the skill page. */}
+            {narrow ? null : (
+                <span
+                    className="flex items-center justify-end gap-1"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                >
+                    <SkillUpdateCell workflowId={row.id} compact />
+                    <SkillActionsMenu row={row} onOpen={onOpen} />
+                </span>
+            )}
         </>
     )
 }

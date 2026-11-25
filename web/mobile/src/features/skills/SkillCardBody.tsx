@@ -1,6 +1,7 @@
 import {useT} from "@agenta/i18n"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {SkillMark} from "@agenta/ui/agent-icon"
+import {ListTableSelectMark} from "@agenta/ui/list-table"
 
 import {SkillActionsMenu} from "./SkillActionsMenu"
 import {SkillArchivedTag} from "./SkillArchivedTag"
@@ -34,7 +35,9 @@ export const SkillCardBody = ({
             {/* The Mark on its own row, the menu at its right. */}
             <span className="flex min-w-0 items-center justify-between gap-2">
                 <span className={row.archived ? "opacity-60" : undefined}>
-                    <SkillMark size={32} />
+                    <ListTableSelectMark>
+                        <SkillMark size={32} />
+                    </ListTableSelectMark>
                 </span>
                 <span
                     className="flex shrink-0 items-center gap-1.5"
