@@ -13,7 +13,5 @@
     "noAccountYet": "No account yet",
     "connectApp": "Connect {{name}}",
     "noSharedAccountYet": "No shared account yet",
-    "noPersonWarning": "Runs from a channel or from an automation created with an API key have no person. They cannot use each person's own account, so this integration is not available to them.",
-    "onlyMeShort": "Only your own runs use it.",
-    "everyoneShort": "Agents in this project can use it."
+    "noPersonWarning": "Runs from a channel or from an automation created with an API key have no person. They cannot use each person's own account, so this integration is not available to them."
 }

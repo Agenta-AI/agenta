@@ -1,10 +1,12 @@
-import {useCallback, useId, type ComponentType} from "react"
+import {useCallback, type ComponentType} from "react"
 
 import {useT} from "@agenta/i18n"
 import accountsCatalog from "@agenta/i18n/catalogs/entityUi.accounts"
 import type {OwnerKind} from "@agenta/shared/types"
-import {Field, RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
+import {Field} from "@agenta/ui/ui"
 import {Buildings, User, UsersThree, type IconProps} from "@phosphor-icons/react"
+
+import {AccountSwitch} from "./AccountSwitch"
 
 /** Who owns a connection, narrow to wide: the person, the project, the organization. */
 export const OWNER_ORDER: readonly OwnerKind[] = ["user", "project", "organization"]
@@ -41,8 +43,8 @@ export interface OwnerFieldProps<Owner extends OwnerKind> {
 }
 
 /**
- * The Owner field of an add form: one radio per allowed owner, each with its icon, its word and
- * the sentence that says who can use what is added. Every connections page asks it the same way.
+ * The Owner field of an add form: a segment of the allowed owners, each with its word and the
+ * sentence that says who can use what is added. Every connections page asks it the same way.
  */
 export function OwnerField<Owner extends OwnerKind>({
     value,
@@ -53,7 +55,6 @@ export function OwnerField<Owner extends OwnerKind>({
 }: OwnerFieldProps<Owner>) {
     const t = useT(accountsCatalog)
     const word = useOwnerWord()
-    const id = useId()
     const note = (owner: OwnerKind) =>
         owner === "user"
             ? t("entityUi.accounts.ownerUserNote")
@@ -67,35 +68,13 @@ export function OwnerField<Owner extends OwnerKind>({
     const shown = OWNER_ORDER.filter((owner): owner is Owner => owners.includes(owner as Owner))
 
     return (
-        <Field label={t("entityUi.accounts.owner")} htmlFor={`${id}-${value}`}>
-            <RadioGroup
+        <Field label={t("entityUi.accounts.owner")}>
+            <AccountSwitch
                 value={value}
-                onValueChange={(next) => onChange(next as Owner)}
+                choices={shown.map((owner) => ({value: owner, label: word(owner), note: note(owner)}))}
+                onChange={onChange}
                 aria-label={t("entityUi.accounts.owner")}
-                className="gap-1"
-            >
-                {shown.map((owner) => {
-                    const Icon: ComponentType<IconProps> = OWNER_ICON[owner]
-                    return (
-                        <label
-                            key={owner}
-                            htmlFor={`${id}-${owner}`}
-                            className="flex cursor-pointer items-start gap-3 rounded-md py-2"
-                        >
-                            <RadioGroupItem id={`${id}-${owner}`} value={owner} className="mt-0.5" />
-                            <span className="flex min-w-0 flex-col gap-0.5">
-                                <span className="flex items-center gap-1.5 text-body font-medium text-foreground">
-                                    <Icon size={14} />
-                                    {word(owner)}
-                                </span>
-                                <span className="text-label text-muted-foreground">
-                                    {note(owner)}
-                                </span>
-                            </span>
-                        </label>
-                    )
-                })}
-            </RadioGroup>
+            />
         </Field>
     )
 }

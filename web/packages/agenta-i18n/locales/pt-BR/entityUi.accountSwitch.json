@@ -13,7 +13,5 @@
     "noAccountYet": "Nenhuma conta ainda",
     "connectApp": "Conectar {{name}}",
     "noSharedAccountYet": "Nenhuma conta compartilhada ainda",
-    "noPersonWarning": "Execuções de um canal ou de uma automação criada com uma chave de API não têm pessoa. Elas não podem usar a conta própria de cada pessoa, então esta integração não está disponível para elas.",
-    "onlyMeShort": "Só as suas próprias execuções a usam.",
-    "everyoneShort": "Agentes deste projeto podem usá-la."
+    "noPersonWarning": "Execuções de um canal ou de uma automação criada com uma chave de API não têm pessoa. Elas não podem usar a conta própria de cada pessoa, então esta integração não está disponível para elas."
 }

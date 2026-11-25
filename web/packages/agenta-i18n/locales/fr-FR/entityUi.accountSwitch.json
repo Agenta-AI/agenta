@@ -13,7 +13,5 @@
     "noAccountYet": "Aucun compte pour l'instant",
     "connectApp": "Connecter {{name}}",
     "noSharedAccountYet": "Aucun compte partagé pour l'instant",
-    "noPersonWarning": "Les exécutions depuis un canal ou depuis une automatisation créée avec une clé API n'ont pas de personne. Elles ne peuvent pas utiliser le compte propre de chaque personne, donc cette intégration ne leur est pas disponible.",
-    "onlyMeShort": "Seules vos propres exécutions l'utilisent.",
-    "everyoneShort": "Les agents de ce projet peuvent l'utiliser."
+    "noPersonWarning": "Les exécutions depuis un canal ou depuis une automatisation créée avec une clé API n'ont pas de personne. Elles ne peuvent pas utiliser le compte propre de chaque personne, donc cette intégration ne leur est pas disponible."
 }

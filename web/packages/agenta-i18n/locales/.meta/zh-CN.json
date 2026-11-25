@@ -2189,9 +2189,7 @@
         "noAccountYet": "ac706ae7d7a8",
         "connectApp": "224b947e9fc5",
         "noSharedAccountYet": "ded4b88e52f7",
-        "noPersonWarning": "743fb9ac94a4",
-        "onlyMeShort": "20a86f59c132",
-        "everyoneShort": "eab6cee5c03c"
+        "noPersonWarning": "743fb9ac94a4"
     },
     "entityUi.accounts": {
         "label": "7e1b0d5641f2",
@@ -2830,15 +2828,10 @@
     },
     "entityUi.connectForm": {
         "popupBlocked": "3ded10a66eb3",
-        "onlyMe": "bdc0857b99a9",
-        "everyoneInProject": "ea1c225ea3c9",
-        "everyoneInThisProject": "157e75881465",
-        "everyoneNote": "2328ac65d9a2",
         "connectName": "224b947e9fc5",
         "name": "dcd1d5223f73",
         "required": "4850b174b713",
         "namePlaceholder": "1c09c58b4a9a",
-        "whoCanUseIt": "82d9af69e1a1",
         "authMethod": "b765e993fce6",
         "apiKey": "23189d55f697",
         "submitFailed": "f520eb1d4e08",
@@ -3408,9 +3401,6 @@
         "noServersYetBody": "06e132b9e99f",
         "searchServers": "3d7d709f953e",
         "noServersMatch": "6c98afe733d3"
-    },
-    "entityUi.mcpConnectOwner": {
-        "onlyMeNote": "8285c397b79d"
     },
     "entityUi.mcpDetail": {
         "connectionRenamed": "e8150aac20f0",

@@ -9,13 +9,13 @@ import {
 import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
-import mcpConnectOwnerCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnectOwner"
 import mcpJourneyCatalog from "@agenta/i18n/catalogs/entityUi.mcpJourney"
 import mcpViewsCatalog from "@agenta/i18n/catalogs/entityUi.mcpViews"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
-import {ConnectOwnerField, type ConnectionOwner} from "../../../../accounts/ConnectOwnerField"
+import {type ConnectionOwner} from "../../../../accounts/ConnectOwnerField"
+import {OwnerField} from "../../../../accounts/OwnerField"
 import {useProjectName} from "../../../../accounts/useProjectName"
 import {useMcpConnectScreens} from "../../../../mcpEndpoint/McpConnectJourney"
 
@@ -30,7 +30,7 @@ const hasUserActivation = (): boolean => {
 }
 
 const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
-    const t = useT(mcpViewsCatalog, mcpConnectOwnerCatalog, mcpJourneyCatalog, mcpConnectCatalog)
+    const t = useT(mcpViewsCatalog, mcpJourneyCatalog, mcpConnectCatalog)
     const endpoints = useAtomValue(mcpEndpointsQueryAtom).data
     const existingNames = useMemo(
         () => (endpoints ?? []).map((endpoint) => endpoint.name),
@@ -61,13 +61,10 @@ const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
         onClose: nav.cancel,
         canvas: true,
         ownerField: owners ? (
-            <ConnectOwnerField
+            <OwnerField<ConnectionOwner>
                 value={owner}
                 owners={owners}
                 onChange={setOwner}
-                onlyMeDetail={t("entityUi.mcpConnectOwner.onlyMeNote", {
-                    name: journey.state.name.trim() || hostnameLabel(journey.state.url),
-                })}
                 projectName={projectName}
             />
         ) : null,
