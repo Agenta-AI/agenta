@@ -6,7 +6,7 @@ import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import type {SkillFile} from "@agenta/skills"
 import {useIsExpandedWindow} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
-import {Button, Field, IconTile, Input, RightPane, Switch, Textarea} from "@agenta/ui/ui"
+import {Button, Field, IconTile, Input, RightPane, Textarea} from "@agenta/ui/ui"
 import {CaretRight, Files, FileText, X} from "@phosphor-icons/react"
 
 import {
@@ -124,8 +124,8 @@ export function SkillEditor({
     )
 
     const fileView = current ? (
-        <section key={current.path} className="flex flex-col gap-3">
-            <div className="flex min-h-8 items-center gap-2">
+        <section key={current.path} className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
                 <span title={current.path} className="flex min-w-0 flex-1 items-baseline">
                     {dirOf(current.path) ? (
                         <span className="min-w-0 shrink-[3] truncate text-label text-muted-foreground">
@@ -139,25 +139,6 @@ export function SkillEditor({
                 {isMarkdownPath(current.path) && !readOnly ? (
                     <div ref={setFileTools} className={TOOLS_SLOT} />
                 ) : null}
-                {isMarkdownPath(current.path) || readOnly ? null : (
-                    <label className="flex shrink-0 cursor-pointer items-center gap-2 text-label text-muted-foreground">
-                        {t("skills.editor.runAsProgram")}
-                        <Switch
-                            size="sm"
-                            checked={Boolean(current.executable)}
-                            onCheckedChange={(on) => setFile({executable: on || undefined})}
-                        />
-                    </label>
-                )}
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t("skills.editor.closeFile")}
-                    onClick={() => setOpenPath(null)}
-                >
-                    <X />
-                </Button>
             </div>
             {current.executable && !draft.allowExecutable ? (
                 <p className="m-0 text-meta text-warning">{t("skills.editor.turnOnPrograms")}</p>
