@@ -1,13 +1,12 @@
 import {useState} from "react"
 
 import {personalAccountsAccessAtom, useVaultSecret} from "@agenta/entities/secret"
-import {secretFormView} from "@agenta/entity-ui/secret"
+import {SecretFormDialog} from "@agenta/entity-ui/secret"
 import {richText, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsSecretsTabCatalog from "@agenta/i18n/catalogs/settings.secretsTab"
 import {addAccountOwners, NamedSecretTable} from "@agenta/settings-ui"
 import type {LlmProvider} from "@agenta/shared/types"
-import {ViewDrawerHost} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
 import {useProjectPermission} from "../context/useProjectPermission"
@@ -17,7 +16,7 @@ import type {SettingsTabProps} from "./settingsTabProps"
 
 /**
  * Mobile binding: the shared vault table, with create and edit in the one secret form (a view with
- * the target "project", in a dialog) and delete in a modal. `edit_secret` decides whether a new
+ * the target "project", in a dialog of the kit) and delete in a modal. `edit_secret` decides whether a new
  * secret asks for its Owner.
  */
 export const SecretsTab = ({projectId}: SettingsTabProps) => {
@@ -34,14 +33,10 @@ export const SecretsTab = ({projectId}: SettingsTabProps) => {
             owners={owners}
             renderConfigureDialog={({selectedSecret, open, owners: formOwners, onClose}) =>
                 open ? (
-                    <ViewDrawerHost
-                        request={{
-                            view: secretFormView,
-                            params: {secretId: selectedSecret?.id, owners: formOwners},
-                            target: {kind: "project"},
-                        }}
+                    <SecretFormDialog
+                        secretId={selectedSecret?.id}
+                        owners={formOwners}
                         onClosed={onClose}
-                        presentation="dialog"
                     />
                 ) : null
             }
