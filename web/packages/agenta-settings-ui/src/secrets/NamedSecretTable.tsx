@@ -286,6 +286,7 @@ export const NamedSecretTable = ({
                     }
                     // A phone shows one column: a lone header there says nothing.
                     hideHeader={!wide}
+                    skeleton={{mark: true}}
                     empty={empty}
                     renderRow={(record) => (
                         <>

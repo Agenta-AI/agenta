@@ -193,7 +193,10 @@ export default function McpServersSection({
     const disconnect = useSetAtom(disconnectMcpEndpointAtom)
     const deleteEndpoint = useSetAtom(deleteMcpEndpointAtom)
     const namedSecrets = useAtomValue(customNamedSecretsAtom)
-    const personal = showsYours(useAtomValue(personalAccountsAccessAtom))
+    const access = useAtomValue(personalAccountsAccessAtom)
+    const personal = showsYours(access)
+    // Lay the skeleton out with the sign-in column, the common case, until access is known.
+    const layoutPersonal = personal || access === "loading"
     const signIn = usePersonalMcpSignIn()
     const [tokenFor, setTokenFor] = useState<MCPEndpoint | null>(null)
     const [search, setSearch] = useState("")
@@ -368,10 +371,10 @@ export default function McpServersSection({
     )
 
     const allColumns = useMemo(
-        () => columnsFor(personal).map((column) => ({...column, label: t(column.label)})),
-        [personal, t],
+        () => columnsFor(layoutPersonal).map((column) => ({...column, label: t(column.label)})),
+        [layoutPersonal, t],
     )
-    const {columns, shows, wide} = usePhoneColumns(allColumns, phoneKeysFor(personal))
+    const {columns, shows, wide} = usePhoneColumns(allColumns, phoneKeysFor(layoutPersonal))
 
     const statusSection = useMemo<FilterMenuSection>(
         () => ({
@@ -411,8 +414,9 @@ export default function McpServersSection({
             groups={[{key: "servers", label: null, rows}]}
             rowKey={rowKey}
             minWidth={0}
-            loading={isPending}
+            loading={isPending || access === "loading"}
             skeletonRows={3}
+            skeleton={{mark: true}}
             // A phone shows one column: a lone header there says nothing.
             hideHeader={!wide}
             onOpenRow={(record) => setViewing(record)}
