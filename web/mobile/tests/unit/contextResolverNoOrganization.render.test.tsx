@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * A person who signed up without an invitation on an instance at its organization limit has
- * no organization. The root shows why, and lets them retry or sign out to another account.
+ * no organization. The root shows why, and lets them check again or sign out to another account.
  */
 import {act, createElement, type ReactNode} from "react"
 
@@ -51,15 +51,16 @@ const button = (label: string) =>
     )
 
 describe("the /m root for a person with no organization", () => {
-    it("explains the invitation and offers Retry and Sign out", async () => {
+    it("explains the invitation and offers Check again and Sign out", async () => {
         queryState.data = {kind: "ok", projects: []}
 
         await act(async () => root.render(createElement(ContextResolver)))
 
+        expect(container.textContent).toContain("You are not in an organization yet")
         expect(container.textContent).toContain(
-            "You are not in an organization yet. Ask an organization admin to invite you.",
+            "This instance has one organization. Ask its admin to invite you.",
         )
-        expect(button("Retry")).toBeDefined()
+        expect(button("Check again")).toBeDefined()
         act(() => button("Sign out")?.click())
         expect(logout).toHaveBeenCalledOnce()
     })

@@ -21,7 +21,10 @@ import {useRouter} from "next/router"
 import {useLogout} from "../auth/useLogout"
 import {readLimitRefusal, type LimitRefusal} from "../limits/limitRefusal"
 import {LimitRefusalNotice} from "../limits/LimitRefusalNotice"
+import {ProjectLimitNotice} from "../limits/ProjectLimitNotice"
+import {isAtLimit} from "../settings/licenseApi"
 import {switchSettingsContext} from "../settings/switchContext"
+import {useInstanceUsage} from "../settings/useInstanceUsage"
 import {LiveChatNavButton} from "../support/LiveChatNavButton"
 import {useLiveChatEnabled} from "../support/useLiveChatEnabled"
 
@@ -96,6 +99,9 @@ export const DrawerProjectSwitcher = ({
 
     const [createOpen, setCreateOpen] = useState(false)
     const [refusal, setRefusal] = useState<LimitRefusal | null>(null)
+    // The limit shows when the sheet opens, before the reader types a name.
+    const usage = useInstanceUsage(projectId, createOpen)
+    const projectsAtLimit = isAtLimit(usage.data?.projects)
     // Same shared mutation the desktop rail calls; the row it feeds is already in the shared
     // view, gated on `onCreateProject`, and was invisible here only because nothing passed it.
     const createProject = useMutation({
@@ -187,8 +193,11 @@ export const DrawerProjectSwitcher = ({
                     createProject.mutate(name)
                 }}
                 isPending={createProject.isPending}
+                submitDisabled={projectsAtLimit}
                 notice={
-                    refusal ? (
+                    projectsAtLimit && usage.data?.projects ? (
+                        <ProjectLimitNotice usage={usage.data.projects} projectId={projectId} />
+                    ) : refusal ? (
                         <LimitRefusalNotice
                             refusal={refusal}
                             workspaceId={workspaceId}

@@ -1,11 +1,15 @@
 {
     "askInstanceAdmin": "请联系实例管理员。",
     "openLicenseSettings": "打开许可证设置",
+    "organizationLimitInfo": "第二个组织需要 Enterprise 许可证。要与这里已有的人协作，请让现有组织的所有者邀请你。",
     "organizationLimit_other": "此实例最多允许 {{count}} 个组织。请申请加入现有组织，或添加付费许可证密钥。",
-    "projectLimit_other": "此组织已达到 {{count}} 个项目的上限。",
-    "projectLimitCloud": "Hobby 套餐包含 1 个项目。升级到 Starter 可获得无限项目。",
     "projectLimitAskAdmin": "请联系实例管理员注册此实例，以获得更多项目。",
+    "projectLimitCloud": "Hobby 套餐包含 1 个项目。升级到 Starter 可获得无限项目。",
     "projectLimitRegister": "免费注册此实例，即可创建更多项目。",
+    "projectLimit_other": "此组织已达到 {{count}} 个项目的上限。",
+    "projectsUsage": "此组织已使用 {{count}} / {{limit}} 个项目。免费注册此实例即可创建更多项目。",
+    "register": "注册",
     "registerInstance": "注册此实例",
+    "registerTitle": "注册以创建更多项目",
     "upgradePlan": "升级套餐"
 }

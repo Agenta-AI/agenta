@@ -14,6 +14,17 @@ vi.mock("@agenta/shared/api", async (importOriginal) => ({
     isBillingEnabled: () => fixture.cloud,
 }))
 
+vi.mock("@agenta/entities/profile", () => ({
+    useProfile: () => ({user: {id: "user-1", email: "admin@example.com"}}),
+}))
+
+// Radix measures its controls; jsdom has no ResizeObserver.
+globalThis.ResizeObserver ??= class {
+    observe = () => undefined
+    unobserve = () => undefined
+    disconnect = () => undefined
+} as unknown as typeof ResizeObserver
+
 vi.mock("../../src/features/settings/useInstanceLicense", () => ({
     useInstanceLicense: () => ({isInstanceAdmin: fixture.isInstanceAdmin}),
 }))
@@ -27,6 +38,7 @@ import {
 import {LimitRefusalNotice} from "@/features/limits/LimitRefusalNotice"
 
 import {routerPush} from "../support/nextRouter"
+import {WithQueryClient} from "../support/queryClient"
 
 const PROJECT: LimitRefusal = {code: "project_limit_reached", limit: 1}
 const ORGANIZATION: LimitRefusal = {code: "instance_organization_limit_reached", limit: 1}
@@ -128,19 +140,21 @@ describe("LimitRefusalNotice", () => {
     const render = (refusal: LimitRefusal, onNavigate = vi.fn()) => {
         act(() =>
             root.render(
-                <LimitRefusalNotice
-                    refusal={refusal}
-                    workspaceId="ws-1"
-                    projectId="proj-1"
-                    onNavigate={onNavigate}
-                />,
+                <WithQueryClient>
+                    <LimitRefusalNotice
+                        refusal={refusal}
+                        workspaceId="ws-1"
+                        projectId="proj-1"
+                        onNavigate={onNavigate}
+                    />
+                </WithQueryClient>,
             ),
         )
         return onNavigate
     }
     const button = () => container.querySelector("button")
 
-    it("asks the instance admin to register the instance, with a button to the License tab", () => {
+    it("asks the instance admin to register the instance, and opens the registration in place", () => {
         fixture.isInstanceAdmin = true
         const onNavigate = render(PROJECT)
 
@@ -150,8 +164,10 @@ describe("LimitRefusalNotice", () => {
         expect(container.textContent).not.toContain("Ask your instance admin.")
         expect(button()?.textContent).toBe("Register this instance")
         act(() => button()?.click())
-        expect(onNavigate).toHaveBeenCalledOnce()
-        expect(routerPush).toHaveBeenCalledWith("/w/ws-1/p/proj-1/settings?tab=license")
+        expect(onNavigate).not.toHaveBeenCalled()
+        expect(routerPush).not.toHaveBeenCalled()
+        expect(document.body.textContent).toContain("Register to create more projects")
+        expect(document.body.textContent).toContain("Send me a free key")
     })
 
     it("keeps the License settings button at the organization limit", () => {

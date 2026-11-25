@@ -26,6 +26,7 @@ export const NameDialog = ({
     label,
     error,
     notice,
+    submitDisabled,
     onClose,
     onSubmit,
 }: {
@@ -41,6 +42,8 @@ export const NameDialog = ({
     error?: string | null
     /** Shown under the field, for a refusal the reader can act on. */
     notice?: ReactNode
+    /** A limit the reader cannot pass here: the submit button stays off. */
+    submitDisabled?: boolean
     onClose: () => void
     onSubmit: (name: string) => void
 }) => {
@@ -81,7 +84,7 @@ export const NameDialog = ({
                         {t("common.cancel")}
                     </Button>
                     <Button
-                        disabled={pending || !value.trim()}
+                        disabled={pending || !value.trim() || submitDisabled}
                         onClick={() => onSubmit(value.trim())}
                     >
                         {submitLabel}

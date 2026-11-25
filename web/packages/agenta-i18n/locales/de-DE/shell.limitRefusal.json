@@ -1,13 +1,17 @@
 {
     "askInstanceAdmin": "Wenden Sie sich an den Administrator Ihrer Instanz.",
     "openLicenseSettings": "Lizenzeinstellungen öffnen",
+    "organizationLimitInfo": "Eine zweite Organisation benötigt eine Enterprise-Lizenz. Um mit den Personen zu arbeiten, die schon hier sind, bitten Sie den Inhaber einer bestehenden Organisation um eine Einladung.",
     "organizationLimit_one": "Diese Instanz erlaubt {{count}} Organisation. Bitten Sie um eine Einladung in eine bestehende Organisation oder fügen Sie einen kostenpflichtigen Lizenzschlüssel hinzu.",
     "organizationLimit_other": "Diese Instanz erlaubt {{count}} Organisationen. Bitten Sie um eine Einladung in eine bestehende Organisation oder fügen Sie einen kostenpflichtigen Lizenzschlüssel hinzu.",
+    "projectLimitAskAdmin": "Bitten Sie den Administrator Ihrer Instanz, diese Instanz zu registrieren, um weitere Projekte zu erhalten.",
+    "projectLimitCloud": "Der Hobby-Tarif umfasst 1 Projekt. Wechseln Sie zu Starter für unbegrenzte Projekte.",
+    "projectLimitRegister": "Registrieren Sie diese Instanz kostenlos, um weitere Projekte zu erstellen.",
     "projectLimit_one": "Diese Organisation hat ihr Limit von {{count}} Projekt erreicht.",
     "projectLimit_other": "Diese Organisation hat ihr Limit von {{count}} Projekten erreicht.",
-    "projectLimitCloud": "Der Hobby-Tarif umfasst 1 Projekt. Wechseln Sie zu Starter für unbegrenzte Projekte.",
-    "projectLimitAskAdmin": "Bitten Sie den Administrator Ihrer Instanz, diese Instanz zu registrieren, um weitere Projekte zu erhalten.",
-    "projectLimitRegister": "Registrieren Sie diese Instanz kostenlos, um weitere Projekte zu erstellen.",
+    "projectsUsage": "Diese Organisation nutzt {{count}} von {{limit}} Projekten. Registrieren Sie diese Instanz kostenlos, um weitere zu erstellen.",
+    "register": "Registrieren",
     "registerInstance": "Diese Instanz registrieren",
+    "registerTitle": "Registrieren, um weitere Projekte zu erstellen",
     "upgradePlan": "Tarif upgraden"
 }

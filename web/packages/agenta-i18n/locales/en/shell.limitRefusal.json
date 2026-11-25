@@ -1,13 +1,17 @@
 {
     "askInstanceAdmin": "Ask your instance admin.",
     "openLicenseSettings": "Open License settings",
+    "organizationLimitInfo": "A second organization needs an Enterprise license. To work with the people already here, ask the owner of an existing organization to invite you.",
     "organizationLimit_one": "This instance allows {{count}} organization. Ask for an invitation to an existing organization, or add a paid license key.",
     "organizationLimit_other": "This instance allows {{count}} organizations. Ask for an invitation to an existing organization, or add a paid license key.",
+    "projectLimitAskAdmin": "Ask your instance admin to register this instance for more projects.",
+    "projectLimitCloud": "The Hobby plan includes 1 project. Upgrade to Starter for unlimited projects.",
+    "projectLimitRegister": "Register this instance for free to create more projects.",
     "projectLimit_one": "This organization has reached its limit of {{count}} project.",
     "projectLimit_other": "This organization has reached its limit of {{count}} projects.",
-    "projectLimitCloud": "The Hobby plan includes 1 project. Upgrade to Starter for unlimited projects.",
-    "projectLimitAskAdmin": "Ask your instance admin to register this instance for more projects.",
-    "projectLimitRegister": "Register this instance for free to create more projects.",
+    "projectsUsage": "This organization uses {{count}} of {{limit}} projects. Register this instance for free to create more.",
+    "register": "Register",
     "registerInstance": "Register this instance",
+    "registerTitle": "Register to create more projects",
     "upgradePlan": "Upgrade plan"
 }

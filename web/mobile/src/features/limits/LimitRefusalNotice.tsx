@@ -1,3 +1,5 @@
+import {useState} from "react"
+
 import {useT} from "@agenta/i18n"
 import limitRefusalCatalog from "@agenta/i18n/catalogs/shell.limitRefusal"
 import {isBillingEnabled} from "@agenta/shared/api"
@@ -7,6 +9,7 @@ import {useRouter} from "next/router"
 import {useInstanceLicense} from "../settings/useInstanceLicense"
 
 import {limitNextStep, limitRefusalText, type LimitRefusal} from "./limitRefusal"
+import {RegistrationDialog} from "./RegistrationDialog"
 
 /** A project or organization refusal at the plan's limit, with the reader's next step. */
 export const LimitRefusalNotice = ({
@@ -26,6 +29,9 @@ export const LimitRefusalNotice = ({
     const cloud = isBillingEnabled()
     const {isInstanceAdmin} = useInstanceLicense(projectId)
     const step = limitNextStep({refusal, cloud, isInstanceAdmin})
+    const [registering, setRegistering] = useState(false)
+    // At the project limit the instance admin registers in place, over the create dialog.
+    const registerInPlace = step === "license" && refusal.code === "project_limit_reached"
     const openTab = (tab: "billing" | "license") => {
         onNavigate?.()
         void router.push(`/w/${workspaceId}/p/${projectId}/settings?tab=${tab}`)
@@ -40,7 +46,11 @@ export const LimitRefusalNotice = ({
                     : null}
             </p>
             {step === "askAdmin" ? null : (
-                <Button size="sm" variant="outline" onClick={() => openTab(step)}>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => (registerInPlace ? setRegistering(true) : openTab(step))}
+                >
                     {step === "billing"
                         ? t("shell.limitRefusal.upgradePlan")
                         : refusal.code === "project_limit_reached"
@@ -48,6 +58,12 @@ export const LimitRefusalNotice = ({
                           : t("shell.limitRefusal.openLicenseSettings")}
                 </Button>
             )}
+            <RegistrationDialog
+                open={registering}
+                title={t("shell.limitRefusal.registerTitle")}
+                projectId={projectId}
+                onClose={() => setRegistering(false)}
+            />
         </div>
     )
 }

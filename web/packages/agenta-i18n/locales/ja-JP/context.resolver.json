@@ -1,5 +1,8 @@
 {
-    "noOrganization": "まだどの組織にも所属していません。組織の管理者に招待を依頼してください。",
+    "checkAgain": "もう一度確認",
+    "noOrganizationBody": "このインスタンスには組織が 1 つあります。その管理者に招待を依頼してください。招待が届くとここで開きます。",
+    "noOrganizationTitle": "まだどの組織にも所属していません",
     "retry": "再試行",
+    "signedInAs": "{{email}} でサインイン中",
     "somethingWrong": "問題が発生しました。"
 }

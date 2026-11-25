@@ -21,6 +21,7 @@ export const CreateProjectSheet = ({
     onSubmit,
     isPending,
     notice,
+    submitDisabled,
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
@@ -28,6 +29,8 @@ export const CreateProjectSheet = ({
     isPending?: boolean
     /** Shown under the field, for a refusal the reader can act on. */
     notice?: ReactNode
+    /** The plan allows no more projects: Create stays off. */
+    submitDisabled?: boolean
 }) => {
     const t = useT(createProjectCatalog, commonCatalog)
     const [name, setName] = useState("")
@@ -38,7 +41,7 @@ export const CreateProjectSheet = ({
 
     const submit = () => {
         const trimmed = name.trim()
-        if (trimmed && !isPending) onSubmit(trimmed)
+        if (trimmed && !isPending && !submitDisabled) onSubmit(trimmed)
     }
 
     return (
@@ -70,7 +73,7 @@ export const CreateProjectSheet = ({
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                         {t("common.cancel")}
                     </Button>
-                    <Button disabled={!name.trim() || isPending} onClick={submit}>
+                    <Button disabled={!name.trim() || isPending || submitDisabled} onClick={submit}>
                         {isPending ? t("shell.createProject.creating") : t("common.create")}
                     </Button>
                 </DialogFooter>

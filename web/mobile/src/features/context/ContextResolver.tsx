@@ -9,6 +9,7 @@ import {useRouter} from "next/router"
 
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {useLogout} from "@/features/auth/useLogout"
+import {NoOrganization} from "@/features/context/NoOrganization"
 import {HomePageSkeleton} from "@/features/home/states/HomePageSkeleton"
 import {readPendingInvite} from "@/features/invite/pendingInvite"
 import {
@@ -125,14 +126,23 @@ export const ContextResolver = ({workspaceId, forwardTo}: ContextResolverProps =
 
     // No project at all: a person without an organization (sign-up skips the personal one
     // when the instance is at its organization limit) needs an invitation.
-    if (result?.kind === "error" || (result?.kind === "ok" && groups.length === 0)) {
+    if (result?.kind === "ok" && groups.length === 0) {
+        return (
+            <ScreenScaffold>
+                <NoOrganization
+                    onCheckAgain={() => void query.refetch()}
+                    onSignOut={() => void logout()}
+                />
+            </ScreenScaffold>
+        )
+    }
+
+    if (result?.kind === "error") {
         return (
             <ScreenScaffold>
                 <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">
                     <p className="text-muted-foreground text-xs">
-                        {result?.kind === "ok"
-                            ? t("context.resolver.noOrganization")
-                            : t("context.resolver.somethingWrong")}
+                        {t("context.resolver.somethingWrong")}
                     </p>
                     {/* Signing out is the way to another account for a person with no
                         organization. */}

@@ -37,11 +37,14 @@ import {fetchProjects} from "@/lib/context"
 import {groupByOrganization} from "../context/workspaceGroups"
 import {readLimitRefusal, type LimitRefusal} from "../limits/limitRefusal"
 import {LimitRefusalNotice} from "../limits/LimitRefusalNotice"
+import {OrganizationLimitNotice} from "../limits/OrganizationLimitNotice"
 
 import {ConfirmModal} from "./ConfirmModal"
+import {isAtLimit} from "./licenseApi"
 import {NameDialog} from "./NameDialog"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {switchSettingsContext} from "./switchContext"
+import {useInstanceUsage} from "./useInstanceUsage"
 import {useSettingsOrg} from "./useSettingsOrg"
 
 const errorText = (error: unknown, fallback: string): string => {
@@ -71,6 +74,9 @@ export const OrganizationsTab = ({workspaceId, projectId}: SettingsTabProps) => 
         void queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})
     }
     const [creating, setCreating] = useState(false)
+    // The limit shows when the dialog opens, before the reader types a name.
+    const usage = useInstanceUsage(projectId, creating)
+    const organizationsAtLimit = isAtLimit(usage.data?.organizations)
     const [transferring, setTransferring] = useState<Org | null>(null)
     const [deleting, setDeleting] = useState<Org | null>(null)
     const [pending, setPending] = useState(false)
@@ -155,8 +161,16 @@ export const OrganizationsTab = ({workspaceId, projectId}: SettingsTabProps) => 
                 submitLabel={t("common.create")}
                 pending={pending}
                 error={error}
+                submitDisabled={organizationsAtLimit}
                 notice={
-                    refusal ? (
+                    organizationsAtLimit && usage.data?.organizations ? (
+                        <OrganizationLimitNotice
+                            usage={usage.data.organizations}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            onNavigate={() => setCreating(false)}
+                        />
+                    ) : refusal ? (
                         <LimitRefusalNotice
                             refusal={refusal}
                             workspaceId={workspaceId}
