@@ -24,14 +24,11 @@ def test_new_signup_has_no_workspace_and_works(admin_api, team):
     org = team.organization_id
     # The admin graph answers the organization where the workspace was.
     assert team.workspace_id == org
+    second = team.add_project("second")
     resp = admin_api("GET", "/projects/", headers=team.headers("owner"))
     assert resp.status_code == 200, resp.text
+    assert second in {p["project_id"] for p in resp.json()}
     assert {p["workspace_id"] for p in resp.json()} == {org}
-    resp = admin_api(
-        "POST", "/projects/", headers=team.headers("owner"), json={"name": "second"}
-    )
-    assert resp.status_code in (200, 201), resp.text
-    assert resp.json()["workspace_id"] == org
     resp = admin_api(
         "POST",
         f"/organizations/{org}/workspaces/{org}/invite",

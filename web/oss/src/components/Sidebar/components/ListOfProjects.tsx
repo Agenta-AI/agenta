@@ -127,9 +127,12 @@ const ListOfProjects = ({
             void refreshProjects()
         },
         onError: (error: any) => {
-            const detail =
-                error?.response?.data?.detail || error?.message || "Unable to create project"
-            message.error(detail)
+            const detail = error?.response?.data?.detail
+            message.error(
+                (typeof detail === "object" ? detail?.message : detail) ||
+                    error?.message ||
+                    "Unable to create project",
+            )
         },
     })
 

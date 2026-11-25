@@ -4,7 +4,12 @@ import {Badge, type BadgeProps} from "@agenta/ui/ui"
 
 import {formatDate} from "../wallet/walletFormat"
 
-import {REGISTERED_PLAN, type InstanceLicense, type InstanceLimitUsage} from "./licenseApi"
+import {
+    REGISTERED_PLAN,
+    type InstanceLicense,
+    type InstanceLimitUsage,
+    type LicenseUsage,
+} from "./licenseApi"
 import {LicenseUsageRow} from "./LicenseUsageRow"
 
 type LicenseKey = CatalogKey<typeof settingsLicenseCatalog>
@@ -34,14 +39,19 @@ const DAY_MS = 24 * 60 * 60 * 1000
 /** The instance plan in one line, its usage against the limits, and the key behind it. */
 export const LicenseSummary = ({
     license,
+    limits,
     now = Date.now(),
 }: {
     license: InstanceLicense
+    /** The project and organization counts, from the license usage read. */
+    limits?: LicenseUsage
     now?: number
 }) => {
     const t = useT(settingsLicenseCatalog)
     const key = license.license
-    const {users, projects, organizations} = license.usage
+    const {users} = license.usage
+    const projects = limits?.projects
+    const organizations = limits?.organizations
     const expiresAt = key?.expires_at ? new Date(key.expires_at).getTime() : null
     const expired = expiresAt !== null && expiresAt <= now
     const plan = PLANS[license.plan]

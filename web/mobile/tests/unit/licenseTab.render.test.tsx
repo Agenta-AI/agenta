@@ -14,6 +14,8 @@ globalThis.ResizeObserver ??= class {
 const fixture = vi.hoisted(() => ({
     edition: "ee" as "oss" | "ee",
     license: null as unknown,
+    usage: {projects: null, organizations: null} as unknown,
+    fetchUsage: vi.fn(),
     activate: vi.fn(),
 }))
 
@@ -30,6 +32,7 @@ vi.mock("@agenta/entities/profile", () => ({
 vi.mock("../../src/features/settings/licenseApi", async (importOriginal) => ({
     ...(await importOriginal<object>()),
     fetchInstanceLicense: async () => fixture.license,
+    fetchLicenseUsage: fixture.fetchUsage,
     activateInstanceLicense: fixture.activate,
 }))
 
@@ -64,6 +67,9 @@ describe("License tab", () => {
     beforeEach(() => {
         fixture.edition = "ee"
         fixture.activate.mockReset()
+        fixture.usage = {projects: null, organizations: null}
+        fixture.fetchUsage.mockReset()
+        fixture.fetchUsage.mockImplementation(async () => fixture.usage)
         host = document.createElement("div")
         document.body.appendChild(host)
         root = createRoot(host)
@@ -108,14 +114,12 @@ describe("License tab", () => {
         await vi.waitFor(() => expect(document.querySelector("textarea")).not.toBeNull())
     })
 
-    it("shows the project and organization usage with bars when the API returns it", async () => {
-        fixture.license = community({
-            projects: {count: 1, limit: 1},
-            organizations: {count: 1, limit: 1},
-        })
+    it("shows the project and organization usage with bars from the usage read", async () => {
+        fixture.license = community()
+        fixture.usage = {projects: {count: 1, limit: 1}, organizations: {count: 1, limit: 1}}
         await mount()
 
-        expect(text()).toContain("Projects in this organization")
+        await vi.waitFor(() => expect(text()).toContain("Projects in this organization"))
         expect(text()).toContain("Organizations on this instance")
         expect(document.querySelectorAll("[role=progressbar]")).toHaveLength(2)
     })
@@ -125,9 +129,11 @@ describe("License tab", () => {
             plan: "self_hosted_registered",
             source: "database",
             license: keyOf("self_hosted_registered"),
-            usage: {users: 2, projects: {count: 3, limit: null}},
+            usage: {users: 2},
         }
+        fixture.usage = {projects: {count: 3, limit: null}, organizations: null}
         await mount()
+        await vi.waitFor(() => expect(text()).toContain("3 of unlimited"))
 
         expect(text()).toContain("Registered")
         expect(text()).toContain(
@@ -200,5 +206,34 @@ describe("License tab", () => {
 
         expect(button("Add a license key")).toBeUndefined()
         expect(text()).toContain("License keys need the Enterprise image.")
+    })
+
+    it("reads the usage again after a key is added", async () => {
+        fixture.license = community()
+        fixture.activate.mockResolvedValue({
+            ...community(),
+            plan: "self_hosted_registered",
+            source: "database",
+            license: keyOf("self_hosted_registered"),
+        })
+        await mount()
+        await vi.waitFor(() => expect(fixture.fetchUsage).toHaveBeenCalledTimes(1))
+
+        act(() => button("Add a license key")!.click())
+        await vi.waitFor(() => expect(document.querySelector("textarea")).not.toBeNull())
+        const textarea = document.querySelector("textarea")!
+        const setValue = Object.getOwnPropertyDescriptor(
+            HTMLTextAreaElement.prototype,
+            "value",
+        )!.set!
+        act(() => {
+            setValue.call(textarea, "agenta_license_v1.a.b")
+            textarea.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+        await act(async () => {
+            button("Add key")!.click()
+        })
+
+        await vi.waitFor(() => expect(fixture.fetchUsage).toHaveBeenCalledTimes(2))
     })
 })

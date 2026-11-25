@@ -1,15 +1,19 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import contextResolver from "@agenta/i18n/catalogs/context.resolver"
 import {Button} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useLogout} from "@/features/auth/useLogout"
+import {NoOrganization} from "@/features/context/NoOrganization"
 import {HomePageSkeleton} from "@/features/home/states/HomePageSkeleton"
 import {readPendingInvite} from "@/features/invite/pendingInvite"
 import {
+    fetchHasOrganization,
     fetchProjects,
     licenseUrl,
     peekLicenseKey,
@@ -44,8 +48,9 @@ interface ContextResolverProps {
  * all of them from the same project list.
  */
 export const ContextResolver = ({workspaceId, forwardTo}: ContextResolverProps = {}) => {
-    const t = useT(contextResolver)
+    const t = useT(contextResolver, commonCatalog)
     const router = useRouter()
+    const logout = useLogout()
     // useState initializer: read once, client-only (SSR renders the loading branch).
     const [stored] = useState<LastContext | null>(() =>
         typeof window === "undefined" ? null : readLastContext(),
@@ -68,6 +73,15 @@ export const ContextResolver = ({workspaceId, forwardTo}: ContextResolverProps =
         () => (result?.kind === "ok" ? groupByWorkspace(result.projects) : []),
         [result],
     )
+    const noProject = result?.kind === "ok" && groups.length === 0
+    // Read only when there is no project, to tell a person without an organization from a
+    // member who has no project yet.
+    const hasOrganization = useQuery({
+        queryKey: ["mobile", "hasOrganization"],
+        queryFn: fetchHasOrganization,
+        enabled: noProject,
+        staleTime: 0,
+    })
 
     const target = useMemo<LastContext | null>(
         () =>
@@ -120,18 +134,49 @@ export const ContextResolver = ({workspaceId, forwardTo}: ContextResolverProps =
 
     if (hasInvite) return <HomePageSkeleton />
 
-    if (result?.kind === "error" || (result?.kind === "ok" && groups.length === 0)) {
+    // No project at all. A person without an organization (sign-up skips the personal one
+    // when the instance is at its organization limit) needs an invitation; anyone else is told
+    // there is no project, as for a failed read, with Retry and Sign out.
+    if (noProject && hasOrganization.data === false) {
+        return (
+            <ScreenScaffold>
+                <NoOrganization
+                    onCheckAgain={() => {
+                        void query.refetch()
+                        void hasOrganization.refetch()
+                    }}
+                    onSignOut={() => void logout()}
+                />
+            </ScreenScaffold>
+        )
+    }
+    const memberWithoutProject =
+        noProject && (hasOrganization.data === true || hasOrganization.isError)
+    if (result?.kind === "error" || memberWithoutProject) {
         return (
             <ScreenScaffold>
                 <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">
                     <p className="text-muted-foreground text-xs">
-                        {result?.kind === "ok"
+                        {memberWithoutProject
                             ? t("context.resolver.noProjects")
                             : t("context.resolver.somethingWrong")}
                     </p>
-                    <Button type="button" variant="outline" onClick={() => void query.refetch()}>
-                        {t("context.resolver.retry")}
-                    </Button>
+                    {/* Signing out is the way to another account when this one cannot load. */}
+                    <div className="flex gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                                void query.refetch()
+                                if (memberWithoutProject) void hasOrganization.refetch()
+                            }}
+                        >
+                            {t("context.resolver.retry")}
+                        </Button>
+                        <Button type="button" variant="ghost" onClick={() => void logout()}>
+                            {t("common.signOut")}
+                        </Button>
+                    </div>
                 </div>
             </ScreenScaffold>
         )

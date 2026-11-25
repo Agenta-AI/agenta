@@ -14,6 +14,8 @@ const api = vi.hoisted(() => ({
     patchProject: vi.fn(),
 }))
 vi.mock("@agenta/entities/project", () => api)
+const toast = vi.hoisted(() => ({error: vi.fn(), success: vi.fn(), info: vi.fn()}))
+vi.mock("@agenta/ui/app-message", () => ({message: toast}))
 
 import {ProjectsPage} from "../../src/projects/ProjectsPage"
 
@@ -166,5 +168,47 @@ describe("ProjectsPage role column", () => {
         show()
         expect(screen.getAllByText("Owner").length).toBeGreaterThan(0)
         expect(screen.queryByText("owner")).toBeNull()
+    })
+})
+
+describe("ProjectsPage create failures", () => {
+    const refusal = {
+        response: {status: 403, data: {detail: {code: "project_limit_reached", limit: 1}}},
+    }
+    const showCreate = (handlesCreateError?: (error: unknown) => boolean) => {
+        const client = new QueryClient({defaultOptions: {queries: {retry: false}}})
+        const dialog: {current?: {onSubmit: (values: {name: string}) => void; error?: unknown}} = {}
+        render(
+            <QueryClientProvider client={client}>
+                <ProjectsPage
+                    projects={PROJECTS}
+                    isLoading={false}
+                    workspaceId="ws-1"
+                    handlesCreateError={handlesCreateError}
+                    renderCreateDialog={(state) => {
+                        dialog.current = state
+                        return null
+                    }}
+                />
+            </QueryClientProvider>,
+        )
+        return dialog
+    }
+
+    it("hands an error the host handles to the dialog, with no toast", async () => {
+        api.createProject.mockRejectedValue(refusal)
+        const dialog = showCreate(() => true)
+        act(() => dialog.current?.onSubmit({name: "Second"}))
+
+        await waitFor(() => expect(dialog.current?.error).toBe(refusal))
+        expect(toast.error).not.toHaveBeenCalled()
+    })
+
+    it("keeps the toast for an error the host does not handle", async () => {
+        api.createProject.mockRejectedValue({response: {status: 500, data: {detail: "Boom"}}})
+        const dialog = showCreate(() => false)
+        act(() => dialog.current?.onSubmit({name: "Second"}))
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Boom"))
     })
 })

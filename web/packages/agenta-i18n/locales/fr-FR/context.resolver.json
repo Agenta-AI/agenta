@@ -1,5 +1,9 @@
 {
+    "checkAgain": "Vérifier à nouveau",
+    "noOrganizationBody": "Cette instance a une organisation. Demandez à son administrateur de vous inviter. L’invitation s’ouvre ici dès qu’elle arrive.",
+    "noOrganizationTitle": "Vous n’êtes pas encore dans une organisation",
     "noProjects": "Aucun projet trouvé.",
     "retry": "Réessayer",
+    "signedInAs": "Connecté en tant que {{email}}",
     "somethingWrong": "Une erreur s’est produite."
 }

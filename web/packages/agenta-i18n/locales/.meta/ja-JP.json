@@ -2121,8 +2121,12 @@
         "dialog": "69b51517d04b"
     },
     "context.resolver": {
+        "checkAgain": "fb7099ad8e81",
+        "noOrganizationBody": "ecbce14bf943",
+        "noOrganizationTitle": "e107e606d859",
         "noProjects": "26e92309ba5b",
         "retry": "942087cc2d41",
+        "signedInAs": "26c8ec3ed77f",
         "somethingWrong": "0c953ab32c60"
     },
     "education.guideDialog": {
@@ -7029,6 +7033,17 @@
         "failed": "c9920c977a44",
         "namePlaceholder": "25498193b898",
         "title": "fa67e4d0dae5"
+    },
+    "shell.limitRefusal": {
+        "organizationLimitInfo": "256c2d97ecf4",
+        "projectLimitAskAdmin": "5806edb456ea",
+        "projectLimitCloud": "7eaffc233b85",
+        "projectLimitRegister": "70adf0bc9557",
+        "projectsUsage": "ca06317e9660",
+        "register": "bb7234ec1245",
+        "registerInstance": "a0ec4521215a",
+        "registerTitle": "0e3a314acba6",
+        "upgradePlan": "39b7ec1e8402"
     },
     "shell.securityWarning": {
         "message": "c0856e93a82a",
