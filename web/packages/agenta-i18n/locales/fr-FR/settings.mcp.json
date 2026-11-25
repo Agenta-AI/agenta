@@ -13,7 +13,7 @@
     "oauth": "OAuth",
     "removeFailed": "Impossible de retirer le serveur MCP.",
     "removeMessage": "{{name}} est retiré de ce projet. Les agents configurés pour l’utiliser cessent de fonctionner, et une reconnexion ultérieure crée une nouvelle connexion.",
-    "removeTitle": "Retirer le serveur",
+    "removeTitle": "Supprimer {{name}} ?",
     "serverActions": "Actions du serveur",
     "serverUrl": "URL du serveur",
     "signInActions": "Actions de connexion",

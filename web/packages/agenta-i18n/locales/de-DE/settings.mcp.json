@@ -13,7 +13,7 @@
     "oauth": "OAuth",
     "removeFailed": "Der MCP-Server konnte nicht entfernt werden.",
     "removeMessage": "{{name}} wird aus diesem Projekt entfernt. Agents, die ihn verwenden, funktionieren nicht mehr. Wenn Sie später erneut verbinden, wird eine neue Verbindung erstellt.",
-    "removeTitle": "Server entfernen",
+    "removeTitle": "{{name}} entfernen?",
     "serverActions": "Server-Aktionen",
     "serverUrl": "Server-URL",
     "signInActions": "Anmeldeaktionen",

@@ -149,13 +149,16 @@ export default function GatewayToolsSection({
     const confirmConnectionAction = useCallback(
         (action: ConnectionAction, connection: ToolConnection) => {
             const remove = action === "delete"
+            const name = connection.name || connection.slug || ""
             confirm?.({
                 title: remove
-                    ? t("settings.tools.deleteConnectionTitle")
-                    : t("settings.tools.revokeConnectionTitle"),
+                    ? t("settings.tools.deleteConnectionTitle", {name})
+                    : t("settings.tools.revokeConnectionTitle", {name}),
                 message: remove
                     ? t("settings.tools.deleteConnectionMessage")
                     : t("settings.tools.revokeConnectionMessage"),
+                okText: remove ? t("common.delete") : t("common.revoke"),
+                danger: true,
                 onOk: async () => {
                     if (!connection.id) return
                     try {

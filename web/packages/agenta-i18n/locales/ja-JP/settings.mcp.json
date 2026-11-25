@@ -13,7 +13,7 @@
     "oauth": "OAuth",
     "removeFailed": "MCP サーバーを削除できませんでした。",
     "removeMessage": "{{name}} をこのプロジェクトから削除します。このサーバーを使用するよう設定されたエージェントは動作しなくなり、後で再接続すると新しい接続が作成されます。",
-    "removeTitle": "サーバーを削除",
+    "removeTitle": "{{name}} を削除しますか？",
     "serverActions": "サーバーの操作",
     "serverUrl": "サーバー URL",
     "signInActions": "サインインの操作",

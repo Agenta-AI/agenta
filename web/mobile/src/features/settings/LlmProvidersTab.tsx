@@ -65,17 +65,11 @@ export const LlmProvidersTab = ({workspaceId, projectId}: SettingsTabProps) => {
             renderRemoveDialog={({connection, open, pending, error, onConfirm, onClose}) => (
                 <ConfirmModal
                     open={open}
-                    title={t("settings.llmProvidersTab.deleteTitle")}
+                    title={t("settings.llmProvidersTab.deleteTitle", {name: connection?.name ?? ""})}
                     description={
                         connection?.scope === "organization"
                             ? t("settings.llmProvidersTab.deleteOrganizationDescription")
                             : t("settings.llmProvidersTab.deleteProjectDescription")
-                    }
-                    body={
-                        <div className="flex flex-col gap-1">
-                            <span>{t("settings.llmProvidersTab.aboutToDelete")}</span>
-                            <span className="font-medium">{connection?.name}</span>
-                        </div>
                     }
                     confirmLabel={t("common.delete")}
                     pending={pending}

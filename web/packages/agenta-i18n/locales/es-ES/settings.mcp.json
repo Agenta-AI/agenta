@@ -13,7 +13,7 @@
     "oauth": "OAuth",
     "removeFailed": "No se ha podido quitar el servidor MCP.",
     "removeMessage": "{{name}} se quita de este proyecto. Los agentes configurados para usarlo dejan de funcionar y, si lo vuelves a conectar más adelante, se crea una conexión nueva.",
-    "removeTitle": "Quitar servidor",
+    "removeTitle": "¿Quitar {{name}}?",
     "serverActions": "Acciones del servidor",
     "serverUrl": "URL del servidor",
     "signInActions": "Acciones de inicio de sesión",

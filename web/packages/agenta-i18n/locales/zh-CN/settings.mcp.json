@@ -13,7 +13,7 @@
     "oauth": "OAuth",
     "removeFailed": "移除 MCP 服务器失败。",
     "removeMessage": "{{name}} 将从此项目中移除。配置为使用它的 Agent 将停止工作，之后重新连接会创建新的连接。",
-    "removeTitle": "移除服务器",
+    "removeTitle": "移除 {{name}}？",
     "serverActions": "服务器操作",
     "serverUrl": "服务器 URL",
     "signInActions": "登录操作",

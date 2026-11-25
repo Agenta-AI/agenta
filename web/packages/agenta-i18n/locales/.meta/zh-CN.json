@@ -6534,10 +6534,9 @@
         "title": "05d6a6ffa459"
     },
     "settings.llmProvidersTab": {
-        "aboutToDelete": "74a882e9b4fe",
         "deleteOrganizationDescription": "fe3a188e58b6",
         "deleteProjectDescription": "c62cf4fa66c3",
-        "deleteTitle": "48f819378c0a"
+        "deleteTitle": "69be14a40a60"
     },
     "settings.mcp": {
         "apiKey": "16f0ee47f993",
@@ -6554,7 +6553,7 @@
         "oauth": "27f8943c6eba",
         "removeFailed": "6fd8cc483998",
         "removeMessage": "85ffa11f7bc1",
-        "removeTitle": "357349c91d60",
+        "removeTitle": "b2d2d74574bb",
         "serverActions": "0ed6308b6431",
         "serverUrl": "22f5ebc3ad3f",
         "signInActions": "5e6c6746b52e",
@@ -6843,14 +6842,14 @@
         "connectionRevoked": "8f92cdf70a09",
         "default": "21b111cbfe6e",
         "deleteConnectionFailed": "888e565a1726",
-        "deleteConnectionMessage": "140696f71c11",
-        "deleteConnectionTitle": "b8d070f14e6a",
+        "deleteConnectionMessage": "42f653ada17c",
+        "deleteConnectionTitle": "69be14a40a60",
         "loadConnectionsFailed": "c4316721aab2",
         "makeDefault": "f43b94251094",
         "makeDefaultFailed": "0fb347b96e19",
         "revokeConnectionFailed": "62767ed8d65d",
         "revokeConnectionMessage": "48de01f4c32c",
-        "revokeConnectionTitle": "a7c2ac72533d",
+        "revokeConnectionTitle": "b5cc83c75304",
         "runTool": "2445ca0ac266",
         "searchTools": "fbd165231fa1"
     },

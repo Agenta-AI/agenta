@@ -357,8 +357,10 @@ export default function McpServersSection({
             }
             if (!confirm) return void run()
             confirm({
-                title: tNow("settings.mcp.removeTitle"),
+                title: tNow("settings.mcp.removeTitle", {name: label}),
                 message: tNow("settings.mcp.removeMessage", {name: label}),
+                okText: tNow("common.remove"),
+                danger: true,
                 onOk: run,
             })
         },
