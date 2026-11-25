@@ -14,5 +14,6 @@
     "filterCategory": "类别",
     "noMatchTitle": "没有匹配项",
     "noMatchBody": "请尝试其他搜索，或重置筛选条件。",
-    "resetFilters": "重置筛选"
+    "resetFilters": "重置筛选",
+    "noMatchSearchBody": "请尝试其他搜索。"
 }

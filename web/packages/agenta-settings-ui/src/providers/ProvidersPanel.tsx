@@ -468,7 +468,7 @@ export const ProvidersPanel = ({
                         compact
                         icon={<MagnifyingGlass size={18} />}
                         title={t("settings.shared.noMatchTitle")}
-                        description={t("settings.shared.noMatchBody")}
+                        description={t("settings.shared.noMatchSearchBody")}
                     />
                 }
                 notice={

@@ -14,5 +14,6 @@
     "filterCategory": "Category",
     "noMatchTitle": "Nothing matches",
     "noMatchBody": "Try another search, or reset the filters.",
-    "resetFilters": "Reset filters"
+    "resetFilters": "Reset filters",
+    "noMatchSearchBody": "Try another search."
 }

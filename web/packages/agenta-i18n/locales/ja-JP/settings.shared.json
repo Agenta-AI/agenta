@@ -14,5 +14,6 @@
     "filterCategory": "カテゴリ",
     "noMatchTitle": "一致する項目はありません",
     "noMatchBody": "別の検索を試すか、フィルターをリセットしてください。",
-    "resetFilters": "フィルターをリセット"
+    "resetFilters": "フィルターをリセット",
+    "noMatchSearchBody": "別のキーワードで検索してください。"
 }

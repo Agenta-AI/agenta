@@ -14,5 +14,6 @@
     "filterCategory": "Catégorie",
     "noMatchTitle": "Aucun résultat",
     "noMatchBody": "Essayez une autre recherche ou réinitialisez les filtres.",
-    "resetFilters": "Réinitialiser les filtres"
+    "resetFilters": "Réinitialiser les filtres",
+    "noMatchSearchBody": "Essayez une autre recherche."
 }

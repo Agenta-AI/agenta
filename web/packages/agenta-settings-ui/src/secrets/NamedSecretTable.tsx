@@ -220,7 +220,7 @@ export const NamedSecretTable = ({
             compact
             icon={getSettingsSidebarIcon("secrets")}
             title={t("settings.shared.noMatchTitle")}
-            description={t("settings.shared.noMatchBody")}
+            description={t("settings.shared.noMatchSearchBody")}
             action={
                 <Button variant="outline" onClick={() => setSearch("")}>
                     {t("common.clearSearch")}
