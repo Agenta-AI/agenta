@@ -16,7 +16,6 @@
     "keySaved": "Key saved",
     "modelProviders": "Model providers",
     "needsSignIn": "Needs sign-in",
-    "noApiKeyNeeded": "No API key needed",
     "noProjects": "No projects",
     "orgEmptyBody": "Connect a provider below. Then choose which projects can use it.",
     "orgEmptyTitle": "No organization connections yet",

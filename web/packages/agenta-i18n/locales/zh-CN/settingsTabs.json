@@ -10,7 +10,7 @@
     "creditsDescription": "你的组织还剩多少额度、用在了哪里，以及如何充值。",
     "integrationsDescription": "连接你的智能体可以使用的应用。",
     "integrationsDocs": "了解集成",
-    "llmsDescription": "连接你的 Agent、提示词和评测所使用的 AI 供应商。",
+    "llmsDescription": "连接你的智能体使用的 AI 提供商。",
     "llmsDocs": "了解 AI 供应商",
     "mcpEndpointsDescription": "添加为智能体提供更多工具的服务器。",
     "organizationDescription": "控制成员的登录方式，以及允许哪些邮箱域名加入此组织。",

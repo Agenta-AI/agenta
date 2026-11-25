@@ -10,7 +10,7 @@
     "creditsDescription": "What your organization has left, where it went, and how to add more.",
     "integrationsDescription": "Connect the apps your agents can use.",
     "integrationsDocs": "Learn more about integrations",
-    "llmsDescription": "Connect the AI providers your agents, prompts, and evaluations run on.",
+    "llmsDescription": "Connect the AI providers your agents use.",
     "llmsDocs": "Learn more about AI providers",
     "mcpEndpointsDescription": "Add servers that give your agents more tools.",
     "organizationDescription": "Control how members sign in and which email domains are allowed to join this organization.",

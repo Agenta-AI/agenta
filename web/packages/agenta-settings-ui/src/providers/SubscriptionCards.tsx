@@ -4,7 +4,7 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import {Button, cn} from "@agenta/ui/ui"
-import {ArrowRight, Key, Trash} from "@phosphor-icons/react"
+import {ArrowRight, Trash} from "@phosphor-icons/react"
 
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
@@ -86,10 +86,6 @@ export const SubscriptionCards = ({cards}: {cards: SubscriptionCard[]}) => {
     return (
         <section className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1.1fr)_repeat(2,minmax(0,1fr))]">
             <div className="flex min-w-0 flex-col justify-center gap-2 p-2">
-                <span className="flex items-center gap-1.5 text-label text-muted-foreground">
-                    <Key size={14} aria-hidden />
-                    {t("settings.providers.noApiKeyNeeded")}
-                </span>
                 <div className="flex flex-col gap-0.5">
                     <h2 className="m-0 text-title text-foreground">
                         {t("settings.providers.bringYourOwnPlan")}

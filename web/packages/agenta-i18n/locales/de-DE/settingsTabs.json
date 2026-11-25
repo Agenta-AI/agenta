@@ -10,7 +10,7 @@
     "creditsDescription": "Was Ihre Organisation noch hat, wohin es ging und wie Sie mehr hinzufügen.",
     "integrationsDescription": "Verbinden Sie die Apps, die Ihre Agents nutzen können.",
     "integrationsDocs": "Mehr über Integrationen erfahren",
-    "llmsDescription": "Verbinden Sie die KI-Anbieter, auf denen Ihre Agents, Prompts und Evaluierungen laufen.",
+    "llmsDescription": "Verbinden Sie die KI-Anbieter, die Ihre Agenten nutzen.",
     "llmsDocs": "Mehr über KI-Anbieter erfahren",
     "mcpEndpointsDescription": "Fügen Sie Server hinzu, die Ihren Agents mehr Tools geben.",
     "organizationDescription": "Steuern Sie, wie sich Mitglieder anmelden und welche E-Mail-Domains dieser Organisation beitreten dürfen.",

@@ -10,7 +10,7 @@
     "creditsDescription": "Ce qu’il reste à votre organisation, où il est passé et comment en ajouter.",
     "integrationsDescription": "Connectez les applications que vos agents peuvent utiliser.",
     "integrationsDocs": "En savoir plus sur les intégrations",
-    "llmsDescription": "Connectez les fournisseurs d’IA sur lesquels s’exécutent vos agents, vos prompts et vos évaluations.",
+    "llmsDescription": "Connectez les fournisseurs d'IA que vos agents utilisent.",
     "llmsDocs": "En savoir plus sur les fournisseurs d’IA",
     "mcpEndpointsDescription": "Ajoutez des serveurs qui donnent plus d'outils à vos agents.",
     "organizationDescription": "Contrôlez la façon dont les membres se connectent et les domaines d’e-mail autorisés à rejoindre cette organisation.",

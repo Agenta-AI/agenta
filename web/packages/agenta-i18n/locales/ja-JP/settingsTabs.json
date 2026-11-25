@@ -10,7 +10,7 @@
     "creditsDescription": "組織の残りのクレジット、その使い道、追加方法を確認できます。",
     "integrationsDescription": "エージェントが使えるアプリを接続します。",
     "integrationsDocs": "インテグレーションの詳細",
-    "llmsDescription": "エージェント、プロンプト、評価の実行に使う AI プロバイダーを接続します。",
+    "llmsDescription": "エージェントが使う AI プロバイダーを接続します。",
     "llmsDocs": "AI プロバイダーの詳細",
     "mcpEndpointsDescription": "エージェントにツールを追加するサーバーを追加します。",
     "organizationDescription": "メンバーのサインイン方法と、この組織に参加できるメールドメインを管理します。",

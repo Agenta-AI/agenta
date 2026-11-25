@@ -16,7 +16,6 @@
     "keySaved": "キーを保存しました",
     "modelProviders": "モデルプロバイダー",
     "needsSignIn": "サインインが必要",
-    "noApiKeyNeeded": "API キーは不要",
     "noProjects": "プロジェクトなし",
     "orgEmptyBody": "下でプロバイダーを接続してください。その後、どのプロジェクトで使えるかを選びます。",
     "orgEmptyTitle": "組織の接続はまだありません",

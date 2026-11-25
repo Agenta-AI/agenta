@@ -10,7 +10,7 @@
     "creditsDescription": "Lo que le queda a tu organización, en qué se ha gastado y cómo añadir más.",
     "integrationsDescription": "Conecta las aplicaciones que pueden usar tus agentes.",
     "integrationsDocs": "Más información sobre las integraciones",
-    "llmsDescription": "Conecta los proveedores de IA con los que se ejecutan tus agentes, prompts y evaluaciones.",
+    "llmsDescription": "Conecta los proveedores de IA que usan tus agentes.",
     "llmsDocs": "Más información sobre los proveedores de IA",
     "mcpEndpointsDescription": "Añade servidores que dan más herramientas a tus agentes.",
     "organizationDescription": "Controla cómo inician sesión los miembros y qué dominios de correo electrónico pueden unirse a esta organización.",
