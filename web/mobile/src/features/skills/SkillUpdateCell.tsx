@@ -1,6 +1,6 @@
 import {useT} from "@agenta/i18n"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
-import {Button, Spinner} from "@agenta/ui/ui"
+import {Button, SimpleTooltip, Spinner} from "@agenta/ui/ui"
 import {ArrowCircleUp, CheckCircle} from "@phosphor-icons/react"
 
 import {useSkillUpdates, useSkillUpdateStatus} from "./useSkillUpdates"
@@ -32,16 +32,16 @@ export const SkillUpdateCell = ({
         )
     if (status === "available")
         return compact ? (
-            <Button
-                size="icon-xs"
-                variant="ghost"
-                aria-label={t("skills.list.updateToLatest")}
-                title={t("skills.list.updateToLatest")}
-                className="text-primary"
-                onClick={() => void apply([workflowId])}
-            >
-                <ArrowCircleUp aria-hidden className="size-4" weight="fill" />
-            </Button>
+            <SimpleTooltip title={t("skills.list.updateToLatest")}>
+                <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label={t("skills.list.updateToLatest")}
+                    onClick={() => void apply([workflowId])}
+                >
+                    <ArrowCircleUp aria-hidden />
+                </Button>
+            </SimpleTooltip>
         ) : (
             <Button size="xs" variant="outline" onClick={() => void apply([workflowId])}>
                 {t("skills.list.update")}
@@ -49,12 +49,11 @@ export const SkillUpdateCell = ({
         )
     if (status === "updated")
         return compact ? (
-            <span
-                className="flex size-6 items-center justify-center text-muted-foreground"
-                title={t("skills.list.updated")}
-            >
-                <CheckCircle aria-label={t("skills.list.updated")} className="size-4" />
-            </span>
+            <SimpleTooltip title={t("skills.list.updated")}>
+                <span className="flex size-6 items-center justify-center text-muted-foreground">
+                    <CheckCircle aria-label={t("skills.list.updated")} className="size-4" />
+                </span>
+            </SimpleTooltip>
         ) : (
             <span className="text-meta text-muted-foreground">{t("skills.list.updated")}</span>
         )

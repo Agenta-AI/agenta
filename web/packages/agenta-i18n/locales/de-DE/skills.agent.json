@@ -15,7 +15,7 @@
     "uploadHint": "Wähle eine SKILL.md-Datei oder eine .zip, oder lege hier einen Skill-Ordner ab.",
     "importTitle": "Aus GitHub importieren",
     "importHint": "Kopiere einen oder mehrere Skills aus einem öffentlichen Repository.",
-    "savedAndAdded": "Wird in der Registry gespeichert und diesem Agent hinzugefügt.",
+    "savedAndAdded": "„Erstellen und hinzufügen“ speichert ihn in Ihrer Skill-Registry und fügt ihn diesem Agent hinzu.",
     "createAndAdd": "Erstellen und hinzufügen",
     "creating": "Wird erstellt…",
     "addSkills_one": "{{count}} Skill hinzufügen",

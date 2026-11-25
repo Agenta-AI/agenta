@@ -65,18 +65,21 @@ export const SkillBulkArchiveDialog = ({
                             {rows.map((row) => row.title).join(", ")}
                         </span>
                     </div>
-                    <div className="flex flex-col gap-1">
-                        <span className="text-label text-muted-foreground">
-                            {t("skills.list.bulkArchiveAgents")}
-                        </span>
-                        <span className="text-body text-foreground">
-                            {used.length === 0
-                                ? t("skills.list.bulkArchiveNoAgents")
-                                : loadingAgents
-                                  ? t("skills.list.bulkArchiveCheckingAgents")
-                                  : agents.join(", ")}
-                        </span>
-                    </div>
+                    {/* The counts said some agent uses them, but the lookup found none: no row. */}
+                    {used.length > 0 && !loadingAgents && agents.length === 0 ? null : (
+                        <div className="flex flex-col gap-1">
+                            <span className="text-label text-muted-foreground">
+                                {t("skills.list.bulkArchiveAgents")}
+                            </span>
+                            <span className="text-body text-foreground">
+                                {used.length === 0
+                                    ? t("skills.list.bulkArchiveNoAgents")
+                                    : loadingAgents
+                                      ? t("skills.list.bulkArchiveCheckingAgents")
+                                      : agents.join(", ")}
+                            </span>
+                        </div>
+                    )}
                 </div>
             }
             confirmLabel={t("skills.list.archive")}

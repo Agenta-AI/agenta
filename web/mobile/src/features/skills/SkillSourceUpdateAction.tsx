@@ -1,12 +1,12 @@
 import {useT} from "@agenta/i18n"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
-import {Button, Spinner} from "@agenta/ui/ui"
+import {LoadingButton} from "@agenta/ui/ui"
 import {ArrowsClockwise} from "@phosphor-icons/react"
 
 import {useSkillUpdates, useSkillUpdatesBusy, useSkillsWithUpdates} from "./useSkillUpdates"
 
 /**
- * A repository group's action, at its heading's right edge: "Check updates" until someone asks,
+ * A repository group's action, at its heading's right edge: "Check for updates" until someone asks,
  * then "Update N skills" for as long as any are waiting.
  *
  * Check-first because the check is read-only and the apply is not — a heading that said
@@ -18,29 +18,29 @@ export const SkillSourceUpdateAction = ({ids}: {ids: string[]}) => {
     const pending = useSkillsWithUpdates(ids)
     const busy = useSkillUpdatesBusy(ids)
 
-    if (busy)
-        return (
-            <span className="flex h-6 items-center px-1.5">
-                <Spinner size="small" className="text-muted-foreground" />
-            </span>
-        )
-
+    // One button through a check or an update; the spinner takes the icon's place while busy.
     if (pending.length)
         return (
-            <Button size="xs" variant="outline" onClick={() => void apply(pending)}>
+            <LoadingButton
+                size="xs"
+                variant="outline"
+                loading={busy}
+                onClick={() => void apply(pending)}
+            >
                 {t("skills.list.updateSkills", {count: pending.length})}
-            </Button>
+            </LoadingButton>
         )
 
     return (
-        <Button
+        <LoadingButton
             size="xs"
             variant="ghost"
             className="text-muted-foreground"
+            loading={busy}
             onClick={() => void check(ids)}
         >
-            <ArrowsClockwise aria-hidden size={12} />
+            {busy ? null : <ArrowsClockwise aria-hidden size={12} />}
             {t("skills.list.checkUpdates")}
-        </Button>
+        </LoadingButton>
     )
 }

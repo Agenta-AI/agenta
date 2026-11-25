@@ -15,7 +15,7 @@
     "uploadHint": "SKILL.md ファイルか .zip を選ぶか、スキルのフォルダーをここにドロップします。",
     "importTitle": "GitHub からインポート",
     "importHint": "公開リポジトリから 1 つ以上のスキルをコピーします。",
-    "savedAndAdded": "レジストリに保存され、このエージェントに追加されます。",
+    "savedAndAdded": "「作成して追加」で、スキルはスキルレジストリに保存され、このエージェントに追加されます。",
     "createAndAdd": "作成して追加",
     "creating": "作成中…",
     "addSkills_one": "{{count}} 件のスキルを追加",

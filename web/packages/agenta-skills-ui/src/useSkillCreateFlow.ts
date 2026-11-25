@@ -40,7 +40,7 @@ export function useSkillCreateFlow({
     projectId: string
     onCreated: (created: CreatedSkill[]) => void
 }) {
-    const [step, setStep] = useState<SkillCreateStep>("choose")
+    const [step, showStep] = useState<SkillCreateStep>("choose")
     const [draft, setDraft] = useState<SkillDraft>(EMPTY_SKILL_DRAFT)
     const [attempted, setAttempted] = useState(false)
     const [busy, setBusy] = useState(false)
@@ -48,12 +48,21 @@ export function useSkillCreateFlow({
     const [scan, setScan] = useState<SkillUploadScan | null>(null)
     const [picked, setPicked] = useState<Set<string>>(new Set())
     const registry = useAtomValue(skillsResolveDataAtom)
-    // Bumped by reset, so a scan that ends after the user left is ignored.
+    // Bumped on every step change, so a scan that ends after the user moved on is ignored.
     const run = useRef(0)
+    // Upload picks already created by an earlier, partly failed import.
+    const createdSoFar = useRef<CreatedSkill[]>([])
+
+    const setStep = useCallback((next: SkillCreateStep) => {
+        run.current += 1
+        setBusy(false)
+        showStep(next)
+    }, [])
 
     const reset = useCallback(() => {
         run.current += 1
-        setStep("choose")
+        createdSoFar.current = []
+        showStep("choose")
         setDraft(EMPTY_SKILL_DRAFT)
         setAttempted(false)
         setBusy(false)
@@ -63,10 +72,12 @@ export function useSkillCreateFlow({
     }, [])
 
     const write = useCallback((next: SkillDraft = EMPTY_SKILL_DRAFT) => {
+        run.current += 1
         setDraft(next)
         setAttempted(false)
+        setBusy(false)
         setError(null)
-        setStep("write")
+        showStep("write")
     }, [])
 
     const upload = useCallback(
@@ -86,9 +97,11 @@ export function useSkillCreateFlow({
                         write(toSkillDraft(first.skill as unknown as Record<string, unknown>))
                         return
                     }
+                    createdSoFar.current = []
                     setScan(result)
-                    setPicked(new Set(result.candidates.map((c) => c.dir)))
-                    setStep("upload")
+                    // None picked, as on the GitHub step.
+                    setPicked(new Set())
+                    showStep("upload")
                 })
                 .catch(() => id === run.current && setError(tNow("skills.editor.readUploadFailed")))
                 .finally(() => id === run.current && setBusy(false))
@@ -140,18 +153,25 @@ export function useSkillCreateFlow({
         if (!scan) return
         setBusy(true)
         setError(null)
-        const created: CreatedSkill[] = []
+        const done = new Set<string>()
         try {
             for (const candidate of scan.candidates.filter((c) => picked.has(c.dir))) {
                 const skill = candidate.skill as unknown as Record<string, unknown>
-                created.push(await createOne(toSkillContent(toSkillDraft(skill))))
+                createdSoFar.current.push(await createOne(toSkillContent(toSkillDraft(skill))))
+                done.add(candidate.dir)
             }
+            const created = createdSoFar.current
+            createdSoFar.current = []
             onCreated(created)
         } catch (err) {
+            // Stay on the step: the created ones leave the list, the failed ones stay picked.
             setError(failure(err, tNow("skills.editor.importFailed")))
-            if (created.length) onCreated(created)
+            if (done.size) {
+                setScan({...scan, candidates: scan.candidates.filter((c) => !done.has(c.dir))})
+                setPicked((current) => new Set([...current].filter((key) => !done.has(key))))
+            }
         } finally {
-            if (created.length) invalidateSkillsListCache()
+            if (done.size) invalidateSkillsListCache()
             setBusy(false)
         }
     }, [createOne, onCreated, picked, scan])
@@ -201,6 +221,7 @@ export function useSkillCreateFlow({
         importUploads,
         uploadCandidates,
         picked,
+        setPicked,
         togglePick,
         duplicate,
         dirty: step === "write" && !isSkillDraftEmpty(draft),

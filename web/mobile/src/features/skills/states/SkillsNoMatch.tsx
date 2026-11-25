@@ -28,7 +28,7 @@ export const SkillsNoMatch = ({
     const t = useT(skillsListCatalog)
     if (archiveEmpty) {
         return (
-            <Empty className="py-14">
+            <Empty className="py-10">
                 <EmptyHeader>
                     <EmptyMedia variant="icon">
                         <ArchiveIcon />
@@ -47,7 +47,7 @@ export const SkillsNoMatch = ({
         )
     }
     return (
-        <Empty className="py-14">
+        <Empty className="py-10">
             <EmptyHeader>
                 <EmptyMedia variant="icon">
                     {term ? <MagnifyingGlassIcon /> : <FunnelIcon />}

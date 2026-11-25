@@ -15,7 +15,7 @@
     "uploadHint": "Escolha um arquivo SKILL.md ou um .zip, ou solte aqui uma pasta de habilidade.",
     "importTitle": "Importar do GitHub",
     "importHint": "Copie uma ou mais habilidades de um repositório público.",
-    "savedAndAdded": "Salva no registro e adicionada a este agente.",
+    "savedAndAdded": "“Criar e adicionar” salva a habilidade no seu registro de habilidades e a adiciona a este agente.",
     "createAndAdd": "Criar e adicionar",
     "creating": "Criando…",
     "addSkills_one": "Adicionar {{count}} habilidade",

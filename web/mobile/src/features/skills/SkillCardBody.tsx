@@ -38,7 +38,7 @@ export const SkillCardBody = ({
                     <SkillMark size={32} />
                 </ListTableSelectMark>
                 <span
-                    className="flex shrink-0 items-center gap-1.5"
+                    className="flex shrink-0 items-center gap-1"
                     onClick={(event) => event.stopPropagation()}
                     onKeyDown={(event) => event.stopPropagation()}
                 >
@@ -46,19 +46,22 @@ export const SkillCardBody = ({
                     <SkillActionsMenu row={row} onOpen={onOpen} />
                 </span>
             </span>
-            <span
-                className={`min-w-0 truncate text-body font-medium text-foreground ${row.archived ? "opacity-60" : ""}`}
-            >
-                {row.title}
+            {/* The Archived tag sits beside the title, as it does on the row. */}
+            <span className="flex min-w-0 items-center gap-1.5">
+                <span
+                    className={`min-w-0 truncate text-body font-medium text-foreground ${row.archived ? "opacity-60" : ""}`}
+                >
+                    {row.title}
+                </span>
+                {row.archived ? <SkillArchivedTag /> : null}
             </span>
-            <span className="line-clamp-2 min-h-10 text-label leading-5 text-muted-foreground">
+            <span className="line-clamp-2 min-h-10 text-body-sm text-muted-foreground">
                 {row.description || noDescriptionLabel()}
             </span>
             {/* Source on the left, date on the right — the card's two corners, the way the row's
             columns read. */}
             <span className="mt-auto flex min-w-0 items-center gap-2 pt-1 text-meta text-muted-foreground">
                 <span className="min-w-0 truncate">{provenanceLabel(row, group)}</span>
-                {row.archived ? <SkillArchivedTag /> : null}
                 <span className="ml-auto shrink-0">{lastUpdatedLabel(row.age)}</span>
             </span>
         </>

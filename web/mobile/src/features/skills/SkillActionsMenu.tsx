@@ -52,6 +52,8 @@ export const SkillActionsMenu = ({
         confirm({
             title: tNow("skills.list.archiveTitle", {name: row.title}),
             message: tNow("skills.list.archiveMessage"),
+            okText: tNow("skills.list.archiveSkill"),
+            danger: true,
             onOk: () => archive(row.id),
         })
     }, [archive, confirm, row.id, row.title])
@@ -59,8 +61,6 @@ export const SkillActionsMenu = ({
     return (
         <>
             <DropdownMenu>
-                {/* The hover is not the default `accent`: on a list row the row itself hovers
-                    to accent, so an accent button on top of it would read as no hover at all. */}
                 <DropdownMenuTrigger asChild>
                     <Button
                         type="button"
@@ -68,35 +68,35 @@ export const SkillActionsMenu = ({
                         variant="ghost"
                         aria-label={t("skills.list.skillActions")}
                     >
-                        <DotsThree aria-hidden className="size-3.5" weight="bold" />
+                        <DotsThree aria-hidden />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-popover-sm">
                     <DropdownMenuItem onSelect={() => onOpen(row)}>
-                        <ArrowSquareOut aria-hidden size={14} />
+                        <ArrowSquareOut aria-hidden />
                         {t("skills.list.openSkill")}
                     </DropdownMenuItem>
                     {row.origin === "imported" ? (
                         <DropdownMenuItem onSelect={() => void check([row.id])}>
-                            <ArrowsClockwise aria-hidden size={14} />
+                            <ArrowsClockwise aria-hidden />
                             {t("skills.list.checkForUpdates")}
                         </DropdownMenuItem>
                     ) : null}
                     {row.item.origin === "builtin" ? null : (
                         <DropdownMenuItem onSelect={() => void download(row.id)}>
-                            <DownloadSimple aria-hidden size={14} />
+                            <DownloadSimple aria-hidden />
                             {t("skills.list.download")}
                         </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
                     {row.archived ? (
                         <DropdownMenuItem onSelect={() => void restore(row.id)}>
-                            <ArrowUUpLeft aria-hidden size={14} />
+                            <ArrowUUpLeft aria-hidden />
                             {t("skills.list.restore")}
                         </DropdownMenuItem>
                     ) : (
                         <DropdownMenuItem variant="destructive" onSelect={onArchive}>
-                            <Archive aria-hidden size={14} />
+                            <Archive aria-hidden />
                             {t("skills.list.archive")}
                         </DropdownMenuItem>
                     )}

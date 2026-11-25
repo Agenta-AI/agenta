@@ -28,11 +28,14 @@ export function SkillMarkdownFrame({
     const writing = !readOnly
 
     return (
+        // Drawn as a field: the Description box above uses the same border, radius and focus ring.
         <div
+            aria-invalid={invalid || undefined}
             className={cn(
-                "md-doc flex min-w-0 flex-col rounded-lg border border-solid",
+                "md-doc flex min-w-0 flex-col rounded-control border border-solid",
+                writing && "focus-ring-field",
                 fill && "h-full min-h-0 overflow-hidden",
-                invalid ? "border-destructive" : "border-border-muted",
+                invalid ? "border-destructive" : "border-input",
             )}
         >
             {writing ? (
@@ -60,7 +63,9 @@ export function SkillMarkdownFrame({
                     <MarkdownPreview content={value} />
                 </div>
             ) : (
-                <p className="m-0 px-4 py-6 text-center text-label text-muted-foreground">{empty}</p>
+                <p className="m-0 px-4 py-6 text-center text-label text-muted-foreground">
+                    {empty}
+                </p>
             )}
         </div>
     )

@@ -2,6 +2,7 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
+import {useIsExpandedWindow} from "@agenta/ui/hooks"
 import type {SkillOriginInfo} from "@agenta/skills"
 import {
     Button,
@@ -10,10 +11,12 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    Spinner,
+    LoadingButton,
+    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {
     Archive,
+    ArrowCounterClockwise,
     ArrowsClockwise,
     ArrowSquareOut,
     ArrowUUpLeft,
@@ -57,28 +60,44 @@ export const SkillPageActions = ({
     filesSlot?: ReactNode
 }) => {
     const t = useT(skillsPageCatalog)
+    const expanded = useIsExpandedWindow()
     return (
         // Grouped buttons sit 4px apart (SPACE-02).
         <div className="flex items-center gap-1">
-            {editable && dirty ? (
+            {/* A narrow window's bar holds at most two actions (COMPACT-02): Discard moves to ⋯. */}
+            {editable && dirty && expanded ? (
                 <Button variant="outline" onClick={onDiscard} disabled={saving}>
                     {t("skills.page.discard")}
                 </Button>
             ) : null}
             {editable ? (
-                <Button onClick={onSave} disabled={!dirty || !canSave || saving}>
-                    {saving ? <Spinner size="small" /> : null}
+                <LoadingButton onClick={onSave} loading={saving} disabled={!dirty}>
                     {t("skills.page.save")}
-                </Button>
+                </LoadingButton>
             ) : null}
             {filesSlot}
             <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" aria-label={t("skills.page.moreActions")}>
-                        <DotsThree weight="bold" />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" collisionPadding={16}>
+                <SimpleTooltip title={t("skills.page.moreActions")}>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={t("skills.page.moreActions")}
+                        >
+                            <DotsThree />
+                        </Button>
+                    </DropdownMenuTrigger>
+                </SimpleTooltip>
+                <DropdownMenuContent align="end" collisionPadding={16} className="w-popover-sm">
+                    {editable && dirty && !expanded ? (
+                        <>
+                            <DropdownMenuItem onSelect={onDiscard} disabled={saving}>
+                                <ArrowCounterClockwise />
+                                {t("skills.page.discard")}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                        </>
+                    ) : null}
                     {origin?.repository ? (
                         <DropdownMenuItem onSelect={onCheck}>
                             <ArrowsClockwise />
@@ -93,7 +112,7 @@ export const SkillPageActions = ({
                         <DropdownMenuItem asChild>
                             <a href={skillGithubUrl(origin)} target="_blank" rel="noreferrer">
                                 <ArrowSquareOut />
-                                {t("skills.page.viewOnGithub")}
+                                {t("skills.page.openOnGithub")}
                             </a>
                         </DropdownMenuItem>
                     ) : null}

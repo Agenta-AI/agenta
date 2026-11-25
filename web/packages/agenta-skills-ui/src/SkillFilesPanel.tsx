@@ -1,4 +1,4 @@
-import {memo, useMemo, useRef, useState, type DragEvent} from "react"
+import {memo, useId, useMemo, useRef, useState, type DragEvent} from "react"
 import {createPortal} from "react-dom"
 
 import {useT} from "@agenta/i18n"
@@ -8,16 +8,17 @@ import {message} from "@agenta/ui/app-message"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
 import {
+    Badge,
     Button,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
     IconTile,
+    SimpleTooltip,
     Switch,
 } from "@agenta/ui/ui"
 import {
-    File as FileIcon,
     FilePlus,
     FileText,
     Folder,
@@ -25,27 +26,36 @@ import {
     Plus,
     Trash,
     UploadSimple,
+    Warning,
 } from "@phosphor-icons/react"
 
 import {baseOf, dirOf} from "./skillDraft"
-import {SkillFileNameRow} from "./SkillFileNameRow"
+import {filePathProblem, SkillFileNameRow} from "./SkillFileNameRow"
 
+// The row draws its button's focus ring inset, so the list scroller cannot clip it.
 const ROW =
-    "group relative flex h-row-single items-center gap-2 rounded-md px-2 text-label transition-colors duration-[var(--duration-fast)] motion-reduce:transition-none"
+    "group relative flex h-row-single items-center gap-2 rounded-md px-2 text-label transition-colors duration-[var(--duration-fast)] motion-reduce:transition-none has-[>button:focus-visible]:outline-solid has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:outline-offset-[-2px] has-[>button:focus-visible]:outline-ring"
 const ROW_BUTTON =
     "min-w-0 flex-1 cursor-pointer truncate border-0 bg-transparent p-0 text-left font-[inherit] text-label text-foreground outline-none after:absolute after:inset-0 after:content-['']"
 const ROW_ACTIONS =
-    "relative z-[1] flex shrink-0 items-center opacity-0 transition-opacity duration-[var(--duration-fast)] focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none"
+    "relative z-[1] flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-[var(--duration-fast)] focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none"
 
-async function readTextFiles(list: FileList | File[]): Promise<SkillFile[]> {
-    const read = await Promise.all(
-        Array.from(list).map(async (file) => {
-            const content = await file.text()
-            if (content.includes("\u0000")) return null
-            return {path: file.webkitRelativePath || file.name, content}
-        }),
-    )
-    return read.filter((file): file is SkillFile => file !== null)
+/** Reads uploads as text; binary, unreadable and unusable paths (SKILL.md, taken) are skipped. */
+async function readUploads(list: FileList | File[], existing: ReadonlySet<string>) {
+    const taken = new Set(existing)
+    const added: SkillFile[] = []
+    const skipped: string[] = []
+    for (const file of Array.from(list)) {
+        const path = file.webkitRelativePath || file.name
+        const content = await file.text().catch(() => null)
+        if (content === null || content.includes("\u0000") || filePathProblem(path, taken)) {
+            skipped.push(baseOf(path))
+            continue
+        }
+        taken.add(path)
+        added.push({path, content})
+    }
+    return {added, skipped}
 }
 
 export interface SkillFilesPanelProps {
@@ -86,6 +96,8 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
     /** A file dragged to another folder, and the folder under the pointer. */
     const [dragPath, setDragPath] = useState<string | null>(null)
     const [dropDir, setDropDir] = useState<string | null>(null)
+    const switchId = useId()
+    const hintId = useId()
     const pickerRef = useRef<HTMLInputElement>(null)
     const listRef = useRef<HTMLDivElement>(null)
     useScrollFadeEdges(listRef, {enabled: docked})
@@ -103,18 +115,34 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
     const fileOpen = openPath !== null && files.some((file) => file.path === openPath)
 
     const addFiles = async (list: FileList | File[]) => {
-        const added = await readTextFiles(list)
-        if (!added.length) return
-        const paths = new Set(added.map((file) => file.path))
-        onFiles((current) => {
-            const byPath = new Map(current.map((file) => [file.path, file]))
-            const merged = added.map((file) => ({...byPath.get(file.path), ...file}))
-            return [...current.filter((file) => !paths.has(file.path)), ...merged]
-        })
+        const {added, skipped} = await readUploads(list, taken(null))
+        if (added.length) {
+            onFiles((current) => [
+                ...current,
+                ...added.filter((file) => !current.some((each) => each.path === file.path)),
+            ])
+        }
+        if (skipped.length) {
+            message.warning(
+                t("skills.editor.filesSkipped", {count: skipped.length, names: skipped.join(", ")}),
+            )
+        }
     }
     const removeFile = (path: string) => {
+        const removed = files.find((file) => file.path === path)
         onFiles((current) => current.filter((file) => file.path !== path))
         onMoved(path, null)
+        if (!removed) return
+        const close: () => void = message.success({
+            content: t("skills.editor.removed", {name: baseOf(path)}),
+            linkText: t("skills.editor.undo"),
+            onNavigate: () => {
+                close()
+                onFiles((current) =>
+                    current.some((file) => file.path === path) ? current : [...current, removed],
+                )
+            },
+        })
     }
     const taken = (except: string | null) =>
         new Set(files.map((file) => file.path).filter((each) => each !== except))
@@ -187,26 +215,23 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
     const browse = () => pickerRef.current?.click()
     const addMenu = (
         <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button type="button" variant="outline" size="sm">
-                                <Plus />
-                                {t("skills.editor.add")}
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                            align="end"
-                            onCloseAutoFocus={(event) => event.preventDefault()}
-                        >
-                            <DropdownMenuItem onSelect={() => setNaming({path: null, dir: ""})}>
-                                <FilePlus />
-                                {t("skills.editor.newFile")}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={browse}>
-                                <UploadSimple />
-                                {t("skills.editor.uploadFiles")}
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" size="sm">
+                    <Plus />
+                    {t("skills.editor.add")}
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onCloseAutoFocus={(event) => event.preventDefault()}>
+                <DropdownMenuItem onSelect={() => setNaming({path: null, dir: ""})}>
+                    <FilePlus />
+                    {t("skills.editor.newFile")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={browse}>
+                    <UploadSimple />
+                    {t("skills.editor.uploadFiles")}
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 
     const fileRow = (file: SkillFile) => {
@@ -230,7 +255,7 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
                 )}
             >
                 <IconTile size={24} aria-hidden>
-                    <FileIcon />
+                    <FileText />
                 </IconTile>
                 <button
                     type="button"
@@ -246,36 +271,51 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
                 >
                     {baseOf(file.path)}
                 </button>
-                {file.executable ? (
-                    <span
-                        className={cn(
-                            "shrink-0 text-meta group-hover:hidden",
-                            allowExecutable ? "text-muted-foreground" : "text-warning",
-                        )}
-                    >
+                {!file.executable ? null : allowExecutable ? (
+                    <span className="shrink-0 text-meta text-muted-foreground group-hover:hidden">
                         {t("skills.editor.program")}
                     </span>
-                ) : null}
+                ) : (
+                    <SimpleTooltip title={t("skills.editor.turnOnPrograms")}>
+                        <span className="relative z-[1] inline-flex shrink-0">
+                            <Badge variant="warning" icon={<Warning />}>
+                                {t("skills.editor.program")}
+                            </Badge>
+                        </span>
+                    </SimpleTooltip>
+                )}
                 {readOnly ? null : (
                     <span className={ROW_ACTIONS}>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-xs"
-                            aria-label={t("skills.editor.renameNamed", {name: baseOf(file.path)})}
-                            onClick={() => setNaming({path: file.path, dir: dirOf(file.path)})}
+                        <SimpleTooltip
+                            title={t("skills.editor.renameNamed", {name: baseOf(file.path)})}
                         >
-                            <PencilSimple />
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-xs"
-                            aria-label={t("skills.editor.removeNamed", {name: baseOf(file.path)})}
-                            onClick={() => removeFile(file.path)}
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={t("skills.editor.renameNamed", {
+                                    name: baseOf(file.path),
+                                })}
+                                onClick={() => setNaming({path: file.path, dir: dirOf(file.path)})}
+                            >
+                                <PencilSimple />
+                            </Button>
+                        </SimpleTooltip>
+                        <SimpleTooltip
+                            title={t("skills.editor.removeNamed", {name: baseOf(file.path)})}
                         >
-                            <Trash />
-                        </Button>
+                            <Button
+                                type="button"
+                                variant="destructive-ghost"
+                                size="icon-sm"
+                                aria-label={t("skills.editor.removeNamed", {
+                                    name: baseOf(file.path),
+                                })}
+                                onClick={() => removeFile(file.path)}
+                            >
+                                <Trash />
+                            </Button>
+                        </SimpleTooltip>
                     </span>
                 )}
             </div>
@@ -301,12 +341,18 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
             }}
             onDrop={onDrop}
             className={cn(
-                "flex min-h-0 flex-1 flex-col gap-3 rounded-lg",
+                "relative flex min-h-0 flex-1 flex-col gap-3 rounded-lg",
                 // The right pane's body has no padding of its own; the panel sets the pane's.
                 docked && "px-4 pt-2 sm:px-6",
-                dragging && "outline-dashed outline-1 outline-border-strong",
             )}
         >
+            {dragging ? (
+                <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg border border-dashed border-border-strong bg-accent">
+                    <span className="rounded-md bg-popover px-3 py-1.5 text-label text-muted-foreground shadow-overlay">
+                        {t("skills.editor.dropFiles")}
+                    </span>
+                </div>
+            ) : null}
             {readOnly || addSlot ? null : <div className="flex justify-end">{addMenu}</div>}
             {!readOnly && addSlot ? createPortal(addMenu, addSlot) : null}
 
@@ -343,19 +389,23 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
                     .map(([dir, dirFiles]) => (
                         <div key={dir} {...dropZone(dir)}>
                             <div className="group/folder flex h-row-single items-center gap-2 px-2 pt-2 text-meta text-muted-foreground">
-                                <Folder aria-hidden size={14} />
+                                <span className="flex size-6 shrink-0 items-center justify-center">
+                                    <Folder aria-hidden size={14} />
+                                </span>
                                 <span className="min-w-0 flex-1 truncate">{dir}</span>
                                 {readOnly ? null : (
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon-xs"
-                                        aria-label={t("skills.editor.newFileIn", {dir})}
-                                        onClick={() => setNaming({path: null, dir})}
-                                        className="opacity-0 transition-opacity duration-[var(--duration-fast)] focus-visible:opacity-100 group-hover/folder:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none"
-                                    >
-                                        <Plus />
-                                    </Button>
+                                    <SimpleTooltip title={t("skills.editor.newFileIn", {dir})}>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            aria-label={t("skills.editor.newFileIn", {dir})}
+                                            onClick={() => setNaming({path: null, dir})}
+                                            className="opacity-0 transition-opacity duration-[var(--duration-fast)] focus-visible:opacity-100 group-hover/folder:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none"
+                                        >
+                                            <Plus />
+                                        </Button>
+                                    </SimpleTooltip>
                                 )}
                             </div>
                             {naming?.path === null && naming.dir === dir
@@ -371,28 +421,29 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
                 ) : null}
             </div>
 
-            <div
-                className={cn(
-                    "mt-auto shrink-0 pt-3",
-                    docked && "pb-4",
-                )}
-            >
-                <div className="flex items-center gap-3 rounded-lg bg-background px-4 py-3">
+            <div className={cn("mt-auto shrink-0 pt-3", docked && "pb-4")}>
+                {/* The docked pane is muted except on a compact window's full-screen sheet. */}
+                <div
+                    className={cn(
+                        "flex items-center gap-3 rounded-lg px-4 py-3",
+                        docked ? "bg-muted sm:bg-background" : "bg-muted",
+                    )}
+                >
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <label
-                            htmlFor="skill-exec-switch"
+                            htmlFor={switchId}
                             className="cursor-pointer text-label font-medium text-foreground"
                         >
                             {t("skills.editor.allowPrograms")}
                         </label>
-                        <span id="skill-exec-hint" className="text-meta text-muted-foreground">
+                        <span id={hintId} className="text-meta text-muted-foreground">
                             {t("skills.editor.allowProgramsHint")}
                         </span>
                     </span>
                     <Switch
-                        id="skill-exec-switch"
+                        id={switchId}
                         size="sm"
-                        aria-describedby="skill-exec-hint"
+                        aria-describedby={hintId}
                         checked={allowExecutable}
                         disabled={readOnly}
                         onCheckedChange={onAllowExecutable}

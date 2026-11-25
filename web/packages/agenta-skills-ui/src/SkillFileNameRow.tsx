@@ -1,10 +1,9 @@
-import {useEffect, useRef, useState} from "react"
+import {useEffect, useId, useRef, useState} from "react"
 
 import {createT, useT} from "@agenta/i18n"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
-import {message} from "@agenta/ui/app-message"
 import {IconTile, Input} from "@agenta/ui/ui"
-import {File as FileIcon} from "@phosphor-icons/react"
+import {FileText} from "@phosphor-icons/react"
 
 const tNow = createT(skillsEditorCatalog)
 
@@ -27,7 +26,7 @@ export const filePathProblem = (path: string, taken: ReadonlySet<string>): strin
     return null
 }
 
-/** One path field to name, rename or move a file. Enter or blur saves; Escape cancels. */
+/** One path field to name, rename or move a file. Enter or blur saves; Escape or an empty value cancels. */
 export function SkillFileNameRow({
     initialPath = "",
     isNew,
@@ -47,6 +46,7 @@ export function SkillFileNameRow({
     const [error, setError] = useState<string | null>(null)
     const inputRef = useRef<HTMLInputElement>(null)
     const done = useRef(false)
+    const errorId = useId()
 
     // A menu that opened this row may still hold focus on the first frame.
     useEffect(() => {
@@ -61,7 +61,7 @@ export function SkillFileNameRow({
         return () => cancelAnimationFrame(frame)
     }, [])
 
-    const finish = (fromBlur: boolean) => {
+    const finish = () => {
         if (done.current) return
         const path = cleanPath(value)
         if (!path || path === cleanPath(initialPath)) {
@@ -70,27 +70,20 @@ export function SkillFileNameRow({
             return
         }
         const problem = filePathProblem(path, taken)
-        if (!problem) {
-            done.current = true
-            onSubmit(path)
-        } else if (fromBlur) {
-            done.current = true
-            onCancel()
-            message.warning(
-                isNew
-                    ? t("skills.editor.fileNotAdded", {problem})
-                    : t("skills.editor.fileNotRenamed", {problem}),
-            )
-        } else {
+        if (problem) {
+            // The row stays open with the error, so the typed name is kept.
             setError(problem)
+            return
         }
+        done.current = true
+        onSubmit(path)
     }
 
     return (
         <div className="flex flex-col gap-1">
             <div className="flex h-row-single items-center gap-2 px-2">
                 <IconTile size={24} aria-hidden>
-                    <FileIcon />
+                    <FileText />
                 </IconTile>
                 <Input
                     ref={inputRef}
@@ -100,11 +93,11 @@ export function SkillFileNameRow({
                         setValue(event.target.value)
                         setError(null)
                     }}
-                    onBlur={() => finish(true)}
+                    onBlur={finish}
                     onKeyDown={(event) => {
                         if (event.key === "Enter") {
                             event.preventDefault()
-                            finish(false)
+                            finish()
                         } else if (event.key === "Escape") {
                             event.preventDefault()
                             done.current = true
@@ -116,11 +109,12 @@ export function SkillFileNameRow({
                         isNew ? t("skills.editor.newFilePath") : t("skills.editor.filePath")
                     }
                     aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? errorId : undefined}
                     className="min-w-0 flex-1"
                 />
             </div>
             {error ? (
-                <span role="alert" className="pl-10 text-meta text-destructive">
+                <span id={errorId} role="alert" className="pl-10 text-meta text-destructive">
                     {error}
                 </span>
             ) : null}

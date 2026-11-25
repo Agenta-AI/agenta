@@ -6,7 +6,7 @@ import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {importSkillSource, scanSkillSource, type ScanCandidate} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {message} from "@agenta/ui/app-message"
-import {Alert, Button, Field, Input, SkeletonRows, Spinner} from "@agenta/ui/ui"
+import {Alert, Button, Field, Input, LoadingButton, SkeletonRows} from "@agenta/ui/ui"
 
 import {SkillCandidateList, type SkillCandidate, type UnavailableSkill} from "./SkillCandidateList"
 
@@ -74,6 +74,8 @@ export function SkillGithubImport({
         }
         setBusy("scan")
         setError(null)
+        // A new search drops the last result, so a failed one cannot import the old repo.
+        setFound(null)
         try {
             const response = await scanSkillSource({projectId, repoUrl})
             const already = new Set(response?.already_imported_paths ?? [])
@@ -132,14 +134,11 @@ export function SkillGithubImport({
                 setError(t("skills.editor.noneImported"))
                 return
             }
-            const skipped = response?.skipped ?? []
-            if (skipped.length)
-                message.warning(
-                    t("skills.editor.skipped", {
-                        count: skipped.length,
-                        names: skipped.map((entry) => entry.path_in_repo).join(", "),
-                    }),
-                )
+            const skipped = response?.skipped?.length ?? 0
+            if (skipped) {
+                const done = t("skills.editor.imported", {count: imported.length})
+                message.success(`${done} ${t("skills.editor.skippedCount", {count: skipped})}`)
+            }
             onImported(imported)
         } catch (err) {
             setError(errorText(err, t("skills.editor.importFailed")))
@@ -174,17 +173,17 @@ export function SkillGithubImport({
                             setUrl(event.target.value)
                             setError(null)
                         }}
-                        placeholder="https://github.com/owner/repo"
+                        placeholder={t("skills.editor.repoLinkPlaceholder")}
                     />
                 </Field>
-                <Button
+                <LoadingButton
                     type="submit"
                     variant={found ? "outline" : "default"}
-                    disabled={!url.trim() || busy !== null}
+                    loading={busy === "scan"}
+                    disabled={!url.trim() || busy === "import"}
                 >
-                    {busy === "scan" ? <Spinner size="small" /> : null}
                     {found ? t("skills.editor.searchAgain") : t("skills.editor.findSkills")}
-                </Button>
+                </LoadingButton>
             </form>
 
             {error ? <Alert type="error" showIcon message={error} /> : null}
@@ -203,7 +202,9 @@ export function SkillGithubImport({
                                       }),
                                       {
                                           b: (text) => (
-                                              <b className="font-medium text-foreground">{text}</b>
+                                              <span className="font-medium text-foreground">
+                                                  {text}
+                                              </span>
                                           ),
                                       },
                                   )
@@ -236,20 +237,20 @@ export function SkillGithubImport({
                         disabled={busy !== null}
                     />
                     {found.candidates.length ? (
-                        <div className="sticky bottom-0 z-[1] mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 border-0 border-t border-solid border-border-muted bg-background py-3">
+                        <div className="sticky bottom-0 z-sticky mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 border-0 border-t border-solid border-border-muted bg-background py-3">
                             <span className="flex-[1_1_240px] text-meta text-muted-foreground">
                                 {t("skills.editor.trustNote")}
                             </span>
-                            <Button
+                            <LoadingButton
                                 type="button"
                                 onClick={() => void runImport()}
-                                disabled={!picked.size || busy !== null}
+                                loading={busy === "import"}
+                                disabled={!picked.size}
                             >
-                                {busy === "import" ? <Spinner size="small" /> : null}
                                 {picked.size
                                     ? t("skills.editor.importSkills", {count: picked.size})
                                     : t("skills.editor.chooseToImport")}
-                            </Button>
+                            </LoadingButton>
                         </div>
                     ) : null}
                 </div>

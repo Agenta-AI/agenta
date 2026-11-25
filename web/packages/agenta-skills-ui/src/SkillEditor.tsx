@@ -5,21 +5,10 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import type {SkillFile} from "@agenta/skills"
-import {useIsExpandedWindow} from "@agenta/ui/hooks"
+import {useIsExpandedWindow, useScrollFadeEdges} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
-import {
-    Button,
-    Field,
-    IconTile,
-    Input,
-    RightPane,
-    Textarea,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@agenta/ui/ui"
-import {CaretRight, Files, X} from "@phosphor-icons/react"
+import {Button, Field, IconTile, Input, RightPane, SimpleTooltip, Textarea} from "@agenta/ui/ui"
+import {ArrowLeft, CaretRight, Files} from "@phosphor-icons/react"
 
 import {
     baseOf,
@@ -56,9 +45,24 @@ export interface SkillEditorProps {
     filesToggleSlot?: HTMLElement | null
 }
 
-/** The skill editor the skill page and the create page share: fields, a file, the Files pane. */
-const TOOLS_SLOT = "flex min-w-0 items-center overflow-x-auto [scrollbar-width:none]"
+const TOOLS_SLOT =
+    "ag-scroll-fade-x flex min-w-0 items-center overflow-x-auto [scrollbar-width:none]"
 
+/** A label-row slot for the formatting tools: one sideways scroller that fades its cut edges. */
+function ToolsSlot({onSlot}: {onSlot: (slot: HTMLDivElement | null) => void}) {
+    const ref = useRef<HTMLDivElement | null>(null)
+    useScrollFadeEdges(ref, {axis: "x"})
+    const setRef = useCallback(
+        (slot: HTMLDivElement | null) => {
+            ref.current = slot
+            onSlot(slot)
+        },
+        [onSlot],
+    )
+    return <div ref={setRef} className={TOOLS_SLOT} />
+}
+
+/** The skill editor the skill page and the create page share: fields, a file, the Files pane. */
 export function SkillEditor({
     draft,
     onChange,
@@ -137,7 +141,7 @@ export function SkillEditor({
                 onClick={() => setFilesOpen(true)}
                 className={cn(
                     inline && "@2xl:hidden",
-                    "-mx-2 flex h-row-single cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left font-[inherit] text-label text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent motion-reduce:transition-none",
+                    "focus-ring -mx-2 flex h-row-single cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left font-[inherit] text-label text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent motion-reduce:transition-none",
                 )}
             >
                 <IconTile size={24} aria-hidden>
@@ -146,37 +150,32 @@ export function SkillEditor({
                 <span className="min-w-0 flex-1 truncate">
                     {t("skills.editor.filesCount", {count: draft.files.length + 1})}
                 </span>
-                <CaretRight aria-hidden size={14} className="text-muted-foreground" />
+                <CaretRight aria-hidden size={16} className="text-muted-foreground" />
             </button>
         )
 
     const filesToggle =
         expanded && filesToggleSlot
             ? createPortal(
-                  <TooltipProvider>
-                      <Tooltip>
-                          <TooltipTrigger asChild>
-                              <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  aria-label={t("skills.editor.files")}
-                                  aria-pressed={filesOpen}
-                                  className={filesOpen ? "bg-selected" : undefined}
-                                  onClick={() => setFilesOpen((open) => !open)}
-                              >
-                                  <Files />
-                              </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>{t("skills.editor.files")}</TooltipContent>
-                      </Tooltip>
-                  </TooltipProvider>,
+                  <SimpleTooltip title={t("skills.editor.files")}>
+                      <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={t("skills.editor.files")}
+                          aria-pressed={filesOpen}
+                          className={filesOpen ? "bg-selected" : undefined}
+                          onClick={() => setFilesOpen((open) => !open)}
+                      >
+                          <Files />
+                      </Button>
+                  </SimpleTooltip>,
                   filesToggleSlot,
               )
             : null
 
     const fileView = current ? (
-        <section key={current.path} className="flex flex-col gap-1">
+        <section key={current.path} className="ag-view-enter flex flex-col gap-1">
             <div className="flex items-center gap-2">
                 <span title={current.path} className="flex min-w-0 flex-1 items-baseline">
                     {dirOf(current.path) ? (
@@ -189,7 +188,7 @@ export function SkillEditor({
                     </span>
                 </span>
                 {isMarkdownPath(current.path) && !readOnly ? (
-                    <div ref={setFileTools} className={TOOLS_SLOT} />
+                    <ToolsSlot onSlot={setFileTools} />
                 ) : null}
             </div>
             {current.executable && !draft.allowExecutable ? (
@@ -205,7 +204,7 @@ export function SkillEditor({
                         value={current.content}
                         onChange={(content) => setFile({content})}
                         placeholder={t("skills.editor.filePlaceholder")}
-                        empty={t("skills.editor.nothingWritten")}
+                        empty={t("skills.editor.fileEmpty")}
                         readOnly={readOnly}
                         toolbar={fileTools}
                         fill
@@ -225,7 +224,7 @@ export function SkillEditor({
     ) : null
 
     const skillView = (
-        <div className="flex flex-col gap-4">
+        <div className="ag-view-enter flex flex-col gap-4">
             {showName ? (
                 <div className="flex flex-col gap-1">
                     <Field
@@ -276,7 +275,7 @@ export function SkillEditor({
                 label={t("skills.editor.instructions")}
                 tooltip={t("skills.editor.instructionsHint")}
                 error={missingBody ? t("skills.editor.instructionsMissing") : undefined}
-                labelEnd={readOnly ? null : <div ref={setBodyTools} className={TOOLS_SLOT} />}
+                labelEnd={readOnly ? null : <ToolsSlot onSlot={setBodyTools} />}
             >
                 <div
                     ref={setBodyBox}
@@ -288,11 +287,7 @@ export function SkillEditor({
                         value={draft.body}
                         onChange={(body) => set({body})}
                         placeholder={t("skills.editor.instructionsPlaceholder")}
-                        empty={
-                            readOnly
-                                ? t("skills.editor.nothingWritten")
-                                : t("skills.editor.nothingYet")
-                        }
+                        empty={t("skills.editor.nothingWritten")}
                         readOnly={readOnly}
                         invalid={missingBody}
                         toolbar={bodyTools}
@@ -340,22 +335,25 @@ export function SkillEditor({
                     </div>
                     <aside
                         className={cn(
-                            "min-w-0 flex-col gap-3 @2xl:flex @2xl:w-64 @2xl:shrink-0",
+                            "ag-view-enter min-w-0 flex-col gap-3 @2xl:flex @2xl:w-64 @2xl:shrink-0",
                             filesOpen ? "flex flex-1" : "hidden",
                         )}
                     >
                         <div className="flex min-h-8 items-center gap-2 text-label font-medium text-foreground">
+                            {/* Below @2xl Files takes the fields' place, so it goes Back to them. */}
+                            <SimpleTooltip title={tCommon("common.back")}>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    className="@2xl:hidden"
+                                    aria-label={tCommon("common.back")}
+                                    onClick={() => setFilesOpen(false)}
+                                >
+                                    <ArrowLeft />
+                                </Button>
+                            </SimpleTooltip>
                             <span className="flex-1">{filesTitle}</span>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                className="@2xl:hidden"
-                                aria-label={tCommon("common.close")}
-                                onClick={() => setFilesOpen(false)}
-                            >
-                                <X />
-                            </Button>
                         </div>
                         {filesPanel}
                     </aside>

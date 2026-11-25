@@ -16,9 +16,9 @@ import {toSourceInfo} from "./registrySections"
 import {skillTitle} from "./skillTitle"
 import type {SkillListItem} from "./types"
 
-/** A two-line row (48px); its hover fill hangs 8px past the column so the Mark stays on the line. */
+/** A two-line row (48px); its hover fill hangs 12px past the column so the Mark stays on the line. */
 const ROW =
-    "box-border flex min-h-row-double w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 transition-colors duration-[var(--duration-fast)] ease-out hover:bg-accent motion-reduce:transition-none"
+    "box-border flex min-h-row-double w-full cursor-pointer items-center gap-3 rounded-md px-3 py-1 transition-colors duration-[var(--duration-fast)] ease-out hover:bg-accent motion-reduce:transition-none"
 
 function SkillRow({option, onToggle}: {option: SkillListItem; onToggle: () => void}) {
     const t = useT(skillsGalleryCatalog, skillsAgentCatalog)
@@ -28,7 +28,7 @@ function SkillRow({option, onToggle}: {option: SkillListItem; onToggle: () => vo
     return (
         // The row is a large mouse target; the button is the control for the keyboard and readers.
         <div className={ROW} onClick={onToggle}>
-            <SkillMark size={24} />
+            <SkillMark size={32} />
             <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-label font-medium leading-5 text-foreground">
                     {title}
@@ -39,10 +39,9 @@ function SkillRow({option, onToggle}: {option: SkillListItem; onToggle: () => vo
             </span>
             <SimpleTooltip title={label}>
                 <Button
-                    variant={option.added ? "secondary" : "ghost"}
+                    variant={option.added ? "secondary" : "outline"}
                     size="icon-sm"
                     aria-label={`${label}: ${title}`}
-                    aria-pressed={Boolean(option.added)}
                     className="shrink-0"
                     onClick={(event) => {
                         event.stopPropagation()
@@ -56,12 +55,13 @@ function SkillRow({option, onToggle}: {option: SkillListItem; onToggle: () => vo
     )
 }
 
+/** Loading rows in the shape of SkillRow. */
 function RowsSkeleton() {
     return (
-        <div aria-hidden className="flex flex-col">
+        <div aria-hidden className="-mx-3 flex flex-col gap-2">
             {Array.from({length: 5}).map((_, i) => (
-                <div key={i} className="flex items-center gap-3 px-2 py-2">
-                    <SkeletonBlock active className="size-8 shrink-0 rounded-lg" />
+                <div key={i} className="flex min-h-row-double items-center gap-3 px-3 py-1">
+                    <SkeletonBlock active className="size-8 shrink-0 rounded-md" />
                     <div className="flex flex-1 flex-col gap-1.5">
                         <SkeletonBlock active className="h-3.5 w-1/3 rounded" />
                         <SkeletonBlock active className="h-3 w-2/3 rounded" />
@@ -104,14 +104,13 @@ export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkil
     const searching = Boolean(search.trim())
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-3 pt-3.5">
+        <div className="flex flex-1 flex-col gap-3 px-4 pb-3 pt-3.5">
             <p className="m-0 text-body text-muted-foreground">
                 {t("skills.agent.addDescription")}
             </p>
             <div className="flex items-center gap-2">
                 <SearchInput
                     size="compact-search"
-                    className="border-border-muted"
                     placeholder={t("skills.gallery.searchPlaceholder")}
                     aria-label={t("skills.gallery.searchAria")}
                     value={search}
@@ -127,23 +126,26 @@ export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkil
             ) : visible.length === 0 ? (
                 <EmptyState
                     image="simple"
-                    description={
-                        <span className="flex flex-col gap-1 text-label font-normal">
-                            <span className="font-medium text-foreground">
-                                {searching
-                                    ? t("skills.gallery.noMatchTitle")
-                                    : t("skills.gallery.noSkillsTitle")}
-                            </span>
-                            <span>
-                                {searching
-                                    ? t("skills.gallery.noMatchName")
-                                    : t("skills.gallery.createBelow")}
-                            </span>
-                        </span>
+                    title={
+                        searching
+                            ? t("skills.gallery.noMatchTitle")
+                            : t("skills.gallery.noSkillsTitle")
                     }
-                />
+                    description={
+                        searching
+                            ? t("skills.gallery.noMatchName")
+                            : t("skills.gallery.createBelow")
+                    }
+                >
+                    {searching ? null : (
+                        <Button variant="outline" size="compact" onClick={onNewSkill}>
+                            <Plus size={14} />
+                            {t("skills.agent.newSkill")}
+                        </Button>
+                    )}
+                </EmptyState>
             ) : (
-                <div className="-mx-2 flex flex-col gap-2">
+                <div className="-mx-3 flex flex-col gap-2">
                     {visible.map((option) => (
                         <SkillRow
                             key={option.id}

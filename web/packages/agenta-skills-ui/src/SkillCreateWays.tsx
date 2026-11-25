@@ -8,12 +8,12 @@ import {
 import {useT} from "@agenta/i18n"
 import skillsAgentCatalog from "@agenta/i18n/catalogs/skills.agent"
 import {cn} from "@agenta/ui/styles"
-import {IconTile} from "@agenta/ui/ui"
-import {ArrowUp, CaretRight, GithubLogo, PencilSimple} from "@phosphor-icons/react"
+import {IconTile, Spinner} from "@agenta/ui/ui"
+import {CaretRight, GithubLogo, PencilSimple, UploadSimple} from "@phosphor-icons/react"
 
 // A filled row: its edge is visible at rest, so it sits on the alignment line (ALIGN-01).
 const WAY =
-    "box-border flex min-h-row-double w-full cursor-pointer appearance-none items-center gap-3 rounded-lg border-0 bg-muted px-3 py-3 text-left font-[inherit] transition-colors duration-[var(--duration-fast)] ease-out hover:bg-accent focus-ring motion-reduce:transition-none"
+    "box-border flex min-h-row-double w-full cursor-pointer appearance-none items-center gap-3 rounded-lg border-0 bg-muted px-3 py-2 text-left font-[inherit] transition-colors duration-[var(--duration-fast)] ease-out enabled:hover:bg-accent focus-ring disabled:cursor-default disabled:opacity-60 motion-reduce:transition-none"
 
 function Way({
     icon,
@@ -22,6 +22,8 @@ function Way({
     hint,
     onClick,
     className,
+    disabled,
+    busy,
     ...drop
 }: {
     icon: ReactNode
@@ -31,9 +33,18 @@ function Way({
     hint: string
     onClick: () => void
     className?: string
+    disabled?: boolean
+    /** This way is reading: a spinner in place of the caret. */
+    busy?: boolean
 } & Pick<React.HTMLAttributes<HTMLButtonElement>, "onDragOver" | "onDragLeave" | "onDrop">) {
     return (
-        <button type="button" onClick={onClick} className={cn(WAY, className)} {...drop}>
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className={cn(WAY, className)}
+            {...drop}
+        >
             <IconTile size={32} className={cn("shrink-0", tint)}>
                 {icon}
             </IconTile>
@@ -41,7 +52,11 @@ function Way({
                 <span className="text-label font-medium text-foreground">{title}</span>
                 <span className="text-meta text-muted-foreground">{hint}</span>
             </span>
-            <CaretRight aria-hidden size={14} className="shrink-0 text-muted-foreground" />
+            {busy ? (
+                <Spinner size="default" className="shrink-0 text-muted-foreground" />
+            ) : (
+                <CaretRight aria-hidden size={16} className="shrink-0 text-muted-foreground" />
+            )}
         </button>
     )
 }
@@ -51,40 +66,57 @@ export function SkillCreateWays({
     onWrite,
     onUpload,
     onImport,
+    busy,
 }: {
     onWrite: () => void
     onUpload: (scan: Promise<SkillUploadScan>) => void
     onImport: () => void
+    /** An upload is being read: the Upload row spins and every way waits. */
+    busy?: boolean
 }) {
     const t = useT(skillsAgentCatalog)
     const fileInput = useRef<HTMLInputElement>(null)
     const [over, setOver] = useState(false)
     return (
-        <div className="flex flex-col gap-2">
+        // A drop just off the Upload row must not open the file in the browser.
+        <div
+            className="flex flex-col gap-2"
+            aria-busy={busy || undefined}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => event.preventDefault()}
+        >
             <Way
                 icon={<PencilSimple size={16} />}
                 tint="bg-data-1/10 text-data-1"
                 title={t("skills.agent.writeTitle")}
                 hint={t("skills.agent.writeHint")}
                 onClick={onWrite}
+                disabled={busy}
             />
             <Way
-                icon={<ArrowUp size={16} />}
+                icon={<UploadSimple size={16} />}
                 tint="bg-data-2/10 text-data-2"
                 title={t("skills.agent.uploadTitle")}
                 hint={t("skills.agent.uploadHint")}
                 // The picker must open inside this click, or the browser blocks it.
                 onClick={() => fileInput.current?.click()}
+                disabled={busy}
+                busy={busy}
                 className={cn(over && "bg-accent")}
                 onDragOver={(event) => {
                     event.preventDefault()
-                    setOver(true)
+                    if (!busy) setOver(true)
                 }}
-                onDragLeave={() => setOver(false)}
+                onDragLeave={(event) => {
+                    // Moving onto the row's own children is not a leave.
+                    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+                    setOver(false)
+                }}
                 onDrop={(event) => {
                     event.preventDefault()
+                    event.stopPropagation()
                     setOver(false)
-                    onUpload(scanSkillFromDataTransfer(event.dataTransfer))
+                    if (!busy) onUpload(scanSkillFromDataTransfer(event.dataTransfer))
                 }}
             />
             <Way
@@ -93,6 +125,7 @@ export function SkillCreateWays({
                 title={t("skills.agent.importTitle")}
                 hint={t("skills.agent.importHint")}
                 onClick={onImport}
+                disabled={busy}
             />
             <input
                 ref={fileInput}

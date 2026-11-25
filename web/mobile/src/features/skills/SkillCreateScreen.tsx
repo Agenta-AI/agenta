@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {useT} from "@agenta/i18n"
+import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
 import {
     SkillCandidateList,
@@ -11,7 +12,7 @@ import {
     type CreatedSkill,
     type ImportedSkill,
 } from "@agenta/skills-ui"
-import {Alert, Button, IconTile, Spinner} from "@agenta/ui/ui"
+import {Alert, Button, IconTile, LoadingButton} from "@agenta/ui/ui"
 import {GithubLogo} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 import Link from "next/link"
@@ -33,7 +34,7 @@ export const SkillCreateScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
-    const t = useT(skillsPageCatalog)
+    const t = useT(skillsPageCatalog, skillsEditorCatalog)
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
     const listHref = skillsListHref(base)
@@ -140,24 +141,51 @@ export const SkillCreateScreen = ({
     } else if (flow.step === "import") {
         body = <SkillGithubImport projectId={projectId} onImported={showAdded} />
     } else if (flow.step === "upload") {
+        // The same Select all and footer as the GitHub step.
+        const keys = flow.uploadCandidates.map((c) => c.key)
+        const allPicked = keys.length > 0 && flow.picked.size === keys.length
         body = (
             <div className="flex flex-col gap-6">
                 {stepHeading(t("skills.page.uploadTitle"), t("skills.page.uploadHint"))}
-                <SkillCandidateList
-                    candidates={flow.uploadCandidates}
-                    selected={flow.picked}
-                    onToggle={flow.togglePick}
-                    disabled={flow.busy}
-                />
-                {errorAlert}
-                <Button
-                    className="self-end"
-                    onClick={() => void flow.importUploads()}
-                    disabled={!flow.picked.size || flow.busy}
-                >
-                    {flow.busy ? <Spinner size="small" /> : null}
-                    {t("skills.page.importSkills", {count: flow.picked.size})}
-                </Button>
+                <div className="flex flex-col gap-3">
+                    {keys.length > 1 ? (
+                        <div className="flex min-h-8 items-center justify-end">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={flow.busy}
+                                onClick={() => flow.setPicked(new Set(allPicked ? [] : keys))}
+                            >
+                                {allPicked
+                                    ? t("skills.editor.clearAll")
+                                    : t("skills.editor.selectAll")}
+                            </Button>
+                        </div>
+                    ) : null}
+                    <SkillCandidateList
+                        candidates={flow.uploadCandidates}
+                        selected={flow.picked}
+                        onToggle={flow.togglePick}
+                        disabled={flow.busy}
+                    />
+                    {errorAlert}
+                    <div className="sticky bottom-0 z-sticky mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 border-0 border-t border-solid border-border-muted bg-background py-3">
+                        <span className="flex-[1_1_240px] text-meta text-muted-foreground">
+                            {t("skills.editor.trustNote")}
+                        </span>
+                        <LoadingButton
+                            type="button"
+                            onClick={() => void flow.importUploads()}
+                            loading={flow.busy}
+                            disabled={!flow.picked.size}
+                        >
+                            {flow.picked.size
+                                ? t("skills.page.addSkills", {count: flow.picked.size})
+                                : t("skills.page.chooseToAdd")}
+                        </LoadingButton>
+                    </div>
+                </div>
             </div>
         )
     } else {
@@ -167,8 +195,8 @@ export const SkillCreateScreen = ({
                     onWrite={() => write()}
                     onUpload={upload}
                     onImport={() => setStep("import")}
+                    busy={flow.busy}
                 />
-                {flow.busy ? <Spinner size="small" className="self-center" /> : null}
                 {errorAlert}
             </div>
         )
@@ -184,11 +212,16 @@ export const SkillCreateScreen = ({
                 // The GitHub step is its own page in the design: its Mark, title and hint on top.
                 title={
                     flow.step === "import" ? (
-                        <span className="flex items-center gap-3">
-                            <IconTile size={32} className="bg-foreground/10 text-foreground">
+                        <span className="flex min-w-0 items-center gap-3">
+                            <IconTile
+                                size={32}
+                                className="shrink-0 bg-foreground/10 text-foreground"
+                            >
                                 <GithubLogo />
                             </IconTile>
-                            {t("skills.page.importTitle")}
+                            <h1 className="m-0 min-w-0 truncate text-heading text-foreground">
+                                {t("skills.page.importTitle")}
+                            </h1>
                         </span>
                     ) : (
                         t("skills.page.newSkill")
@@ -207,13 +240,16 @@ export const SkillCreateScreen = ({
                 actions={
                     flow.step === "write" ? (
                         <>
-                            <Button variant="outline" onClick={() => void router.push(listHref)}>
+                            <Button
+                                variant="outline"
+                                disabled={flow.busy}
+                                onClick={() => void router.push(listHref)}
+                            >
                                 {t("skills.page.cancel")}
                             </Button>
-                            <Button onClick={() => void flow.create()} disabled={flow.busy}>
-                                {flow.busy ? <Spinner size="small" /> : null}
+                            <LoadingButton onClick={() => void flow.create()} loading={flow.busy}>
                                 {t("skills.page.createSkill")}
-                            </Button>
+                            </LoadingButton>
                             <div ref={setFilesSlot} className="flex empty:hidden" />
                         </>
                     ) : undefined

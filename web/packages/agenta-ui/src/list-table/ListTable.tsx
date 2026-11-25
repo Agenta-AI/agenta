@@ -448,10 +448,9 @@ export const ListTable = <Row,>({
                                                         className={cn(
                                                             "group",
                                                             CARD_CHROME,
-                                                            // Hover: the `accent` fill, never a shadow (SURF-04).
-                                                            // The fill fades in and the card rises 2px (MOTION-02: calm, still under reduced motion).
+                                                            // Hover: the `accent` fill only, no shadow or lift (SURF-04).
                                                             opens(row) &&
-                                                                "cursor-pointer transition-[background-color,translate] duration-[var(--duration-base)] ease-out hover:-translate-y-0.5 hover:bg-accent motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+                                                                "cursor-pointer transition-colors duration-[var(--duration-fast)] ease-out hover:bg-accent motion-reduce:transition-none",
                                                             opens(row) && FOCUS_RING,
                                                             isSelected(row) &&
                                                                 "bg-selected hover:bg-selected",

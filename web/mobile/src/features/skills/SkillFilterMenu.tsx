@@ -5,12 +5,12 @@ import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {FilterMenu, type FilterMenuItem} from "@agenta/ui/filter-menu"
 import {
     Archive,
-    Folder,
+    Asterisk,
+    FolderSimple,
     GitBranch,
     Minus,
     Robot,
     Rows,
-    SquaresFour,
     Stack,
 } from "@phosphor-icons/react"
 
@@ -58,9 +58,13 @@ export const SkillFilterMenu = ({
                     {
                         value: ALL_SOURCES,
                         label: t("skills.list.filterAllSources"),
-                        icon: <SquaresFour size={ICON} />,
+                        icon: <Asterisk size={ICON} />,
                     },
-                    {value: PROJECT_SOURCE, label: projectLabel(), icon: <Folder size={ICON} />},
+                    {
+                        value: PROJECT_SOURCE,
+                        label: projectLabel(),
+                        icon: <FolderSimple size={ICON} />,
+                    },
                     ...repositories.map((repository) => ({
                         value: repository,
                         label: repository,
@@ -79,7 +83,7 @@ export const SkillFilterMenu = ({
                     {
                         value: "any",
                         label: t("skills.list.filterAnyAgent"),
-                        icon: <SquaresFour size={ICON} />,
+                        icon: <Asterisk size={ICON} />,
                     },
                     {
                         value: "used",

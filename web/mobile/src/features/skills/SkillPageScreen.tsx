@@ -26,7 +26,7 @@ import {
     type SkillDraft,
 } from "@agenta/skills-ui"
 import {message} from "@agenta/ui/app-message"
-import {Alert, Button} from "@agenta/ui/ui"
+import {Alert, Button, SkeletonBlock} from "@agenta/ui/ui"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
@@ -80,7 +80,11 @@ export const SkillPageScreen = ({
         enabled: Boolean(projectId && workflowId) && !builtin,
         staleTime: 15_000,
     })
-    const usedBy = useMemo(() => usage.data?.referenced_by ?? [], [usage.data])
+    // Unknown while it loads or after it fails, so nothing claims "not used" by mistake.
+    const usedBy = useMemo(
+        () => (usage.isSuccess ? (usage.data?.referenced_by ?? []) : null),
+        [usage.isSuccess, usage.data],
+    )
     const head = revisions.data?.[0]
 
     // The draft seeds from the head; a newer head replaces it only while there are no edits.
@@ -117,6 +121,8 @@ export const SkillPageScreen = ({
     const updates = useSkillUpdates()
     const updateStatus = useSkillUpdateStatus(workflowId)
     const [saving, setSaving] = useState(false)
+    // A Save with something missing marks the fields, instead of a Save that is silently disabled.
+    const [attempted, setAttempted] = useState(false)
     // The page header's slot for the editor's Files toggle (wide windows).
     const [filesSlot, setFilesSlot] = useState<HTMLDivElement | null>(null)
 
@@ -154,6 +160,7 @@ export const SkillPageScreen = ({
             const saved = next[0] ? toSkillDraft(next[0].skill) : draft
             setBaseline({id: next[0]?.id ?? baseline.id, draft: saved})
             setDraft(saved)
+            setAttempted(false)
             message.success(tNow("skills.page.saved"))
         } catch (err) {
             message.error(extractApiErrorMessage(err) || tNow("skills.page.saveFailed"))
@@ -163,6 +170,10 @@ export const SkillPageScreen = ({
     }, [baseline, draft, projectId, queryClient, workflowId])
 
     const save = () => {
+        if (!canSave) {
+            setAttempted(true)
+            return
+        }
         if (origin && !origin.detached)
             confirm({
                 title: t("skills.page.saveOwnTitle"),
@@ -175,7 +186,7 @@ export const SkillPageScreen = ({
     }
 
     const askArchive = () => {
-        const agents = usedBy.map((entry) => entry.agent_name ?? entry.agent_slug ?? "")
+        const agents = (usedBy ?? []).map((entry) => entry.agent_name ?? entry.agent_slug ?? "")
         confirm({
             title: t("skills.page.archiveTitle", {name: skillTitle(item ?? {name: "", slug: ""})}),
             message: agents.length
@@ -187,17 +198,15 @@ export const SkillPageScreen = ({
             okText: t("skills.page.archive"),
             danger: true,
             onOk: async () => {
-                if (baseline) setDraft(baseline.draft)
                 await archive(workflowId)
+                // Edits are dropped only once the archive went through.
+                if (baseline) setDraft(baseline.draft)
             },
         })
     }
 
     const applyUpdate = async () => {
-        if (dirty) {
-            message.error(t("skills.page.saveFirst"))
-            return
-        }
+        if (dirty) return
         await updates.apply([workflowId])
         await refetchHead()
     }
@@ -254,13 +263,27 @@ export const SkillPageScreen = ({
     )
 
     let body: React.ReactNode
+    const notFound = (
+        <p className="m-0 py-16 text-center text-label text-muted-foreground">
+            {t("skills.page.notFound")}
+        </p>
+    )
     if (!item) {
         body = query.isPending ? (
             <SkillPageSkeleton />
+        ) : query.isError ? (
+            <Alert
+                type="error"
+                showIcon
+                message={t("skills.page.loadFailed")}
+                action={
+                    <Button size="sm" variant="outline" onClick={() => void query.refetch()}>
+                        {t("skills.page.tryAgain")}
+                    </Button>
+                }
+            />
         ) : (
-            <p className="m-0 py-16 text-center text-label text-muted-foreground">
-                {t("skills.page.notFound")}
-            </p>
+            notFound
         )
     } else if (builtin) {
         body = (
@@ -273,7 +296,9 @@ export const SkillPageScreen = ({
                 filesToggleSlot={filesSlot}
             />
         )
-    } else if (revisions.isError || (revisions.isSuccess && !head)) {
+    } else if (revisions.isSuccess && !head) {
+        body = notFound
+    } else if (revisions.isError) {
         body = (
             <Alert
                 type="error"
@@ -296,6 +321,7 @@ export const SkillPageScreen = ({
                 onChange={setDraft}
                 readOnly={readOnly}
                 notices={notices}
+                showMissing={attempted}
                 filesToggleSlot={filesSlot}
             />
         )
@@ -322,8 +348,11 @@ export const SkillPageScreen = ({
                             }
                             onChange={(next) => setDraft((current) => ({...current, name: next}))}
                             readOnly={readOnly}
-                            invalid={!readOnly && !name}
+                            invalid={!readOnly && attempted && !name}
                         />
+                    ) : query.isPending ? (
+                        // A bar in the title's place, so the slug does not flash in before the name.
+                        <SkeletonBlock className="h-7 w-48" />
                     ) : (
                         displayName
                     )
@@ -336,6 +365,7 @@ export const SkillPageScreen = ({
                             usedBy={usedBy}
                             edited={edited}
                             updateAvailable={updateStatus === "available"}
+                            updateBlocked={dirty}
                             onApplyUpdate={() => void applyUpdate()}
                         />
                     ) : undefined

@@ -23,7 +23,7 @@ export const SkillSourcePopover = memo(function SkillSourcePopover({
             "version",
             t("skills.page.version"),
             origin.resolved_version ? (
-                <code className="font-mono text-meta">{origin.resolved_version.slice(0, 7)}</code>
+                <code className="text-code-sm">{origin.resolved_version.slice(0, 7)}</code>
             ) : (
                 t("skills.page.unknown")
             ),
@@ -34,17 +34,17 @@ export const SkillSourcePopover = memo(function SkillSourcePopover({
             <PopoverTrigger asChild>
                 <button
                     type="button"
-                    className="inline-flex cursor-pointer items-center gap-1 rounded-sm border-0 bg-transparent p-0 font-[inherit] text-label text-foreground hover:underline"
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-sm border-0 bg-transparent p-0 font-[inherit] text-label text-foreground hover:underline focus-ring"
                 >
                     <GithubLogo aria-hidden size={14} />
                     {origin.repository}
-                    <CaretDown aria-hidden size={12} className="text-muted-foreground" />
+                    <CaretDown aria-hidden size={12} className="ag-caret text-muted-foreground" />
                 </button>
             </PopoverTrigger>
-            <PopoverContent align="start" className="flex w-[320px] flex-col gap-3 p-3">
+            <PopoverContent align="start" className="flex w-popover-md flex-col gap-3 p-3">
                 <div className="flex items-center gap-2">
                     <IconTile size={24} aria-hidden>
-                        <GithubLogo weight="fill" />
+                        <GithubLogo />
                     </IconTile>
                     <span className="min-w-0 truncate text-label font-medium text-foreground">
                         {origin.repository}
@@ -62,7 +62,7 @@ export const SkillSourcePopover = memo(function SkillSourcePopover({
                     href={skillGithubUrl(origin)}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-2 text-label text-link no-underline hover:underline"
+                    className="flex items-center gap-2 text-label text-link underline focus-ring"
                 >
                     <ArrowSquareOut aria-hidden size={14} />
                     {t("skills.page.openOnGithub")}

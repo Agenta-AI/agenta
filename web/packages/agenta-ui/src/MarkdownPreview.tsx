@@ -15,10 +15,8 @@ export interface MarkdownPreviewProps {
     className?: string
 }
 
-// "Option B — comfortable" prose styling for rendered Markdown, kept in sync with the document
-// editor's `.md-prose` rules in editor-theme.css. Uses antd semantic tokens so it adapts to dark
-// mode. (This renderer is for inline summaries/previews; the drawer's edit + preview panes render
-// through the Lexical editor and pick up the `.md-prose` CSS instead.)
+// Prose styling for rendered Markdown, kept in sync with the `.md-doc` rules in editor-theme.css.
+// Theme variables only, so it adapts to dark mode. (The Lexical editor panes use that CSS instead.)
 const MD_CLASS = [
     "text-body text-foreground",
     "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
@@ -27,11 +25,11 @@ const MD_CLASS = [
     "[&_h2]:text-body [&_h2]:font-semibold [&_h2]:mt-4 [&_h2]:mb-2",
     "[&_h3]:text-body [&_h3]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1",
     "[&_h4]:text-body [&_h4]:font-semibold [&_h4]:text-muted-foreground",
-    "[&_p]:my-2",
-    "[&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1",
+    "[&_p]:mt-0 [&_p]:mb-3",
+    "[&_ul]:mt-0 [&_ul]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:mt-0 [&_ol]:mb-3 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1",
     // Per-depth list markers, matching the editor + the Lexical playground (1 → A → a, • → ◦ → ▪).
     "[&_ol_ol]:list-[upper-alpha] [&_ol_ol_ol]:list-[lower-alpha] [&_ol_ol_ol_ol]:list-[upper-roman] [&_ol_ol_ol_ol_ol]:list-[lower-roman] [&_ul_ul]:list-[circle] [&_ul_ul_ul]:list-[square]",
-    "[&_a]:text-link [&_a]:underline",
+    "[&_a]:text-link [&_a]:underline [&_a]:underline-offset-3",
     "[&_code]:font-mono [&_code]:text-code [&_code]:bg-muted [&_code]:rounded-sm [&_code]:px-1 [&_code]:py-px",
     "[&_pre]:my-3 [&_pre]:bg-muted [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:overflow-x-auto",
     "[&_pre_code]:bg-transparent [&_pre_code]:p-0",

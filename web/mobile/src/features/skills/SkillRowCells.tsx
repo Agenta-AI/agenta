@@ -20,7 +20,7 @@ import {SkillUsedByCell} from "./SkillUsedByCell"
  *
  * The name is the readable title from the SKILL.md name, the same one the drawer and the picker
  * show, and the whole row opens the drawer, so the actions cell holds only the kebab and,
- * once a check found one, the Update mark.
+ * on a wide screen once a check found one, the Update mark.
  */
 export const SkillRowCells = ({
     row,
@@ -78,21 +78,19 @@ export const SkillRowCells = ({
                 </span>
             )}
 
-            <span className="block truncate text-label text-muted-foreground max-sm:text-right">
+            <span className="block truncate text-meta tabular-nums text-muted-foreground max-sm:text-right">
                 {lastUpdatedLabel(row.age)}
             </span>
 
-            {/* A phone row is the Mark, the name and the time; the menu is on the skill page. */}
-            {narrow ? null : (
-                <span
-                    className="flex items-center justify-end gap-1"
-                    onClick={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => event.stopPropagation()}
-                >
-                    <SkillUpdateCell workflowId={row.id} compact />
-                    <SkillActionsMenu row={row} onOpen={onOpen} />
-                </span>
-            )}
+            {/* A phone row keeps the kebab only; the Update mark waits for a wider screen. */}
+            <span
+                className="flex items-center justify-end gap-1"
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+            >
+                {narrow ? null : <SkillUpdateCell workflowId={row.id} compact />}
+                <SkillActionsMenu row={row} onOpen={onOpen} />
+            </span>
         </>
     )
 }

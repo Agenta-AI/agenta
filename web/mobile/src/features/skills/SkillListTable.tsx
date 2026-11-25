@@ -1,4 +1,4 @@
-import {useCallback, useState} from "react"
+import {useCallback} from "react"
 import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
@@ -48,13 +48,12 @@ const updatedColumn = (t: ListText, width: string): ListTableColumn => ({
     label: t("skills.list.columnLastUpdated"),
     width,
 })
-const actionsColumn = (t: ListText): ListTableColumn => ({
+/** Wide: the kebab and the Update mark beside it. Narrow: the kebab alone. */
+const actionsColumn = (t: ListText, width: string): ListTableColumn => ({
     key: "actions",
     label: t("skills.list.columnActions"),
     srOnly: true,
-    // Two icon buttons and their gap: the kebab, and the Update mark a check can put beside it.
-    // Fixed, so a row with something to update keeps its cells on the others' tracks.
-    width: "52px",
+    width,
 })
 
 const wideColumns = (t: ListText, group: SkillGrouping): ListTableColumn[] => [
@@ -62,12 +61,13 @@ const wideColumns = (t: ListText, group: SkillGrouping): ListTableColumn[] => [
     usedByColumn(t),
     provenanceColumn(t, group),
     updatedColumn(t, LIST_COLUMN_WIDTH.time),
-    actionsColumn(t),
+    actionsColumn(t, "52px"),
 ]
-// A phone row is the Mark, the name and the time; the actions wait for the skill's own page.
+// A phone row is the Mark, the name, the time and the kebab.
 const narrowColumns = (t: ListText): ListTableColumn[] => [
     nameColumn(t),
     updatedColumn(t, LIST_COLUMN_WIDTH.timeCompact),
+    actionsColumn(t, "24px"),
 ]
 
 /** Tailwind's `sm`. Below it Source and Used by go; the minima then fit a 375px screen. */
@@ -98,6 +98,8 @@ export const SkillListTable = ({
     selectedKeys,
     onSelectionChange,
     flashKeys,
+    collapsedKeys,
+    onToggleGroup,
 }: {
     groups: SkillListGroup[]
     view: ListTableView
@@ -111,23 +113,15 @@ export const SkillListTable = ({
     onSelectionChange: (next: Set<string>) => void
     /** Rows just imported, flashed once. */
     flashKeys?: ReadonlySet<string>
+    /** Folded group keys; the screen holds them so select-all can skip folded rows. */
+    collapsedKeys: ReadonlySet<string>
+    onToggleGroup: (key: string) => void
 }) => {
     // Picks the COLUMN SET, not a `display` value: header and body read one array. Asked as
     // "wide?" because the shared hook starts false before it reads the viewport, and a phone
     // is the common case here.
     const t = useT(skillsListCatalog)
     const narrow = !useMediaQuery(WIDE_QUERY)
-
-    const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
-    const toggleGroup = useCallback(
-        (key: string) =>
-            setCollapsed((current) => {
-                const next = new Set(current)
-                if (!next.delete(key)) next.add(key)
-                return next
-            }),
-        [],
-    )
 
     // Only a source group is one repository; ungrouped, the single run mixes sources.
     const groupActions = useCallback(
@@ -153,8 +147,8 @@ export const SkillListTable = ({
             groups={groups}
             rowKey={(row) => row.id}
             onOpenRow={onOpen}
-            collapsedKeys={collapsed}
-            onToggleGroup={toggleGroup}
+            collapsedKeys={collapsedKeys}
+            onToggleGroup={onToggleGroup}
             groupActions={groupActions}
             empty={empty}
             selection={{

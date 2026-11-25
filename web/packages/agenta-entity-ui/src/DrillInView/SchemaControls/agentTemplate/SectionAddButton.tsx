@@ -33,19 +33,14 @@ export const SectionAddButton = forwardRef<HTMLButtonElement, SectionAddButtonPr
                 ref={ref}
                 type={type}
                 variant="ghost"
-                size="icon"
+                size="icon-xs"
                 aria-label={label}
                 disabled={disabled}
-                // Canvas F01: a bare plus. The hover box overhangs it, so the row lays out the
-                // glyph alone.
-                className={cn(
-                    "-mx-[5px] size-6 rounded-md !text-muted-foreground hover:!text-foreground aria-expanded:!text-foreground",
-                    className,
-                )}
+                // Header controls stay quiet, like the row chevrons beside them.
+                className={cn("text-muted-foreground hover:text-foreground", className)}
                 {...rest}
             >
-                {/* A size class, or the button's own glyph size (16 px) wins. */}
-                <Plus className="size-3.5" />
+                <Plus />
             </Button>
         )
         return (

@@ -38,6 +38,7 @@ import {invalidateSkillsListCache} from "@agenta/skills/state"
 import type {RegistrySkillParams} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {
+    Alert,
     AlertDialog,
     AlertDialogAction,
     AlertDialogCancel,
@@ -57,7 +58,7 @@ import {
     TooltipTrigger,
 } from "@agenta/ui/ui"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
-import {Archive, ArrowUUpLeft, Info, Lightning, Plus, WarningCircle} from "@phosphor-icons/react"
+import {Archive, ArrowUUpLeft, Info, Plus} from "@phosphor-icons/react"
 import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
@@ -143,12 +144,18 @@ const RegistrySkillViewBody = ({params, target, nav, readOnly}: ViewProps<Regist
 const LoadFailed = ({onRetry}: {onRetry: () => void}) => {
     const t = useT(skillsGalleryCatalog)
     return (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-            <WarningCircle size={20} className="text-destructive" />
-            <span className="text-body">{t("skills.gallery.loadFailed")}</span>
-            <Button variant="outline" size="sm" onClick={onRetry}>
-                {t("skills.gallery.tryAgain")}
-            </Button>
+        <div className="p-4">
+            <Alert
+                type="error"
+                showIcon
+                message={t("skills.gallery.loadFailed")}
+                description={t("skills.gallery.loadFailedHint")}
+                action={
+                    <Button variant="outline" size="sm" onClick={onRetry}>
+                        {t("skills.gallery.tryAgain")}
+                    </Button>
+                }
+            />
         </div>
     )
 }
@@ -351,10 +358,7 @@ const RegistrySkillEditor = ({
 
     const registryLink = skill.workflowSlug ? skillsPageHref(skill.workflowSlug) : null
     const status = isBuiltin ? (
-        <span className="flex items-center gap-0.5">
-            <Lightning size={10} weight="fill" />
-            {t("skills.gallery.builtinReadOnly")}
-        </span>
+        <span>{t("skills.gallery.builtinReadOnly")}</span>
     ) : inAgent ? (
         richText(t("entityUi.skillView.registryStatus"), {
             link: (text) =>
@@ -494,7 +498,6 @@ const RegistrySkillEditor = ({
                 }}
             >
                 <AlertDialogContent
-                    className="sm:max-w-[440px]"
                     onEscapeKeyDown={(event) => {
                         if (archiveBusy) event.preventDefault()
                     }}
@@ -508,12 +511,11 @@ const RegistrySkillEditor = ({
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     {usedBy.length ? (
-                        <div className="flex items-start gap-1.5 rounded-md border border-solid border-warning/30 bg-warning/10 px-3 py-2 text-label font-normal text-warning">
-                            <WarningCircle size={14} className="mt-px shrink-0" />
-                            <span>
-                                {t("skills.gallery.agentsReference", {count: usedBy.length})}
-                            </span>
-                        </div>
+                        <Alert
+                            type="warning"
+                            showIcon
+                            message={t("skills.gallery.agentsReference", {count: usedBy.length})}
+                        />
                     ) : null}
                     {archiveError ? (
                         <p className="m-0 text-label font-normal text-destructive">

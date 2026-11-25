@@ -79,14 +79,16 @@ export const DrawerViewChrome = ({
                     ))}
                 </nav>
                 {close ? (
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={t("ui.viewStack.close")}
-                        onClick={close}
-                    >
-                        <X size={16} />
-                    </Button>
+                    <SimpleTooltip title={t("ui.viewStack.close")}>
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={t("ui.viewStack.close")}
+                            onClick={close}
+                        >
+                            <X size={16} />
+                        </Button>
+                    </SimpleTooltip>
                 ) : null}
             </div>
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>

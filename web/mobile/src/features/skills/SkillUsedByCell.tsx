@@ -29,7 +29,7 @@ export const SkillUsedByCell = ({workflowId, count}: {workflowId: string; count:
     const agent = count === 1 ? usage.data?.referenced_by?.[0] : undefined
     const name = agent ? (agent.agent_name ?? agent.agent_slug ?? "") : ""
     return (
-        <span className="flex min-w-0 items-center gap-1.5">
+        <span className="flex min-w-0 items-center gap-2">
             {agent ? (
                 <AgentChip workflowId={agent.agent_workflow_id ?? null} size={20} />
             ) : (

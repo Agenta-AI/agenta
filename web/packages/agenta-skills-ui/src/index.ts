@@ -40,13 +40,8 @@ export {useSkillsBridge} from "./bridge"
 export {SkillEditor, type SkillEditorProps} from "./SkillEditor"
 export {SkillFilesPanel, type SkillFilesPanelProps} from "./SkillFilesPanel"
 export {SkillFileNameRow} from "./SkillFileNameRow"
-export {SkillHint} from "./SkillHint"
 export {SkillNameTitle} from "./SkillNameTitle"
-export {
-    SkillCandidateList,
-    type SkillCandidate,
-    type UnavailableSkill,
-} from "./SkillCandidateList"
+export {SkillCandidateList, type SkillCandidate, type UnavailableSkill} from "./SkillCandidateList"
 export {SkillGithubImport, type ImportedSkill} from "./SkillGithubImport"
 export {
     useSkillCreateFlow,

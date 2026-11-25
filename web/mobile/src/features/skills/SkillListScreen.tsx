@@ -19,7 +19,7 @@ import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {COMPACT_WINDOW_QUERY, useWindowMatch} from "@agenta/ui/hooks"
 import {ListTableSelectionToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
-import {Button, PageToolbar} from "@agenta/ui/ui"
+import {Button, LoadingButton, PageToolbar} from "@agenta/ui/ui"
 import {Archive, ArrowUUpLeft, Plus} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -117,9 +117,23 @@ export const SkillListScreen = ({
 
     // Selection, by workflow id. Only rows still on screen count, so a filter or an archive drops them.
     const [picked, setPicked] = useState<ReadonlySet<string>>(EMPTY_KEYS)
+    const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(EMPTY_KEYS)
+    const toggleGroup = useCallback(
+        (key: string) =>
+            setCollapsed((current) => {
+                const next = new Set(current)
+                if (!next.delete(key)) next.add(key)
+                return next
+            }),
+        [],
+    )
+    // Select all takes only the rows a reader can see, so a folded group stays out.
     const visibleIds = useMemo(
-        () => groups.flatMap((run) => run.rows.map((row) => row.id)),
-        [groups],
+        () =>
+            groups
+                .filter((run) => !collapsed.has(run.key))
+                .flatMap((run) => run.rows.map((row) => row.id)),
+        [collapsed, groups],
     )
     const selectedRows = useMemo(
         () => groups.flatMap((run) => run.rows).filter((row) => picked.has(row.id)),
@@ -242,7 +256,12 @@ export const SkillListScreen = ({
     const body = query.isError ? (
         // A failed fetch must not read as an empty project, so the error replaces the results
         // rather than sitting under a header row that is no longer describing anything.
-        <LoadError framed title={t("skills.list.loadFailed")} onRetry={retry} />
+        <LoadError
+            framed
+            title={t("skills.list.loadFailed")}
+            description={t("skills.list.loadFailedBody")}
+            onRetry={retry}
+        />
     ) : (
         <SkillListTable
             groups={groups}
@@ -254,6 +273,8 @@ export const SkillListScreen = ({
             selectedKeys={selectedKeys}
             onSelectionChange={setPicked}
             flashKeys={flashKeys}
+            collapsedKeys={collapsed}
+            onToggleGroup={toggleGroup}
         />
     )
 
@@ -268,20 +289,20 @@ export const SkillListScreen = ({
                     <ListTableSelectionToolbar
                         count={selectedKeys.size}
                         onSelectAll={() => setPicked(new Set(visibleIds))}
-                        allSelected={selectedKeys.size === visibleIds.length}
+                        allSelected={visibleIds.every((id) => selectedKeys.has(id))}
                         onClear={clearSelection}
                         actions={
                             view.archived ? (
-                                <Button
+                                <LoadingButton
                                     type="button"
                                     size="sm"
                                     variant="outline"
-                                    disabled={bulkPending}
+                                    loading={bulkPending}
                                     onClick={() => void runBulk(restoreMany)}
                                 >
-                                    <ArrowUUpLeft aria-hidden />
+                                    {bulkPending ? null : <ArrowUUpLeft aria-hidden />}
                                     {t("skills.list.restore")}
-                                </Button>
+                                </LoadingButton>
                             ) : (
                                 <Button
                                     type="button"
@@ -317,7 +338,7 @@ export const SkillListScreen = ({
                         <HowThisWorksButton guide="skills" className="max-sm:hidden" />
                     )}
                     {/* One New skill button; the create page offers every way in (the design's F). */}
-                    <Button type="button" size={compact ? "sm" : undefined} onClick={onNew}>
+                    <Button type="button" onClick={onNew}>
                         <Plus aria-hidden />
                         {compact ? t("skills.list.new") : t("skills.list.newSkill")}
                     </Button>

@@ -4,7 +4,6 @@ import {createT, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillNewCatalog from "@agenta/i18n/catalogs/entityUi.skillNew"
 import skillsAgentCatalog from "@agenta/i18n/catalogs/skills.agent"
-import {cn} from "@agenta/ui/styles"
 import {Button} from "@agenta/ui/ui"
 import {Book, Compass, Plus} from "@phosphor-icons/react"
 
@@ -20,10 +19,6 @@ import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
 type ConfigItemListProps = Parameters<typeof ConfigItemList>[0]
 
 const tNow = createT(commonCatalog)
-
-/** On a phone, a 44px tap area around a 24px header control; the look stays the same. */
-const PHONE_HIT =
-    "relative max-sm:after:absolute max-sm:after:-inset-x-0.5 max-sm:after:-inset-y-2.5 max-sm:after:content-['']"
 
 /** "Create with AI" in the "+" menu; off until the design brings it back. */
 const SKILLS_CREATE_WITH_AI = false
@@ -110,12 +105,8 @@ const SkillsHeaderActions = ({
         <span className="flex items-center gap-1">
             <Button
                 variant="ghost"
-                size="compact"
-                className={
-                    page
-                        ? undefined
-                        : cn("h-6 px-1.5 text-muted-foreground hover:text-foreground", PHONE_HIT)
-                }
+                size={page ? "compact" : "xs"}
+                className="text-muted-foreground hover:text-foreground"
                 onClick={onManage}
             >
                 {tAgent("skills.agent.manage")}
@@ -135,11 +126,7 @@ const SkillsHeaderActions = ({
                     manualIcon={<Book size={14} />}
                 />
             ) : (
-                <SectionAddButton
-                    label={newLabel}
-                    onClick={onNew}
-                    className="relative max-sm:after:absolute max-sm:after:-inset-2.5 max-sm:after:content-['']"
-                />
+                <SectionAddButton label={newLabel} onClick={onNew} />
             )}
         </span>
     )

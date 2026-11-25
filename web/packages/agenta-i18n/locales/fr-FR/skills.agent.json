@@ -15,7 +15,7 @@
     "uploadHint": "Choisissez un fichier SKILL.md ou un .zip, ou déposez ici un dossier de skill.",
     "importTitle": "Importer depuis GitHub",
     "importHint": "Copiez un ou plusieurs skills d’un dépôt public.",
-    "savedAndAdded": "Enregistré dans le registre et ajouté à cet agent.",
+    "savedAndAdded": "« Créer et ajouter » l'enregistre dans votre registre de skills et l'ajoute à cet agent.",
     "createAndAdd": "Créer et ajouter",
     "creating": "Création…",
     "addSkills_one": "Ajouter {{count}} skill",

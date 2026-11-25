@@ -18,8 +18,8 @@ export const ListTableRowSelectContext = createContext<ListTableRowSelect | null
 
 /**
  * Wraps a row's or a card's Mark. Under `selection.markAsCheckbox` the Mark turns into a check when
- * the pointer is on the Mark itself, on focus and while anything is selected; on touch, a small check sits on its corner until
- * then. Without it, the Mark as is. `dim` fades the Mark only (an archived row), never the check.
+ * the pointer is on the Mark itself, on focus and while anything is selected; on touch, a small check badge sits on its corner
+ * until then. Without it, the Mark as is. `dim` fades the Mark only (an archived row), never the check.
  */
 export const ListTableSelectMark = ({
     children,
@@ -53,7 +53,8 @@ export const ListTableSelectMark = ({
                 className={cn(
                     "pointer-events-none absolute inset-0 flex items-center justify-center rounded-md",
                     "transition-opacity duration-[var(--duration-fast)] ease-out motion-reduce:transition-none",
-                    "peer-focus-visible:opacity-100 peer-focus-visible:outline-2 peer-focus-visible:outline-solid peer-focus-visible:outline-[var(--ring)]",
+                    // The `focus-ring` look (FORM-02), drawn here because the focused input is invisible.
+                    "peer-focus-visible:opacity-100 peer-focus-visible:outline-2 peer-focus-visible:outline-solid peer-focus-visible:outline-offset-0 peer-focus-visible:outline-[var(--ring)] peer-focus-visible:shadow-[inset_0_0_0_1px_var(--foreground)]",
                     checked
                         ? "bg-foreground text-background opacity-100"
                         : cn(
@@ -69,12 +70,14 @@ export const ListTableSelectMark = ({
                     className={checked ? undefined : "text-muted-foreground"}
                 />
             </span>
-            {/* Touch has no hover: the Mark stays, with a small check on its corner. */}
+            {/* Touch has no hover: the Mark stays, with a small check badge on its corner. */}
             {shown ? null : (
                 <span
                     aria-hidden
-                    className="pointer-events-none absolute -bottom-1 -right-1 hidden size-3.5 rounded-control-check border border-solid border-border-strong bg-background pointer-coarse:block"
-                />
+                    className="pointer-events-none absolute -bottom-1 -right-1 hidden size-3.5 items-center justify-center rounded-full border border-solid border-border-strong bg-background text-muted-foreground pointer-coarse:flex"
+                >
+                    <CheckIcon size={10} />
+                </span>
             )}
         </span>
     )

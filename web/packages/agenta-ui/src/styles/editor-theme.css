@@ -683,8 +683,8 @@ pre::-webkit-scrollbar-thumb {
  * Document look (skill editor): opt in with `md-doc` on an ancestor of `md-prose`.
  * ------------------------------------------------------------------------- */
 .md-doc .md-prose .editor-input:not(.markdown-view) {
-    font-size: 14px;
-    line-height: 22px;
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
 }
 .md-doc .md-prose .editor-paragraph {
     margin: 0 0 12px;
@@ -696,12 +696,12 @@ pre::-webkit-scrollbar-thumb {
 .md-doc .md-prose .editor-heading-h3 {
     color: var(--foreground);
     font-weight: 600;
-    font-size: 14px;
-    line-height: 22px;
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
     margin: 16px 0 8px;
 }
 .md-doc .md-prose .editor-heading-h1 {
-    font-size: 16px;
+    font-size: var(--text-title);
     margin-top: 0;
 }
 .md-doc .md-prose .editor-heading-h3 {
@@ -725,8 +725,8 @@ pre::-webkit-scrollbar-thumb {
     font-style: normal;
 }
 .md-doc .md-prose .editor-text-code {
-    font-family: ui-monospace, Menlo, monospace;
-    font-size: 13px;
+    font-family: var(--font-mono);
+    font-size: var(--text-code);
     padding: 1px 4px;
     border-radius: var(--radius-sm);
     background: var(--muted);
@@ -736,15 +736,14 @@ pre::-webkit-scrollbar-thumb {
     border: 0;
     border-radius: var(--radius-lg);
     background: var(--muted);
-    font-family: ui-monospace, Menlo, monospace;
-    font-size: 13px;
-    line-height: 20px;
+    font-family: var(--font-mono);
+    font-size: var(--text-code);
+    line-height: var(--text-code--line-height);
     margin: 0 0 12px;
 }
 .md-doc .md-prose .editor-link {
-    color: inherit;
+    color: var(--link);
     text-decoration: underline;
-    text-decoration-color: color-mix(in srgb, var(--foreground) 30%, transparent);
     text-underline-offset: 3px;
 }
 /* Rows, not a grid: 36px rows split by quiet dividers, no header fill, no row hover. */
@@ -752,8 +751,8 @@ pre::-webkit-scrollbar-thumb {
     border-collapse: collapse;
     border: 0;
     margin: 0 0 12px;
-    font-size: 13px;
-    line-height: 20px;
+    font-size: var(--text-body-sm);
+    line-height: var(--text-body-sm--line-height);
 }
 .md-doc .md-prose .editor-tableCell {
     border: 0;
@@ -772,7 +771,6 @@ pre::-webkit-scrollbar-thumb {
 .md-doc .md-prose .editor-tableCell .editor-paragraph {
     margin: 0;
 }
-
 
 /* ------------------------------------------------------------------------- *
  * Document prose ("Option B — comfortable")
