@@ -69,7 +69,7 @@ export function ConnectionRowMenu({
                 {onDelete ? (
                     <>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+                        <DropdownMenuItem onSelect={onDelete}>
                             <Trash size={14} />
                             {t("entityUi.integrationDrawer.delete")}
                         </DropdownMenuItem>

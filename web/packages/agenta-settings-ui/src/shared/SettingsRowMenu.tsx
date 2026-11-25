@@ -31,9 +31,17 @@ export interface SettingsRowAction {
 
 export type SettingsRowMenuItem = SettingsRowAction | {type: "divider"}
 
-/** Hidden items are dropped, and a divider survives only with a real item on both sides. */
+/**
+ * Hidden items are dropped, a destructive item gets a divider before it (ACT-03: last, after a
+ * separator), and a divider survives only with a real item on both sides.
+ */
 const visibleItems = (items: SettingsRowMenuItem[]): SettingsRowMenuItem[] => {
-    const shown = items.filter((item) => "type" in item || !item.hidden)
+    const kept = items.filter((item) => "type" in item || !item.hidden)
+    const shown = kept.flatMap<SettingsRowMenuItem>((item, index) =>
+        !("type" in item) && item.danger && index > 0 && !("type" in kept[index - 1])
+            ? [{type: "divider"}, item]
+            : [item],
+    )
     return shown.filter(
         (item, index) =>
             !("type" in item) ||
@@ -102,7 +110,6 @@ export const SettingsRowMenu = ({items, label}: {items: SettingsRowMenuItem[]; l
                                           ),
                                       icon: item.icon,
                                       disabled: item.disabled,
-                                      destructive: item.danger,
                                       onSelect: () => {
                                           if (item.deferred) deferredRef.current = item.onClick
                                           else item.onClick()
@@ -147,7 +154,7 @@ export const SettingsRowMenu = ({items, label}: {items: SettingsRowMenuItem[]; l
                         ) : (
                             <Fragment key={item.key}>
                                 <DropdownMenuItem
-                                    variant={item.danger ? "destructive" : "default"}
+                                    // Quiet until the confirm (ACT-03): the dialog carries the red.
                                     disabled={item.disabled}
                                     onSelect={(event) => {
                                         if (item.checked !== undefined) event.preventDefault()
