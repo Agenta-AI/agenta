@@ -117,9 +117,14 @@ export const SkillPageScreen = ({
     const updates = useSkillUpdates()
     const updateStatus = useSkillUpdateStatus(workflowId)
     const [saving, setSaving] = useState(false)
+    // The page header's slot for the editor's Files toggle (wide windows).
+    const [filesSlot, setFilesSlot] = useState<HTMLDivElement | null>(null)
 
     const refetchHead = useCallback(
-        () => queryClient.invalidateQueries({queryKey: skillRevisionsQueryKey(projectId, workflowId)}),
+        () =>
+            queryClient.invalidateQueries({
+                queryKey: skillRevisionsQueryKey(projectId, workflowId),
+            }),
         [projectId, queryClient, workflowId],
     )
 
@@ -174,7 +179,10 @@ export const SkillPageScreen = ({
         confirm({
             title: t("skills.page.archiveTitle", {name: skillTitle(item ?? {name: "", slug: ""})}),
             message: agents.length
-                ? t("skills.page.archiveUsedBody", {count: agents.length, agents: agents.join(", ")})
+                ? t("skills.page.archiveUsedBody", {
+                      count: agents.length,
+                      agents: agents.join(", "),
+                  })
                 : t("skills.page.archiveBody"),
             okText: t("skills.page.archive"),
             danger: true,
@@ -208,13 +216,19 @@ export const SkillPageScreen = ({
                     showIcon
                     message={t("skills.page.archivedNotice")}
                     action={
-                        <Button size="sm" variant="outline" onClick={() => void restore(workflowId)}>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void restore(workflowId)}
+                        >
                             {t("skills.page.restore")}
                         </Button>
                     }
                 />
             ) : null}
-            {builtin ? <Alert type="info" showIcon message={t("skills.page.builtinNotice")} /> : null}
+            {builtin ? (
+                <Alert type="info" showIcon message={t("skills.page.builtinNotice")} />
+            ) : null}
             {duplicate?.workflow_slug ? (
                 <Alert
                     type="warning"
@@ -256,6 +270,7 @@ export const SkillPageScreen = ({
                 onChange={() => undefined}
                 readOnly
                 notices={notices}
+                filesToggleSlot={filesSlot}
             />
         )
     } else if (revisions.isError || (revisions.isSuccess && !head)) {
@@ -281,6 +296,7 @@ export const SkillPageScreen = ({
                 onChange={setDraft}
                 readOnly={readOnly}
                 notices={notices}
+                filesToggleSlot={filesSlot}
             />
         )
     }
@@ -297,7 +313,13 @@ export const SkillPageScreen = ({
                 title={
                     baseline || builtin ? (
                         <SkillNameTitle
-                            value={builtin ? displayName : readOnly ? (baseline?.draft.name ?? "") : draft.name}
+                            value={
+                                builtin
+                                    ? displayName
+                                    : readOnly
+                                      ? (baseline?.draft.name ?? "")
+                                      : draft.name
+                            }
                             onChange={(next) => setDraft((current) => ({...current, name: next}))}
                             readOnly={readOnly}
                             invalid={!readOnly && !name}
@@ -320,21 +342,24 @@ export const SkillPageScreen = ({
                 }
                 actions={
                     item ? (
-                        <SkillPageActions
-                            editable={!readOnly && Boolean(baseline)}
-                            dirty={dirty}
-                            canSave={canSave}
-                            saving={saving}
-                            archived={archived}
-                            builtin={builtin}
-                            origin={origin}
-                            onDiscard={() => baseline && setDraft(baseline.draft)}
-                            onSave={save}
-                            onCheck={() => void updates.check([workflowId])}
-                            onDownload={() => void download(workflowId)}
-                            onArchive={askArchive}
-                            onRestore={() => void restore(workflowId)}
-                        />
+                        <>
+                            <div ref={setFilesSlot} className="flex empty:hidden" />
+                            <SkillPageActions
+                                editable={!readOnly && Boolean(baseline)}
+                                dirty={dirty}
+                                canSave={canSave}
+                                saving={saving}
+                                archived={archived}
+                                builtin={builtin}
+                                origin={origin}
+                                onDiscard={() => baseline && setDraft(baseline.draft)}
+                                onSave={save}
+                                onCheck={() => void updates.check([workflowId])}
+                                onDownload={() => void download(workflowId)}
+                                onArchive={askArchive}
+                                onRestore={() => void restore(workflowId)}
+                            />
+                        </>
                     ) : undefined
                 }
             >

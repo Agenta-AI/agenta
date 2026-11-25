@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
@@ -43,7 +43,9 @@ export const SkillCreateScreen = ({
     const leaveRef = useRef<(url: string) => void>(() => undefined)
     const showAdded = useCallback(
         (skills: (CreatedSkill | ImportedSkill)[]) => {
-            const slugs = skills.flatMap((skill) => (skill.workflowSlug ? [skill.workflowSlug] : []))
+            const slugs = skills.flatMap((skill) =>
+                skill.workflowSlug ? [skill.workflowSlug] : [],
+            )
             leaveRef.current(
                 slugs.length === 1
                     ? skillPageHref(base, slugs[0])
@@ -74,7 +76,18 @@ export const SkillCreateScreen = ({
             upload(pendingUpload)
             setPendingUpload(null)
         }
-    }, [pendingUpload, router.isReady, router.query.start, setPendingUpload, setStep, upload, write])
+    }, [
+        pendingUpload,
+        router.isReady,
+        router.query.start,
+        setPendingUpload,
+        setStep,
+        upload,
+        write,
+    ])
+
+    // The page header's slot for the editor's Files toggle (wide windows).
+    const [filesSlot, setFilesSlot] = useState<HTMLDivElement | null>(null)
 
     const back =
         flow.step === "choose"
@@ -98,6 +111,7 @@ export const SkillCreateScreen = ({
                 showName
                 autoFocusName={!flow.draft.name}
                 showMissing={flow.attempted}
+                filesToggleSlot={filesSlot}
                 notices={
                     <>
                         {flow.duplicate?.workflow_slug ? (
@@ -124,9 +138,7 @@ export const SkillCreateScreen = ({
             />
         )
     } else if (flow.step === "import") {
-        body = (
-            <SkillGithubImport projectId={projectId} onImported={showAdded} />
-        )
+        body = <SkillGithubImport projectId={projectId} onImported={showAdded} />
     } else if (flow.step === "upload") {
         body = (
             <div className="flex flex-col gap-6">
@@ -183,7 +195,9 @@ export const SkillCreateScreen = ({
                     )
                 }
                 documentTitle={
-                    flow.step === "import" ? t("skills.page.importTitle") : t("skills.page.newSkill")
+                    flow.step === "import"
+                        ? t("skills.page.importTitle")
+                        : t("skills.page.newSkill")
                 }
                 description={
                     flow.step === "import"
@@ -193,6 +207,7 @@ export const SkillCreateScreen = ({
                 actions={
                     flow.step === "write" ? (
                         <>
+                            <div ref={setFilesSlot} className="flex empty:hidden" />
                             <Button variant="outline" onClick={() => void router.push(listHref)}>
                                 {t("skills.page.cancel")}
                             </Button>

@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
+import {createPortal} from "react-dom"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -6,7 +7,18 @@ import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import type {SkillFile} from "@agenta/skills"
 import {useIsExpandedWindow} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
-import {Button, Field, IconTile, Input, RightPane, Textarea} from "@agenta/ui/ui"
+import {
+    Button,
+    Field,
+    IconTile,
+    Input,
+    RightPane,
+    Textarea,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {CaretRight, Files, FileText, X} from "@phosphor-icons/react"
 
 import {
@@ -37,6 +49,11 @@ export interface SkillEditorProps {
      * panel (a column beside the fields when it is wide, a Files row that swaps in when it is not).
      */
     filesPlacement?: "pane" | "inline"
+    /**
+     * Where the Files toggle goes on a wide window (the page header's actions). Without it, a
+     * closed pane reopens from the Files row above the fields.
+     */
+    filesToggleSlot?: HTMLElement | null
 }
 
 /** The skill editor the skill page and the create page share: fields, a file, the Files pane. */
@@ -51,6 +68,7 @@ export function SkillEditor({
     showMissing = false,
     notices,
     filesPlacement = "pane",
+    filesToggleSlot,
 }: SkillEditorProps) {
     const t = useT(skillsEditorCatalog)
     const tCommon = useT(commonCatalog)
@@ -111,25 +129,51 @@ export function SkillEditor({
             files.map((file) => (file.path === openPath ? {...file, ...patch} : file)),
         )
 
-    // Whenever the pane is closed, at any width: the one way to open it again.
-    const filesRow = filesOpen ? null : (
-        <button
-            type="button"
-            onClick={() => setFilesOpen(true)}
-            className={cn(
-                inline && "@2xl:hidden",
-                "-mx-2 flex h-row-single cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left font-[inherit] text-label text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent motion-reduce:transition-none",
-            )}
-        >
-            <IconTile size={24} aria-hidden>
-                <Files />
-            </IconTile>
-            <span className="min-w-0 flex-1 truncate">
-                {t("skills.editor.filesCount", {count: draft.files.length + 1})}
-            </span>
-            <CaretRight aria-hidden size={14} className="text-muted-foreground" />
-        </button>
-    )
+    // A narrow window opens Files from this row; a wide one from the header toggle when it has one.
+    const filesRow =
+        filesOpen || (expanded && filesToggleSlot !== undefined) ? null : (
+            <button
+                type="button"
+                onClick={() => setFilesOpen(true)}
+                className={cn(
+                    inline && "@2xl:hidden",
+                    "-mx-2 flex h-row-single cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left font-[inherit] text-label text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent motion-reduce:transition-none",
+                )}
+            >
+                <IconTile size={24} aria-hidden>
+                    <Files />
+                </IconTile>
+                <span className="min-w-0 flex-1 truncate">
+                    {t("skills.editor.filesCount", {count: draft.files.length + 1})}
+                </span>
+                <CaretRight aria-hidden size={14} className="text-muted-foreground" />
+            </button>
+        )
+
+    const filesToggle =
+        expanded && filesToggleSlot
+            ? createPortal(
+                  <TooltipProvider>
+                      <Tooltip>
+                          <TooltipTrigger asChild>
+                              <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label={t("skills.editor.files")}
+                                  aria-pressed={filesOpen}
+                                  className={filesOpen ? "bg-selected" : undefined}
+                                  onClick={() => setFilesOpen((open) => !open)}
+                              >
+                                  <Files />
+                              </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>{t("skills.editor.files")}</TooltipContent>
+                      </Tooltip>
+                  </TooltipProvider>,
+                  filesToggleSlot,
+              )
+            : null
 
     const fileView = current ? (
         <section key={current.path} className="flex flex-col gap-1">
@@ -318,6 +362,7 @@ export function SkillEditor({
 
     return (
         <div className="flex min-w-0 flex-col gap-4">
+            {filesToggle}
             {notices}
             {filesRow}
             {fileView ?? skillView}
