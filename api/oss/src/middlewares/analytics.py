@@ -6,7 +6,12 @@ from uuid import UUID
 
 from fastapi import Request
 from oss.src.core.memberships.service import get_memberships_service
-from oss.src.core.telemetry.service import cloud_event_properties, distinct_id_for
+from oss.src.core.telemetry.service import (
+    cloud_event_properties,
+    distinct_id_for,
+    role_label,
+    self_hosted_event_properties,
+)
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -29,6 +34,10 @@ _SECRET_TOKEN_PREFIX = "Secret "
 
 # The first product token of a User-Agent, such as `python-httpx/0.28.1`.
 _USER_AGENT_PRODUCT = re.compile(r"^([A-Za-z][\w.\-]{0,63})/([\w.\-+]{1,32})")
+# The caller sets these headers, so only a plain product name and version pass; text
+# such as an email address is dropped.
+_SDK_NAME = re.compile(r"[A-Za-z][\w.\-]{0,63}")
+_SDK_VERSION = re.compile(r"[\w.\-+]{1,32}")
 
 # Events subject to per-auth-method daily limits
 LIMITED_EVENTS_PER_AUTH = {
@@ -94,6 +103,7 @@ async def _set_activation_property(
             distinct_id=distinct_id,
             event="$identify",
             properties={
+                **self_hosted_event_properties(),
                 "$set_once": {
                     property_name: True,
                 },
@@ -158,6 +168,7 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 "auth_method": auth_method,
                 "agenta_version": get_agenta_version(),
                 **_client_sdk(request),
+                **self_hosted_event_properties(),
             }
 
             if hasattr(request.state, "project_id") and request.state.project_id:
@@ -285,10 +296,12 @@ def _client_sdk(request: Request) -> Dict[str, str]:
     headers = request.headers
     name = headers.get("x-fern-sdk-name")
     if name:
-        sdk = {"sdk_name": name[:64]}
-        version = headers.get("x-fern-sdk-version")
-        if version:
-            sdk["sdk_version"] = version[:32]
+        if not _SDK_NAME.fullmatch(name):
+            return {}
+        sdk = {"sdk_name": name}
+        version = headers.get("x-fern-sdk-version") or ""
+        if _SDK_VERSION.fullmatch(version):
+            sdk["sdk_version"] = version
         return sdk
 
     match = _USER_AGENT_PRODUCT.match(headers.get("user-agent") or "")
@@ -316,7 +329,7 @@ async def _request_role(request: Request) -> Optional[str]:
         return None
     if membership.is_organization_owner:
         return "owner"
-    return membership.role
+    return role_label(membership.role) if membership.role else None
 
 
 def _get_event_name_from_path(

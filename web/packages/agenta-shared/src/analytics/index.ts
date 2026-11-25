@@ -15,6 +15,20 @@ const isInstanceUrlProperty = (key: string) =>
     INSTANCE_URL_PROPERTIES.includes(key) ||
     INSTANCE_URL_PREFIXES.some((prefix) => key.startsWith(prefix))
 
+// Typed text, such as a survey answer, can hold an email address.
+const EMAIL_ADDRESS = /[^\s@]+@[^\s@]+\.[^\s@]+/g
+
+const withoutEmails = (value: unknown): unknown => {
+    if (typeof value === "string") return value.replace(EMAIL_ADDRESS, "[email]")
+    if (Array.isArray(value)) return value.map(withoutEmails)
+    if (value && typeof value === "object") {
+        return Object.fromEntries(
+            Object.entries(value).map(([key, nested]) => [key, withoutEmails(nested)]),
+        )
+    }
+    return value
+}
+
 const withoutInstanceUrl = (properties: Record<string, unknown> | undefined) => {
     if (!properties) return properties
     const kept = {...properties}
@@ -25,7 +39,7 @@ const withoutInstanceUrl = (properties: Record<string, unknown> | undefined) => 
             kept[key] = withoutInstanceUrl(nested as Record<string, unknown>)
         }
     }
-    return kept
+    return withoutEmails(kept) as Record<string, unknown>
 }
 
 interface CapturedEvent {
@@ -34,7 +48,7 @@ interface CapturedEvent {
     $set_once?: Record<string, unknown>
 }
 
-/** Self-hosted events carry no instance address and no GeoIP lookup. */
+/** Self-hosted events carry no instance address, no email address and no GeoIP lookup. */
 export const stripInstanceUrl = <T extends CapturedEvent>(event: T | null): T | null =>
     event && {
         ...event,
@@ -72,7 +86,7 @@ export interface InstanceTelemetry {
     distinct_id: string | null
     /** Set on self-hosted instances only. */
     groups: {instance: string} | null
-    /** Set on cloud only: added to every event, so events can be split by region and deployment. */
+    /** Added to every event: on cloud the region and deployment, on self-hosted `instance_kind`, so events can be split and test instances filtered out. */
     properties: Record<string, string> | null
 }
 
@@ -130,10 +144,11 @@ export const adoptInstanceIdentity = (
     // posthog-js persists `$user_state`; its own check, `_isIdentified()`, is internal.
     const identified = client.get_property("$user_state") === "identified"
     if (identified && client.get_distinct_id() !== telemetry.distinct_id) client.reset()
+    // Registered before identify, so the `$identify` event carries them too.
+    if (telemetry.properties) client.register(telemetry.properties)
     if (personProperties) client.identify(telemetry.distinct_id, personProperties)
     else client.identify(telemetry.distinct_id)
     if (telemetry.groups) client.group("instance", telemetry.groups.instance)
-    if (telemetry.properties) client.register(telemetry.properties)
 }
 
 export interface AnalyticsUser {

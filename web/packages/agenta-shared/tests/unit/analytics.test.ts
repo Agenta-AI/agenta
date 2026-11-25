@@ -53,6 +53,20 @@ describe("shared desktop and mobile analytics", () => {
         })
     })
 
+    it("removes email addresses from typed answers on a self-hosted event", () => {
+        const sent = stripInstanceUrl({
+            properties: {
+                $survey_response: "Contact person@example.com please",
+                answers: ["Other", "ops@corp.example"],
+                $set: {role_other: "admin, a.b@c.io"},
+            },
+            $set: {company_other: "x person@example.com"},
+        })
+        expect(JSON.stringify(sent)).not.toContain("@")
+        expect(sent?.properties.$survey_response).toBe("Contact [email] please")
+        expect(sent?.$set).toEqual({company_other: "x [email]"})
+    })
+
     it("answers cloud only when telemetry is on and names no instance group", () => {
         expect(
             isCloudTelemetry(
@@ -79,6 +93,14 @@ describe("shared desktop and mobile analytics", () => {
             groups: null,
             properties: null,
         })
+        expect(
+            parseInstanceTelemetry({
+                enabled: true,
+                distinct_id: "i:u",
+                groups: {instance: "i"},
+                properties: {instance_kind: "test", ignored: 1},
+            }).properties,
+        ).toEqual({instance_kind: "test"})
     })
 
     it("reads the cloud event properties and drops values that are not text", () => {
@@ -123,9 +145,14 @@ describe("shared desktop and mobile analytics", () => {
             enabled: true,
             distinct_id: "instance-1:user-1",
             groups: {instance: "instance-1"},
-            properties: null,
+            properties: {instance_kind: "test"},
         })
-        expect(calls).toEqual(["reset", "identify instance-1:user-1", "group instance instance-1"])
+        expect(calls).toEqual([
+            "reset",
+            'register {"instance_kind":"test"}',
+            "identify instance-1:user-1",
+            "group instance instance-1",
+        ])
     })
 
     it("starts over a browser identified as an old device id, then identifies it by user id", () => {
@@ -142,8 +169,8 @@ describe("shared desktop and mobile analytics", () => {
         )
         expect(calls).toEqual([
             "reset",
-            'identify user-1 {"email":"person@example.test"}',
             'register {"cloud_region":"US","cloud_url":"https://us.cloud.agenta.ai"}',
+            'identify user-1 {"email":"person@example.test"}',
         ])
     })
 

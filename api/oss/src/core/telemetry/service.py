@@ -1,4 +1,5 @@
 import asyncio
+import re
 from functools import lru_cache
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
@@ -6,7 +7,11 @@ from uuid import UUID, uuid5
 
 from posthog import Posthog
 
-from oss.src.core.instances.service import get_instance_id, instances_dao
+from oss.src.core.instances.service import (
+    get_instance_id,
+    get_instance_kind,
+    instances_dao,
+)
 from oss.src.core.telemetry.dtos import InstanceTelemetry, TelemetryStatus
 from oss.src.core.telemetry.runtime import InstanceStarted, collect_runtime_facts
 from oss.src.utils.env import env
@@ -108,6 +113,27 @@ def cloud_event_properties() -> Dict[str, str]:
     return {"cloud_region": cloud_region(url), "cloud_url": url}
 
 
+# Role names can be configured (AGENTA_ACCESS_ROLES), so only a plain name is sent.
+_ROLE_NAME = re.compile(r"[A-Za-z][\w\-]{0,63}")
+
+
+def role_label(role: str) -> str:
+    """The role name as telemetry sends it: the name when it is a plain word, else
+    `custom`, so a role named like an email address never leaves the instance."""
+
+    return role if _ROLE_NAME.fullmatch(role) else "custom"
+
+
+def self_hosted_event_properties() -> Dict[str, str]:
+    """Self-hosted only: the instance kind that every per-user event carries, so
+    events from development, CI and test instances can be filtered out. Cloud events
+    carry none: the result is empty."""
+
+    if env.stripe.enabled:
+        return {}
+    return {"instance_kind": get_instance_kind()}
+
+
 async def instance_telemetry_for(user_id: UUID) -> InstanceTelemetry:
     """What the browser needs to send the same identity as the API."""
 
@@ -124,6 +150,7 @@ async def instance_telemetry_for(user_id: UUID) -> InstanceTelemetry:
         enabled=True,
         distinct_id=await distinct_id_for(user_id),
         groups={"instance": instance_id},
+        properties=self_hosted_event_properties(),
     )
 
 
