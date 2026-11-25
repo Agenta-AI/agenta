@@ -34,7 +34,7 @@ export const SkillSourcePopover = memo(function SkillSourcePopover({
             <PopoverTrigger asChild>
                 <button
                     type="button"
-                    className="inline-flex cursor-pointer items-center gap-1 rounded-sm border-0 bg-transparent p-0 font-[inherit] text-body text-foreground hover:underline"
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-sm border-0 bg-transparent p-0 font-[inherit] text-label text-foreground hover:underline"
                 >
                     <GithubLogo aria-hidden size={14} />
                     {origin.repository}

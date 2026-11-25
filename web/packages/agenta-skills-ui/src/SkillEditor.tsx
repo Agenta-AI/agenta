@@ -1,14 +1,12 @@
 import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
-import {MarkdownEditor} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
-import {SKILL_DESCRIPTION_MAX, type SkillFile} from "@agenta/skills"
-import {MarkdownPreview} from "@agenta/ui"
+import type {SkillFile} from "@agenta/skills"
 import {useIsExpandedWindow} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
-import {Button, Field, IconTile, Input, RightPane, Segmented, Switch, Textarea} from "@agenta/ui/ui"
+import {Button, Field, IconTile, Input, RightPane, Switch, Textarea} from "@agenta/ui/ui"
 import {CaretRight, Files, FileText, X} from "@phosphor-icons/react"
 
 import {
@@ -20,6 +18,7 @@ import {
     type SkillDraft,
 } from "./skillDraft"
 import {SkillFilesPanel} from "./SkillFilesPanel"
+import {SkillMarkdownFrame} from "./SkillMarkdownFrame"
 
 type InstructionsView = "write" | "preview"
 
@@ -43,8 +42,6 @@ export interface SkillEditorProps {
     filesPlacement?: "pane" | "inline"
 }
 
-const EDITOR_FRAME = "md-doc flex min-h-[320px] flex-col [&_.md-prose]:min-h-[280px]"
-
 /** The skill editor the skill page and the create page share: fields, a file, the Files pane. */
 export function SkillEditor({
     draft,
@@ -65,7 +62,6 @@ export function SkillEditor({
     // Docked beside the editor on a wide window; a drill-in a tap away on a narrow one.
     useEffect(() => setFilesOpen(expanded), [expanded])
     const [openPath, setOpenPath] = useState<string | null>(null)
-    const [view, setView] = useState<InstructionsView>(readOnly ? "preview" : defaultView)
 
     // Latest draft and handler in refs, so the files panel gets stable callbacks and skips keystrokes.
     const latest = useRef(draft)
@@ -164,17 +160,13 @@ export function SkillEditor({
                 <p className="m-0 text-meta text-warning">{t("skills.editor.turnOnPrograms")}</p>
             ) : null}
             {isMarkdownPath(current.path) ? (
-                <div className={EDITOR_FRAME}>
-                    <MarkdownEditor
-                        value={current.content}
-                        onChange={(content) => setFile({content})}
-                        placeholder={t("skills.editor.filePlaceholder")}
-                        editable={!readOnly}
-                        showToolbar={!readOnly}
-                        defaultView="rendered"
-                        hideHeader
-                    />
-                </div>
+                <SkillMarkdownFrame
+                    value={current.content}
+                    onChange={(content) => setFile({content})}
+                    placeholder={t("skills.editor.filePlaceholder")}
+                    empty={t("skills.editor.nothingWritten")}
+                    readOnly={readOnly}
+                />
             ) : (
                 <Textarea
                     aria-label={current.path}
@@ -190,7 +182,7 @@ export function SkillEditor({
     ) : null
 
     const skillView = (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4">
             {showName ? (
                 <div className="flex flex-col gap-1">
                     <Field
@@ -233,67 +225,24 @@ export function SkillEditor({
                         aria-invalid={tooLong || missingDescription || undefined}
                         placeholder={t("skills.editor.descriptionPlaceholder")}
                         onChange={(event) => set({description: event.target.value})}
-                        className="field-sizing-content resize-none"
+                        className="field-sizing-content max-h-30 resize-none [scrollbar-width:none]"
                     />
                 </Field>
-                <span
-                    className={cn(
-                        "self-end text-meta tabular-nums",
-                        tooLong ? "text-destructive" : "text-muted-foreground",
-                    )}
-                >
-                    {t("skills.editor.descriptionCount", {
-                        length: draft.description.length,
-                        max: SKILL_DESCRIPTION_MAX,
-                    })}
-                </span>
             </div>
             <Field
                 label={t("skills.editor.instructions")}
                 tooltip={t("skills.editor.instructionsHint")}
-                gap="sm"
-                labelEnd={
-                    readOnly ? null : (
-                        <Segmented
-                            size="sm"
-                            value={view}
-                            onChange={(next) => setView(next as InstructionsView)}
-                            options={[
-                                {value: "write", label: t("skills.editor.write")},
-                                {value: "preview", label: t("skills.editor.preview")},
-                            ]}
-                        />
-                    )
-                }
                 error={missingBody ? t("skills.editor.instructionsMissing") : undefined}
             >
-                {view === "write" && !readOnly ? (
-                    <div
-                        className={cn(
-                            EDITOR_FRAME,
-                            missingBody && "[&_.md-prose]:outline-destructive",
-                        )}
-                    >
-                        <MarkdownEditor
-                            value={draft.body}
-                            onChange={(body) => set({body})}
-                            placeholder={t("skills.editor.instructionsPlaceholder")}
-                            showToolbar
-                            defaultView="rendered"
-                            hideHeader
-                        />
-                    </div>
-                ) : draft.body.trim() ? (
-                    <div className="rounded-lg border border-solid border-border-muted px-4 py-3">
-                        <MarkdownPreview content={draft.body} />
-                    </div>
-                ) : (
-                    <p className="m-0 rounded-lg border border-dashed border-border px-4 py-6 text-center text-label text-muted-foreground">
-                        {readOnly
-                            ? t("skills.editor.nothingWritten")
-                            : t("skills.editor.nothingYet")}
-                    </p>
-                )}
+                <SkillMarkdownFrame
+                    value={draft.body}
+                    onChange={(body) => set({body})}
+                    placeholder={t("skills.editor.instructionsPlaceholder")}
+                    empty={readOnly ? t("skills.editor.nothingWritten") : t("skills.editor.nothingYet")}
+                    readOnly={readOnly}
+                    invalid={missingBody}
+                    defaultView={defaultView}
+                />
             </Field>
         </div>
     )

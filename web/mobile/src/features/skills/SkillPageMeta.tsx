@@ -34,7 +34,7 @@ export const SkillPageMeta = ({
         ? t("skills.page.usedBy", {count: usedBy.length})
         : t("skills.page.notUsed")
     return (
-        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-body text-muted-foreground">
+        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-label text-muted-foreground">
             {origin?.repository ? (
                 <>
                     <SkillSourcePopover origin={origin} />
@@ -46,7 +46,7 @@ export const SkillPageMeta = ({
                     <PopoverTrigger asChild>
                         <button
                             type="button"
-                            className="cursor-pointer rounded-sm border-0 bg-transparent p-0 font-[inherit] text-body text-muted-foreground hover:text-foreground hover:underline"
+                            className="cursor-pointer rounded-sm border-0 bg-transparent p-0 font-[inherit] text-label text-muted-foreground hover:text-foreground hover:underline"
                         >
                             {usedText}
                         </button>
@@ -86,7 +86,7 @@ export const SkillPageMeta = ({
                     <button
                         type="button"
                         onClick={onApplyUpdate}
-                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-sm border-0 bg-transparent p-0 font-[inherit] text-body text-warning hover:underline"
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-sm border-0 bg-transparent p-0 font-[inherit] text-label text-warning hover:underline"
                     >
                         <span aria-hidden className="size-1.5 rounded-round bg-warning" />
                         {t("skills.page.updateAvailable")}
