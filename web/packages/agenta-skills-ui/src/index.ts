@@ -65,3 +65,4 @@ export {
     type SkillDraft,
 } from "./skillDraft"
 export {useRegistrySkill} from "./useRegistrySkill"
+export {SkillCreateWays} from "./SkillCreateWays"

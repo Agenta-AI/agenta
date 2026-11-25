@@ -14,7 +14,7 @@ import {
     skillsSearchAtom,
     skillsShowArchivedAtom,
 } from "@agenta/skills/state"
-import {buildRegistrySections} from "@agenta/skills-ui"
+import {buildRegistrySections, SkillCreateWays} from "@agenta/skills-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {COMPACT_WINDOW_QUERY, useWindowMatch} from "@agenta/ui/hooks"
@@ -32,7 +32,6 @@ import {PageLayout} from "../page-layout/PageLayout"
 
 import {pendingSkillUploadAtom} from "./pendingSkillUpload"
 import {SkillBulkArchiveDialog} from "./SkillBulkArchiveDialog"
-import {SkillCreateOptions} from "./SkillCreateOptions"
 import {SkillFilterMenu} from "./SkillFilterMenu"
 import {SkillListTable} from "./SkillListTable"
 import {
@@ -327,7 +326,7 @@ export const SkillListScreen = ({
         >
             {projectEmpty ? (
                 <FeatureOnboarding guideKey="skills" base={base}>
-                    <SkillCreateOptions onWrite={onWrite} onUpload={onUpload} onImport={onImport} />
+                    <SkillCreateWays onWrite={onWrite} onUpload={onUpload} onImport={onImport} />
                 </FeatureOnboarding>
             ) : (
                 body

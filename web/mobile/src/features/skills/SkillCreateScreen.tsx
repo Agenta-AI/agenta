@@ -4,6 +4,7 @@ import {useT} from "@agenta/i18n"
 import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
 import {
     SkillCandidateList,
+    SkillCreateWays,
     SkillEditor,
     SkillGithubImport,
     useSkillCreateFlow,
@@ -19,7 +20,6 @@ import {useBindProjectContext} from "../context/useBindProjectContext"
 import {PageLayout} from "../page-layout/PageLayout"
 
 import {pendingSkillUploadAtom} from "./pendingSkillUpload"
-import {SkillCreateOptions} from "./SkillCreateOptions"
 import {skillPageHref, skillsListHref} from "./skillRoutes"
 import {useSkillLeaveGuard} from "./useSkillLeaveGuard"
 
@@ -153,7 +153,7 @@ export const SkillCreateScreen = ({
     } else {
         body = (
             <div className="flex flex-col gap-4">
-                <SkillCreateOptions
+                <SkillCreateWays
                     onWrite={() => write()}
                     onUpload={upload}
                     onImport={() => setStep("import")}
