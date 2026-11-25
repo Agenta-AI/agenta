@@ -225,7 +225,7 @@ export function SkillEditor({
                         aria-invalid={tooLong || missingDescription || undefined}
                         placeholder={t("skills.editor.descriptionPlaceholder")}
                         onChange={(event) => set({description: event.target.value})}
-                        className="field-sizing-content max-h-30 resize-none [scrollbar-width:none]"
+                        className="field-sizing-content min-h-0 max-h-15 resize-none [scrollbar-width:none]"
                     />
                 </Field>
             </div>
