@@ -27,5 +27,9 @@
     "ownerProjectNote": "{{project}} 中的每个人都可以将它添加到智能体。",
     "ownerProjectNoteThis": "此项目中的每个人都可以将它添加到智能体。",
     "ownerOrganizationNote": "在 {{organization}} 中保存一次。由你选择哪些项目可以使用。",
-    "ownerOrganizationNoteThis": "为组织保存一次。由你选择哪些项目可以使用。"
+    "ownerOrganizationNoteThis": "为组织保存一次。由你选择哪些项目可以使用。",
+    "connectionsAll": "所有连接",
+    "connectionsUser": "个人连接",
+    "connectionsProject": "项目连接",
+    "connectionsOrganization": "组织连接"
 }

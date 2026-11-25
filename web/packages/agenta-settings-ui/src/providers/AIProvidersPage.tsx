@@ -12,6 +12,7 @@ import {
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
+import {useConnectionsHeading} from "@agenta/entity-ui/secret"
 import {
     type OrganizationProjectChoice,
     type ProviderOwnerChoice,
@@ -134,6 +135,7 @@ export const AIProvidersPage = ({
     )
     const {group: organizationGroup, manageScope} = useOrganizationProvidersGroup(scope)
     const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all")
+    const connectionsHeading = useConnectionsHeading()
     const [search, setSearch] = useState("")
 
     const projectGroup = useMemo<ProvidersGroup>(
@@ -184,6 +186,7 @@ export const AIProvidersPage = ({
                 ownerChoiceFor={ownerChoiceFor}
                 loading={project.loading}
                 ownerChips={ownerFilter === "all" && Boolean(organizationGroup)}
+                connectedLabel={organizationGroup ? connectionsHeading(ownerFilter) : undefined}
                 renderRemoveDialog={renderRemoveDialog}
                 subscriptionDocsUrl={subscriptionDocsUrl}
             />

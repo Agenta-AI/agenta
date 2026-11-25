@@ -24,6 +24,7 @@ export {
     OWNER_ICON,
     OWNER_ORDER,
     OwnerField,
+    useConnectionsHeading,
     useOwnerWord,
     type OwnerFieldProps,
 } from "../accounts/OwnerField"

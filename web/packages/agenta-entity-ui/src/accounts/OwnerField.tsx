@@ -32,6 +32,22 @@ export const useOwnerWord = () => {
     )
 }
 
+/** The heading of a Connected list, named by the owner tab: "All connections", "Personal connections". */
+export const useConnectionsHeading = () => {
+    const t = useT(accountsCatalog)
+    return useCallback(
+        (owner: OwnerKind | "all") =>
+            owner === "user"
+                ? t("entityUi.accounts.connectionsUser")
+                : owner === "project"
+                  ? t("entityUi.accounts.connectionsProject")
+                  : owner === "organization"
+                    ? t("entityUi.accounts.connectionsOrganization")
+                    : t("entityUi.accounts.connectionsAll"),
+        [t],
+    )
+}
+
 export interface OwnerFieldProps<Owner extends OwnerKind> {
     value: Owner
     /** The owners this form allows, in any order; the field lists them narrow to wide. */

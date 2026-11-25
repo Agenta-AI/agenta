@@ -161,6 +161,7 @@ export const ProvidersPanel = ({
     ownerChoiceFor,
     loading = false,
     ownerChips = false,
+    connectedLabel,
     renderRemoveDialog,
     subscriptionDocsUrl,
 }: {
@@ -176,6 +177,8 @@ export const ProvidersPanel = ({
     loading?: boolean
     /** Every owner's rows in one Connected list, each with its owner chip (the All tab). */
     ownerChips?: boolean
+    /** The Connected heading, named by the owner tab; absent, "Connected". */
+    connectedLabel?: string
     renderRemoveDialog?: (state: ProviderRemovalState) => ReactNode
     subscriptionDocsUrl: string
 }) => {
@@ -350,7 +353,7 @@ export const ProvidersPanel = ({
         // One Connected list: every owner's rows, narrow owners first.
         const connected: SettingsCatalogGroup = {
             key: "connected",
-            label: t("common.connected"),
+            label: connectedLabel ?? t("common.connected"),
             list: true,
             items: [...builtin, ...owned.flatMap((group) => group.items)],
             count: owned.reduce((sum, group) => sum + (group.count ?? 0), builtin.length),
@@ -392,6 +395,7 @@ export const ProvidersPanel = ({
         ownerGroups,
         projectGroup,
         ownerChips,
+        connectedLabel,
         builtinModels,
         term,
         canRemoveIn,

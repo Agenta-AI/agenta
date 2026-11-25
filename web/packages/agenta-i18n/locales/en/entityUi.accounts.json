@@ -27,5 +27,9 @@
     "ownerProjectNote": "Everyone in {{project}} can add it to an agent.",
     "ownerProjectNoteThis": "Everyone in this project can add it to an agent.",
     "ownerOrganizationNote": "Saved once in {{organization}}. You choose which projects can use it.",
-    "ownerOrganizationNoteThis": "Saved once for the organization. You choose which projects can use it."
+    "ownerOrganizationNoteThis": "Saved once for the organization. You choose which projects can use it.",
+    "connectionsAll": "All connections",
+    "connectionsUser": "Personal connections",
+    "connectionsProject": "Project connections",
+    "connectionsOrganization": "Organization connections"
 }

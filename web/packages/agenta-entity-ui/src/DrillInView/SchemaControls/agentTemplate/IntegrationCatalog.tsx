@@ -54,6 +54,7 @@ import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
 import {OwnerChip} from "../../../accounts/OwnerChip"
+import {useConnectionsHeading} from "../../../accounts/OwnerField"
 import type {CreatedConnection} from "../../../gatewayTool/components/ConnectForm"
 import {FinishConnectionDialog} from "../../../gatewayTool/components/FinishConnectionDialog"
 import {useRefreshToolConnection} from "../../../gatewayTool/hooks/useRefreshToolConnection"
@@ -679,6 +680,7 @@ export function IntegrationCatalog({
     confirmConnectionAction,
     controls,
 }: IntegrationCatalogProps) {
+    const connectionsHeading = useConnectionsHeading()
     const t = useT(integrationDrawerCatalog)
     const page = layout === "page"
     // The catalog's own box: in a panel its dialogs and the category list open inside it, so they
@@ -988,7 +990,12 @@ export function IntegrationCatalog({
                         (showsOwner("project") && connectedGroups.length > 0) ||
                         connectedFooter ? (
                             <RowGroup
-                                label={t("entityUi.integrationDrawer.connected")}
+                                // With an owner segment the heading names the tab, as "Personal connections".
+                                label={
+                                    yours
+                                        ? connectionsHeading(controls.owner)
+                                        : t("entityUi.integrationDrawer.connected")
+                                }
                                 count={
                                     (showsOwner("user") ? yoursGroups.length : 0) +
                                     (showsOwner("project") ? connectedGroups.length : 0)

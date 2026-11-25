@@ -27,5 +27,9 @@
     "ownerProjectNote": "Alle in {{project}} können es einem Agenten hinzufügen.",
     "ownerProjectNoteThis": "Alle in diesem Projekt können es einem Agenten hinzufügen.",
     "ownerOrganizationNote": "Einmal in {{organization}} gespeichert. Sie wählen, welche Projekte es verwenden können.",
-    "ownerOrganizationNoteThis": "Einmal für die Organisation gespeichert. Sie wählen, welche Projekte es verwenden können."
+    "ownerOrganizationNoteThis": "Einmal für die Organisation gespeichert. Sie wählen, welche Projekte es verwenden können.",
+    "connectionsAll": "Alle Verbindungen",
+    "connectionsUser": "Persönliche Verbindungen",
+    "connectionsProject": "Projektverbindungen",
+    "connectionsOrganization": "Organisationsverbindungen"
 }
