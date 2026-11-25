@@ -32,7 +32,10 @@ export interface RunSummaryInput {
     references: RunReferences | null
     metrics: readonly OverviewMetric[]
     metricsPending: boolean
-    names: Pick<OverviewNames, "testsets" | "application" | "variant">
+    names: Pick<
+        OverviewNames,
+        "testsets" | "application" | "variant" | "testsetVersions" | "revisionVersion"
+    >
     /** Links to the test set and variant pages; without them the chips are plain. */
     links?: RunReferenceLinks
     /** A live run's query: its filtering and sampling rate. Undefined while it loads. */
@@ -128,7 +131,7 @@ export function buildRunSummaryRows({
                             key={`${testset.testsetId}-${index}`}
                             icon={<Database size={14} />}
                             label={names.testsets[index] ?? testset.testsetId}
-                            version={testset.version}
+                            version={testset.version ?? names.testsetVersions?.[index] ?? null}
                             href={testset.revisionId ? links?.testset(testset.revisionId) : null}
                         />
                     ))}
@@ -178,7 +181,7 @@ export function buildRunSummaryRows({
                 <RunReferenceChip
                     icon={<GitCommit size={14} />}
                     label={names.variant}
-                    version={references.revisionVersion}
+                    version={references.revisionVersion ?? names.revisionVersion ?? null}
                     href={revisionId ? links?.variant(applicationId, revisionId) : null}
                 />
             ) : (

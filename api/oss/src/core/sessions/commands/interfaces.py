@@ -143,6 +143,7 @@ class SessionCommandsDAOInterface(ABC):
         project_id: UUID,
         session_id: str,
         target_turn_id: str,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionCommand]:
         """The latest cancel command that targeted this execution, in any state."""
         raise NotImplementedError

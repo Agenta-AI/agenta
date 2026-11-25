@@ -15,10 +15,10 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
+    Button,
 } from "@agenta/ui/ui"
 import {Trash} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
-import Router from "next/router"
 
 import {deleteTraceModalAtom} from "./store/atom"
 
@@ -36,16 +36,15 @@ export interface DeleteTraceModalProps {
     onDrawerClose?: () => void
 }
 
+const normalizeTraceId = (id?: string | null) => (id ? id.replace(/-/g, "") : "")
+
 const DeleteTraceModal = ({openTraceId = null, onDrawerClose}: DeleteTraceModalProps) => {
     const projectIdValue = useAtomValue(projectIdAtom)
-    const {fetchTraces, setSelectedTraceId: setGlobalSelectedTraceId, traces} = useObservability()
-    // Closing the drawer behind the delete is the host's business, not the dialog's.
+    const {fetchTraces, setSelectedTraceId: setGlobalSelectedTraceId} = useObservability()
     const t = useT(deleteCatalog)
-    const closeDrawer = () => onDrawerClose?.()
-    // The open trace is app routing state; a host that has one passes it in.
-    const currentTraceId = openTraceId
     const [isLoading, setIsLoading] = useState(false)
     const [{isOpen, traceIds, onClose}, setModalState] = useAtom(deleteTraceModalAtom)
+    const count = traceIds.length
 
     const handleClose = () => {
         setModalState((prev) => ({...prev, isOpen: false}))
@@ -63,42 +62,26 @@ const DeleteTraceModal = ({openTraceId = null, onDrawerClose}: DeleteTraceModalP
             await Promise.all(traceIds.map((id) => deletePreviewTrace(id, projectIdValue)))
             await fetchTraces()
 
-            const isCurrentTraceDeleted = traceIds.includes(currentTraceId || "")
-
-            if (isCurrentTraceDeleted && traceIds.length === 1) {
-                // findIndex returns -1 when the trace is not in the current page; without
-                // this guard that becomes traces[0], sending the user to an unrelated trace.
-                const deletedIndex = traces.findIndex((item) => item.trace_id === traceIds[0])
-                const nextTrace =
-                    deletedIndex === -1
-                        ? undefined
-                        : (traces[deletedIndex + 1] ?? traces[deletedIndex - 1])
-
-                if (nextTrace) {
-                    const url = new URL(window.location.href)
-                    url.searchParams.set("trace", nextTrace.trace_id)
-                    url.searchParams.delete("span")
-                    await Router.push(url.toString(), undefined, {shallow: true})
-                } else {
-                    closeDrawer()
-                }
-            } else if (isCurrentTraceDeleted) {
-                closeDrawer()
+            // The open trace is gone, so its drawer closes.
+            const openId = normalizeTraceId(openTraceId)
+            if (openId && traceIds.some((id) => normalizeTraceId(id) === openId)) {
+                onDrawerClose?.()
             }
 
-            // Clear global (observability) selections
             setGlobalSelectedTraceId("")
-
-            // Execute the callback passed via atom (e.g. refresh, clear selection)
+            // The caller's callback (e.g. clear the selection).
             onClose?.()
-
-            // Close modal
             handleClose()
+            message.success(
+                count > 1
+                    ? t("observabilityUi.deleteTrace.deletedMany", {count})
+                    : t("observabilityUi.deleteTrace.deletedOne"),
+            )
         } catch (error) {
             // A failed delete used to leave the dialog open with no explanation.
             console.error(error)
             message.error(
-                traceIds.length > 1
+                count > 1
                     ? t("observabilityUi.deleteTrace.failedMany")
                     : t("observabilityUi.deleteTrace.failedOne"),
             )
@@ -111,28 +94,35 @@ const DeleteTraceModal = ({openTraceId = null, onDrawerClose}: DeleteTraceModalP
             <AlertDialogContent className="max-w-[400px]">
                 <AlertDialogHeader>
                     <AlertDialogTitle>
-                        {traceIds.length > 1
-                            ? t("observabilityUi.deleteTrace.confirmMany", {count: traceIds.length})
+                        {count > 1
+                            ? t("observabilityUi.deleteTrace.confirmMany", {count})
                             : t("observabilityUi.deleteTrace.confirmOne")}
                     </AlertDialogTitle>
                     <AlertDialogDescription>
-                        {t("observabilityUi.deleteTrace.notReversible")}
+                        {count > 1
+                            ? t("observabilityUi.deleteTrace.descriptionMany")
+                            : t("observabilityUi.deleteTrace.descriptionOne")}
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel onClick={handleClose}>
                         {t("observabilityUi.deleteTrace.cancel")}
                     </AlertDialogCancel>
-                    <AlertDialogAction
-                        disabled={isLoading}
-                        onClick={(event) => {
-                            // The dialog closes itself on action; the delete is async.
-                            event.preventDefault()
-                            void handleDelete()
-                        }}
-                    >
-                        <Trash size={14} />
-                        {t("observabilityUi.deleteTrace.delete")}
+                    <AlertDialogAction asChild>
+                        <Button
+                            variant="destructive"
+                            disabled={isLoading}
+                            onClick={(event) => {
+                                // The dialog closes itself on action; the delete is async.
+                                event.preventDefault()
+                                void handleDelete()
+                            }}
+                        >
+                            <Trash size={14} />
+                            {isLoading
+                                ? t("observabilityUi.deleteTrace.deleting")
+                                : t("observabilityUi.deleteTrace.delete")}
+                        </Button>
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>

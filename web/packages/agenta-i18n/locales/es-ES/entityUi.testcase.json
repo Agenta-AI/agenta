@@ -25,5 +25,6 @@
     "testcaseData": "Datos del caso de prueba",
     "root": "Raíz",
     "unsavedChanges": "Cambios sin guardar",
-    "noTestcases": "No se encontraron casos de prueba"
+    "noTestcases": "No se encontraron casos de prueba",
+    "invalidCode": "{{format}} no válido: {{error}}. Corrígelo para aplicar el cambio."
 }

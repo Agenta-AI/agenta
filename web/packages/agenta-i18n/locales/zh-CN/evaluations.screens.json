@@ -1,0 +1,5 @@
+{
+    "annotateToSeeScores": "为此运行的场景添加标注，即可在此查看每个评测器的分数。",
+    "missingInputsHint": "所有行都会因缺少输入而失败。请选择其他测试集，或向此测试集添加该列。",
+    "namePlaceholder": "输入名称"
+}

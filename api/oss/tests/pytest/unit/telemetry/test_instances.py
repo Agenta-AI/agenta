@@ -103,7 +103,7 @@ def test_migration_marks_an_upgraded_install_as_preexisting():
     migration = (
         Path(__file__).resolve().parents[4]
         / "databases/postgres/migrations/core_oss/versions"
-        / "oss000000064_add_instances.py"
+        / "oss000000069_add_instances.py"
     ).read_text()
 
     assert "EXISTS (SELECT 1 FROM users) OR EXISTS (SELECT 1 FROM organizations)" in (

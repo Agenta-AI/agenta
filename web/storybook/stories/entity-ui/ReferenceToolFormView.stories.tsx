@@ -65,7 +65,7 @@ const bridgeWith = (detail: SubagentDetail | null) =>
         enabled: true,
         workflows: [],
         workflowsLoading: false,
-        useSubagentDetail: () => ({detail, loading: false}),
+        useSubagentDetail: () => ({detail, loading: false, failed: false, retry: () => undefined}),
         agentHref: (id: string) => `/agents/${id}`,
     }) as unknown as WorkflowReferenceBridge
 

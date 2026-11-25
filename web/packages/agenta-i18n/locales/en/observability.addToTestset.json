@@ -1,6 +1,6 @@
 {
     "sheetTitle": "Add to test set",
-    "addToTestset": "Add to testset",
+    "addToTestset": "Add to test set",
     "selectedSpansLoadFailed": "Couldn't load the selected spans",
     "spansSelected": "{{count}} spans selected",
     "differentStructure": "Some of the selected spans have a different structure than the others.",

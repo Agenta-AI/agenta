@@ -6,6 +6,8 @@
 export {AgentPrivacyControl, type AgentPrivacyControlProps} from "./AgentPrivacyControl"
 export {
     AgentPrivacyDialog,
+    AgentPrivacyPanel,
+    type AgentPrivacyPanelProps,
     type AgentPrivacyDialogProps,
     type AgentPrivacyProps,
     type AgentSharingWrites,

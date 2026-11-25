@@ -173,3 +173,27 @@ export const subscriptionPairModels = (
     const defaults = new Set(harness?.default_models?.[pair.provider] ?? [])
     return {models: [...models], defaults: models.filter((id) => defaults.has(id))}
 }
+
+/**
+ * The rows a pair's model card lists: the recommended set first, the rest in the order the harness
+ * published them, then any saved id the plan no longer runs.
+ *
+ * A saved id can drop out of the catalog when a harness renames its models (Claude's `opus[1m]`
+ * became `opus`). The picker still offers it, because the saved list names it, so the card must
+ * list it too, or the user has no checkbox to untick.
+ */
+export const subscriptionPairModelRows = ({
+    models,
+    defaults,
+    saved,
+}: {
+    models: string[]
+    defaults: string[]
+    saved: string[] | null | undefined
+}): string[] => {
+    const ordered = [...models].sort(
+        (a, b) => Number(defaults.includes(b)) - Number(defaults.includes(a)),
+    )
+    const retired = (saved ?? []).filter((id) => !models.includes(id))
+    return [...ordered, ...retired]
+}

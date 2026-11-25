@@ -2,7 +2,7 @@
     "annotate": "Annotate",
     "selectEvaluators": "Select Evaluators",
     "back": "Back",
-    "addEvaluator": "Add Evaluator",
+    "addEvaluator": "Add evaluator",
     "save": "Save",
     "sheetDescription": "Rate the selected span with your human evaluators.",
     "loadingEvaluators": "Loading evaluators...",
@@ -18,10 +18,11 @@
     "noEvaluators": "There are no available evaluators",
     "openEvaluators": "Open evaluators",
     "loadingEvaluatorsLabel": "Loading evaluators",
-    "noAnnotations": "There are no available annotations",
+    "noAnnotations": "No annotations yet",
     "evaluatorsLoadFailed": "Could not load the evaluators",
     "saveFailed": "Failed to update annotations",
     "saveSuccess": "Annotations updated successfully",
     "savePending": "Annotations saved. They can take a moment to show.",
-    "required": "Required"
+    "required": "Required",
+    "noAnnotationsHint": "Pick an evaluator to score this trace."
 }

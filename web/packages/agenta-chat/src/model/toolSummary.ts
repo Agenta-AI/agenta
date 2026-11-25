@@ -130,9 +130,9 @@ const partHasLanded = (part: ToolUIPart): boolean =>
  */
 export const partSentence = (
     part: ToolUIPart,
-    activity: {running: string; done: string},
+    activity: {running: string; done: string; failed?: string},
 ): string => {
-    if (partHasFailed(part)) return `${activity.running} failed`
+    if (partHasFailed(part)) return activity.failed ?? `${activity.running} failed`
     return partHasLanded(part) ? activity.done : activity.running
 }
 

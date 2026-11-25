@@ -1,0 +1,20 @@
+{
+    "agent": "Agent",
+    "analytics": "分析",
+    "backToMainSidebar": "返回主侧边栏",
+    "channels": "渠道",
+    "configuration": "配置",
+    "earlier": "更早",
+    "loadError": "无法加载会话",
+    "loading": "加载中",
+    "newSession": "新会话",
+    "noSessionsMatch": "没有符合这些筛选条件的会话",
+    "retry": "重试",
+    "searchAgents": "搜索 Agent",
+    "seeAllSessions": "查看所有会话",
+    "sessions": "会话",
+    "showOlderSessionsShort": "显示更早的会话",
+    "showOlderSessions_other": "显示 {{count}} 个更早的会话",
+    "today": "今天",
+    "yesterday": "昨天"
+}

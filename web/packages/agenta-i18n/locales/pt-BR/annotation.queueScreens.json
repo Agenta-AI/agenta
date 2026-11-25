@@ -1,0 +1,7 @@
+{
+    "listTitle": "Filas de anotação",
+    "queueName": "Nome da fila",
+    "emptyTitle": "Esta fila está vazia",
+    "testcaseUnavailable": "Dados do caso de teste indisponíveis",
+    "testcaseNoData": "Nenhum dado disponível para este caso de teste"
+}

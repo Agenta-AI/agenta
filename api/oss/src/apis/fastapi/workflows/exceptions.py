@@ -17,8 +17,12 @@ from oss.src.core.embeds.exceptions import (
 from oss.src.core.sharing.types import AgentCreationFailed
 from oss.src.core.workflows.types import (
     AgentDriveError,
+    InvalidAgentConfigurationError,
     InvalidAgentConnectionError,
+    InvalidAgentHarnessError,
     InvalidAgentInstructionsError,
+    StaticFieldNotEditableError,
+    StaticWorkflowReadOnly,
     StaticWorkflowSlug,
 )
 
@@ -29,6 +33,13 @@ class StaticWorkflowSlugException(HTTPException):
         message: str = "The slug prefix '__ag__' is reserved for static workflows.",
     ):
         super().__init__(status_code=400, detail=message)
+
+
+class StaticWorkflowCodedException(HTTPException):
+    """A static workflow refusal that carries the canonical envelope."""
+
+    def __init__(self, error: StaticFieldNotEditableError | StaticWorkflowReadOnly):
+        super().__init__(status_code=400, detail=error.to_detail())
 
 
 class NonEmbeddableWorkflowReferenceException(HTTPException):
@@ -46,10 +57,14 @@ class EmbedException(HTTPException):
         super().__init__(status_code=400, detail=message)
 
 
-class InvalidAgentInstructionsException(HTTPException):
-    # 422, like the harness refusal on the commit route: the request is well-formed, the
-    # configuration in it is not.
-    def __init__(self, error: InvalidAgentInstructionsError):
+class InvalidAgentConfigurationException(HTTPException):
+    # 422: the request is well-formed, the agent configuration in it cannot run.
+    def __init__(
+        self,
+        error: InvalidAgentConfigurationError
+        | InvalidAgentHarnessError
+        | InvalidAgentInstructionsError,
+    ):
         super().__init__(status_code=422, detail=error.to_detail())
 
 
@@ -69,14 +84,20 @@ def handle_workflow_exceptions():
         async def wrapper(*args, **kwargs):
             try:
                 return await func(*args, **kwargs)
+            except (StaticWorkflowReadOnly, StaticFieldNotEditableError) as e:
+                raise StaticWorkflowCodedException(e) from e
             except StaticWorkflowSlug as e:
                 raise StaticWorkflowSlugException(message=e.message) from e
             except NonEmbeddableWorkflowReferenceError as e:
                 raise NonEmbeddableWorkflowReferenceException(message=str(e)) from e
             except EmbedError as e:
                 raise EmbedException(message=str(e)) from e
-            except InvalidAgentInstructionsError as e:
-                raise InvalidAgentInstructionsException(e) from e
+            except (
+                InvalidAgentConfigurationError,
+                InvalidAgentHarnessError,
+                InvalidAgentInstructionsError,
+            ) as e:
+                raise InvalidAgentConfigurationException(e) from e
             except InvalidAgentConnectionError as e:
                 raise InvalidAgentConnectionException(e) from e
             except AgentDriveError as e:

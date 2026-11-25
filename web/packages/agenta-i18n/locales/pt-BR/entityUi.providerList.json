@@ -1,0 +1,15 @@
+{
+    "add": "Adicionar",
+    "addProviderOrSubscription": "Adicionar um provedor ou uma assinatura",
+    "agenta": "Agenta",
+    "apiKeys": "Chaves de API",
+    "builtIn": "Integrado",
+    "formLeaveDescription": "Salvar suas alterações nesta conexão ou descartá-las?",
+    "loadFailed": "O Agenta não conseguiu carregar os provedores de modelos.",
+    "providedByAgenta": "Fornecida pelo Agenta",
+    "saveConnection": "Salvar conexão",
+    "signInNeeded": "Requer login",
+    "subscriptions": "Assinaturas",
+    "useApiKey": "Usar uma chave de API",
+    "useSubscription": "Usar uma assinatura"
+}

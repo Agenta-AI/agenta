@@ -46,5 +46,7 @@
     "completionTokens": "補完トークン",
     "trace": "トレース",
     "copyTraceId": "トレース ID をコピー",
-    "addAnnotationQueue": "注釈キューを追加"
+    "addAnnotationQueue": "注釈キューを追加",
+    "traceNotFound": "トレースが見つかりません",
+    "traceNotFoundHint": "削除されたか、リンクが別のプロジェクトを指している可能性があります。"
 }

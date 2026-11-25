@@ -46,5 +46,7 @@
     "completionTokens": "补全 Token",
     "trace": "追踪",
     "copyTraceId": "复制追踪 ID",
-    "addAnnotationQueue": "添加标注队列"
+    "addAnnotationQueue": "添加标注队列",
+    "traceNotFound": "未找到追踪",
+    "traceNotFoundHint": "它可能已被删除，或链接指向其他项目。"
 }

@@ -159,6 +159,7 @@ async def test_conflict_arms_never_write_access(lock_engine):
     service = _service(dao, lock_engine)
 
     await service.set_header(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_BOB,
         session_id="known",
@@ -192,6 +193,7 @@ async def test_header_create_arm_writes_access(lock_engine):
     dao = _DAO()
     service = _service(dao, lock_engine)
     await service.set_header(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_BOB,
         session_id="new-by-header",
@@ -224,6 +226,7 @@ async def test_send_create_arm_writes_access(lock_engine):
         AsyncMock(return_value={"alive": False, "running": False, "attached": False}),
     ):
         await service.command(
+            envelope=None,
             project_id=_PROJECT,
             user_id=_BOB,
             request=SessionStreamCommandRequest(

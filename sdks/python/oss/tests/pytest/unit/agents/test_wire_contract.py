@@ -52,10 +52,13 @@ from agenta.sdk.agents.connections import EnvironmentCredentialBinding
 from agenta.sdk.agents.dtos import ResolvedSandboxCredential
 from agenta.sdk.agents.platform.gateway import _derived_tool_specs
 from agenta.sdk.agents.tools import (
+    CallbackToolSpec,
     CompiledTool,
     ResolvedGatewayIntegration,
     ResolvedGatewayPolicy,
+    coerce_tool_configs,
 )
+from agenta.sdk.agents.tools.resolver import gate_session_writes
 from agenta.sdk.agents.utils.effective_config import MAX_STAMPED_BYTES
 from agenta.sdk.agents.utils.wire import (
     _ERROR_MAX_LEN,
@@ -151,6 +154,28 @@ _DIRECT_CALL_TOOL = {
         "args_into": "data.inputs",
     },
 }
+
+
+def _session_write_tool() -> dict:
+    """A session write as the resolver sends it: `ask`, with the two policy fields the
+    runner forwards to `resolve_gate`. Built by the producer, so the golden pins what a
+    real resolve emits."""
+    [spec] = gate_session_writes(
+        [
+            CallbackToolSpec(
+                name="start_session",
+                description="Start a session with another agent.",
+                call_ref="tools.agenta.start_session",
+            )
+        ],
+        coerce_tool_configs(
+            [{"type": "reference", "slug": "email-writer", "permission": "ask"}]
+        ).tool_configs,
+        permission_default="allow",
+    )
+    return spec.to_wire()
+
+
 _CALLBACK = ToolCallback(
     endpoint="https://api.example/tools/call", authorization="Access tok-123"
 )
@@ -191,7 +216,11 @@ def _pi_payload():
             ],
             endpoint=Endpoint(base_url="https://api.openai.com/v1"),
         ),
-        custom_tools=[dict(_CUSTOM_TOOL), dict(_DIRECT_CALL_TOOL)],
+        custom_tools=[
+            dict(_CUSTOM_TOOL),
+            dict(_DIRECT_CALL_TOOL),
+            _session_write_tool(),
+        ],
         tool_callback=_CALLBACK,
         skills=[dict(_SKILL)],
         sandbox_permission=SandboxPermission(network={"mode": "off"}),
@@ -547,6 +576,13 @@ def test_request_to_wire_pi_matches_golden(golden):
     direct = payload["customTools"][1]
     assert direct["kind"] == "callback"
     assert "callRef" not in direct
+    # A session write rides as `ask`, with the tool's own permission and the Subagent
+    # entry permissions by slug, camelCase like the other spec fields.
+    session_write = payload["customTools"][2]
+    assert session_write["callRef"] == "tools.agenta.start_session"
+    assert session_write["permission"] == "ask"
+    assert session_write["configuredPermission"] == "allow"
+    assert session_write["targetPermissions"] == {"email-writer": "ask"}
     assert direct["call"] == {
         "method": "POST",
         "path": "/api/workflows/invoke",

@@ -5,6 +5,7 @@ import {
     discardLocalServerDataAtom,
     getWorkflowCommitCallbacks,
     registerWorkflowCommitCallbacks,
+    workflowDraftAtomFamily,
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
@@ -22,8 +23,12 @@ import type {EditableRevisionDrawerProps} from "./types"
 
 /** A changed revision, or a local copy of a saved one; a new template entity once it changes. */
 const hasUnsavedEdits = (get: Getter, entityId: string) => {
+    // A new entity from a template has no saved side, so it reads dirty: only an edit counts.
+    if (get(workflowMolecule.selectors.isEphemeral(entityId))) {
+        return get(workflowDraftAtomFamily(entityId)) !== null
+    }
     if (get(workflowMolecule.selectors.isDirty(entityId))) return true
-    return isLocalDraftId(entityId) && !get(workflowMolecule.selectors.isEphemeral(entityId))
+    return isLocalDraftId(entityId)
 }
 
 /** Edits that a close or a switch would lose, across the drawer's playground state. */
@@ -144,6 +149,8 @@ export const EditableRevisionDrawer = ({
                     side="right"
                     aria-describedby={undefined}
                     data-testid="editable-revision-drawer"
+                    // The drawer renders outside the page: this gives its editors the playground's font.
+                    data-playground
                     className={cn(
                         "overflow-hidden max-sm:inset-0 max-sm:w-full max-sm:rounded-none sm:max-w-none",
                         testing ? "sm:w-[min(1600px,94vw)]" : "sm:w-[min(1100px,92vw)]",

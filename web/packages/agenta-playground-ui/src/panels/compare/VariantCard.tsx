@@ -116,10 +116,12 @@ export const VariantCard = memo(
                         {t("playground.panels.averageLatency")}
                     </dt>
                     <dd className="m-0 text-right tabular-nums">{averages.latency}</dd>
+                    <dt className="text-muted-foreground">
+                        {t("playground.panels.averageTokens")}
+                    </dt>
+                    <dd className="m-0 text-right tabular-nums">{averages.tokens}</dd>
                     <dt className="text-muted-foreground">{t("playground.panels.averageCost")}</dt>
-                    <dd className="m-0 text-right tabular-nums">
-                        {averages.tokens} / {averages.cost}
-                    </dd>
+                    <dd className="m-0 text-right tabular-nums">{averages.cost}</dd>
                 </dl>
             </div>
         )

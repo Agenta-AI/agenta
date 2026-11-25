@@ -19,6 +19,7 @@ import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {unwrapToolUseError} from "../../assets/toolFormat"
+import {useAgentDisplayName} from "../../hooks/useAgentDisplayName"
 import {
     approvalVerdictText,
     isNonFinalRunnerError,
@@ -53,15 +54,17 @@ const displayFor = (
     appName?: string,
     _skinVersion?: number,
     _textVersion?: string,
+    agentName?: string,
 ): ResolvedToolDisplay =>
     resolveToolDisplay(
         partToolName(part),
         (part as {input?: unknown}).input,
         appName,
         (part as {output?: unknown}).output,
+        agentName,
     )
 
-const stateOf = (part: ToolUIPart): ActivityState => {
+const stateOf = (part: ToolUIPart, display: ResolvedToolDisplay): ActivityState => {
     const state = part.state as string
     const output = (part as {output?: unknown}).output
     const errorText = (part as {errorText?: string}).errorText
@@ -71,7 +74,11 @@ const stateOf = (part: ToolUIPart): ActivityState => {
         const verdict = approvalVerdictText(part)
         return verdict === "approved" ? "approved" : verdict === "denied" ? "denied" : "responded"
     }
-    if (state === "output-error") return isNonFinalRunnerError(errorText) ? "deferred" : "idle"
+    if (state === "output-error") {
+        if (isNonFinalRunnerError(errorText)) return "deferred"
+        // A tool that words its failure shows it; the others keep their plain row.
+        return display.activity.failed ? "failed" : "idle"
+    }
     if (state === "output-available") return isNotHandledOutput(output) ? "not-handled" : "idle"
     if (state === "input-streaming") return "queued"
     return isSettled(state) ? "idle" : "running"
@@ -143,6 +150,8 @@ const Sentence = ({
     if (state === "approved") return <>{withAction(t("chat.activity.youApproved", {action}))}</>
     if (state === "denied") return <>{withAction(t("chat.activity.youDenied", {action}))}</>
     if (state === "responded") return <>{withAction(t("chat.activity.youAnswered", {action}))}</>
+    if (state === "failed" && display.activity.failed)
+        return <span className="text-colorError">{display.activity.failed}</span>
     const opens = display.detail ? onOpenFile : undefined
     if (before !== undefined && object) {
         return (
@@ -218,7 +227,7 @@ interface StepViewProps {
 
 const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}: StepViewProps) => {
     const t = useT(chatActivityCatalog)
-    const state = stateOf(part)
+    const state = stateOf(part, display)
     const input = (part as {input?: unknown}).input
     const output = (part as {output?: unknown}).output
     const errorText = (part as {errorText?: string}).errorText
@@ -357,6 +366,26 @@ const CatalogToolStep = ({
     )
 }
 
+/** Re-resolve once the agent that the call names by its slug or id has a name. */
+const AgentToolStep = ({
+    part,
+    files,
+    base,
+    live,
+}: {
+    part: ToolUIPart
+    files: FileActivity[]
+    base: ResolvedToolDisplay
+    live?: boolean
+}) => {
+    const agentName = useAgentDisplayName(base.agentRef)
+    const display = useMemo(
+        () => (agentName ? displayFor(part, undefined, undefined, undefined, agentName) : base),
+        [part, base, agentName],
+    )
+    return <ActivityToolStepView part={part} files={files} display={display} live={live} />
+}
+
 /** One tool call on the timeline: kind node, sentence, tap for its input and result. */
 export const ActivityToolStep = ({
     part,
@@ -381,6 +410,9 @@ export const ActivityToolStep = ({
     )
     if (base.sourceKey) {
         return <CatalogToolStep part={part} files={files} base={base} live={live} />
+    }
+    if (base.agentRef) {
+        return <AgentToolStep part={part} files={files} base={base} live={live} />
     }
     return <ActivityToolStepView part={part} files={files} display={base} live={live} />
 }

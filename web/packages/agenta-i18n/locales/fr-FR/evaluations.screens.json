@@ -1,0 +1,5 @@
+{
+    "annotateToSeeScores": "Annotez les scénarios de cette exécution pour voir ici les scores de chaque évaluateur.",
+    "missingInputsHint": "Chaque ligne échouera faute d’entrées. Choisissez un autre jeu de test ou ajoutez la colonne à celui-ci.",
+    "namePlaceholder": "Saisissez un nom"
+}

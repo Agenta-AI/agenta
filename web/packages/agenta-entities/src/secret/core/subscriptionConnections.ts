@@ -68,37 +68,52 @@ export const subscriptionIsReady = (
     subscription: SubscriptionLoginFacts | null | undefined,
 ): boolean => subscription?.loginState === "ready"
 
-/** The hint a not-ready subscription row shows in the model picker, and the card's status word. */
-export const SUBSCRIPTION_SIGN_IN_HINT = "Sign in needed"
-
 // The reasons that mean the stored sign-in is dead rather than merely stale.
 const DEAD_LOGIN_REASONS = new Set(["login_unreadable", "refresh_rejected"])
 const DEAD_LOGIN_REASON_PREFIX = "refresh_status_"
 
-// The server's reason is a log-line slug, so it never reaches a user: map it to a sentence.
-const subscriptionFailureSentence = (provider: string, reason: string): string => {
-    const product = subscriptionProviderName(provider)
-    const isDead = DEAD_LOGIN_REASONS.has(reason) || reason.startsWith(DEAD_LOGIN_REASON_PREFIX)
-    return isDead
-        ? `The ${product} sign-in is no longer valid.`
-        : `The ${product} sign-in needs to be renewed.`
+/**
+ * A stored sign-in's state, for its status line. The server's reason is a log-line slug, so it
+ * never reaches a user: it only picks between "no longer valid" and "needs to be renewed". The UI
+ * gives each status its words (`@agenta/entity-ui`, `subscriptionText.ts`).
+ */
+export type SubscriptionStatus =
+    | "connected"
+    | "notSignedIn"
+    | "signInNeeded"
+    | "signInNoLongerValid"
+    | "signInNeedsRenewal"
+
+export const subscriptionStatus = (
+    subscription: SubscriptionLoginFacts | null | undefined,
+): SubscriptionStatus | null => {
+    if (!subscription) return null
+    if (subscription.loginState === "ready") return "connected"
+    if (subscription.loginState === "pending_login") return "notSignedIn"
+    const reason = subscription.loginError
+    if (!reason) return "signInNeeded"
+    return DEAD_LOGIN_REASONS.has(reason) || reason.startsWith(DEAD_LOGIN_REASON_PREFIX)
+        ? "signInNoLongerValid"
+        : "signInNeedsRenewal"
 }
 
-// Same for an attempt's error, which is a different slug vocabulary from the row's.
-export const subscriptionAttemptErrorSentence = (
+/** Why a sign-in attempt failed. An attempt's error is a different slug vocabulary from the row's. */
+export type SubscriptionAttemptFailure =
+    | "incomplete"
+    | "lost"
+    | "invalidLogin"
+    | "declined"
+    | "expired"
+
+export const subscriptionAttemptFailure = (
     reason: string | null | undefined,
-    provider = "chatgpt",
-): string => {
-    const product = subscriptionProviderName(provider)
-    if (!reason) return "The sign-in did not complete. Try again."
-    if (reason.startsWith("attempt not found"))
-        return "Agenta lost track of that sign-in. Start it again."
-    if (reason === "invalid_login")
-        return `${product} returned a sign-in Agenta cannot use. Try again.`
-    if (reason === "access_denied") return `The ${product} sign-in was declined.`
-    if (reason === "expired_token" || reason === "expired")
-        return "The sign-in code expired. Start again."
-    return "The sign-in did not complete. Try again."
+): SubscriptionAttemptFailure => {
+    if (!reason) return "incomplete"
+    if (reason.startsWith("attempt not found")) return "lost"
+    if (reason === "invalid_login") return "invalidLogin"
+    if (reason === "access_denied") return "declined"
+    if (reason === "expired_token" || reason === "expired") return "expired"
+    return "incomplete"
 }
 
 /**
@@ -111,21 +126,6 @@ export const subscriptionTokenErrorText = (error: unknown): string | null => {
     const {message, next_step: nextStep} = detail as {message?: unknown; next_step?: unknown}
     if (typeof message !== "string" || !message) return null
     return typeof nextStep === "string" && nextStep ? `${message} ${nextStep}` : message
-}
-
-/** One short line per state, with the reason appended when the row carries one. */
-export const subscriptionStatusLine = (
-    subscription: SubscriptionLoginFacts | null | undefined,
-): string => {
-    if (!subscription) return ""
-    if (subscription.loginState === "ready") return "Connected"
-    if (subscription.loginState === "pending_login") return "Not signed in"
-    return subscription.loginError
-        ? `${SUBSCRIPTION_SIGN_IN_HINT}. ${subscriptionFailureSentence(
-              subscription.provider,
-              subscription.loginError,
-          )}`
-        : SUBSCRIPTION_SIGN_IN_HINT
 }
 
 /** The shape the availability rules read. Structural, so this module stays free of the row type. */

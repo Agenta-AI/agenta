@@ -47,5 +47,7 @@
     "completionTokens": "Completion tokens",
     "trace": "Trace",
     "copyTraceId": "Copy trace id",
-    "addAnnotationQueue": "Add annotation queue"
+    "addAnnotationQueue": "Add to queue",
+    "traceNotFound": "Trace not found",
+    "traceNotFoundHint": "It may have been deleted, or the link points to another project."
 }

@@ -15,9 +15,7 @@
 import {useMemo, type ReactNode} from "react"
 
 import {
-    connectedRowSubtitle,
     connectionModelCount,
-    credentialSummary,
     subscriptionPairsFrom,
     type ProviderConnection,
     type SubscriptionPair,
@@ -27,7 +25,7 @@ import {
     SUBSCRIPTION_STATUS_QUERY_HARNESS,
     subscriptionStatusQueryAtomFamily,
 } from "@agenta/entities/workflow"
-import {useT} from "@agenta/i18n"
+import {textVersionAtom, useT} from "@agenta/i18n"
 import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
 import {CaretRight} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -35,6 +33,7 @@ import {useAtomValue} from "jotai"
 import {harnessMetaFor} from "../DrillInView/SchemaControls/harnessMeta"
 
 import {harnessMarkNode} from "./harnessMark"
+import {connectedRowSubtitle, credentialSummaryText} from "./providerCardText"
 import {providerIconFor} from "./providerIcon"
 
 /** The capability map is global; the key only records which surface asked for it. */
@@ -147,6 +146,8 @@ export const PlaygroundConnectedSection = ({
 }: PlaygroundConnectedSectionProps) => {
     const t = useT(providerDrawerCatalog)
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
+    // The subtitles carry text, so they are rebuilt when the language changes.
+    const textVersion = useAtomValue(textVersionAtom)
 
     const subtitles = useMemo(
         () =>
@@ -154,7 +155,7 @@ export const PlaygroundConnectedSection = ({
                 connections.map((connection) => [
                     connection.id,
                     connectedRowSubtitle({
-                        credential: credentialSummary(connection),
+                        credential: credentialSummaryText(connection),
                         modelCount: connectionModelCount(connection, capabilities),
                         harnessLabels: (connection.harnesses ?? []).map(
                             (harness) => harnessMetaFor(harness).label,
@@ -162,7 +163,7 @@ export const PlaygroundConnectedSection = ({
                     }),
                 ]),
             ),
-        [connections, capabilities],
+        [connections, capabilities, textVersion],
     )
 
     if (!connections.length && !organizationConnections.length) return null

@@ -1,0 +1,15 @@
+{
+    "archiveAgent": "エージェントをアーカイブ",
+    "builder": "ビルダー",
+    "configuration": "設定",
+    "exportAgent": "エージェントをエクスポート",
+    "files": "ファイル",
+    "history": "履歴",
+    "loadFailed": "セッションを読み込めませんでした",
+    "newSession": "新しいセッション",
+    "rename": "名前を変更",
+    "retry": "再試行",
+    "sessions": "セッション",
+    "shareConversation": "会話を共有",
+    "untitledSession": "無題のセッション"
+}

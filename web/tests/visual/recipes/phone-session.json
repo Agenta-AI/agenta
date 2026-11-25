@@ -1,0 +1,98 @@
+[
+    {
+        "id": "phone-session-m01-light",
+        "route": "/m/w/{workspace}/p/{project}/sessions/{s_charged}",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "steps": [
+            {
+                "wait": "button:\"Files\""
+            },
+            {
+                "wait": "I was charged twice for March."
+            }
+        ]
+    },
+    {
+        "id": "phone-session-m01-dark",
+        "route": "/m/w/{workspace}/p/{project}/sessions/{s_charged}",
+        "width": 390,
+        "height": 844,
+        "theme": "dark",
+        "steps": [
+            {
+                "wait": "button:\"Files\""
+            },
+            {
+                "wait": "I was charged twice for March."
+            }
+        ]
+    },
+    {
+        "id": "phone-session-m01-sheet-light",
+        "route": "/m/w/{workspace}/p/{project}/sessions/{s_charged}",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "steps": [
+            {
+                "wait": "button:\"Files\""
+            },
+            {
+                "wait": "I was charged twice for March."
+            },
+            {
+                "wait": 1000
+            },
+            {
+                "click": "button:Charged twice for March"
+            },
+            {
+                "wait": "dialog:Sessions"
+            }
+        ]
+    },
+    {
+        "id": "phone-session-m02-light",
+        "route": "/m/w/{workspace}/p/{project}/sessions/{s_charged}",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "steps": [
+            {
+                "wait": "button:\"Files\""
+            },
+            {
+                "wait": 1000
+            },
+            {
+                "click": "button:Open the sidebar"
+            },
+            {
+                "wait": "dialog:Navigation"
+            }
+        ]
+    },
+    {
+        "id": "phone-session-m03-light",
+        "route": "/m/w/{workspace}/p/{project}/sessions/{s_charged}",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "steps": [
+            {
+                "wait": "button:\"Files\""
+            },
+            {
+                "wait": 1000
+            },
+            {
+                "click": "button:\"Files\""
+            },
+            {
+                "wait": "All files"
+            }
+        ]
+    }
+]

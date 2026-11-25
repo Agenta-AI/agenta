@@ -199,7 +199,7 @@ describe("Annotation filters on the traces page", () => {
 
         expect(document.body.textContent).toContain("Has Annotation")
         expect(combobox("Evaluator")).toBeNull()
-        expect(document.body.textContent).not.toContain("Add Evaluator")
+        expect(document.body.textContent).not.toContain("Add evaluator")
         expect(fixture.evaluatorReads).toBe(0)
     })
 })
