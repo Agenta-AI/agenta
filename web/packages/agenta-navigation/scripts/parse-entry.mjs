@@ -94,6 +94,16 @@ const parseCover = (value, file) => {
     return value
 }
 
+// `upgrade_notes`: where the release's extra upgrade steps are, a docs path or an https link.
+const parseUpgradeNotes = (value, file) => {
+    if (value === undefined) return undefined
+    const link =
+        typeof value === "string" && value.startsWith("/") ? `${DOCS_ORIGIN}${value}` : value
+    if (typeof link !== "string" || !/^https:\/\/[^\s]+$/.test(link))
+        throw new Error(`${file}: upgrade_notes must be a docs path or an https link`)
+    return link
+}
+
 /** Returns null for an entry without a version tag. */
 export const parseEntry = (source, name) => {
     const data = parseFrontmatter(source, name)
@@ -109,9 +119,11 @@ export const parseEntry = (source, name) => {
         /<Stream\b[^>]*?\bsrc="([^"]+)"/.exec(source) ??
         /cloudflarestream\.com\/([0-9a-f]{32})\//.exec(source)
     const cover = parseCover(data.cover, name)
+    const upgradeNotesLink = parseUpgradeNotes(data.upgrade_notes, name)
     return {
         version,
         securityFix: tags.includes(SECURITY_TAG),
+        ...(upgradeNotesLink ? {upgradeNotesLink} : {}),
         date: data.date,
         feature: {
             id: data.slug,

@@ -43,6 +43,9 @@ const allReleases = [...byVersion.entries()]
             improvements: group.flatMap((entry) => entry.improvements),
             fixes: group.flatMap((entry) => entry.fixes),
             ...(group.some((entry) => entry.securityFix) ? {securityFix: true} : {}),
+            ...(group.find((entry) => entry.upgradeNotesLink)
+                ? {upgradeNotesLink: group.find((entry) => entry.upgradeNotesLink).upgradeNotesLink}
+                : {}),
         }
     })
     .sort((a, b) => b.date.localeCompare(a.date) || compareSemverDesc(a.id, b.id))
