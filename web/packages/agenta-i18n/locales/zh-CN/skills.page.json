@@ -1,7 +1,7 @@
 {
     "skills": "Skill",
     "newSkill": "新建 Skill",
-    "createDescription": "Skill 教会 Agent 做好一件事。添加一次，即可在任何 Agent 中使用。",
+    "createDescription": "描述给 AI，或者自己编写、上传或导入。",
     "cancel": "取消",
     "createSkill": "创建 Skill",
     "importTitle": "从 GitHub 导入",

@@ -1,7 +1,7 @@
 {
     "skills": "Skills",
     "newSkill": "Nouveau skill",
-    "createDescription": "Un skill apprend à un agent à bien faire une tâche. Ajoutez-le une fois, puis utilisez-le dans n'importe quel agent.",
+    "createDescription": "Décrivez-le pour l'IA, ou écrivez-le, téléversez-le ou importez-le vous-même.",
     "cancel": "Annuler",
     "createSkill": "Créer le skill",
     "importTitle": "Importer depuis GitHub",

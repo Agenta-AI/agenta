@@ -1,7 +1,7 @@
 {
     "skills": "Skills",
     "newSkill": "New skill",
-    "createDescription": "A skill teaches an agent how to do one job well. Add it once, then use it in any agent.",
+    "createDescription": "Describe it for AI, or write, upload or import it yourself.",
     "cancel": "Cancel",
     "createSkill": "Create skill",
     "importTitle": "Import from GitHub",

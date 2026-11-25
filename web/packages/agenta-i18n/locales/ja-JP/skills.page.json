@@ -1,7 +1,7 @@
 {
     "skills": "スキル",
     "newSkill": "新しいスキル",
-    "createDescription": "スキルは、エージェントに 1 つの仕事を上手にこなす方法を教えます。一度追加すれば、どのエージェントでも使えます。",
+    "createDescription": "AI に説明するか、自分で書く、アップロードする、インポートします。",
     "cancel": "キャンセル",
     "createSkill": "スキルを作成",
     "importTitle": "GitHub からインポート",

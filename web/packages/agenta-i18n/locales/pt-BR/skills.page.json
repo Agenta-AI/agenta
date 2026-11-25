@@ -1,7 +1,7 @@
 {
     "skills": "Habilidades",
     "newSkill": "Nova habilidade",
-    "createDescription": "Uma habilidade ensina um agente a fazer bem uma tarefa. Adicione uma vez e use em qualquer agente.",
+    "createDescription": "Descreva para a IA, ou escreva, envie ou importe você mesmo.",
     "cancel": "Cancelar",
     "createSkill": "Criar habilidade",
     "importTitle": "Importar do GitHub",
