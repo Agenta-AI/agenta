@@ -68,6 +68,7 @@ beforeEach(async () => {
             reset: state.reset,
             // An id stored before the upgrade, such as the email.
             get_distinct_id: () => "person@example.test",
+            get_property: (name: string) => (name === "$user_state" ? "identified" : undefined),
             opt_out_capturing: vi.fn(),
         })
     })

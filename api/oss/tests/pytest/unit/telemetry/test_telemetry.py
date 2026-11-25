@@ -185,7 +185,11 @@ async def test_switch_off_sends_only_the_install_ping(
         {
             "event": "instance_installed",
             "distinct_id": str(INSTANCE_ID),
-            "properties": {"$geoip_disable": True, "$ip": ""},
+            "properties": {
+                "$geoip_disable": True,
+                "$ip": "",
+                "$process_person_profile": False,
+            },
             "uuid": uuid5(INSTANCE_ID, "instance_installed"),
         }
     ]
@@ -234,7 +238,11 @@ async def test_install_ping_on_the_wire_has_only_its_properties(
     assert message["event"] == "instance_installed"
     assert message["distinct_id"] == str(INSTANCE_ID)
     assert message["uuid"] == str(uuid5(INSTANCE_ID, "instance_installed"))
-    assert message["properties"] == {"$geoip_disable": True, "$ip": ""}
+    assert message["properties"] == {
+        "$geoip_disable": True,
+        "$ip": "",
+        "$process_person_profile": False,
+    }
     assert install_row.committed
 
 
@@ -287,6 +295,7 @@ async def test_self_hosted_event_uses_the_anonymous_id(self_hosted, queued):
     [call] = queued.calls
     assert call["event"] == "app_created"
     assert call["distinct_id"] == f"{INSTANCE_ID}:{USER_ID}"
+    assert "cloud_region" not in call["properties"]
     _assert_no_personal_data(call)
 
 
@@ -529,11 +538,17 @@ async def test_sign_up_carries_the_version(monkeypatch, self_hosted, queued):
     assert call["properties"]["agenta_version"] == "v0.129.0"
 
 
-# --- cloud: as today --------------------------------------------------------
+# --- cloud: the user id is the person, every event names its deployment -----
+
+CLOUD_URL = "https://us.cloud.agenta.ai"
 
 
 @pytest.mark.asyncio
-async def test_cloud_event_keeps_the_email_identity(cloud, queued):
+async def test_cloud_event_uses_the_user_id_and_keeps_the_email_as_a_property(
+    monkeypatch, cloud, queued
+):
+    monkeypatch.setattr(env.agenta, "web_url", CLOUD_URL)
+
     await analytics.analytics_middleware(
         _request(
             user_email=EMAIL,
@@ -544,13 +559,77 @@ async def test_cloud_event_keeps_the_email_identity(cloud, queued):
     )
 
     [call] = queued.calls
-    assert call["distinct_id"] == EMAIL
+    assert call["distinct_id"] == str(USER_ID)
     assert call["properties"]["$set"] == {"email": EMAIL}
     assert call["properties"]["organization_name"] == ORGANIZATION_NAME
+    assert call["properties"]["cloud_region"] == "US"
+    assert call["properties"]["cloud_url"] == CLOUD_URL
+    assert "$process_person_profile" not in call["properties"]
 
 
 @pytest.mark.asyncio
-async def test_cloud_sign_up_keeps_the_email_and_url(monkeypatch, cloud, queued):
+async def test_cloud_activation_uses_the_user_id_and_names_the_deployment(
+    monkeypatch, cloud, queued
+):
+    monkeypatch.setattr(env.agenta, "web_url", CLOUD_URL)
+    monkeypatch.setattr(analytics, "get_cache", AsyncMock(return_value=None))
+    monkeypatch.setattr(analytics, "set_cache", AsyncMock())
+
+    await analytics.analytics_middleware(
+        _request(
+            path="/organizations/x/invite",
+            user_email=EMAIL,
+            user_id=str(USER_ID),
+            project_id="p1",
+        ),
+        _call_next,
+    )
+
+    assert [call["event"] for call in queued.calls] == [
+        "user_invitation_sent_v1",
+        "$identify",
+    ]
+    for call in queued.calls:
+        assert call["distinct_id"] == str(USER_ID)
+        assert call["properties"]["cloud_region"] == "US"
+        assert call["properties"]["cloud_url"] == CLOUD_URL
+
+
+@pytest.mark.asyncio
+async def test_activation_mark_cache_is_keyed_by_the_distinct_id(
+    monkeypatch, cloud, queued
+):
+    # A mark cached under the old email identity must not stop the mark on the user id.
+    get_cache = AsyncMock(return_value=None)
+    set_cache = AsyncMock()
+    monkeypatch.setattr(analytics, "get_cache", get_cache)
+    monkeypatch.setattr(analytics, "set_cache", set_cache)
+
+    await analytics.analytics_middleware(
+        _request(
+            path="/organizations/x/invite",
+            user_email=EMAIL,
+            user_id=str(USER_ID),
+            project_id="p1",
+        ),
+        _call_next,
+    )
+
+    activation_reads = [
+        call.kwargs["key"]
+        for call in get_cache.await_args_list
+        if call.kwargs.get("namespace") == "posthog:activations"
+    ]
+    assert activation_reads == [
+        {"property": "invited_user_v1", "distinct_id": str(USER_ID)}
+    ]
+    assert set_cache.await_args.kwargs["key"] == activation_reads[0]
+
+
+@pytest.mark.asyncio
+async def test_cloud_sign_up_uses_the_user_id_and_keeps_the_email_and_url(
+    monkeypatch, cloud, queued
+):
     monkeypatch.setattr(
         overrides,
         "ensure_auth_info_not_blocked",
@@ -567,9 +646,33 @@ async def test_cloud_sign_up_keeps_the_email_and_url(monkeypatch, cloud, queued)
     await overrides._create_account(EMAIL, "uid")
 
     [call] = queued.calls
-    assert call["distinct_id"] == EMAIL.lower()
+    assert call["distinct_id"] == str(USER_ID)
     assert call["properties"]["cloud_url"] == "https://cloud.agenta.ai"
+    assert call["properties"]["cloud_region"] == "EU"
     assert call["properties"]["$set"] == {"email": EMAIL.lower()}
+
+
+@pytest.mark.parametrize(
+    ("url", "region"),
+    [
+        ("https://cloud.agenta.ai", "EU"),
+        ("https://eu.cloud.agenta.ai", "EU"),
+        ("https://us.cloud.agenta.ai", "US"),
+        ("https://staging.preview.agenta.dev", "EU"),
+        ("https://testing.preview.agenta.dev", "US"),
+        ("us.cloud.agenta.ai", "US"),
+        ("https://agenta.example.internal", "Other"),
+        ("", "Other"),
+    ],
+)
+def test_cloud_region_comes_from_the_web_url(url, region):
+    assert telemetry_service.cloud_region(url) == region
+
+
+def test_self_hosted_events_get_no_cloud_properties(monkeypatch, self_hosted):
+    monkeypatch.setattr(env.agenta, "web_url", CLOUD_URL)
+
+    assert telemetry_service.cloud_event_properties() == {}
 
 
 # --- what the browser is told ----------------------------------------------
@@ -577,7 +680,7 @@ async def test_cloud_sign_up_keeps_the_email_and_url(monkeypatch, cloud, queued)
 
 @pytest.mark.asyncio
 async def test_browser_gets_the_anonymous_id_and_group(self_hosted):
-    telemetry = await telemetry_service.instance_telemetry_for(USER_ID, EMAIL)
+    telemetry = await telemetry_service.instance_telemetry_for(USER_ID)
 
     assert telemetry.model_dump() == {
         "enabled": True,
@@ -591,7 +694,7 @@ async def test_browser_gets_the_anonymous_id_and_group(self_hosted):
 async def test_browser_gets_nothing_when_the_switch_is_off(monkeypatch, self_hosted):
     monkeypatch.setattr(env.telemetry, "enabled", False)
 
-    telemetry = await telemetry_service.instance_telemetry_for(USER_ID, EMAIL)
+    telemetry = await telemetry_service.instance_telemetry_for(USER_ID)
 
     assert telemetry.model_dump() == {
         "enabled": False,
@@ -602,14 +705,16 @@ async def test_browser_gets_nothing_when_the_switch_is_off(monkeypatch, self_hos
 
 
 @pytest.mark.asyncio
-async def test_browser_on_cloud_gets_the_email(cloud):
-    telemetry = await telemetry_service.instance_telemetry_for(USER_ID, EMAIL)
+async def test_browser_on_cloud_gets_the_user_id_and_the_deployment(monkeypatch, cloud):
+    monkeypatch.setattr(env.agenta, "web_url", CLOUD_URL)
+
+    telemetry = await telemetry_service.instance_telemetry_for(USER_ID)
 
     assert telemetry.model_dump() == {
         "enabled": True,
-        "distinct_id": EMAIL,
+        "distinct_id": str(USER_ID),
         "groups": None,
-        "properties": None,
+        "properties": {"cloud_region": "US", "cloud_url": CLOUD_URL},
     }
 
 
