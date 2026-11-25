@@ -1,6 +1,7 @@
 import {useCallback, useMemo, useRef} from "react"
 
 import {
+    adoptInstanceIdentity,
     analyticsIdentity,
     generateOrRetrieveDistinctId,
     isCloudTelemetry,
@@ -25,7 +26,6 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const [posthog] = useAtom(posthogAtom)
     const telemetry = useAtomValue(instanceTelemetryAtom)
     const cloud = telemetry ? isCloudTelemetry(telemetry) : false
-    const instanceGroup = telemetry?.groups?.instance ?? null
     const baseDistinctId = useMemo(() => generateOrRetrieveDistinctId(), [])
     const {id: analyticsId, properties: personProps} = useMemo(
         () => analyticsIdentity(user, cloud, telemetry?.distinct_id ?? ""),
@@ -78,6 +78,12 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
         if (!posthog) return
         // No answer from the API yet (or a new user): no identity to send.
         if (!telemetry?.distinct_id || !analyticsId) return
+        // Self-hosted: the shared helper compares the browser's id with the API's, so it
+        // also restores the identity and properties after a sign-out without a reload.
+        if (!cloud) {
+            adoptInstanceIdentity(posthog, telemetry)
+            return
+        }
         const shouldIdentify =
             identifiedRef.current !== analyticsId ||
             (identifiedPersonPropsKey !== null &&
@@ -94,21 +100,8 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
         if (identifiedPersonPropsKey) {
             personPropsIdentifiedRef.current = identifiedPersonPropsKey
         }
-        // A sign-out resets PostHog, which drops the registered properties.
-        if (telemetry.properties) posthog.register?.(telemetry.properties)
         identify(analyticsId, personProps)
-        if (instanceGroup) posthog.group?.("instance", instanceGroup)
-    }, [
-        analyticsId,
-        baseDistinctId,
-        cloud,
-        identify,
-        instanceGroup,
-        personProps,
-        posthog,
-        telemetry,
-        user?.email,
-    ])
+    }, [analyticsId, baseDistinctId, cloud, identify, personProps, posthog, telemetry, user?.email])
 
     if (!posthog) return null
     return Object.assign(posthog, {identify, capture}) as ExtendedPostHog
