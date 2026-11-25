@@ -205,10 +205,10 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
             ) : null}
 
             {textOnly ? null : (
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-1">
                     <FieldLabel>{t("entityUi.secretForm.format")}</FieldLabel>
                     <Segmented
-                        className="w-fit"
+                        block
                         options={formatOptions(t)}
                         value={format}
                         onChange={(v) => onChangeFormat(v as typeof format)}
