@@ -45,23 +45,21 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {McpServerMark} from "@agenta/ui/agent-icon"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
-import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
 import {
     LIST_COLUMN_WIDTH,
     ListTable,
     ListTableNameCell,
     type ListTableColumn,
 } from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {useIsPhone} from "@agenta/ui/phone"
+import {Button, Segmented} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
     LinkBreak,
     PencilSimpleLine,
     Plus,
-    Pulse,
     SignIn,
     SignOut,
-    SquaresFour,
     Trash,
     Wrench,
 } from "@phosphor-icons/react"
@@ -178,6 +176,7 @@ export default function McpServersSection({
     copy: copyOverrides,
 }: McpServersSectionProps) {
     const t = useT(commonCatalog, settingsMcpCatalog, settingsSharedCatalog)
+    const phone = useIsPhone()
     const copy = useMemo<McpServersSectionCopy>(
         () => ({
             connect: t(DEFAULT_COPY.connect),
@@ -382,30 +381,6 @@ export default function McpServersSection({
     )
     const {columns, shows, wide} = usePhoneColumns(allColumns, phoneKeysFor(layoutPersonal))
 
-    const statusSection = useMemo<FilterMenuSection>(
-        () => ({
-            key: "status",
-            label: t("common.status"),
-            icon: <Pulse size={14} />,
-            value: statusFilter,
-            defaultValue: "all",
-            options: [
-                {value: "all", label: t("settings.shared.ownerAll"), icon: <SquaresFour size={14} />},
-                {
-                    value: "connected",
-                    label: getMcpConnectionStatusLabel("connected"),
-                    icon: <span aria-hidden className="size-1.5 rounded-round bg-success" />,
-                },
-                {
-                    value: "attention",
-                    label: t("common.needsAttention"),
-                    icon: <span aria-hidden className="size-1.5 rounded-round bg-warning" />,
-                },
-            ],
-            onChange: (value) => setStatusFilter(value as StatusFilter),
-        }),
-        [statusFilter, t],
-    )
 
     const connect = (
         <Button data-testid="mcp-connect-open" onClick={openConnect}>
@@ -658,13 +633,21 @@ export default function McpServersSection({
                 search={search}
                 onSearchChange={setSearch}
                 searchPlaceholder={t("settings.mcp.searchServers")}
-                filter={
-                    <FilterMenu
-                        sections={[statusSection]}
-                        align="start"
-                        size="default"
-                        onReset={() => setStatusFilter("all")}
-                        resetDisabled={statusFilter === "all"}
+                segment={
+                    <Segmented
+                        aria-label={t("common.status")}
+                        size={phone ? "sm" : "default"}
+                        block={phone}
+                        value={statusFilter}
+                        onChange={(next) => setStatusFilter(next as StatusFilter)}
+                        options={[
+                            {value: "all", label: t("settings.shared.ownerAll")},
+                            {
+                                value: "connected",
+                                label: getMcpConnectionStatusLabel("connected"),
+                            },
+                            {value: "attention", label: t("common.needsAttention")},
+                        ]}
                     />
                 }
             />

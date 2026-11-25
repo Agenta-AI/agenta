@@ -17,6 +17,8 @@ export interface ConnectionsToolbarProps {
     searchPlaceholder: string
     /** The page's Filter menu, only where the page has filters. */
     filter?: ReactNode
+    /** A page's own segment in the owner segment's place, when it has no owners (MCP status). */
+    segment?: ReactNode
     /** The owners the page holds; two or more draw the owner segment. */
     owners?: readonly OwnerKind[]
     owner?: OwnerFilter
@@ -29,6 +31,7 @@ export const ConnectionsToolbar = ({
     onSearchChange,
     searchPlaceholder,
     filter,
+    segment: pageSegment,
     owners,
     owner = "all",
     onOwnerChange,
@@ -57,7 +60,9 @@ export const ConnectionsToolbar = ({
                     }),
                 ]}
             />
-        ) : null
+        ) : (
+            (pageSegment ?? null)
+        )
 
     return (
         <SettingsPageToolbar>
