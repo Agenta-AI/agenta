@@ -94,6 +94,8 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
         if (identifiedPersonPropsKey) {
             personPropsIdentifiedRef.current = identifiedPersonPropsKey
         }
+        // A sign-out resets PostHog, which drops the registered properties.
+        if (telemetry.properties) posthog.register?.(telemetry.properties)
         identify(analyticsId, personProps)
         if (instanceGroup) posthog.group?.("instance", instanceGroup)
     }, [
@@ -104,6 +106,7 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
         instanceGroup,
         personProps,
         posthog,
+        telemetry,
         user?.email,
     ])
 
