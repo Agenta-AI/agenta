@@ -4,7 +4,7 @@ import {subscriptionProviderName} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import {BottomSheet, useIsPhone} from "@agenta/ui/phone"
-import {Sheet, SheetContent, SheetHeader, SheetTitle} from "@agenta/ui/ui"
+import {Dialog, DialogContent, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 
 import {BuiltinModelsPanel} from "./BuiltinModelsPanel"
 import {SubscriptionSignInPanel} from "./SubscriptionSignInPanel"
@@ -12,7 +12,7 @@ import {SubscriptionTokenPanel} from "./SubscriptionTokenPanel"
 import {subscriptionTokenView, subscriptionViewFor, type SubscriptionViewParams} from "./subscriptionViews"
 import {useSubscriptionViewConnection} from "./useSubscriptionViewConnection"
 
-/** The kit sheet, or a bottom sheet on a phone; the host drops it once it has closed. */
+/** The kit dialog, or a bottom sheet on a phone; the host drops it once it has closed. */
 const SheetFrame = ({
     title,
     open,
@@ -40,18 +40,18 @@ const SheetFrame = ({
             </BottomSheet>
         )
     return (
-        <Sheet open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-            <SheetContent side="right" onCloseAutoFocus={onClosed}>
-                <SheetHeader>
-                    <SheetTitle className="min-w-0 truncate">{title}</SheetTitle>
-                </SheetHeader>
-                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">{children}</div>
-            </SheetContent>
-        </Sheet>
+        <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
+            <DialogContent onCloseAutoFocus={onClosed}>
+                <DialogHeader>
+                    <DialogTitle className="min-w-0 truncate">{title}</DialogTitle>
+                </DialogHeader>
+                {children}
+            </DialogContent>
+        </Dialog>
     )
 }
 
-/** A ChatGPT sign-in or a Claude token in the kit sheet, for hosts without a view stack. */
+/** A ChatGPT sign-in or a Claude token in the kit dialog, for hosts without a view stack. */
 export const SubscriptionSheet = ({
     params,
     onClosed,
@@ -75,7 +75,7 @@ export const SubscriptionSheet = ({
     )
 }
 
-/** The built-in models in the kit sheet. */
+/** The built-in models in the kit dialog. */
 export const BuiltinModelsSheet = ({onClosed}: {onClosed: () => void}) => {
     const t = useT(providerListCatalog)
     const [open, setOpen] = useState(true)
