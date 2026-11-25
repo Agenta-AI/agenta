@@ -18,13 +18,14 @@ import {
     CommandInput,
     CommandItem,
     CommandList,
+    Field,
     Popover,
     PopoverContent,
     PopoverTrigger,
-    RadioGroup,
-    RadioGroupItem,
 } from "@agenta/ui/ui"
-import {ArrowSquareOut, CaretUpDown, Check, WarningCircle, X} from "@phosphor-icons/react"
+import {ArrowSquareOut, CaretUpDown, Check, LockSimple, WarningCircle, X} from "@phosphor-icons/react"
+
+import {AccountSwitch} from "../accounts/AccountSwitch"
 
 /**
  * What the admin may do about projects in this deployment. `pending` is EE while the plan's
@@ -60,7 +61,6 @@ export interface OrganizationProjectsSectionProps {
 }
 
 const HEADING = "font-medium text-foreground"
-const NOTE = "text-caption text-muted-foreground"
 
 /** Every project the saved choice reached and the new one does not. */
 const removedProjects = (
@@ -185,70 +185,52 @@ const OrganizationProjectsSection = ({
 
     return (
         <section className="flex shrink-0 flex-col gap-2">
-            <span className={HEADING}>{t("entityUi.organizationProjects.projectsThatCanUse")}</span>
-            <RadioGroup
-                value={value.availability}
-                onValueChange={(next) =>
-                    onChange({
-                        availability: next as OrganizationSecretProjects["availability"],
-                        projectIds: value.projectIds,
-                    })
-                }
-                className="flex flex-col gap-2"
-            >
-                <label className="flex cursor-pointer items-start gap-2.5">
-                    <RadioGroupItem value="all_projects" className="mt-0.5" />
-                    <span className="flex flex-col gap-0.5">
-                        <span className="text-foreground">
-                            {t("entityUi.organizationProjects.allProjects")}
-                        </span>
-                        <span className={NOTE}>
-                            {t("entityUi.organizationProjects.everyProjectInIncludingNew", {
+            <Field label={t("entityUi.organizationProjects.projectsThatCanUse")}>
+                <AccountSwitch
+                    value={value.availability}
+                    choices={[
+                        {
+                            value: "all_projects",
+                            label: t("entityUi.organizationProjects.allProjects"),
+                            note: t("entityUi.organizationProjects.everyProjectInIncludingNew", {
                                 organization: scope.name,
-                            })}
-                        </span>
-                    </span>
-                </label>
-                <label
-                    className={
-                        selectedAllowed
-                            ? "flex cursor-pointer items-start gap-2.5"
-                            : "flex cursor-not-allowed items-start gap-2.5 opacity-60"
+                            }),
+                        },
+                        {
+                            value: "selected_projects",
+                            label: t("entityUi.organizationProjects.selectedProjects"),
+                            note: t("entityUi.organizationProjects.onlyProjectsYouPick"),
+                            disabled: !selectedAllowed,
+                        },
+                    ]}
+                    onChange={(next) =>
+                        onChange({availability: next, projectIds: value.projectIds})
                     }
-                >
-                    <RadioGroupItem
-                        value="selected_projects"
-                        disabled={!selectedAllowed}
-                        className="mt-0.5"
-                    />
-                    <span className="flex flex-col gap-0.5">
-                        <span className="text-foreground">
-                            {t("entityUi.organizationProjects.selectedProjects")}
-                        </span>
-                        <span className={NOTE}>
-                            {t("entityUi.organizationProjects.onlyProjectsYouPick")}
-                        </span>
-                    </span>
-                </label>
-            </RadioGroup>
+                    aria-label={t("entityUi.organizationProjects.projectsThatCanUse")}
+                />
+            </Field>
 
             {scope.projectChoice === "plan" ? (
-                <span className="flex flex-wrap items-center gap-1 text-muted-foreground">
-                    {t("entityUi.organizationProjects.choosingProjectsPlan")}
+                // Why "Selected projects" is greyed, and where to get it: one quiet row.
+                <div className="flex items-center gap-2 rounded-md bg-secondary px-2.5 py-2 text-meta text-muted-foreground">
+                    <LockSimple size={14} className="shrink-0" aria-hidden />
+                    <span className="min-w-0 flex-1">
+                        {t("entityUi.organizationProjects.choosingProjectsPlan")}
+                    </span>
                     {scope.plansHref ? (
                         <a
                             href={scope.plansHref}
-                            className="flex items-center gap-1 text-btn-link hover:text-btn-link-hover"
+                            className="flex shrink-0 items-center gap-1 font-medium text-btn-link no-underline hover:text-btn-link-hover"
                         >
                             {t("entityUi.organizationProjects.seePlans")}
                             <ArrowSquareOut size={12} />
                         </a>
                     ) : null}
-                </span>
+                </div>
             ) : null}
 
             {selectedAllowed && value.availability === "selected_projects" ? (
-                <div className="flex flex-col gap-2 pl-6">
+                <div className="flex flex-col gap-2">
                     {value.projectIds.length ? (
                         <div className="flex flex-wrap gap-1.5">
                             {value.projectIds.map((id) => (

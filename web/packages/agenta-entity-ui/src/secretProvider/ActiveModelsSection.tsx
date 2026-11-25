@@ -16,7 +16,6 @@ export interface ActiveModelsSectionProps {
     options: ModelOption[]
     onToggle: (id: string, checked: boolean) => void
     onSelectAll: () => void
-    onClear: () => void
     onAddManual: (id: string) => void
     /** What the manual row offers to add against — the API's list, or one endpoint's. */
     manualPlaceholder: string
@@ -38,7 +37,6 @@ const ActiveModelsSection = ({
     options,
     onToggle,
     onSelectAll,
-    onClear,
     onAddManual,
     manualPlaceholder,
     fetchedAt,
@@ -127,19 +125,14 @@ const ActiveModelsSection = ({
                     )}
                 </span>
                 {readOnly ? null : (
-                    <div className="flex items-center gap-2 text-field-sm">
-                        <Button
-                            variant="link"
-                            size="sm"
-                            className="h-auto px-0"
-                            onClick={onSelectAll}
-                        >
-                            {t("entityUi.providerConnection.selectAll")}
-                        </Button>
-                        <Button variant="link" size="sm" className="h-auto px-0" onClick={onClear}>
-                            {t("entityUi.providerConnection.clear")}
-                        </Button>
-                    </div>
+                    <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto px-0 text-field-sm no-underline"
+                        onClick={onSelectAll}
+                    >
+                        {t("entityUi.providerConnection.selectAll")}
+                    </Button>
                 )}
             </div>
 

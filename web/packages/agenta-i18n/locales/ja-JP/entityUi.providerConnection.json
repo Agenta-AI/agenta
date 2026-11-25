@@ -11,7 +11,6 @@
     "incompatible": "このプロバイダーとは互換性がありません",
     "harnessAddsModels": "有効にした各ハーネスで、この接続のモデルがモデル選択に追加されます。",
     "selectAll": "すべて選択",
-    "clear": "クリア",
     "searchModels": "{{total}} 件のモデルを検索するか ID を追加",
     "addTerm": "<mono>{{term}}</mono> を追加",
     "enterKey": "Enter",

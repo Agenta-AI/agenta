@@ -11,7 +11,6 @@
     "incompatible": "Nicht mit diesem Anbieter kompatibel",
     "harnessAddsModels": "Jeder aktivierte Harness fügt die Modelle dieser Verbindung zur Modellauswahl hinzu.",
     "selectAll": "Alle auswählen",
-    "clear": "Leeren",
     "searchModels": "{{total}} Modelle durchsuchen oder eine ID hinzufügen",
     "addTerm": "<mono>{{term}}</mono> hinzufügen",
     "enterKey": "Eingabe",

@@ -11,7 +11,6 @@
     "incompatible": "Incompatible avec ce fournisseur",
     "harnessAddsModels": "Chaque harness activé ajoute les modèles de cette connexion au sélecteur de modèles.",
     "selectAll": "Tout sélectionner",
-    "clear": "Effacer",
     "searchModels": "Rechercher parmi {{total}} modèles ou ajouter un ID",
     "addTerm": "Ajouter <mono>{{term}}</mono>",
     "enterKey": "Entrée",

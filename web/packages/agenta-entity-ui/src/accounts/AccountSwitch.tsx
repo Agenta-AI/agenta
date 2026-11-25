@@ -8,6 +8,8 @@ export interface AccountSwitchChoice<Value extends string> {
     label: string
     /** One short sentence under the label. */
     note?: string
+    /** Shown but not choosable (for example, not on this plan); arrow keys skip it. */
+    disabled?: boolean
 }
 
 export interface AccountSwitchProps<Value extends string> {
@@ -75,7 +77,12 @@ export function AccountSwitch<Value extends string>({
                   : 0
         if (!step) return
         event.preventDefault()
-        const next = (selectedIndex + step + choices.length) % choices.length
+        let next = selectedIndex
+        for (let tries = 0; tries < choices.length; tries++) {
+            next = (next + step + choices.length) % choices.length
+            if (!choices[next].disabled) break
+        }
+        if (choices[next].disabled) return
         onChange(choices[next].value)
         refs.current[next]?.focus()
     }
@@ -118,7 +125,7 @@ export function AccountSwitch<Value extends string>({
                         role="radio"
                         aria-checked={selected}
                         tabIndex={selected ? 0 : -1}
-                        disabled={disabled}
+                        disabled={disabled || choice.disabled}
                         onClick={() => {
                             if (!selected) onChange(choice.value)
                         }}

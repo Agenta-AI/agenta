@@ -969,7 +969,6 @@ const ProviderConnectionCard = ({
                     manualPlaceholder={manualModelPlaceholder(kind)}
                     onToggle={toggleModel}
                     onSelectAll={() => setCheckedModels(modelOptions.map((option) => option.id))}
-                    onClear={() => setCheckedModels([])}
                     onAddManual={(id) => {
                         setManualModels((previous) =>
                             previous.includes(id) ? previous : [...previous, id],

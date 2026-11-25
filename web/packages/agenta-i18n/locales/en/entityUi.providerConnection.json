@@ -11,7 +11,6 @@
     "incompatible": "Incompatible with this provider",
     "harnessAddsModels": "Each enabled harness adds this connection's models to the model picker.",
     "selectAll": "Select all",
-    "clear": "Clear",
     "searchModels": "Search {{total}} models or add an ID",
     "addTerm": "Add <mono>{{term}}</mono>",
     "enterKey": "Enter",

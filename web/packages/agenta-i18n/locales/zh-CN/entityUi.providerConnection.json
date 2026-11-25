@@ -11,7 +11,6 @@
     "incompatible": "与此供应商不兼容",
     "harnessAddsModels": "每个已启用的运行框架都会把此连接的模型添加到模型选择器中。",
     "selectAll": "全选",
-    "clear": "清除",
     "searchModels": "搜索 {{total}} 个模型或添加 ID",
     "addTerm": "添加 <mono>{{term}}</mono>",
     "enterKey": "Enter",
