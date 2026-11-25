@@ -5,7 +5,7 @@ from uuid import UUID
 
 from oss.src.core.instances.types import InstanceMissing
 from oss.src.dbs.postgres.instances.dao import InstancesDAO
-from oss.src.utils.env import env
+from oss.src.utils.env import InstanceKind, env
 
 instances_dao = InstancesDAO()
 
@@ -35,7 +35,11 @@ def _is_development_host(host: str) -> bool:
     return address.is_loopback or address.is_private
 
 
-def get_instance_kind() -> Literal["production", "development", "ci"]:
+def get_instance_kind() -> InstanceKind:
+    """AGENTA_TELEMETRY_INSTANCE_KIND when set, else detected from CI and the web URL."""
+
+    if env.telemetry.instance_kind:
+        return env.telemetry.instance_kind
     if env.telemetry.ci:
         return "ci"
     host = (urlparse(env.agenta.web_url).hostname or "").lower()

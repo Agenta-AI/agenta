@@ -4,6 +4,7 @@ PostHog is never reached: the queued client (`_load_posthog`) and the synchronou
 client (`_sync_client`) are replaced by recorders.
 """
 
+import warnings
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -12,8 +13,10 @@ from uuid import UUID, uuid5
 import pytest
 
 from oss.src.core.auth.supertokens import overrides
+from oss.src.core.instances import service as instances_service
 from oss.src.core.telemetry import service as telemetry_service
 from oss.src.middlewares import analytics
+from oss.src.utils import env as env_module
 from oss.src.utils import lazy
 from oss.src.utils.env import env
 
@@ -42,6 +45,7 @@ def self_hosted(monkeypatch):
     monkeypatch.setattr(env.stripe, "api_key", None)
     monkeypatch.setattr(env.telemetry, "enabled", True)
     monkeypatch.setattr(env.telemetry, "enabled_set", False)
+    monkeypatch.setattr(env.telemetry, "instance_kind", "test")
     monkeypatch.setattr(
         telemetry_service, "get_instance_id", AsyncMock(return_value=INSTANCE_ID)
     )
@@ -421,6 +425,71 @@ def test_sdk_name_and_version_come_from_the_client_headers(headers, expected):
 
 
 @pytest.mark.asyncio
+async def test_self_hosted_api_event_carries_the_instance_kind(self_hosted, queued):
+    await analytics.analytics_middleware(
+        _request(user_email=EMAIL, user_id=str(USER_ID)), _call_next
+    )
+
+    [call] = queued.calls
+    assert call["properties"]["instance_kind"] == "test"
+
+
+@pytest.mark.asyncio
+async def test_cloud_api_event_has_no_instance_kind(cloud, queued):
+    await analytics.analytics_middleware(
+        _request(user_email=EMAIL, user_id=str(USER_ID)), _call_next
+    )
+
+    [call] = queued.calls
+    assert "instance_kind" not in call["properties"]
+
+
+@pytest.mark.parametrize(
+    "role, expected",
+    [
+        ("editor", "editor"),
+        ("ops-lead", "ops-lead"),
+        ("operators@example.com", "custom"),
+        ("a role with spaces", "custom"),
+    ],
+)
+def test_role_names_are_sent_only_when_plain(role, expected):
+    assert telemetry_service.role_label(role) == expected
+
+
+@pytest.mark.parametrize(
+    "override, ci, web_url, expected",
+    [
+        ("test", False, "https://agenta.example.com", "test"),
+        ("production", True, "http://localhost", "production"),
+        (None, True, "https://agenta.example.com", "ci"),
+        (None, False, "http://localhost:3000", "development"),
+        (None, False, "https://agenta.example.com", "production"),
+    ],
+)
+def test_instance_kind_override_wins_over_detection(
+    monkeypatch, override, ci, web_url, expected
+):
+    monkeypatch.setattr(env.telemetry, "instance_kind", override)
+    monkeypatch.setattr(env.telemetry, "ci", ci)
+    monkeypatch.setattr(env.agenta, "web_url", web_url)
+
+    assert instances_service.get_instance_kind() == expected
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [("test", "test"), (" CI ", "ci"), ("", None), ("staging", None)],
+)
+def test_instance_kind_env_var_accepts_the_known_values(monkeypatch, value, expected):
+    monkeypatch.setenv("AGENTA_TELEMETRY_INSTANCE_KIND", value)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        assert env_module._parse_instance_kind() == expected
+
+
+@pytest.mark.asyncio
 async def test_api_event_carries_the_sdk_that_called(self_hosted, queued):
     await analytics.analytics_middleware(
         _request(
@@ -511,6 +580,7 @@ async def test_browser_gets_the_anonymous_id_and_group(self_hosted):
         "enabled": True,
         "distinct_id": f"{INSTANCE_ID}:{USER_ID}",
         "groups": {"instance": str(INSTANCE_ID)},
+        "properties": {"instance_kind": "test"},
     }
 
 
@@ -524,6 +594,7 @@ async def test_browser_gets_nothing_when_the_switch_is_off(monkeypatch, self_hos
         "enabled": False,
         "distinct_id": None,
         "groups": None,
+        "properties": None,
     }
 
 
@@ -535,6 +606,7 @@ async def test_browser_on_cloud_gets_the_email(cloud):
         "enabled": True,
         "distinct_id": EMAIL,
         "groups": None,
+        "properties": None,
     }
 
 

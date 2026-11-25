@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
     alias: vi.fn(),
     identify: vi.fn(),
     group: vi.fn(),
+    register: vi.fn(),
     reset: vi.fn(),
     init: vi.fn(),
 }))
@@ -24,6 +25,7 @@ vi.mock("@agenta/shared/api", () => ({
                 enabled: true,
                 distinct_id: "instance-1:user-1",
                 groups: {instance: "instance-1"},
+                properties: {instance_kind: "test"},
             },
         }),
     },
@@ -62,6 +64,7 @@ beforeEach(async () => {
             alias: state.alias,
             identify: state.identify,
             group: state.group,
+            register: state.register,
             reset: state.reset,
             // An id stored before the upgrade, such as the email.
             get_distinct_id: () => "person@example.test",
@@ -103,6 +106,10 @@ describe("self-hosted PostHog", () => {
         )
         expect(state.identify.mock.calls).toEqual([["instance-1:user-1"]])
         expect(state.group).toHaveBeenCalledWith("instance", "instance-1")
+        expect(state.register).toHaveBeenCalledWith({instance_kind: "test"})
+        expect(state.register.mock.invocationCallOrder[0]).toBeLessThan(
+            state.identify.mock.invocationCallOrder[0],
+        )
         expect(state.alias).not.toHaveBeenCalled()
         const sent = JSON.stringify([state.identify.mock.calls, state.capture.mock.calls])
         expect(sent).not.toContain("person@example.test")
