@@ -29,8 +29,9 @@ export function ConnectionRowMenu({
 }: {
     items?: ConnectionMenuItem[]
     onRefresh: () => void
-    onRevoke: () => void
-    onDelete: () => void
+    /** Absent for someone who may not change the connection (read-only on the project). */
+    onRevoke?: () => void
+    onDelete?: () => void
 }) {
     const t = useT(integrationDrawerCatalog)
     return (
@@ -59,15 +60,21 @@ export function ConnectionRowMenu({
                     <ArrowClockwise size={14} />
                     {t("entityUi.integrationDrawer.refresh")}
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={onRevoke}>
-                    <XCircle size={14} />
-                    {t("entityUi.integrationDrawer.revoke")}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onSelect={onDelete}>
-                    <Trash size={14} />
-                    {t("entityUi.integrationDrawer.delete")}
-                </DropdownMenuItem>
+                {onRevoke ? (
+                    <DropdownMenuItem onSelect={onRevoke}>
+                        <XCircle size={14} />
+                        {t("entityUi.integrationDrawer.revoke")}
+                    </DropdownMenuItem>
+                ) : null}
+                {onDelete ? (
+                    <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+                            <Trash size={14} />
+                            {t("entityUi.integrationDrawer.delete")}
+                        </DropdownMenuItem>
+                    </>
+                ) : null}
             </DropdownMenuContent>
         </DropdownMenu>
     )

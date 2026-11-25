@@ -239,6 +239,7 @@ export default function GatewayToolsSection({
                     confirmConnectionAction={confirm ? confirmConnectionAction : undefined}
                     onConnect={(integrationKey) => setConnectTarget(integrationKey)}
                     controls={controls}
+                    canManageProject={canEdit}
                 />
             </section>
 

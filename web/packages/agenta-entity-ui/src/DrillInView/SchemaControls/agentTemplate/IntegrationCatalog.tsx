@@ -152,6 +152,8 @@ export interface IntegrationCatalogProps {
      */
     confirmConnectionAction?: (action: ConnectionAction, connection: ToolConnection) => void
     /** Filters held by a host that draws its own toolbar (Settings); the catalog draws none. */
+    /** Settings: whether this person may revoke or delete the project's connections. */
+    canManageProject?: boolean
     controls?: IntegrationCatalogControls
 }
 
@@ -235,6 +237,8 @@ export interface ConnectionRowHandlers {
 interface RowVerbs {
     run?: IntegrationCatalogRun
     makeDefault?: IntegrationCatalogYours["makeDefault"]
+    /** False: Revoke and Delete are not offered (a read-only member on project rows). */
+    manage?: boolean
 }
 
 const works = (connection: ToolConnection) =>
@@ -446,8 +450,16 @@ function ConnectedRow({
                             <ConnectionRowMenu
                                 items={menuItems(single, verbs)}
                                 onRefresh={() => handlers.onRefresh(single)}
-                                onRevoke={() => handlers.onConfirm("revoke", single, singleLabel)}
-                                onDelete={() => handlers.onConfirm("delete", single, singleLabel)}
+                                onRevoke={
+                                    verbs.manage === false
+                                        ? undefined
+                                        : () => handlers.onConfirm("revoke", single, singleLabel)
+                                }
+                                onDelete={
+                                    verbs.manage === false
+                                        ? undefined
+                                        : () => handlers.onConfirm("delete", single, singleLabel)
+                                }
                             />
                         </span>
                     )}
@@ -486,11 +498,17 @@ function ConnectedRow({
                                     <ConnectionRowMenu
                                         items={menuItems(connection, verbs)}
                                         onRefresh={() => handlers.onRefresh(connection)}
-                                        onRevoke={() =>
-                                            handlers.onConfirm("revoke", connection, label)
+                                        onRevoke={
+                                            verbs.manage === false
+                                                ? undefined
+                                                : () =>
+                                                      handlers.onConfirm("revoke", connection, label)
                                         }
-                                        onDelete={() =>
-                                            handlers.onConfirm("delete", connection, label)
+                                        onDelete={
+                                            verbs.manage === false
+                                                ? undefined
+                                                : () =>
+                                                      handlers.onConfirm("delete", connection, label)
                                         }
                                     />
                                 </div>
@@ -679,6 +697,7 @@ export function IntegrationCatalog({
     run,
     confirmConnectionAction,
     controls,
+    canManageProject = true,
 }: IntegrationCatalogProps) {
     const connectionsHeading = useConnectionsHeading()
     const t = useT(integrationDrawerCatalog)
@@ -729,7 +748,10 @@ export function IntegrationCatalog({
         }),
         [refreshConnection, confirmAction],
     )
-    const projectVerbs = useMemo<RowVerbs>(() => ({run}), [run])
+    const projectVerbs = useMemo<RowVerbs>(
+        () => ({run, manage: canManageProject}),
+        [run, canManageProject],
+    )
     const yoursVerbs = useMemo<RowVerbs>(() => ({makeDefault: yours?.makeDefault}), [yours])
 
     const setSearch = useSetAtom(toolIntegrationsSearchAtom)
