@@ -42,7 +42,7 @@ overrides:
   '@opentelemetry/core@>=2 <2.8.0': 2.8.0
   '@ai-sdk/provider-utils@4.0.0-beta.47': 4.0.33
   baseline-browser-mapping@<2.11.0: '>=2.11.0 <3'
-  '@vitest/mocker@>=4 <4.1.12': 4.1.12
+  '@vitest/mocker@<4.1.12': 4.1.12
   devalue@>=5 <5.9.3: 5.9.3
   undici@>=7 <7.30.1: 7.30.1
   undici@>=8 <8.12.2: 8.12.2
@@ -7380,17 +7380,6 @@ packages:
   '@vitest/expect@4.1.11':
     resolution: {integrity: sha512-VX2x5vNJXET47KAFzwERI+KRMtTTCSWTfSMKsW7JsUsXV4psq++e3DvZpuTDOpHcxytiDs6p2nhVb2tVDiiUYw==}
 
-  '@vitest/mocker@3.2.4':
-    resolution: {integrity: sha512-46ryTE9RZO/rfDd7pEqFl7etuyzekzEhUbTW3BvmeO/BcCMEgq59BKhek3dXDWgAj4oMK6OZi+vRr1wPW6qjEQ==}
-    peerDependencies:
-      msw: ^2.4.9
-      vite: 8.1.6
-    peerDependenciesMeta:
-      msw:
-        optional: true
-      vite:
-        optional: true
-
   '@vitest/mocker@4.1.12':
     resolution: {integrity: sha512-fKShNpKZzupWZuY0z7egydvL0sqW4INEZBEExMBMAa6izlENEVHwoXgdaTCaBZ5fwlr4xf2o1wXC83n9RpO+NA==}
     peerDependencies:
@@ -12861,7 +12850,7 @@ packages:
         optional: true
 
   xlsx@https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz:
-    resolution: {integrity: sha512-oLDq3jw7AcLqKWH2AhCpVTZl8mf6X2YReP+Neh0SJUzV/BdZYjth94tG5toiMB1PPrYtxOCfaoUCkvtuH+3AJA==, tarball: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz}
+    resolution: {tarball: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz}
     version: 0.20.3
     engines: {node: '>=0.8'}
     hasBin: true
@@ -17596,9 +17585,9 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.0
 
-  '@vitest/mocker@3.2.4(vite@8.1.6(@types/node@20.19.39)(esbuild@0.25.12)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))':
+  '@vitest/mocker@4.1.12(vite@8.1.6(@types/node@20.19.39)(esbuild@0.25.12)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))':
     dependencies:
-      '@vitest/spy': 3.2.4
+      '@vitest/spy': 4.1.12
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
@@ -23301,7 +23290,7 @@ snapshots:
       '@testing-library/jest-dom': 6.9.1
       '@testing-library/user-event': 14.6.1(@testing-library/dom@10.4.1)
       '@vitest/expect': 3.2.4
-      '@vitest/mocker': 3.2.4(vite@8.1.6(@types/node@20.19.39)(esbuild@0.25.12)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
+      '@vitest/mocker': 4.1.12(vite@8.1.6(@types/node@20.19.39)(esbuild@0.25.12)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
       '@vitest/spy': 3.2.4
       better-opn: 3.0.2
       esbuild: 0.25.12
