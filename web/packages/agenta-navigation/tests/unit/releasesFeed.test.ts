@@ -110,6 +110,19 @@ describe("mergeReleases", () => {
         expect(merged[0].fixes[0].text).toBe("See http://agenta.ai")
     })
 
+    it("keeps a release with a cover this build cannot draw and drops only the cover", () => {
+        const feature = release("v0.129.0").features[0]
+        const merged = mergeReleases(bundled, [
+            release("v0.129.4", {
+                features: [{...feature, cover: "unknown" as unknown as Release["features"][0]["cover"]}],
+            }),
+            release("v0.129.3", {features: [{...feature, cover: "models"}]}),
+        ])
+        expect(merged.map((r) => r.id)).toEqual(["v0.129.4", "v0.129.3", "v0.127.3", "v0.127.2"])
+        expect(merged[0].features[0]).not.toHaveProperty("cover")
+        expect(merged[1].features[0].cover).toBe("models")
+    })
+
     it("keeps a release whose text names a script scheme or has a character reference", () => {
         const feature = release("v0.129.0").features[0]
         const merged = mergeReleases(bundled, [

@@ -1,4 +1,4 @@
-import type {Notice, Release} from "./index"
+import type {Notice, Release, ReleaseCover} from "./index"
 
 const VERSION = /^v(\d+)\.(\d+)\.(\d+)$/
 
@@ -70,12 +70,18 @@ const isRelease = (value: unknown): value is Release => {
     )
 }
 
-// A bad link must not hide the release (it may carry a security fix): only the link goes.
-const withHttpsLinks = (release: Release): Release => ({
+// The covers this build can draw (scripts/parse-entry.mjs keeps the same list).
+const KNOWN_COVERS: readonly unknown[] = ["builder", "models", "channels"] satisfies ReleaseCover[]
+
+// A bad link or a cover this build cannot draw must not hide the release (it may carry a
+// security fix): only that field goes.
+const withSafeFields = (release: Release): Release => ({
     ...release,
-    features: release.features.map(({link, ...feature}) =>
-        isHttpsLink(link) ? {...feature, link} : feature,
-    ),
+    features: release.features.map(({link, cover, ...feature}) => ({
+        ...feature,
+        ...(isHttpsLink(link) ? {link} : {}),
+        ...(KNOWN_COVERS.includes(cover) ? {cover} : {}),
+    })),
 })
 
 /**
@@ -92,7 +98,7 @@ export const mergeReleases = (bundled: Release[], feed: readonly unknown[] = [])
             known.add(release.id)
             return true
         })
-        .map(withHttpsLinks)
+        .map(withSafeFields)
     if (added.length === 0) return bundled
     return [...bundled, ...added].sort((a, b) => compareVersions(b.id, a.id))
 }
