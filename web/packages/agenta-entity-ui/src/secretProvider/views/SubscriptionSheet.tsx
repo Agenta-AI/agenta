@@ -7,11 +7,18 @@ import {BottomSheet, useIsPhone} from "@agenta/ui/phone"
 import {Dialog, DialogContent, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 import type {ViewForm} from "@agenta/ui/view-stack"
 
+import {OwnerField} from "../../accounts/OwnerField"
+
 import {BuiltinModelsPanel} from "./BuiltinModelsPanel"
 import {SubscriptionSignInPanel} from "./SubscriptionSignInPanel"
 import {SubscriptionTokenPanel} from "./SubscriptionTokenPanel"
-import {subscriptionTokenView, subscriptionViewFor, type SubscriptionViewParams} from "./subscriptionViews"
-import {useSubscriptionViewConnection} from "./useSubscriptionViewConnection"
+import {
+    SubscriptionOwnerContext,
+    subscriptionTokenView,
+    subscriptionViewFor,
+    type SubscriptionOwner,
+    type SubscriptionViewParams,
+} from "./subscriptionViews"
 
 /** The kit dialog, or a bottom sheet on a phone; the host drops it once it has closed. */
 const SheetFrame = ({
@@ -52,16 +59,29 @@ const SheetFrame = ({
     )
 }
 
-/** A ChatGPT sign-in or a Claude token in the kit dialog, for hosts without a view stack. */
+/** One owner the dialog may sign in: the project (no context) or the organization. */
+export interface SubscriptionSheetOwner {
+    kind: "project" | "organization"
+    context: SubscriptionOwner | null
+}
+
+/**
+ * A ChatGPT sign-in or a Claude token in the kit dialog, for hosts without a view stack. With
+ * two owners it asks for the Owner first, as the other connect dialogs do.
+ */
 export const SubscriptionSheet = ({
     params,
+    owners,
     onClosed,
 }: {
     params: SubscriptionViewParams
+    owners: SubscriptionSheetOwner[]
     onClosed: () => void
 }) => {
     const [open, setOpen] = useState(true)
     const close = () => setOpen(false)
+    const [ownerKind, setOwnerKind] = useState(owners[0]?.kind ?? "project")
+    const owner = owners.find((candidate) => candidate.kind === ownerKind) ?? owners[0]
     // A typed token or a changed project choice keeps the dialog open on Escape or an outside click.
     const dirtyRef = useRef(false)
     const trackForm = useMemo(
@@ -73,22 +93,45 @@ export const SubscriptionSheet = ({
     const dismiss = () => {
         if (!dirtyRef.current) close()
     }
-    const {connection} = useSubscriptionViewConnection(params)
-    const title = connection?.name || subscriptionProviderName(params.provider)
     const token = subscriptionViewFor(params.provider) === subscriptionTokenView
     return (
-        <SheetFrame title={title} open={open} onClose={dismiss} onClosed={onClosed}>
-            {token ? (
-                <SubscriptionTokenPanel
-                    params={params}
-                    onDone={close}
-                    onCancel={close}
-                    useForm={trackForm}
-                    actionsPlacement="footer"
-                />
-            ) : (
-                <SubscriptionSignInPanel params={params} onDone={close} onCancel={close} />
-            )}
+        <SheetFrame
+            title={subscriptionProviderName(params.provider)}
+            open={open}
+            onClose={dismiss}
+            onClosed={onClosed}
+        >
+            <div className="flex flex-col gap-4">
+                {owners.length > 1 ? (
+                    <OwnerField
+                        value={ownerKind}
+                        owners={owners.map((candidate) => candidate.kind)}
+                        onChange={(next) => {
+                            dirtyRef.current = false
+                            setOwnerKind(next)
+                        }}
+                    />
+                ) : null}
+                <SubscriptionOwnerContext.Provider value={owner?.context ?? null}>
+                    {token ? (
+                        <SubscriptionTokenPanel
+                            key={ownerKind}
+                            params={params}
+                            onDone={close}
+                            onCancel={close}
+                            useForm={trackForm}
+                            actionsPlacement="footer"
+                        />
+                    ) : (
+                        <SubscriptionSignInPanel
+                            key={ownerKind}
+                            params={params}
+                            onDone={close}
+                            onCancel={close}
+                        />
+                    )}
+                </SubscriptionOwnerContext.Provider>
+            </div>
         </SheetFrame>
     )
 }

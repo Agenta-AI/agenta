@@ -113,4 +113,8 @@ export {
     type SubscriptionSignInPhase,
 } from "./views/SubscriptionSignInCard"
 export {ProviderOwnerChoiceContext} from "./views/providerOwnerChoice"
-export {BuiltinModelsSheet, SubscriptionSheet} from "./views/SubscriptionSheet"
+export {
+    BuiltinModelsSheet,
+    SubscriptionSheet,
+    type SubscriptionSheetOwner,
+} from "./views/SubscriptionSheet"

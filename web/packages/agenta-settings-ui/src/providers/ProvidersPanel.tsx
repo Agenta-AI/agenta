@@ -18,10 +18,10 @@ import {
     ProviderDrawer,
     providerIconFor,
     ProviderOwnerChoiceContext,
-    SubscriptionOwnerContext,
     SubscriptionSheet,
     type OrganizationConnectionScope,
     type ProviderOwnerChoice,
+    type SubscriptionSheetOwner,
     type SubscriptionViewParams,
 } from "@agenta/entity-ui/secretProvider"
 import {useT, type CatalogKey} from "@agenta/i18n"
@@ -194,11 +194,9 @@ export const ProvidersPanel = ({
               (candidate) => candidate.id === drawerTarget.connectionId,
           ) ?? null)
         : null
-    // The group whose subscription view is open; it stays set while the drawer closes.
-    const [signInGroupKey, setSignInGroupKey] = useState<string | null>(null)
     // The open subscription or built-in models sheet; a new id remounts it fresh.
     const [sheet, setSheet] = useState<
-        | {id: number; view: "subscription"; params: SubscriptionViewParams}
+        | {id: number; view: "subscription"; params: SubscriptionViewParams; groupKeys: string[]}
         | {id: number; view: "builtin"}
         | null
     >(null)
@@ -214,19 +212,19 @@ export const ProvidersPanel = ({
         [renderRemoveDialog],
     )
 
-    const signInGroup = allGroups.find((group) => group.key === signInGroupKey) ?? null
+    // One owner opens its own sign-in; several let the dialog ask which owner first.
     const openSignIn = useCallback(
         (
-            groupKey: string,
+            groupKeys: string[],
             provider: SubscriptionProvider,
             connectionId?: string,
             start = false,
         ) => {
-            setSignInGroupKey(groupKey)
             setSheet({
                 id: Date.now(),
                 view: "subscription",
-                params: {provider, connectionId, start},
+                params: {provider, connectionId, start: start && groupKeys.length === 1},
+                groupKeys,
             })
         },
         [],
@@ -266,7 +264,7 @@ export const ProvidersPanel = ({
             const canRemove = canRemoveIn(source)
             const open = (connection: ProviderConnection) => {
                 const provider = subscriptionProviderOf(connection)
-                if (provider) openSignIn(groupKey, provider, connection.id)
+                if (provider) openSignIn([groupKey], provider, connection.id)
                 else setDrawerTarget({groupKey, connectionId: connection.id})
             }
             const held = source.rows.map<SettingsCatalogItem>((connection) => {
@@ -314,25 +312,14 @@ export const ProvidersPanel = ({
                 source.offersSubscriptions && !source.loading
                     ? SUBSCRIPTION_PROVIDERS.filter(
                           (provider) => !subscriptionConnectionFor(source.connections, provider),
-                      ).map<SettingsCatalogItem>((provider) => ({
-                          key: `${groupKey}:subscription:${provider}`,
-                          logo: <ProviderLogo kind={subscriptionProviderFamily(provider)} />,
-                          name: subscriptionProviderName(provider),
-                          badge,
-                          description: t(SUBSCRIPTION_HINT[provider]),
-                          status: "available",
-                          statusLabel: t("settings.providers.connectName", {
-                              name: subscriptionProviderName(provider),
-                          }),
-                          onOpen: () => openSignIn(groupKey, provider, undefined, true),
-                      }))
+                      )
                     : []
             return {
                 key: groupKey,
                 label: null,
                 items: held.filter(matches),
-                // Sign-ins an owner may start: not connections, so they list apart.
-                offered: offered.filter(matches),
+                // Sign-ins this owner may start: not connections, so they list apart.
+                offered,
                 // A group still loading holds its place with one skeleton row.
                 pendingRows: source.loading && !held.length ? 1 : 0,
                 footer: source.failure,
@@ -370,7 +357,27 @@ export const ProvidersPanel = ({
         const subscriptionsGroup: SettingsCatalogGroup = {
             key: "subscriptions",
             label: t("settings.providers.subscriptions"),
-            items: owned.flatMap((group) => group.offered),
+            // One row per provider; its dialog asks which owner when more than one may start it.
+            items: SUBSCRIPTION_PROVIDERS.flatMap<SettingsCatalogItem>((provider) => {
+                const groupKeys = owned
+                    .filter((group) => group.offered.includes(provider))
+                    .map((group) => group.key)
+                return groupKeys.length
+                    ? [
+                          {
+                              key: `subscription:${provider}`,
+                              logo: <ProviderLogo kind={subscriptionProviderFamily(provider)} />,
+                              name: subscriptionProviderName(provider),
+                              description: t(SUBSCRIPTION_HINT[provider]),
+                              status: "available",
+                              statusLabel: t("settings.providers.connectName", {
+                                  name: subscriptionProviderName(provider),
+                              }),
+                              onOpen: () => openSignIn(groupKeys, provider, undefined, true),
+                          },
+                      ]
+                    : []
+            }).filter(matches),
         }
         if (!projectGroup) return [connected, subscriptionsGroup]
         const catalogRow = (entry: ProviderCatalogEntry): SettingsCatalogItem => ({
@@ -447,29 +454,34 @@ export const ProvidersPanel = ({
                 onClose: () => setPendingRemoval(null),
             })}
 
-            {/* The sheets find this group's connections, and sign in on the organization's routes. */}
-            <SubscriptionOwnerContext.Provider
-                value={
-                    signInGroup?.source.organization
-                        ? {
-                              connections: signInGroup.source.connections,
-                              organization: signInGroup.source.organization,
-                          }
-                        : null
-                }
-            >
-                <ProviderOwnerChoiceContext.Provider value={ownerChoiceFor ?? null}>
-                    {sheet?.view === "subscription" ? (
-                        <SubscriptionSheet
-                            key={sheet.id}
-                            params={sheet.params}
-                            onClosed={() => setSheet(null)}
-                        />
-                    ) : sheet?.view === "builtin" ? (
-                        <BuiltinModelsSheet key={sheet.id} onClosed={() => setSheet(null)} />
-                    ) : null}
-                </ProviderOwnerChoiceContext.Provider>
-            </SubscriptionOwnerContext.Provider>
+            <ProviderOwnerChoiceContext.Provider value={ownerChoiceFor ?? null}>
+                {sheet?.view === "subscription" ? (
+                    <SubscriptionSheet
+                        key={sheet.id}
+                        params={sheet.params}
+                        owners={sheet.groupKeys.flatMap<SubscriptionSheetOwner>((groupKey) => {
+                            const group = allGroups.find((candidate) => candidate.key === groupKey)
+                            if (!group) return []
+                            // The organization's sheet finds its connections and signs in on its routes.
+                            const organization = group.source.organization
+                            return [
+                                organization
+                                    ? {
+                                          kind: "organization",
+                                          context: {
+                                              connections: group.source.connections,
+                                              organization,
+                                          },
+                                      }
+                                    : {kind: "project", context: null},
+                            ]
+                        })}
+                        onClosed={() => setSheet(null)}
+                    />
+                ) : sheet?.view === "builtin" ? (
+                    <BuiltinModelsSheet key={sheet.id} onClosed={() => setSheet(null)} />
+                ) : null}
+            </ProviderOwnerChoiceContext.Provider>
 
             <ProviderDrawer
                 open={!!drawerTarget}
