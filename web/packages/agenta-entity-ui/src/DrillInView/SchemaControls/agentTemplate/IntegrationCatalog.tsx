@@ -983,13 +983,12 @@ export function IntegrationCatalog({
                     }
                 >
                     {controls ? (
-                        // Settings: one Connected list, narrow owners first, chips in All.
+                        // Settings: one Connected grid, as All apps, narrow owners first, chips in All.
                         (showsOwner("user") && yoursGroups.length > 0) ||
                         (showsOwner("project") && connectedGroups.length > 0) ||
                         connectedFooter ? (
                             <RowGroup
                                 label={t("entityUi.integrationDrawer.connected")}
-                                list
                                 count={
                                     (showsOwner("user") ? yoursGroups.length : 0) +
                                     (showsOwner("project") ? connectedGroups.length : 0)

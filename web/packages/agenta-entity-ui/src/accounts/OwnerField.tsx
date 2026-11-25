@@ -3,10 +3,8 @@ import {useCallback, type ComponentType} from "react"
 import {useT} from "@agenta/i18n"
 import accountsCatalog from "@agenta/i18n/catalogs/entityUi.accounts"
 import type {OwnerKind} from "@agenta/shared/types"
-import {Field} from "@agenta/ui/ui"
+import {Field, Segmented} from "@agenta/ui/ui"
 import {Buildings, User, UsersThree, type IconProps} from "@phosphor-icons/react"
-
-import {AccountSwitch} from "./AccountSwitch"
 
 /** Who owns a connection, narrow to wide: the person, the project, the organization. */
 export const OWNER_ORDER: readonly OwnerKind[] = ["user", "project", "organization"]
@@ -43,8 +41,8 @@ export interface OwnerFieldProps<Owner extends OwnerKind> {
 }
 
 /**
- * The Owner field of an add form: a segment of the allowed owners, each with its word and the
- * sentence that says who can use what is added. Every connections page asks it the same way.
+ * The Owner field of an add form: a segment of the allowed owners, as the page toolbar's, and
+ * under it the sentence that says who can use what is added. Every connections page asks it the same way.
  */
 export function OwnerField<Owner extends OwnerKind>({
     value,
@@ -69,12 +67,20 @@ export function OwnerField<Owner extends OwnerKind>({
 
     return (
         <Field label={t("entityUi.accounts.owner")}>
-            <AccountSwitch
-                value={value}
-                choices={shown.map((owner) => ({value: owner, label: word(owner), note: note(owner)}))}
-                onChange={onChange}
+            <div className="flex flex-col gap-1.5">
+            <Segmented
                 aria-label={t("entityUi.accounts.owner")}
+                block
+                value={value}
+                onChange={(next) => onChange(next as Owner)}
+                options={shown.map((owner) => {
+                    const Icon = OWNER_ICON[owner] as ComponentType<IconProps>
+                    // The word in its own span: a bare text node reads as an icon-only option.
+                    return {value: owner, label: <span>{word(owner)}</span>, icon: <Icon size={14} />}
+                })}
             />
+            <span className="text-meta text-muted-foreground">{note(value)}</span>
+            </div>
         </Field>
     )
 }
