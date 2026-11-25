@@ -139,6 +139,10 @@ const catalogDescription = (
 }
 
 const SUBSCRIPTION_PROVIDERS: SubscriptionProvider[] = ["chatgpt", "claude"]
+
+/** A subscription whose sign-in never finished (a cancelled Connect): still one to start, not held. */
+const neverSignedIn = (connection: ProviderConnection) =>
+    !!connection.subscription && connection.subscription.loginState === "pending_login"
 /** The line of a sign-in not made yet. */
 const SUBSCRIPTION_HINT: Record<
     SubscriptionProvider,
@@ -267,7 +271,7 @@ export const ProvidersPanel = ({
                 if (provider) openSignIn([groupKey], provider, connection.id)
                 else setDrawerTarget({groupKey, connectionId: connection.id})
             }
-            const held = source.rows.map<SettingsCatalogItem>((connection) => {
+            const held = source.rows.filter((connection) => !neverSignedIn(connection)).map<SettingsCatalogItem>((connection) => {
                 // A subscription that is not signed in needs attention, not a connected mark.
                 const needsSignIn =
                     !!connection.subscription && !subscriptionIsReady(connection.subscription)
@@ -311,7 +315,10 @@ export const ProvidersPanel = ({
             const offered =
                 source.offersSubscriptions && !source.loading
                     ? SUBSCRIPTION_PROVIDERS.filter(
-                          (provider) => !subscriptionConnectionFor(source.connections, provider),
+                          (provider) => {
+                              const existing = subscriptionConnectionFor(source.connections, provider)
+                              return !existing || neverSignedIn(existing)
+                          },
                       )
                     : []
             return {
@@ -348,7 +355,6 @@ export const ProvidersPanel = ({
         const connected: SettingsCatalogGroup = {
             key: "connected",
             label: connectedLabel ?? t("common.connected"),
-            list: true,
             items,
             count: items.length,
             pendingRows: owned.some((group) => group.pendingRows) ? 1 : 0,
