@@ -55,7 +55,9 @@ import {useIsPhone} from "@agenta/ui/phone"
 import {Button, Segmented} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
+    CheckCircle,
     LinkBreak,
+    MagnifyingGlass,
     PencilSimpleLine,
     Plus,
     SignIn,
@@ -398,25 +400,46 @@ export default function McpServersSection({
             loading={isPending || access === "loading"}
             skeletonRows={3}
             skeleton={{mark: true}}
-            // A phone shows one column: a lone header there says nothing.
-            hideHeader={!wide}
+            // A phone shows one column, and an empty list has no columns: no header either way.
+            hideHeader={!wide || (!isPending && !rows.length)}
             onOpenRow={(record) => setViewing(record)}
             empty={
-                narrowed ? (
+                term ? (
                     <SettingsEmpty
                         compact
-                        icon={getSettingsSidebarIcon("mcpEndpoints")}
+                        icon={<MagnifyingGlass size={16} />}
                         title={t("settings.shared.noMatchTitle")}
-                        description={t("settings.shared.noMatchBody")}
+                        description={t("settings.shared.noMatchSearchBody")}
                         action={
-                            <Button
-                                variant="outline"
-                                onClick={() => {
-                                    setSearch("")
-                                    setStatusFilter("all")
-                                }}
-                            >
-                                {t("settings.shared.resetFilters")}
+                            <Button variant="outline" onClick={() => setSearch("")}>
+                                {t("common.clearSearch")}
+                            </Button>
+                        }
+                    />
+                ) : narrowed ? (
+                    // A status with no servers is an answer, not a miss: a full empty screen.
+                    <SettingsEmpty
+                        plain
+                        icon={
+                            statusFilter === "attention" ? (
+                                <CheckCircle size={20} />
+                            ) : (
+                                getSettingsSidebarIcon("mcpEndpoints")
+                            )
+                        }
+                        title={
+                            statusFilter === "attention"
+                                ? t("settings.mcp.noneNeedAttentionTitle")
+                                : t("settings.mcp.noneConnectedTitle")
+                        }
+                        description={
+                            statusFilter === "attention"
+                                ? t("settings.mcp.noneNeedAttentionBody")
+                                : t("settings.mcp.noneConnectedBody")
+                        }
+                        action={
+                            <Button variant="outline" onClick={() => setStatusFilter("all")}>
+                                {t("settings.mcp.showAllServers")}
                             </Button>
                         }
                     />

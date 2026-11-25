@@ -27,5 +27,10 @@
     "tokenDialogDescription": "Cole seu próprio token para este servidor. Somente as execuções que você iniciar o usam.",
     "viewTools": "Ver ferramentas",
     "searchServers": "Pesquisar servidores MCP",
-    "yourSignIn": "Seu login"
+    "yourSignIn": "Seu login",
+    "noneNeedAttentionTitle": "Nada precisa de atenção",
+    "noneNeedAttentionBody": "Todos os servidores estão conectados.",
+    "noneConnectedTitle": "Nenhum servidor conectado",
+    "noneConnectedBody": "Os servidores que precisam de login ou de correção estão em \"Precisa de atenção\".",
+    "showAllServers": "Mostrar todos os servidores"
 }

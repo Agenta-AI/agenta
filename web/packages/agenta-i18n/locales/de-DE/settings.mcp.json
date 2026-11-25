@@ -27,5 +27,10 @@
     "tokenDialogDescription": "Fügen Sie Ihr eigenes Token für diesen Server ein. Nur Ausführungen, die Sie starten, verwenden es.",
     "viewTools": "Werkzeuge ansehen",
     "searchServers": "MCP-Server suchen",
-    "yourSignIn": "Ihre Anmeldung"
+    "yourSignIn": "Ihre Anmeldung",
+    "noneNeedAttentionTitle": "Nichts erfordert Aufmerksamkeit",
+    "noneNeedAttentionBody": "Alle Server sind verbunden.",
+    "noneConnectedTitle": "Keine verbundenen Server",
+    "noneConnectedBody": "Server, die eine Anmeldung oder eine Korrektur brauchen, stehen unter „Erfordert Aufmerksamkeit“.",
+    "showAllServers": "Alle Server anzeigen"
 }

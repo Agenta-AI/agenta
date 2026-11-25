@@ -27,5 +27,10 @@
     "tokenDialogDescription": "Collez votre propre jeton pour ce serveur. Seules les exécutions que vous lancez l’utilisent.",
     "viewTools": "Voir les outils",
     "searchServers": "Rechercher des serveurs MCP",
-    "yourSignIn": "Votre connexion"
+    "yourSignIn": "Votre connexion",
+    "noneNeedAttentionTitle": "Rien ne demande votre attention",
+    "noneNeedAttentionBody": "Tous les serveurs sont connectés.",
+    "noneConnectedTitle": "Aucun serveur connecté",
+    "noneConnectedBody": "Les serveurs qui demandent une connexion ou une correction sont sous « À traiter ».",
+    "showAllServers": "Afficher tous les serveurs"
 }

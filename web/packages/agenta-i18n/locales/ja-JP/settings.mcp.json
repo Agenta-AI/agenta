@@ -27,5 +27,10 @@
     "tokenDialogDescription": "このサーバー用の自分のトークンを貼り付けてください。あなたが開始した実行でのみ使用されます。",
     "viewTools": "ツールを表示",
     "searchServers": "MCP サーバーを検索",
-    "yourSignIn": "あなたのサインイン"
+    "yourSignIn": "あなたのサインイン",
+    "noneNeedAttentionTitle": "対応が必要なものはありません",
+    "noneNeedAttentionBody": "すべてのサーバーが接続されています。",
+    "noneConnectedTitle": "接続済みのサーバーはありません",
+    "noneConnectedBody": "サインインや修正が必要なサーバーは「対応が必要」にあります。",
+    "showAllServers": "すべてのサーバーを表示"
 }

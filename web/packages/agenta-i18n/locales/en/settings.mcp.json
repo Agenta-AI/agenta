@@ -27,5 +27,10 @@
     "tokenDialogDescription": "Paste your own token for this server. Only runs you start use it.",
     "viewTools": "View tools",
     "searchServers": "Search MCP servers",
-    "yourSignIn": "Your sign-in"
+    "yourSignIn": "Your sign-in",
+    "noneNeedAttentionTitle": "Nothing needs attention",
+    "noneNeedAttentionBody": "Every server is connected.",
+    "noneConnectedTitle": "No connected servers",
+    "noneConnectedBody": "Servers that need a sign-in or a fix are under Needs attention.",
+    "showAllServers": "Show all servers"
 }

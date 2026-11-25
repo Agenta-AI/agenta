@@ -27,5 +27,10 @@
     "tokenDialogDescription": "粘贴你自己的此服务器令牌。只有你发起的运行会使用它。",
     "viewTools": "查看工具",
     "searchServers": "搜索 MCP 服务器",
-    "yourSignIn": "你的登录"
+    "yourSignIn": "你的登录",
+    "noneNeedAttentionTitle": "没有需要处理的项",
+    "noneNeedAttentionBody": "所有服务器均已连接。",
+    "noneConnectedTitle": "没有已连接的服务器",
+    "noneConnectedBody": "需要登录或修复的服务器在“需要处理”中。",
+    "showAllServers": "显示所有服务器"
 }
