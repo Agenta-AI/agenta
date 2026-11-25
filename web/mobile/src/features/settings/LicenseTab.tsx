@@ -34,7 +34,6 @@ const errorMessage = (error: unknown) =>
           ? tNow("settings.license.invalidKey")
           : tNow("settings.license.addFailed")
 
-
 /**
  * The instance license, for the instance admin: the plan with its usage, then one next step.
  * Without a key, the free registration; with the free key, the Enterprise offer; with a paid
