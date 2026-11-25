@@ -9,8 +9,8 @@ from an older version, so it sends no install ping and is not counted as a new i
 
 The table is new, so nothing else is locked. Old code ignores it.
 
-Revision ID: oss000000064
-Revises: oss000000063
+Revision ID: oss000000069
+Revises: oss000000068
 Create Date: 2026-11-09 00:00:00.000000
 """
 
@@ -20,8 +20,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "oss000000064"
-down_revision: Union[str, None] = "oss000000063"
+revision: str = "oss000000069"
+down_revision: Union[str, None] = "oss000000068"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
