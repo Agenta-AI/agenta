@@ -11,7 +11,6 @@
     "incompatible": "Incompatible with this provider",
     "harnessAddsModels": "Each enabled harness adds this connection's models to the model picker.",
     "selectAll": "Select all",
-    "searchModels": "Search {{total}} models or add an ID",
     "addTerm": "Add <mono>{{term}}</mono>",
     "enterKey": "Enter",
     "noModelsYet": "No models yet. Type a model ID above to add it.",
@@ -35,5 +34,7 @@
     "modelCount_one": "{{count}} model",
     "modelCount_other": "{{count}} models",
     "savedUntested": "This provider offers no free credential check, so the key is saved untested.",
-    "testBeforeSaving": "Test this credential before saving it."
+    "testBeforeSaving": "Test this credential before saving it.",
+    "searchModels_one": "Search {{count}} model or add an ID",
+    "searchModels_other": "Search {{count}} models or add an ID"
 }

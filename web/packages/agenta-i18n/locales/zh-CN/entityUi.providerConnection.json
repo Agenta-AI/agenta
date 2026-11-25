@@ -11,7 +11,6 @@
     "incompatible": "与此供应商不兼容",
     "harnessAddsModels": "每个已启用的运行框架都会把此连接的模型添加到模型选择器中。",
     "selectAll": "全选",
-    "searchModels": "搜索 {{total}} 个模型或添加 ID",
     "addTerm": "添加 <mono>{{term}}</mono>",
     "enterKey": "Enter",
     "noModelsYet": "还没有模型。在上方输入模型 ID 即可添加。",
@@ -33,5 +32,7 @@
     "keyConfiguredLabel": "已配置密钥",
     "modelCount_other": "{{count}} 个模型",
     "savedUntested": "此提供商没有免费的凭据检查，因此密钥将在未测试的情况下保存。",
-    "testBeforeSaving": "请先测试此凭据，再保存。"
+    "testBeforeSaving": "请先测试此凭据，再保存。",
+    "searchModels_one": "搜索 {{count}} 个模型或添加 ID",
+    "searchModels_other": "搜索 {{count}} 个模型或添加 ID"
 }

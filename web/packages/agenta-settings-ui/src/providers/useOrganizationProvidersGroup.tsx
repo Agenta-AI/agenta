@@ -32,7 +32,12 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {LoadFailed} from "../shared/LoadFailed"
 
-import {providerTitle, type ProvidersGroup, type ProvidersSource} from "./ProvidersPanel"
+import {
+    providerTitle,
+    ProvidersEmptyNote,
+    type ProvidersGroup,
+    type ProvidersSource,
+} from "./ProvidersPanel"
 
 /**
  * Who may use a connection, in the row's words. Selected projects are named; until every name is
@@ -66,22 +71,6 @@ const rowDescription = (
     ]
         .filter(Boolean)
         .join(" · ")
-
-const EmptyNote = ({manage}: {manage: boolean}) => {
-    const t = useT(settingsProvidersCatalog)
-    return (
-        <div className="flex flex-col gap-0.5">
-            <span className="text-body font-medium leading-5 text-foreground">
-                {t("settings.providers.orgEmptyTitle")}
-            </span>
-            {manage ? (
-                <span className="text-label text-muted-foreground">
-                    {t("settings.providers.orgEmptyBody")}
-                </span>
-            ) : null}
-        </div>
-    )
-}
 
 export interface OrganizationProvidersGroup {
     /** The group, or null while there is nothing to show (a member with no connection). */
@@ -175,7 +164,12 @@ export const useOrganizationProvidersGroup = (
                     }
                 />
             ) : undefined,
-            emptyFooter: manage ? <EmptyNote manage /> : undefined,
+            emptyFooter: manage ? (
+                <ProvidersEmptyNote
+                    title={t("settings.providers.orgEmptyTitle")}
+                    body={t("settings.providers.orgEmptyBody")}
+                />
+            ) : undefined,
             organization: drawerScope,
             // A manager signs the organization in to ChatGPT or Claude here.
             offersSubscriptions: manage,

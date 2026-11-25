@@ -124,7 +124,8 @@ const SubscriptionTokenViewBody = ({params, nav}: ViewProps<SubscriptionViewPara
                         <Button variant="outline" size="compact" onClick={token.replace}>
                             {t("entityUi.subscriptionSignIn.replaceToken")}
                         </Button>
-                        {actions}
+                        {/* A ready token has nothing to connect; only a changed project choice saves. */}
+                        {draft.changed ? actions : null}
                     </div>
                 ) : (
                     <div className="flex flex-col gap-3 rounded-lg bg-secondary p-3">

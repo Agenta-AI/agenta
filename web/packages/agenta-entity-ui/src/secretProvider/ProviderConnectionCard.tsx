@@ -214,6 +214,9 @@ const ProviderConnectionCard = ({
     const title = providerTitleForKind(kind)
     // Shown in the active language; the default connection name keeps `title`, since it is saved.
     const displayTitle = providerDisplayTitle(kind, title)
+    // Mid-sentence name: the OpenAI-compatible kind takes an article ("reach the … endpoint").
+    const sentenceTitle =
+        kind === "custom" ? t("entityUi.providerKeyForm.theCustomEndpoint") : displayTitle
     const isStandard = secretKindForProviderKind(kind) === SecretKind.ProviderKey
     const isBedrock = kind === "bedrock"
     const takesBaseUrl = fields.some((field) => field.key === "apiBaseUrl")
@@ -686,7 +689,7 @@ const ProviderConnectionCard = ({
         if (probe.discovery.status === "failed") {
             return {
                 tone: "neutral",
-                text: t("entityUi.providerKeyForm.notReachedInTime", {provider: displayTitle}),
+                text: t("entityUi.providerKeyForm.notReachedInTime", {provider: sentenceTitle}),
                 checkAgain: true,
             }
         }
@@ -711,13 +714,18 @@ const ProviderConnectionCard = ({
     const unreachableNote =
         checkMode === "refresh" &&
         (checkFailed || (credentialStatus !== "invalid" && probe?.discovery.status === "failed"))
-            ? t("entityUi.providerKeyForm.unreachable", {provider: displayTitle})
+            ? t("entityUi.providerKeyForm.unreachable", {provider: sentenceTitle})
             : null
 
     const keyRejected = statusLine?.tone === "error" && credentialStatus === "invalid"
     const protocolText = protocolField ? translateProtocolField(protocolField) : null
     const shownFields = fields.filter((field) => !otherWayFields.includes(field.key))
     const firstSecretField = shownFields.find(isSecretField)?.key
+    // The first required field takes the focus: the base URL where the key is optional.
+    const focusField =
+        kind === "custom"
+            ? (shownFields.find((field) => field.key === "apiBaseUrl")?.key ?? firstSecretField)
+            : firstSecretField
 
     const renderField = (declaredField: ProviderFieldConfig) => {
         const field = translateProviderField(declaredField, kind, {perKindLabels: true})
@@ -801,7 +809,7 @@ const ProviderConnectionCard = ({
                 ) : secret ? (
                     <PasswordInput
                         {...common}
-                        autoFocus={!connection && field.key === firstSecretField}
+                        autoFocus={!connection && field.key === focusField}
                         // Red stays while the field has focus: the focus border would hide it.
                         className={cn(
                             FIELD_TYPE_SCALE,
@@ -815,6 +823,7 @@ const ProviderConnectionCard = ({
                 ) : (
                     <InputAffix
                         {...common}
+                        autoFocus={!connection && field.key === focusField}
                         className={FIELD_TYPE_SCALE}
                         autoComplete="off"
                         value={value}

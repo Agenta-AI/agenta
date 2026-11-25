@@ -4,6 +4,7 @@
  */
 import type {ReactNode} from "react"
 
+import {subscriptionProviderName} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import subscriptionViewsCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionViews"
@@ -112,7 +113,9 @@ export const SubscriptionSignInCard = ({
                                 rel="noreferrer"
                                 className="flex items-center gap-1 text-foreground underline underline-offset-2"
                             >
-                                {t("entityUi.subscriptionSignIn.openName", {name})}
+                                {t("entityUi.subscriptionSignIn.openName", {
+                                    name: subscriptionProviderName("chatgpt"),
+                                })}
                                 <ArrowSquareOut size={12} />
                             </a>
                             {attempt.expiresAt ? (

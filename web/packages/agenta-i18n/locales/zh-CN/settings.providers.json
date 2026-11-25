@@ -27,5 +27,7 @@
     "vertexFields": "项目、位置和凭据",
     "modelsDefaults": "默认",
     "modelsActive": "已启用 {{active}} / {{total}}",
-    "searchProviders": "搜索提供商"
+    "searchProviders": "搜索提供商",
+    "projectEmptyTitle": "暂无项目连接",
+    "projectEmptyBody": "在下方连接提供商。"
 }

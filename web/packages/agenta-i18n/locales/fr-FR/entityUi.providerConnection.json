@@ -11,7 +11,6 @@
     "incompatible": "Incompatible avec ce fournisseur",
     "harnessAddsModels": "Chaque harness activé ajoute les modèles de cette connexion au sélecteur de modèles.",
     "selectAll": "Tout sélectionner",
-    "searchModels": "Rechercher parmi {{total}} modèles ou ajouter un ID",
     "addTerm": "Ajouter <mono>{{term}}</mono>",
     "enterKey": "Entrée",
     "noModelsYet": "Aucun modèle pour l’instant. Saisissez un ID de modèle ci-dessus pour l’ajouter.",
@@ -37,5 +36,7 @@
     "modelCount_many": "{{count}} de modèles",
     "modelCount_other": "{{count}} modèles",
     "savedUntested": "Ce fournisseur ne propose pas de vérification gratuite des identifiants : la clé est donc enregistrée sans test.",
-    "testBeforeSaving": "Testez cet identifiant avant de l’enregistrer."
+    "testBeforeSaving": "Testez cet identifiant avant de l’enregistrer.",
+    "searchModels_one": "Rechercher parmi {{count}} modèle ou ajouter un ID",
+    "searchModels_other": "Rechercher parmi {{count}} modèles ou ajouter un ID"
 }

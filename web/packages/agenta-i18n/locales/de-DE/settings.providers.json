@@ -27,5 +27,7 @@
     "vertexFields": "Projekt, Standort und Zugangsdaten",
     "modelsDefaults": "Standard",
     "modelsActive": "{{active}} von {{total}} aktiv",
-    "searchProviders": "Anbieter suchen"
+    "searchProviders": "Anbieter suchen",
+    "projectEmptyTitle": "Noch keine Projektverbindungen",
+    "projectEmptyBody": "Verbinden Sie unten einen Anbieter."
 }

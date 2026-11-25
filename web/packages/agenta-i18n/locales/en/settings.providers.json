@@ -27,5 +27,7 @@
     "vertexFields": "Project, location and credentials",
     "modelsDefaults": "Defaults",
     "modelsActive": "{{active}} of {{total}} active",
-    "searchProviders": "Search providers"
+    "searchProviders": "Search providers",
+    "projectEmptyTitle": "No project connections yet",
+    "projectEmptyBody": "Connect a provider below."
 }

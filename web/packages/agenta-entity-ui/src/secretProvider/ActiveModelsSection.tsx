@@ -124,7 +124,7 @@ const ActiveModelsSection = ({
                         },
                     )}
                 </span>
-                {readOnly ? null : (
+                {readOnly || !options.length ? null : (
                     <Button
                         variant="link"
                         size="sm"
@@ -142,7 +142,7 @@ const ActiveModelsSection = ({
                     placeholder={
                         options.length
                             ? t("entityUi.providerConnection.searchModels", {
-                                  total: options.length,
+                                  count: options.length,
                               })
                             : manualPlaceholder
                     }

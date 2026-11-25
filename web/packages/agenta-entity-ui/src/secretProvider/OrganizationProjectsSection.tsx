@@ -168,7 +168,7 @@ const OrganizationProjectsSection = ({
                     {t("entityUi.organizationProjects.projectsThatCanUse")}
                 </span>
                 <span className="text-muted-foreground">
-                    {t("entityUi.organizationProjects.everyProjectIn", {organization: scope.name})}
+                    {t("entityUi.organizationProjects.everyProjectIn")}
                 </span>
             </section>
         )
@@ -192,9 +192,7 @@ const OrganizationProjectsSection = ({
                         {
                             value: "all_projects",
                             label: t("entityUi.organizationProjects.allProjects"),
-                            note: t("entityUi.organizationProjects.everyProjectInIncludingNew", {
-                                organization: scope.name,
-                            }),
+                            note: t("entityUi.organizationProjects.everyProjectInIncludingNew"),
                         },
                         {
                             value: "selected_projects",

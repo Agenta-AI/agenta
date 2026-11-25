@@ -26,6 +26,7 @@ import {ownerShown, ownersWithDefault, PAGE_OWNERS, type OwnerFilter} from "../s
 import {ConnectionsToolbar} from "../shared/ConnectionsToolbar"
 
 import {
+    ProvidersEmptyNote,
     ProvidersPanel,
     type ProviderRemovalState,
     type ProvidersGroup,
@@ -114,6 +115,12 @@ const useProjectProvidersSource = (): ProvidersSource => {
             },
             removeFailed: (_failure: unknown, connection: ProviderConnection) =>
                 t("settings.providers.removeFailed", {name: connection.name}),
+            emptyFooter: (
+                <ProvidersEmptyNote
+                    title={t("settings.providers.projectEmptyTitle")}
+                    body={t("settings.providers.projectEmptyBody")}
+                />
+            ),
             onSaved: mutate,
         }
     }, [connections, loading, capabilities, deleteSecret, mutate, t])

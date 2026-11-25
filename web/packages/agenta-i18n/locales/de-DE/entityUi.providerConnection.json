@@ -11,7 +11,6 @@
     "incompatible": "Nicht mit diesem Anbieter kompatibel",
     "harnessAddsModels": "Jeder aktivierte Harness fügt die Modelle dieser Verbindung zur Modellauswahl hinzu.",
     "selectAll": "Alle auswählen",
-    "searchModels": "{{total}} Modelle durchsuchen oder eine ID hinzufügen",
     "addTerm": "<mono>{{term}}</mono> hinzufügen",
     "enterKey": "Eingabe",
     "noModelsYet": "Noch keine Modelle. Geben Sie oben eine Modell-ID ein, um sie hinzuzufügen.",
@@ -35,5 +34,7 @@
     "modelCount_one": "{{count}} Modell",
     "modelCount_other": "{{count}} Modelle",
     "savedUntested": "Dieser Anbieter bietet keine kostenlose Prüfung der Zugangsdaten, daher wird der Schlüssel ungetestet gespeichert.",
-    "testBeforeSaving": "Testen Sie diese Zugangsdaten, bevor Sie sie speichern."
+    "testBeforeSaving": "Testen Sie diese Zugangsdaten, bevor Sie sie speichern.",
+    "searchModels_one": "{{count}} Modell durchsuchen oder eine ID hinzufügen",
+    "searchModels_other": "{{count}} Modelle durchsuchen oder eine ID hinzufügen"
 }

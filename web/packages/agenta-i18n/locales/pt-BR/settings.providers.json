@@ -27,5 +27,7 @@
     "vertexFields": "Projeto, localização e credenciais",
     "modelsDefaults": "Padrões",
     "modelsActive": "{{active}} de {{total}} ativos",
-    "searchProviders": "Pesquisar provedores"
+    "searchProviders": "Pesquisar provedores",
+    "projectEmptyTitle": "Ainda não há conexões do projeto",
+    "projectEmptyBody": "Conecte um provedor abaixo."
 }

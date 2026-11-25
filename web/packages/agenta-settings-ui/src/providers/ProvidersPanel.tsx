@@ -116,6 +116,14 @@ export const providerTitle = (kind: string, title: string, t: ReturnType<typeof 
 export const ProviderLogo = ({kind}: {kind: string}) =>
     createElement(providerIconFor(kind), {className: "size-4"})
 
+/** An owner's note under an empty Connected list. */
+export const ProvidersEmptyNote = ({title, body}: {title: string; body?: string}) => (
+    <div className="flex flex-col gap-0.5">
+        <span className="text-body font-medium leading-5 text-foreground">{title}</span>
+        {body ? <span className="text-label text-muted-foreground">{body}</span> : null}
+    </div>
+)
+
 /** What a credential-set kind's form asks for, read off its fields in `providerFields.ts`. */
 const FORM_FIELDS_BY_KIND: Record<
     string,
@@ -265,7 +273,7 @@ export const ProvidersPanel = ({
     const groups = useMemo<SettingsCatalogGroup[]>(() => {
         const matches = (item: SettingsCatalogItem) =>
             !term || (typeof item.name === "string" && item.name.toLowerCase().includes(term))
-        const owned = ownerGroups.map<SettingsCatalogGroup>(({key: groupKey, owner, source}) => {
+        const owned = ownerGroups.map(({key: groupKey, owner, source}) => {
             const badge = ownerChips ? <OwnerChip owner={owner} /> : undefined
             const canRemove = canRemoveIn(source)
             const open = (connection: ProviderConnection) => {
@@ -273,39 +281,46 @@ export const ProvidersPanel = ({
                 if (provider) openSignIn(groupKey, provider, connection.id)
                 else setDrawerTarget({groupKey, connectionId: connection.id})
             }
-            const held = source.rows.map<SettingsCatalogItem>((connection) => ({
-                key: connection.id,
-                logo: <ProviderLogo kind={connection.kind} />,
-                name: connection.name,
-                badge,
-                description: source.describe(connection),
-                status: "connected",
-                statusLabel: t("common.connected"),
-                onOpen: (source.canOpen?.(connection) ?? true) ? () => open(connection) : undefined,
-                menu: source.manage ? (
-                    <SettingsRowMenu
-                        label={t("settings.providers.actionsFor", {name: connection.name})}
-                        items={[
-                            {
-                                key: "edit",
-                                label: t("common.edit"),
-                                icon: <PencilSimpleLine size={14} />,
-                                hidden: !(source.canOpen?.(connection) ?? true),
-                                onClick: () => open(connection),
-                            },
-                            {type: "divider"},
-                            {
-                                key: "delete",
-                                label: t("common.delete"),
-                                icon: <Trash size={14} />,
-                                danger: true,
-                                hidden: !canRemove,
-                                onClick: () => requestRemoval(groupKey, connection),
-                            },
-                        ]}
-                    />
-                ) : undefined,
-            }))
+            const held = source.rows.map<SettingsCatalogItem>((connection) => {
+                // A subscription that is not signed in needs attention, not a connected mark.
+                const needsSignIn =
+                    !!connection.subscription && !subscriptionIsReady(connection.subscription)
+                return {
+                    key: connection.id,
+                    logo: <ProviderLogo kind={connection.kind} />,
+                    name: connection.name,
+                    badge,
+                    description: source.describe(connection),
+                    status: needsSignIn ? "attention" : "connected",
+                    statusLabel: needsSignIn
+                        ? t("settings.providers.needsSignIn")
+                        : t("common.connected"),
+                    onOpen: (source.canOpen?.(connection) ?? true) ? () => open(connection) : undefined,
+                    menu: source.manage ? (
+                        <SettingsRowMenu
+                            label={t("settings.providers.actionsFor", {name: connection.name})}
+                            items={[
+                                {
+                                    key: "edit",
+                                    label: t("common.edit"),
+                                    icon: <PencilSimpleLine size={14} />,
+                                    hidden: !(source.canOpen?.(connection) ?? true),
+                                    onClick: () => open(connection),
+                                },
+                                {type: "divider"},
+                                {
+                                    key: "delete",
+                                    label: t("common.delete"),
+                                    icon: <Trash size={14} />,
+                                    danger: true,
+                                    hidden: !canRemove,
+                                    onClick: () => requestRemoval(groupKey, connection),
+                                },
+                            ]}
+                        />
+                    ) : undefined,
+                }
+            })
             // Offered once the list is in, so a held sign-in never shows as one to connect.
             const offered =
                 source.offersSubscriptions && !source.loading
@@ -328,15 +343,12 @@ export const ProvidersPanel = ({
                 key: groupKey,
                 label: null,
                 items: [...held, ...offered].filter(matches),
-                // The count is of what the owner holds, not of what it may connect.
-                count: held.filter(matches).length,
+                held: held.length,
                 // A group still loading holds its place with one skeleton row.
                 pendingRows: source.loading && !held.length ? 1 : 0,
-                ...(source.failure
-                    ? {footer: source.failure}
-                    : source.emptyFooter && !source.loading && !source.connections.length
-                      ? {count: 0, footer: source.emptyFooter}
-                      : {}),
+                footer: source.failure,
+                empty: !!source.emptyFooter && !source.failure && !source.loading && !held.length,
+                emptyFooter: source.emptyFooter,
             }
         })
         // The deployment's own models: no owner, shown with the project's rows.
@@ -354,21 +366,28 @@ export const ProvidersPanel = ({
                       },
                   ].filter(matches)
                 : []
+        // Empty notes show only when no owner in the list holds a row and no search is on.
+        const showEmpty =
+            !term && !builtin.length && !owned.some((group) => group.held || group.pendingRows)
+        const footers = owned.flatMap((group) => [
+            ...(group.footer
+                ? [<Fragment key={`${group.key}:failure`}>{group.footer}</Fragment>]
+                : []),
+            ...(showEmpty && group.empty
+                ? [<Fragment key={`${group.key}:empty`}>{group.emptyFooter}</Fragment>]
+                : []),
+        ])
         // One Connected list: every owner's rows, narrow owners first.
+        const items = [...builtin, ...owned.flatMap((group) => group.items)]
         const connected: SettingsCatalogGroup = {
             key: "connected",
             label: connectedLabel ?? t("common.connected"),
             list: true,
-            items: [...builtin, ...owned.flatMap((group) => group.items)],
-            count: owned.reduce((sum, group) => sum + (group.count ?? 0), builtin.length),
+            items,
+            // The count is of the rows shown, offered sign-ins included.
+            count: items.length,
             pendingRows: owned.some((group) => group.pendingRows) ? 1 : 0,
-            footer: owned.some((group) => group.footer) ? (
-                <>
-                    {owned.map((group) => (
-                        <Fragment key={group.key}>{group.footer}</Fragment>
-                    ))}
-                </>
-            ) : undefined,
+            footer: footers.length ? <>{footers}</> : undefined,
         }
         if (!projectGroup) return [connected]
         const catalogRow = (entry: ProviderCatalogEntry): SettingsCatalogItem => ({
