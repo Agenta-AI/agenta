@@ -32,10 +32,10 @@ vi.mock("@/features/onboarding/onboardingPending", () => ({
     isOnboardingPending: () => fixture.pending,
 }))
 
-// The lazy chunk loads in the app; the test renders the prompt without the loader.
+// The lazy chunk loads in the app; the test renders the dialog without the loader.
 vi.mock("next/dynamic", async () => {
-    const {RegistrationPrompt} = await import("@/features/onboarding/RegistrationPrompt")
-    return {default: () => RegistrationPrompt}
+    const {RegistrationOfferDialog} = await import("@/features/onboarding/RegistrationOfferDialog")
+    return {default: () => RegistrationOfferDialog}
 })
 
 vi.mock("../../src/features/settings/licenseApi", async (importOriginal) => ({
@@ -44,10 +44,10 @@ vi.mock("../../src/features/settings/licenseApi", async (importOriginal) => ({
         if (fixture.notAdmin) throw {response: {status: 403}}
         return fixture.license
     },
-    dismissRegistrationPrompt: fixture.dismiss,
+    dismissRegistrationOffer: fixture.dismiss,
 }))
 
-import {RegistrationPromptGate} from "@/features/onboarding/RegistrationPromptGate"
+import {RegistrationOfferGate} from "@/features/onboarding/RegistrationOfferGate"
 
 import {WithQueryClient} from "../support/queryClient"
 
@@ -56,10 +56,10 @@ const unregistered = (dismissed = false) => ({
     source: null,
     license: null,
     usage: {users: 1},
-    registration_prompt_dismissed: dismissed,
+    registration_offer_dismissed: dismissed,
 })
 
-describe("the registration prompt after an upgrade", () => {
+describe("the registration offer after an upgrade", () => {
     let root: Root
     let host: HTMLDivElement
 
@@ -83,7 +83,7 @@ describe("the registration prompt after an upgrade", () => {
         await act(async () => {
             root.render(
                 <WithQueryClient>
-                    <RegistrationPromptGate projectId="proj-1" />
+                    <RegistrationOfferGate projectId="proj-1" />
                 </WithQueryClient>,
             )
         })

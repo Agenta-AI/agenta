@@ -6,9 +6,12 @@ import {useInstanceLicense} from "../settings/useInstanceLicense"
 
 import {shouldOfferRegistration} from "./registrationOfferRules"
 
-// The prompt and its text load only for an admin who will see it.
-const RegistrationPrompt = dynamic(
-    () => loadWithText(() => import("./RegistrationPrompt")).then((m) => m.RegistrationPrompt),
+// The dialog and its text load only for an admin who will see it.
+const RegistrationOfferDialog = dynamic(
+    () =>
+        loadWithText(() => import("./RegistrationOfferDialog")).then(
+            (m) => m.RegistrationOfferDialog,
+        ),
     {ssr: false},
 )
 
@@ -16,16 +19,16 @@ const RegistrationPrompt = dynamic(
  * Installs that upgrade never see onboarding, so the instance admin gets the registration step
  * once in the app: self-hosted, no key, and not skipped on this instance.
  */
-export const RegistrationPromptGate = ({projectId}: {projectId: string}) => {
+export const RegistrationOfferGate = ({projectId}: {projectId: string}) => {
     const license = useInstanceLicense(projectId)
     const data = license.data
     const candidate =
         Boolean(data) &&
-        !data?.registration_prompt_dismissed &&
+        !data?.registration_offer_dismissed &&
         shouldOfferRegistration({
             selfHosted: !isBillingEnabled(),
             isInstanceAdmin: license.isInstanceAdmin,
             hasKey: Boolean(data?.license),
         })
-    return candidate ? <RegistrationPrompt projectId={projectId} /> : null
+    return candidate ? <RegistrationOfferDialog projectId={projectId} /> : null
 }

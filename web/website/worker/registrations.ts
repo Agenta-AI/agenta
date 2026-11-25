@@ -76,9 +76,20 @@ export interface RegistrationSurvey {
   heard_from?: string;
 }
 
+/** What runs the instance; Agenta's own test stacks send `test`. */
+export type InstanceKind = "production" | "development" | "ci" | "test";
+const INSTANCE_KINDS: readonly string[] = [
+  "production",
+  "development",
+  "ci",
+  "test",
+];
+
 export interface Registration {
   email: string;
   instance_id: string;
+  /** Null when the instance did not send a known kind (older versions send none). */
+  instance_kind: InstanceKind | null;
   agenta_version: string;
   web_url: string;
   /** The person ticked "Send me security and product updates". */
@@ -115,6 +126,7 @@ export function parseRegistration(body: unknown): Registration | null {
   const {
     email,
     instance_id,
+    instance_kind,
     agenta_version,
     web_url,
     product_updates,
@@ -144,6 +156,11 @@ export function parseRegistration(body: unknown): Registration | null {
   return {
     email,
     instance_id,
+    instance_kind:
+      typeof instance_kind === "string" &&
+      INSTANCE_KINDS.includes(instance_kind)
+        ? (instance_kind as InstanceKind)
+        : null,
     agenta_version,
     web_url,
     product_updates: product_updates === true,
@@ -278,7 +295,12 @@ export function loopsContactRecorder(apiKey: string): ContactRecorder {
           // Loops reads `YYYY-MM-DDTHH:mm:ss` without an offset as UTC.
           agentaRegisteredAt: registeredAt.toISOString().slice(0, 19),
           agentaPlan: REGISTERED_PLAN,
-          agentaProductUpdates: registration.product_updates,
+          // The request does not prove the caller owns the email, so it can only opt a
+          // contact in. An unticked box leaves the stored value alone; a contact leaves
+          // product updates through the unsubscribe link in Loops.
+          ...(registration.product_updates
+            ? { agentaProductUpdates: true }
+            : {}),
           ...surveyProperties(registration.survey),
         }),
       });
@@ -314,6 +336,7 @@ export function posthogRecorder(): AnalyticsRecorder {
           properties: {
             email: registration.email,
             agenta_version: registration.agenta_version,
+            instance_kind: registration.instance_kind,
             plan: REGISTERED_PLAN,
             ...registration.survey,
             $groups: { instance: instanceId },
@@ -326,7 +349,12 @@ export function posthogRecorder(): AnalyticsRecorder {
           properties: {
             $group_type: "instance",
             $group_key: instanceId,
-            $group_set: { registered_email: registration.email },
+            $group_set: {
+              registered_email: registration.email,
+              ...(registration.instance_kind
+                ? { instance_kind: registration.instance_kind }
+                : {}),
+            },
           },
         },
       ];
@@ -402,6 +430,8 @@ export async function handleRegistration(
   mailSender?: MailSender,
   contactRecorder?: ContactRecorder,
   analyticsRecorder: AnalyticsRecorder = posthogRecorder(),
+  // The Workers `ctx.waitUntil`: the contact and analytics updates run after the answer.
+  waitUntil?: (promise: Promise<unknown>) => void,
 ): Promise<Response> {
   // A limiter or body read that throws must still answer the JSON error, not a platform page.
   try {
@@ -411,6 +441,7 @@ export async function handleRegistration(
       mailSender,
       contactRecorder,
       analyticsRecorder,
+      waitUntil,
     );
   } catch {
     return error(503, "unavailable", "Registration is not available.");
@@ -423,6 +454,7 @@ async function register(
   mailSender: MailSender | undefined,
   contactRecorder: ContactRecorder | undefined,
   analyticsRecorder: AnalyticsRecorder,
+  waitUntil: ((promise: Promise<unknown>) => void) | undefined,
 ): Promise<Response> {
   if (request.method !== "POST") {
     return new Response(null, { status: 405, headers: { Allow: "POST" } });
@@ -485,24 +517,28 @@ async function register(
     return error(502, "mail_failed", "The email could not be sent.");
   }
 
-  // The key already went out, so a failed contact or analytics update must not fail
-  // the registration.
+  // The key already went out, so a failed or slow contact or analytics update must not
+  // fail the registration: they run after the answer when the runtime allows it.
   const registeredAt = new Date();
   const recorder =
     contactRecorder ??
     (env.LOOPS_API_KEY ? loopsContactRecorder(env.LOOPS_API_KEY) : null);
-  if (recorder) {
-    try {
-      await recorder.record(registration, registeredAt);
-    } catch (cause) {
-      console.error("Loops contact update failed", cause);
+  const followUp = (async () => {
+    if (recorder) {
+      try {
+        await recorder.record(registration, registeredAt);
+      } catch (cause) {
+        console.error("Loops contact update failed", cause);
+      }
     }
-  }
-  try {
-    await analyticsRecorder.record(registration, registeredAt);
-  } catch (cause) {
-    console.error("PostHog registration event failed", cause);
-  }
+    try {
+      await analyticsRecorder.record(registration, registeredAt);
+    } catch (cause) {
+      console.error("PostHog registration event failed", cause);
+    }
+  })();
+  if (waitUntil) waitUntil(followUp);
+  else await followUp;
 
   return json(202, {});
 }
