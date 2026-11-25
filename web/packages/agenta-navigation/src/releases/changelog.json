@@ -161,7 +161,8 @@
             }
         ],
         "improvements": [],
-        "fixes": []
+        "fixes": [],
+        "upgradeNotesLink": "https://agenta.ai/docs/self-host/upgrading#upgrading-to-01270-workspaces-are-removed"
     },
     {
         "id": "v0.126.0",
