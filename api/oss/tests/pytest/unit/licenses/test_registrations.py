@@ -36,6 +36,7 @@ def agenta(monkeypatch):
         registrations, "_instance_id", AsyncMock(return_value=INSTANCE_ID)
     )
     monkeypatch.setattr(registrations, "_agenta_version", lambda: "v0.128.11")
+    monkeypatch.setattr(registrations, "_instance_kind", lambda: "production")
     return state
 
 
@@ -82,12 +83,24 @@ async def test_registration_sends_the_instance_details_to_agenta(admin, agenta):
     assert json.loads(call.content) == {
         "email": "ada@example.com",
         "instance_id": str(INSTANCE_ID),
+        "instance_kind": "production",
         "agenta_version": "v0.128.11",
         "web_url": "https://agenta.example.com",
         "user_id": str(admin.user_id),
         "product_updates": True,
         "survey": SURVEY,
     }
+
+
+@pytest.mark.asyncio
+async def test_registration_sends_the_test_kind_of_a_test_stack(
+    admin, agenta, monkeypatch
+):
+    monkeypatch.setattr(registrations, "_instance_kind", lambda: "test")
+
+    await _register()
+
+    assert json.loads(agenta.calls[0].content)["instance_kind"] == "test"
 
 
 @pytest.mark.asyncio
@@ -164,6 +177,22 @@ async def test_registration_answers_502_when_the_instance_id_is_not_wired(
         raise ModuleNotFoundError(name="oss.src.core.instances.service")
 
     monkeypatch.setattr(registrations, "_instance_id", AsyncMock(side_effect=missing))
+
+    with pytest.raises(HTTPException) as error:
+        await _register()
+
+    assert error.value.status_code == 502
+    assert agenta.calls == []
+
+
+@pytest.mark.asyncio
+async def test_registration_answers_502_when_the_instance_kind_is_not_wired(
+    admin, agenta, monkeypatch
+):
+    def missing():
+        raise ModuleNotFoundError(name="oss.src.core.instances.service")
+
+    monkeypatch.setattr(registrations, "_instance_kind", missing)
 
     with pytest.raises(HTTPException) as error:
         await _register()

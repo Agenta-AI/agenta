@@ -124,7 +124,7 @@ What it does, and the invariants that keep it safe:
 
 **One API route, `POST /api/license-registrations`** (`worker/registrations.ts`). A
 self-hosted instance asks for a free registration key. The worker checks the body (`email`,
-`instance_id`, `agenta_version`, `web_url`, and the optional `product_updates`, `survey` with
+`instance_id`, `agenta_version`, `web_url`, and the optional `instance_kind`, `product_updates`, `survey` with
 `role`, `team_size` and `heard_from` as choice labels, and `user_id`), signs a license key on the
 `self_hosted_registered` plan with WebCrypto Ed25519, and emails the key and its activation
 link (`<web_url>/m/settings?tab=license#key=<key>`) through Loops. Every registrant joins the
@@ -141,7 +141,8 @@ mailing list, so product update campaigns target `userGroup`
 API accepts a free key only on that instance. Last, it sends to the
 self-hosted PostHog project (the same public project token as the API fallback key) the
 `instance_registered` event and a `$groupidentify` for the group type `instance` under the instance
-id, and a `$set` of the email on the person `<instance_id>:<user_id>`. It does this whatever the
+id, both with `instance_kind` (`production`, `development`, `ci` or `test`; Agenta's own test
+stacks send `test`, so filter them out), and a `$set` of the email on the person `<instance_id>:<user_id>`. It does this whatever the
 instance's own telemetry switch is. A failed contact update or PostHog call is logged and does
 not fail the registration, because the key email
 already went out. It stores nothing itself and answers `202 {}`. It runs before the negotiation `try/catch`, so a failure answers JSON and never falls

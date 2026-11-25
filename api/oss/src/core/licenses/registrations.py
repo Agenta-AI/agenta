@@ -25,6 +25,13 @@ async def _instance_id() -> UUID:
     return await get_instance_id()
 
 
+def _instance_kind() -> str:
+    # #8237 adds `get_instance_kind`; hoist this import when it lands.
+    from oss.src.core.instances.service import get_instance_kind  # noqa: PLC0415
+
+    return get_instance_kind()
+
+
 def _agenta_version() -> str:
     # #8240 adds `get_agenta_version`; hoist this import when it lands.
     from oss.src.utils.version import get_agenta_version  # noqa: PLC0415
@@ -45,6 +52,9 @@ async def create_registration(
         payload = {
             "email": email,
             "instance_id": str(await _instance_id()),
+            # production, development, ci or test, so Agenta can filter out its own
+            # test stacks.
+            "instance_kind": _instance_kind(),
             "agenta_version": _agenta_version(),
             "web_url": env.agenta.web_url,
             "user_id": str(user_id),

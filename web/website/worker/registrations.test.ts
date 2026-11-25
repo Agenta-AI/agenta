@@ -36,6 +36,7 @@ const SURVEY = {
 };
 const FULL = {
   ...VALID,
+  instance_kind: "production",
   product_updates: true,
   survey: SURVEY,
   user_id: USER_ID,
@@ -112,6 +113,7 @@ describe("parseRegistration", () => {
   it("accepts a registration with only the instance fields", () => {
     expect(parseRegistration(VALID)).toEqual({
       ...VALID,
+      instance_kind: null,
       product_updates: false,
       survey: {},
       user_id: null,
@@ -121,6 +123,21 @@ describe("parseRegistration", () => {
   it("accepts the updates choice, the survey answers and the user id", () => {
     expect(parseRegistration(FULL)).toEqual(FULL);
   });
+
+  it("keeps the test kind of a test stack", () => {
+    expect(
+      parseRegistration({ ...VALID, instance_kind: "test" })?.instance_kind,
+    ).toBe("test");
+  });
+
+  it.each([["staging"], [42]])(
+    "drops an instance kind that is not known (%s) and still registers",
+    (kind) => {
+      expect(
+        parseRegistration({ ...VALID, instance_kind: kind })?.instance_kind,
+      ).toBeNull();
+    },
+  );
 
   it.each([
     ["no email", { ...VALID, email: undefined }],
@@ -604,6 +621,7 @@ describe("PostHog", () => {
         properties: {
           email: "ada@example.com",
           agenta_version: "v0.128.11",
+          instance_kind: "production",
           plan: "self_hosted_registered",
           role: "Engineer (AI, SWE, ML)",
           team_size: "11-50",
@@ -618,7 +636,10 @@ describe("PostHog", () => {
         properties: {
           $group_type: "instance",
           $group_key: VALID.instance_id,
-          $group_set: { registered_email: "ada@example.com" },
+          $group_set: {
+            registered_email: "ada@example.com",
+            instance_kind: "production",
+          },
         },
       },
       {
@@ -645,6 +666,23 @@ describe("PostHog", () => {
       "instance_registered",
       "$groupidentify",
     ]);
+  });
+
+  it("sets no instance kind on the group when the instance sent none", async () => {
+    const calls = stubPostHog();
+    const { sender } = fakeSender();
+
+    await handleRegistration(
+      post(VALID),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem }),
+      sender,
+    );
+
+    const [registered, group] = JSON.parse(calls[0].init.body as string).batch;
+    expect(registered.properties.instance_kind).toBeNull();
+    expect(group.properties.$group_set).toEqual({
+      registered_email: "ada@example.com",
+    });
   });
 
   it("still answers 202 when PostHog fails", async () => {
