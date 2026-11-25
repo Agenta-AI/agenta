@@ -755,3 +755,20 @@ async def test_grouped_count_past_the_statement_timeout_gives_none():
 
 def test_the_heartbeat_interval_is_6_hours():
     assert "6 hours" in str(instances_dao_module.HEARTBEAT_INTERVAL)
+
+
+@pytest.mark.asyncio
+async def test_custom_role_names_are_not_sent(monkeypatch, dao, posthog):
+    monkeypatch.setattr(
+        dao,
+        "count_users_by_role",
+        AsyncMock(
+            return_value={"owner": 1, "operators@example.com": 2, "on call team": 3}
+        ),
+    )
+
+    assert await heartbeat.send_heartbeat() == "sent"
+
+    properties = posthog.captures[0]["properties"]
+    assert properties["users_by_role"] == {"owner": 1, "custom": 5}
+    assert "operators@" not in str(properties)

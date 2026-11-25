@@ -120,7 +120,16 @@ describe("shared desktop and mobile analytics", () => {
             enabled: false,
             distinct_id: null,
             groups: null,
+            properties: null,
         })
+        expect(
+            parseInstanceTelemetry({
+                enabled: true,
+                distinct_id: "i:u",
+                groups: {instance: "i"},
+                properties: {instance_kind: "test", ignored: 1},
+            }).properties,
+        ).toEqual({instance_kind: "test"})
     })
 
     it("starts over before it identifies a browser that holds another id", () => {
@@ -130,13 +139,21 @@ describe("shared desktop and mobile analytics", () => {
             reset: () => calls.push("reset"),
             identify: (id: string) => calls.push(`identify ${id}`),
             group: (type: string, key: string) => calls.push(`group ${type} ${key}`),
+            register: (properties: Record<string, string>) =>
+                calls.push(`register ${JSON.stringify(properties)}`),
         }
         adoptInstanceIdentity(client, {
             enabled: true,
             distinct_id: "instance-1:user-1",
             groups: {instance: "instance-1"},
+            properties: {instance_kind: "test"},
         })
-        expect(calls).toEqual(["reset", "identify instance-1:user-1", "group instance instance-1"])
+        expect(calls).toEqual([
+            "reset",
+            'register {"instance_kind":"test"}',
+            "identify instance-1:user-1",
+            "group instance instance-1",
+        ])
     })
 
     it("classifies text without sending it as an event property", () => {

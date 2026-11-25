@@ -105,15 +105,31 @@ export interface InstanceTelemetry {
     distinct_id: string | null
     /** Set on self-hosted instances only. */
     groups: {instance: string} | null
+    /** Added to every event. Self-hosted: `instance_kind`, so test instances can be filtered out. */
+    properties: Record<string, string> | null
+}
+
+const parseStringRecord = (value: unknown): Record<string, string> | null => {
+    if (!value || typeof value !== "object") return null
+    const entries = Object.entries(value).filter(
+        (entry): entry is [string, string] => typeof entry[1] === "string",
+    )
+    return entries.length ? Object.fromEntries(entries) : null
 }
 
 export const parseInstanceTelemetry = (data: unknown): InstanceTelemetry => {
-    const body = (data ?? {}) as {enabled?: unknown; distinct_id?: unknown; groups?: unknown}
+    const body = (data ?? {}) as {
+        enabled?: unknown
+        distinct_id?: unknown
+        groups?: unknown
+        properties?: unknown
+    }
     const instance = (body.groups as {instance?: unknown} | null | undefined)?.instance
     return {
         enabled: body.enabled === true,
         distinct_id: typeof body.distinct_id === "string" ? body.distinct_id : null,
         groups: typeof instance === "string" ? {instance} : null,
+        properties: parseStringRecord(body.properties),
     }
 }
 
@@ -126,6 +142,7 @@ interface IdentityClient {
     reset: () => void
     identify: (id: string) => void
     group: (type: string, key: string) => void
+    register: (properties: Record<string, string>) => void
 }
 
 /**
@@ -139,6 +156,8 @@ export const adoptInstanceIdentity = (
 ) => {
     if (!telemetry?.distinct_id) return
     if (client.get_distinct_id() !== telemetry.distinct_id) client.reset()
+    // Registered before identify, so the `$identify` event carries them too.
+    if (telemetry.properties) client.register(telemetry.properties)
     client.identify(telemetry.distinct_id)
     if (telemetry.groups) client.group("instance", telemetry.groups.instance)
 }

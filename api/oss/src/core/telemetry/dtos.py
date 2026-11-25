@@ -12,3 +12,5 @@ class InstanceTelemetry(BaseModel):
     enabled: bool
     distinct_id: Optional[str] = None
     groups: Optional[Dict[str, str]] = None
+    # Properties the browser adds to every event. Self-hosted: the instance kind.
+    properties: Optional[Dict[str, str]] = None

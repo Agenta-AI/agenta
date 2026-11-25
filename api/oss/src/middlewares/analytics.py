@@ -6,7 +6,12 @@ from uuid import UUID
 
 from fastapi import Request
 from oss.src.core.memberships.service import get_memberships_service
-from oss.src.core.telemetry.service import distinct_id_for, instance_groups
+from oss.src.core.telemetry.service import (
+    distinct_id_for,
+    instance_groups,
+    role_label,
+    self_hosted_event_properties,
+)
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -98,9 +103,10 @@ async def _set_activation_property(
             distinct_id=distinct_id,
             event="$identify",
             properties={
+                **self_hosted_event_properties(),
                 "$set_once": {
                     property_name: True,
-                }
+                },
             },
         )
 
@@ -161,6 +167,7 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 "auth_method": auth_method,
                 "agenta_version": get_agenta_version(),
                 **_client_sdk(request),
+                **self_hosted_event_properties(),
             }
 
             if hasattr(request.state, "project_id") and request.state.project_id:
@@ -324,7 +331,7 @@ async def _request_role(request: Request) -> Optional[str]:
         return None
     if membership.is_organization_owner:
         return "owner"
-    return membership.role
+    return role_label(membership.role) if membership.role else None
 
 
 def _get_event_name_from_path(

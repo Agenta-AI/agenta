@@ -18,7 +18,7 @@ from oss.src.core.instances.service import (
     get_instance_kind,
     instances_dao,
 )
-from oss.src.utils.env import DeploymentMethod, env
+from oss.src.utils.env import DeploymentMethod, InstanceKind, env
 from oss.src.utils.version import get_agenta_version
 
 _MEBIBYTE = 1024 * 1024
@@ -31,7 +31,7 @@ _NO_MEMORY_LIMIT_BYTES = 1 << 60
 
 
 class RuntimeFacts(BaseModel):
-    instance_kind: Literal["production", "development", "ci"]
+    instance_kind: InstanceKind
     agenta_version: str
     edition: Literal["oss", "ee"]
     deployment_method: Optional[DeploymentMethod]

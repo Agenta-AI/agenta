@@ -9,6 +9,7 @@ class InstanceTelemetryResponse(BaseModel):
     enabled: bool
     distinct_id: Optional[str] = None
     groups: Optional[Dict[str, str]] = None
+    properties: Optional[Dict[str, str]] = None
 
 
 class TelemetryHeartbeatResponse(BaseModel):

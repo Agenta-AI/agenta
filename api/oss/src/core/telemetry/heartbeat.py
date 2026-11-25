@@ -170,6 +170,19 @@ def _license_detail_from(license_key: Any, now: datetime) -> LicenseDetail:
     )
 
 
+def _by_role_label(counts: Optional[Dict[str, int]]) -> Optional[Dict[str, int]]:
+    """Counts keyed by the role name telemetry may send; custom names that are not
+    plain words add up under `custom`."""
+
+    if counts is None:
+        return None
+    labeled: Dict[str, int] = {}
+    for role, users in counts.items():
+        label = telemetry.role_label(role)
+        labeled[label] = labeled.get(label, 0) + users
+    return labeled
+
+
 async def _config_flags() -> ConfigFlags:
     identity = env.identity
     return ConfigFlags(
@@ -229,7 +242,7 @@ async def collect_heartbeat(
         total_evaluators=total_evaluators,
         total_snippets=total_snippets,
         total_api_keys=await instances_dao.count_api_keys(),
-        users_by_role=await instances_dao.count_users_by_role(),
+        users_by_role=_by_role_label(await instances_dao.count_users_by_role()),
         window_start=_iso(window_start),
         window_end=_iso(window_end),
         window_spans=await instances_dao.count_window_spans(
