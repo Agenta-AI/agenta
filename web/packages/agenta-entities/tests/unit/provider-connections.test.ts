@@ -19,6 +19,7 @@ import {
     probeRequestFor,
     providerModelCatalog,
     storedCredentialFields,
+    storesAwsAccessKeys,
     toProviderConnections,
     type HarnessCapabilityMap,
     type ProviderConnection,
@@ -281,12 +282,13 @@ describe("credentialValuesFor", () => {
 
 describe("credentialSummary", () => {
     it("masks a key and falls back to the endpoint host when there is none", () => {
-        expect(credentialSummary(connection({source: {key: "sk-000000000000xyz"}}))).toBe(
-            "sk-••••xyz",
-        )
+        expect(
+            credentialSummary(connection({source: {key: "sk-000000000000xyz"}}), "Key configured"),
+        ).toBe("sk-••••xyz")
         expect(
             credentialSummary(
                 connection({source: {apiBaseUrl: "https://models.internal.test/v1"}}),
+                "Key configured",
             ),
         ).toBe("models.internal.test")
     })
@@ -704,7 +706,7 @@ describe("doneState", () => {
     it("saves a tested credential with nothing to explain", () => {
         expect(doneState({credentialFilled: true, status: "valid"})).toEqual({
             enabled: true,
-            note: "",
+            note: null,
         })
     })
 
@@ -712,27 +714,27 @@ describe("doneState", () => {
         const state = doneState({credentialFilled: true, status: "unknown"})
 
         expect(state.enabled).toBe(true)
-        expect(state.note).toMatch(/untested/)
+        expect(state.note).toBe("savedUntested")
     })
 
     it("asks a newly typed credential to be tested first", () => {
         const state = doneState({credentialFilled: true, status: null})
 
         expect(state.enabled).toBe(false)
-        expect(state.note).toMatch(/Test this credential/)
+        expect(state.note).toBe("testFirst")
     })
 
     it("lets a saved connection be reopened and re-saved without a fresh test", () => {
         expect(
             doneState({credentialFilled: true, status: null, storedCredentialUnchanged: true}),
-        ).toEqual({enabled: true, note: ""})
+        ).toEqual({enabled: true, note: null})
     })
 
     it("says nothing about testing when the test itself never reached the provider", () => {
         const state = doneState({credentialFilled: true, status: null, transportFailed: true})
 
         expect(state.enabled).toBe(false)
-        expect(state.note).toBe("")
+        expect(state.note).toBeNull()
     })
 })
 
@@ -769,23 +771,30 @@ describe("connectionPolicyForSave", () => {
     })
 })
 
+const MODELS_TEXT = {
+    defaults: "Defaults",
+    active: (active: number, total: number) => `${active} of ${total} active`,
+}
+
 describe("activeModelsSummary", () => {
     const capabilities: HarnessCapabilityMap = {
         pi_core: {providers: ["openai"], models: {openai: ["gpt-5.5", "gpt-5.2", "gpt-4o"]}},
     }
 
     it("says Defaults when the connection saved no list", () => {
-        expect(activeModelsSummary(connection(), capabilities)).toBe("Defaults")
+        expect(activeModelsSummary(connection(), capabilities, MODELS_TEXT)).toBe("Defaults")
     })
 
     it("counts a saved list against what the provider family offers", () => {
-        expect(activeModelsSummary(connection({models: ["gpt-5.5"]}), capabilities)).toBe(
-            "1 of 3 active",
-        )
+        expect(
+            activeModelsSummary(connection({models: ["gpt-5.5"]}), capabilities, MODELS_TEXT),
+        ).toBe("1 of 3 active")
     })
 
     it("counts an empty saved list rather than reading it as defaults", () => {
-        expect(activeModelsSummary(connection({models: []}), capabilities)).toBe("0 of 3 active")
+        expect(activeModelsSummary(connection({models: []}), capabilities, MODELS_TEXT)).toBe(
+            "0 of 3 active",
+        )
     })
 })
 
@@ -804,7 +813,7 @@ describe("one effective model set across all three surfaces", () => {
 
     it("agrees on the defaults: table, drawer count, and picker rows", () => {
         expect(defaultModelsFor(noSavedList, capabilities)).toEqual(["gpt-5.6-sol", "gpt-5.6-luna"])
-        expect(activeModelsSummary(noSavedList, capabilities)).toBe("Defaults")
+        expect(activeModelsSummary(noSavedList, capabilities, MODELS_TEXT)).toBe("Defaults")
         expect(connectionModelCount(noSavedList, capabilities)).toBe(2)
         expect(
             buildConnectionModelGroups({
@@ -820,7 +829,7 @@ describe("one effective model set across all three surfaces", () => {
         const saved = connection({models: ["gpt-4o"]})
 
         expect(connectionModelCount(saved, capabilities)).toBe(1)
-        expect(activeModelsSummary(saved, capabilities)).toBe("1 of 4 active")
+        expect(activeModelsSummary(saved, capabilities, MODELS_TEXT)).toBe("1 of 4 active")
         expect(
             buildConnectionModelGroups({connections: [saved], capabilities})[0].options.map(
                 (option) => option.value,
@@ -1034,6 +1043,33 @@ describe("probeProvider", () => {
         expect(fernProbeProvider.mock.lastCall?.[0]).not.toHaveProperty("secret_id")
     })
 
+    it("hands the abort signal to the client, so Stop aborts the request", async () => {
+        // The generated client rejects when its `abortSignal` fires; this fake does the same.
+        fernProbeProvider.mockImplementationOnce(
+            (_body: unknown, options: {abortSignal?: AbortSignal}) =>
+                new Promise((_resolve, reject) => {
+                    options.abortSignal?.addEventListener("abort", () =>
+                        reject(new DOMException("aborted", "AbortError")),
+                    )
+                }),
+        )
+        const controller = new AbortController()
+
+        const pending = probeProvider({
+            projectId: "proj-1",
+            kind: "openai",
+            provider: {key: "sk-one"},
+            signal: controller.signal,
+        })
+        expect(fernProbeProvider).toHaveBeenLastCalledWith(
+            {kind: "openai", provider: {key: "sk-one"}},
+            {queryParams: {project_id: "proj-1"}, abortSignal: controller.signal},
+        )
+        controller.abort()
+
+        await expect(pending).rejects.toThrow("aborted")
+    })
+
     it("defaults a fetched-but-model-less discovery to an empty list", async () => {
         fernProbeProvider.mockResolvedValueOnce({
             credential: {status: "unknown", message: "not tested"},
@@ -1101,13 +1137,13 @@ describe("write-only records", () => {
     it("shows the server's preview as the credential summary", () => {
         const [connected] = toProviderConnections([writeOnlyRow])
 
-        expect(credentialSummary(connected)).toBe("sk-****9Qa")
+        expect(credentialSummary(connected, "Key configured")).toBe("sk-****9Qa")
     })
 
     it("says a value exists when the record has one but no preview to show", () => {
         const [connected] = toProviderConnections([{...writeOnlyRow, keyPreview: undefined}])
 
-        expect(credentialSummary(connected)).toBe("Key configured")
+        expect(credentialSummary(connected, "Key configured")).toBe("Key configured")
     })
 
     it("exempts only the SECRET fields of a record that holds a credential", () => {
@@ -1192,36 +1228,36 @@ describe("Test on a write-only connection: the enable rule and the request shape
             body: detail ? {detail} : undefined,
         })
 
+        const PROBE_TEXT = {gone: "gone", unreachable: "unreachable"}
+
         it("says the connection is gone on a 404, not that the provider is unreachable", () => {
-            expect(probeFailureMessage(httpError(404), "OpenAI")).toContain("no longer exists")
+            expect(probeFailureMessage(httpError(404), PROBE_TEXT)).toBe(PROBE_TEXT.gone)
         })
 
         it("speaks the server's own words for a 4xx that carried a message", () => {
             expect(
                 probeFailureMessage(
                     httpError(422, "Stored key is for another provider."),
-                    "OpenAI",
+                    PROBE_TEXT,
                 ),
             ).toBe("Stored key is for another provider.")
             expect(
                 probeFailureMessage(
                     fernError(422, "Stored key is for another provider."),
-                    "OpenAI",
+                    PROBE_TEXT,
                 ),
             ).toBe("Stored key is for another provider.")
         })
 
         it("recognizes Fern 404 errors as missing stored connections", () => {
-            expect(probeFailureMessage(fernError(404), "OpenAI")).toContain("no longer exists")
+            expect(probeFailureMessage(fernError(404), PROBE_TEXT)).toBe(PROBE_TEXT.gone)
         })
 
         it("falls back to the reach-the-provider line for a transport failure or a 5xx", () => {
-            expect(probeFailureMessage(new Error("network down"), "OpenAI")).toBe(
-                "Agenta could not reach OpenAI to test this credential.",
+            expect(probeFailureMessage(new Error("network down"), PROBE_TEXT)).toBe(
+                PROBE_TEXT.unreachable,
             )
-            expect(probeFailureMessage(httpError(500), "OpenAI")).toBe(
-                "Agenta could not reach OpenAI to test this credential.",
-            )
+            expect(probeFailureMessage(httpError(500), PROBE_TEXT)).toBe(PROBE_TEXT.unreachable)
         })
     })
 
@@ -1279,5 +1315,68 @@ describe("Test on a write-only connection: the enable rule and the request shape
                 secret_id: "sec-1",
             })
         })
+    })
+})
+
+describe("storesAwsAccessKeys", () => {
+    const bedrock = (source: ProviderConnection["source"]) =>
+        connection({kind: "bedrock", secretKind: SecretKind.CustomProvider, source})
+
+    it("reads the key names a write-only row reports", () => {
+        expect(
+            storesAwsAccessKeys(
+                bedrock({storedCredentialKeys: ["aws_access_key_id", "aws_secret_access_key"]}),
+            ),
+        ).toBe(true)
+        expect(storesAwsAccessKeys(bedrock({storedCredentialKeys: ["AWS_ACCESS_KEY_ID"]}))).toBe(
+            true,
+        )
+    })
+
+    it("reads the value of a readable row", () => {
+        expect(storesAwsAccessKeys(bedrock({accessKeyId: "AKIA123"}))).toBe(true)
+    })
+
+    it("opens a row that holds both ways on the API key, which the gateway uses", () => {
+        expect(
+            storesAwsAccessKeys(
+                bedrock({
+                    storedCredentialKeys: [
+                        "aws_access_key_id",
+                        "aws_bearer_token_bedrock",
+                        "aws_secret_access_key",
+                    ],
+                }),
+            ),
+        ).toBe(false)
+    })
+
+    it("is false for an API key row and for a new connection", () => {
+        expect(
+            storesAwsAccessKeys(bedrock({storedCredentialKeys: ["aws_bearer_token_bedrock"]})),
+        ).toBe(false)
+        expect(storesAwsAccessKeys(null)).toBe(false)
+    })
+})
+
+describe("transformSecret configured keys", () => {
+    it("carries the credential key names from value_status", () => {
+        const [row] = transformSecret([
+            {
+                id: "id-b",
+                slug: "bedrock-abc",
+                kind: SecretKind.CustomProvider,
+                header: {name: "Bedrock"},
+                data: {
+                    kind: "bedrock",
+                    provider: {extras: {aws_region_name: "eu-west-1"}},
+                    models: [],
+                },
+                value_status: {configured: true, configured_keys: ["aws_access_key_id"]},
+                write_only: true,
+            } as never,
+        ])
+
+        expect(row.storedCredentialKeys).toEqual(["aws_access_key_id"])
     })
 })

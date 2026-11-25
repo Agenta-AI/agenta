@@ -121,7 +121,7 @@ describe("what an unlisted advertised tool gets", () => {
     it("never falls back to the whole-server permission once a table is declared", () => {
         // The runner's gate gives a declared table with no floor beside it `ask` and never
         // consults the server permission: a human decides for anything the table does not
-        // name. Reading `permission` here made the editor's "Inherits" label promise that an
+        // name. Reading `permission` here made the editor's "Follow agent policy" label promise that an
         // `allow` server would run an unnamed tool unapproved, which is the unsafe direction
         // and not what the run does (D88).
         expect(

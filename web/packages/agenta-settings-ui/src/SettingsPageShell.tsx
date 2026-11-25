@@ -1,6 +1,6 @@
 import {createContext, useContext, useState, type ReactNode, type Ref} from "react"
 
-import {Button} from "@agenta/ui/ui"
+import {Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {ArrowSquareOut, PlayCircle} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {createPortal} from "react-dom"
@@ -14,7 +14,7 @@ export interface SettingsPageShellProps {
     docs?: {label: string; href: string}
     /** A walkthrough video beside the primary action; absent until the tab has one. */
     video?: {label: string; onOpen: () => void}
-    /** `table` is the centered 1040px column; `full` drops the cap (Audit Log). */
+    /** `table` is the centered 1040px column; `full` drops the cap. */
     variant?: "full" | "table"
     /** The body's scroll box, for a host that watches its scroll position. */
     scrollRef?: Ref<HTMLDivElement>
@@ -98,7 +98,7 @@ const SettingsPageShell = ({
                                 href={docs.href}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 whitespace-nowrap text-inherit no-underline underline-offset-4 hover:text-colorText hover:underline"
+                                className={`inline-flex items-center gap-1 whitespace-nowrap text-inherit no-underline underline-offset-4 hover:text-colorText hover:underline ${PHONE_TOUCH_TARGET_CLASS}`}
                             >
                                 {docs.label}
                                 <ArrowSquareOut size={12} />
@@ -110,7 +110,12 @@ const SettingsPageShell = ({
 
             <div
                 ref={scrollRef}
-                className={clsx("min-h-0 flex-1 overflow-y-auto", scrollClassName)}
+                // On a phone the clip starts 12px higher, into the header's bottom padding, so a
+                // control in the first row keeps its 44px tap area. Nothing moves.
+                className={clsx(
+                    "min-h-0 flex-1 overflow-y-auto max-md:-mt-3 max-md:pt-3",
+                    scrollClassName,
+                )}
             >
                 <div className={clsx(columnClassName(variant), "flex flex-col pb-16")}>
                     <HeaderActionsContext.Provider value={actionsSlot}>

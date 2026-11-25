@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import queueScreensCatalog from "@agenta/i18n/catalogs/annotation.queueScreens"
 import {Button, EmptyState} from "@agenta/ui/ui"
 import {Tray} from "@phosphor-icons/react"
 import Link from "next/link"
@@ -9,25 +11,26 @@ export const QueueEmpty = ({
 }: {
     isTraces: boolean
     observabilityHref: string
-}) => (
-    <EmptyState
-        className="py-14"
-        image={<Tray aria-hidden size={28} />}
-        title="There's nothing to see here"
-        description={
-            <>
-                Currently there are no runs &amp; annotations in this queue,
-                <br />
-                {isTraces ? "please add runs from traces." : "please add items from test sets."}
-            </>
-        }
-    >
-        {isTraces ? (
-            <Button size="sm" asChild>
-                <Link href={observabilityHref} prefetch={false}>
-                    Go to observability
-                </Link>
-            </Button>
-        ) : null}
-    </EmptyState>
-)
+}) => {
+    const t = useT(queueScreensCatalog)
+    return (
+        <EmptyState
+            className="py-14"
+            image={<Tray aria-hidden size={28} />}
+            title={t("annotation.queueScreens.emptyTitle")}
+            description={
+                isTraces
+                    ? "Add traces to this queue from Observability."
+                    : "Add test cases to this queue from a test set."
+            }
+        >
+            {isTraces ? (
+                <Button size="sm" asChild>
+                    <Link href={observabilityHref} prefetch={false}>
+                        Go to Observability
+                    </Link>
+                </Button>
+            ) : null}
+        </EmptyState>
+    )
+}

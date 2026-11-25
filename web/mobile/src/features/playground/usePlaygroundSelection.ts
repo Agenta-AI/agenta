@@ -232,17 +232,34 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
                 .catch(() => undefined)
         }
         let timer: ReturnType<typeof setTimeout> | undefined
+        // A write while the user leaves the page would replace the route and cancel the leave.
+        let leaving = false
         const schedule = () => {
             clearTimeout(timer)
-            timer = setTimeout(write, ADDRESS_WRITE_DELAY_MS)
+            if (!leaving) timer = setTimeout(write, ADDRESS_WRITE_DELAY_MS)
+        }
+        const onLeaveStart = (_url: string, {shallow}: {shallow: boolean}) => {
+            if (shallow) return
+            leaving = true
+            clearTimeout(timer)
+        }
+        // The page stays mounted after a link within it, or after a cancelled leave.
+        const onLeaveEnd = () => {
+            leaving = false
         }
         const unsubscribe = store.sub(snapshotTriggerAtom, schedule)
         // Another writer of the address (the trace drawer's `?trace=`) drops the hash: put it back.
         const events = routerRef.current.events
+        events?.on("routeChangeStart", onLeaveStart)
+        events?.on("routeChangeError", onLeaveEnd)
+        events?.on("routeChangeComplete", onLeaveEnd)
         for (const name of ADDRESS_EVENTS) events?.on(name, schedule)
         schedule()
         return () => {
             unsubscribe()
+            events?.off("routeChangeStart", onLeaveStart)
+            events?.off("routeChangeError", onLeaveEnd)
+            events?.off("routeChangeComplete", onLeaveEnd)
             for (const name of ADDRESS_EVENTS) events?.off(name, schedule)
             clearTimeout(timer)
         }

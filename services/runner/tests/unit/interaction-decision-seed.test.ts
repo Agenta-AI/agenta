@@ -31,10 +31,11 @@ vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
 });
 
 const {
+  decisionMapOf,
   decisionsFromInteractionRows,
-  loadDurableDecisions,
+  loadTurnApprovalRows,
   queryInteractions,
-  seedDecisionMap,
+  TurnApprovalRows,
 } = await import("../../src/sessions/interactions.ts");
 const { approvedCallKey, ConversationDecisions } =
   await import("../../src/responder.ts");
@@ -120,12 +121,6 @@ describe("decisionsFromInteractionRows", () => {
       row({ data: {} }),
       row({
         data: {
-          request: { tool: "run_tool" },
-          resolution: { verdict: "approved" },
-        },
-      }),
-      row({
-        data: {
           request: { tool: "", args },
           resolution: { verdict: "approved" },
         },
@@ -140,6 +135,22 @@ describe("decisionsFromInteractionRows", () => {
     ];
 
     assert.deepEqual(decisionsFromInteractionRows(malformed), []);
+  });
+
+  it("seeds an answered call that has no arguments under the gate's no-argument key", () => {
+    // The write drops an undefined `args`, so the stored request has no `args` at all.
+    const seeded = decisionsFromInteractionRows([
+      row({
+        data: {
+          request: { tool: "run_tool" },
+          resolution: { verdict: "approved" },
+        },
+      }),
+    ]);
+    assert.deepEqual(
+      seeded.map((entry) => entry.key),
+      [approvedCallKey("run_tool", undefined)],
+    );
   });
 
   it("reads the contract spelling, resolution.verdict", () => {
@@ -273,14 +284,13 @@ describe("queryInteractions", () => {
   });
 });
 
-describe("seedDecisionMap", () => {
+describe("decisionMapOf", () => {
   it("lets the gate honor an approved row, and consumes it once", () => {
-    const map = new Map<string, unknown[]>();
-    const adopted = seedDecisionMap(map, decisionsFromInteractionRows([row()]));
-    const decisions = new ConversationDecisions(map);
+    const decisions = new ConversationDecisions(
+      decisionMapOf(decisionsFromInteractionRows([row()])),
+    );
     const gate = { executor: "relay" as const, toolName: "run_tool", args };
 
-    assert.equal(adopted.length, 1);
     assert.deepEqual(decisions.take(gate), {
       decision: "allow",
       interactionToken: "tok-1",
@@ -290,46 +300,32 @@ describe("seedDecisionMap", () => {
   });
 
   it("lets the gate refuse on a denied row", () => {
-    const map = new Map<string, unknown[]>();
-    seedDecisionMap(
-      map,
-      decisionsFromInteractionRows([
-        row({
-          data: {
-            request: { tool: "run_tool", args },
-            resolution: { verdict: "denied" },
-          },
-        }),
-      ]),
-    );
-
-    const taken = new ConversationDecisions(map).take({
-      executor: "relay",
-      toolName: "run_tool",
-      args,
-    });
+    const taken = new ConversationDecisions(
+      decisionMapOf(
+        decisionsFromInteractionRows([
+          row({
+            data: {
+              request: { tool: "run_tool", args },
+              resolution: { verdict: "denied" },
+            },
+          }),
+        ]),
+      ),
+    ).take({ executor: "relay", toolName: "run_tool", args });
     assert.deepEqual(taken, { decision: "deny", interactionToken: "tok-1" });
   });
 
   it("keeps BOTH decisions when two identical calls were each answered", () => {
-    // Two identical calls both park, both get answered out of band, and
-    // `loadDurableDecisions` claims both rows. The store is a FIFO list per key exactly so two
-    // identical calls each resolve, but the seeded path used to `set` a single-element array —
-    // so the first call consumed the only decision and the second asked the human again for
-    // something they had already answered, with its row already terminal.
-    const map = new Map<string, unknown[]>();
-    const adopted = seedDecisionMap(
-      map,
-      decisionsFromInteractionRows([row(), row({ token: "tok-2" })]),
-    );
+    // Two identical calls both park and both get answered. The store is a FIFO list per key
+    // exactly so two identical calls each resolve; one decision per key would make the second
+    // call ask the human again for something they had already answered.
     const gate = { executor: "relay" as const, toolName: "run_tool", args };
-    const decisions = new ConversationDecisions(map);
-
-    assert.equal(
-      adopted.length,
-      2,
-      "both claimed rows are reported as adopted",
+    const decisions = new ConversationDecisions(
+      decisionMapOf(
+        decisionsFromInteractionRows([row(), row({ token: "tok-2" })]),
+      ),
     );
+
     assert.deepEqual(decisions.take(gate), {
       decision: "allow",
       interactionToken: "tok-1",
@@ -342,40 +338,65 @@ describe("seedDecisionMap", () => {
     assert.equal(decisions.take(gate), undefined, "and only twice");
   });
 
-  it("keeps the in-band envelope when a row names the same call", () => {
-    const key = approvedCallKey("run_tool", args)!;
-    const history = new Map<string, unknown[]>([[key, ["deny"]]]);
-
-    const adopted = seedDecisionMap(
-      history,
-      decisionsFromInteractionRows([row()]),
+  it("queues the answers of two identical calls in the order their gates were raised", () => {
+    // The person approved the first call and denied the second. The query returns the rows in
+    // no set order (here: the denial first). The cold replay raises the first call first, so it
+    // must take the approval.
+    const gate = { executor: "relay" as const, toolName: "run_tool", args };
+    const decisions = new ConversationDecisions(
+      decisionMapOf(
+        decisionsFromInteractionRows([
+          row({
+            token: "tok-2",
+            created_at: "2026-01-01T00:00:02Z",
+            data: {
+              request: { tool: "run_tool", args },
+              resolution: { verdict: "denied" },
+            },
+          }),
+          row({ token: "tok-1", created_at: "2026-01-01T00:00:01Z" }),
+        ]),
+      ),
     );
 
-    // The row said approved; the transcript said deny. History wins and the row is NOT adopted.
-    // It is still claimed upstream by `loadDurableDecisions`, which settles every candidate
-    // before seeding — correct, because a key the transcript already carries is an answer this
-    // turn has, and the in-band path settles that row anyway.
-    assert.deepEqual(adopted, []);
-    assert.deepEqual(history.get(key), ["deny"]);
+    assert.deepEqual(decisions.take(gate), {
+      decision: "allow",
+      interactionToken: "tok-1",
+    });
+    assert.deepEqual(decisions.take(gate), {
+      decision: "deny",
+      interactionToken: "tok-2",
+    });
   });
 });
 
-describe("loadDurableDecisions", () => {
+describe("TurnApprovalRows", () => {
+  const gate = { interactionToken: "tok-1", toolName: "run_tool", args };
+  const claimsOf = () =>
+    requests.filter((r) => /\/transition$/.test(r.url));
+
   it("claims a row before returning it, and posts the transition for that token", async () => {
     responseBody = { interactions: [row()] };
 
-    const loaded = await loadDurableDecisions("sess-1", "ApiKey k", () => {});
+    const loaded = await (
+      await loadTurnApprovalRows("sess-1", "ApiKey k")
+    ).claimAll();
 
     assert.equal(loaded.length, 1);
     assert.equal(loaded[0].token, "tok-1");
     // The claim is a real transition to `resolved`, carrying the row's own token: that is what
     // makes the decision single-use across turns (R21) rather than merely read.
-    const transition = requests.find((r) => /\/transition$/.test(r.url));
+    const transition = claimsOf()[0];
     assert.ok(transition, "expected a transition request");
     assert.equal((transition!.body as Record<string, unknown>).token, "tok-1");
     assert.equal(
       (transition!.body as Record<string, unknown>).status,
       "resolved",
+    );
+    // A claim writes no verdict: the verdict on the row is the person's, and stays.
+    assert.equal(
+      (transition!.body as Record<string, unknown>).resolution,
+      undefined,
     );
   });
 
@@ -385,9 +406,9 @@ describe("loadDurableDecisions", () => {
     failTransition = true;
     const logged: string[] = [];
 
-    const loaded = await loadDurableDecisions("sess-1", "ApiKey k", (m) =>
-      logged.push(m),
-    );
+    const loaded = await (
+      await loadTurnApprovalRows("sess-1", "ApiKey k", (m) => logged.push(m))
+    ).claimAll();
 
     // Unclaimed means unusable: the gate re-raises rather than a second execution being
     // authorized by the same human answer on a later turn.
@@ -400,13 +421,132 @@ describe("loadDurableDecisions", () => {
 
   it("does nothing without a session or a credential", async () => {
     assert.deepEqual(
-      await loadDurableDecisions(undefined, "ApiKey k", () => {}),
+      await (await loadTurnApprovalRows(undefined, "ApiKey k")).claimAll(),
       [],
     );
     assert.deepEqual(
-      await loadDurableDecisions("sess-1", undefined, () => {}),
+      await (await loadTurnApprovalRows("sess-1", undefined)).claimAll(),
       [],
     );
     assert.equal(requests.length, 0);
+  });
+
+  it("reads the rows once and claims each row once, however often the turn asks", async () => {
+    // A warm resume that falls back to cold, and a stall retry, ask again in the same turn. They
+    // must get the answer this turn already holds, not lose it to their own earlier claim.
+    responseBody = { interactions: [row()] };
+    const rows = await loadTurnApprovalRows("sess-1", "ApiKey k");
+
+    assert.equal(await rows.claim("tok-1"), true);
+    assert.equal((await rows.claimAll()).length, 1);
+    assert.equal((await rows.claimAll()).length, 1);
+    assert.equal(
+      requests.filter((r) => /\/query$/.test(r.url)).length,
+      1,
+      "one read per turn",
+    );
+    assert.equal(claimsOf().length, 1, "one claim per row");
+  });
+
+  it("fails closed when the rows cannot be read", async () => {
+    responseStatus = 500;
+    const rows = await loadTurnApprovalRows("sess-1", "ApiKey k");
+
+    assert.equal(
+      rows.verifiedDecision({ decision: "allow", interactionToken: "tok-1" }, gate),
+      undefined,
+    );
+    assert.deepEqual(await rows.claimAll(), []);
+  });
+
+  describe("verifiedDecision (the warm resume check)", () => {
+    const rows = () => new TurnApprovalRows([row()], async () => true);
+
+    it("takes an envelope that names the gate's responded row and agrees with it", () => {
+      assert.equal(
+        rows().verifiedDecision(
+          { decision: "allow", interactionToken: "tok-1" },
+          gate,
+        ),
+        "allow",
+      );
+    });
+
+    it("takes nothing from an envelope with no token", () => {
+      assert.equal(rows().verifiedDecision({ decision: "allow" }, gate), undefined);
+    });
+
+    it("takes nothing when the row is pending, resolved or cancelled", () => {
+      for (const status of ["pending", "resolved", "cancelled"]) {
+        const notAnswered = new TurnApprovalRows([row({ status })], async () => true);
+        assert.equal(
+          notAnswered.verifiedDecision(
+            { decision: "allow", interactionToken: "tok-1" },
+            gate,
+          ),
+          undefined,
+          status,
+        );
+      }
+    });
+
+    it("takes nothing when the envelope flips the row's verdict", () => {
+      const denied = new TurnApprovalRows(
+        [
+          row({
+            data: {
+              request: { tool: "run_tool", args },
+              resolution: { approved: false },
+            },
+          }),
+        ],
+        async () => true,
+      );
+      assert.equal(
+        denied.verifiedDecision(
+          { decision: "allow", interactionToken: "tok-1" },
+          gate,
+        ),
+        undefined,
+      );
+      assert.equal(
+        denied.verifiedDecision(
+          { decision: "deny", interactionToken: "tok-1" },
+          gate,
+        ),
+        "deny",
+      );
+    });
+
+    it("takes nothing when the token names another gate's row", () => {
+      assert.equal(
+        rows().verifiedDecision(
+          { decision: "allow", interactionToken: "tok-1" },
+          { ...gate, interactionToken: "tok-other" },
+        ),
+        undefined,
+      );
+    });
+
+    it("takes nothing when the row's call is not the gate's call", () => {
+      assert.equal(
+        rows().verifiedDecision(
+          { decision: "allow", interactionToken: "tok-1" },
+          { ...gate, args: { ...args, tool: "SEND_EMAIL" } },
+        ),
+        undefined,
+      );
+    });
+
+    it("never claims a row that is not answered", async () => {
+      let claimed = 0;
+      const pending = new TurnApprovalRows([row({ status: "pending" })], async () => {
+        claimed += 1;
+        return true;
+      });
+      assert.equal(await pending.claim("tok-1"), false);
+      assert.deepEqual(await pending.claimAll(), []);
+      assert.equal(claimed, 0);
+    });
   });
 });

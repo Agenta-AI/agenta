@@ -41,7 +41,11 @@ export const CreditsTab = ({projectId}: {projectId: string}) => {
     })
 
     const goTab = (tab: string, extra: Record<string, string> = {}) =>
-        void router.replace({query: {...router.query, tab, ...extra}}, undefined, {shallow: true})
+        void router.replace(
+            {pathname: router.pathname, query: {...router.query, tab, ...extra}},
+            undefined,
+            {shallow: true},
+        )
 
     if (summary.isPending) return <CreditsPageSkeleton />
     if (summary.isError) return <WalletUsageError onRetry={() => void summary.refetch()} />

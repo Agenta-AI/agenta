@@ -11,12 +11,12 @@ export interface RevisionRunAverages {
     cost: string
 }
 
-const EMPTY: RevisionRunAverages = {latency: "-", tokens: "-", cost: "-"}
+const EMPTY: RevisionRunAverages = {latency: "—", tokens: "—", cost: "—"}
 
 /**
  * The average latency, tokens and cost of a revision's latest run on each test case, as the
  * variant card shows them. The numbers come from each run's trace, the same source as the
- * line under each output; with repeats the last repeat counts. "-" until a trace reports them,
+ * line under each output; with repeats the last repeat counts. "—" until a trace reports them,
  * and for a reader who may not view traces.
  */
 export const useRevisionRunAverages = (revisionId: string): RevisionRunAverages => {

@@ -1,0 +1,7 @@
+{
+    "listTitle": "Colas de anotación",
+    "queueName": "Nombre de la cola",
+    "emptyTitle": "Esta cola está vacía",
+    "testcaseUnavailable": "Los datos del caso de prueba no están disponibles",
+    "testcaseNoData": "No hay datos disponibles para este caso de prueba"
+}

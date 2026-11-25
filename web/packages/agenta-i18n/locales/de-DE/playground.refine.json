@@ -14,5 +14,6 @@
     "toggleDiff": "Diff-Ansicht umschalten",
     "cancel": "Abbrechen",
     "useRefined": "Verfeinerten Prompt verwenden",
-    "refineFailed": "Der Prompt konnte nicht verfeinert werden. Versuchen Sie es erneut."
+    "refineFailed": "Der Prompt konnte nicht verfeinert werden. Versuchen Sie es erneut.",
+    "refineAiDisabled": "Der Prompt konnte nicht verfeinert werden: KI-Dienste sind in dieser Installation deaktiviert."
 }

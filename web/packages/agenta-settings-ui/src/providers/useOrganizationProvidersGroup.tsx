@@ -18,15 +18,15 @@ import {
     organizationProviderConnectionsAtom,
     organizationSecretsQueryAtom,
     refreshVaultSecretsAtom,
-    subscriptionStatusLine,
     vaultSecretsWithOrganizationQueryAtom,
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {
     organizationRefusal,
     type OrganizationConnectionScope,
+    subscriptionStatusLine,
 } from "@agenta/entity-ui/secretProvider"
-import {useT} from "@agenta/i18n"
+import {formatList, useT} from "@agenta/i18n"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import {message} from "@agenta/ui/app-message"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -52,7 +52,7 @@ const projectsSummary = (
         const name = names.get(id)
         return name ? [name] : []
     })
-    return picked.length === ids.length ? picked.join(", ") : null
+    return picked.length === ids.length ? formatList(picked) : null
 }
 
 const rowDescription = (

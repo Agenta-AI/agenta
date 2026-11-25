@@ -1307,6 +1307,10 @@ failureThreshold: 3
 - name: AGENTA_ACCESS_EMAIL_DISABLED
   value: {{ $access.emailDisabled | quote }}
 {{- end }}
+{{- if hasKey $access "personalAccountsEnabled" }}
+- name: AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED
+  value: {{ $access.personalAccountsEnabled | quote }}
+{{- end }}
 {{- if $supertokensCfg.application }}
 - name: SUPERTOKENS_APPLICATION
   value: {{ $supertokensCfg.application | quote }}

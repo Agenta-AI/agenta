@@ -125,6 +125,11 @@ function PlaygroundConfigSection({
     const schemaAtom = useMemo(() => mol.atoms.agConfigSchema(revisionId), [mol, revisionId])
     const schema = useAtomValue(schemaAtom)
 
+    // The empty-config copy names an evaluator only for an evaluator.
+    const isEvaluator = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.isEvaluator(revisionId), [revisionId]),
+    )
+
     // Choose the best available data for loading checks
     const activeData = pickActiveData(useServerData, data, serverData)
 
@@ -394,10 +399,14 @@ function PlaygroundConfigSection({
             >
                 <div className="flex flex-col items-center gap-2 text-center max-w-[320px]">
                     <span className="text-sm font-medium text-[var(--ag-rgba-051729-65)]">
-                        {t("entityUi.playgroundConfig.noConfigNeeded")}
+                        {isEvaluator
+                            ? t("entityUi.playgroundConfig.noConfigNeeded")
+                            : t("entityUi.playgroundConfig.noConfiguration")}
                     </span>
                     <span className="text-xs text-[var(--ag-rgba-051729-45)]">
-                        {t("entityUi.playgroundConfig.evaluatorDefaults")}
+                        {isEvaluator
+                            ? t("entityUi.playgroundConfig.evaluatorDefaults")
+                            : t("entityUi.playgroundConfig.revisionNoConfig")}
                     </span>
                 </div>
             </div>

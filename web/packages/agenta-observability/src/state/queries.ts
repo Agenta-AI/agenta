@@ -10,7 +10,7 @@ import {workspaceMembersAtom} from "@agenta/entities/organization"
 import {getNodeById} from "@agenta/entities/trace"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
-import {formatDay} from "@agenta/shared/utils/dateTime"
+import {formatLocalDateTime} from "@agenta/shared/utils/dateTime"
 import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
 import {selectAtom} from "jotai/utils"
@@ -272,7 +272,7 @@ export const traceAnnotationInfoAtomFamily = atomFamily((key: string) =>
 
 // Formatting helpers ----------------------------------------------------------
 export const formattedTimestampAtomFamily = atomFamily((ts?: string | number | null) =>
-    atom(() => formatDay({date: ts, outputFormat: "HH:mm:ss DD MMM YYYY"})),
+    atom(() => formatLocalDateTime(ts)),
 )
 
 export const formattedDurationAtomFamily = atomFamily((ms?: number) =>

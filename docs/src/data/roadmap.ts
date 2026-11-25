@@ -152,6 +152,30 @@ export const shippedFeatures: ShippedFeature[] = [
 
 export const inProgressFeatures: PlannedFeature[] = [
   {
+    id: "builder-agent",
+    title: "Builder agent",
+    description:
+      "One agent that creates and manages your other agents for you, and keeps a shared memory of what it learns about them.",
+    labels: [
+      {
+        name: "Agent Builder",
+        color: "BCFF78",
+      },
+    ],
+  },
+  {
+    id: "inbox",
+    title: "Inbox",
+    description:
+      "One place for updates about your agents, automations and workspace, so you see what happened and what needs you.",
+    labels: [
+      {
+        name: "Notifications",
+        color: "F472B6",
+      },
+    ],
+  },
+  {
     id: "agent-communication",
     title: "Agent communication and subagents",
     description:
@@ -173,6 +197,30 @@ export const plannedFeatures: PlannedFeature[] = [
     description:
       "Start agents from custom event sources, including direct webhooks and user-defined events beyond the Composio catalog.",
     githubUrl: "https://github.com/Agenta-AI/agenta/issues/5514",
+    labels: [
+      {
+        name: "Tools & Triggers",
+        color: "FFA500",
+      },
+    ],
+  },
+  {
+    id: "mcp-registry",
+    title: "MCP registry",
+    description:
+      "Pick from ready-made MCP servers and connect them to your agents by adding only your API key or token.",
+    labels: [
+      {
+        name: "Tools & Triggers",
+        color: "FFA500",
+      },
+    ],
+  },
+  {
+    id: "cloud-browser",
+    title: "Cloud browser for agents",
+    description:
+      "Each agent gets its own browser in the cloud, so it can visit websites and click, type and fill in forms for you.",
     labels: [
       {
         name: "Tools & Triggers",

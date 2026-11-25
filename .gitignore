@@ -110,6 +110,7 @@ clients/python/tests/results/
 !.agents/skills/write-issue/
 !.agents/skills/write-pr-description/
 !.agents/skills/write-social-announcement/
+!.agents/skills/write-whats-new/
 !.agents/skills/write-template-playbooks/
 !.agents/skills/update-public-surfaces/
 !.agents/skills/mobile-app-structure/
@@ -138,6 +139,7 @@ clients/python/tests/results/
 !.claude/skills/style-editing
 !.claude/skills/sync-model-catalog
 !.claude/skills/update-api-docs
+!.claude/skills/write-whats-new
 !.claude/skills/update-llm-model-list
 !.claude/skills/write-docs
 !.claude/skills/write-issue

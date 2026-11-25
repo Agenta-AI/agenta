@@ -3,7 +3,7 @@ import {useMemo} from "react"
 import {runLevelMetricsQueryAtomFamily} from "@agenta/entities/evaluationRun"
 import {useStore} from "jotai"
 
-import {RunRadarCard} from "../../overview/RunRadarCard"
+import {RunRadarCard, showsRadar, useRunRadar} from "../../overview/RunRadarCard"
 import {useRunReferenceLinks} from "../../overview/useRunReferenceLinks"
 
 import {CompareMetricCards} from "./CompareMetricCards"
@@ -45,6 +45,11 @@ export const CompareOverviewTab = ({
             })),
         [runs],
     )
+    const radar = useRunRadar(radarRuns)
+    const withRadar = showsRadar(
+        radar.axes.length,
+        runs.some((run) => run.metricsPending),
+    )
     const retry = () => {
         for (const run of runs) {
             if (run.metricsError)
@@ -63,18 +68,15 @@ export const CompareOverviewTab = ({
                         id="run-overview-title"
                         className="m-0 text-base font-semibold text-foreground"
                     >
-                        Evaluator Scores Overview
+                        Run summary
                     </h2>
                     <p className="m-0 text-sm text-muted-foreground">
-                        Average evaluator score across evaluations
+                        What the compared runs tested and their average results
                     </p>
                 </header>
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <div className={`grid grid-cols-1 gap-6 ${withRadar ? "lg:grid-cols-2" : ""}`}>
                     <CompareSummaryTable runs={columns} rows={rows} />
-                    <RunRadarCard
-                        runs={radarRuns}
-                        pending={runs.some((run) => run.metricsPending)}
-                    />
+                    {withRadar ? <RunRadarCard runs={radarRuns} radar={radar} /> : null}
                 </div>
             </section>
             <CompareMetricCards runs={runs} onRetry={retry} />

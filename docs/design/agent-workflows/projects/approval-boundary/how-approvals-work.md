@@ -349,10 +349,11 @@ Slack and ends up gated.
     the *harness* session is a live process inside the sandbox, and the park in step 6
     destroyed it. Nothing server-side holds harness state between turns; each turn is a
     cold replay of the transcript into a new harness session. Before the replay, the
-    runner pre-extracts all `{approved}` envelopes from the incoming messages into a
-    decision map (`extractApprovalDecisions`, `responder.ts:306-343`), keyed by tool name
+    runner reads the session's answered interaction rows, claims them, and builds a
+    decision map (`TurnApprovalRows`, `sessions/interactions.ts`), keyed by tool name
     plus canonicalized arguments (never by name alone, so approving one call does not
-    approve a different call to the same tool).
+    approve a different call to the same tool). The `{approved}` envelope in the messages
+    is not read as a decision.
 12. Claude replays the transcript in the new session. The transcript shows it wanted to
     call `SEND_MESSAGE` and never got a result, so Claude issues the call again, and the
     gate rises again exactly like in step 5; the approval message in the conversation is

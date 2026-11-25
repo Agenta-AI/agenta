@@ -137,7 +137,10 @@ import {
   type ClaudeSystemPromptMeta,
 } from "./system-prompt-appendix.ts";
 import { platformGuidanceAppendix } from "./platform-guidance.ts";
-import { claudeSessionOptionsMeta } from "./claude-session-options.ts";
+import {
+  CLAUDE_INITIAL_CONFIG_OPTIONS,
+  claudeSessionOptionsMeta,
+} from "./claude-session-options.ts";
 import {
   describeCodexSubscriptionAuthFault,
   isSubscriptionCodexRun,
@@ -1650,6 +1653,9 @@ async function acquireEnvironmentOnce(
     const sessionInit = {
       cwd: plan.workspace.cwd,
       mcpServers: sessionMcp.servers,
+      ...(plan.acpAgent === "claude"
+        ? { configOptions: CLAUDE_INITIAL_CONFIG_OPTIONS.map((option) => ({ ...option })) }
+        : {}),
       ...(claudeMeta ? { _meta: claudeMeta } : {}),
     };
 

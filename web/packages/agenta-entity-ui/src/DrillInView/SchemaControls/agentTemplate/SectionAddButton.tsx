@@ -13,7 +13,14 @@
 import {forwardRef, type ButtonHTMLAttributes, type ReactNode} from "react"
 
 import {cn} from "@agenta/ui/styles"
-import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+import {
+    Button,
+    PHONE_TOUCH_TARGET_CLASS,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 
 export interface SectionAddButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -36,14 +43,17 @@ export const SectionAddButton = forwardRef<HTMLButtonElement, SectionAddButtonPr
                 size="icon"
                 aria-label={label}
                 disabled={disabled}
-                // Quieter than the row title at rest; full strength on hover or while open.
+                // Canvas F01: a bare plus. The hover box overhangs it, so the row lays out the
+                // glyph alone.
                 className={cn(
-                    "!text-colorTextTertiary hover:!text-colorText aria-expanded:!text-colorText",
+                    PHONE_TOUCH_TARGET_CLASS,
+                    "-mx-[5px] size-6 rounded-[6px] !text-colorTextSecondary hover:!text-colorText aria-expanded:!text-colorText",
                     className,
                 )}
                 {...rest}
             >
-                <Plus size={16} />
+                {/* A size class, or the button's own glyph size (16 px) wins. */}
+                <Plus className="size-3.5" />
             </Button>
         )
         return (

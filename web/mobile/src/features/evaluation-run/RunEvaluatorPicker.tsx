@@ -24,6 +24,7 @@ export const RunEvaluatorPicker = ({
         projectId={projectId}
         selected={selected}
         evaluatorsHref={null}
+        compact
         onPick={(evaluator) =>
             selected.some((item) => item.revisionId === evaluator.revisionId)
                 ? onRemove(evaluator.revisionId)

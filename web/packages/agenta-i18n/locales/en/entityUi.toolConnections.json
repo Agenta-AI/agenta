@@ -26,5 +26,6 @@
     "created": "Created",
     "actions": "Actions",
     "testConnection": "Test Connection",
-    "refreshConnection": "Refresh Connection"
+    "refreshConnection": "Refresh Connection",
+    "apiKeyNeverVerified": "Its API key was never verified, so agents can't use its tools yet. Delete it and connect again with a valid key."
 }

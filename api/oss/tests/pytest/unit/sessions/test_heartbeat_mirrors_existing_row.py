@@ -225,6 +225,7 @@ async def test_a_stale_beat_does_not_restamp_the_row_with_its_dead_turn(lock_eng
     )
     live = (
         await svc.command(
+            envelope=None,
             project_id=_PROJECT,
             user_id=uuid4(),
             request=SessionStreamCommandRequest(

@@ -5,7 +5,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsApiKeysCatalog from "@agenta/i18n/catalogs/settings.apiKeys"
 import {getSettingsSidebarIcon, type ApiKeyRow} from "@agenta/settings"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
-import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
+import {formatListDateTime, ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Alert, Button} from "@agenta/ui/ui"
 import {Plus, Trash} from "@phosphor-icons/react"
 
@@ -25,9 +25,6 @@ export interface ApiKeysPageProps {
     onDelete: (prefix: string) => void
 }
 
-const formatDate = (value?: string | null) =>
-    value ? new Date(value).toLocaleDateString(formatLocale()) : "—"
-
 const columnsFor = (t: ReturnType<typeof useT>): ListTableColumn[] => [
     {key: "prefix", label: t("settings.apiKeys.apiKey"), width: "minmax(0,2fr)"},
     {key: "created_at", label: t("common.created"), width: "minmax(0,1fr)"},
@@ -44,7 +41,7 @@ const ExpiresCell = ({value}: {value?: string | null}) => {
     return date < new Date() ? (
         <StatusIndicator tone="error" label={t("settings.apiKeys.expired")} />
     ) : (
-        <span>{date.toLocaleDateString(formatLocale())}</span>
+        <span>{formatListDateTime(date, formatLocale())}</span>
     )
 }
 
@@ -104,13 +101,15 @@ export const ApiKeysPage = ({
                             {record.prefix.padEnd(20, "\u2022")}
                         </span>
                         {shows("created_at") ? (
-                            <span className="truncate">{formatDate(record.created_at)}</span>
+                            <span className="truncate">
+                                {formatListDateTime(record.created_at, formatLocale())}
+                            </span>
                         ) : null}
                         <ExpiresCell value={record.expiration_date} />
                         {shows("last_used_at") ? (
                             <span className="truncate text-muted-foreground">
                                 {record.last_used_at
-                                    ? new Date(record.last_used_at).toLocaleString(formatLocale())
+                                    ? formatListDateTime(record.last_used_at, formatLocale())
                                     : t("settings.apiKeys.neverUsed")}
                             </span>
                         ) : null}

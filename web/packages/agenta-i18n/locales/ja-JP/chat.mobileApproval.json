@@ -1,4 +1,5 @@
 {
+    "childSessionAsks": "セッション <link>セッション名</link> からの依頼",
     "failed": "承認に失敗しました。",
     "failedStatus": "承認に失敗しました（HTTP {{status}}）。",
     "noLongerPending": "この承認はもう保留中ではありません。更新してもう一度お試しください。",

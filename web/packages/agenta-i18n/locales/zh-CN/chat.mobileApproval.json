@@ -1,4 +1,5 @@
 {
+    "childSessionAsks": "由会话 <link>会话名称</link> 请求",
     "failed": "审批失败。",
     "failedStatus": "审批失败（HTTP {{status}}）。",
     "noLongerPending": "此审批已不再待处理：请刷新后重试。",

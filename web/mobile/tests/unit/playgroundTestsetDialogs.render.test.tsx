@@ -82,14 +82,14 @@ describe("The test set menu", () => {
         expect(host.textContent).toBe("")
     })
 
-    it("Local mode offers Connect test set", async () => {
+    it("Local mode offers Load test set", async () => {
         const local = model()
         await render(<TestsetMenu model={local} />)
         expect(host.textContent).toContain("Test set")
 
         await openMenu()
 
-        expect(items()).toEqual([{label: "Connect test set", disabled: false}])
+        expect(items()).toEqual([{label: "Load test set", disabled: false}])
         await act(async () => document.querySelector<HTMLElement>('[role="menuitem"]')!.click())
         expect(local.connect).toHaveBeenCalled()
     })
@@ -126,7 +126,7 @@ describe("The test set menu", () => {
         await openMenu()
 
         expect(items()).toEqual([
-            {label: "Connect test set", disabled: false},
+            {label: "Load test set", disabled: false},
             {label: "Add to test set", disabled: true},
         ])
     })

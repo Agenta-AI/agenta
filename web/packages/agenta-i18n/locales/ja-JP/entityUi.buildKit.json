@@ -86,7 +86,21 @@
     "applySkillUpdateDescription": "このエージェントのスキルを 1 つ新しいバージョンに更新します。",
     "buildKitSettingApplies": "{{description}} プレイグラウンドでは、ビルドキットの設定が適用されます。",
     "agentaTools": "Agenta ツール",
-    "agentaToolsHint": "エージェントがどこで実行されても使えるツールです: プレイグラウンド、API、Slack、Telegram、WhatsApp、自動化。エージェントと一緒に保存されます。",
+    "agentaToolsHint": "エージェントがどこで実行されても使えるツールです。エージェントと一緒に保存されます。",
     "noAgentaTools": "利用できる Agenta ツールはありません。",
-    "couldNotLoadAgentaTools": "Agenta ツールを読み込めませんでした。ページを再読み込みして、もう一度お試しください。"
+    "couldNotLoadAgentaTools": "Agenta ツールを読み込めませんでした。ページを再読み込みして、もう一度お試しください。",
+    "startSessionName": "エージェントのセッションを開始",
+    "startSessionDescription": "最初のメッセージでエージェントの新しいセッションを開始します。新しいセッションは単独で実行されます。",
+    "sendSessionMessageName": "セッションにメッセージを送信",
+    "sendSessionMessageDescription": "このエージェントが開始したセッションにメッセージを送信します。",
+    "waitForSessionsName": "セッションを待機",
+    "waitForSessionsDescription": "このエージェントが開始したセッションがターンを終えるまで待機します。",
+    "cancelSessionName": "セッションのターンをキャンセル",
+    "cancelSessionDescription": "このエージェントが開始したセッションの実行中のターンを停止します。",
+    "listSessionsName": "セッションを一覧表示",
+    "listSessionsDescription": "このプロジェクトのセッションのうち、その人が開けるものを一覧表示します。",
+    "readSessionName": "セッションを読み込む",
+    "readSessionDescription": "1 つのセッションのメッセージと状態を読み込みます。",
+    "readSessionSpansName": "セッションのステップを読み込む",
+    "readSessionSpansDescription": "セッションの 1 ターンのモデル呼び出しとツール呼び出しを読み込みます。"
 }
