@@ -4,7 +4,6 @@ import {
     builtinModelsOf,
     PROVIDER_CATALOG,
     SecretKind,
-    SecretManagementPolicy,
     subscriptionConnectionFor,
     subscriptionIsReady,
     subscriptionProviderFamily,
@@ -20,7 +19,6 @@ import {
     providerIconFor,
     ProviderOwnerChoiceContext,
     SubscriptionOwnerContext,
-    subscriptionStatusLine,
     SubscriptionSheet,
     type OrganizationConnectionScope,
     type ProviderOwnerChoice,
@@ -43,7 +41,6 @@ import {
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
-import {SubscriptionCards, type SubscriptionCard} from "./SubscriptionCards"
 
 /** What the host needs to render its own confirm chrome; the page owns the removal itself. */
 export interface ProviderRemovalState {
@@ -151,12 +148,11 @@ const SUBSCRIPTION_HINT: Record<
     claude: "settings.providers.claudeHint",
 }
 
-/** The AI providers list: plan cards, every owner's rows in one Connected list, the catalog. */
+/** The AI providers list: every owner's rows in one Connected list, sign-ins, the catalog. */
 export const ProvidersPanel = ({
     groups: ownerGroups,
     projectGroup,
     query = "",
-    subscriptions,
     ownerChoiceFor,
     loading = false,
     ownerChips = false,
@@ -165,12 +161,10 @@ export const ProvidersPanel = ({
     subscriptionDocsUrl,
 }: {
     groups: ProvidersGroup[]
-    /** Where a new connection and the cards' sign-ins go; absent, no catalog and no cards. */
+    /** Where a new connection goes; absent, no catalog. */
     projectGroup?: ProvidersGroup
     /** The search: rows whose name holds it. */
     query?: string
-    /** The project's ChatGPT and Claude cards; absent hides them. */
-    subscriptions?: ProviderConnection[]
     /** The drawer's Owner field for a new connection of this kind; absent, it is the project's. */
     ownerChoiceFor?: (kind: string) => ProviderOwnerChoice | undefined
     loading?: boolean
@@ -419,53 +413,6 @@ export const ProvidersPanel = ({
         t,
     ])
 
-    const cards = useMemo<SubscriptionCard[] | null>(() => {
-        if (!subscriptions || !projectGroup) return null
-        const open = (provider: SubscriptionProvider, connection: ProviderConnection | null) =>
-            openSignIn(projectGroup.key, provider, connection?.id, true)
-        const chatgpt = subscriptionConnectionFor(subscriptions, "chatgpt") ?? null
-        const claude = subscriptionConnectionFor(subscriptions, "claude") ?? null
-        const chatgptReady = subscriptionIsReady(chatgpt?.subscription)
-        const loginState = chatgpt?.subscription?.loginState
-        // A sign-in that once worked and now does not needs attention, not a fresh connect.
-        const broken = !chatgptReady && !!loginState && loginState !== "pending_login"
-        const claudeReady = subscriptionIsReady(claude?.subscription)
-        const remover = (connection: ProviderConnection | null) =>
-            connection &&
-            canRemoveIn(projectGroup.source) &&
-            connection.managementPolicy !== SecretManagementPolicy.ManagerOnly
-                ? () => requestRemoval(projectGroup.key, connection)
-                : undefined
-        return [
-            {
-                key: "chatgpt",
-                logo: <ProviderLogo kind={subscriptionProviderFamily("chatgpt")} />,
-                name: subscriptionProviderName("chatgpt"),
-                detail:
-                    subscriptionStatusLine(chatgpt?.subscription) ||
-                    t(SUBSCRIPTION_HINT.chatgpt),
-                state: chatgptReady ? "connected" : broken ? "attention" : "available",
-                actionLabel: chatgptReady
-                    ? t("common.manage")
-                    : broken
-                      ? t("settings.providers.signInAgain")
-                      : t("common.connect"),
-                onAction: () => open("chatgpt", chatgpt),
-                onRemove: remover(chatgpt),
-            },
-            {
-                key: "claude",
-                logo: <ProviderLogo kind={subscriptionProviderFamily("claude")} />,
-                name: subscriptionProviderName("claude"),
-                detail: claudeReady ? t("common.connected") : t(SUBSCRIPTION_HINT.claude),
-                state: claudeReady ? "connected" : "available",
-                actionLabel: claudeReady ? t("common.manage") : t("common.connect"),
-                onAction: () => open("claude", claude),
-                onRemove: remover(claude),
-            },
-        ]
-    }, [subscriptions, projectGroup, openSignIn, canRemoveIn, requestRemoval, t])
-
     return (
         <div className="ph-no-capture">
             <SettingsCatalog
@@ -487,7 +434,6 @@ export const ProvidersPanel = ({
                                 {removeError}
                             </span>
                         ) : null}
-                        {cards ? <SubscriptionCards cards={cards} /> : null}
                     </>
                 }
             />

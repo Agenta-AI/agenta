@@ -3,17 +3,17 @@ import {type ReactNode, useCallback, useMemo, useState} from "react"
 import {
     activeModelsSummary,
     credentialSummary,
-    deleteSecretAtom,
     isSubscriptionConnection,
+    deleteSecretAtom,
     SecretManagementPolicy,
     providerConnectionsAtom,
-    subscriptionConnectionFor,
     useVaultSecret,
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {useConnectionsHeading} from "@agenta/entity-ui/secret"
 import {
+    subscriptionStatusLine,
     type OrganizationProjectChoice,
     type ProviderOwnerChoice,
 } from "@agenta/entity-ui/secretProvider"
@@ -67,7 +67,7 @@ export interface AIProvidersPageProps {
     organization?: AIProvidersOrganization
 }
 
-/** The project's own connections: one row per key; its subscriptions are the cards on top. */
+/** The project's own connections: one row per key or subscription. */
 const useProjectProvidersSource = (): ProvidersSource => {
     const t = useT(settingsProvidersCatalog, commonCatalog)
     const {loading, mutate} = useVaultSecret()
@@ -76,24 +76,21 @@ const useProjectProvidersSource = (): ProvidersSource => {
     const deleteSecret = useSetAtom(deleteSecretAtom)
 
     return useMemo(() => {
-        // The cards show each provider's first subscription; any further one is a row.
-        const carded = new Set(
-            (["chatgpt", "claude"] as const)
-                .map((provider) => subscriptionConnectionFor(connections, provider)?.id)
-                .filter(Boolean),
-        )
         // Manager-only rows 409 on edit; the drawer still gets every connection.
         const rows = connections.filter(
             (connection) =>
-                connection.managementPolicy !== SecretManagementPolicy.ManagerOnly &&
-                !(isSubscriptionConnection(connection) && carded.has(connection.id)),
+                connection.managementPolicy !== SecretManagementPolicy.ManagerOnly,
         )
         return {
             connections,
             rows,
             loading: loading && rows.length === 0,
+            // A subscription has no key and no model list worth a line: its sign-in status only.
             describe: (connection: ProviderConnection) =>
-                [
+                isSubscriptionConnection(connection)
+                    ? subscriptionStatusLine(connection.subscription) ||
+                      t("common.notConnected")
+                    : [
                     connection.title !== connection.name
                         ? providerTitle(connection.kind, connection.title, t)
                         : null,
@@ -108,6 +105,7 @@ const useProjectProvidersSource = (): ProvidersSource => {
                     .filter(Boolean)
                     .join(" · "),
             manage: true,
+            offersSubscriptions: true,
             remove: async (connection: ProviderConnection) => {
                 await deleteSecret(connection.source)
                 mutate()
@@ -119,7 +117,7 @@ const useProjectProvidersSource = (): ProvidersSource => {
     }, [connections, loading, capabilities, deleteSecret, mutate, t])
 }
 
-/** Settings → AI providers: plan cards, one Connected list, then the catalog to connect from. */
+/** Settings → AI providers: one Connected list, the sign-ins to start, then the catalog. */
 export const AIProvidersPage = ({
     renderRemoveDialog,
     subscriptionDocsUrl = SUBSCRIPTION_DOCS_URL,
@@ -185,9 +183,6 @@ export const AIProvidersPage = ({
                 groups={shownGroups}
                 query={search}
                 projectGroup={projectGroup}
-                subscriptions={
-                    ownerShown(ownerFilter, "project") ? project.connections : undefined
-                }
                 ownerChoiceFor={ownerChoiceFor}
                 loading={project.loading}
                 ownerChips={ownerFilter === "all" && Boolean(organizationGroup)}

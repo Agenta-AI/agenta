@@ -131,9 +131,7 @@ export const useOrganizationProvidersGroup = (
             loading: access === "loading" || (access === "view" && vault.isPending),
             describe: (connection: ProviderConnection) =>
                 isSubscriptionConnection(connection)
-                    ? [connection.title, subscriptionStatusLine(connection.subscription)]
-                          .filter(Boolean)
-                          .join(" · ")
+                    ? subscriptionStatusLine(connection.subscription)
                     : rowDescription(
                           connection,
                           manage ? projectsSummary(connection, names, t) : null,
