@@ -14,7 +14,7 @@ import {
 } from "@agenta/entities/gatewayTool"
 import {useT} from "@agenta/i18n"
 import connectFormCatalog from "@agenta/i18n/catalogs/entityUi.connectForm"
-import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
+import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {
     Field,
     Input,
@@ -27,7 +27,7 @@ import {
 import Image from "next/image"
 
 import {CANVAS_FIELD_LABEL, type ConnectionOwner} from "../../accounts/ConnectOwnerField"
-import {OwnerField} from "../../accounts/OwnerField"
+import {OwnerField, useOwnerWord} from "../../accounts/OwnerField"
 import {openToolAuthPopup} from "../utils/openToolAuthPopup"
 
 const DEFAULT_PROVIDER = "composio"
@@ -91,7 +91,11 @@ export function useConnectForm({
     const existingCount = connections.filter(
         (connection) => connection.integration_key === integrationKey,
     ).length
-    const seedName = defaultConnectionName(integrationName, existingCount)
+    const ownerWord = useOwnerWord()
+    // "Snowflake (Personal)", then "Snowflake (Personal 2)": the owner the form has selected.
+    const seedName = `${integrationName} (${ownerWord(owner)}${
+        existingCount > 0 ? ` ${existingCount + 1}` : ""
+    })`
 
     const [nameTouched, setNameTouched] = useState(false)
     // An open auth popup's listener and poll; stopped if the form unmounts first.
