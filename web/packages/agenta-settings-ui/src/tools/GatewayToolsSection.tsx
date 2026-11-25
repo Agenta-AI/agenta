@@ -13,7 +13,7 @@ import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {
     categoryLabel,
     IntegrationCatalog,
-    integrationConnectView,
+    IntegrationConnectDialog,
     ToolExecutionDrawer,
     type CategorySelection,
     type ConnectionAction,
@@ -26,7 +26,6 @@ import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import settingsToolsCatalog from "@agenta/i18n/catalogs/settings.tools"
 import {message} from "@agenta/ui/app-message"
 import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
-import {ViewDrawerHost} from "@agenta/ui/view-stack"
 import {SquaresFour, Tag} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -245,20 +244,10 @@ export default function GatewayToolsSection({
 
             <ToolExecutionDrawer />
             {connectTarget ? (
-                // The connect view in a dialog; its target is the project, so it adds the new
-                // connection to no agent.
-                <ViewDrawerHost
-                    request={{
-                        view: integrationConnectView,
-                        params: {
-                            integrationKey: connectTarget,
-                            owners: connectOwners && ownersWithDefault(connectOwners, ownerFilter),
-                        },
-                        target: {kind: "project"},
-                    }}
+                <IntegrationConnectDialog
+                    integrationKey={connectTarget}
+                    owners={connectOwners && ownersWithDefault(connectOwners, ownerFilter)}
                     onClosed={() => setConnectTarget(null)}
-                    presentation="dialog"
-                    bare
                 />
             ) : null}
         </>

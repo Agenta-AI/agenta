@@ -45,3 +45,7 @@ export {
     SelectControl,
 } from "./components/schemaFormControls"
 export {useDirectToolConnect, type DirectConnectInput} from "./hooks/useDirectToolConnect"
+export {
+    IntegrationConnectDialog,
+    type IntegrationConnectDialogProps,
+} from "./components/IntegrationConnectDialog"

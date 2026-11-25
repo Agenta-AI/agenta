@@ -228,30 +228,35 @@ export function ConnectFormFields({
     integrationName,
     integrationDescription,
     projectName,
+    hideHeading = false,
 }: {
     form: ConnectFormState
     integrationName: string
     integrationDescription?: string | null
     /** The current project's name, for "Everyone in {project}". */
     projectName?: string
+    /** The host's own header names the app (a dialog's title): no "Connect {name}" here. */
+    hideHeading?: boolean
 }) {
     const t = useT(connectFormCatalog)
     const {owners} = form
     return (
         <>
-            <div className="flex flex-col gap-1">
-                <span className="text-body font-medium leading-5 text-foreground">
-                    {t("entityUi.connectForm.connectName", {name: integrationName})}
-                </span>
-                {integrationDescription && (
-                    <span
-                        className="truncate text-label leading-5 text-muted-foreground"
-                        title={integrationDescription}
-                    >
-                        {integrationDescription}
+            {hideHeading ? null : (
+                <div className="flex flex-col gap-1">
+                    <span className="text-body font-medium leading-5 text-foreground">
+                        {t("entityUi.connectForm.connectName", {name: integrationName})}
                     </span>
-                )}
-            </div>
+                    {integrationDescription && (
+                        <span
+                            className="truncate text-label leading-5 text-muted-foreground"
+                            title={integrationDescription}
+                        >
+                            {integrationDescription}
+                        </span>
+                    )}
+                </div>
+            )}
 
             <div className="flex flex-col gap-3">
                 <Field
