@@ -5,6 +5,7 @@ import {useT} from "@agenta/i18n"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import type {SkillFile} from "@agenta/skills"
 import {message} from "@agenta/ui/app-message"
+import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
 import {
     Button,
@@ -86,6 +87,8 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
     const [dragPath, setDragPath] = useState<string | null>(null)
     const [dropDir, setDropDir] = useState<string | null>(null)
     const pickerRef = useRef<HTMLInputElement>(null)
+    const listRef = useRef<HTMLDivElement>(null)
+    useScrollFadeEdges(listRef, {enabled: docked})
 
     const groups = useMemo(() => {
         const byDir = new Map<string, SkillFile[]>()
@@ -294,7 +297,7 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
             className={cn(
                 "flex min-h-0 flex-1 flex-col gap-3 rounded-lg",
                 // The right pane's body has no padding of its own; the panel sets the pane's.
-                docked && "px-4 sm:px-6",
+                docked && "px-4 pt-2 sm:px-6",
                 dragging && "outline-dashed outline-1 outline-border-strong",
             )}
         >
@@ -302,7 +305,14 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
             {!readOnly && addSlot ? createPortal(addMenu, addSlot) : null}
 
             {/* Rows hang their fill 8px outside the pane's text edge. */}
-            <div className="-mx-2 flex flex-col gap-1">
+            <div
+                ref={listRef}
+                className={cn(
+                    "-mx-2 flex flex-col gap-1",
+                    // Docked, the list scrolls on its own so the programs card stays put below it.
+                    docked && "ag-scroll-fade min-h-0 flex-1 overflow-y-auto",
+                )}
+            >
                 <div {...dropZone("")}>
                     <div className={cn(ROW, fileOpen ? "hover:bg-accent" : "bg-selected")}>
                         <IconTile size={24} aria-hidden>
@@ -357,9 +367,8 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
 
             <div
                 className={cn(
-                    "mt-auto pt-3",
-                    // Full width under the list: the negative margins undo the panel's own padding.
-                    docked && "sticky bottom-0 z-[1] -mx-4 bg-muted px-4 pb-4 sm:-mx-6 sm:px-6",
+                    "mt-auto shrink-0 pt-3",
+                    docked && "pb-4",
                 )}
             >
                 <div className="flex items-center gap-3 rounded-lg bg-background px-4 py-3">
