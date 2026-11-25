@@ -111,7 +111,8 @@ export function SkillEditor({
             files.map((file) => (file.path === openPath ? {...file, ...patch} : file)),
         )
 
-    const filesRow = expanded ? null : (
+    // Whenever the pane is closed, at any width: the one way to open it again.
+    const filesRow = filesOpen ? null : (
         <button
             type="button"
             onClick={() => setFilesOpen(true)}

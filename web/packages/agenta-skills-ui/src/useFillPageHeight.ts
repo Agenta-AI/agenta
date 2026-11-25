@@ -29,6 +29,8 @@ export function useFillPageHeight(node: HTMLElement | null): number | undefined 
         measure()
         const observer = new ResizeObserver(measure)
         observer.observe(scroller)
+        // Content above or below the node can change too (a row that shows or hides).
+        for (const child of Array.from(scroller.children)) observer.observe(child)
         return () => observer.disconnect()
     }, [node])
 
