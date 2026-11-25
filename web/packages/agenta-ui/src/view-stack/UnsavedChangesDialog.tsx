@@ -19,12 +19,18 @@ export type LeaveAnswer = "keep" | "discard" | "save"
  */
 export const UnsavedChangesDialog = ({
     open,
+    title,
+    offerSave = true,
     description,
     canSave,
     saveFailed = false,
     onAnswer,
 }: {
     open: boolean
+    /** The view's own title for the question; the generic one otherwise. */
+    title?: string
+    /** False: only Keep editing and Discard. */
+    offerSave?: boolean
     description: string
     /** False when the edits are not valid: "Save changes" is disabled. */
     canSave: boolean
@@ -37,7 +43,7 @@ export const UnsavedChangesDialog = ({
         <AlertDialog open={open} onOpenChange={(next) => (next ? undefined : onAnswer("keep"))}>
             <AlertDialogContent data-testid="unsaved-changes-dialog">
                 <AlertDialogHeader>
-                    <AlertDialogTitle>{t("ui.viewStack.unsavedChanges")}</AlertDialogTitle>
+                    <AlertDialogTitle>{title ?? t("ui.viewStack.unsavedChanges")}</AlertDialogTitle>
                     <AlertDialogDescription>{description}</AlertDialogDescription>
                     {saveFailed ? (
                         <span role="alert" className="text-body text-destructive">
@@ -49,12 +55,20 @@ export const UnsavedChangesDialog = ({
                     <Button variant="ghost" onClick={() => onAnswer("keep")}>
                         {t("ui.viewStack.keepEditing")}
                     </Button>
-                    <Button variant="outline" onClick={() => onAnswer("discard")}>
-                        {t("ui.viewStack.discard")}
-                    </Button>
-                    <Button disabled={!canSave} onClick={() => onAnswer("save")}>
-                        {t("ui.viewStack.saveChanges")}
-                    </Button>
+                    {offerSave ? (
+                        <>
+                            <Button variant="outline" onClick={() => onAnswer("discard")}>
+                                {t("ui.viewStack.discard")}
+                            </Button>
+                            <Button disabled={!canSave} onClick={() => onAnswer("save")}>
+                                {t("ui.viewStack.saveChanges")}
+                            </Button>
+                        </>
+                    ) : (
+                        <Button variant="destructive" onClick={() => onAnswer("discard")}>
+                            {t("ui.viewStack.discard")}
+                        </Button>
+                    )}
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>

@@ -1,10 +1,12 @@
 import {createContext, useContext} from "react"
 
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import viewStackCatalog from "@agenta/i18n/catalogs/ui.viewStack"
-import {CaretRight, X} from "@phosphor-icons/react"
+import {ArrowLeft, CaretRight, X} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
+import {SimpleTooltip} from "../components/ui/tooltip-composed"
 import {cn} from "../components/ui/utils"
 
 import type {ViewChromeProps} from "./types"
@@ -21,6 +23,7 @@ export const DrawerViewChrome = ({
     crumbs,
     apply,
     hideActionRow,
+    showBack,
     form,
     footerStartRef,
     onBack,
@@ -28,11 +31,23 @@ export const DrawerViewChrome = ({
     onSave,
     children,
 }: ViewChromeProps) => {
-    const t = useT(viewStackCatalog)
+    const t = useT(viewStackCatalog, commonCatalog)
     const close = useContext(DrawerCloseContext)
     return (
         <div className="flex h-full min-h-0 flex-col">
             <div className="flex h-12 shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted px-3">
+                {showBack ? (
+                    <SimpleTooltip title={t("common.back")}>
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={t("common.back")}
+                            onClick={onBack}
+                        >
+                            <ArrowLeft size={16} />
+                        </Button>
+                    </SimpleTooltip>
+                ) : null}
                 <nav className="flex min-w-0 flex-1 items-center gap-1 text-label">
                     {crumbs.map((crumb, index) => (
                         <span key={index} className="flex min-w-0 items-center gap-1">

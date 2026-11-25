@@ -62,7 +62,9 @@ export const ViewFormActions = ({
                     size={size}
                     className={button}
                     // Disabled until the view registers its form, and while it is clean or invalid.
-                    disabled={!form || form.saving || !form.dirty || !form.valid}
+                    disabled={
+                        !form || form.saving || (!form.dirty && !form.saveWhenClean) || !form.valid
+                    }
                     aria-busy={form?.saving}
                     onClick={onSave}
                 >

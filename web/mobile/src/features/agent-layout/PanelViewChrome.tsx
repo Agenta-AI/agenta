@@ -2,10 +2,11 @@ import {useEffect} from "react"
 
 import {useT} from "@agenta/i18n"
 import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {cn} from "@agenta/ui/styles"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {PhoneViewHeader, ViewFormActions, type ViewChromeProps} from "@agenta/ui/view-stack"
-import {ArrowsOutSimple} from "@phosphor-icons/react"
+import {ArrowLeft, ArrowsOutSimple} from "@phosphor-icons/react"
 
 import {useAgentPanel} from "./agentPanelContext"
 import {PanelCloseButton} from "./PanelCloseButton"
@@ -22,6 +23,7 @@ export const PanelViewChrome = ({
     apply,
     hideActionRow,
     showWiden,
+    showBack,
     form,
     footerStartRef,
     onBack,
@@ -29,7 +31,7 @@ export const PanelViewChrome = ({
     onSave,
     children,
 }: ViewChromeProps) => {
-    const t = useT(agentLayoutPanelCatalog)
+    const t = useT(agentLayoutPanelCatalog, commonCatalog)
     const panel = useAgentPanel()
     const {setWide, phone} = panel
     // The widen lasts while the views are open: closing them restores the stored width.
@@ -45,6 +47,19 @@ export const PanelViewChrome = ({
                 <PhoneViewHeader crumbs={crumbs} onBack={onBack} />
             ) : (
                 <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted pl-2 pr-1.5">
+                    {/* A step inside the view goes back to the step before. */}
+                    {showBack ? (
+                        <SimpleTooltip title={t("common.back")}>
+                            <Button
+                                variant="ghost"
+                                size="icon-compact"
+                                aria-label={t("common.back")}
+                                onClick={onBack}
+                            >
+                                <ArrowLeft size={16} />
+                            </Button>
+                        </SimpleTooltip>
+                    ) : null}
                     {/* Parent crumbs 13 px fg2, "›" between, the open view 13 px / 600. When the
                         row is short, the parent crumbs give up their width first (down to 48 px
                         each; shrink 1000 against 1), so the open view keeps its full name while it

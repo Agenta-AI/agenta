@@ -127,6 +127,14 @@ export interface ViewForm {
      * that Cancel closes (an upload step goes back to the file).
      */
     cancel?: () => void
+    /** What the header's Back does for now: a step inside the view goes to the step before. */
+    back?: () => void
+    /** The unsaved-changes dialog's title, in place of the generic one. */
+    leaveTitle?: string
+    /** `false`: the unsaved-changes dialog offers only Keep editing and Discard. */
+    leaveCanSave?: false
+    /** Save stays enabled while the form is clean (a "Done" that only closes). */
+    saveWhenClean?: true
 }
 
 /** For the container's root and for the container itself. */
@@ -162,6 +170,8 @@ export interface ViewChromeProps {
     hideActionRow: boolean
     /** The container may offer to widen itself for the top view (`ViewDef.widenButton`). */
     showWiden: boolean
+    /** The top view is on a step after its first (`ViewForm.back`): the header shows Back. */
+    showBack?: boolean
     form: ViewChromeForm | null
     /** The slot at the left of the action row, where the top view's `ViewFooterStart` renders. */
     footerStartRef: (element: HTMLElement | null) => void

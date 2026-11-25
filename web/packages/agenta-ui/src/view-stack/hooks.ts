@@ -18,8 +18,21 @@ export const useViewForm = (form: ViewForm): void => {
     saveRef.current = form.save
     const cancelRef = useRef(form.cancel)
     cancelRef.current = form.cancel
-    const {dirty, valid, leaveDescription, saveLabel, savingLabel, actionRow} = form
+    const backRef = useRef(form.back)
+    backRef.current = form.back
+    const {
+        dirty,
+        valid,
+        leaveDescription,
+        saveLabel,
+        savingLabel,
+        actionRow,
+        leaveTitle,
+        leaveCanSave,
+        saveWhenClean,
+    } = form
     const hasCancel = Boolean(form.cancel)
+    const hasBack = Boolean(form.back)
     useEffect(() => {
         setForm({
             dirty,
@@ -28,10 +41,27 @@ export const useViewForm = (form: ViewForm): void => {
             saveLabel,
             savingLabel,
             actionRow,
+            leaveTitle,
+            leaveCanSave,
+            saveWhenClean,
             cancel: hasCancel ? () => cancelRef.current?.() : undefined,
+            back: hasBack ? () => backRef.current?.() : undefined,
             save: () => saveRef.current(),
         })
-    }, [setForm, dirty, valid, leaveDescription, saveLabel, savingLabel, actionRow, hasCancel])
+    }, [
+        setForm,
+        dirty,
+        valid,
+        leaveDescription,
+        saveLabel,
+        savingLabel,
+        actionRow,
+        leaveTitle,
+        leaveCanSave,
+        saveWhenClean,
+        hasCancel,
+        hasBack,
+    ])
     useEffect(() => () => setForm(null), [setForm])
 }
 

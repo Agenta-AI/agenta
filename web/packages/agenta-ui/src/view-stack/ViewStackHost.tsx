@@ -36,8 +36,10 @@ interface Entry {
 }
 
 interface PendingQuestion {
+    title?: string
     description: string
     canSave: boolean
+    offerSave: boolean
     saveFailed: boolean
     resolve: (answer: LeaveAnswer) => void
 }
@@ -144,8 +146,10 @@ export const ViewStackHost = ({
         (form: ViewForm, saveFailed: boolean) =>
             new Promise<LeaveAnswer>((resolve) => {
                 setQuestion({
+                    title: form.leaveTitle,
                     description: form.leaveDescription,
                     canSave: form.valid,
+                    offerSave: form.leaveCanSave !== false,
                     saveFailed,
                     resolve: (answer) => {
                         setQuestion(null)
@@ -392,11 +396,12 @@ export const ViewStackHost = ({
                             topForm?.actionRow === false
                         }
                         showWiden={top.view.widenButton !== false}
+                        showBack={Boolean(topForm?.back)}
                         form={
                             topForm ? {...topForm, saving, saveFailed: failedKey === top.key} : null
                         }
                         footerStartRef={setFooterStart}
-                        onBack={() => void back()}
+                        onBack={topForm?.back ?? (() => void back())}
                         onCancel={topForm?.cancel ?? cancel}
                         onSave={() => void save()}
                     >
@@ -423,6 +428,8 @@ export const ViewStackHost = ({
             </div>
             <UnsavedChangesDialog
                 open={question !== null}
+                title={question?.title}
+                offerSave={question?.offerSave ?? true}
                 description={question?.description ?? ""}
                 canSave={question?.canSave ?? false}
                 saveFailed={question?.saveFailed ?? false}
