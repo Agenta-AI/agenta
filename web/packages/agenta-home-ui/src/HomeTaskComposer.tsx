@@ -319,17 +319,9 @@ export const HomeTaskComposer = ({
                     </div>
                 ) : null}
             </div>
-            {/* Docked UNDER the composer, not inside its footer: what the message is aimed at is a
-                standing fact about the composer, and in the footer it competed for the same row as
-                the actions you take on this one message.
-                
-                It slides BEHIND the composer — transparent, the divider step for a border, inset
-                1px to match the ring wrapper's own padding — so the composer keeps its shape and
-                only the dock's sides and foot show. No top border: the composer's fill is 4%
-                opaque, so a line tucked under it shows straight THROUGH rather than behind, and
-                its own bottom edge is the rule between them. */}
+            {/* Docked under the composer, 1px wider on each side so its edges meet the composer's outer edge. */}
             {dock ? (
-                <div className="-mt-6 mx-px flex items-center gap-2 rounded-b-lg border border-t-0 border-solid border-border-muted bg-transparent px-2.5 pb-1 pt-7">
+                <div className="-mt-6 flex items-center gap-2 rounded-b-lg border border-t-0 border-solid border-border-muted bg-transparent px-2.5 pb-1 pt-7">
                     {dock}
                 </div>
             ) : null}
