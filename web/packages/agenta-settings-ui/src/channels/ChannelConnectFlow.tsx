@@ -30,6 +30,7 @@ import {
     Lightning,
     Link,
     Plug,
+    QrCode as QrCodeIcon,
     Wrench,
 } from "@phosphor-icons/react"
 
@@ -108,7 +109,14 @@ const TELEGRAM_HOSTED_DOCS = "https://docs.agenta.ai/self-host/channels/telegram
 type SlackCustomStep = "choose" | "name" | "guide" | "creds"
 const SCREEN_ORDER: SlackCustomStep[] = ["choose", "name", "guide", "creds"]
 type SlackAppChoice = "new" | "existing"
-type TelegramHostedStep = "preparing" | "qr" | "waiting" | "linked" | "expired" | "unavailable"
+type TelegramHostedStep =
+    | "idle"
+    | "preparing"
+    | "qr"
+    | "waiting"
+    | "linked"
+    | "expired"
+    | "unavailable"
 
 /** Example values for declared setup fields; the backend sends none. */
 const FIELD_PLACEHOLDERS: Partial<Record<ChannelPlatform, Record<string, string>>> = {
@@ -370,7 +378,8 @@ export const ChannelConnectFlow = ({
     const [slackInstallUrl, setSlackInstallUrl] = useState<string | null>(null)
 
     // --- hosted Telegram ------------------------------------------------------- //
-    const [tgStep, setTgStep] = useState<TelegramHostedStep>("preparing")
+    // "idle" until the person asks: minting the link creates a pending connection on the server.
+    const [tgStep, setTgStep] = useState<TelegramHostedStep>("idle")
     const [tgLink, setTgLink] = useState<HostedTelegramLink | null>(null)
     const [tgBaseline, setTgBaseline] = useState(0)
     // The link's expiry, fixed once at mint: going back to the QR does not extend it.
@@ -479,11 +488,6 @@ export const ChannelConnectFlow = ({
             mintingTelegramLink.current = false
         }
     }, [actions])
-
-    useEffect(() => {
-        if (!isTelegram || mode !== "hosted" || tgLink || tgStep !== "preparing") return
-        void mintTelegramLink()
-    }, [isTelegram, mode, tgLink, tgStep, mintTelegramLink])
 
     // Poll the bindings while the link is on screen: a scan from a phone never clicks the button.
     useEffect(() => {
@@ -1048,6 +1052,12 @@ export const ChannelConnectFlow = ({
                     </a>
                 </Button>
             )
+        } else if (tgStep === "idle") {
+            cta = (
+                <Button onClick={() => void mintTelegramLink()} data-testid="channels-get-telegram-link">
+                    {t("channels.connect.getLink")}
+                </Button>
+            )
         } else if (tgStep === "expired") {
             cta = (
                 <Button onClick={() => void mintTelegramLink()}>
@@ -1197,6 +1207,12 @@ export const ChannelConnectFlow = ({
                 {isTelegram && mode === "hosted" ? (
                     <div className="overflow-hidden rounded-lg border border-solid border-border">
                         <div className="relative flex flex-col items-center gap-4 bg-muted bg-[radial-gradient(var(--border)_1px,transparent_1px)] bg-[size:14px_14px] px-5 pb-6 pt-7">
+                            {tgStep === "idle" ? (
+                                <div className="flex h-50 flex-col items-center justify-center gap-3 text-center text-label text-muted-foreground">
+                                    <QrCodeIcon size={32} aria-hidden />
+                                    {t("channels.connect.getLinkBody", {handle: telegramHandle})}
+                                </div>
+                            ) : null}
                             {tgStep === "preparing" ? (
                                 <div className="flex h-50 items-center justify-center gap-2 text-label text-muted-foreground">
                                     <Spinner size="small" /> {t("channels.connect.preparingLink")}

@@ -101,6 +101,28 @@ const clickTestId = async (testId: string) => {
 }
 const advance = async (ms: number) => act(async () => vi.advanceTimersByTimeAsync(ms))
 
+it("opening hosted Telegram creates no link until Get link is clicked", async () => {
+    const mint = vi.fn().mockResolvedValue({
+        url: "https://t.me/qa?start=synthetic",
+        connectionId: "qa",
+        expiresInSeconds: 30,
+    })
+    await act(async () =>
+        root.render(
+            <ChannelConnectFlow
+                platform="telegram"
+                agentName="QA"
+                onConnected={vi.fn()}
+                actions={{...NOOP_ACTIONS, connectHostedTelegram: mint}}
+            />,
+        ),
+    )
+    // Minting creates a pending connection on the server, so viewing the step must not do it.
+    expect(mint).not.toHaveBeenCalled()
+    await clickTestId("channels-get-telegram-link")
+    expect(mint).toHaveBeenCalledTimes(1)
+})
+
 it("mints one Telegram link when StrictMode replays the effect", async () => {
     const mint = vi.fn().mockResolvedValue({
         url: "https://t.me/qa?start=synthetic",
@@ -119,6 +141,7 @@ it("mints one Telegram link when StrictMode replays the effect", async () => {
             </React.StrictMode>,
         ),
     )
+    await clickTestId("channels-get-telegram-link")
     expect(mint).toHaveBeenCalledTimes(1)
     expect(container.textContent).toContain("Open in Telegram")
 })
@@ -144,6 +167,7 @@ it("keeps polling after copying the Telegram link", async () => {
             />,
         ),
     )
+    await clickTestId("channels-get-telegram-link")
     expect(count).toHaveBeenCalledTimes(1)
     await clickTestId("channels-copy-telegram-link")
     await advance(300)
@@ -181,6 +205,7 @@ it("does not finish a Telegram connect after switching to custom mode", async ()
             />,
         ),
     )
+    await clickTestId("channels-get-telegram-link")
     await advance(100)
     await clickTestId("channels-method-custom")
     await act(async () => resolvePoll(1))

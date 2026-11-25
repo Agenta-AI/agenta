@@ -1091,7 +1091,9 @@
         "whatsappNote": "7970b97db139",
         "whatsappPricing": "8419a7318ff7",
         "yourAgent": "bb00a1931d44",
-        "yourApp": "9c3728a79757"
+        "yourApp": "9c3728a79757",
+        "getLink": "74008e16853a",
+        "getLinkBody": "485deae44ce6"
     },
     "channels.hub": {
         "apiAlwaysOn": "ac3c3d104417",
