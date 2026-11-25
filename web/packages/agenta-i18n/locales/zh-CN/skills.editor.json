@@ -72,5 +72,7 @@
     "noSkillMd": "上传内容中没有 SKILL.md。",
     "readUploadFailed": "无法读取上传内容。",
     "fieldInvalid": "请检查 {{field}} 字段。",
-    "createFailed": "Skill 未创建。请重试。"
+    "createFailed": "Skill 未创建。请重试。",
+    "folderHasFile": "{{dir}} 中已有名为 {{name}} 的文件。",
+    "topLevelHasFile": "顶层已有名为 {{name}} 的文件。"
 }

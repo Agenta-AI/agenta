@@ -72,5 +72,7 @@
     "noSkillMd": "アップロードに SKILL.md がありません。",
     "readUploadFailed": "アップロードを読み込めませんでした。",
     "fieldInvalid": "{{field}} 欄を確認してください。",
-    "createFailed": "スキルは作成されませんでした。もう一度お試しください。"
+    "createFailed": "スキルは作成されませんでした。もう一度お試しください。",
+    "folderHasFile": "{{dir}} には {{name}} という名前のファイルがすでにあります。",
+    "topLevelHasFile": "最上位には {{name}} という名前のファイルがすでにあります。"
 }

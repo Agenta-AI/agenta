@@ -80,5 +80,7 @@
     "noSkillMd": "La subida no tiene SKILL.md.",
     "readUploadFailed": "No pudimos leer la subida.",
     "fieldInvalid": "Revisa el campo {{field}}.",
-    "createFailed": "La skill no se creó. Inténtalo de nuevo."
+    "createFailed": "La skill no se creó. Inténtalo de nuevo.",
+    "folderHasFile": "{{dir}} ya tiene un archivo llamado {{name}}.",
+    "topLevelHasFile": "El nivel superior ya tiene un archivo llamado {{name}}."
 }

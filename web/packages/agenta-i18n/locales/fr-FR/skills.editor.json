@@ -80,5 +80,7 @@
     "noSkillMd": "L'envoi ne contient pas de SKILL.md.",
     "readUploadFailed": "Impossible de lire l'envoi.",
     "fieldInvalid": "Vérifiez le champ {{field}}.",
-    "createFailed": "Le skill n'a pas été créé. Réessayez."
+    "createFailed": "Le skill n'a pas été créé. Réessayez.",
+    "folderHasFile": "{{dir}} contient déjà un fichier nommé {{name}}.",
+    "topLevelHasFile": "Le niveau supérieur contient déjà un fichier nommé {{name}}."
 }

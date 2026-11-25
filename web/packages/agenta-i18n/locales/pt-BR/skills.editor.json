@@ -80,5 +80,7 @@
     "noSkillMd": "O envio não tem SKILL.md.",
     "readUploadFailed": "Não conseguimos ler o envio.",
     "fieldInvalid": "Confira o campo {{field}}.",
-    "createFailed": "A habilidade não foi criada. Tente de novo."
+    "createFailed": "A habilidade não foi criada. Tente de novo.",
+    "folderHasFile": "{{dir}} já tem um arquivo chamado {{name}}.",
+    "topLevelHasFile": "O nível superior já tem um arquivo chamado {{name}}."
 }

@@ -76,5 +76,7 @@
     "noSkillMd": "Der Upload enthält keine SKILL.md.",
     "readUploadFailed": "Der Upload konnte nicht gelesen werden.",
     "fieldInvalid": "Prüfe das Feld {{field}}.",
-    "createFailed": "Der Skill wurde nicht erstellt. Versuche es erneut."
+    "createFailed": "Der Skill wurde nicht erstellt. Versuche es erneut.",
+    "folderHasFile": "{{dir}} enthält bereits eine Datei namens {{name}}.",
+    "topLevelHasFile": "Die oberste Ebene enthält bereits eine Datei namens {{name}}."
 }

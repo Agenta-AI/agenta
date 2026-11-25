@@ -3,6 +3,7 @@ import {memo, useMemo, useRef, useState, type DragEvent} from "react"
 import {useT} from "@agenta/i18n"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import type {SkillFile} from "@agenta/skills"
+import {message} from "@agenta/ui/app-message"
 import {cn} from "@agenta/ui/styles"
 import {
     Button,
@@ -75,6 +76,9 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
     const [dragging, setDragging] = useState(false)
     /** The inline name row: a new file in `dir`, or a rename of `path`. */
     const [naming, setNaming] = useState<{path: string | null; dir: string} | null>(null)
+    /** A file dragged to another folder, and the folder under the pointer. */
+    const [dragPath, setDragPath] = useState<string | null>(null)
+    const [dropDir, setDropDir] = useState<string | null>(null)
     const pickerRef = useRef<HTMLInputElement>(null)
 
     const groups = useMemo(() => {
@@ -111,10 +115,56 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
         onOpen(path)
     }
     const renameFile = (from: string, to: string) => {
-        onFiles((current) => current.map((file) => (file.path === from ? {...file, path: to} : file)))
+        onFiles((current) =>
+            current.map((file) => (file.path === from ? {...file, path: to} : file)),
+        )
         setNaming(null)
         onMoved(from, to)
     }
+    const endDrag = () => {
+        setDragPath(null)
+        setDropDir(null)
+    }
+    const moveInto = (dir: string) => {
+        const from = dragPath
+        endDrag()
+        if (!from || dirOf(from) === dir) return
+        const name = baseOf(from)
+        const to = dir ? `${dir}/${name}` : name
+        if (files.some((file) => file.path === to)) {
+            message.warning(
+                dir
+                    ? t("skills.editor.folderHasFile", {dir, name})
+                    : t("skills.editor.topLevelHasFile", {name}),
+            )
+            return
+        }
+        renameFile(from, to)
+    }
+    /** Where a dragged file can land: the top level or one folder. */
+    const dropZone = (dir: string) => ({
+        onDragOver: (event: DragEvent) => {
+            if (!dragPath) return
+            event.preventDefault()
+            event.stopPropagation()
+            event.dataTransfer.dropEffect = dirOf(dragPath) === dir ? "none" : "move"
+            if (dropDir !== dir) setDropDir(dir)
+        },
+        onDragLeave: (event: DragEvent) => {
+            if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+            setDropDir((current) => (current === dir ? null : current))
+        },
+        onDrop: (event: DragEvent) => {
+            if (!dragPath) return
+            event.preventDefault()
+            event.stopPropagation()
+            moveInto(dir)
+        },
+        className: cn(
+            "flex flex-col gap-1 rounded-md transition-colors duration-[var(--duration-fast)] ease-out motion-reduce:transition-none",
+            dragPath && dropDir === dir && dirOf(dragPath) !== dir && "bg-accent",
+        ),
+    })
     const nameRow = (path: string | null, dir: string) => (
         <SkillFileNameRow
             key={path ?? `new:${dir}`}
@@ -134,7 +184,18 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
             <div
                 key={file.path}
                 title={file.path}
-                className={cn(ROW, on ? "bg-selected" : "hover:bg-accent")}
+                draggable={!readOnly}
+                onDragStart={(event) => {
+                    event.dataTransfer.setData("text/plain", file.path)
+                    event.dataTransfer.effectAllowed = "move"
+                    setDragPath(file.path)
+                }}
+                onDragEnd={endDrag}
+                className={cn(
+                    ROW,
+                    on ? "bg-selected" : "hover:bg-accent",
+                    dragPath === file.path && "opacity-60",
+                )}
             >
                 <IconTile size={20} aria-hidden>
                     <FileIcon />
@@ -236,27 +297,29 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
             </div>
 
             <div className="flex flex-col gap-1">
-                <div className={cn(ROW, fileOpen ? "hover:bg-accent" : "bg-selected")}>
-                    <IconTile size={20} aria-hidden>
-                        <FileText />
-                    </IconTile>
-                    <button
-                        type="button"
-                        aria-current={fileOpen ? undefined : "true"}
-                        onClick={() => onOpen(null)}
-                        className={ROW_BUTTON}
-                    >
-                        SKILL.md
-                    </button>
+                <div {...dropZone("")}>
+                    <div className={cn(ROW, fileOpen ? "hover:bg-accent" : "bg-selected")}>
+                        <IconTile size={20} aria-hidden>
+                            <FileText />
+                        </IconTile>
+                        <button
+                            type="button"
+                            aria-current={fileOpen ? undefined : "true"}
+                            onClick={() => onOpen(null)}
+                            className={ROW_BUTTON}
+                        >
+                            SKILL.md
+                        </button>
+                    </div>
+                    {naming?.path === null && !groups.some(([dir]) => dir && dir === naming.dir)
+                        ? nameRow(null, naming.dir)
+                        : null}
+                    {(groups.find(([dir]) => dir === "")?.[1] ?? []).map(fileRow)}
                 </div>
-                {naming?.path === null && !groups.some(([dir]) => dir && dir === naming.dir)
-                    ? nameRow(null, naming.dir)
-                    : null}
-                {(groups.find(([dir]) => dir === "")?.[1] ?? []).map(fileRow)}
                 {groups
                     .filter(([dir]) => dir)
                     .map(([dir, dirFiles]) => (
-                        <div key={dir} className="flex flex-col gap-1">
+                        <div key={dir} {...dropZone(dir)}>
                             <div className="group/folder flex h-row-single items-center gap-2 px-2 pt-2 text-meta text-muted-foreground">
                                 <Folder aria-hidden size={14} />
                                 <span className="min-w-0 flex-1 truncate">{dir}</span>
