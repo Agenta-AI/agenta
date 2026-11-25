@@ -15,22 +15,23 @@ class InstanceLicenseKey(BaseModel):
     telemetry: Literal["required", "exempt"]
 
 
-class InstanceLimitUsage(BaseModel):
+class LicenseLimitUsage(BaseModel):
     count: int
     # None: the plan has no limit.
     limit: Optional[int] = None
 
 
-class InstanceUsageResponse(BaseModel):
-    """Counts against the plan limits; None where the image has no limits."""
+class LicenseUsageResponse(BaseModel):
+    """Counts against the plan limits; None where there is no limit to count against
+    (the OSS image, or a failed plan read)."""
 
-    # In the organization of the request.
-    projects: Optional[InstanceLimitUsage] = None
-    # On the instance.
-    organizations: Optional[InstanceLimitUsage] = None
+    # The projects of the request's organization, not of the instance.
+    projects: Optional[LicenseLimitUsage] = None
+    # The organizations on the instance.
+    organizations: Optional[LicenseLimitUsage] = None
 
 
-class InstanceLicenseUsage(InstanceUsageResponse):
+class InstanceLicenseUsage(LicenseUsageResponse):
     users: int
 
 

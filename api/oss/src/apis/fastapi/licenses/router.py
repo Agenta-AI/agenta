@@ -17,7 +17,7 @@ from oss.src.apis.fastapi.licenses.models import (
     InstanceLicenseUsage,
     InstanceRegistrationRequest,
     InstanceRegistrationResponse,
-    InstanceUsageResponse,
+    LicenseUsageResponse,
 )
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.dtos import PrincipalKind, RequestCredentialKind
@@ -89,11 +89,11 @@ class LicensesRouter:
 
         self.router.add_api_route(
             "/license/usage",
-            self.fetch_instance_usage,
+            self.fetch_license_usage,
             methods=["GET"],
-            operation_id="fetch_instance_usage",
+            operation_id="fetch_license_usage",
             status_code=status.HTTP_200_OK,
-            response_model=InstanceUsageResponse,
+            response_model=LicenseUsageResponse,
         )
 
         self.router.add_api_route(
@@ -189,9 +189,10 @@ class LicensesRouter:
         return await _response(state, request)
 
     @intercept_exceptions()
-    async def fetch_instance_usage(self, request: Request) -> InstanceUsageResponse:
+    async def fetch_license_usage(self, request: Request) -> LicenseUsageResponse:
         """The counts behind the create dialogs, for any person signed in to the app:
-        a member also sees the limit before they try to create."""
+        a member also sees the limit before they try to create. `projects` counts the
+        request's organization; `organizations` counts the instance."""
         if _is_cloud():
             raise _not_available()
         access = get_request_access()
@@ -204,7 +205,7 @@ class LicensesRouter:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only a person signed in to the app can read the usage.",
             )
-        return InstanceUsageResponse(
+        return LicenseUsageResponse(
             projects=await project_usage(_organization_id(request)),
             organizations=await organization_usage(),
         )

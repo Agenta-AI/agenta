@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Optional
 from enum import Enum
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -826,6 +827,18 @@ ORGANIZATION_LIMITS: dict[str, int] = {
     DefaultPlan.SELF_HOSTED_COMMUNITY.value: 1,
     DefaultPlan.SELF_HOSTED_REGISTERED.value: 1,
 }
+
+
+@dataclass(frozen=True)
+class LimitUsage:
+    """A count against its plan limit; `limit` None is no limit."""
+
+    count: int
+    limit: Optional[int]
+
+    @property
+    def reached(self) -> bool:
+        return self.limit is not None and self.count >= self.limit
 
 
 class ProjectLimitReachedError(Exception):
