@@ -83,6 +83,9 @@ export const FilterMenu = ({
 
     // A phone opens the panel as a bottom sheet (COMPACT-04): rows drill in, nothing hovers.
     const compact = useMediaQuery(DRILLDOWN_QUERY)
+    // One row is a plain filter: name the panel after it, not "Filter, sort and group".
+    const single = sections.length === 1 ? sections[0] : null
+    const title = single ? single.label : t("ui.controls.filterSortGroup")
     const trigger = (
         <FilterMenuTrigger
             label={label}
@@ -101,7 +104,9 @@ export const FilterMenu = ({
             sections={sections}
             // A phone sheet holds a few rows: a search field there is one more thing to tap past.
             searchable={compact ? false : searchable}
-            searchPlaceholder={searchPlaceholder}
+            searchPlaceholder={
+                searchPlaceholder ?? (single ? t("ui.controls.searchEllipsis") : undefined)
+            }
             defaultSearch={defaultSearch}
             onReset={onReset}
             resetLabel={resetLabel}
@@ -121,7 +126,7 @@ export const FilterMenu = ({
                 <BottomSheet
                     open={open}
                     onOpenChange={setOpen}
-                    title={t("ui.controls.filterSortGroup")}
+                    title={title}
                     // Each choice applies as it is tapped: swipe down or tap out to close.
                     hideClose
                     keepKeyboardClosed
@@ -140,7 +145,7 @@ export const FilterMenu = ({
                 side={side}
                 align={align}
                 sideOffset={sideOffset}
-                aria-label={t("ui.controls.filterSortGroup")}
+                aria-label={title}
                 className="p-0"
                 onOpenAutoFocus={(event) => event.preventDefault()}
             >
