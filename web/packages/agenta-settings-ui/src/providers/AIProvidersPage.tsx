@@ -98,7 +98,12 @@ const useProjectProvidersSource = (): ProvidersSource => {
                         ? providerTitle(connection.kind, connection.title, t)
                         : null,
                     credentialSummary(connection),
-                    activeModelsSummary(connection, capabilities),
+                    activeModelsSummary(connection, capabilities, {
+                        // No saved list: the row says nothing about models.
+                        defaults: "",
+                        active: (active, total) =>
+                            t("settings.providers.modelsActive", {active, total}),
+                    }),
                 ]
                     .filter(Boolean)
                     .join(" · "),
