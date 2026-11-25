@@ -343,8 +343,8 @@ export const SkillPageScreen = ({
                 actions={
                     item ? (
                         <>
-                            <div ref={setFilesSlot} className="flex empty:hidden" />
                             <SkillPageActions
+                                filesSlot={<div ref={setFilesSlot} className="flex empty:hidden" />}
                                 editable={!readOnly && Boolean(baseline)}
                                 dirty={dirty}
                                 canSave={canSave}

@@ -1,3 +1,5 @@
+import type {ReactNode} from "react"
+
 import {useT} from "@agenta/i18n"
 import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
 import type {SkillOriginInfo} from "@agenta/skills"
@@ -36,6 +38,7 @@ export const SkillPageActions = ({
     onDownload,
     onArchive,
     onRestore,
+    filesSlot,
 }: {
     editable: boolean
     dirty: boolean
@@ -50,6 +53,8 @@ export const SkillPageActions = ({
     onDownload: () => void
     onArchive: () => void
     onRestore: () => void
+    /** The editor's Files toggle, right after Save. */
+    filesSlot?: ReactNode
 }) => {
     const t = useT(skillsPageCatalog)
     return (
@@ -65,6 +70,7 @@ export const SkillPageActions = ({
                     {t("skills.page.save")}
                 </Button>
             ) : null}
+            {filesSlot}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" aria-label={t("skills.page.moreActions")}>

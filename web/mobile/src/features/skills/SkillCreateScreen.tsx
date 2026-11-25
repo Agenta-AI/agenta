@@ -207,7 +207,6 @@ export const SkillCreateScreen = ({
                 actions={
                     flow.step === "write" ? (
                         <>
-                            <div ref={setFilesSlot} className="flex empty:hidden" />
                             <Button variant="outline" onClick={() => void router.push(listHref)}>
                                 {t("skills.page.cancel")}
                             </Button>
@@ -215,6 +214,7 @@ export const SkillCreateScreen = ({
                                 {flow.busy ? <Spinner size="small" /> : null}
                                 {t("skills.page.createSkill")}
                             </Button>
+                            <div ref={setFilesSlot} className="flex empty:hidden" />
                         </>
                     ) : undefined
                 }
