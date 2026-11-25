@@ -95,7 +95,7 @@ const connectedCollapsedAtom = atomWithStorage(
 const yoursCollapsedAtom = atomWithStorage("agenta:settings:integrations-yours-collapsed", false)
 
 /** Rows in two columns where they fit, one on a phone: the Settings page grid. */
-const PAGE_ROWS = "grid grid-cols-[repeat(auto-fill,minmax(min(100%,320px),1fr))] gap-x-8"
+const PAGE_ROWS = "grid grid-cols-[repeat(auto-fill,minmax(min(100%,320px),1fr))] gap-x-8 gap-y-2"
 
 /** What the catalog needs to add apps to an agent. Absent, it only browses and connects. */
 export interface IntegrationCatalogAdding {
