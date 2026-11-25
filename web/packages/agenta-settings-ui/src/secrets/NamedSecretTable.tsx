@@ -158,7 +158,7 @@ export const NamedSecretTable = ({
         [personal, personalSecrets],
     )
     const usedBy = useUsedBy(personalRows)
-    const {columns, shows} = usePhoneColumns(
+    const {columns, shows, wide} = usePhoneColumns(
         useMemo(() => columnsFor(t), [t]),
         PHONE_KEYS,
     )
@@ -284,7 +284,8 @@ export const NamedSecretTable = ({
                         !narrowed &&
                         (loading || (personal && personalQuery.isPending))
                     }
-                    hideHeader={false}
+                    // A phone shows one column: a lone header there says nothing.
+                    hideHeader={!wide}
                     empty={empty}
                     renderRow={(record) => (
                         <>

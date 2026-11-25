@@ -371,7 +371,7 @@ export default function McpServersSection({
         () => columnsFor(personal).map((column) => ({...column, label: t(column.label)})),
         [personal, t],
     )
-    const {columns, shows} = usePhoneColumns(allColumns, phoneKeysFor(personal))
+    const {columns, shows, wide} = usePhoneColumns(allColumns, phoneKeysFor(personal))
 
     const statusSection = useMemo<FilterMenuSection>(
         () => ({
@@ -413,7 +413,8 @@ export default function McpServersSection({
             minWidth={0}
             loading={isPending}
             skeletonRows={3}
-            hideHeader={false}
+            // A phone shows one column: a lone header there says nothing.
+            hideHeader={!wide}
             onOpenRow={(record) => setViewing(record)}
             empty={
                 narrowed ? (
