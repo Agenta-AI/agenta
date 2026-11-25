@@ -1,15 +1,17 @@
 import re
 import traceback
 from datetime import datetime
-from typing import Callable, Optional
+from typing import Callable, Dict, Optional
 from uuid import UUID
 
 from fastapi import Request
+from oss.src.core.memberships.service import get_memberships_service
 from oss.src.core.telemetry.service import distinct_id_for
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.lazy import _load_posthog
+from oss.src.utils.version import get_agenta_version
 
 log = get_module_logger(__name__)
 
@@ -24,6 +26,9 @@ _EXCLUDED_PATHS = [
 _BEARER_TOKEN_PREFIX = "Bearer "
 _APIKEY_TOKEN_PREFIX = "ApiKey "
 _SECRET_TOKEN_PREFIX = "Secret "
+
+# The first product token of a User-Agent, such as `python-httpx/0.28.1`.
+_USER_AGENT_PRODUCT = re.compile(r"^([A-Za-z][\w.\-]{0,63})/([\w.\-+]{1,32})")
 
 # Events subject to per-auth-method daily limits
 LIMITED_EVENTS_PER_AUTH = {
@@ -150,6 +155,8 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 "method": request.method,
                 "status_code": response.status_code,
                 "auth_method": auth_method,
+                "agenta_version": get_agenta_version(),
+                **_client_sdk(request),
             }
 
             if hasattr(request.state, "project_id") and request.state.project_id:
@@ -220,6 +227,10 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 if posthog is not None:
                     if env.stripe.enabled:
                         properties["$set"] = {"email": distinct_id}
+                    else:
+                        role = await _request_role(request)
+                        if role:
+                            properties["$set"] = {"role": role}
 
                     posthog.capture(
                         distinct_id=distinct_id,
@@ -266,6 +277,47 @@ async def _request_distinct_id(request: Request) -> Optional[str]:
     if not user_id:
         return None
     return await distinct_id_for(UUID(str(user_id)), email)
+
+
+def _client_sdk(request: Request) -> Dict[str, str]:
+    """The client that called: the Fern SDK headers when sent, else the first product
+    token of the User-Agent. A browser sends nothing here."""
+
+    headers = request.headers
+    name = headers.get("x-fern-sdk-name")
+    if name:
+        sdk = {"sdk_name": name[:64]}
+        version = headers.get("x-fern-sdk-version")
+        if version:
+            sdk["sdk_version"] = version[:32]
+        return sdk
+
+    match = _USER_AGENT_PRODUCT.match(headers.get("user-agent") or "")
+    if match is None or match.group(1).lower() == "mozilla":
+        return {}
+    return {"sdk_name": match.group(1), "sdk_version": match.group(2)}
+
+
+async def _request_role(request: Request) -> Optional[str]:
+    """The user's role in the project of the request. The auth middleware already
+    resolved the membership, so this reads its cache entry."""
+
+    user_id = getattr(request.state, "user_id", None)
+    project_id = getattr(request.state, "project_id", None)
+    if not user_id or not project_id:
+        return None
+    try:
+        membership = await get_memberships_service().resolve(
+            user_id=UUID(str(user_id)),
+            project_id=UUID(str(project_id)),
+        )
+    except Exception:  # noqa: BLE001
+        return None
+    if membership is None:
+        return None
+    if membership.is_organization_owner:
+        return "owner"
+    return membership.role
 
 
 def _get_event_name_from_path(
