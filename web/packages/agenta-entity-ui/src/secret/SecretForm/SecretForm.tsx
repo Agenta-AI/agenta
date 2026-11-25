@@ -18,6 +18,7 @@ import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
 import {TypeChip} from "@agenta/ui/type-chip"
 import {
     Button,
+    Field,
     Input,
     Segmented,
     Select,
@@ -28,7 +29,7 @@ import {
     SelectValue,
     Textarea,
 } from "@agenta/ui/ui"
-import {Plus, Question, Trash} from "@phosphor-icons/react"
+import {Plus, Trash} from "@phosphor-icons/react"
 
 import {
     coerceToType,
@@ -160,25 +161,12 @@ export function SecretForm({controller, textOnly = false, popupZIndex, nameHelp}
 
     return (
         <div className="flex flex-col gap-4 ph-no-capture">
-            <div className="flex flex-col gap-1">
-                <div className="flex min-w-0 items-center justify-between gap-3">
-                    <span className="flex items-center gap-1">
-                        <FieldLabel>{t("entityUi.secretForm.name")}</FieldLabel>
-                        {nameHelp ? (
-                            <SimpleTooltip title={nameHelp}>
-                                <button
-                                    type="button"
-                                    aria-label={nameHelp}
-                                    className="inline-flex cursor-help border-0 bg-transparent p-0 text-muted-foreground"
-                                >
-                                    <Question size={14} aria-hidden />
-                                </button>
-                            </SimpleTooltip>
-                        ) : null}
-                    </span>
-                    {/* The slug follows the name, so it shows here and opens only on Edit. */}
-                    {/* Edit shows for a new secret even when the name gives no slug (e.g. Japanese). */}
-                    {!slugOpen && (slug || !isEditing) ? (
+            <Field
+                label={t("entityUi.secretForm.name")}
+                tooltip={nameHelp || undefined}
+                labelEnd={
+                    // The slug follows the name: it shows here and opens only on Edit.
+                    !slugOpen && (slug || !isEditing) ? (
                         <span className="flex min-w-0 items-center gap-1.5 text-meta text-muted-foreground">
                             {slug ? (
                                 <span className="truncate font-mono" title={slug}>
@@ -196,18 +184,26 @@ export function SecretForm({controller, textOnly = false, popupZIndex, nameHelp}
                                 </Button>
                             )}
                         </span>
-                    ) : null}
-                </div>
+                    ) : null
+                }
+            >
                 <Input
+                    autoFocus={!isEditing}
                     placeholder={t("entityUi.secretForm.namePlaceholder")}
                     value={name}
                     onChange={(e) => onChangeName(e.target.value)}
                 />
-            </div>
+            </Field>
 
             {slugOpen ? (
-                <div className="flex flex-col gap-1">
-                    <FieldLabel>{t("entityUi.secretForm.slug")}</FieldLabel>
+                <Field
+                    label={t("entityUi.secretForm.slug")}
+                    tooltip={
+                        isEditing
+                            ? t("entityUi.secretForm.slugImmutable")
+                            : t("entityUi.secretForm.slugHint")
+                    }
+                >
                     <Input
                         className="font-mono"
                         placeholder="github-token"
@@ -215,12 +211,7 @@ export function SecretForm({controller, textOnly = false, popupZIndex, nameHelp}
                         disabled={isEditing}
                         onChange={(e) => onChangeSlug(e.target.value)}
                     />
-                    <HintText>
-                        {isEditing
-                            ? t("entityUi.secretForm.slugImmutable")
-                            : t("entityUi.secretForm.slugHint")}
-                    </HintText>
-                </div>
+                </Field>
             ) : null}
 
             {textOnly ? null : (
