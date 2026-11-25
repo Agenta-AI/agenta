@@ -283,10 +283,6 @@ export const FirstRunScreen = ({
             chat={createSurface}
             // The mounting screen renders the shell around this body; a second one stacks rails.
             bare
-            // No session exists yet, so the tab strip has nothing to switch between.
-            hideSessionTabs
-            // Lead with the question, not the form — the configuration is one `»` away.
-            collapseConfigByDefault
         />
     )
 }

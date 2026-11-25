@@ -54,4 +54,9 @@ export {
     analyticsAgentNamesAtomFamily,
     analyticsHasAgentsAtom,
     analyticsDrawerAtom,
+    createAnalyticsViewAtoms,
+    sharedAnalyticsViewAtoms,
+    AnalyticsViewAtomsContext,
+    useAnalyticsViewAtoms,
+    type AnalyticsViewAtoms,
 } from "./state"

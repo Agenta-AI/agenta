@@ -1,17 +1,139 @@
 [
     {
+        "id": "v0.131.0",
+        "date": "2026-11-24",
+        "features": [
+            {
+                "id": "v0-131-0-builder-agent",
+                "title": "Meet the builder agent",
+                "body": "We reworked how you build and improve agents. The builder agent is a new agent that builds your other agents. Tell it what you want in plain words, and it creates the agent and writes its instructions, tools and skills.\n\nOpen it from **Builder** in the sidebar to start something new. Or call it from the panel next to any agent when you want to change that agent. The builder can build an agent, run it, find what went wrong and improve it. We will keep making it better.",
+                "link": "https://agenta.ai/docs/changelog/v0-131-0-builder-agent",
+                "cover": "builder"
+            }
+        ],
+        "improvements": [
+            {
+                "area": "Phone",
+                "text": "The agent pages, automations and settings now work on a phone"
+            },
+            {
+                "area": "Integrations",
+                "text": "When you sign in to a new MCP server, you choose who in the project can use that sign-in"
+            },
+            {
+                "area": "Model providers",
+                "text": "A Bedrock connection can switch between an API key and access keys"
+            },
+            {
+                "area": "Sessions",
+                "text": "Builder chats have their own group on the Sessions page"
+            }
+        ],
+        "fixes": [
+            {
+                "area": "Automations",
+                "text": "A run that stopped with an error now shows as failed, not as running"
+            }
+        ]
+    },
+    {
+        "id": "v0.130.0",
+        "date": "2026-11-22",
+        "features": [
+            {
+                "id": "v0-130-0-new-models",
+                "title": "New models for your agents",
+                "body": "Your agents can use these new models.\n\nBuilt-in models, paid with your Agenta credits like the other built-in models. You need no key of your own:\n\n- Gemini 4 Hydrogen\n- Gemini 4 Carbon\n- Gemini 4 Neon\n\nWith your own provider key or subscription:\n\n- Claude Fable 5.2\n- Claude Haiku 5.5\n- GPT-6.2 Astra\n- GPT-6.2 Sol\n- GPT-6.1 Terra\n- Mistral Large 4",
+                "link": "https://agenta.ai/docs/changelog/v0-130-0-new-models",
+                "cover": "models"
+            }
+        ],
+        "improvements": [
+            {
+                "area": "Languages",
+                "text": "Model providers, lists and tool rows are now translated too"
+            }
+        ],
+        "fixes": [
+            {
+                "area": "Agents",
+                "text": "Codex now asks before it edits a file when the agent's tool policy says to ask"
+            },
+            {
+                "area": "Models",
+                "text": "You can untick a saved Claude subscription model that your plan no longer runs"
+            }
+        ]
+    },
+    {
+        "id": "v0.129.0",
+        "date": "2026-11-18",
+        "features": [
+            {
+                "id": "v0-129-0-discord-teams-drives-languages",
+                "title": "Discord, Microsoft Teams and localization",
+                "body": "You can now connect an agent to Discord or Microsoft Teams. Connect your own bot, and people talk to the agent in a direct message or by mentioning it in a channel.\n\nWe also added 7 languages to the app: English, Chinese, French, German, Japanese, Portuguese and Spanish. To change it, open **Settings**, then **Preferences**, then **Language**.",
+                "link": "https://agenta.ai/docs/changelog/v0-129-0-discord-teams-drives-languages",
+                "cover": "channels"
+            }
+        ],
+        "improvements": [],
+        "fixes": []
+    },
+    {
+        "id": "v0.128.14",
+        "date": "2026-11-18",
+        "features": [
+            {
+                "id": "v0-128-14-sign-in-and-annotations",
+                "title": "A new sign-in screen",
+                "body": "The sign-in screen now shows a preview of what agents can do, next to the form. Sign-in errors also say what went wrong. For example, a wrong password now shows **Invalid email or password**.",
+                "link": "https://agenta.ai/docs/changelog/v0-128-14-sign-in-and-annotations"
+            }
+        ],
+        "improvements": [
+            {
+                "area": "Sessions",
+                "text": "The Sessions page loads faster"
+            }
+        ],
+        "fixes": [
+            {
+                "area": "Annotations",
+                "text": "Annotating a session no longer changes the session counts or moves it to the top"
+            },
+            {
+                "area": "Tracing",
+                "text": "Traces keep arriving when many chats are open at the same time"
+            },
+            {
+                "area": "SDK",
+                "text": "Trace details that your app sends reach the trace again"
+            },
+            {
+                "area": "Agents",
+                "text": "A command now stops at its time limit, and when you press Stop"
+            }
+        ]
+    },
+    {
         "id": "v0.128.0",
         "date": "2026-10-30",
         "features": [
             {
                 "id": "agent-needs-setup",
-                "title": "Know what an agent is missing before you run it",
-                "body": "When something an agent uses goes missing, the new app now tells you before a run fails. The item shows **Needs setup** in the agent editor, with the reason under it. If the model can't run, a banner above the chat box says so, and Send stays off until you set it up.\n\n- A missing MCP server, secret or connected app no longer stops a run. The agent runs without it.\n- A scheduled or event run whose model needs setup is recorded once as skipped, instead of being retried five times.\n- Invite links open in the new app, and new teammates land in the project they were invited to.",
+                "title": "See what an agent needs before it runs",
+                "body": "When something an agent uses goes missing, the app now tells you before a run fails. The item shows **Needs setup** in the agent editor, with the reason under it. If the model can't run, a banner above the chat box says so, and Send stays off until you fix it.\n\n- A missing MCP server, secret or connected app no longer stops a run. The agent runs without it.\n- A scheduled run whose model needs setup is recorded once as skipped, instead of failing five times.",
                 "link": "https://agenta.ai/docs/changelog/agent-needs-setup"
             }
         ],
         "improvements": [],
-        "fixes": []
+        "fixes": [
+            {
+                "area": "Invites",
+                "text": "Invite links open the app in the project you were invited to"
+            }
+        ]
     },
     {
         "id": "v0.127.1",
@@ -19,8 +141,8 @@
         "features": [
             {
                 "id": "agent-run-startup-and-reliability",
-                "title": "Less repeated work when agent runs start and finish",
-                "body": "The runner now avoids several repeated steps when starting an agent session. It reuses local tool binaries and Pi skill copies where applicable, mounts drives in parallel, and reuses a harness capability probe.\n\nWhen its trace is ready, a completed Pi turn no longer waits for the full trace-drain polling window. Organization owners and admins can test their connections from a project that does not use them. Conversation replay no longer cuts through a character and leaves a chat unable to continue.",
+                "title": "Agent chats start faster",
+                "body": "Agent chats start faster, because Agenta no longer repeats setup work at the start of each chat. Pi agents also finish their turn sooner.\n\n- Organization owners and admins can test a connection from any project.\n- A long chat no longer stops working because of a broken character in an old message.",
                 "link": "https://agenta.ai/docs/changelog/agent-run-startup-and-reliability"
             }
         ],
@@ -33,8 +155,8 @@
         "features": [
             {
                 "id": "first-agent-onboarding-and-automation-fixes",
-                "title": "First-agent onboarding and more dependable event automations",
-                "body": "New accounts now enter first-agent onboarding when their project has no agents. The questions use the same role, company-size and referral choices as the signup survey, so people do not need to answer conflicting versions of them.\n\n- Event automations now receive Composio V3 webhook events instead of silently dropping them.\n- Editing an automation's event filters now updates its Composio trigger.\n- Organizations replace workspace records; self-hosted operators should read the upgrade notes before deploying.",
+                "title": "A guided start for your first agent",
+                "body": "New accounts now get a short guided start that helps them build their first agent. The questions match the sign-up survey, so nobody answers the same thing twice.\n\n- Automations that start on an event in a connected app no longer miss events.\n- When you change an automation's event filters, the change now takes effect.\n- If you host Agenta yourself, read the upgrade notes before you update.",
                 "link": "https://agenta.ai/docs/changelog/first-agent-onboarding-and-automation-fixes"
             }
         ],
@@ -47,8 +169,8 @@
         "features": [
             {
                 "id": "organization-ai-connections",
-                "title": "Use AI provider connections across an organization",
-                "body": "Organization owners and admins can now add an AI provider connection once for the organization instead of saving the same credential in every project. In Settings, the **Organization** tab shows the connections available to the current project.\n\n- Choose which projects may use a connection; selecting individual projects requires the supported Enterprise entitlement.\n- Pick an organization connection explicitly in an agent's model picker.\n- Agent runs using a saved bare model ID now mark the matching model row as selected.",
+                "title": "Share AI provider connections",
+                "body": "Organization owners and admins can now add an AI provider connection once for the whole organization, instead of in every project. Find it in Settings, on the **Organization** tab.\n\n- Choose which projects can use each connection. Picking single projects needs an Enterprise plan.\n- Pick an organization connection in an agent's model list.",
                 "link": "https://agenta.ai/docs/changelog/organization-ai-connections"
             }
         ],
@@ -82,120 +204,5 @@
         ],
         "improvements": [],
         "fixes": []
-    },
-    {
-        "id": "v0.125.1",
-        "date": "2026-10-26",
-        "features": [
-            {
-                "id": "built-in-gemini-native-routing",
-                "title": "More reliable built-in Gemini runs",
-                "body": "Built-in Gemini agent runs now use Google's native protocol instead of its OpenAI-compatible endpoint. This changes the route used for model calls that could stall on follow-up turns.\n\nBedrock and SageMaker credentials now travel with each call instead of being set in the shared process environment. The Python SDK also accepts an `AGENTA_API_URL` without a URL scheme, and CSV preview comments no longer show a stray colon when a column has no header.",
-                "link": "https://agenta.ai/docs/changelog/built-in-gemini-native-routing"
-            }
-        ],
-        "improvements": [],
-        "fixes": []
-    },
-    {
-        "id": "v0.125.0",
-        "date": "2026-10-26",
-        "features": [
-            {
-                "id": "private-agents-and-chats",
-                "title": "Private agents and chats, and sharing with your project",
-                "body": "New chats and agents that you create in Agenta now start private. Only you see them until you share them. You can share a chat with chosen people as **Can view** or **Can send**, or make it visible to the whole project. You can also make an agent private.\n\nChats and agents that existed before this release keep working as before. They are visible to the project, with their creator as owner.",
-                "link": "https://agenta.ai/docs/changelog/private-agents-and-chats",
-                "streamVideoId": "62669af1430b79044ec5275e0453194f"
-            }
-        ],
-        "improvements": [
-            {
-                "area": "Models",
-                "text": "Claude Haiku 5.5 is available for agents, also on Pi"
-            },
-            {
-                "area": "Models",
-                "text": "Built-in Gemini models use Google's native protocol"
-            },
-            {
-                "area": "Runs",
-                "text": "Agent turns start faster"
-            }
-        ],
-        "fixes": [
-            {
-                "area": "Chat",
-                "text": "Stop keeps the partial answer and ends the turn as stopped"
-            },
-            {
-                "area": "Chat",
-                "text": "A message that you send stays when you switch to another chat"
-            },
-            {
-                "area": "Channels",
-                "text": "You can write to channel chats in the app, and private agents stay connected to their channels"
-            },
-            {
-                "area": "Runs",
-                "text": "A turn that reaches its time limit keeps the work it did"
-            },
-            {
-                "area": "Runs",
-                "text": "Long turns are no longer cut short by the output budget"
-            }
-        ]
-    },
-    {
-        "id": "v0.124.1",
-        "date": "2026-10-25",
-        "features": [
-            {
-                "id": "project-provider-keys-only",
-                "title": "Projects use only their own provider keys",
-                "body": "Prompts and evaluators now run on the provider keys saved in the project. A project without a key for a provider gets the error \"No API key found for model\". Add the key in **Settings > Providers & Models**.\n\nCustom providers need their own API key, except Bedrock, SageMaker and Vertex. Self-hosted Enterprise deployments can opt in to keys set on the services container.",
-                "link": "https://agenta.ai/docs/changelog/project-provider-keys-only"
-            }
-        ],
-        "improvements": [
-            {
-                "area": "Models",
-                "text": "Built-in Gemini uses gemini-3.8-flash with low thinking by default"
-            }
-        ],
-        "fixes": [
-            {
-                "area": "Models",
-                "text": "Built-in Gemini turns no longer hang when a Vertex call stalls"
-            },
-            {
-                "area": "Sign-up",
-                "text": "Gmail addresses with dots or a +tag count as one address at sign-up"
-            }
-        ]
-    },
-    {
-        "id": "v0.124.0",
-        "date": "2026-10-25",
-        "features": [
-            {
-                "id": "project-access-and-permissions",
-                "title": "Project access, permissions and runs that act as their creator",
-                "body": "Agenta now decides project access in one place. Creating, renaming and deleting a project follows organization roles. An API key acts only in its own project for management actions. When you remove a member or delete a key, the change takes effect at the next request.\n\nAutomations, evaluations and approvals run as the user or key that created them. If that identity loses access, the run stops and tells you why.",
-                "link": "https://agenta.ai/docs/changelog/project-access-and-permissions"
-            }
-        ],
-        "improvements": [
-            {
-                "area": "Security",
-                "text": "Agenta checks organization admin rights, SSO domains, credentials and password resets more strictly"
-            }
-        ],
-        "fixes": [
-            {
-                "area": "Self-hosting",
-                "text": "The membership repair migration stays fast on large databases"
-            }
-        ]
     }
 ]

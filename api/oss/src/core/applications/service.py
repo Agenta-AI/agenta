@@ -36,7 +36,7 @@ from oss.src.core.git.types import (
 )
 from oss.src.core.workflows.service import (
     WorkflowsService,
-    _reject_unreadable_agent_instructions,
+    _reject_unrunnable_agent,
     new_agent_policy,
 )
 
@@ -1097,7 +1097,7 @@ class SimpleApplicationsService:
     ) -> Optional[SimpleApplication]:
         # Before the artifact exists: refusing only at the final commit would leave the
         # artifact, variant, and blank revision behind.
-        _reject_unreadable_agent_instructions(simple_application_create.data)
+        _reject_unrunnable_agent(simple_application_create.data)
         await self.applications_service.workflows_service.reject_unusable_agent_drives(
             project_id=project_id,
             data=simple_application_create.data,
@@ -1343,7 +1343,7 @@ class SimpleApplicationsService:
         first_agent_owner_user_id: Optional[UUID] = None,
     ) -> Optional[SimpleApplication]:
         # Before any write: a refusal at the final commit would leave earlier writes behind.
-        _reject_unreadable_agent_instructions(simple_application_edit.data)
+        _reject_unrunnable_agent(simple_application_edit.data)
 
         application = await self.applications_service.fetch_application(
             project_id=project_id,
@@ -1366,7 +1366,7 @@ class SimpleApplicationsService:
         should_commit_revision = bool(simple_application_edit.model_fields_set - {"id"})
 
         # The data the commit stores, chosen once and checked before the first write.
-        application_revision_data = None
+        application_revision_data: Optional[ApplicationRevisionData] = None
         if should_commit_revision:
             if simple_application_edit.data:
                 application_revision_data = ApplicationRevisionData(
@@ -1385,6 +1385,10 @@ class SimpleApplicationsService:
                     return None
 
                 application_revision_data = latest_application_revision.data
+
+                # The commit below carries the stored data, so it is refused for the same
+                # reason. Refuse it here, before the artifact write.
+                _reject_unrunnable_agent(application_revision_data)
 
             await self.applications_service.workflows_service.reject_unusable_agent_drives(
                 project_id=project_id,

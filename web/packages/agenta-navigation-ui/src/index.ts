@@ -18,6 +18,7 @@ export {
 } from "./CommandPalette"
 export {SidebarSelectionButton, type SidebarSelectionButtonProps} from "./SidebarSelectionButton"
 export {SidebarBackButton, type SidebarBackButtonProps} from "./SidebarBackButton"
+export {SidebarLayoutContext, type SidebarLayout} from "./sidebarLayout"
 export {NamePromptModal, type NamePromptModalProps} from "./NamePromptModal"
 export {
     ProjectOrgSwitcherView,
@@ -33,5 +34,5 @@ export {
     type WorkflowPickerViewProps,
 } from "./WorkflowPickerView"
 export {SidebarToggleButton, type SidebarToggleButtonProps} from "./SidebarToggleButton"
-export {SessionFilterMenu} from "./SessionFilterMenu"
+export {SessionFilterMenu, type SessionFilterFacet} from "./SessionFilterMenu"
 export {SidebarReorderLayer} from "./reorder"

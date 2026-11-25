@@ -1,0 +1,84 @@
+/**
+ * The version history's summary of a text change (S06): only the changed lines, and a removed and
+ * added pair drops the start they share, so the box shows what changed.
+ */
+import type {ExtendedDiffLine} from "@agenta/ui/diff"
+import {renderToStaticMarkup} from "react-dom/server"
+import {describe, expect, it} from "vitest"
+
+import {ChangeSummary, summaryLines} from "../../src/changes/ChangeSections"
+
+const line = (type: ExtendedDiffLine["type"], content: string) =>
+    ({type, content}) as ExtendedDiffLine
+
+describe("summaryLines", () => {
+    it("drops context lines and the long start a removed and added pair share", () => {
+        const start = "Read each ticket, label it, set the urgency"
+        expect(
+            summaryLines([
+                line("context", "# Support triage"),
+                line("removed", `${start} and draft a first reply.`),
+                line("added", `${start} and draft a first reply in plain words.`),
+                line("context", "Billing problems are always high."),
+            ]),
+        ).toEqual([
+            {type: "removed", content: "…and draft a first reply."},
+            {type: "added", content: "…and draft a first reply in plain words."},
+        ])
+    })
+
+    it("keeps a short shared start, and lines that have no single partner", () => {
+        expect(
+            summaryLines([
+                line("removed", "A bug is medium."),
+                line("added", "A bug is high."),
+                line("added", "Billing is high."),
+            ]),
+        ).toEqual([
+            {type: "removed", content: "A bug is medium."},
+            {type: "added", content: "A bug is high."},
+            {type: "added", content: "Billing is high."},
+        ])
+    })
+})
+
+describe("ChangeSummary", () => {
+    it("shows each section with its plain status and its rows, with no toggle", () => {
+        const html = renderToStaticMarkup(
+            <ChangeSummary
+                sections={[
+                    {
+                        id: "tools",
+                        title: "Tools",
+                        tags: [{kind: "added", label: "1 added"}],
+                        totalCount: 1,
+                        items: [{id: "t1", label: "send_email", kind: "added"}],
+                    },
+                ]}
+            />,
+        )
+        expect(html).toContain("Tools")
+        expect(html).toContain("1 added")
+        expect(html).toContain("send_email")
+        expect(html).not.toContain("aria-expanded")
+    })
+
+    it("shows every changed line of a text section, past the inline limit", () => {
+        const hunks = Array.from({length: 8}, (_, i) => line("added", `rule ${i + 1}`))
+        const html = renderToStaticMarkup(
+            <ChangeSummary
+                sections={[
+                    {
+                        id: "instructions",
+                        title: "Instructions",
+                        tags: [{kind: "edited", label: "Edited"}],
+                        totalCount: 1,
+                        textDiff: {hunks, added: 8, removed: 0, before: "", after: ""},
+                    },
+                ]}
+            />,
+        )
+        expect(html).toContain("Changed")
+        expect(html).toContain("rule 8")
+    })
+})

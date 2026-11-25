@@ -146,6 +146,11 @@ export interface ListTableBaseProps<Row> {
      */
     stickyHeader?: boolean
     /**
+     * The first rows start right under the sticky header's line, with no 4 px of padding above
+     * them. For a list whose design draws them flush (the Sessions and Agents tables, A02, A03).
+     */
+    flushFirstRows?: boolean
+    /**
      * Keep the column names for screen readers only. For a list whose surroundings already say
      * what the rows are — a tab named "Sessions" over a single-column list — where a header row
      * only repeats the tab. Ignored with `selection`, whose controls live in the header row.
@@ -157,6 +162,15 @@ export interface ListTableBaseProps<Row> {
      * reader scans once.
      */
     density?: "default" | "compact"
+    /**
+     * The group heading's caret: `fill` (default) is the filled caret that turns; `chevron` is the
+     * light down chevron the agent pages draw (A02), turned to the right when collapsed.
+     */
+    groupCaret?: "fill" | "chevron"
+    /** Extra classes for each list row, merged over its defaults (the Agents list, A03). */
+    rowClassName?: string
+    /** Extra classes for the column header row, merged over its defaults. */
+    headerClassName?: string
     /** Row selection with a select-all and a bulk bar. Absent ⇒ no checkbox column. */
     selection?: ListTableSelection<Row>
     className?: string

@@ -46,5 +46,9 @@
     "callId": "调用 ID",
     "promptRefined": "提示词优化成功。",
     "leaveWarning": "你有本地草稿修订版本或未保存的更改，离开后将会丢失。确定要继续吗？",
-    "rerunning": "正在重新运行..."
+    "rerunning": "正在重新运行...",
+    "averageTokens": "平均 token 数",
+    "newAgent": "新建智能体",
+    "newPrompt": "新建提示词",
+    "revisionOpen": "已打开"
 }

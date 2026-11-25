@@ -7,6 +7,7 @@ import {
 import {
     agentWorkflowsListQueryStateAtom,
     appWorkflowsListQueryAtom,
+    builderAgentWorkflowIdAtom,
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {isAutomationSession, sessionOpenTarget} from "@agenta/sessions/row"
@@ -95,9 +96,13 @@ const scopeLimit = (scopeId: string) => SCOPE_SESSION_LIMIT[scopeId] ?? SIDEBAR_
 const GROUPED_SCOPES = new Set(["mobile-main", MAIN_SIDEBAR_SCOPE_ID])
 const scopeGroups = (scopeId: string) => GROUPED_SCOPES.has(scopeId)
 
-/** Every filter is a server predicate: narrowing a fetched page would filter the window, not
- * the set. Liveness maps onto the row's mirrored flags; the agent onto the turns' references. */
-const requestFilters = (filters: SidebarSessionFilters) => {
+/**
+ * A sidebar's filters as the session list's server predicates. The main sidebar and the agent
+ * sidebar both send these. Every filter is a server predicate: narrowing a fetched page would
+ * filter the window, not the set. Liveness maps onto the row's mirrored flags; the agent onto
+ * the turns' references. "Waiting" is not here: it is an id set from the pending interactions.
+ */
+export const sidebarSessionRequestFilters = (filters: SidebarSessionFilters) => {
     const flags: {is_running?: boolean; is_alive?: boolean} = {}
     if (filters.status === "running") flags.is_running = true
     if (filters.status === "idle") flags.is_alive = false
@@ -127,7 +132,7 @@ export const livePollInterval = (rows: SessionStream[] | null | undefined) =>
     livenessPollInterval(rows, {idle: IDLE_POLL_MS})
 
 /**
- * One request per selected agent, merged — see `requestFilters` on why they cannot be one.
+ * One request per selected agent, merged — see `sidebarSessionRequestFilters` on why they cannot be one.
  *
  * Unioned by session id and re-sorted by last activity, which is the order the server would have
  * returned had it been able to answer in one query. Each request carries the full window, so the
@@ -170,7 +175,7 @@ const MAX_SESSION_QUERY_LIMIT = 200
  * The longest `session_ids` list the sessions query accepts. Above it the server answers 422 and
  * the request returns nothing, so the id push-down has to stay inside it.
  */
-const MAX_SESSION_IDS_PER_QUERY = 500
+export const MAX_SESSION_IDS_PER_QUERY = 500
 
 /**
  * A tail read: the rows, and whether the server has more below the last one.
@@ -314,7 +319,7 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
         const projectId = get(projectIdAtom)
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
         const {agentIds, flags, includeArchived, origin, excludeOrigin, oldest} =
-            requestFilters(filters)
+            sidebarSessionRequestFilters(filters)
         const waiting = filters.status === "waiting"
         const waitingQuery = get(sidebarWaitingIdsQueryAtomFamily(scopeId))
         const waitingIds = waitingQuery.data ?? null
@@ -328,7 +333,10 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                 filters.type,
                 waiting ? waitingIds : null,
             ],
-            queryFn: ({signal}) =>
+            // No abort signal: a session switch remounts the rail, and a read aborted with its
+            // last observer started again for the next one. Without the signal the remounted rail
+            // joins the head read in flight.
+            queryFn: () =>
                 queryByAgents(agentIds, (references) =>
                     querySessions({
                         projectId: projectId ?? "",
@@ -341,7 +349,6 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                         // No server predicate for "awaiting input" — ids are pushed down instead.
                         sessionIds: waiting ? (waitingIds ?? []) : undefined,
                         limit: scopeLimit(scopeId),
-                        abortSignal: signal,
                         lowPriority: true,
                     }),
                 ),
@@ -452,7 +459,7 @@ const sidebarSessionsOlderQueryAtomFamily = atomFamily((scopeId: string) =>
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
         const pages = get(sidebarSessionPageCountAtomFamily(scopeId))
         const {agentIds, flags, includeArchived, origin, excludeOrigin, oldest} =
-            requestFilters(filters)
+            sidebarSessionRequestFilters(filters)
         const boundary = get(sidebarSessionBoundaryAtomFamily(scopeId))
         const waiting = filters.status === "waiting"
         const waitingQuery = get(sidebarWaitingIdsQueryAtomFamily(scopeId))
@@ -550,7 +557,8 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
         const projectId = get(projectIdAtom)
         const allPinnedIds = get(pinnedSessionIdsAtom)
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
-        const {agentIds, flags, includeArchived, origin, excludeOrigin} = requestFilters(filters)
+        const {agentIds, flags, includeArchived, origin, excludeOrigin} =
+            sidebarSessionRequestFilters(filters)
         const waiting = filters.status === "waiting"
         const waitingIds = get(sidebarWaitingIdsQueryAtomFamily(scopeId)).data ?? null
         // "Awaiting input" has no server predicate — it is an id set — so a pin has to be
@@ -571,7 +579,9 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
             ],
             // A pin is not exempt from the filters: filtering to one agent must not leave another
             // agent's pinned rows on top of the result.
-            queryFn: ({signal}) =>
+            //
+            // No abort signal, as for the head rows above: a remount joins the read in flight.
+            queryFn: () =>
                 queryByAgents(agentIds, (references) =>
                     querySessions({
                         projectId: projectId ?? "",
@@ -581,7 +591,6 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                         origin,
                         excludeOrigin,
                         sessionIds: pinnedIds,
-                        abortSignal: signal,
                         lowPriority: true,
                     }),
                 ),
@@ -635,15 +644,44 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
 export const localSessionRefsAtom = atom<SessionSidebarRef[]>([])
 
 /**
- * Every agent the catalog still lists, or `null` while it loads. It excludes archived agents, so
- * "absent here" IS "archived". Requires an UNPAGED catalog: a limit on `appWorkflowsListQueryAtom`
- * would make every agent past the cap read as archived and lose its sessions.
+ * Every agent the catalog still lists, plus the builder, or `null` while the catalog loads. The
+ * catalog excludes archived agents, so "absent here" IS "archived". The builder lives in code, not
+ * in the catalog, and cannot be archived; its sessions show once its id has loaded. Requires an
+ * UNPAGED catalog: a limit on `appWorkflowsListQueryAtom` would make every agent past the cap read
+ * as archived and lose its sessions.
  */
 const liveAgentIdsAtom = atom<ReadonlySet<string> | null>((get) => {
     const query = get(appWorkflowsListQueryAtom)
     if (!query.data) return null
-    return new Set((query.data.refs ?? []).map((ref: {id: string}) => ref.id))
+    const ids = new Set((query.data.refs ?? []).map((ref: {id: string}) => ref.id))
+    const builderId = get(builderAgentWorkflowIdAtom)
+    if (builderId) ids.add(builderId)
+    return ids
 })
+
+/** Each listed agent's name, by id, from the same unpaged catalog as `liveAgentIdsAtom`. */
+const catalogAgentNamesAtom = atom<ReadonlyMap<string, string>>((get) => {
+    const names = new Map<string, string>()
+    for (const ref of get(appWorkflowsListQueryAtom).data?.refs ?? []) {
+        if (ref.name) names.set(ref.id, ref.name)
+    }
+    return names
+})
+
+/**
+ * The name an agent heading, a search row and the session header show: the artifact name, else
+ * the catalog name while the artifact query loads. Accepts a workflow id or a revision id.
+ */
+export const agentDisplayNameAtomFamily = atomFamily((entityId: string) =>
+    atom<string | null>((get) => {
+        if (!entityId) return null
+        return (
+            get(workflowMolecule.selectors.artifactName(entityId)) ||
+            get(catalogAgentNamesAtom).get(entityId) ||
+            null
+        )
+    }),
+)
 
 /**
  * Drop sessions whose agent is no longer listed (#5944, #6457). A PIN is exempt, the same exemption
@@ -801,8 +839,7 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
 
         const groupBy = filters.groupBy
         const now = Date.now()
-        // The owning agent's name, read off the workflow ARTIFACT — the same selector every other
-        // session surface uses, so a heading and a row can never disagree about an agent's name.
+        // The owning agent's name (see `agentDisplayNameAtomFamily`).
         // The heading is resolved HERE, not in the entity's `getGroupKey`: that closure is not
         // reactive, so a `groupBy` change would not re-bucket the rows.
         const grouped = merged.map((ref) => {
@@ -811,9 +848,7 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
                 // OR, not a replacement: a gate the host already knows about is open before the
                 // interactions query has a row for it.
                 waiting: waitingIds.has(ref.sessionId) || Boolean(ref.waiting),
-                agentName: ref.agentId
-                    ? (get(workflowMolecule.selectors.artifactName(ref.agentId)) ?? null)
-                    : null,
+                agentName: ref.agentId ? get(agentDisplayNameAtomFamily(ref.agentId)) : null,
             }
             const group = sidebarSessionGroup(named, groupBy, now)
             return {
@@ -1178,8 +1213,79 @@ export const agentSessionCounts = (rows: readonly SessionStream[]): ReadonlyMap<
 }
 
 /** Chat-session counts alone — the DEFAULT order, before anyone has arranged anything. */
-const sidebarAgentCountsAtomFamily = atomFamily((scopeId: string) =>
+export const sidebarAgentCountsAtomFamily = atomFamily((scopeId: string) =>
     atom((get) => agentSessionCounts(get(sidebarAgentActivityQueryAtomFamily(scopeId)).data ?? [])),
+)
+
+/** Pages the rail may load on its own; past them a scroll asks, as before. */
+export const MAX_AUTO_SESSION_PAGES = 3
+
+/**
+ * The agents the rail should show a section for but has no row of yet: agents with a chat inside
+ * the rail's activity window (from the ranking query, newest 200 chats), minus the agents the
+ * agent filter leaves out and the agents already loaded.
+ *
+ * Under agent grouping each agent section shows a few rows, so a first page full of one busy
+ * agent's sessions draws a rail too short to scroll, and a scroll is the only other way to ask
+ * for the next page.
+ */
+export const hasUnloadedAgent = ({
+    chats,
+    loadedRefs,
+    agentFilter,
+    oldest,
+}: {
+    chats: readonly SessionStream[]
+    loadedRefs: readonly SessionSidebarRef[]
+    agentFilter: readonly string[]
+    /** The rail's activity floor (ISO), or undefined for no floor. */
+    oldest?: string
+}): boolean => {
+    const loaded = new Set(loadedRefs.map((ref) => ref.agentId))
+    const floor = oldest ? Date.parse(oldest) : null
+    for (const row of chats) {
+        const agentId = sessionOpenTarget(row)?.appId
+        if (!agentId || loaded.has(agentId)) continue
+        if (agentFilter.length > 0 && !agentFilter.includes(agentId)) continue
+        const activity = Date.parse(row.updated_at ?? row.created_at ?? "")
+        if (floor !== null && !(activity >= floor)) continue
+        return true
+    }
+    return false
+}
+
+/**
+ * Should the rail ask for the next page now, without a scroll? Only for the default list shape
+ * the ranking query can speak for (agent grouping, chats, any status), only while an agent with
+ * a chat in the window has no row yet, and for at most `MAX_AUTO_SESSION_PAGES` pages.
+ */
+export const sidebarSessionsNeedNextPageAtomFamily = atomFamily((scopeId: string) =>
+    atom((get) => {
+        const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
+        if (filters.groupBy !== "agent" || filters.type !== "chat" || filters.status !== "all")
+            return false
+        if (get(sidebarSessionPageCountAtomFamily(scopeId)) >= MAX_AUTO_SESSION_PAGES) return false
+        // Not mid-drag (a page then is a no-op; this turns true again after the drop), and not
+        // from a previous filter's rows still shown as placeholder: the tail boundary is taken
+        // from the head and would come from the wrong list.
+        if (get(sidebarReorderActiveAtom)) return false
+        if (get(sidebarSessionsQueryAtomFamily(scopeId)).isPlaceholderData) return false
+        const paging = get(sidebarSessionPagingAtomFamily(scopeId))
+        if (!paging.hasMore || paging.isLoadingMore || paging.isError) return false
+        const live = get(liveAgentIdsAtom)
+        const chats = (get(sidebarAgentActivityQueryAtomFamily(scopeId)).data ?? []).filter(
+            (row) => {
+                const agentId = sessionOpenTarget(row)?.appId
+                return Boolean(agentId) && (live === null || live.has(agentId as string))
+            },
+        )
+        return hasUnloadedAgent({
+            chats,
+            loadedRefs: get(sidebarSessionRefsAtomFamily(scopeId)),
+            agentFilter: filters.agentIds,
+            oldest: sidebarSessionRequestFilters(filters).oldest,
+        })
+    }),
 )
 
 /**
@@ -1197,10 +1303,19 @@ export const sidebarSessionAgentOptionsAtomFamily = atomFamily((scopeId: string)
         if (!sessionFilterMenuOpen(get, scopeId)) return []
 
         const agents = get(agentWorkflowsListQueryStateAtom)
-        return agents.data.map((agent) => ({
+        const options = agents.data.map((agent) => ({
             value: agent.id,
             label: agent.name || agent.slug || "Untitled agent",
         }))
+        // The builder is not in the catalog, but the sidebar lists its chats: offer it too.
+        const builderId = get(builderAgentWorkflowIdAtom)
+        if (builderId && !options.some((option) => option.value === builderId)) {
+            options.push({
+                value: builderId,
+                label: get(agentDisplayNameAtomFamily(builderId)) || "Builder",
+            })
+        }
+        return options
     }),
 )
 
@@ -1316,9 +1431,7 @@ export const sidebarSessionSearchResultsAtom = atom<SessionSidebarRef[]>((get) =
         .filter((ref): ref is SessionSidebarRef => ref !== null)
     return dropMissingAgentSessions(refs, get(liveAgentIdsAtom)).map((ref) => ({
         ...ref,
-        agentName: ref.agentId
-            ? (get(workflowMolecule.selectors.artifactName(ref.agentId)) ?? null)
-            : null,
+        agentName: ref.agentId ? get(agentDisplayNameAtomFamily(ref.agentId)) : null,
     }))
 })
 

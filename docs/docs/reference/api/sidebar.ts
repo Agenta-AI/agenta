@@ -2742,6 +2742,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/ingest-teams-event",
+          label: "Ingest Teams Event",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/ingest-bridge-event",
           label: "Ingest Bridge Event",
           className: "api-method post",
@@ -3120,13 +3126,13 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "reference/api/set-session-stream-header",
           label: "Set Session Stream Header",
-          className: "api-method put",
+          className: "api-method post",
         },
         {
           type: "doc",
           id: "reference/api/set-session-stream-header",
           label: "Set Session Stream Header",
-          className: "api-method post",
+          className: "api-method put",
         },
         {
           type: "doc",
@@ -3404,6 +3410,12 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "reference/api/query-mounts",
           label: "Query Mounts",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/sign-mount-credentials-by-slug",
+          label: "Sign Mount Credentials By Slug",
           className: "api-method post",
         },
         {
@@ -4116,6 +4128,30 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "reference/api/delete-account-choice",
           label: "Delete Account Choice",
+          className: "api-method delete",
+        },
+      ],
+    },
+    {
+      type: "category",
+      label: "Approval Choices",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/create-approval-choice",
+          label: "Create Approval Choice",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/query-approval-choices",
+          label: "Query Approval Choices",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/delete-approval-choice",
+          label: "Delete Approval Choice",
           className: "api-method delete",
         },
       ],

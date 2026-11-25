@@ -149,7 +149,7 @@ describe("scenarios tab", () => {
             "#",
             "Status",
             "Test set capitals",
-            "Exact Match · success",
+            "Exact Match · Success",
             "Cost",
             "Duration",
             "Tokens",
@@ -174,7 +174,7 @@ describe("scenarios tab", () => {
         primeWorkflowArtifactCacheImperative([{id: "ev-1", name: "Capital match"}] as never)
         await settle()
         await settle()
-        expect(headers().slice(2, 4)).toEqual(["World capitals", "Capital match · success"])
+        expect(headers().slice(2, 4)).toEqual(["World capitals", "Capital match · Success"])
     })
 
     it("A missing value shows a dash", async () => {

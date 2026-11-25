@@ -29,7 +29,9 @@ class _OneCancelDAO:
     def __init__(self, command: Optional[SessionCommand]) -> None:
         self.command = command
 
-    async def fetch_turn_cancel(self, *, project_id, session_id, target_turn_id):
+    async def fetch_turn_cancel(
+        self, *, project_id, session_id, target_turn_id, transaction=None
+    ):
         if self.command and self.command.target_turn_id == target_turn_id:
             return self.command
         return None

@@ -12,6 +12,7 @@ import {
 import {generateId} from "@agenta/shared/utils"
 import type {FileUIPart, UIMessage} from "ai"
 
+import type {ChildUpdate} from "../assets/childUpdate"
 import {countUserMessages, durableUserTurnIds} from "../assets/pendingSendEchoes"
 import {
     applyQueueOps,
@@ -45,6 +46,13 @@ export interface QueuedMessage {
     promotedExecutionId?: string | null
     /** An edit of this row is still saving. */
     saving?: boolean
+    /**
+     * The input's kind, on a row from the server queue (`message` when the server sent none).
+     * Any other kind is a server input: it can be removed, never edited or sent by hand.
+     */
+    kind?: string
+    /** The structured part of a `child_update` row; absent when the row carries none. */
+    childUpdate?: ChildUpdate
 }
 
 /** `settledSeq`: a snapshot read with a higher sequence reflects this write. */
@@ -306,11 +314,17 @@ export const useAgentChatQueue = ({
         untilSeq: number | null
     } | null>(null)
     const refreshQueue = server.refresh
+    // Whether a read has listed this session's queue as empty, read in the effect below.
+    const listedEmptyRef = useRef(false)
+    listedEmptyRef.current = server.viewSeq > 0 && server.queued.length === 0
     useEffect(() => {
         const grew = userCount > lastUserCountRef.current
         lastUserCountRef.current = userCount
         if (!grew) return
         const ids = retiredParkedIdsRef.current
+        // Nothing listed and nothing of ours parked: no input can have started, so a re-read has
+        // nothing to drop.
+        if (listedEmptyRef.current && ids.size === 0) return
         const settle = (untilSeq: number) =>
             setHandoff((current) => (current?.ids === ids ? {ids, untilSeq} : current))
         setHandoff({ids, untilSeq: null})

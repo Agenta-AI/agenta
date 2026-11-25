@@ -2,6 +2,7 @@ import type {ReactNode} from "react"
 
 import type {SidebarScope} from "@agenta/navigation"
 
+import {useAgentSidebarSync} from "../agent-sidebar/useAgentSidebarSync"
 import {useCanonicalProjectRoute} from "../context/useCanonicalProjectRoute"
 
 import {useTrackLastNonSettingsPath} from "./lastNonSettingsPath"
@@ -29,6 +30,8 @@ export const AppShell = ({
 }) => {
     useTrackLastNonSettingsPath()
     useTrackLastMainRailPath()
+    // Here, not per rail mount: the drawer and the docked rail share one choice.
+    useAgentSidebarSync(projectId)
     useCanonicalProjectRoute()
 
     return (

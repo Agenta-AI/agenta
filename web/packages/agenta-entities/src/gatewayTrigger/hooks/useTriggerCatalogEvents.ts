@@ -98,6 +98,7 @@ export const useTriggerCatalogEvents = (integrationKey: string) => {
         isFetchingNextPage: query.isFetchingNextPage,
         hasNextPage: query.hasNextPage ?? false,
         error: query.error,
+        refetch: query.refetch,
         requestMore,
         setSearch,
     }

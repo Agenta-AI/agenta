@@ -17,6 +17,18 @@ ATTACHMENTS_MOUNT_PURPOSE = "session_attachment_originals"
 MOUNTS_KEY_ROOT = "mounts"
 
 
+def is_static_agent_drive_slug(slug: str, *, agent_slug: str) -> bool:
+    """The slug of a static catalog agent's own drive: the agent's reserved slug, `__`,
+    and a label (`__ag__builder__learning`). A user never creates an `__ag__` slug, so
+    nobody can take it first. Never one of the minted forms above (an agent's drive by
+    its id, a session drive), whatever the agent's slug."""
+    return (
+        agent_slug.startswith(RESERVED_SLUG_PREFIX)
+        and slug.startswith(f"{agent_slug}__")
+        and not slug.startswith((RESERVED_AGENT_SLUG_PREFIX, SESSION_SLUG_PREFIX))
+    )
+
+
 def project_storage_prefix(
     *,
     project_id: UUID,

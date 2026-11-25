@@ -26,6 +26,9 @@ export {
     subscriptionConnectionCandidates,
 } from "./agentModelCandidates"
 
+export type {BuiltinModelsRow, ModelProviderList, SubscriptionRow} from "./modelProviderList"
+export {buildModelProviderList, builtinModelsOf} from "./modelProviderList"
+
 export type {
     AgentSecretBinding,
     CreateSecretDto,
@@ -73,15 +76,7 @@ export {
     getEnvNameMap,
 } from "./transforms"
 
-export {
-    activeModelsCount,
-    credentialStatusLine,
-    manualModelPlaceholderForKind,
-    MODEL_LIST_RENDER_CAP,
-    modelListView,
-    relativeFetchTime,
-    secretNoteForKind,
-} from "./cardCopy"
+export {MODEL_LIST_RENDER_CAP, modelListView} from "./cardCopy"
 
 export {LITELLM_MODEL_PREFIXES, fromLitellmModelId, toLitellmModelId} from "./litellmModelId"
 
@@ -131,28 +126,30 @@ export {
     probeFailureMessage,
     probeRequestFor,
     storedCredentialFields,
+    storesAwsAccessKeys,
     maskSecret,
     nextConnectionName,
     providerModelCatalog,
     toProviderConnections,
 } from "./connections"
 
-export {activeModelsSummary, connectedRowSubtitle, connectionModelCount} from "./connectionSummary"
+export {activeModelsSummary, connectionModelCount} from "./connectionSummary"
 
 export type {SubscriptionHarnessStatus, SubscriptionPair} from "./subscriptionPairs"
 
 export type {
+    SubscriptionAttemptFailure,
     SubscriptionAvailability,
     SubscriptionConnectMethod,
     SubscriptionLoginState,
     SubscriptionRowFacts,
+    SubscriptionStatus,
 } from "./subscriptionConnections"
 export {
     DEFAULT_SUBSCRIPTION_HARNESSES,
     SUBSCRIPTION_LOGIN_STATES,
     SUBSCRIPTION_PROVIDER_KIND,
-    SUBSCRIPTION_SIGN_IN_HINT,
-    subscriptionAttemptErrorSentence,
+    subscriptionAttemptFailure,
     subscriptionAvailability,
     subscriptionConnectMethod,
     subscriptionConnectionFor,
@@ -161,7 +158,7 @@ export {
     subscriptionProviderFamily,
     subscriptionProviderName,
     subscriptionRunProvider,
-    subscriptionStatusLine,
+    subscriptionStatus,
     subscriptionTokenErrorText,
 } from "./subscriptionConnections"
 export {
@@ -169,6 +166,7 @@ export {
     mountedSubscriptionDisplayName,
     mountedSubscriptionName,
     subscriptionPairModels,
+    subscriptionPairModelRows,
     subscriptionPairsFrom,
     subscriptionPlanName,
 } from "./subscriptionPairs"

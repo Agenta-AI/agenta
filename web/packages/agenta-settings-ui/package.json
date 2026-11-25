@@ -17,7 +17,8 @@
     },
     "exports": {
         ".": "./src/index.ts",
-        "./entitlements": "./src/access/entitlements.ts"
+        "./entitlements": "./src/access/entitlements.ts",
+        "./channel-icons": "./src/channels/icons.tsx"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",

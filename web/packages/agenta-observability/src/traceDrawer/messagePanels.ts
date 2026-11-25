@@ -345,3 +345,60 @@ export const prepareTraceOverviewPanels = ({
         outputs: buildPanel(outputs, "outputs", seenMessages),
     }
 }
+
+const jsonFence = (value: unknown) => {
+    try {
+        return `\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``
+    } catch {
+        return String(value)
+    }
+}
+
+const messagePartText = (part: unknown): string => {
+    if (typeof part === "string") return part
+    if (isRecord(part) && typeof part.text === "string") return part.text
+    return jsonFence(part)
+}
+
+const messageBody = (message: RoleMessage): string => {
+    const {role: _role, content, contents, ...rest} = message
+    const parts: string[] = []
+    if (typeof content === "string") parts.push(content)
+    else if (Array.isArray(content)) parts.push(...content.map(messagePartText))
+    else if (!isNullish(content)) parts.push(jsonFence(content))
+    if (Array.isArray(contents)) {
+        contents.forEach((item) => {
+            const text = item?.message_content?.text
+            if (text !== undefined) parts.push(text)
+        })
+    }
+    // A bare AI SDK part carries `text`; other fields (tool calls, ...) show as JSON.
+    const {text, type: _type, ...extra} = rest
+    if (!parts.length && typeof text === "string") parts.push(text)
+    if (Object.keys(extra).length) parts.push(jsonFence(extra))
+    return parts.filter(Boolean).join("\n\n")
+}
+
+const roleHeading = (role: string | undefined, markdown: boolean) => {
+    if (!role) return ""
+    const label = `${role.charAt(0).toUpperCase()}${role.slice(1)}`
+    return markdown ? `**${label}**` : label
+}
+
+/** A chat message list as readable text for the text and markdown views, or null. */
+export const messagesToText = (value: unknown, {markdown = true} = {}): string | null => {
+    const parsed = typeof value === "string" ? (tryParseJson(value.trim()) ?? value) : value
+    const groups = collectMessageGroups(parsed, "text")
+    if (!groups.length) return null
+
+    const sections = groups.flatMap((group) =>
+        group.messages.map((message) =>
+            [roleHeading(message.role, markdown), messageBody(message)]
+                .filter(Boolean)
+                .join("\n\n"),
+        ),
+    )
+    const residual = removeMessageGroupsFromData(parsed, groups)
+    if (!isNullish(residual)) sections.push(jsonFence(residual))
+    return sections.filter(Boolean).join("\n\n")
+}

@@ -303,20 +303,20 @@ export const FilterMenuPanel = ({
 
             {/* The rows sit off the search field's rule rather than starting against it — the
                 gap belongs to the panel, not to whichever block happens to be first. */}
-            {searchable ? <div aria-hidden className="h-1.5 shrink-0" /> : null}
+            {searchable ? <div aria-hidden className="h-1 shrink-0" /> : null}
 
             {order.length === 0 ? (
                 <p className="m-0 px-3 py-8 text-center text-[12px] text-muted-foreground">
                     {t("ui.controls.nothingMatches", {term: query.trim()})}
                 </p>
             ) : (
-                blocks.map((block) => (
+                blocks.map((block, index) => (
                     <div
                         key={block.key}
-                        // No rule between the blocks: the sort and group rows are the same kind
-                        // of thing as the filters above them, and a line there read as a break
-                        // in a list that has none.
-                        className="flex flex-col gap-px p-1 pt-0"
+                        // No rule and no gap between the blocks: the sort and group rows are the
+                        // same kind of thing as the filters above them, so the rows run on at a
+                        // 32 px pitch (A10). Only the last block keeps the panel's 4 px foot.
+                        className={cn("flex flex-col px-1", index === blocks.length - 1 && "pb-1")}
                     >
                         {block.entries.map((entry) =>
                             isFilterMenuToggle(entry.section) ? (

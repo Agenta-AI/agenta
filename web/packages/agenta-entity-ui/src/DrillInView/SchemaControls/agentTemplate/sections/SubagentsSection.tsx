@@ -1,0 +1,214 @@
+import {useState} from "react"
+
+import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
+import type {ConfigItemRef} from "@agenta/ui/view-stack"
+import {Robot} from "@phosphor-icons/react"
+
+import {countSummary} from "../agentTemplateUtils"
+import {ConnectedSubagentList} from "../ConnectedSubagents"
+import {describeSubagent, toolReferenceSlug} from "../itemDescriptors"
+import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
+import {SectionAddButton} from "../SectionAddButton"
+import {SectionPageAction} from "../SectionPageAction"
+import {savedSubagentSlugs, SubagentCurrentName} from "../SubagentAgent"
+import {findSubagentIndex, subagentItemRef, uniqueSlugRef} from "../subagentReference"
+import {SubagentList, type SubagentListProps} from "../ToolManagementList"
+
+import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
+
+// Read when the section is built, so it is in the active language.
+const tNow = createT(commonCatalog)
+
+type WorkflowReferenceBridge = Parameters<typeof ConnectedSubagentList>[0]["bridge"]
+
+export interface SubagentsSectionParams {
+    t: AgentTemplateT
+    hasTools: boolean
+    sectionIndicator: SectionIndicatorFor
+    disabled?: boolean
+    /** Opens "Add subagents". Undefined when the host wires no workflow reference bridge. */
+    openAddSubagents: (() => void) | undefined
+    subagentCount: number
+    workflowReference: WorkflowReferenceBridge | undefined
+    subagentTools: SubagentListProps["entries"]
+    /** Opens the subagent's view. */
+    openSubagent: (item: ConfigItemRef) => void
+    /** Removes the subagent from the agent, after the row bin's question. */
+    removeSubagent: (item: ConfigItemRef) => void
+    /** Removes an entry that has no key, by its index in `tools`. */
+    removeSubagentAt: (index: number) => void
+    toolStatusFor: SubagentListProps["statusFor"]
+}
+
+/** The agents this agent can call, saved as `{type: "reference"}` in the same `tools` array. */
+export const subagentsSection = ({
+    t,
+    hasTools,
+    sectionIndicator,
+    disabled,
+    openAddSubagents,
+    subagentCount,
+    workflowReference,
+    subagentTools,
+    openSubagent,
+    removeSubagent,
+    removeSubagentAt,
+    toolStatusFor,
+}: SubagentsSectionParams): SectionResult =>
+    hasTools &&
+    (Boolean(openAddSubagents) || subagentCount > 0) && {
+        key: "subagents",
+        icon: <Robot size={14} />,
+        title: t("entityUi.agentTemplate.subagents"),
+        // "None" when empty, as the canvas draws the Agent tab.
+        summary: countSummary(subagentCount, "subagent") || tNow("common.none"),
+        empty: subagentCount === 0,
+        indicator: sectionIndicator("subagents"),
+        // Compact "+" for the header's `extra` slot. The header keeps a uniform height regardless of
+        // this button: ConfigAccordionSection collapses the extra slot's vertical footprint (see its
+        // `-my-2`), so no per-button sizing is needed here.
+        // Add MCP server and Add subagent are read only on a phone: the list shows, no add.
+        hideExtraOnPhone: true,
+        extra:
+            !disabled && openAddSubagents ? (
+                <SectionAddButton
+                    label={t("entityUi.agentTemplate.addSubagent")}
+                    onClick={openAddSubagents}
+                />
+            ) : undefined,
+        pageAction:
+            !disabled && openAddSubagents ? (
+                <SectionPageAction action="add" onClick={openAddSubagents} />
+            ) : undefined,
+        defaultOpen: subagentCount > 0,
+        content: (
+            <SubagentSectionBody
+                entries={subagentTools}
+                workflowReference={workflowReference}
+                disabled={disabled}
+                statusFor={toolStatusFor}
+                openSubagent={openSubagent}
+                removeSubagent={removeSubagent}
+                removeSubagentAt={removeSubagentAt}
+            />
+        ),
+    }
+
+const noop = () => undefined
+
+/** The saved subagents. A row opens its view; the row bin asks first (F06 f2). */
+const SubagentSectionBody = ({
+    entries,
+    workflowReference,
+    disabled,
+    statusFor,
+    openSubagent,
+    removeSubagent,
+    removeSubagentAt,
+}: {
+    entries: SubagentListProps["entries"]
+    workflowReference: WorkflowReferenceBridge | undefined
+    disabled?: boolean
+    statusFor: SubagentListProps["statusFor"]
+    openSubagent: (item: ConfigItemRef) => void
+    removeSubagent: (item: ConfigItemRef) => void
+    removeSubagentAt: (index: number) => void
+}) => {
+    const [removing, setRemoving] = useState<{
+        /** By slug when no other entry has it, so a write that drops a copied name keeps it. */
+        item: ConfigItemRef | null
+        index: number
+        slug: string
+        name: string
+    } | null>(null)
+    const subagentItems = entries.map(({item}) => item)
+    const listProps: SubagentListProps = {
+        entries,
+        disabled,
+        statusFor,
+        closeEditor: noop,
+        openEdit: (_kind, _index, tool) => {
+            const item = subagentItemRef(tool, subagentItems)
+            if (item) openSubagent(item)
+        },
+        removeItem: (_kind, index) => {
+            const tool = entries.find((entry) => entry.index === index)?.item
+            const slug = toolReferenceSlug(tool)
+            const ref = uniqueSlugRef(tool, subagentItems) ?? subagentItemRef(tool, subagentItems)
+            setRemoving({
+                // Two identical entries share every address: then only the index names this one.
+                item: ref && findSubagentIndex(subagentItems, ref) >= 0 ? ref : null,
+                index,
+                slug: slug ?? "",
+                name: describeSubagent(tool).name,
+            })
+        },
+    }
+    const confirmRemove = () => {
+        // An entry with no key at all (no slug, no name) can only be removed where it is.
+        if (removing) {
+            if (removing.item) removeSubagent(removing.item)
+            else removeSubagentAt(removing.index)
+        }
+        setRemoving(null)
+    }
+    return (
+        <>
+            {/* Only the connected list can resolve a reference's type and mark a non-agent. */}
+            {workflowReference?.enabled ? (
+                <ConnectedSubagentList bridge={workflowReference} {...listProps} />
+            ) : (
+                <SubagentList {...listProps} />
+            )}
+            {removing ? (
+                // The name the row shows: the agent's current name once it resolves.
+                workflowReference ? (
+                    <SubagentCurrentName
+                        bridge={workflowReference}
+                        slug={removing.slug}
+                        savedSlugs={savedSubagentSlugs(subagentItems)}
+                        fallback={removing.name}
+                    >
+                        {(name) => (
+                            <SubagentRemoveDialog
+                                name={name}
+                                onRemove={confirmRemove}
+                                onClose={() => setRemoving(null)}
+                            />
+                        )}
+                    </SubagentCurrentName>
+                ) : (
+                    <SubagentRemoveDialog
+                        name={removing.name}
+                        onRemove={confirmRemove}
+                        onClose={() => setRemoving(null)}
+                    />
+                )
+            ) : null}
+        </>
+    )
+}
+
+/** "Remove {name} from this agent?" (F06 f2): the agent it calls stays in the project. */
+export const SubagentRemoveDialog = ({
+    name,
+    onRemove,
+    onClose,
+}: {
+    name: string
+    onRemove: () => void
+    onClose: () => void
+}) => {
+    const t = useT(subagentViewsCatalog)
+    return (
+        <RemoveFromAgentDialog
+            open
+            name={name}
+            description={t("entityUi.subagentViews.agentStays")}
+            onRemove={onRemove}
+            onClose={onClose}
+        />
+    )
+}

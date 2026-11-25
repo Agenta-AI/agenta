@@ -11,6 +11,12 @@ log = get_module_logger(__name__)
 
 MAXLEN_STREAMS_SESSIONS = 100_000
 
+SESSIONS_STREAM_NAME = "streams:sessions"
+# Every turn-ended signal again, for the producer of child updates. A second consumer
+# group on `streams:sessions` would miss entries: the channels outbox deletes each entry
+# with `XDEL` once it has processed it.
+SESSION_TURN_ENDS_STREAM_NAME = "streams:session-turn-ends"
+
 
 def _get_redis():
     engine = get_streams_engine()
@@ -58,11 +64,20 @@ async def _publish_turn_event(
         event_bytes = dumps(turn_event.model_dump(mode="json"))
 
         await redis.xadd(
-            name="streams:sessions",
+            name=SESSIONS_STREAM_NAME,
             fields={"data": event_bytes},
             maxlen=MAXLEN_STREAMS_SESSIONS,
             approximate=True,
         )
+        # In the same step, so a failure holds the records batch for both streams. A
+        # retry writes both again; both consumers treat a repeat as a no-op.
+        if kind == "turn_ended":
+            await redis.xadd(
+                name=SESSION_TURN_ENDS_STREAM_NAME,
+                fields={"data": event_bytes},
+                maxlen=MAXLEN_STREAMS_SESSIONS,
+                approximate=True,
+            )
         return True
     except Exception as e:
         log.error(f"[SESSIONS] Failed to publish: {e}", exc_info=True)

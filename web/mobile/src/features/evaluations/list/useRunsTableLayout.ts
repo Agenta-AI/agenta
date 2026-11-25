@@ -9,6 +9,8 @@ import {
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {useListTableColumnVisibility, type ListTableColumn} from "@agenta/ui/list-table"
 
+import {metricDisplayLabel} from "../../evaluation-run/metricLabel"
+
 import type {EvaluationKindTab} from "./useEvaluationRunsFilters"
 import {useEvaluatorColumns} from "./useEvaluatorColumns"
 import {useRunListColumns} from "./useRunListColumns"
@@ -94,8 +96,9 @@ const wideColumns = (
         .map((reference) => REFERENCE[reference]),
     ...plan.evaluators.flatMap((group) =>
         group.columns.map((column) => {
-            // The old list puts the evaluator over its metrics; one header row says both.
-            const label = `${evaluatorNames[group.id] ?? group.id} · ${column.label}`
+            // The evaluator sits over its metrics; one header row says both.
+            const evaluatorName = evaluatorNames[group.id] ?? group.id
+            const label = `${evaluatorName} · ${metricDisplayLabel(column.label, evaluatorName)}`
             const width = metricWidth(label)
             return {
                 key: column.id,

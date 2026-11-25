@@ -22,6 +22,7 @@ import {cn} from "@/lib/utils"
 import {markdownIcons, proseClassName} from "../chat/AssistantMarkdown"
 
 import {FadingScrollBody} from "./FadingScrollBody"
+import {ReleaseCover} from "./ReleaseCover"
 import {ReleaseFeatureVideo} from "./ReleaseFeatureVideo"
 import {ReleaseItemsSection} from "./ReleaseItemsSection"
 import {whatsNewAtom} from "./whatsNewAtom"
@@ -191,6 +192,8 @@ export const WhatsNewDialog = () => {
                                         playing={playingId === feature.id}
                                         onPlay={() => setPlayingId(feature.id)}
                                     />
+                                ) : feature.cover ? (
+                                    <ReleaseCover cover={feature.cover} />
                                 ) : null}
                                 <h2 className="m-0 pr-10 text-[17px] font-semibold tracking-[-0.015em] text-foreground md:text-[20px]">
                                     {feature.title}

@@ -499,9 +499,11 @@ export class AccessClient {
     }
 
     /**
-     * Return the effective role catalog per scope (organization,
-     * workspace, project). RBAC is an OSS feature, so this is served in both
-     * editions; the frontend reads the `workspace` scope for the members UI.
+     * Return the effective role catalog per scope (organization, workspace,
+     * project), and the offered roles of the caller's organization (`offered`): the
+     * roles its invites and role changes may set, and its floor role. The catalog
+     * keeps every role, so a stored role that is not offered still has a description
+     * and permissions.
      *
      * @param {AccessClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -510,13 +512,13 @@ export class AccessClient {
      */
     public fetchAccessRoles(
         requestOptions?: AccessClient.RequestOptions,
-    ): core.HttpResponsePromise<Record<string, Record<string, unknown>[]>> {
+    ): core.HttpResponsePromise<AgentaApi.AccessRolesResponse> {
         return core.HttpResponsePromise.fromPromise(this.__fetchAccessRoles(requestOptions));
     }
 
     private async __fetchAccessRoles(
         requestOptions?: AccessClient.RequestOptions,
-    ): Promise<core.WithRawResponse<Record<string, Record<string, unknown>[]>>> {
+    ): Promise<core.WithRawResponse<AgentaApi.AccessRolesResponse>> {
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -541,10 +543,7 @@ export class AccessClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return {
-                data: _response.body as Record<string, Record<string, unknown>[]>,
-                rawResponse: _response.rawResponse,
-            };
+            return { data: _response.body as AgentaApi.AccessRolesResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {

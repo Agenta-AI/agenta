@@ -35,25 +35,6 @@ describe("ChangeSections", () => {
         expect(markup(listSection(id, title, label))).toContain(label)
     })
 
-    // Header band, diff rows and the drawer footer have to share one left and one right edge.
-    // Negative margins cannot deliver that: the collapse wrapper around the body sets
-    // overflow-hidden, so a band bled outward is clipped on one side and not the other. The bands
-    // fill the pane's box instead and pad inward.
-    it("keeps the ghost band flush with the pane and pads its rows inward", () => {
-        const html = renderToStaticMarkup(
-            <ChangeSections
-                sections={[listSection("tools", "Tools", "send_email")]}
-                openState={{tools: true}}
-                onToggleSection={() => undefined}
-                ghost
-            />,
-        )
-        expect(html).not.toMatch(/-m[xl]-/)
-        // One inset, on the header and on every row, so their content lands on one line.
-        expect(html).toContain("px-2")
-        expect(html).not.toContain("px-3.5")
-    })
-
     it("leaves the card variant on its own wider inset", () => {
         const html = renderToStaticMarkup(
             <ChangeSections

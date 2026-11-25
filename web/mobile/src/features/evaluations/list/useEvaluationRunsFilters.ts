@@ -1,10 +1,14 @@
 import {useCallback} from "react"
 
 import type {EvaluationRunKind} from "@agenta/entities/evaluationRun"
+import {workflowDetailQueryAtomFamily} from "@agenta/entities/workflow"
 import {ANALYTICS_RANGE_PRESETS, type AnalyticsRangeLabel} from "@agenta/observability"
+import {useAtomValue} from "jotai"
 
 import {useRouteAppId} from "../../developer/useRouteAppId"
 import {useUrlParams} from "../../developer/useUrlParams"
+
+import {resolveRunsScope} from "./runsScope"
 
 export type EvaluationKindTab = "all" | EvaluationRunKind
 
@@ -86,10 +90,13 @@ export const parseStatuses = (raw: string | null): string[] => {
     return RUN_STATUS_OPTIONS.map((option) => option.value).filter((value) => wanted.has(value))
 }
 
-/** The runs list's filters, kept in the URL so a link or a reload shows the same list. */
+/** The runs list's filters, kept in the URL; an evaluator id on the path scopes to that evaluator. */
 export const useEvaluationRunsFilters = () => {
     const {read, write} = useUrlParams()
-    const {appId, fromPath: appFromPath} = useRouteAppId()
+    const {appId: routeAppId, fromPath: appFromPath} = useRouteAppId()
+    const detail = useAtomValue(workflowDetailQueryAtomFamily(routeAppId))
+    const {appId, evaluatorId} = resolveRunsScope(routeAppId, detail.data)
+    const scopePending = Boolean(routeAppId) && detail.data === undefined && !detail.isError
     const search = read("q") ?? ""
     const statuses = parseStatuses(read("status"))
     const kind = parseKindTab(read("kind"), appId !== null)
@@ -149,6 +156,8 @@ export const useEvaluationRunsFilters = () => {
     return {
         kind,
         appId,
+        evaluatorId,
+        scopePending,
         appFromPath,
         search,
         statuses,

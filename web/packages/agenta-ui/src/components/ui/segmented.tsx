@@ -55,6 +55,10 @@ const segmentedTrackVariants = cva(
                 sm: "h-control-sm rounded-control-sm",
                 default: "h-control rounded-control",
                 lg: "h-control-lg rounded-control-lg",
+                // The canvas scale (decision D1, `.seg`): a 28px track, radius 8, a 2px gap and a
+                // hairline ring. Below md it keeps the default 32px track.
+                compact:
+                    "h-control-sm gap-0.5 rounded-[8px] shadow-[inset_0_0_0_1px_var(--ag-colorBorderSecondary)] max-md:h-control max-md:rounded-control",
             },
             block: {true: "flex w-full", false: ""},
         },
@@ -92,6 +96,7 @@ const segmentedItemVariants = cva(
                 sm: "px-input-sm text-field-md rounded",
                 default: "px-input text-field-md rounded-control-sm",
                 lg: "px-input-lg text-field-lg rounded-control",
+                compact: "px-2.5 text-btn-sm rounded-[6px]",
             },
             block: {true: "flex-1 basis-0", false: ""},
         },
@@ -115,6 +120,7 @@ const segmentedThumbVariants = cva(
                 sm: "rounded",
                 default: "rounded-control-sm",
                 lg: "rounded-control",
+                compact: "rounded-[6px]",
             },
         },
         defaultVariants: {size: "default"},

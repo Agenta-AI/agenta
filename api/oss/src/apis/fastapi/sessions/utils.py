@@ -1,6 +1,6 @@
 from json import dumps
 from typing import Any, Callable, Optional, TypeVar
-from urllib.parse import quote, urlencode, urlsplit
+from urllib.parse import urlencode
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -8,9 +8,11 @@ from pydantic import BaseModel, ConfigDict
 
 from oss.src.apis.fastapi.sessions.models import (
     CurrentSessionResponse,
+    SessionCallingSessionRequest,
     SessionQueryRequest,
 )
 from oss.src.core.sessions.dtos import (
+    SessionCallingSessionQuery,
     SessionQuery,
     SessionQueryLifecycle,
     SessionQueryOptions,
@@ -21,6 +23,7 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
     SESSION_RESERVED_TAG_NAMESPACE,
 )
 from oss.src.utils.env import env
+from oss.src.utils.web_links import web_base_url, web_path
 
 SessionStreamT = TypeVar("SessionStreamT", bound=SessionStream)
 
@@ -37,42 +40,21 @@ def current_session_response(
         result.url_unavailable_reason = "agent_reference_missing"
     elif workspace_id is None:
         result.url_unavailable_reason = "workspace_missing"
+    elif (base := web_base_url(web_url)) is None:
+        result.url_unavailable_reason = "web_url_unavailable"
     else:
-        try:
-            parsed = urlsplit(web_url)
-            _ = (
-                parsed.port
-            )  # Parsing alone does not validate malformed or out-of-range ports.
-            valid_url = (
-                parsed.scheme in {"http", "https"}
-                and parsed.hostname
-                and not parsed.username
-                and not parsed.password
-                and not parsed.query
-                and not parsed.fragment
-            )
-        except ValueError:
-            valid_url = False
-        if not valid_url:
-            result.url_unavailable_reason = "web_url_unavailable"
-        else:
-            # Link the `/m` session page. `?agent=` lets the mobile gate send a Classic mode
-            # user to the agent's playground (web/packages/agenta-shared/src/utils/mobileGate).
-            path = "/".join(
-                quote(str(part), safe="")
-                for part in (
-                    "m",
-                    "w",
-                    workspace_id,
-                    "p",
-                    stream.project_id,
-                    "sessions",
-                    stream.session_id,
-                )
-            )
-            result.url = (
-                f"{web_url.rstrip('/')}/{path}?{urlencode({'agent': workflow_id})}"
-            )
+        # Link the `/m` session page. `?agent=` lets the mobile gate send a Classic mode
+        # user to the agent's playground (web/packages/agenta-shared/src/utils/mobileGate).
+        path = web_path(
+            "m",
+            "w",
+            workspace_id,
+            "p",
+            stream.project_id,
+            "sessions",
+            stream.session_id,
+        )
+        result.url = f"{base}/{path}?{urlencode({'agent': workflow_id})}"
     return result
 
 
@@ -132,6 +114,17 @@ def _unique_sorted(values: Any) -> Any:
         return None
     return sorted(
         set(values), key=lambda value: value.value if hasattr(value, "value") else value
+    )
+
+
+def _calling_session_query(
+    request: Optional[SessionCallingSessionRequest],
+) -> Optional[SessionCallingSessionQuery]:
+    if request is None or (request.ids is None and request.agent_ids is None):
+        return None
+    return SessionCallingSessionQuery(
+        ids=_unique_sorted(request.ids),
+        agent_ids=_unique_sorted(request.agent_ids),
     )
 
 
@@ -246,6 +239,9 @@ def normalize_session_query_request(
             exclude_session_ids=_unique_sorted(exclude_session_ids),
             origins=final_origins,
             exclude_origins=final_exclude_origins,
+            calling_session=_calling_session_query(
+                session.calling_session if session else None
+            ),
         ),
         lifecycle=SessionQueryLifecycle(
             include_ended=body.include_ended,
