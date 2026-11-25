@@ -26,7 +26,7 @@ import {
     type SkillDraft,
 } from "@agenta/skills-ui"
 import {message} from "@agenta/ui/app-message"
-import {Alert, Button, SkeletonRows} from "@agenta/ui/ui"
+import {Alert, Button} from "@agenta/ui/ui"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
@@ -37,6 +37,7 @@ import {useConfirmModal} from "../settings/useConfirmModal"
 
 import {SkillPageActions} from "./SkillPageActions"
 import {SkillPageMeta} from "./SkillPageMeta"
+import {SkillPageSkeleton} from "./states/SkillPageSkeleton"
 import {skillPageHref, skillsListHref} from "./skillRoutes"
 import {useSkillActions} from "./useSkillActions"
 import {useSkillLeaveGuard} from "./useSkillLeaveGuard"
@@ -241,7 +242,7 @@ export const SkillPageScreen = ({
     let body: React.ReactNode
     if (!item) {
         body = query.isPending ? (
-            <SkeletonRows count={4} />
+            <SkillPageSkeleton />
         ) : (
             <p className="m-0 py-16 text-center text-label text-muted-foreground">
                 {t("skills.page.notFound")}
@@ -271,7 +272,7 @@ export const SkillPageScreen = ({
             />
         )
     } else if (!baseline) {
-        body = <SkeletonRows count={4} />
+        body = <SkillPageSkeleton />
     } else {
         body = (
             <SkillEditor
