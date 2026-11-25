@@ -59,6 +59,7 @@ import {Button, InputAffix, PasswordInput, Segmented, Spinner, Textarea} from "@
 import {WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {OwnerField} from "../accounts/OwnerField"
 import {harnessMetaFor, selectableHarnesses} from "../DrillInView/SchemaControls/harnessMeta"
 import {OwnerRadioGroup} from "../secret/OwnerRadioGroup"
 import {PASSWORD_MANAGER_OPT_OUT} from "../secret/passwordManagerOptOut"
@@ -159,9 +160,14 @@ export interface ProviderOwnerChoice {
     organization: OrganizationConnectionScope
     /** The organization's connections, for the default-name preview. */
     connections: ProviderConnection[]
+    /** The owner chosen when the card opens; absent, the project (the narrower one). */
+    defaultOwner?: ProviderOwner
 }
 
 type ProviderOwner = Exclude<OwnerKind, "user">
+
+/** A provider key is never personal: the project's or the organization's. */
+const PROVIDER_OWNERS: readonly ProviderOwner[] = ["project", "organization"]
 
 const tNow = createT(providerConnectionCatalog)
 
@@ -195,7 +201,7 @@ const ProviderConnectionCard = ({
     const t = useT(providerConnectionCatalog, providerKeyFormCatalog)
     // Only a new connection asks; a saved one keeps its owner.
     const ownerChoice = connection ? undefined : ownerChoiceProp
-    const [owner, setOwner] = useState<ProviderOwner>("project")
+    const [owner, setOwner] = useState<ProviderOwner>(ownerChoice?.defaultOwner ?? "project")
     const organization =
         ownerChoice && owner === "organization" ? ownerChoice.organization : organizationScope
     const readOnly = !!organization?.readOnly
@@ -945,29 +951,13 @@ const ProviderConnectionCard = ({
             </section>
 
             {ownerChoice ? (
-                <div className="flex shrink-0 flex-col gap-1.5">
-                    <span className="font-medium text-foreground">
-                        {t("entityUi.providerConnection.whoCanUseIt")}
-                    </span>
-                    <OwnerRadioGroup<ProviderOwner>
+                <div className="shrink-0">
+                    <OwnerField<ProviderOwner>
                         value={owner}
+                        owners={PROVIDER_OWNERS}
                         onChange={setOwner}
-                        options={[
-                            {
-                                value: "project",
-                                label: t("entityUi.providerConnection.everyoneIn", {
-                                    project: ownerChoice.projectName,
-                                }),
-                                note: t("entityUi.providerConnection.storedInProject"),
-                            },
-                            {
-                                value: "organization",
-                                label: t("entityUi.providerConnection.theOrganization", {
-                                    organization: organizationLabel(ownerChoice.organization.name),
-                                }),
-                                note: t("entityUi.providerConnection.storedOnce"),
-                            },
-                        ]}
+                        projectName={ownerChoice.projectName}
+                        organizationName={organizationLabel(ownerChoice.organization.name)}
                     />
                 </div>
             ) : null}

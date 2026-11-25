@@ -13,11 +13,17 @@ import {
 } from "@agenta/entity-ui/secretProvider"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
+import {FilterMenu} from "@agenta/ui/filter-menu"
+import {Button, PageToolbar} from "@agenta/ui/ui"
 import {useViewOpener, type ViewTarget} from "@agenta/ui/view-stack"
-import {Trash} from "@phosphor-icons/react"
+import {Plus, Trash} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
+import {SettingsPageActions, SettingsPageToolbar} from "../SettingsPageShell"
+import {ownerShown, ownersWithDefault, PAGE_OWNERS, type OwnerFilter} from "../shared/accountOwners"
+import {useOwnerFilterSection} from "../shared/ownerFilterSection"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
 import {ProvidersPanel, type ProviderRemovalState} from "./ProvidersPanel"
@@ -26,6 +32,8 @@ import {useOrganizationProvidersGroup} from "./useOrganizationProvidersGroup"
 export type {ProviderRemovalState}
 
 const PROJECT: ViewTarget = {kind: "project"}
+
+const NO_OWNERS: readonly never[] = []
 
 export const SUBSCRIPTION_DOCS_URL = "https://docs.agenta.ai/self-host/quick-start"
 
@@ -109,7 +117,7 @@ export const AIProvidersPage = ({
     organization,
     projectSwitch,
 }: AIProvidersPageProps) => {
-    const t = useT(settingsProvidersCatalog, commonCatalog)
+    const t = useT(settingsProvidersCatalog, commonCatalog, providerListCatalog)
     const scope = useMemo(
         () =>
             organization
@@ -124,6 +132,12 @@ export const AIProvidersPage = ({
     const {group: organizationGroup, manageScope} = useOrganizationProvidersGroup(scope)
     const views = useViewOpener()
     const removal = useProjectRemoval()
+    const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all")
+    const ownerSection = useOwnerFilterSection(
+        organizationGroup ? PAGE_OWNERS.providers : NO_OWNERS,
+        ownerFilter,
+        setOwnerFilter,
+    )
 
     const ownerChoiceFor = useCallback(
         (kind: string): ProviderOwnerChoice | undefined =>
@@ -132,17 +146,40 @@ export const AIProvidersPage = ({
                       projectName: organization.projectName,
                       organization: manageScope,
                       connections: organizationGroup?.source.connections ?? [],
+                      defaultOwner: ownersWithDefault(PAGE_OWNERS.providers, ownerFilter)[0],
                   }
                 : undefined,
-        [organization, manageScope, organizationGroup],
+        [organization, manageScope, organizationGroup, ownerFilter],
     )
 
     return (
         <ProviderOwnerChoiceContext.Provider value={ownerChoiceFor}>
             <div className="ph-no-capture flex flex-col">
+                <SettingsPageActions>
+                    <Button onClick={() => void views.open(providerAddView, {}, PROJECT)}>
+                        <Plus size={14} />
+                        {t("entityUi.providerList.addProviderOrSubscription")}
+                    </Button>
+                </SettingsPageActions>
+                {ownerSection ? (
+                    <SettingsPageToolbar>
+                        <PageToolbar
+                            actions={
+                                <FilterMenu
+                                    sections={[ownerSection]}
+                                    align="start"
+                                    size="default"
+                                    onReset={() => setOwnerFilter("all")}
+                                    resetDisabled={ownerFilter === "all"}
+                                />
+                            }
+                        />
+                    </SettingsPageToolbar>
+                ) : null}
+                {ownerShown(ownerFilter, "project") ? (
+                    <>
                 {projectSwitch ? <div className="px-4 pt-2">{projectSwitch}</div> : null}
                 <ProviderListBody
-                    onAdd={() => void views.open(providerAddView, {}, PROJECT)}
                     onOpenBuiltin={() => void views.open(builtinModelsView, {}, PROJECT)}
                     onOpenConnection={(connection) =>
                         void views.open(
@@ -176,7 +213,9 @@ export const AIProvidersPage = ({
                             : undefined
                     }
                 />
-                {organizationGroup ? (
+                    </>
+                ) : null}
+                {organizationGroup && ownerShown(ownerFilter, "organization") ? (
                     <ProvidersPanel
                         groups={[organizationGroup]}
                         renderRemoveDialog={renderRemoveDialog}

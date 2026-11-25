@@ -238,18 +238,18 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe("the registry table", () => {
-    it("names the four columns the spec draws", () => {
+    it("names the columns, with the server URL under the name", () => {
         show([LINEAR])
-        for (const heading of ["Name", "Server URL", "Auth", "Status"]) {
+        for (const heading of ["Name", "Auth", "Status"]) {
             expect(screen.getByRole("columnheader", {name: heading})).toBeTruthy()
         }
     })
 
     it("leads each row with the server tile and the connection name", () => {
         const {container} = show([LINEAR])
-        expect(screen.getByTestId("mcp-connection-name").textContent).toBe("Linear")
+        expect(screen.getByText("Linear")).toBeTruthy()
         const tile = container.querySelector('[data-slot="icon-tile"]')
-        expect(tile?.getAttribute("data-size")).toBe("24")
+        expect(tile?.getAttribute("data-size")).toBe("32")
     })
 
     it("shows the server URL", () => {
@@ -548,7 +548,7 @@ describe("the open connection", () => {
     it("is tracked by key, so the drawer follows the row rather than freezing on it", () => {
         const {rerender} = show([AXIOM])
         act(() => {
-            fireEvent.click(screen.getByTestId("mcp-connection-name"))
+            fireEvent.click(screen.getByText(AXIOM.name as string))
         })
         expect(screen.getByTestId("detail-secret").textContent).toBe("sec-2")
 
@@ -562,7 +562,7 @@ describe("the open connection", () => {
     it("closes when the connection leaves the list entirely", () => {
         const {rerender} = show([AXIOM])
         act(() => {
-            fireEvent.click(screen.getByTestId("mcp-connection-name"))
+            fireEvent.click(screen.getByText(AXIOM.name as string))
         })
         expect(screen.getByTestId("mcp-connection-detail")).toBeTruthy()
 
@@ -621,7 +621,7 @@ describe("read-only", () => {
     it("opens the connection read-only, so its detail offers no write either", () => {
         show([AXIOM], {readOnly: true, canListTools: false})
         act(() => {
-            fireEvent.click(screen.getByTestId("mcp-connection-name"))
+            fireEvent.click(screen.getByText(AXIOM.name as string))
         })
         const detail = screen.getByTestId("mcp-connection-detail")
         expect(detail.dataset.readonly).toBe("true")
@@ -638,7 +638,7 @@ describe("read-only", () => {
     it("opens the connection writable, with its tools, when nothing is withheld", () => {
         show([AXIOM])
         act(() => {
-            fireEvent.click(screen.getByTestId("mcp-connection-name"))
+            fireEvent.click(screen.getByText(AXIOM.name as string))
         })
         const detail = screen.getByTestId("mcp-connection-detail")
         expect(detail.dataset.readonly).toBe("false")

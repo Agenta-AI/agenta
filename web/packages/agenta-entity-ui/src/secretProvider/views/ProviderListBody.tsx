@@ -29,7 +29,8 @@ import {useAtomValue} from "jotai"
 import {providerIconFor} from "../providerIcon"
 
 export interface ProviderListBodyProps {
-    onAdd: () => void
+    /** The Add row under the list; absent when the host puts Add in its own header. */
+    onAdd?: () => void
     /** "Edit" on an API key connection. */
     onOpenConnection: (connection: ProviderConnection) => void
     /** "Edit" or "Sign in again" on a subscription. */
@@ -209,7 +210,7 @@ export const ProviderListBody = ({
                     </div>
                 )}
             </div>
-            {phone ? (
+            {!onAdd ? null : phone ? (
                 <PhonePrimaryAction icon={<Plus size={14} />} onClick={onAdd}>
                     {t("entityUi.providerList.addProviderOrSubscription")}
                 </PhonePrimaryAction>
