@@ -234,18 +234,6 @@ class InstancesDAO:
             get_transactions_engine().transaction, text(_WORKFLOW_KINDS_SQL), {}
         )
 
-    async def count_window_evaluation_runs(
-        self, *, window_start: datetime, window_end: datetime
-    ) -> Optional[int]:
-        return await _count_or_none(
-            get_transactions_engine().transaction,
-            text(
-                "SELECT count(*) FROM evaluation_runs"
-                " WHERE created_at >= :start AND created_at < :end"
-            ),
-            {"start": window_start, "end": window_end},
-        )
-
     async def count_window_session_turns(
         self, *, window_start: datetime, window_end: datetime
     ) -> Optional[int]:

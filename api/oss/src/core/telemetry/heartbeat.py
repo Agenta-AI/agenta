@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 from oss.src.core.instances.service import instances_dao
 from oss.src.core.telemetry import service as telemetry
 from oss.src.core.telemetry.runtime import RuntimeFacts, collect_runtime_facts
-from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -150,41 +149,25 @@ def user_domains_from(rows: List[Tuple[str, int]]) -> List[UserDomain]:
     return domains
 
 
-def _license_detail_from(plan: str, license_key: Any, now: datetime) -> LicenseDetail:
+def _license_detail_from(license_key: Any, now: datetime) -> LicenseDetail:
     """The plan and what the key says about it. Never the key itself."""
 
     if license_key is None:
         return LicenseDetail(
-            plan=plan,
+            plan=COMMUNITY_PLAN,
             license_key_id=None,
             license_expires_at=None,
             license_days_left=None,
             license_seats=None,
         )
-    expires_at = getattr(license_key, "expires_at", None)
+    expires_at = license_key.expires_at
     return LicenseDetail(
-        plan=plan,
+        plan=license_key.plan,
         license_key_id=str(license_key.key_id),
         license_expires_at=_iso(expires_at) if expires_at else None,
         license_days_left=(expires_at - now).days if expires_at else None,
-        license_seats=getattr(license_key, "seats", None),
+        license_seats=license_key.seats,
     )
-
-
-async def _license_detail(now: datetime) -> LicenseDetail:
-    if not is_ee():
-        return _license_detail_from(COMMUNITY_PLAN, None, now)
-
-    try:
-        from ee.src.core.licenses.service import (  # noqa: PLC0415
-            active_license,
-            instance_plan,
-        )
-    except ImportError:
-        # An EE image without the license module has no key: the plan with no key.
-        return _license_detail_from(COMMUNITY_PLAN, None, now)
-
-    return _license_detail_from(await instance_plan(), await active_license(), now)
 
 
 async def _config_flags() -> ConfigFlags:
@@ -225,12 +208,17 @@ async def collect_heartbeat(
     window_traces, window_annotations = await instances_dao.count_window_traces(
         project_ids=project_ids, **window
     ) or (None, None)
+    runs_by_status = await instances_dao.count_window_evaluation_runs_by_status(
+        **window
+    )
     domain_rows = await instances_dao.top_email_domains(limit=MAX_USER_DOMAINS)
 
     return InstanceHeartbeat(
         instance_id=instance_id,
         **(await collect_runtime_facts()).model_dump(),
-        **(await _license_detail(window_end)).model_dump(),
+        **_license_detail_from(
+            await telemetry.active_license(), window_end
+        ).model_dump(),
         **(await _config_flags()).model_dump(),
         total_organizations=total_organizations,
         total_projects=total_projects,
@@ -249,12 +237,10 @@ async def collect_heartbeat(
         ),
         window_traces=window_traces,
         window_annotations=window_annotations,
-        window_evaluation_runs=await instances_dao.count_window_evaluation_runs(
-            **window
+        window_evaluation_runs=(
+            sum(runs_by_status.values()) if runs_by_status is not None else None
         ),
-        window_evaluation_runs_by_status=(
-            await instances_dao.count_window_evaluation_runs_by_status(**window)
-        ),
+        window_evaluation_runs_by_status=runs_by_status,
         window_evaluation_scenarios=(
             await instances_dao.count_window_evaluation_scenarios(**window)
         ),

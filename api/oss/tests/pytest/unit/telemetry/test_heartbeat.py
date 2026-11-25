@@ -154,9 +154,6 @@ class _InstancesDAO:
     async def count_workflow_kinds(self):
         return 1, 2, 1, 1
 
-    async def count_window_evaluation_runs(self, *, window_start, window_end):
-        return 6
-
     async def count_window_session_turns(self, *, window_start, window_end):
         return 7
 
@@ -480,11 +477,11 @@ async def test_ee_reads_plan_and_license_key_id(monkeypatch, dao, posthog):
                 return_value=SimpleNamespace(
                     key_id=LICENSE_KEY_ID,
                     customer="Analytical Engines Ltd",
+                    plan="self_hosted_enterprise",
                     seats=25,
                     expires_at=datetime(2026, 12, 9, 20, 0, tzinfo=timezone.utc),
                 )
             ),
-            instance_plan=AsyncMock(return_value="self_hosted_enterprise"),
         ),
     )
 
@@ -673,6 +670,7 @@ async def test_grouped_counts_past_their_timeout_are_sent_as_null(
 
     properties = posthog.captures[0]["properties"]
     for name in (
+        "window_evaluation_runs",
         "window_evaluation_runs_by_status",
         "window_agent_turns_by_outcome",
         "users_by_role",
@@ -721,8 +719,12 @@ async def test_config_flags_are_booleans_from_the_settings(monkeypatch, dao):
 
 def test_a_key_without_an_expiry_has_no_days_left():
     detail = heartbeat._license_detail_from(
-        "self_hosted_business",
-        SimpleNamespace(key_id=LICENSE_KEY_ID, seats=None, expires_at=None),
+        SimpleNamespace(
+            key_id=LICENSE_KEY_ID,
+            plan="self_hosted_business",
+            seats=None,
+            expires_at=None,
+        ),
         datetime(2026, 11, 9, tzinfo=timezone.utc),
     )
 

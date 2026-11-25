@@ -42,20 +42,27 @@ _LIBRARY_PROPERTIES = (
 )
 
 
+async def active_license() -> Optional[Any]:
+    """The EE license key in force, or None on OSS and on an EE image without the
+    license module. Cached by the license service, so it reads no database row."""
+
+    if not is_ee():
+        return None
+
+    try:
+        from ee.src.core.licenses.service import (  # noqa: PLC0415
+            active_license as read_active_license,
+        )
+    except ImportError:
+        return None
+
+    return await read_active_license()
+
+
 async def _license_requires_telemetry() -> bool:
     """True when a paid license key is in force and its contract does not exempt the
     instance. The registration key is free and does not count."""
 
-    if not is_ee():
-        return False
-
-    try:
-        from ee.src.core.licenses.service import active_license  # noqa: PLC0415
-    except ImportError:
-        # An EE image without the license module has no key.
-        return False
-
-    # Cached by the license service, so a request reads no database row here.
     license_key = await active_license()
     return (
         license_key is not None
