@@ -16,9 +16,11 @@
   "main": "./worker/index.ts",
   // Plain variables for POST /api/license-registrations (see web/website/AGENTS.md).
   // LOOPS_TRANSACTIONAL_ID is the Loops email that carries the key; empty, the route
-  // answers 503.
+  // answers 503. LOOPS_PRODUCT_UPDATES_LIST_ID is the Loops mailing list for product
+  // updates that each registered contact joins; empty, the contact joins no list.
   "vars": {
     "LOOPS_TRANSACTIONAL_ID": "",
+    "LOOPS_PRODUCT_UPDATES_LIST_ID": "",
   },
   // Limits for POST /api/license-registrations (see web/website/AGENTS.md). Preview and
   // production use different namespace ids so they do not share counters.

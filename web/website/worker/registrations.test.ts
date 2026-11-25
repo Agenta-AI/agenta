@@ -4,6 +4,7 @@ import {
   REGISTRATION_PATH,
   handleRegistration,
   parseRegistration,
+  type ContactRecorder,
   type MailSender,
   type RateLimiter,
   type RegistrationEmail,
@@ -335,7 +336,7 @@ describe("Loops email", () => {
     );
 
     expect(response.status).toBe(202);
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(2);
     expect(calls[0].url).toBe("https://app.loops.so/api/v1/transactional");
     expect(
       (calls[0].init.headers as Record<string, string>).Authorization,
@@ -346,6 +347,138 @@ describe("Loops email", () => {
       email: "ada@example.com",
     });
     expect(body.dataVariables.licenseKey).toMatch(/^agenta_license_v1\./);
+  });
+});
+
+describe("Loops contact", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function stubLoops(contactStatus = 200) {
+    const calls: { url: string; init: RequestInit }[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      const status = url.endsWith("/contacts/update") ? contactStatus : 200;
+      return new Response("{}", { status });
+    });
+    return calls;
+  }
+
+  const LOOPS_ENV = {
+    LOOPS_API_KEY: "loops_unit",
+    LOOPS_TRANSACTIONAL_ID: "tmpl_unit",
+  };
+
+  it("marks the contact as a self-hosted registration after the key email", async () => {
+    const calls = stubLoops();
+
+    const response = await handleRegistration(
+      post(VALID),
+      withLimits({
+        LICENSE_SIGNING_KEY: privatePem,
+        ...LOOPS_ENV,
+        LOOPS_PRODUCT_UPDATES_LIST_ID: "list_unit",
+      }),
+    );
+
+    expect(response.status).toBe(202);
+    expect(calls.map((call) => call.url)).toEqual([
+      "https://app.loops.so/api/v1/transactional",
+      "https://app.loops.so/api/v1/contacts/update",
+    ]);
+    const contact = calls[1];
+    expect(contact.init.method).toBe("PUT");
+    expect((contact.init.headers as Record<string, string>).Authorization).toBe(
+      "Bearer loops_unit",
+    );
+    const body = JSON.parse(contact.init.body as string);
+    expect(body).toEqual({
+      email: "ada@example.com",
+      source: "self-hosted registration",
+      userGroup: "self-hosted",
+      agentaVersion: "v0.128.11",
+      agentaRegisteredAt: expect.stringMatching(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/,
+      ),
+      agentaPlan: "self_hosted_registered",
+      mailingLists: { list_unit: true },
+    });
+  });
+
+  it("adds no mailing list when the list id is empty", async () => {
+    const calls = stubLoops();
+
+    await handleRegistration(
+      post(VALID),
+      withLimits({
+        LICENSE_SIGNING_KEY: privatePem,
+        ...LOOPS_ENV,
+        LOOPS_PRODUCT_UPDATES_LIST_ID: "",
+      }),
+    );
+
+    const body = JSON.parse(calls[1].init.body as string);
+    expect(body).not.toHaveProperty("mailingLists");
+    expect(body.userGroup).toBe("self-hosted");
+  });
+
+  it("still answers 202 when the contact update fails", async () => {
+    stubLoops(500);
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await handleRegistration(
+      post(VALID),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem, ...LOOPS_ENV }),
+    );
+
+    expect(response.status).toBe(202);
+    expect(logged).toHaveBeenCalledOnce();
+  });
+
+  it("still answers 202 when a contact recorder throws", async () => {
+    const { sender, sent } = fakeSender();
+    const recorder: ContactRecorder = {
+      async record() {
+        throw new Error("down");
+      },
+    };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await handleRegistration(
+      post(VALID),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem }),
+      sender,
+      recorder,
+    );
+
+    expect(response.status).toBe(202);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("does not update the contact when the key email fails", async () => {
+    const recorded: string[] = [];
+    const recorder: ContactRecorder = {
+      async record(registration) {
+        recorded.push(registration.email);
+      },
+    };
+    const sender: MailSender = {
+      async send() {
+        throw new Error("down");
+      },
+    };
+
+    const response = await handleRegistration(
+      post(VALID),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem }),
+      sender,
+      recorder,
+    );
+
+    expect(response.status).toBe(502);
+    expect(recorded).toEqual([]);
   });
 });
 

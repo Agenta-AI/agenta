@@ -1,13 +1,15 @@
 // POST /api/license-registrations: a self-hosted instance asks for a free
 // registration key. The worker signs a `self_hosted_registered` license key for
-// the email and sends it with the activation link. It stores nothing; the mail
-// provider keeps the email it sends.
+// the email and sends it with the activation link. It stores nothing itself; Loops
+// keeps the contact, marked as a self-hosted registration.
 //
 // Worker secrets (set with `wrangler secret put`, never committed):
 //   LICENSE_SIGNING_KEY  Ed25519 private key of the registration key pair, PKCS#8 PEM
 //   LOOPS_API_KEY        Loops API key for the transactional email
 // Worker variable (`vars` in both wrangler configs, not secret):
 //   LOOPS_TRANSACTIONAL_ID  id of the Loops transactional email that carries the key
+//   LOOPS_PRODUCT_UPDATES_LIST_ID  id of the Loops mailing list for product updates;
+//                                  empty, the contact joins no list
 
 export const REGISTRATION_PATH = "/api/license-registrations";
 
@@ -21,6 +23,7 @@ const REGISTERED_PLAN = "self_hosted_registered";
 export const REGISTRATION_SIGNING_KEY_ID = "registration-1";
 
 const LOOPS_URL = "https://app.loops.so/api/v1/transactional";
+const LOOPS_CONTACT_URL = "https://app.loops.so/api/v1/contacts/update";
 
 /** A Workers rate limit binding. */
 export interface RateLimiter {
@@ -33,6 +36,7 @@ export interface RegistrationEnv {
   // The Loops transactional email, made with the data variables `licenseKey` and
   // `activationUrl`.
   LOOPS_TRANSACTIONAL_ID?: string;
+  LOOPS_PRODUCT_UPDATES_LIST_ID?: string;
   REGISTRATION_IP_LIMIT?: RateLimiter;
   REGISTRATION_EMAIL_LIMIT?: RateLimiter;
 }
@@ -48,6 +52,11 @@ export interface RegistrationEmail {
 
 export interface MailSender {
   send(email: RegistrationEmail): Promise<void>;
+}
+
+/** Marks the registered email in the contact list. */
+export interface ContactRecorder {
+  record(registration: Registration, registeredAt: Date): Promise<void>;
 }
 
 export interface Registration {
@@ -183,6 +192,40 @@ export function loopsMailSender(
   };
 }
 
+// The contact properties must exist in Loops before the first call (Audience page or
+// API settings): agentaVersion and agentaPlan as strings,
+// agentaRegisteredAt as a date.
+export function loopsContactRecorder(
+  apiKey: string,
+  productUpdatesListId: string | undefined,
+): ContactRecorder {
+  return {
+    async record(registration, registeredAt) {
+      const response = await fetch(LOOPS_CONTACT_URL, {
+        // Loops creates the contact when the email is not in the audience yet.
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: registration.email,
+          source: "self-hosted registration",
+          userGroup: "self-hosted",
+          agentaVersion: registration.agenta_version,
+          // Loops reads `YYYY-MM-DDTHH:mm:ss` without an offset as UTC.
+          agentaRegisteredAt: registeredAt.toISOString().slice(0, 19),
+          agentaPlan: REGISTERED_PLAN,
+          ...(productUpdatesListId
+            ? { mailingLists: { [productUpdatesListId]: true } }
+            : {}),
+        }),
+      });
+      if (!response.ok) throw new Error(`Loops answered ${response.status}`);
+    },
+  };
+}
+
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -235,10 +278,11 @@ export async function handleRegistration(
   request: Request,
   env: RegistrationEnv,
   mailSender?: MailSender,
+  contactRecorder?: ContactRecorder,
 ): Promise<Response> {
   // A limiter or body read that throws must still answer the JSON error, not a platform page.
   try {
-    return await register(request, env, mailSender);
+    return await register(request, env, mailSender, contactRecorder);
   } catch {
     return error(503, "unavailable", "Registration is not available.");
   }
@@ -248,6 +292,7 @@ async function register(
   request: Request,
   env: RegistrationEnv,
   mailSender?: MailSender,
+  contactRecorder?: ContactRecorder,
 ): Promise<Response> {
   if (request.method !== "POST") {
     return new Response(null, { status: 405, headers: { Allow: "POST" } });
@@ -307,6 +352,23 @@ async function register(
     });
   } catch {
     return error(502, "mail_failed", "The email could not be sent.");
+  }
+
+  // The key already went out, so a failed contact update must not fail the registration.
+  const recorder =
+    contactRecorder ??
+    (env.LOOPS_API_KEY
+      ? loopsContactRecorder(
+          env.LOOPS_API_KEY,
+          env.LOOPS_PRODUCT_UPDATES_LIST_ID,
+        )
+      : null);
+  if (recorder) {
+    try {
+      await recorder.record(registration, new Date());
+    } catch (cause) {
+      console.error("Loops contact update failed", cause);
+    }
   }
 
   return json(202, {});
