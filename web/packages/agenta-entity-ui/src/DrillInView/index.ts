@@ -461,6 +461,9 @@ export {
     downloadSkill,
 } from "./SchemaControls/skillDownload"
 export {firstBadFile, skillFilesOf} from "./SchemaControls/skillFiles"
+export {slugifySkillName} from "./SchemaControls/skillName"
+export {MarkdownEditor} from "./SchemaControls/MarkdownEditor"
+export type {MarkdownEditorProps} from "./SchemaControls/MarkdownEditor"
 export {
     SKILL_ACTION_ROW,
     SkillViewHeader,

@@ -34,7 +34,7 @@ import {
     skillContentSchema,
     unarchiveSkill,
 } from "@agenta/skills"
-import {invalidateSkillsListCache, skillsResolveQueryAtom} from "@agenta/skills/state"
+import {invalidateSkillsListCache} from "@agenta/skills/state"
 import type {RegistrySkillParams} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {
@@ -63,9 +63,9 @@ import {useAtomValue} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
-import {toSkillListItem, toSourceInfo} from "./registrySections"
 import {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
 import {skillTitle} from "./skillTitle"
+import {useRegistrySkill} from "./useRegistrySkill"
 import type {SkillListItem, SkillUsageRef} from "./types"
 
 /** The head-revision query's key; the registry row's Download reads the same cache. */
@@ -94,22 +94,6 @@ const toFormValue = (skill?: Record<string, unknown>): Record<string, unknown> =
         ? {allow_executable_files: skill.allow_executable_files}
         : {}),
 })
-
-/** The registry entry with this workflow slug: project skills (archived too), then built-ins. */
-const useRegistrySkill = (slug: string) => {
-    const query = useAtomValue(skillsResolveQueryAtom)
-    const item = useMemo<SkillListItem | null>(() => {
-        const matches = (entry: {workflow_slug?: string | null}) => entry.workflow_slug === slug
-        const project = query.data?.skills?.find(matches)
-        if (project) {
-            const mapped = toSkillListItem(project, project.origin ? "imported" : "project")
-            return project.origin ? {...mapped, source: toSourceInfo(project.origin)} : mapped
-        }
-        const builtin = query.data?.builtin?.find(matches)
-        return builtin ? toSkillListItem(builtin, "builtin") : null
-    }, [query.data, slug])
-    return {item, query}
-}
 
 /** Open on hover, close a beat after the pointer leaves, so crossing a gap does not shut it. */
 const useHoverOpen = () => {
