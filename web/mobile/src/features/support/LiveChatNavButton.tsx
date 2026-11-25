@@ -57,7 +57,7 @@ export const LiveChatNavButton = () => {
                     >
                         <ChatCircleIcon size={16} />
                         {unread ? (
-                            <span className="bg-error ring-background absolute top-1 right-1 size-1.5 rounded-sm ring-2" />
+                            <span className="bg-error ring-background absolute top-1 right-1 size-1.5 rounded-round ring-2" />
                         ) : null}
                     </button>
                 </TooltipTrigger>

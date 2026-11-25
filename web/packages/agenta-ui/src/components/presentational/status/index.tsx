@@ -75,7 +75,7 @@ export function StatusIndicator({tone = "default", label, className}: StatusIndi
         <span
             className={cn("inline-flex items-center gap-1.5", STATUS_TONE_CLASS[tone], className)}
         >
-            <span className="h-1.5 w-1.5 shrink-0 rounded-sm bg-current" />
+            <span className="h-1.5 w-1.5 shrink-0 rounded-round bg-current" />
             <span className="truncate">{label}</span>
         </span>
     )

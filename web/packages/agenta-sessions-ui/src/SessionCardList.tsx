@@ -198,7 +198,7 @@ const Row = ({
                 <span className="relative mt-0.5 flex shrink-0 text-muted-foreground">
                     {origin ? <ClockIcon size={18} /> : <ChatCircleIcon size={18} />}
                     <span
-                        className={`absolute -right-0.5 -top-0.5 h-2 w-2 rounded-sm border border-solid border-background ${vm.status.dotClassName} ${
+                        className={`absolute -right-0.5 -top-0.5 h-2 w-2 rounded-round border border-solid border-background ${vm.status.dotClassName} ${
                             vm.status.pulse ? "motion-safe:animate-pulse" : ""
                         }`}
                     />

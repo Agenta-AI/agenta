@@ -399,7 +399,7 @@ const ReplayScreen = ({
                                     icon={
                                         <span
                                             aria-hidden
-                                            className="size-1.5 rounded-xs bg-current"
+                                            className="size-1.5 rounded-round bg-current"
                                         />
                                     }
                                 >

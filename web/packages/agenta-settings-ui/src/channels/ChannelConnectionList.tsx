@@ -63,7 +63,7 @@ export const ChannelConnectionList = ({
                                 </span>
                             </span>
                             <span
-                                className={`size-1.5 flex-none rounded-xs ${
+                                className={`size-1.5 flex-none rounded-round ${
                                     connection.status === "revoked"
                                         ? "bg-destructive"
                                         : "bg-success"

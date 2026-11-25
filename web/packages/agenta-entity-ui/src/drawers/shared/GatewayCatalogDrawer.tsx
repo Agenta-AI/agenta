@@ -321,7 +321,7 @@ function IntegrationsView<I, T, C>({
                                             </div>
                                         </div>
                                         {adapter.isConnectionActive(conn) && (
-                                            <span className="h-1.5 w-1.5 shrink-0 rounded-sm bg-success" />
+                                            <span className="h-1.5 w-1.5 shrink-0 rounded-round bg-success" />
                                         )}
                                     </button>
                                     {isOpen && (
@@ -482,7 +482,7 @@ function ItemsView<I, T, C>({
                                   {adapter.connection.name(conn) || adapter.connection.slug(conn)}
                               </span>
                               {adapter.isConnectionActive(conn) && (
-                                  <span className="h-1.5 w-1.5 shrink-0 rounded-sm bg-success" />
+                                  <span className="h-1.5 w-1.5 shrink-0 rounded-round bg-success" />
                               )}
                           </div>
                       ),

@@ -317,7 +317,9 @@ function ConnectionDetail<I, T, C>({
                     ready ? "text-success" : "text-warning"
                 }`}
             >
-                <span className={`h-1.5 w-1.5 rounded-sm ${ready ? "bg-success" : "bg-warning"}`} />
+                <span
+                    className={`h-1.5 w-1.5 rounded-round ${ready ? "bg-success" : "bg-warning"}`}
+                />
                 {ready
                     ? t("entityUi.catalogAppCard.connected")
                     : t("entityUi.catalogChooser.pending")}
@@ -392,7 +394,7 @@ function ConnectionSwitcher<I, T, C>({
                             }`}
                         >
                             <span
-                                className={`h-1.5 w-1.5 shrink-0 rounded-sm ${
+                                className={`h-1.5 w-1.5 shrink-0 rounded-round ${
                                     ready ? "bg-success" : "bg-warning"
                                 }`}
                             />
@@ -468,7 +470,7 @@ function AppRailItem({
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <span
-                                className={`h-1.5 w-1.5 shrink-0 rounded-sm ${
+                                className={`h-1.5 w-1.5 shrink-0 rounded-round ${
                                     state === "active" ? "bg-success" : "bg-warning"
                                 }`}
                             />

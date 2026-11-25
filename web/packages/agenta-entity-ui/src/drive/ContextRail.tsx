@@ -172,7 +172,7 @@ export function ContextRail({
                         <Tooltip title={t("entityUi.driveRail.agentRunning")} side="left">
                             <span className="relative flex h-2 w-2">
                                 <span className="absolute inline-flex h-full w-full rounded-md bg-info opacity-60 motion-safe:animate-ping" />
-                                <span className="relative inline-flex h-2 w-2 rounded-sm bg-info" />
+                                <span className="relative inline-flex h-2 w-2 rounded-round bg-info" />
                             </span>
                         </Tooltip>
                     ) : null}

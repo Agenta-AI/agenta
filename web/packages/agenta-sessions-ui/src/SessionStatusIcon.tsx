@@ -25,7 +25,7 @@ export const SessionStatusIcon = ({
             {automation ? <ClockIcon size={18} /> : <ChatCircleIcon size={18} />}
             <span
                 className={clsx(
-                    "absolute -right-0.5 -top-0.5 h-2 w-2 rounded-sm border border-solid border-background",
+                    "absolute -right-0.5 -top-0.5 h-2 w-2 rounded-round border border-solid border-background",
                     status.dotClassName,
                     status.pulse && "motion-safe:animate-pulse",
                 )}

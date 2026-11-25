@@ -299,7 +299,7 @@ const RailTab = ({
                             // No pulse: at 6px the fade to half read as a washed-out colour,
                             // not as motion. The hue alone says running / waiting.
                             className={clsx(
-                                "h-1.5 w-1.5 shrink-0 rounded-sm",
+                                "h-1.5 w-1.5 shrink-0 rounded-round",
                                 vm.status.dotClassName,
                             )}
                         />
@@ -376,7 +376,7 @@ const UnlistedTab = ({
                             <span
                                 aria-label={IDLE_STATUS.label}
                                 className={clsx(
-                                    "h-1.5 w-1.5 shrink-0 rounded-sm",
+                                    "h-1.5 w-1.5 shrink-0 rounded-round",
                                     IDLE_STATUS.dotClassName,
                                 )}
                             />

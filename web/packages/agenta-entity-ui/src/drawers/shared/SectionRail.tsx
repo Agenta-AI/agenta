@@ -114,7 +114,7 @@ export function SectionRail({
                             </span>
                             {item.status ? (
                                 <span
-                                    className={`h-1.5 w-1.5 shrink-0 rounded-sm ${
+                                    className={`h-1.5 w-1.5 shrink-0 rounded-round ${
                                         item.status === "invalid" ? "bg-destructive" : "bg-warning"
                                     }`}
                                 />

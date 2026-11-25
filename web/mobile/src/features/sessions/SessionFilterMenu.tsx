@@ -34,7 +34,7 @@ const ALL_AGENTS = "all"
 
 /** The status filters get the dot a row paints, so the filter and the row read alike. */
 const StatusDot = ({className}: {className: string}) => (
-    <span aria-hidden className={`size-1.5 rounded-xs ${className}`} />
+    <span aria-hidden className={`size-1.5 rounded-round ${className}`} />
 )
 
 /**

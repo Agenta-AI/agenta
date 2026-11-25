@@ -147,7 +147,9 @@ export const WalletCard = ({
                     </span>
                     {statusNode === null ? null : (
                         <span className="inline-flex items-center gap-1.5 text-meta font-medium">
-                            <span className={cn("size-1.5 rounded-xs", STATUS_DOT[statusTone])} />
+                            <span
+                                className={cn("size-1.5 rounded-round", STATUS_DOT[statusTone])}
+                            />
                             {statusNode}
                         </span>
                     )}

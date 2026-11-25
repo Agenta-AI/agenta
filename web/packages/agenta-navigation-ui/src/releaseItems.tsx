@@ -33,7 +33,7 @@ const ReleaseGlyph = ({first, last}: {first?: boolean; last?: boolean}): ReactNo
                 <PackageIcon size={16} className="text-muted-foreground" />
             ) : (
                 // A timeline node, not a filled icon (ICON-01; radius-xs is for timeline nodes).
-                <span className="size-2 rounded-xs bg-muted-foreground" />
+                <span className="size-2 rounded-round bg-muted-foreground" />
             )}
         </span>
     </span>

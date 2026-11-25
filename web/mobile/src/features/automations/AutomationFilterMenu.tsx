@@ -29,7 +29,7 @@ const ICON = 14
 
 /** The two status filters get the dot the Status column paints, so filter and column read alike. */
 const StatusDot = ({className}: {className: string}) => (
-    <span aria-hidden className={`size-1.5 rounded-xs ${className}`} />
+    <span aria-hidden className={`size-1.5 rounded-round ${className}`} />
 )
 
 /**

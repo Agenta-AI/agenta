@@ -70,7 +70,7 @@ function LeadingGlyph({type}: {type: string}) {
         return <span className={` text-code-sm ${TYPE_TINT}`}>[ ]</span>
     }
     // Scalar: a small hollow dot.
-    return <span className="h-1.5 w-1.5 rounded-sm border border-solid border-border-strong" />
+    return <span className="h-1.5 w-1.5 rounded-round border border-solid border-border-strong" />
 }
 
 function AddPropertyRow({
@@ -163,7 +163,7 @@ function TreeRow({
                 </span>
                 {required ? (
                     <span
-                        className="h-1.5 w-1.5 shrink-0 rounded-sm bg-destructive"
+                        className="h-1.5 w-1.5 shrink-0 rounded-round bg-destructive"
                         title={t("entityUi.parameterEditor.required")}
                     />
                 ) : null}

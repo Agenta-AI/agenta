@@ -793,7 +793,7 @@ export const ChannelManagePanel = ({
                 <span className="relative box-border flex size-10 flex-none items-center justify-center rounded-lg border border-solid border-border">
                     {platformLogo(connection.platform, 24)}
                     <span
-                        className={`absolute -right-0.5 -top-0.5 size-2 rounded-xs border-[1.5px] border-solid border-background ${
+                        className={`absolute -right-0.5 -top-0.5 size-2 rounded-round border-[1.5px] border-solid border-background ${
                             revoked ? "bg-destructive" : off ? "bg-border-strong" : "bg-success"
                         }`}
                     />

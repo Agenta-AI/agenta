@@ -767,7 +767,7 @@ const CardIndicator = ({checked, multiple}: {checked: boolean; multiple?: boolea
             (multiple ? (
                 <Check size={9} weight="bold" className="text-background" />
             ) : (
-                <span className="h-1.5 w-1.5 rounded-sm bg-background" />
+                <span className="h-1.5 w-1.5 rounded-round bg-background" />
             ))}
     </span>
 )

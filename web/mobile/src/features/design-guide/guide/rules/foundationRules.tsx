@@ -339,7 +339,7 @@ export const shapeRules: RuleExample[] = [
                     >
                         Draft
                     </span>
-                    <span aria-hidden className="ml-2 size-1.5 rounded-xs bg-success" />
+                    <span aria-hidden className="ml-2 size-1.5 rounded-round bg-success" />
                 </div>
             ),
             caption: "A circle Mark, a pill button and a pill badge, next to a square status dot.",

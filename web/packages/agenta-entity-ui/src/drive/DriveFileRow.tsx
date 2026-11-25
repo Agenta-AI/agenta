@@ -101,7 +101,7 @@ export const DriveWarningBadge = ({
             <span
                 role="img"
                 aria-label={t("entityUi.driveExplorer.someFilesFailed")}
-                className={`absolute ${pos} h-2 w-2 rounded-sm bg-warning ring-1 ring-background`}
+                className={`absolute ${pos} h-2 w-2 rounded-round bg-warning ring-1 ring-background`}
             />
         </span>
     )

@@ -21,7 +21,7 @@ export const AutomationStatusMark = ({status}: {status: AutomationStatus}) => {
     const color = STATUS_COLOR[status]
     return (
         <span className="flex min-w-0 items-center gap-1.5">
-            <span aria-hidden className={`size-1.5 shrink-0 rounded-xs ${color.dot}`} />
+            <span aria-hidden className={`size-1.5 shrink-0 rounded-round ${color.dot}`} />
             <span className={`text-label ${color.text}`}>{automationStatusLabel(status)}</span>
         </span>
     )

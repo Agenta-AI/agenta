@@ -27,7 +27,7 @@ const StatusDot = ({status}: {status: SessionRowStatusMeta}) => {
             aria-label={status.label}
             title={status.label}
             className={cn(
-                "box-border size-2 shrink-0 rounded-xs border border-solid",
+                "box-border size-2 shrink-0 rounded-round border border-solid",
                 live ? `${status.dotClassName} border-transparent` : "border-border",
             )}
         />

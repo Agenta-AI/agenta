@@ -179,7 +179,7 @@ export const ChannelsHubView = ({
                                         {platformLogo(platform, 16)}
                                         {dotClass && !unavailable ? (
                                             <span
-                                                className={`absolute -right-[3px] -top-[3px] size-2.5 rounded-xs border-2 border-solid border-background ${dotClass}`}
+                                                className={`absolute -right-[3px] -top-[3px] size-2.5 rounded-round border-2 border-solid border-background ${dotClass}`}
                                             />
                                         ) : null}
                                     </span>
@@ -267,7 +267,7 @@ export const ChannelsHubView = ({
                                                     {detail}
                                                 </span>
                                                 <span
-                                                    className={`size-1.5 flex-none rounded-xs ${
+                                                    className={`size-1.5 flex-none rounded-round ${
                                                         connection.status === "revoked"
                                                             ? "bg-destructive"
                                                             : connection.agentOff
@@ -298,7 +298,7 @@ export const ChannelsHubView = ({
                         <span className="relative flex size-8 flex-none items-center justify-center rounded-md bg-secondary text-muted-foreground">
                             <Code size={16} />
                             {apiLive ? (
-                                <span className="absolute -right-[3px] -top-[3px] size-2.5 rounded-xs border-2 border-solid border-background bg-success" />
+                                <span className="absolute -right-[3px] -top-[3px] size-2.5 rounded-round border-2 border-solid border-background bg-success" />
                             ) : null}
                         </span>
                         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
