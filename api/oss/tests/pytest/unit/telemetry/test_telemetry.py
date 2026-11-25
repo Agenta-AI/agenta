@@ -185,7 +185,11 @@ async def test_switch_off_sends_only_the_install_ping(
         {
             "event": "instance_installed",
             "distinct_id": str(INSTANCE_ID),
-            "properties": {"$geoip_disable": True, "$ip": ""},
+            "properties": {
+                "$geoip_disable": True,
+                "$ip": "",
+                "instance_kind": "test",
+            },
             "uuid": uuid5(INSTANCE_ID, "instance_installed"),
         }
     ]
@@ -234,7 +238,11 @@ async def test_install_ping_on_the_wire_has_only_its_properties(
     assert message["event"] == "instance_installed"
     assert message["distinct_id"] == str(INSTANCE_ID)
     assert message["uuid"] == str(uuid5(INSTANCE_ID, "instance_installed"))
-    assert message["properties"] == {"$geoip_disable": True, "$ip": ""}
+    assert message["properties"] == {
+        "$geoip_disable": True,
+        "$ip": "",
+        "instance_kind": "test",
+    }
     assert install_row.committed
 
 

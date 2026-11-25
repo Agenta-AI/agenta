@@ -22,7 +22,8 @@ log = get_module_logger(__name__)
 TELEMETRY_DOCS_URL = "https://docs.agenta.ai/self-host/telemetry"
 
 INSTANCE_INSTALLED_EVENT = "instance_installed"
-# Exactly what the install ping sends besides the instance id. The docs page lists it.
+# Exactly what the install ping sends besides the instance id and `instance_kind`.
+# The docs page lists it.
 INSTANCE_INSTALLED_PROPERTIES = {"$geoip_disable": True, "$ip": ""}
 INSTALL_PING_TIMEOUT_SECONDS = 5
 
@@ -230,7 +231,10 @@ async def send_install_ping() -> None:
             await capture(
                 INSTANCE_INSTALLED_EVENT,
                 str(instance_id),
-                dict(INSTANCE_INSTALLED_PROPERTIES),
+                {
+                    **INSTANCE_INSTALLED_PROPERTIES,
+                    "instance_kind": get_instance_kind(),
+                },
                 uuid=uuid5(instance_id, INSTANCE_INSTALLED_EVENT),
                 timeout=INSTALL_PING_TIMEOUT_SECONDS,
             )

@@ -33,9 +33,9 @@ def test_instance_kind(monkeypatch, web_url, ci, kind):
     assert instances_service.get_instance_kind() == kind
 
 
-@pytest.mark.parametrize(("license", "edition"), [("ee", "ee"), ("oss", "oss")])
-def test_edition(monkeypatch, license, edition):
-    monkeypatch.setattr(env.agenta, "license", license)
+@pytest.mark.parametrize(("ee", "edition"), [(True, "ee"), (False, "oss")])
+def test_edition(monkeypatch, ee, edition):
+    monkeypatch.setattr(instances_service, "is_ee", lambda: ee)
 
     assert instances_service.get_edition() == edition
 

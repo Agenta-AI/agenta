@@ -5,6 +5,7 @@ from uuid import UUID
 
 from oss.src.core.instances.types import InstanceMissing
 from oss.src.dbs.postgres.instances.dao import InstancesDAO
+from oss.src.utils.common import is_ee
 from oss.src.utils.env import InstanceKind, env
 
 instances_dao = InstancesDAO()
@@ -49,4 +50,4 @@ def get_instance_kind() -> InstanceKind:
 
 
 def get_edition() -> Literal["oss", "ee"]:
-    return "ee" if env.agenta.license == "ee" else "oss"
+    return "ee" if is_ee() else "oss"
