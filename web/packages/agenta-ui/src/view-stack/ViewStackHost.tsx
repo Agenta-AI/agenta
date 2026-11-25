@@ -70,6 +70,7 @@ export const ViewStackHost = ({
     rootTitle,
     onEscapeAtRoot,
     phone = false,
+    confirmLeave = true,
     children,
 }: {
     chrome: ComponentType<ViewChromeProps>
@@ -82,6 +83,8 @@ export const ViewStackHost = ({
      * and the browser back closes the top view. The container still picks its chrome.
      */
     phone?: boolean
+    /** False: leaving a dirty form drops the edits without asking (a dialog's Cancel and close). */
+    confirmLeave?: boolean
     children: ReactNode
 }) => {
     const [entries, setEntries] = useState<Entry[]>([])
@@ -169,6 +172,7 @@ export const ViewStackHost = ({
         async (scope: Entry[]): Promise<Settled | false> => {
             const dirty = scope.find((entry) => formsRef.current[entry.key]?.dirty)
             if (!dirty) return "clean"
+            if (!confirmLeave) return "discarded"
             let saveFailed = false
             for (;;) {
                 const form = formsRef.current[dirty.key]
@@ -184,7 +188,7 @@ export const ViewStackHost = ({
                 saveFailed = true
             }
         },
-        [ask, runSave],
+        [ask, confirmLeave, runSave],
     )
 
     /** Set the whole stack. Forms and titles of views that leave go with them. */

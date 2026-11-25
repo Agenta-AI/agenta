@@ -17,7 +17,7 @@ import type {SettingsTabProps} from "./settingsTabProps"
 
 /**
  * Mobile binding: the shared vault table, with create and edit in the one secret form (a view with
- * the target "project", in a drawer) and delete in a modal. `edit_secret` decides whether a new
+ * the target "project", in a dialog) and delete in a modal. `edit_secret` decides whether a new
  * secret asks for its Owner.
  */
 export const SecretsTab = ({projectId}: SettingsTabProps) => {
@@ -41,6 +41,7 @@ export const SecretsTab = ({projectId}: SettingsTabProps) => {
                             target: {kind: "project"},
                         }}
                         onClosed={onClose}
+                        presentation="dialog"
                     />
                 ) : null
             }

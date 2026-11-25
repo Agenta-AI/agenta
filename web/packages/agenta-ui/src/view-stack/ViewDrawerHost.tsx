@@ -3,6 +3,7 @@ import {useCallback, useEffect, useRef, useState, type MutableRefObject} from "r
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 
+import {Dialog, DialogContent, DialogTitle} from "../components/ui/dialog"
 import {Sheet, SheetContent, SheetTitle} from "../components/ui/sheet"
 import {useIsPhone} from "../phone/useIsPhone"
 
@@ -22,6 +23,8 @@ export interface ViewRequest<P = unknown> {
 /** Today's drawer widths: a wide view (an editor) and the rest. */
 const WIDE_WIDTH = 920
 const WIDTH = 580
+/** A dialog's width, as the forms' modals before the view stack. */
+const DIALOG_WIDTH = 520
 
 /**
  * A container that keeps a drawer: one view stack inside a drawer shell, opened on `request`.
@@ -34,6 +37,7 @@ export const ViewDrawerHost = <P,>({
     width,
     title,
     stackRef: outerStackRef,
+    presentation = "drawer",
 }: {
     request: ViewRequest<P>
     /** The stack is empty: the caller drops the request. */
@@ -43,6 +47,8 @@ export const ViewDrawerHost = <P,>({
     title?: string
     /** Receives the drawer's stack, so a later request opens in it. */
     stackRef?: MutableRefObject<ViewStack | null>
+    /** `dialog`: a centred modal on wide screens; a phone still covers the screen. */
+    presentation?: "drawer" | "dialog"
 }) => {
     const t = useT(commonCatalog)
     const [open, setOpen] = useState(true)
@@ -55,6 +61,56 @@ export const ViewDrawerHost = <P,>({
         void stackRef.current?.closeAll()
     }, [])
     const finish = useCallback(() => setOpen(false), [])
+    const body = (
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[inherit] p-0 text-field-md text-foreground">
+            <DrawerCloseContext.Provider value={close}>
+                <ViewStackHost
+                    chrome={phone ? PhoneViewChrome : DrawerViewChrome}
+                    phone={phone}
+                    confirmLeave={presentation !== "dialog"}
+                >
+                    <OpenOnMount
+                        request={request as ViewRequest}
+                        stackRef={stackRef}
+                        onEmpty={finish}
+                    />
+                </ViewStackHost>
+            </DrawerCloseContext.Provider>
+        </div>
+    )
+    if (presentation === "dialog" && !phone) {
+        return (
+            <Dialog
+                open={open}
+                onOpenChange={(next) => {
+                    if (!next) close()
+                }}
+            >
+                <DialogContent
+                    showCloseButton={false}
+                    className="max-h-[min(760px,calc(100dvh-2rem))] gap-0 overflow-hidden p-0"
+                    style={{maxWidth: width ?? DIALOG_WIDTH}}
+                    onOpenAutoFocus={(e) => {
+                        if (
+                            (e.currentTarget as HTMLElement | null)?.contains(
+                                document.activeElement,
+                            )
+                        )
+                            e.preventDefault()
+                    }}
+                    onCloseAutoFocus={() => onClosed()}
+                    // Escape is the stack's, as in the drawer.
+                    onEscapeKeyDown={(e) => {
+                        e.preventDefault()
+                        void stackRef.current?.back()
+                    }}
+                >
+                    <DialogTitle className="sr-only">{title || t("common.dialog")}</DialogTitle>
+                    {body}
+                </DialogContent>
+            </Dialog>
+        )
+    }
     return (
         <Sheet
             open={open}
@@ -95,20 +151,7 @@ export const ViewDrawerHost = <P,>({
                 }}
             >
                 <SheetTitle className="sr-only">{title || t("common.dialog")}</SheetTitle>
-                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[inherit] p-0 text-field-md text-foreground">
-                    <DrawerCloseContext.Provider value={close}>
-                        <ViewStackHost
-                            chrome={phone ? PhoneViewChrome : DrawerViewChrome}
-                            phone={phone}
-                        >
-                            <OpenOnMount
-                                request={request as ViewRequest}
-                                stackRef={stackRef}
-                                onEmpty={finish}
-                            />
-                        </ViewStackHost>
-                    </DrawerCloseContext.Provider>
-                </div>
+                {body}
             </SheetContent>
         </Sheet>
     )

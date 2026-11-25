@@ -245,7 +245,7 @@ export default function GatewayToolsSection({
 
             <ToolExecutionDrawer />
             {connectTarget ? (
-                // The connect view in a drawer; its target is the project, so it adds the new
+                // The connect view in a dialog; its target is the project, so it adds the new
                 // connection to no agent.
                 <ViewDrawerHost
                     request={{
@@ -257,6 +257,7 @@ export default function GatewayToolsSection({
                         target: {kind: "project"},
                     }}
                     onClosed={() => setConnectTarget(null)}
+                    presentation="dialog"
                 />
             ) : null}
         </>

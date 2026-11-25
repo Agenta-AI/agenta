@@ -666,8 +666,8 @@ export default function McpServersSection({
             />
 
             {connecting ? (
-                // The connect step, the same view the agent opens, in a drawer of its own. A new
-                // drawer per attempt: a reconnect chosen while one is open starts over.
+                // The connect step, the same view the agent opens, in a dialog of its own. A new
+                // dialog per attempt: a reconnect chosen while one is open starts over.
                 <ViewDrawerHost
                     key={reconnecting?.id ?? "new"}
                     request={{
@@ -679,6 +679,7 @@ export default function McpServersSection({
                         target: {kind: "project"},
                     }}
                     onClosed={closeConnect}
+                    presentation="dialog"
                 />
             ) : null}
 
