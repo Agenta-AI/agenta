@@ -1,4 +1,6 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo} from "react"
+
+import type {SkillUploadScan} from "@agenta/entity-ui/drill-in"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -12,14 +14,7 @@ import {
     skillsSearchAtom,
     skillsShowArchivedAtom,
 } from "@agenta/skills/state"
-import {
-    buildRegistrySections,
-    NewSkillMenuButton,
-    SkillCreateDrawer,
-    SkillDetailDrawer,
-    useSkillCreateEntry,
-    type SkillListItem,
-} from "@agenta/skills-ui"
+import {buildRegistrySections, NewSkillMenuButton} from "@agenta/skills-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableViewToggle} from "@agenta/ui/list-table"
@@ -27,13 +22,13 @@ import {PageToolbar} from "@agenta/ui/ui"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {agentEntryHref} from "../agents/agentEntry"
 import {useAgentOwners} from "../agents/useAgentOwners"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {PageLayout} from "../page-layout/PageLayout"
 
+import {pendingSkillUploadAtom} from "./pendingSkillUpload"
 import {SkillCreateOptions} from "./SkillCreateOptions"
 import {SkillFilterMenu} from "./SkillFilterMenu"
 import {SkillListTable} from "./SkillListTable"
@@ -46,6 +41,7 @@ import {
     type SkillListRow,
     type SkillListView,
 } from "./skillListView"
+import {skillCreateHref, skillPageHref} from "./skillRoutes"
 import {SkillsNoMatch} from "./states/SkillsNoMatch"
 
 /**
@@ -56,7 +52,7 @@ import {SkillsNoMatch} from "./states/SkillsNoMatch"
  * same groups drawn as tiles, switched from the toolbar.
  *
  * Search and the filter menu sit in one toolbar above the results, the same row the agents list
- * opens with. The drawers — detail, import, create — are the shared ones the desktop page mounts.
+ * opens with. A row opens the skill page; New skill opens the create page.
  */
 export const SkillListScreen = ({
     workspaceId,
@@ -130,37 +126,33 @@ export const SkillListScreen = ({
         [setView, view],
     )
 
-    // Row tap → the detail drawer (read-only editor + versions rail + used-by).
-    const [detailSkill, setDetailSkill] = useState<SkillListItem | null>(null)
-    const [detailOpen, setDetailOpen] = useState(false)
-    const openRow = useCallback((row: SkillListRow) => {
-        setDetailSkill(row.item)
-        setDetailOpen(true)
-    }, [])
-    const closeDetail = useCallback(() => setDetailOpen(false), [])
-    // `?skill=<workflow slug>` opens that skill: the "skill registry" link of an agent's skill view.
+    // A row opens the skill's page; New skill opens the create page on the way picked.
     const router = useRouter()
+    const setPendingUpload = useSetAtom(pendingSkillUploadAtom)
+    const openRow = useCallback(
+        (row: SkillListRow) => {
+            const slug = row.item.workflowSlug
+            if (slug) void router.push(skillPageHref(base, slug))
+        },
+        [base, router],
+    )
+    const onWrite = useCallback(() => void router.push(skillCreateHref(base, "write")), [base, router])
+    const onImport = useCallback(
+        () => void router.push(skillCreateHref(base, "import")),
+        [base, router],
+    )
+    const onUpload = useCallback(
+        (scan: Promise<SkillUploadScan>) => {
+            setPendingUpload(scan)
+            void router.push(skillCreateHref(base, "upload"))
+        },
+        [base, router, setPendingUpload],
+    )
+    // The old `?skill=<workflow slug>` link (an agent's skill view) now lands on the skill's page.
     const linkedSkill = typeof router.query.skill === "string" ? router.query.skill : ""
-    const [openedLink, setOpenedLink] = useState("")
     useEffect(() => {
-        if (!linkedSkill || linkedSkill === openedLink) return
-        setOpenedLink(linkedSkill)
-        // The drawer resolves the skill by its workflow slug, archived skills included, so a
-        // skill this list leaves out (archived, or not on this page) still opens.
-        setDetailSkill({
-            id: linkedSkill,
-            slug: linkedSkill,
-            workflowSlug: linkedSkill,
-            name: linkedSkill,
-            origin: "project",
-        })
-        setDetailOpen(true)
-    }, [linkedSkill, openedLink])
-    // The drawer's Used-by names lead to the agent.
-    const agentHref = useCallback((agentId: string) => agentEntryHref(base, agentId), [base])
-    // Each way of the New skill menu opens the one new skill view on that step.
-    const {createOpen, upload, start, onWrite, onUpload, onImport, closeCreate} =
-        useSkillCreateEntry()
+        if (linkedSkill) void router.replace(skillPageHref(base, linkedSkill))
+    }, [base, linkedSkill, router])
 
     // The search narrows the query, so with no term an empty registry means the project has none.
     const projectEmpty =
@@ -197,68 +189,52 @@ export const SkillListScreen = ({
     )
 
     return (
-        <>
-            <PageLayout
-                workspaceId={workspaceId}
-                projectId={projectId}
-                title={t("skills.list.pageTitle")}
-                description={t("skills.list.pageDescription")}
-                toolbar={
-                    projectEmpty ? undefined : (
-                        <PageToolbar
-                            search={typed}
-                            onSearchChange={setTyped}
-                            searchPlaceholder={t("skills.list.searchPlaceholder")}
-                            actions={
-                                <SkillFilterMenu
-                                    view={view}
-                                    onChange={setView}
-                                    repositories={repositories}
-                                />
-                            }
-                            end={<ListTableViewToggle value={view.mode} onChange={setMode} />}
-                        />
-                    )
-                }
-                actions={
-                    <>
-                        {projectEmpty ? null : (
-                            <HowThisWorksButton guide="skills" className="max-sm:hidden" />
-                        )}
-                        <NewSkillMenuButton
-                            onWrite={onWrite}
-                            onUpload={onUpload}
-                            onImport={onImport}
-                        />
-                    </>
-                }
-            >
-                {projectEmpty ? (
-                    <FeatureOnboarding guideKey="skills" base={base}>
-                        <SkillCreateOptions
-                            onWrite={onWrite}
-                            onUpload={onUpload}
-                            onImport={onImport}
-                        />
-                    </FeatureOnboarding>
-                ) : (
-                    body
-                )}
-            </PageLayout>
-            <SkillDetailDrawer
-                open={detailOpen}
-                onClose={closeDetail}
-                projectId={projectId}
-                skill={detailSkill}
-                agentHref={agentHref}
-            />
-            <SkillCreateDrawer
-                open={createOpen}
-                onClose={closeCreate}
-                projectId={projectId}
-                upload={upload}
-                start={start}
-            />
-        </>
+        <PageLayout
+            workspaceId={workspaceId}
+            projectId={projectId}
+            title={t("skills.list.pageTitle")}
+            description={t("skills.list.pageDescription")}
+            toolbar={
+                projectEmpty ? undefined : (
+                    <PageToolbar
+                        search={typed}
+                        onSearchChange={setTyped}
+                        searchPlaceholder={t("skills.list.searchPlaceholder")}
+                        actions={
+                            <SkillFilterMenu
+                                view={view}
+                                onChange={setView}
+                                repositories={repositories}
+                            />
+                        }
+                        end={<ListTableViewToggle value={view.mode} onChange={setMode} />}
+                    />
+                )
+            }
+            actions={
+                <>
+                    {projectEmpty ? null : (
+                        <HowThisWorksButton guide="skills" className="max-sm:hidden" />
+                    )}
+                    <NewSkillMenuButton
+                        onWrite={onWrite}
+                        onUpload={onUpload}
+                        onImport={onImport}
+                    />
+                </>
+            }
+        >
+            {projectEmpty ? (
+                <FeatureOnboarding guideKey="skills" base={base}>
+                    <SkillCreateOptions
+                        onWrite={onWrite}
+                        onUpload={onUpload}
+                        onImport={onImport}
+                    />
+                </FeatureOnboarding>
+            ) : (
+                body
+            )}
+        </PageLayout>
     )
 }
