@@ -20,7 +20,7 @@ interface TokenSource {
 const FONT_STACK =
     'Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
 
-/** Fallbacks are the palette's current values (web/oss/src/styles/theme/palette.ts). */
+/** Fallbacks are the palette's current values (@agenta/ui `styles/theme/palette.ts`). */
 export const KIT_TOKEN_SOURCES: Record<KitToken, TokenSource> = {
     "--ag-bg": {hosts: ["--ag-colorBgContainer"], light: "#ffffff", dark: "#141414"},
     "--ag-fg": {hosts: ["--ag-colorText"], light: "#242424", dark: "rgba(255, 255, 255, 0.85)"},

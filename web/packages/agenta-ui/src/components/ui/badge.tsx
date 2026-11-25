@@ -6,7 +6,7 @@ import {cn} from "./utils"
 
 /**
  * Badge — an @agenta/ui component re-skinned to the app theme via the shared
- * `--ag-*` token bridge (oss/tailwind.config.ts `shadcnTokens`). Consolidates the
+ * `--ag-*` token bridge (`theme-variables.css`). Consolidates the
  * antd tag/status presets (DraftTag / SyncStateTag / StatusTag / SourceIndicator /
  * VersionBadge / MappingStatusTag / TypeChip) into one component + semantic variants.
  *
