@@ -117,3 +117,26 @@ html body .lp section.tp .grid {
 .lp[data-lp-anim] > :not([data-lp-in]) *::after {
   animation-play-state: paused !important;
 }
+
+/* Two vertical lines on the edges of the 1120px content column, as in the original
+   template. They run from the hero through Governance and stop where Self-host starts.
+   The sections draw them as background images so they connect across section borders.
+   The doubled classes beat the section background shorthands that load after this file. */
+html body .lp section.r3-ag-hero,
+html body .lp .sx-hiw section,
+html body .lp .sx-feat section.fgx.fgx,
+html body .lp .sx-site section.tplx.tplx,
+html body .lp .sx-share section.s5.s5,
+html body .lp .ctlx section.nsec.nsec {
+  --lp-rail: var(--lp-line);
+  background-image: linear-gradient(var(--lp-rail), var(--lp-rail)),
+    linear-gradient(var(--lp-rail), var(--lp-rail)) !important;
+  background-size: 1px 100% !important;
+  background-repeat: no-repeat !important;
+  background-position:
+    max(24px, calc(50% - 560px)) 0,
+    min(calc(100% - 25px), calc(50% + 559px)) 0 !important;
+}
+html body .lp .ctlx section.nsec.nsec {
+  --lp-rail: rgba(255, 255, 255, 0.1);
+}
