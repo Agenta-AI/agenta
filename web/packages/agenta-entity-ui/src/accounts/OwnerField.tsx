@@ -85,7 +85,7 @@ export function OwnerField<Owner extends OwnerKind>({
                             <RadioGroupItem id={`${id}-${owner}`} value={owner} className="mt-0.5" />
                             <span className="flex min-w-0 flex-col gap-0.5">
                                 <span className="flex items-center gap-1.5 text-body font-medium text-foreground">
-                                    <Icon size={14} aria-hidden />
+                                    <Icon size={14} />
                                     {word(owner)}
                                 </span>
                                 <span className="text-label text-muted-foreground">

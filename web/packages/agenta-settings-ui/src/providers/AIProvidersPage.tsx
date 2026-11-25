@@ -7,6 +7,7 @@ import {
     isSubscriptionConnection,
     SecretManagementPolicy,
     providerConnectionsAtom,
+    subscriptionConnectionFor,
     useVaultSecret,
     type ProviderConnection,
 } from "@agenta/entities/secret"
@@ -74,11 +75,17 @@ const useProjectProvidersSource = (): ProvidersSource => {
     const deleteSecret = useSetAtom(deleteSecretAtom)
 
     return useMemo(() => {
+        // The cards show each provider's first subscription; any further one is a row.
+        const carded = new Set(
+            (["chatgpt", "claude"] as const)
+                .map((provider) => subscriptionConnectionFor(connections, provider)?.id)
+                .filter(Boolean),
+        )
         // Manager-only rows 409 on edit; the drawer still gets every connection.
         const rows = connections.filter(
             (connection) =>
                 connection.managementPolicy !== SecretManagementPolicy.ManagerOnly &&
-                !isSubscriptionConnection(connection),
+                !(isSubscriptionConnection(connection) && carded.has(connection.id)),
         )
         return {
             connections,

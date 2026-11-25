@@ -8,7 +8,7 @@ export const OwnerChip = ({owner}: {owner: OwnerKind}) => {
     const word = useOwnerWord()
     const Icon = OWNER_ICON[owner]
     return (
-        <Badge icon={<Icon aria-hidden />} className="shrink-0">
+        <Badge icon={<Icon />} className="shrink-0">
             {word(owner)}
         </Badge>
     )
