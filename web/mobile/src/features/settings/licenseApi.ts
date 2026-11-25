@@ -68,8 +68,8 @@ export const activateInstanceLicense = async (
 
 /** `GET /instance/license/usage`: the counts behind the create dialogs, for any signed-in person. */
 export interface InstanceUsage {
-    projects: LicenseLimitUsage | null
-    organizations: LicenseLimitUsage | null
+    projects: InstanceLimitUsage | null
+    organizations: InstanceLimitUsage | null
 }
 
 export const fetchInstanceUsage = async (projectId: string): Promise<InstanceUsage> => {
@@ -80,7 +80,7 @@ export const fetchInstanceUsage = async (projectId: string): Promise<InstanceUsa
 }
 
 /** At or above its limit; an unlimited usage never is. */
-export const isAtLimit = (usage: LicenseLimitUsage | null | undefined): boolean =>
+export const isAtLimit = (usage: InstanceLimitUsage | null | undefined): boolean =>
     Boolean(usage && usage.limit !== null && usage.count >= usage.limit)
 
 /** Agenta's registration service did not send the key (unreachable, or it refused). */

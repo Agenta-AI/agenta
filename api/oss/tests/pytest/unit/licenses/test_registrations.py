@@ -203,7 +203,7 @@ async def test_a_member_cannot_dismiss_the_registration_offer(admin, prompt):
 
 @pytest.mark.asyncio
 async def test_the_registration_offer_is_not_on_cloud(admin, prompt, monkeypatch):
-    monkeypatch.setattr(licenses_router, "_is_cloud", lambda: True)
+    monkeypatch.setattr(licenses_router, "is_cloud", lambda: True)
 
     with pytest.raises(HTTPException) as error:
         await licenses_router.LicensesRouter().dismiss_instance_registration_offer(

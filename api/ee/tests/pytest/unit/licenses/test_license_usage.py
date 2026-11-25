@@ -78,7 +78,7 @@ def _access(kind=RequestCredentialKind.BEARER_SESSION):
 
 @pytest.mark.asyncio
 async def test_a_member_reads_the_usage_of_their_organization(monkeypatch):
-    monkeypatch.setattr(licenses_router, "_is_cloud", lambda: False)
+    monkeypatch.setattr(licenses_router, "is_cloud", lambda: False)
     monkeypatch.setattr(licenses_router, "get_request_access", lambda: _access())
     projects = AsyncMock(return_value={"count": 1, "limit": 1})
     monkeypatch.setattr(licenses_router, "project_usage", projects)
@@ -100,7 +100,7 @@ async def test_a_member_reads_the_usage_of_their_organization(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_an_api_key_cannot_read_the_usage(monkeypatch):
-    monkeypatch.setattr(licenses_router, "_is_cloud", lambda: False)
+    monkeypatch.setattr(licenses_router, "is_cloud", lambda: False)
     monkeypatch.setattr(
         licenses_router,
         "get_request_access",
@@ -117,7 +117,7 @@ async def test_an_api_key_cannot_read_the_usage(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_the_usage_is_not_on_cloud(monkeypatch):
-    monkeypatch.setattr(licenses_router, "_is_cloud", lambda: True)
+    monkeypatch.setattr(licenses_router, "is_cloud", lambda: True)
 
     with pytest.raises(HTTPException) as error:
         await licenses_router.LicensesRouter().fetch_instance_usage(

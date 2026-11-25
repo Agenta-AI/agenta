@@ -4,7 +4,7 @@ import limitRefusalCatalog from "@agenta/i18n/catalogs/shell.limitRefusal"
 import {Button} from "@agenta/ui/ui"
 import {useRouter} from "next/router"
 
-import type {LicenseLimitUsage} from "../settings/licenseApi"
+import type {InstanceLimitUsage} from "../settings/licenseApi"
 import {LicenseUsageRow} from "../settings/LicenseUsageRow"
 import {CONTACT_URL} from "../settings/upgradePrompt"
 import {useInstanceLicense} from "../settings/useInstanceLicense"
@@ -19,7 +19,7 @@ export const OrganizationLimitNotice = ({
     projectId,
     onNavigate,
 }: {
-    usage: LicenseLimitUsage
+    usage: InstanceLimitUsage
     workspaceId: string
     projectId: string
     /** Called before "Add a license key" opens Settings, so the dialog can close. */

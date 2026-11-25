@@ -5,7 +5,7 @@ import settingsLicenseCatalog from "@agenta/i18n/catalogs/settings.license"
 import limitRefusalCatalog from "@agenta/i18n/catalogs/shell.limitRefusal"
 import {Button} from "@agenta/ui/ui"
 
-import type {LicenseLimitUsage} from "../settings/licenseApi"
+import type {InstanceLimitUsage} from "../settings/licenseApi"
 import {LicenseUsageRow} from "../settings/LicenseUsageRow"
 import {useInstanceLicense} from "../settings/useInstanceLicense"
 
@@ -19,7 +19,7 @@ export const ProjectLimitNotice = ({
     usage,
     projectId,
 }: {
-    usage: LicenseLimitUsage
+    usage: InstanceLimitUsage
     projectId: string
 }) => {
     const t = useT(limitRefusalCatalog, settingsLicenseCatalog)

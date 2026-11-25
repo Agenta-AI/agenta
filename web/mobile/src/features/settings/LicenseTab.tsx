@@ -80,7 +80,33 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
     if (!license.data) return <SettingsTabSkeleton />
 
     const fromEnvironment = license.data.source === "environment"
-import {CONTACT_URL, PRICING_URL} from "./upgradePrompt"
+    const canAddKey = !fromEnvironment
+    const key = license.data.license
+    const registered = license.data.plan === REGISTERED_PLAN
+    const openDialog = () => {
+        setError(null)
+        setDialogOpen(true)
+    }
+
+    // Where a key would go in: the dialog, or why it cannot go in here.
+    const keyControl = (label: "actionAddLicenseKey" | "replaceKey") =>
+        canAddKey ? (
+            <Button type="button" size="sm" variant="outline" onClick={openDialog}>
+                {t(`settings.license.${label}`)}
+            </Button>
+        ) : null
+    const keyNote = fromEnvironment ? (
+        <p className="text-muted-foreground m-0 text-[13px]">
+            {t("settings.license.fromEnvironment")}
+        </p>
+    ) : null
+    const talkToUs = (
+        <Button asChild size="sm" variant="outline">
+            <a href={CONTACT_URL} target="_blank" rel="noreferrer">
+                {t("settings.license.actionTalkToUs")}
+            </a>
+        </Button>
+    )
 
     return (
         <div className="flex flex-col gap-5">
