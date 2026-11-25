@@ -24,5 +24,6 @@
     "output": "出力",
     "noOutputYet": "出力はまだありません",
     "fillInputsHint": "入力を記入してアクションを実行すると、返される内容を確認できます。",
-    "runAction": "アクションを実行"
+    "runAction": "アクションを実行",
+    "actionsLoadFailed": "アクションを読み込めませんでした"
 }

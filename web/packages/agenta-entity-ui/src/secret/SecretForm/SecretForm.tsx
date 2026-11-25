@@ -125,6 +125,7 @@ export function SecretForm({controller, textOnly = false, popupZIndex, nameHelp}
     const popupStyle = popupZIndex != null ? {zIndex: popupZIndex} : undefined
     const {
         isEditing,
+        personal,
         name,
         slug,
         format,
@@ -137,6 +138,7 @@ export function SecretForm({controller, textOnly = false, popupZIndex, nameHelp}
         duplicateKeys,
         duplicateKeyError,
         defaultEnvError,
+        slugError,
         valueHidden,
         keyPreview,
         onChangeName,
@@ -151,6 +153,8 @@ export function SecretForm({controller, textOnly = false, popupZIndex, nameHelp}
         onSwitchToGrid,
         setJsonText,
     } = controller
+    // A taken slug opens the slug field so the person can fix it there.
+    const slugShown = slugOpen || Boolean(slugError)
 
     /** The one string the label shows and the control is named by, so the two cannot drift. */
     const valueLabel = valueHidden
@@ -166,7 +170,7 @@ export function SecretForm({controller, textOnly = false, popupZIndex, nameHelp}
                 tooltip={nameHelp || undefined}
                 labelEnd={
                     // The slug follows the name: it shows here and opens only on Edit.
-                    !slugOpen && (slug || !isEditing) ? (
+                    !slugShown && (slug || !isEditing) ? (
                         <span className="flex min-w-0 items-center gap-1.5 text-meta text-muted-foreground">
                             {slug ? (
                                 <span className="truncate font-mono" title={slug}>
@@ -195,13 +199,16 @@ export function SecretForm({controller, textOnly = false, popupZIndex, nameHelp}
                 />
             </Field>
 
-            {slugOpen ? (
+            {slugShown ? (
                 <Field
                     label={t("entityUi.secretForm.slug")}
+                    error={slugError || undefined}
                     tooltip={
                         isEditing
                             ? t("entityUi.secretForm.slugImmutable")
-                            : t("entityUi.secretForm.slugHint")
+                            : personal
+                              ? t("entityUi.secretForm.slugHintPersonal")
+                              : t("entityUi.secretForm.slugHint")
                     }
                 >
                     <Input

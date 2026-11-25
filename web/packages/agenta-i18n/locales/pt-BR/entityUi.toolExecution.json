@@ -26,5 +26,6 @@
     "output": "Saída",
     "noOutputYet": "Ainda não há saída",
     "fillInputsHint": "Preencha as entradas e execute a ação para ver o que ela retorna.",
-    "runAction": "Executar ação"
+    "runAction": "Executar ação",
+    "actionsLoadFailed": "Não foi possível carregar as ações"
 }

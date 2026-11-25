@@ -127,6 +127,7 @@ export default function GatewayToolsSection({
             query,
             category,
             owner: ownerFilter === "user" || ownerFilter === "project" ? ownerFilter : "all",
+            onClearSearch: () => setQuery(""),
         }),
         [category, ownerFilter, query],
     )

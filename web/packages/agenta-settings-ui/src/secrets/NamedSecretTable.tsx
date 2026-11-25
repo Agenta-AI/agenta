@@ -195,7 +195,6 @@ export const NamedSecretTable = ({
         </Button>
     ) : null
 
-    const narrowed = Boolean(term)
     // Each owner tab has its own empty state and start button; the button opens the form on it.
     const tabEmpty =
         ownerFilter === "user"
@@ -226,20 +225,20 @@ export const NamedSecretTable = ({
     ) : (
         <SettingsEmpty
             compact
-                icon={getSettingsSidebarIcon("secrets")}
-                title={tabEmpty?.title ?? t("settings.secrets.emptyTitle")}
-                description={tabEmpty?.body ?? t("settings.secrets.emptyDescription")}
-                action={
-                    tabEmpty && renderConfigureDialog ? (
-                        <Button disabled={loading} onClick={openCreate}>
-                            <Plus size={14} />
-                            {tabEmpty.cta}
-                        </Button>
-                    ) : (
-                        create
-                    )
-                }
-            />
+            icon={getSettingsSidebarIcon("secrets")}
+            title={tabEmpty?.title ?? t("settings.secrets.emptyTitle")}
+            description={tabEmpty?.body ?? t("settings.secrets.emptyDescription")}
+            action={
+                tabEmpty && renderConfigureDialog ? (
+                    <Button disabled={loading} onClick={openCreate}>
+                        <Plus size={14} />
+                        {tabEmpty.cta}
+                    </Button>
+                ) : (
+                    create
+                )
+            }
+        />
     )
 
     return (
@@ -253,7 +252,7 @@ export const NamedSecretTable = ({
                 owner={ownerFilter}
                 onOwnerChange={setOwnerFilter}
             />
-            {!loadFailed && personal && personalQuery.isError ? (
+            {!loadFailed && access === "error" ? (
                 <LoadError
                     framed
                     title={t("settings.secrets.loadFailed")}
@@ -275,11 +274,8 @@ export const NamedSecretTable = ({
                     rowKey={(record) => record.key}
                     minWidth={0}
                     onOpenRow={openSecret}
-                    loading={
-                        groups.every((group) => group.rows.length === 0) &&
-                        !narrowed &&
-                        (loading || (personal && personalQuery.isPending))
-                    }
+                    // Both sources first: personal rows and chips must not pop in above.
+                    loading={loading || access === "loading"}
                     // A phone shows one column: a lone header there says nothing.
                     hideHeader={!wide}
                     skeleton={{mark: true}}

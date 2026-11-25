@@ -33,6 +33,7 @@ import {
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import {connectionDisplayName} from "@agenta/shared/utils"
 import {HeightCollapse, ScrollSentinel} from "@agenta/ui"
@@ -41,6 +42,7 @@ import {
     Button,
     cn,
     Empty,
+    EmptyContent,
     EmptyDescription,
     EmptyHeader,
     EmptyMedia,
@@ -164,6 +166,8 @@ export interface IntegrationCatalogControls {
     category: CategorySelection | null
     /** Which connected groups show: the person's, the project's, or both. */
     owner: "all" | "user" | "project"
+    /** Empties the host's search, for the no-match state. */
+    onClearSearch?: () => void
 }
 
 interface ConnectedGroup {
@@ -559,14 +563,7 @@ function ConnectedRow({
                 ) : null
             }
         >
-            <span
-                className={
-                    canvas
-                        ? "truncate text-meta text-muted-foreground"
-                        : "truncate text-meta text-muted-foreground"
-                }
-                title={subtitle}
-            >
+            <span className="truncate text-meta text-muted-foreground" title={subtitle}>
                 {subtitle}
             </span>
         </CatalogListRow>
@@ -610,11 +607,7 @@ function CatalogRow({
             {integration.description ? (
                 // One line; the full text stays available on hover.
                 <span
-                    className={
-                        canvas
-                            ? "truncate text-meta text-muted-foreground"
-                            : "truncate text-meta text-muted-foreground"
-                    }
+                    className="truncate text-meta text-muted-foreground"
                     title={integration.description}
                 >
                     {integration.description}
@@ -700,7 +693,7 @@ export function IntegrationCatalog({
     canManageProject = true,
 }: IntegrationCatalogProps) {
     const connectionsHeading = useConnectionsHeading()
-    const t = useT(integrationDrawerCatalog)
+    const t = useT(integrationDrawerCatalog, commonCatalog)
     const page = layout === "page"
     // The catalog's own box: in a panel its dialogs and the category list open inside it, so they
     // stay in a drawer host and scroll under the drawer's lock. On a page they open over the page.
@@ -1051,36 +1044,46 @@ export function IntegrationCatalog({
                         ) : null
                     ) : (
                         <>
-                    {yours && showsOwner("user") && (yoursGroups.length > 0 || yoursFooter) ? (
-                            <RowGroup
-                                label={yours.label}
-                                count={yoursGroups.length}
-                                collapsed={!searching && yoursCollapsed}
-                                onToggle={
-                                    searching ? undefined : () => setYoursCollapsed((value) => !value)
-                                }
-                                page={page}
-                                footer={yoursFooter ? <div className="pt-2">{yoursFooter}</div> : null}
-                            >
-                                {renderRows(yoursGroups, yoursVerbs)}
-                            </RowGroup>
-                        ) : null}
-    
-                        {showConnected && showsOwner("project") ? (
-                            <RowGroup
-                                label={projectHeading ?? t("entityUi.integrationDrawer.connected")}
-                                count={connectedGroups.length}
-                                collapsed={!projectHeading && !searching && connectedCollapsed}
-                                onToggle={
-                                    projectHeading || searching
-                                        ? undefined
-                                        : () => setConnectedCollapsed((value) => !value)
-                                }
-                                page={page}
-                            >
-                                {renderRows(connectedGroups, projectVerbs)}
-                            </RowGroup>
-                        ) : null}
+                            {yours &&
+                            showsOwner("user") &&
+                            (yoursGroups.length > 0 || yoursFooter) ? (
+                                <RowGroup
+                                    label={yours.label}
+                                    count={yoursGroups.length}
+                                    collapsed={!searching && yoursCollapsed}
+                                    onToggle={
+                                        searching
+                                            ? undefined
+                                            : () => setYoursCollapsed((value) => !value)
+                                    }
+                                    page={page}
+                                    footer={
+                                        yoursFooter ? (
+                                            <div className="pt-2">{yoursFooter}</div>
+                                        ) : null
+                                    }
+                                >
+                                    {renderRows(yoursGroups, yoursVerbs)}
+                                </RowGroup>
+                            ) : null}
+
+                            {showConnected && showsOwner("project") ? (
+                                <RowGroup
+                                    label={
+                                        projectHeading ?? t("entityUi.integrationDrawer.connected")
+                                    }
+                                    count={connectedGroups.length}
+                                    collapsed={!projectHeading && !searching && connectedCollapsed}
+                                    onToggle={
+                                        projectHeading || searching
+                                            ? undefined
+                                            : () => setConnectedCollapsed((value) => !value)
+                                    }
+                                    page={page}
+                                >
+                                    {renderRows(connectedGroups, projectVerbs)}
+                                </RowGroup>
+                            ) : null}
                         </>
                     )}
 
@@ -1103,6 +1106,18 @@ export function IntegrationCatalog({
                                         : t("entityUi.integrationDrawer.tryAnotherName")}
                                 </EmptyDescription>
                             </EmptyHeader>
+                            {query.trim() && (!controls || controls.onClearSearch) ? (
+                                <EmptyContent>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() =>
+                                            controls ? controls.onClearSearch?.() : setQuery("")
+                                        }
+                                    >
+                                        {t("common.clearSearch")}
+                                    </Button>
+                                </EmptyContent>
+                            ) : null}
                         </Empty>
                     ) : null}
 

@@ -87,6 +87,7 @@ export const useSecretFormSetup = (params: SecretFormSetupParams) => {
         initialSecret: secret,
         ownerKind: (secret ? secret.ownerKind : owner) === "user" ? "user" : undefined,
     })
+    const dirty = secretFormDirty(controller, secret)
     return {
         secret,
         owners,
@@ -95,8 +96,13 @@ export const useSecretFormSetup = (params: SecretFormSetupParams) => {
         askOwner,
         projectName,
         controller,
-        dirty: secretFormDirty(controller, secret),
-        valid: Boolean(controller.name.trim()) && !controller.okDisabled && !controller.saving,
+        dirty,
+        // An edit saves only once something changed.
+        valid:
+            Boolean(controller.name.trim()) &&
+            (!secret || dirty) &&
+            !controller.okDisabled &&
+            !controller.saving,
         saving: controller.saving,
         save: async () => Boolean(await controller.submit()),
         title: secret

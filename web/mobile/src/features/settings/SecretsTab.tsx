@@ -7,6 +7,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsSecretsTabCatalog from "@agenta/i18n/catalogs/settings.secretsTab"
 import {addAccountOwners, NamedSecretTable} from "@agenta/settings-ui"
 import type {LlmProvider} from "@agenta/shared/types"
+import {message} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
 
 import {useProjectPermission} from "../context/useProjectPermission"
@@ -71,6 +72,7 @@ export const SecretsTab = ({projectId}: SettingsTabProps) => {
                         setError(null)
                         try {
                             await handleDeleteVaultSecret(selectedProvider as LlmProvider)
+                            message.success(t("settings.secretsTab.deleted"))
                             onClose()
                         } catch (cause) {
                             setError(

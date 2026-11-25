@@ -24,5 +24,6 @@
     "output": "输出",
     "noOutputYet": "暂无输出",
     "fillInputsHint": "填写输入并运行操作，即可查看返回结果。",
-    "runAction": "运行操作"
+    "runAction": "运行操作",
+    "actionsLoadFailed": "无法加载操作"
 }

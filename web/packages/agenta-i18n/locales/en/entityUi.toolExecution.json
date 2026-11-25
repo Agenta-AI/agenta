@@ -25,5 +25,6 @@
     "output": "Output",
     "noOutputYet": "No output yet",
     "fillInputsHint": "Fill in the inputs and run the action to see what it returns.",
-    "runAction": "Run action"
+    "runAction": "Run action",
+    "actionsLoadFailed": "Could not load actions"
 }

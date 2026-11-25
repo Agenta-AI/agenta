@@ -2,6 +2,7 @@ import React, {useCallback, useMemo, useRef, useState} from "react"
 
 import {
     toolActionsSearchAtom,
+    toolCatalogActionsInfiniteFamily,
     toolExecutionDrawerAtom,
     useToolActionDetail,
     useToolCatalogActions,
@@ -14,7 +15,7 @@ import {createT, useT, type CatalogKey} from "@agenta/i18n"
 import toolExecutionCatalog from "@agenta/i18n/catalogs/entityUi.toolExecution"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton, message} from "@agenta/ui"
-import {Tag} from "@agenta/ui/components/presentational"
+import {LoadError, Tag} from "@agenta/ui/components/presentational"
 import {
     Button,
     InputAffix,
@@ -26,7 +27,7 @@ import {
     SkeletonBlock,
 } from "@agenta/ui/ui"
 import {ArrowLeft, CaretRight, MagnifyingGlass, Play, Wrench} from "@phosphor-icons/react"
-import {useAtom, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import Image from "next/image"
 
 import {ToolsEmpty} from "../../shared/ToolsEmpty"
@@ -253,7 +254,9 @@ function ActionPickerStep({
         hasNextPage,
         isFetchingNextPage,
         requestMore,
+        error,
     } = useToolCatalogActions(integrationKey)
+    const actionsQuery = useAtomValue(toolCatalogActionsInfiniteFamily(integrationKey))
 
     const sentinelIndex = useMemo(
         () => Math.max(0, actions.length - prefetchThreshold),
@@ -292,6 +295,12 @@ function ActionPickerStep({
             >
                 {isLoading && actions.length === 0 ? (
                     <ActionRowsSkeleton />
+                ) : error && actions.length === 0 ? (
+                    <LoadError
+                        framed
+                        title={t("entityUi.toolExecution.actionsLoadFailed")}
+                        onRetry={() => void actionsQuery.refetch()}
+                    />
                 ) : actions.length === 0 ? (
                     search.value.trim() ? (
                         <ToolsEmpty

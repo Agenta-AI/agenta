@@ -25,5 +25,6 @@
     "output": "Ausgabe",
     "noOutputYet": "Noch keine Ausgabe",
     "fillInputsHint": "Füllen Sie die Eingaben aus und führen Sie die Aktion aus, um zu sehen, was sie zurückgibt.",
-    "runAction": "Aktion ausführen"
+    "runAction": "Aktion ausführen",
+    "actionsLoadFailed": "Aktionen konnten nicht geladen werden"
 }
