@@ -251,6 +251,30 @@ apply_ci_auth_key() {
     printf "CI auth key applied to every service that consumes it.\n"
 }
 
+# Without its own key, the API sends telemetry to the built-in self-hosted
+# PostHog project, so every preview counted as a real install there. When CI
+# provides POSTHOG_API_KEY (the "Agenta Test Traffic" project), give it to the
+# services that run API code, with telemetry switched off where the API
+# supports AGENTA_TELEMETRY_ENABLED. Without the variable (local runs), the
+# clone keeps the template's values.
+apply_ci_telemetry_project() {
+    [ -n "${POSTHOG_API_KEY:-}" ] || return 0
+    local svc svc_id
+    for svc in api worker-queues worker-streams cron alembic; do
+        svc_id="$(clone_service_id "$svc")"
+        if [ -z "$svc_id" ]; then
+            skip_absent_service "$svc" || return 1
+            continue
+        fi
+        rw_graphql \
+            'mutation($in: VariableCollectionUpsertInput!) { variableCollectionUpsert(input: $in) }' \
+            "$(jq -nc --arg p "$PROJECT_ID" --arg e "$CLONE_ENV_ID" --arg s "$svc_id" --arg v "$POSTHOG_API_KEY" \
+                '{in: {projectId: $p, environmentId: $e, serviceId: $s, skipDeploys: true, replace: false, variables: {POSTHOG_API_KEY: $v, AGENTA_TELEMETRY_ENABLED: "false"}}}')" \
+            >/dev/null || return 1
+    done
+    printf "CI telemetry project applied to every service that runs API code.\n"
+}
+
 # A write-only vault connection can be resolved only by the trusted platform
 # runtime. Give API and Services one ephemeral shared proof before deploy; do
 # not reuse the admin key and do not expose this proof to any other service.
@@ -632,6 +656,7 @@ main() {
         wait_clone_populated || die "environment '$ENV_NAME' never fully materialized"
         apply_ci_auth_key || die "could not apply the CI auth key to the clone"
         apply_ci_runtime_key || die "could not apply the CI runtime key to the clone"
+        apply_ci_telemetry_project || die "could not apply the CI telemetry project to the clone"
         t_created=$(( $(now) - t0 ))
 
         # Domain BEFORE app deploys: web/api render
