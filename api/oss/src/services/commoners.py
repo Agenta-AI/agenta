@@ -183,9 +183,8 @@ async def create_organization_for_signup(
             organization,
             organization_email=organization_email,
         )
-
-    if is_first_organization:
-        analytics.capture_self_hosted_deployment_created(
+    elif is_first_organization:
+        analytics.capture_oss_deployment_created(
             user_email=organization_email,
             organization_id=str(organization.id),
         )

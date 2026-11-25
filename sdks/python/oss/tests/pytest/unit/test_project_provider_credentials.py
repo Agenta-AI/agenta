@@ -3,8 +3,8 @@
 Two rules, both about where a provider key may come from:
 
 - The provider keys in the services environment (`OPENAI_API_KEY`, ...) serve requests only
-  where `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` allows it. It is on unless the flag is
-  false, whatever `AGENTA_LICENSE` says. Once held, they never stay in the process environment,
+  where `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` allows it. The OSS edition allows it by
+  default and the EE edition does not. Once held, they never stay in the process environment,
   where litellm and the OpenAI client would pick them up for a call that carries no key.
 - A model of a custom connection takes its key and its endpoint from that connection alone. A
   key saved for a provider's own endpoint is never paired with a custom connection's URL, and a
@@ -75,14 +75,13 @@ def fetch(monkeypatch):
     [
         (None, None, True),
         ("oss", None, True),
-        ("ee", None, True),
+        ("ee", None, False),
         ("ee", "true", True),
-        ("ee", "false", False),
         ("oss", "false", False),
         (None, "off", False),
     ],
 )
-def test_env_provider_keys_follow_the_flag_only(monkeypatch, license_, flag, expected):
+def test_env_provider_keys_default_by_edition(monkeypatch, license_, flag, expected):
     if license_:
         monkeypatch.setenv("AGENTA_LICENSE", license_)
     if flag:
@@ -91,8 +90,8 @@ def test_env_provider_keys_follow_the_flag_only(monkeypatch, license_, flag, exp
     assert vault.env_provider_keys_enabled() is expected
 
 
-async def test_flag_off_does_not_use_env_keys(monkeypatch, fetch):
-    monkeypatch.setenv("AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED", "false")
+async def test_ee_does_not_use_env_keys(monkeypatch, fetch):
+    monkeypatch.setenv("AGENTA_LICENSE", "ee")
     monkeypatch.setenv("OPENAI_API_KEY", ENV_KEY)
 
     secrets, vault_secrets, local_secrets = await fetch([])
@@ -102,8 +101,7 @@ async def test_flag_off_does_not_use_env_keys(monkeypatch, fetch):
     assert local_secrets == []
 
 
-async def test_env_keys_serve_by_default(monkeypatch, fetch):
-    monkeypatch.setenv("AGENTA_LICENSE", "ee")
+async def test_oss_still_uses_env_keys(monkeypatch, fetch):
     monkeypatch.setenv("OPENAI_API_KEY", ENV_KEY)
 
     secrets, _, local_secrets = await fetch([])
@@ -151,7 +149,7 @@ def test_every_deployed_provider_key_is_held():
 
 
 async def test_held_keys_do_not_serve_when_not_allowed(monkeypatch, fetch):
-    monkeypatch.setenv("AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED", "false")
+    monkeypatch.setenv("AGENTA_LICENSE", "ee")
     monkeypatch.setenv("OPENAI_API_KEY", ENV_KEY)
 
     vault.hold_env_provider_keys()
