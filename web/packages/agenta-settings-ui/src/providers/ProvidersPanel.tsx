@@ -1,8 +1,10 @@
 import {createElement, Fragment, type ReactNode, useCallback, useMemo, useState} from "react"
 
 import {
+    builtinModelsOf,
     PROVIDER_CATALOG,
     SecretKind,
+    SecretManagementPolicy,
     subscriptionConnectionFor,
     subscriptionIsReady,
     subscriptionProviderFamily,
@@ -10,10 +12,14 @@ import {
     type ProviderCatalogEntry,
     type ProviderConnection,
 } from "@agenta/entities/secret"
+import {builtinModelEndpointsQueryAtom} from "@agenta/entities/workflow"
 import {OwnerChip} from "@agenta/entity-ui/secret"
 import {
+    builtinModelsView,
+    providerConnectionView,
     ProviderDrawer,
     providerIconFor,
+    ProviderOwnerChoiceContext,
     SubscriptionOwnerContext,
     subscriptionStatusLine,
     subscriptionViewFor,
@@ -22,11 +28,13 @@ import {
 } from "@agenta/entity-ui/secretProvider"
 import {useT, type CatalogKey} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import type {OwnerKind} from "@agenta/shared/types"
 import {useViewOpener, type ViewTarget} from "@agenta/ui/view-stack"
 import {MagnifyingGlass, PencilSimpleLine, Trash, WarningCircle} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
 
 import {
     SettingsCatalog,
@@ -85,7 +93,10 @@ export interface ProvidersGroup {
  * What the drawer is open on. A saved connection is held by id and read from the current list,
  * so a save that lands in part (the projects but not the key) shows the drawer what is stored.
  */
-type DrawerTarget = {groupKey: string; connectionId: string} | {kind: string}
+interface DrawerTarget {
+    groupKey: string
+    connectionId: string
+}
 
 type SubscriptionProvider = "chatgpt" | "claude"
 
@@ -168,7 +179,9 @@ export const ProvidersPanel = ({
     renderRemoveDialog?: (state: ProviderRemovalState) => ReactNode
     subscriptionDocsUrl: string
 }) => {
-    const t = useT(commonCatalog, settingsProvidersCatalog, settingsSharedCatalog)
+    const t = useT(commonCatalog, settingsProvidersCatalog, settingsSharedCatalog, providerListCatalog)
+    const builtinEndpoints = useAtomValue(builtinModelEndpointsQueryAtom).data
+    const builtinModels = useMemo(() => builtinModelsOf(builtinEndpoints), [builtinEndpoints])
     const [drawerTarget, setDrawerTarget] = useState<DrawerTarget | null>(null)
     const allGroups = useMemo(
         () =>
@@ -177,17 +190,14 @@ export const ProvidersPanel = ({
                 : ownerGroups,
         [ownerGroups, projectGroup],
     )
-    const drawerGroup = !drawerTarget
-        ? null
-        : "groupKey" in drawerTarget
-          ? (allGroups.find((group) => group.key === drawerTarget.groupKey) ?? null)
-          : (projectGroup ?? null)
-    const drawerConnection =
-        drawerTarget && "connectionId" in drawerTarget
-            ? (drawerGroup?.source.connections.find(
-                  (candidate) => candidate.id === drawerTarget.connectionId,
-              ) ?? null)
-            : null
+    const drawerGroup = drawerTarget
+        ? (allGroups.find((group) => group.key === drawerTarget.groupKey) ?? null)
+        : null
+    const drawerConnection = drawerTarget
+        ? (drawerGroup?.source.connections.find(
+              (candidate) => candidate.id === drawerTarget.connectionId,
+          ) ?? null)
+        : null
     // The group whose subscription view is open; it stays set while the drawer closes.
     const [signInGroupKey, setSignInGroupKey] = useState<string | null>(null)
     const views = useViewOpener()
@@ -247,6 +257,13 @@ export const ProvidersPanel = ({
             const open = (connection: ProviderConnection) => {
                 const provider = subscriptionProviderOf(connection)
                 if (provider) openSignIn(groupKey, provider, connection.id)
+                // The project's key opens the view, which asks before it drops edits.
+                else if (groupKey === projectGroup?.key)
+                    void views.open(
+                        providerConnectionView,
+                        {kind: connection.kind, connectionId: connection.id},
+                        PROJECT,
+                    )
                 else setDrawerTarget({groupKey, connectionId: connection.id})
             }
             const held = source.rows.map<SettingsCatalogItem>((connection) => ({
@@ -315,12 +332,27 @@ export const ProvidersPanel = ({
                       : {}),
             }
         })
+        // The deployment's own models: no owner, shown with the project's rows.
+        const builtin: SettingsCatalogItem[] =
+            builtinModels.length && ownerGroups.some((group) => group.key === projectGroup?.key)
+                ? [
+                      {
+                          key: "builtin:agenta",
+                          logo: <ProviderLogo kind="agenta" />,
+                          name: t("entityUi.providerList.agenta"),
+                          description: t("entityUi.providerList.builtIn"),
+                          status: "connected",
+                          statusLabel: t("common.connected"),
+                          onOpen: () => void views.open(builtinModelsView, {}, PROJECT),
+                      },
+                  ].filter(matches)
+                : []
         // One Connected list: every owner's rows, narrow owners first.
         const connected: SettingsCatalogGroup = {
             key: "connected",
             label: t("common.connected"),
             list: true,
-            items: owned.flatMap((group) => group.items),
+            items: [...builtin, ...owned.flatMap((group) => group.items)],
             count: owned.reduce((sum, group) => sum + (group.count ?? 0), 0),
             pendingRows: owned.some((group) => group.pendingRows) ? 1 : 0,
             footer: owned.some((group) => group.footer) ? (
@@ -341,7 +373,7 @@ export const ProvidersPanel = ({
             statusLabel: t("settings.providers.connectName", {
                 name: providerTitle(entry.kind, entry.title, t),
             }),
-            onOpen: () => setDrawerTarget({kind: entry.kind}),
+            onOpen: () => void views.open(providerConnectionView, {kind: entry.kind}, PROJECT),
         })
         return [
             connected,
@@ -356,7 +388,18 @@ export const ProvidersPanel = ({
                 items: CLOUD_PLATFORMS.map(catalogRow).filter(matches),
             },
         ]
-    }, [ownerGroups, projectGroup, ownerChips, term, canRemoveIn, requestRemoval, openSignIn, t])
+    }, [
+        ownerGroups,
+        projectGroup,
+        ownerChips,
+        builtinModels,
+        term,
+        canRemoveIn,
+        requestRemoval,
+        openSignIn,
+        views,
+        t,
+    ])
 
     const cards = useMemo<SubscriptionCard[] | null>(() => {
         if (!subscriptions || !projectGroup) return null
@@ -369,6 +412,12 @@ export const ProvidersPanel = ({
         // A sign-in that once worked and now does not needs attention, not a fresh connect.
         const broken = !chatgptReady && !!loginState && loginState !== "pending_login"
         const claudeReady = subscriptionIsReady(claude?.subscription)
+        const remover = (connection: ProviderConnection | null) =>
+            connection &&
+            canRemoveIn(projectGroup.source) &&
+            connection.managementPolicy !== SecretManagementPolicy.ManagerOnly
+                ? () => requestRemoval(projectGroup.key, connection)
+                : undefined
         return [
             {
                 key: "chatgpt",
@@ -384,6 +433,7 @@ export const ProvidersPanel = ({
                       ? t("settings.providers.signInAgain")
                       : t("common.connect"),
                 onAction: () => open("chatgpt", chatgpt),
+                onRemove: remover(chatgpt),
             },
             {
                 key: "claude",
@@ -393,9 +443,10 @@ export const ProvidersPanel = ({
                 state: claudeReady ? "connected" : "available",
                 actionLabel: claudeReady ? t("common.manage") : t("common.connect"),
                 onAction: () => open("claude", claude),
+                onRemove: remover(claude),
             },
         ]
-    }, [subscriptions, projectGroup, openSignIn, t])
+    }, [subscriptions, projectGroup, openSignIn, canRemoveIn, requestRemoval, t])
 
     return (
         <div className="ph-no-capture">
@@ -443,7 +494,9 @@ export const ProvidersPanel = ({
                         : null
                 }
             >
-                {views.drawer}
+                <ProviderOwnerChoiceContext.Provider value={ownerChoiceFor ?? null}>
+                    {views.drawer}
+                </ProviderOwnerChoiceContext.Provider>
             </SubscriptionOwnerContext.Provider>
 
             <ProviderDrawer
@@ -455,12 +508,6 @@ export const ProvidersPanel = ({
                 onSaved={onSaved}
                 subscriptionDocsUrl={subscriptionDocsUrl}
                 organization={drawerGroup?.source.organization}
-                kind={drawerTarget && "kind" in drawerTarget ? drawerTarget.kind : null}
-                ownerChoice={
-                    drawerTarget && "kind" in drawerTarget
-                        ? ownerChoiceFor?.(drawerTarget.kind)
-                        : undefined
-                }
             />
         </div>
     )

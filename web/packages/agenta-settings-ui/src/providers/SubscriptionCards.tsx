@@ -4,7 +4,9 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import {Button, cn} from "@agenta/ui/ui"
-import {ArrowRight, Key} from "@phosphor-icons/react"
+import {ArrowRight, Key, Trash} from "@phosphor-icons/react"
+
+import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
 export interface SubscriptionCard {
     key: string
@@ -15,6 +17,8 @@ export interface SubscriptionCard {
     state: "connected" | "attention" | "available"
     actionLabel: string
     onAction: () => void
+    /** Delete the stored subscription; absent when there is none or it may not be removed. */
+    onRemove?: () => void
 }
 
 const Card = ({card}: {card: SubscriptionCard}) => {
@@ -53,6 +57,20 @@ const Card = ({card}: {card: SubscriptionCard}) => {
                         {card.detail}
                     </span>
                 </span>
+                {card.onRemove ? (
+                    <SettingsRowMenu
+                        label={t("settings.providers.actionsFor", {name: card.name})}
+                        items={[
+                            {
+                                key: "delete",
+                                label: t("common.delete"),
+                                icon: <Trash size={14} />,
+                                danger: true,
+                                onClick: card.onRemove,
+                            },
+                        ]}
+                    />
+                ) : null}
             </div>
             <Button variant={ready ? "outline" : "default"} onClick={card.onAction}>
                 {card.actionLabel}
