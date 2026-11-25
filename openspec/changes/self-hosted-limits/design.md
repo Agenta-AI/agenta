@@ -79,8 +79,9 @@ What "the EE path always on" means in code:
 | SDK reads provider keys from the environment when `AGENTA_LICENSE != "ee"` | No change. Provider keys from the environment keep today's rule, decided 2026-11-25: on unless `AGENTA_LICENSE=ee`, and `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` overrides it. Open source installs (`AGENTA_LICENSE=oss` or unset) keep using `OPENAI_API_KEY` and the others from the environment. EE and cloud (`AGENTA_LICENSE=ee`) keep them off, and users store their keys in the app. Cloud sets no new flag |
 | `/m` uses `isEE()` for cloud analytics (`OSS_CONFIG` or `CLOUD_CONFIG`), cloud labels and the provider key guard | `/m` uses `isCloud()`. It reads the value `web/entrypoint.sh` already derives from the cloud key for billing (`AGENTA_BILLING_ENABLED`, `web/entrypoint.sh:64-76`); `isBillingEnabled()` becomes a call to `isCloud()`, so one value has one source. The entrypoint drops the edition condition from that check and from the Turnstile gate. No new flag. `OSS_CONFIG` becomes `SELF_HOSTED_CONFIG` |
 | `/m` hides the add-a-key form when not EE (`LicenseTab.tsx`) | The form shows on every self-hosted install; the `isEE()` branch goes away |
-| Server analytics: `oss_deployment_created` under `is_oss()` (`api/oss/src/middlewares/analytics.py:118-126`); sign-up event property `is_ee` (`api/oss/src/core/auth/supertokens/overrides.py:211`) | No new install event. The install event is `instance_installed` from #8237 (instance id only, no email), which replaces `oss_deployment_created`. Sign-up property `is_cloud` instead of `is_ee`. The old property stops in v0.130.1; the release notes for the analytics dashboards say so |
+| Server analytics: `oss_deployment_created` under `is_oss()` (`api/oss/src/middlewares/analytics.py:118-126`); sign-up event property `is_ee` (`api/oss/src/core/auth/supertokens/overrides.py:211`) | No new install event. The install event is `instance_installed` from #8237 (instance id only, no email), which replaces `oss_deployment_created`. Sign-up property `is_cloud` instead of `is_ee`. The old property stops in v0.131.1; the release notes for the analytics dashboards say so |
 | New subscriptions outside cloud store `self_hosted_enterprise` | They store `self_hosted_community`; reads keep using the instance plan |
+| An organization created on an open source install stores `allow_email` and `allow_social` as the deployment had them; the EE policy check reads them and a Community owner cannot change them | Sign-in rule, option 1, decided 2026-11-25 for every plan: on a plan without the access entitlement, the email and social flags follow the deployment settings; the stored SSO and root flags stay, so SSO set up under a license keeps working after it expires |
 
 ### Decision 3: Images and names
 
@@ -136,12 +137,15 @@ Where they run:
 
 The platform admin routes are the operator's tool, authorized by `AUTH_KEY`, and the test suites create accounts through them. Two sign-ups at the same moment on an empty instance can both create an organization; no lock.
 
-### Decision 7: `/m` refusal and next step (decided 2026-11-21: option A)
+### Decision 7: `/m` limits and next step (decided 2026-11-21: option A; screens approved 2026-11-25)
 
-- `DrawerProjectSwitcher.tsx` and `OrganizationsTab.tsx` read `detail.code` and show translated text for the two codes; other errors keep the string fallback.
-- The instance admin (the person who manages the instance license) gets "Open License settings", which opens the License tab with the free key form (#8242) and the add-a-key form (#8238). Others get "Ask your instance admin."
+- The project and organization dialogs read the usage (`GET /instance/license/usage`) when they open. At the limit they show the count with a bar in the info color and keep Create off, so the person sees the limit before a refusal.
+- `DrawerProjectSwitcher.tsx` and `OrganizationsTab.tsx` still read `detail.code` from a refusal and show translated text for the two codes; other errors keep the string fallback.
+- Project limit, instance admin: "Register this instance for free to create more projects." and a "Register this instance" button that opens the registration in place. Member: "Ask your instance admin to register this instance for more projects."
+- Organization limit: a paid key or an invitation, never the free key, because the free key does not lift it.
+- Settings > Projects shows "This organization uses 1 of 1 projects" with a Register button.
 - Cloud project refusal: the existing upgrade path to Billing, translated.
-- The zero-organization screen says the person needs an invitation from an organization admin.
+- No organization: a card that names who to ask and the signed-in account, with "Check again" and "Sign out".
 
 ### Decision 8: The Enterprise License text
 
@@ -151,18 +155,48 @@ A public image distributes the `ee/` code, and every install without a key runs 
 
 The rest of the license stays as it is. A lawyer review is still advised before the release. The code does not change with it.
 
-### Decision 9: Existing installs on upgrade (decided 2026-11-21: no notice)
+### Decision 9: Existing installs on upgrade (decided 2026-11-21: no notice; 2026-11-25: one registration prompt)
 
-No extra notice in `/m`. The release notes, the editions page and the upgrade page say: take a database backup; the first start migrates the open source database to the full schema; a second project and a second organization need a key. Counts above the limit are kept.
+No upgrade notice in `/m`. The only new prompt is the one-time registration prompt for the instance admin (Decision 10). The release notes, the editions page and the upgrade page say: take a database backup; the first start migrates the open source database to the full schema; a second project needs the free key and a second organization needs a paid key. Counts above the limit are kept.
+
+Installs older than v0.104.0 are checked by a static review of the runner's revision check and refusal, not by a live upgrade test (decided 2026-11-25).
+
+### Decision 10: Registration in onboarding and a one-time prompt (decided 2026-11-25)
+
+- Registration is a full onboarding step in `/m` right after the survey, not a dialog over the next step. It names the gain (more than 1 project, security notices, future free features) and has "Send me a free key" and "Skip".
+- The admin of an upgraded install, who never sees onboarding, gets the same step once as a prompt. Skipping it calls `POST /instance/license/registration-prompt/dismiss`; the skip is stored on the server, and `GET /instance/license` reports it, so the prompt does not come back on another browser.
+- Other places to register: a card on the License tab, the project limit dialog (in place), and Settings > Projects.
+- The box "Send me security and product updates (about once a month)" starts ticked and is optional. Unticked still gets the key. Security notices go to every registrant.
+- The setup answers (role, team size, how they found Agenta; option labels only, never typed text) go with every registration, with no box. One line under the button says so.
+- The promise "You keep what your key unlocks." is shown; free keys never expire.
+
+### Decision 11: The free key is tied to one instance (decided 2026-11-25, option 1)
+
+The worker writes the instance id into the free key payload. The API accepts a `self_hosted_registered` key only when that id is this instance's id, on activation and when it reads a stored or environment key. A key for another instance gives the plan `self_hosted_community`, and the License tab says the key belongs to another instance. Paid keys stay untied.
+
+### Decision 12: Registration in PostHog and Loops (decided 2026-11-25)
+
+- The API forwards the updates choice, the setup answers and the signed-in user id with the registration.
+- The website worker sends the key email (Loops transactional `LOOPS_TRANSACTIONAL_ID`) and stores the contact with `source` "self-hosted registration", `userGroup` "self-hosted", and the fields `agentaVersion`, `agentaRegisteredAt`, `agentaPlan`, `agentaInstanceId`, `agentaRole`, `agentaTeamSize`, `agentaHeardFrom` and `agentaProductUpdates` (true when ticked). No Loops list; campaigns target `userGroup` self-hosted with `agentaProductUpdates` true.
+- The worker then sends to the self-hosted PostHog project, whatever the instance's telemetry switch: `instance_registered` with distinct id the instance id, the email, version, plan and setup answers, in group `instance`; a `$groupidentify` with `registered_email`; and `$set: {email}` on the person `<instance_id>:<user_id>` of the registering admin.
+- The docs say: "Registering links your instance to your email in our analytics. Instances that do not register stay anonymous."
+- The self-hosted survey event does not carry the email (this avoids a merge trap with #8237).
+
+### Decision 13: Usage in the license API (decided 2026-11-25)
+
+- `GET /instance/license` adds `usage.projects` (in the request's organization) and `usage.organizations` (on the instance), each `{count, limit}`, with `limit` null for no limit.
+- `GET /instance/license/usage` gives the same counts to any person signed in to the app, so a member sees the limit before creating.
+- The License tab shows them as bars (and seats for a paid key), with a "Community" or "Registered" badge, the days left for a paid key, and the key box moved into an "Add a license key" dialog. Each locked enterprise page shows one compact "Available on the Enterprise plan" box.
 
 ## Risks / Trade-offs
 
-- Size and timing: this is a Program-size change for v0.130.1. The migration runner and the image build are the slow parts. If they slip, the limits cannot ship alone, because the open source image would not have the key check.
+- Size and timing: this is a Program-size change for v0.131.1. The migration runner and the image build are the slow parts. If they slip, the limits cannot ship alone, because the open source image would not have the key check.
 - Migration on first start for every open source install. The adoption only adds tables and rows, but a bad legacy chain choice cannot be undone. The runner stops before any change on an unknown revision. Release notes ask for a backup.
 - Rollback: an OSS image v0.104.0 or later can start again on an adopted database with `ALEMBIC_AUTO_MIGRATIONS=false`; the added tables and rows do not affect it.
 - The open source image now contains code under the Enterprise License. Community packagers may object.
 - CI: `12-check-unit-tests.yml` and `44-railway-tests.yml` pin `oss`. The OSS-only test paths in the three `run-tests.py` stop matching what ships; CI moves to the EE path.
-- Existing open source teams hit the project limit after upgrade. The refusal names the free key.
+- Existing open source teams hit the project limit after upgrade. The dialog shows the limit and lets the admin register in place.
+- Registration links an instance to an email in PostHog and Loops. Only instances that register are linked; the docs say so.
 - Self-hosted installs now store events with no retention and write meters on ingest, as self-hosted EE does today.
 
 ## Migration
