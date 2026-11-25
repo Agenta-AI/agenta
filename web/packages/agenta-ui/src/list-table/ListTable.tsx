@@ -1,5 +1,5 @@
 import {Fragment} from "react"
-import type {KeyboardEvent} from "react"
+import type {KeyboardEvent, ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
@@ -11,8 +11,10 @@ import {SkeletonBlock} from "../components/ui/skeleton"
 import {cn} from "../components/ui/utils"
 import {COMPACT_WINDOW_QUERY, useWindowMatch} from "../hooks/useWindowMatch"
 
+import {ListTableRowSelectContext} from "./ListTableSelectMark"
 import {ListTableSelectionBar} from "./ListTableSelectionBar"
 import type {ListTableColumn, ListTableProps} from "./types"
+import {useRowFlash} from "./useRowFlash"
 
 /** The checkbox column `selection` adds in front of the consumer's columns. */
 const SELECT_COLUMN: ListTableColumn = {
@@ -95,13 +97,17 @@ export const ListTable = <Row,>({
     rowClassName,
     headerClassName,
     selection,
+    flashKeys,
     className,
 }: ListTableProps<Row>) => {
     const t = useT(uiControlsCatalog)
     // A phone shows the list only: one view that is easy to scan and tap (the switch hides too).
     const compact = useWindowMatch(COMPACT_WINDOW_QUERY)
     const isGrid = view === "grid" && !compact
-    const selecting = Boolean(selection) && !isGrid
+    // The Mark is the checkbox: no column, no header bar, and both views select.
+    const markSelect = Boolean(selection?.markAsCheckbox)
+    const selecting = Boolean(selection) && !isGrid && !markSelect
+    const flashClass = useRowFlash(flashKeys)
     const allColumns = selecting ? [SELECT_COLUMN, ...columns] : columns
     const grid = gridTemplate(allColumns)
     // Select-all covers every selectable row, also those in a collapsed group.
@@ -131,6 +137,24 @@ export const ListTable = <Row,>({
         if (!next.delete(key)) next.add(key)
         selection.onChange(next)
     }
+    const isSelected = (row: Row) => markSelect && Boolean(selection?.selectedKeys.has(rowKey(row)))
+    // Hands the row's selection to its `ListTableSelectMark`.
+    const withMarkSelect = (row: Row, node: ReactNode) =>
+        markSelect && selection && (selection.canSelect?.(row) ?? true) ? (
+            <ListTableRowSelectContext.Provider
+                key={rowKey(row)}
+                value={{
+                    checked: selection.selectedKeys.has(rowKey(row)),
+                    selecting: selectedCount > 0,
+                    label: selection.rowLabel(row),
+                    onToggle: () => toggleRow(rowKey(row)),
+                }}
+            >
+                {node}
+            </ListTableRowSelectContext.Provider>
+        ) : (
+            node
+        )
     // `min(100%, …)`, so a container narrower than one card still gets one card, not a scroller.
     const cardGrid = `repeat(auto-fill, minmax(min(100%, ${cardMinWidth}px), 1fr))`
     // One value for the rows AND their skeleton, so loading holds the rhythm the rows arrive in.
@@ -429,6 +453,9 @@ export const ListTable = <Row,>({
                                                             opens(row) &&
                                                                 "cursor-pointer transition-[background-color,translate] duration-[var(--duration-base)] ease-out hover:-translate-y-0.5 hover:bg-accent motion-reduce:transition-none motion-reduce:hover:translate-y-0",
                                                             opens(row) && FOCUS_RING,
+                                                            isSelected(row) &&
+                                                                "bg-selected hover:bg-selected",
+                                                            flashClass(rowKey(row)),
                                                         )}
                                                     >
                                                         {renderCard?.(row)}
@@ -437,12 +464,15 @@ export const ListTable = <Row,>({
                                                 // A wrapper has to be `display: contents` (as the
                                                 // drive's context-menu trigger is) to leave the
                                                 // tile a grid item of its own.
-                                                return wrapRow ? (
-                                                    <Fragment key={rowKey(row)}>
-                                                        {wrapRow(row, tile)}
-                                                    </Fragment>
-                                                ) : (
-                                                    tile
+                                                return withMarkSelect(
+                                                    row,
+                                                    wrapRow ? (
+                                                        <Fragment key={rowKey(row)}>
+                                                            {wrapRow(row, tile)}
+                                                        </Fragment>
+                                                    ) : (
+                                                        tile
+                                                    ),
                                                 )
                                             })}
                                         </div>
@@ -474,6 +504,9 @@ export const ListTable = <Row,>({
                                                     opens(row) &&
                                                         "cursor-pointer transition-colors duration-[var(--duration-fast)] ease-out hover:bg-accent motion-reduce:transition-none",
                                                     opens(row) && FOCUS_RING,
+                                                    isSelected(row) &&
+                                                        "bg-selected hover:bg-selected",
+                                                    flashClass(rowKey(row)),
                                                 )}
                                                 style={{gridTemplateColumns: grid}}
                                             >
@@ -502,12 +535,15 @@ export const ListTable = <Row,>({
                                                 {renderRow(row)}
                                             </div>
                                         )
-                                        return wrapRow ? (
-                                            <Fragment key={rowKey(row)}>
-                                                {wrapRow(row, rowNode)}
-                                            </Fragment>
-                                        ) : (
-                                            rowNode
+                                        return withMarkSelect(
+                                            row,
+                                            wrapRow ? (
+                                                <Fragment key={rowKey(row)}>
+                                                    {wrapRow(row, rowNode)}
+                                                </Fragment>
+                                            ) : (
+                                                rowNode
+                                            ),
                                         )
                                     })
                                 )}

@@ -103,7 +103,7 @@ export type ListTableProps<Row> = ListTableBaseProps<Row> & ListTableViewProps<R
  * the consumer's bulk actions. The selection is the consumer's state: the frame only reports
  * what the reader ticked, by `rowKey`.
  *
- * The list view only: a card grid has no column for a checkbox.
+ * The checkbox column is the list view's only; `markAsCheckbox` selects in both views.
  */
 export interface ListTableSelection<Row> {
     selectedKeys: ReadonlySet<string>
@@ -114,6 +114,12 @@ export interface ListTableSelection<Row> {
     rowLabel: (row: Row) => string
     /** Drawn at the right of the "N selected" bar: Archive, Delete, Export. */
     bulkActions?: (selectedKeys: ReadonlySet<string>) => ReactNode
+    /**
+     * The row's Mark is its checkbox, in the list and the grid: wrap the Mark in
+     * `ListTableSelectMark`. No checkbox column and no header bar; the caller draws
+     * `ListTableSelectionToolbar` in place of its toolbar.
+     */
+    markAsCheckbox?: boolean
 }
 
 export interface ListTableBaseProps<Row> {
@@ -194,6 +200,8 @@ export interface ListTableBaseProps<Row> {
     rowClassName?: string
     /** Extra classes for the column header row, merged over its defaults. */
     headerClassName?: string
+    /** Rows and cards to flash once (just created): a `selected` fill that fades out. */
+    flashKeys?: ReadonlySet<string>
     /** Row selection with a select-all and a bulk bar. Absent ⇒ no checkbox column. */
     selection?: ListTableSelection<Row>
     className?: string
