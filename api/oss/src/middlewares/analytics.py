@@ -29,6 +29,10 @@ _SECRET_TOKEN_PREFIX = "Secret "
 
 # The first product token of a User-Agent, such as `python-httpx/0.28.1`.
 _USER_AGENT_PRODUCT = re.compile(r"^([A-Za-z][\w.\-]{0,63})/([\w.\-+]{1,32})")
+# The caller sets these headers, so only a plain product name and version pass; text
+# such as an email address is dropped.
+_SDK_NAME = re.compile(r"[A-Za-z][\w.\-]{0,63}")
+_SDK_VERSION = re.compile(r"[\w.\-+]{1,32}")
 
 # Events subject to per-auth-method daily limits
 LIMITED_EVENTS_PER_AUTH = {
@@ -286,10 +290,12 @@ def _client_sdk(request: Request) -> Dict[str, str]:
     headers = request.headers
     name = headers.get("x-fern-sdk-name")
     if name:
-        sdk = {"sdk_name": name[:64]}
-        version = headers.get("x-fern-sdk-version")
-        if version:
-            sdk["sdk_version"] = version[:32]
+        if not _SDK_NAME.fullmatch(name):
+            return {}
+        sdk = {"sdk_name": name}
+        version = headers.get("x-fern-sdk-version") or ""
+        if _SDK_VERSION.fullmatch(version):
+            sdk["sdk_version"] = version
         return sdk
 
     match = _USER_AGENT_PRODUCT.match(headers.get("user-agent") or "")
