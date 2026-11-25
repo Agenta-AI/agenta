@@ -39,6 +39,8 @@ export interface SkillEditorProps {
 }
 
 /** The skill editor the skill page and the create page share: fields, a file, the Files pane. */
+const TOOLS_SLOT = "flex min-w-0 items-center overflow-x-auto [scrollbar-width:none]"
+
 export function SkillEditor({
     draft,
     onChange,
@@ -57,6 +59,9 @@ export function SkillEditor({
     // Docked beside the editor on a wide window; a drill-in a tap away on a narrow one.
     useEffect(() => setFilesOpen(expanded), [expanded])
     const [openPath, setOpenPath] = useState<string | null>(null)
+    // Slots in the label rows that the markdown formatting tools render into.
+    const [bodyTools, setBodyTools] = useState<HTMLDivElement | null>(null)
+    const [fileTools, setFileTools] = useState<HTMLDivElement | null>(null)
 
     // Latest draft and handler in refs, so the files panel gets stable callbacks and skips keystrokes.
     const latest = useRef(draft)
@@ -131,6 +136,9 @@ export function SkillEditor({
                         {baseOf(current.path)}
                     </span>
                 </span>
+                {isMarkdownPath(current.path) && !readOnly ? (
+                    <div ref={setFileTools} className={TOOLS_SLOT} />
+                ) : null}
                 {isMarkdownPath(current.path) || readOnly ? null : (
                     <label className="flex shrink-0 cursor-pointer items-center gap-2 text-label text-muted-foreground">
                         {t("skills.editor.runAsProgram")}
@@ -161,6 +169,7 @@ export function SkillEditor({
                     placeholder={t("skills.editor.filePlaceholder")}
                     empty={t("skills.editor.nothingWritten")}
                     readOnly={readOnly}
+                    toolbar={fileTools}
                 />
             ) : (
                 <Textarea
@@ -228,6 +237,7 @@ export function SkillEditor({
                 label={t("skills.editor.instructions")}
                 tooltip={t("skills.editor.instructionsHint")}
                 error={missingBody ? t("skills.editor.instructionsMissing") : undefined}
+                labelEnd={readOnly ? null : <div ref={setBodyTools} className={TOOLS_SLOT} />}
             >
                 <SkillMarkdownFrame
                     value={draft.body}
@@ -236,6 +246,7 @@ export function SkillEditor({
                     empty={readOnly ? t("skills.editor.nothingWritten") : t("skills.editor.nothingYet")}
                     readOnly={readOnly}
                     invalid={missingBody}
+                    toolbar={bodyTools}
                 />
             </Field>
         </div>

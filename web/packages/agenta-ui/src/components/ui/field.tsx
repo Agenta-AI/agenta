@@ -202,7 +202,7 @@ function Field({
                             </Tooltip>
                         </TooltipProvider>
                     )}
-                    {labelEnd != null && <div className="ml-auto flex shrink-0">{labelEnd}</div>}
+                    {labelEnd != null && <div className="ml-auto flex min-w-0">{labelEnd}</div>}
                 </div>
             )}
             {description != null && (

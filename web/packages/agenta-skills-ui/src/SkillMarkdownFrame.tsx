@@ -1,10 +1,8 @@
-import {useState} from "react"
-
 import {MarkdownEditor} from "@agenta/entity-ui/drill-in"
 import {MarkdownPreview} from "@agenta/ui"
 import {cn} from "@agenta/ui/styles"
 
-/** One bordered markdown box: the formatting tools on top of the text; read-only shows the rendered text. */
+/** One bordered markdown box. The formatting tools render into `toolbar`, a slot the host puts in its label row. */
 export function SkillMarkdownFrame({
     value,
     onChange,
@@ -12,6 +10,7 @@ export function SkillMarkdownFrame({
     empty,
     readOnly = false,
     invalid = false,
+    toolbar,
 }: {
     value: string
     onChange: (next: string) => void
@@ -20,8 +19,9 @@ export function SkillMarkdownFrame({
     empty: string
     readOnly?: boolean
     invalid?: boolean
+    /** Where the formatting tools go; null until the host's slot mounts. */
+    toolbar: HTMLElement | null
 }) {
-    const [toolbarHost, setToolbarHost] = useState<HTMLDivElement | null>(null)
     const writing = !readOnly
 
     return (
@@ -32,19 +32,13 @@ export function SkillMarkdownFrame({
             )}
         >
             {writing ? (
-                <div
-                    ref={setToolbarHost}
-                    className="flex min-h-10 min-w-0 items-center overflow-x-auto border-0 border-b border-solid border-border-muted px-2 [scrollbar-width:none]"
-                />
-            ) : null}
-            {writing ? (
                 <div className="flex min-h-[280px] flex-col [&_.md-prose]:min-h-[280px]">
                     <MarkdownEditor
                         value={value}
                         onChange={onChange}
                         placeholder={placeholder}
                         showToolbar
-                        toolbarContainer={toolbarHost}
+                        toolbarContainer={toolbar}
                         toolbarLayout="inline"
                         bordered={false}
                         defaultView="rendered"
