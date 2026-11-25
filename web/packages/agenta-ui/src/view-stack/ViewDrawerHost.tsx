@@ -8,7 +8,12 @@ import {Sheet, SheetContent, SheetTitle} from "../components/ui/sheet"
 import {useIsPhone} from "../phone/useIsPhone"
 
 import {useViewStack} from "./context"
-import {DrawerBareContext, DrawerCloseContext, DrawerViewChrome} from "./DrawerViewChrome"
+import {
+    DrawerBareContext,
+    DrawerCloseContext,
+    DrawerDialogContext,
+    DrawerViewChrome,
+} from "./DrawerViewChrome"
 import {PhoneViewChrome} from "./PhoneViewChrome"
 import type {ViewDef, ViewStack, ViewTarget} from "./types"
 import {ViewStackHost} from "./ViewStackHost"
@@ -70,6 +75,7 @@ export const ViewDrawerHost = <P,>({
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[inherit] p-0 text-field-md text-foreground">
             <DrawerCloseContext.Provider value={close}>
                 <DrawerBareContext.Provider value={bare && (!phone || sheet)}>
+                <DrawerDialogContext.Provider value={presentation === "dialog"}>
                 <ViewStackHost
                     chrome={phone && !sheet ? PhoneViewChrome : DrawerViewChrome}
                     phone={phone}
@@ -81,6 +87,7 @@ export const ViewDrawerHost = <P,>({
                         onEmpty={finish}
                     />
                 </ViewStackHost>
+                </DrawerDialogContext.Provider>
                 </DrawerBareContext.Provider>
             </DrawerCloseContext.Provider>
         </div>

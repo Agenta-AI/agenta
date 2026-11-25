@@ -21,13 +21,14 @@ import {
     Input,
     Segmented,
     Select,
+    SimpleTooltip,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
     Textarea,
 } from "@agenta/ui/ui"
-import {Plus, Trash} from "@phosphor-icons/react"
+import {Plus, Question, Trash} from "@phosphor-icons/react"
 
 import {
     coerceToType,
@@ -48,6 +49,8 @@ export interface SecretFormProps {
      * (the attach and create drawers sit at 1000 and 1100) hides them unless told the layer.
      */
     popupZIndex?: number
+    /** A short note behind a "?" beside the Name label. */
+    nameHelp?: string
 }
 
 type SecretFormT = ReturnType<typeof useT<[typeof secretFormCatalog]>>
@@ -115,7 +118,7 @@ const HintText = ({children}: {children: React.ReactNode}) => (
     <span className="text-meta text-muted-foreground">{children}</span>
 )
 
-export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFormProps) {
+export function SecretForm({controller, textOnly = false, popupZIndex, nameHelp}: SecretFormProps) {
     const t = useT(secretFormCatalog, commonCatalog)
     const [slugOpen, setSlugOpen] = useState(false)
     const popupStyle = popupZIndex != null ? {zIndex: popupZIndex} : undefined
@@ -159,7 +162,20 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
         <div className="flex flex-col gap-4 ph-no-capture">
             <div className="flex flex-col gap-1">
                 <div className="flex min-w-0 items-center justify-between gap-3">
-                    <FieldLabel>{t("entityUi.secretForm.name")}</FieldLabel>
+                    <span className="flex items-center gap-1">
+                        <FieldLabel>{t("entityUi.secretForm.name")}</FieldLabel>
+                        {nameHelp ? (
+                            <SimpleTooltip title={nameHelp}>
+                                <button
+                                    type="button"
+                                    aria-label={nameHelp}
+                                    className="inline-flex cursor-help border-0 bg-transparent p-0 text-muted-foreground"
+                                >
+                                    <Question size={14} aria-hidden />
+                                </button>
+                            </SimpleTooltip>
+                        ) : null}
+                    </span>
                     {/* The slug follows the name, so it shows here and opens only on Edit. */}
                     {slug && !slugOpen ? (
                         <span className="flex min-w-0 items-center gap-1.5 text-meta text-muted-foreground">

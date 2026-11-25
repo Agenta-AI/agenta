@@ -98,10 +98,10 @@ const SecretFormViewBody = ({params}: ViewProps<SecretFormViewParams>) => {
 
     return (
         <div className="flex flex-col gap-4 px-4 py-3">
-            <p className="m-0 text-meta text-muted-foreground">
-                {t("settings.secretFormSheet.description")}
-            </p>
-            <SecretForm controller={controller} />
+            <SecretForm
+                controller={controller}
+                nameHelp={t("settings.secretFormSheet.description")}
+            />
             {askOwner && owners ? (
                 <OwnerField<SecretOwner>
                     value={owner}

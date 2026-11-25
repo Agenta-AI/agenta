@@ -18,6 +18,9 @@ export const DrawerCloseContext = createContext<(() => void) | null>(null)
 /** Set by `ViewDrawerHost`: no header row; Close sits at the top right of the view itself. */
 export const DrawerBareContext = createContext(false)
 
+/** Set by `ViewDrawerHost` in a dialog: the header row has no rule under it. */
+export const DrawerDialogContext = createContext(false)
+
 /**
  * The chrome of a container that keeps a drawer: the breadcrumb and Close at the top, the view
  * edge to edge, and the view's action row at the bottom.
@@ -37,6 +40,7 @@ export const DrawerViewChrome = ({
     const t = useT(viewStackCatalog, commonCatalog)
     const close = useContext(DrawerCloseContext)
     const bare = useContext(DrawerBareContext) && !showBack
+    const inDialog = useContext(DrawerDialogContext)
     const closeButton = close ? (
         <SimpleTooltip title={t("ui.viewStack.close")}>
             <Button
@@ -54,7 +58,12 @@ export const DrawerViewChrome = ({
             {bare ? (
                 <div className="absolute right-3 top-4 z-10">{closeButton}</div>
             ) : (
-            <div className="flex h-12 shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted px-3">
+            <div
+                className={cn(
+                    "flex h-12 shrink-0 items-center gap-1 px-3",
+                    !inDialog && "border-0 border-b border-solid border-border-muted",
+                )}
+            >
                 {showBack ? (
                     <SimpleTooltip title={t("common.back")}>
                         <Button
