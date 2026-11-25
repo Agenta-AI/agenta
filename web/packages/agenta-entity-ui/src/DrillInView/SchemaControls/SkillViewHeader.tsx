@@ -69,6 +69,8 @@ export interface SkillViewHeaderProps {
     compact?: boolean
     /** Controls before the menu in a compact header (the Files toggle). */
     end?: ReactNode
+    /** The compact header's title (the editable name), in place of the status. */
+    title?: ReactNode
 }
 
 export function SkillViewHeader({
@@ -83,6 +85,7 @@ export function SkillViewHeader({
     onMenuOpenChange,
     compact = false,
     end,
+    title,
 }: SkillViewHeaderProps) {
     const t = useT(skillsGalleryCatalog)
     const [ownOpen, setOwnOpen] = useState(false)
@@ -141,9 +144,13 @@ export function SkillViewHeader({
         return (
             <div ref={setHeaderRoot} className="flex shrink-0 flex-col gap-1 px-4 py-2">
                 <div className="flex min-h-control-sm min-w-0 items-center gap-1">
-                    <span className="min-w-0 flex-1 truncate text-meta text-muted-foreground">
-                        {status}
-                    </span>
+                    {title ? (
+                        <div className="min-w-0 flex-1">{title}</div>
+                    ) : (
+                        <span className="min-w-0 flex-1 truncate text-meta text-muted-foreground">
+                            {status}
+                        </span>
+                    )}
                     {extra}
                     {end}
                     {menu}

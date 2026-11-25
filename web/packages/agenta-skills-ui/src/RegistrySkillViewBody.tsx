@@ -66,6 +66,7 @@ import {useRouter} from "next/router"
 import {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
 import {toSkillContent, toSkillDraft, type SkillDraft} from "./skillDraft"
 import {SkillEditor} from "./SkillEditor"
+import {SkillNameTitle} from "./SkillNameTitle"
 import {skillTitle} from "./skillTitle"
 import {useRegistrySkill} from "./useRegistrySkill"
 import type {SkillListItem, SkillUsageRef} from "./types"
@@ -407,6 +408,15 @@ const RegistrySkillEditor = ({
         <div ref={setEditorRoot} className="flex min-h-0 flex-1 flex-col">
             <SkillViewHeader
                 compact
+                // The name is the view's title, edited in place, as on the skill page.
+                title={
+                    <SkillNameTitle
+                        value={toSkillDraft(value).name}
+                        onChange={(name) => setDraft({...value, name})}
+                        readOnly={readOnly}
+                        invalid={dirty && !valid && !toSkillDraft(value).name.trim()}
+                    />
+                }
                 end={<div ref={setFilesSlot} className="flex empty:hidden" />}
                 name={skillTitle(skill)}
                 status={status}
@@ -466,7 +476,6 @@ const RegistrySkillEditor = ({
                             draft={toSkillDraft(value)}
                             onChange={(next) => setDraft(fromDraft(next))}
                             readOnly={readOnly}
-                            showName
                             showMissing={dirty && !valid}
                             filesPlacement="inline"
                             filesToggleSlot={filesSlot}
