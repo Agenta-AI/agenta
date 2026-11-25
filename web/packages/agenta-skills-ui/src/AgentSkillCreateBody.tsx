@@ -1,13 +1,14 @@
 /** The agent's "New skill" view: choose how, then write, upload or import; each skill joins the agent. */
-import {useCallback, useRef, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import skillsAgentCatalog from "@agenta/i18n/catalogs/skills.agent"
+import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
 import {projectIdAtom} from "@agenta/shared/state"
 import {buildSkillEmbedEntry} from "@agenta/skills"
 import type {NewSkillBodyProps} from "@agenta/ui/drill-in"
-import {Alert, Spinner} from "@agenta/ui/ui"
+import {Alert, Button, Spinner} from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, ViewFooterStart} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
@@ -37,7 +38,7 @@ const toEntries = (skills: Made[]): Record<string, unknown>[] =>
     )
 
 export function AgentSkillCreateBody({onCreated, onDone}: NewSkillBodyProps) {
-    const t = useT(skillsAgentCatalog, skillsPageCatalog)
+    const t = useT(skillsAgentCatalog, skillsPageCatalog, skillsEditorCatalog)
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const onCreatedRef = useRef(onCreated)
     onCreatedRef.current = onCreated
@@ -94,6 +95,13 @@ export function AgentSkillCreateBody({onCreated, onDone}: NewSkillBodyProps) {
         ...(writing ? {cancel: () => guard(leave)} : {}),
     })
 
+    // A click opened the view: move focus into it, so Escape and Tab start here.
+    const rootRef = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+        const root = rootRef.current
+        if (root && !root.contains(document.activeElement)) root.focus({preventScroll: true})
+    }, [])
+
     const errorAlert = flow.error ? <Alert type="error" showIcon message={flow.error} /> : null
 
     let body: React.ReactNode
@@ -131,9 +139,25 @@ export function AgentSkillCreateBody({onCreated, onDone}: NewSkillBodyProps) {
             </>
         )
     } else if (step === "upload") {
+        // The same Select all as the Skills page upload and the GitHub step.
+        const keys = flow.uploadCandidates.map((c) => c.key)
+        const allPicked = keys.length > 0 && flow.picked.size === keys.length
         body = (
             <div className="flex flex-col gap-4">
                 <p className="m-0 text-body text-muted-foreground">{t("skills.page.uploadHint")}</p>
+                {keys.length > 1 ? (
+                    <div className="flex min-h-8 items-center justify-end">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={flow.busy}
+                            onClick={() => flow.setPicked(new Set(allPicked ? [] : keys))}
+                        >
+                            {allPicked ? t("skills.editor.clearAll") : t("skills.editor.selectAll")}
+                        </Button>
+                    </div>
+                ) : null}
                 <SkillCandidateList
                     candidates={flow.uploadCandidates}
                     selected={flow.picked}
@@ -174,7 +198,11 @@ export function AgentSkillCreateBody({onCreated, onDone}: NewSkillBodyProps) {
     }
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col px-4 py-4">
+        <div
+            ref={rootRef}
+            tabIndex={-1}
+            className="flex min-h-0 flex-1 flex-col px-4 py-4 outline-none"
+        >
             {body}
             <SkillDiscardDialog
                 open={asking !== null}

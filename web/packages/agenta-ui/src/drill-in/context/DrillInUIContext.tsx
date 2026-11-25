@@ -266,6 +266,9 @@ export interface SkillsBridge {
      * it for the "vN available" nudge. A hook (required, not optional: hook order) that
      * may answer {} while the registry list loads. */
     useHeadVersions: () => Record<string, string>
+    /** Embed slugs of registry skills that are archived, so the panel can mark those rows.
+     * Optional; when set, a host-stable hook like `useHeadVersions`. */
+    useArchivedSlugs?: () => ReadonlySet<string>
     /** Publish an INLINE skill package to the registry. Resolves with the `@ag.embed`
      * entry that replaces the inline entry in place, or an error the caller surfaces.
      * The migration path for pre-registry configs; runtime keeps accepting inline. */

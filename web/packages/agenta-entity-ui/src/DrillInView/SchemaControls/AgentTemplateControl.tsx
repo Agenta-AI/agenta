@@ -155,6 +155,8 @@ export interface AgentTemplateControlProps {
 // the agent populates them (see `useAutoExpandOnPopulate`).
 /** Stable no-op stand-in when no skills bridge is wired (hook order must not depend on data). */
 const useNoHeadVersions = (): Record<string, string> => EMPTY_HEAD_VERSIONS
+const NO_ARCHIVED_SLUGS: ReadonlySet<string> = new Set()
+const useNoArchivedSlugs = (): ReadonlySet<string> => NO_ARCHIVED_SLUGS
 const EMPTY_HEAD_VERSIONS: Record<string, string> = {}
 
 const CONTROLLED_SECTION_KEYS = new Set(["tools", "subagents", "mcp", "skills", "triggers"])
@@ -713,6 +715,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // so the conditional hook resolution keeps a stable hook order in practice.
     const useHeadVersions = skillsBridge?.useHeadVersions ?? useNoHeadVersions
     const skillHeadVersions = useHeadVersions()
+    const useArchivedSlugs = skillsBridge?.useArchivedSlugs ?? useNoArchivedSlugs
+    const archivedSkillSlugs = useArchivedSlugs()
     const skillStatusFor = useMemo(() => {
         const base = statusForKind("skill")
         return (item: unknown, index: number) => {
@@ -721,6 +725,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             // Gold nudge on pinned embeds the registry has moved past.
             if (!isEmbedRefSkill(item) || isStaticSkill(item)) return undefined
             const record = item as Record<string, unknown>
+            // An archived registry skill no longer runs for this agent: mark the row.
+            const embedSlug = staticEmbedSlug(record)
+            if (embedSlug && archivedSkillSlugs.has(embedSlug))
+                return {
+                    tone: "invalid" as const,
+                    label: tNow("entityUi.agentTemplate.skillArchived"),
+                    tooltip: tNow("entityUi.agentTemplate.skillArchivedTip"),
+                }
             const pinned = embedRevisionVersion(record)
             if (!pinned) return undefined
             const slug = staticEmbedSlug(record)
@@ -732,7 +744,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 tooltip: tNow("entityUi.agentTemplate.updateAvailableTip"),
             }
         }
-    }, [statusForKind, skillHeadVersions])
+    }, [statusForKind, skillHeadVersions, archivedSkillSlugs])
 
     // Section headers: a blocking problem (invalid) outranks unsaved edits (draft).
     const sectionInvalidTip = (key: string): string | null => {

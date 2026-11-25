@@ -16,6 +16,7 @@ import {
     dirOf,
     draftSkillName,
     isMarkdownPath,
+    skillNameProblem,
     type SkillDraft,
 } from "./skillDraft"
 import {SkillFilesPanel} from "./SkillFilesPanel"
@@ -39,9 +40,10 @@ export interface SkillEditorProps {
     filesToggleSlot?: HTMLElement | null
 }
 
-const TOOLS_SLOT = "flex min-w-0 items-center overflow-x-auto [scrollbar-width:none]"
+// Not a scroller: the toolbar inside is the one horizontal scroller, with faded edges.
+const TOOLS_SLOT = "flex min-w-0 items-center"
 
-/** A label-row slot for the formatting tools; the toolbar fades its own scroll edges. */
+/** A label-row slot for the formatting tools; it shrinks so the toolbar can scroll. */
 function ToolsSlot({onSlot}: {onSlot: (slot: HTMLDivElement | null) => void}) {
     return <div ref={onSlot} className={TOOLS_SLOT} />
 }
@@ -112,7 +114,9 @@ export function SkillEditor({
 
     const current = draft.files.find((file) => file.path === openPath) ?? null
     const tooLong = descriptionTooLong(draft)
-    const missingName = showMissing && !draftSkillName(draft)
+    // Bad characters show at once; an empty name only after a create was tried.
+    const nameProblem = skillNameProblem(draft.name)
+    const missingName = nameProblem === "invalid" || (showMissing && nameProblem === "missing")
     const missingDescription = showMissing && !draft.description.trim()
     // The editor reports text after a short delay; typing clears the error at once.
     const [bodyTyped, setBodyTyped] = useState(false)
@@ -225,9 +229,16 @@ export function SkillEditor({
                     <Field
                         label={t("skills.editor.name")}
                         tooltip={t("skills.editor.nameHint")}
-                        error={missingName ? t("skills.editor.nameMissing") : undefined}
+                        error={
+                            !missingName
+                                ? undefined
+                                : nameProblem === "invalid"
+                                  ? t("skills.editor.nameInvalid")
+                                  : t("skills.editor.nameMissing")
+                        }
                     >
                         <Input
+                            data-skill-name=""
                             autoFocus={autoFocusName}
                             value={draft.name}
                             readOnly={readOnly}
@@ -350,19 +361,22 @@ export function SkillEditor({
                         )}
                     >
                         <div className="flex min-h-8 items-center gap-2 text-label font-medium text-foreground">
-                            {/* Below @2xl Files takes the fields' place, so it goes Back to them. */}
-                            <SimpleTooltip title={tCommon("common.back")}>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    className="@2xl:hidden"
-                                    aria-label={tCommon("common.back")}
-                                    onClick={() => setFilesOpen(false)}
-                                >
-                                    <ArrowLeft />
-                                </Button>
-                            </SimpleTooltip>
+                            {/* Below @2xl Files takes the fields' place, so it goes Back to them; with a
+                                header toggle, that toggle closes Files and the host has its own Back. */}
+                            {headerToggle ? null : (
+                                <SimpleTooltip title={tCommon("common.back")}>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        className="@2xl:hidden"
+                                        aria-label={tCommon("common.back")}
+                                        onClick={() => setFilesOpen(false)}
+                                    >
+                                        <ArrowLeft />
+                                    </Button>
+                                </SimpleTooltip>
+                            )}
                             <span className="flex-1">{filesTitle}</span>
                             {readOnly ? null : <div ref={setInlineAddSlot} className="flex" />}
                         </div>

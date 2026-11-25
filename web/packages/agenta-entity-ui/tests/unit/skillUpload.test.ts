@@ -152,6 +152,15 @@ describe("scanSkillFiles", () => {
         expect(scan.fileCount).toBe(4)
     })
 
+    it("two loose SKILL.md files at one level are two candidates with their own keys", () => {
+        const scan = scanSkillFiles([
+            {path: "SKILL.md", bytes: bytes("---\nname: a\n---\nA")},
+            {path: "SKILL.md", bytes: bytes("---\nname: b\n---\nB")},
+        ])
+        expect(scan.candidates.map((c) => c.skill.name)).toEqual(["a", "b"])
+        expect(new Set(scan.candidates.map((c) => c.key)).size).toBe(2)
+    })
+
     it("a nested skill's files stay out of the parent candidate", () => {
         const scan = scanSkillFiles([
             {path: "SKILL.md", bytes: bytes("---\nname: parent\n---\nP")},

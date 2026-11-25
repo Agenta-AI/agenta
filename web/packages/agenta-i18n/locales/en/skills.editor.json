@@ -3,6 +3,7 @@
     "nameHint": "Lowercase letters, numbers and hyphens, for example pr-review.",
     "namePlaceholder": "Name your skill, e.g. Weekly report",
     "nameMissing": "Give the skill a name.",
+    "nameInvalid": "Use letters, numbers and hyphens in the name.",
     "savedAs": "Saved as {{name}}.",
     "description": "Description",
     "descriptionHint": "Agents read this to decide when the skill fits a task.",

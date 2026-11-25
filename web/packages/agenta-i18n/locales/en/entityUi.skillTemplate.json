@@ -2,6 +2,7 @@
     "skillReference": "Skill reference",
     "skill": "Skill",
     "remove": "Remove",
+    "removeName": "Remove {{name}}",
     "staticSkill": "Static skill",
     "staticSkillHint": "Provided by Agenta. This skill cannot be edited or removed.",
     "skillTemplate": "Skill template",

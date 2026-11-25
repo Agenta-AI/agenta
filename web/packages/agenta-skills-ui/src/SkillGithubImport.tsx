@@ -1,6 +1,6 @@
 import {useState} from "react"
 
-import {createT, richText, useT} from "@agenta/i18n"
+import {createT, formatList, richText, useT} from "@agenta/i18n"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {
@@ -283,7 +283,7 @@ export function SkillGithubImport({
                             showIcon
                             message={t("skills.editor.filesSkipped", {
                                 count: leftOutFiles.length,
-                                names: leftOutFiles.join(", "),
+                                names: formatList(leftOutFiles),
                             })}
                         />
                     ) : null}

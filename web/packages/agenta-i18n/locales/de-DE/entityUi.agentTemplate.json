@@ -22,6 +22,8 @@
     "unresolved": "Nicht aufgelöst",
     "unresolvedTip": "Dieses Werkzeug konnte nicht aufgelöst werden – die Aktion wurde möglicherweise umbenannt oder entfernt. Öffnen Sie es, um die Rohdefinition zu prüfen.",
     "publishedRowChanged": "Der Skill wurde in der Registry veröffentlicht, aber diese Zeile hat sich währenddessen geändert. Fügen Sie ihn über die Auswahl hinzu.",
+    "skillArchived": "Archiviert",
+    "skillArchivedTip": "Dieser Skill ist in der Registry archiviert, daher nutzt der Agent ihn nicht mehr. Stellen Sie ihn auf der Seite Skills wieder her oder entfernen Sie ihn hier.",
     "updateAvailable": "Update verfügbar",
     "updateAvailableTip": "Dieser Skill ist angeheftet und die Registry hat eine neuere Version. Fügen Sie ihn angeheftet erneut hinzu, um zu aktualisieren, oder stellen Sie die Referenz auf die neueste Version um.",
     "noModelSelected": "Es ist kein Modell ausgewählt.",

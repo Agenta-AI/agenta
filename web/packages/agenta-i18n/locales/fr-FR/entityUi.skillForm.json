@@ -1,8 +1,7 @@
 {
     "maxCharacters": "{{count}} caractères au maximum.",
     "filledFromPaste": "Rempli à partir du skill collé",
-    "downloadZip": "Télécharger en .zip",
-    "downloadSkillMd": "Télécharger SKILL.md",
+    "download": "Télécharger",
     "addAFile": "Ajouter un fichier",
     "untitled": "sans titre",
     "name": "Nom",

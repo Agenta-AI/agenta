@@ -1,6 +1,6 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
-import type {SkillUploadScan} from "@agenta/entity-ui/drill-in"
+import type {SkillScanCandidate, SkillUploadScan} from "@agenta/entity-ui/drill-in"
 import {createT} from "@agenta/i18n"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
@@ -15,6 +15,7 @@ import {
     draftSkillName,
     EMPTY_SKILL_DRAFT,
     isSkillDraftEmpty,
+    SKILL_NAME_INPUT,
     toSkillContent,
     toSkillDraft,
     type SkillDraft,
@@ -33,6 +34,19 @@ const tNow = createT(skillsEditorCatalog)
 
 const failure = (err: unknown, fallback: string) => extractApiErrorMessage(err) || fallback
 
+/** An upload candidate with its own key: two SKILL.md files can share a folder. */
+type KeyedCandidate = SkillScanCandidate & {key: string}
+
+/** FORM-03: after a failed create, the focus goes to the name when the name is the problem. */
+const focusName = () =>
+    requestAnimationFrame(() =>
+        // The shown one: a view under this one in a stack can hold another name input.
+        [...document.querySelectorAll<HTMLInputElement>(`[${SKILL_NAME_INPUT}]`)]
+            .filter((input) => input.offsetParent !== null)
+            .pop()
+            ?.focus(),
+    )
+
 /** The create page's state: the step, the draft, an upload's picks, and the writes. */
 export function useSkillCreateFlow({
     projectId,
@@ -48,7 +62,7 @@ export function useSkillCreateFlow({
     // Set once a create succeeds: the page stays locked until it navigates away.
     const [done, setDone] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [scan, setScan] = useState<SkillUploadScan | null>(null)
+    const [candidates, setCandidates] = useState<KeyedCandidate[]>([])
     const [picked, setPicked] = useState<Set<string>>(new Set())
     const registry = useAtomValue(skillsResolveDataAtom)
     // Bumped on every step change, so a scan that ends after the user moved on is ignored.
@@ -72,7 +86,7 @@ export function useSkillCreateFlow({
         setBusy(false)
         setDone(false)
         setError(null)
-        setScan(null)
+        setCandidates([])
         setPicked(new Set())
     }, [])
 
@@ -104,7 +118,9 @@ export function useSkillCreateFlow({
                         return
                     }
                     createdSoFar.current = []
-                    setScan(result)
+                    setCandidates(
+                        result.candidates.map((c, index) => ({...c, key: `${index}:${c.dir}`})),
+                    )
                     // None picked, as on the GitHub step.
                     setPicked(new Set())
                     showStep("upload")
@@ -135,13 +151,11 @@ export function useSkillCreateFlow({
 
     const create = useCallback(async () => {
         setAttempted(true)
-        if (
-            !draftSkillName(draft) ||
-            !draft.description.trim() ||
-            descriptionTooLong(draft) ||
-            !draft.body.trim()
-        )
+        if (!draftSkillName(draft)) {
+            focusName()
             return
+        }
+        if (!draft.description.trim() || descriptionTooLong(draft) || !draft.body.trim()) return
         setBusy(true)
         setError(null)
         try {
@@ -158,15 +172,15 @@ export function useSkillCreateFlow({
     }, [createOne, draft, onCreated])
 
     const importUploads = useCallback(async () => {
-        if (!scan) return
+        if (!candidates.length) return
         setBusy(true)
         setError(null)
         const added = new Set<string>()
         try {
-            for (const candidate of scan.candidates.filter((c) => picked.has(c.dir))) {
+            for (const candidate of candidates.filter((c) => picked.has(c.key))) {
                 const skill = candidate.skill as unknown as Record<string, unknown>
                 createdSoFar.current.push(await createOne(toSkillContent(toSkillDraft(skill))))
-                added.add(candidate.dir)
+                added.add(candidate.key)
             }
             const created = createdSoFar.current
             createdSoFar.current = []
@@ -177,14 +191,14 @@ export function useSkillCreateFlow({
             // Stay on the step: the created ones leave the list, the failed ones stay picked.
             setError(failure(err, tNow("skills.editor.importFailed")))
             if (added.size) {
-                setScan({...scan, candidates: scan.candidates.filter((c) => !added.has(c.dir))})
+                setCandidates(candidates.filter((c) => !added.has(c.key)))
                 setPicked((current) => new Set([...current].filter((key) => !added.has(key))))
             }
         } finally {
             if (added.size) invalidateSkillsListCache()
             setBusy(false)
         }
-    }, [createOne, onCreated, picked, scan])
+    }, [candidates, createOne, onCreated, picked])
 
     const togglePick = useCallback(
         (key: string) =>
@@ -198,13 +212,13 @@ export function useSkillCreateFlow({
 
     const uploadCandidates = useMemo<SkillCandidate[]>(
         () =>
-            (scan?.candidates ?? []).map((c) => ({
-                key: c.dir,
+            candidates.map((c) => ({
+                key: c.key,
                 title: c.skill.name || c.dir,
                 description: c.skill.description,
                 runsPrograms: c.skill.files?.some((file) => file.executable),
             })),
-        [scan],
+        [candidates],
     )
 
     const name = draftSkillName(draft)

@@ -3,6 +3,7 @@
     "nameHint": "小文字、数字、ハイフンを使います。例: pr-review",
     "namePlaceholder": "スキルに名前を付けます（例: 週次レポート）",
     "nameMissing": "スキルに名前を付けてください。",
+    "nameInvalid": "名前には英字、数字、ハイフンを使ってください。",
     "savedAs": "{{name}} として保存されます。",
     "description": "説明",
     "descriptionHint": "エージェントはこれを読んで、スキルがタスクに合うかを判断します。",

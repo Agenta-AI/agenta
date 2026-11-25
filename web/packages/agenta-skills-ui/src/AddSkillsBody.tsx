@@ -1,5 +1,5 @@
 /** The registry list of the agent's "Add skills" view: each row toggles one reference. */
-import {useMemo, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import skillsAgentCatalog from "@agenta/i18n/catalogs/skills.agent"
@@ -24,7 +24,10 @@ function SkillRow({option, onToggle}: {option: SkillListItem; onToggle: () => vo
     const t = useT(skillsGalleryCatalog, skillsAgentCatalog)
     const title = skillTitle(option)
     const description = option.description?.trim() || t("skills.gallery.noDescription")
-    const label = t(option.added ? "skills.agent.removeFromAgent" : "skills.agent.addToAgent")
+    const label = t(
+        option.added ? "skills.agent.removeSkillFromAgent" : "skills.agent.addSkillToAgent",
+        {name: title},
+    )
     return (
         // The row is a large mouse target; the button is the control for the keyboard and readers.
         <div className={ROW} onClick={onToggle}>
@@ -41,7 +44,7 @@ function SkillRow({option, onToggle}: {option: SkillListItem; onToggle: () => vo
                 <Button
                     variant={option.added ? "secondary" : "outline"}
                     size="icon-sm"
-                    aria-label={`${label}: ${title}`}
+                    aria-label={label}
                     className="shrink-0"
                     onClick={(event) => {
                         event.stopPropagation()
@@ -80,9 +83,17 @@ export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkil
     const [search, setSearch] = useState("")
     // The order is fixed when the list opens, so a row does not move away from a click.
     const [first] = useState(() => new Set(addedSlugs))
+    // The registry as first loaded: a skill made after that (a staged import) goes on top.
+    const [known, setKnown] = useState<Set<string> | null>(null)
+    if (known === null && !query.isPending) {
+        setKnown(
+            new Set(registry.flatMap((item) => (item.workflow_slug ? [item.workflow_slug] : []))),
+        )
+    }
 
     const options = useMemo<SkillListItem[]>(() => {
         const added = new Map(addedSlugs.map((slug) => [slug, {}]))
+        const rank = (slug: string) => (known && !known.has(slug) ? 0 : first.has(slug) ? 1 : 2)
         return (
             registry
                 .filter((item) => !item.archived)
@@ -96,15 +107,25 @@ export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkil
                     return item.origin ? {...mapped, source: toSourceInfo(item.origin)} : mapped
                 })
                 .filter((item): item is SkillListItem => item !== null)
-                // The agent's skills first (F04 f2); the sort keeps the registry order within each part.
-                .sort((a, b) => Number(first.has(b.slug)) - Number(first.has(a.slug)))
+                // New skills, then the agent's (F04 f2); the registry order stays within each part.
+                .sort((a, b) => rank(a.slug) - rank(b.slug))
         )
-    }, [addedSlugs, first, registry])
+    }, [addedSlugs, first, known, registry])
     const visible = useMemo(() => filterSkillOptions(options, search), [options, search])
+    // A click opened the view: move focus into it, so Escape and Tab start here.
+    const rootRef = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+        const root = rootRef.current
+        if (root && !root.contains(document.activeElement)) root.focus({preventScroll: true})
+    }, [])
     const searching = Boolean(search.trim())
 
     return (
-        <div className="flex flex-1 flex-col gap-3 px-4 pb-3 pt-3.5">
+        <div
+            ref={rootRef}
+            tabIndex={-1}
+            className="flex flex-1 flex-col gap-3 px-4 pb-3 pt-3.5 outline-none"
+        >
             <p className="m-0 text-body text-muted-foreground">
                 {t("skills.agent.addDescription")}
             </p>
@@ -136,14 +157,7 @@ export function AddSkillsBody({addedSlugs, onAdd, onRemove, onNewSkill}: AddSkil
                             ? t("skills.gallery.noMatchName")
                             : t("skills.gallery.createBelow")
                     }
-                >
-                    {searching ? null : (
-                        <Button variant="outline" size="compact" onClick={onNewSkill}>
-                            <Plus size={14} />
-                            {t("skills.agent.newSkill")}
-                        </Button>
-                    )}
-                </EmptyState>
+                />
             ) : (
                 <div className="-mx-3 flex flex-col gap-2">
                     {visible.map((option) => (

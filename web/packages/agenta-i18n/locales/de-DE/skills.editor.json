@@ -3,6 +3,7 @@
     "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche, zum Beispiel pr-review.",
     "namePlaceholder": "Benenne deinen Skill, z. B. Wochenbericht",
     "nameMissing": "Gib dem Skill einen Namen.",
+    "nameInvalid": "Verwenden Sie im Namen Buchstaben, Zahlen und Bindestriche.",
     "savedAs": "Wird als {{name}} gespeichert.",
     "description": "Beschreibung",
     "descriptionHint": "Agents lesen dies, um zu entscheiden, wann der Skill zu einer Aufgabe passt.",

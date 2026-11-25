@@ -1,6 +1,7 @@
 /**
  * The file menu of the skill view (F07 f2, f3, f5; K01): SKILL.md first, then the files grouped in
- * folders from their paths, a search, row actions on hover, a dot on each file with unsaved edits,
+ * folders from their paths, a search, row actions (on hover and focus, always on touch), a dot on
+ * each file with unsaved edits,
  * and the foot actions. The host owns the files; this menu only reports what the person picked.
  */
 import {useMemo, useState, type KeyboardEvent} from "react"
@@ -9,9 +10,8 @@ import {useT} from "@agenta/i18n"
 import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillForm"
 import skillViewCatalog from "@agenta/i18n/catalogs/entityUi.skillView"
 import {cn} from "@agenta/ui/styles"
-import {InputAffix} from "@agenta/ui/ui"
+import {Button, InputAffix, MENU_ITEM, SimpleTooltip} from "@agenta/ui/ui"
 import {
-    ArrowUp,
     CaretDown,
     Check,
     DownloadSimple,
@@ -21,6 +21,7 @@ import {
     PencilSimple,
     Plus,
     Trash,
+    UploadSimple,
 } from "@phosphor-icons/react"
 
 import {fileFolder, fileName, groupFilesByFolder, pathOf, searchFiles} from "./skillFiles"
@@ -46,13 +47,21 @@ export interface SkillFileMenuProps {
     /** The download row, or nothing when the skill cannot be downloaded here. */
     download?: {label: string; onDownload: () => void}
     disabled?: boolean
+    /** Drawn in a phone sheet: the sheet scrolls, and the search does not open the keyboard. */
+    inSheet?: boolean
 }
 
-const ROW =
-    "box-border flex w-full min-w-0 cursor-pointer appearance-none items-center gap-1.5 rounded-md border-0 px-2 py-1 text-left font-[inherit] text-label text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-secondary"
+const ROW = cn(
+    MENU_ITEM,
+    "min-w-0 appearance-none border-0 text-left font-[inherit] text-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent focus-visible:bg-accent motion-reduce:transition-none",
+)
 
-/** The open file, or the result Enter opens: a gray row (F07 f2, f3). */
-const CURRENT = "bg-secondary"
+/** The open file, or the result Enter opens (F07 f2, f3). */
+const CURRENT = "bg-selected"
+
+/** Row actions: on hover and focus, always on touch (TOUCH-02). */
+const ROW_ACTIONS_SHOWN =
+    "hidden group-hover/row:flex group-focus-within/row:flex pointer-coarse:flex"
 
 /** The check at the end of the open file's row (F07 f2). */
 const OpenCheck = ({show}: {show: boolean}) =>
@@ -74,6 +83,7 @@ export function SkillFileMenu({
     onUpload,
     download,
     disabled,
+    inSheet = false,
 }: SkillFileMenuProps) {
     const t = useT(skillViewCatalog, skillFormCatalog)
     const [query, setQuery] = useState("")
@@ -107,14 +117,7 @@ export function SkillFileMenu({
                 >
                     <FileIcon size={12} className="shrink-0 text-muted-foreground" />
                     <span className="flex min-w-0 flex-1 flex-col">
-                        <span
-                            className={cn(
-                                "truncate font-mono text-meta leading-5",
-                                selected === index && "font-medium",
-                            )}
-                        >
-                            {name}
-                        </span>
+                        <span className="truncate font-mono text-meta leading-5">{name}</span>
                         {withFolder && fileFolder(path) ? (
                             <span className="truncate text-caption text-muted-foreground">
                                 {fileFolder(path)}
@@ -125,29 +128,38 @@ export function SkillFileMenu({
                     <OpenCheck show={selected === index} />
                     {/* Room for the row actions, so a long name never runs under them. */}
                     {!disabled ? (
-                        <span className="hidden w-11 shrink-0 group-hover/row:block" />
+                        <span aria-hidden className={cn(ROW_ACTIONS_SHOWN, "w-13 shrink-0")} />
                     ) : null}
                 </button>
                 {!disabled ? (
-                    <span className="absolute right-1 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 group-hover/row:flex">
-                        <button
-                            type="button"
-                            aria-label={t("entityUi.skillView.rename")}
-                            title={t("entityUi.skillView.rename")}
-                            onClick={() => onRename(index)}
-                            className="flex size-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground"
-                        >
-                            <PencilSimple size={13} />
-                        </button>
-                        <button
-                            type="button"
-                            aria-label={t("entityUi.skillView.delete")}
-                            title={t("entityUi.skillView.delete")}
-                            onClick={() => onDelete(index)}
-                            className="flex size-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-muted-foreground hover:text-destructive"
-                        >
-                            <Trash size={13} />
-                        </button>
+                    <span
+                        className={cn(
+                            ROW_ACTIONS_SHOWN,
+                            "absolute right-1 top-1/2 -translate-y-1/2 items-center gap-0.5",
+                        )}
+                    >
+                        <SimpleTooltip title={t("entityUi.skillView.rename")}>
+                            <Button
+                                variant="ghost"
+                                size="icon-xs"
+                                aria-label={t("entityUi.skillView.rename")}
+                                onClick={() => onRename(index)}
+                                className="text-muted-foreground hover:text-foreground"
+                            >
+                                <PencilSimple aria-hidden />
+                            </Button>
+                        </SimpleTooltip>
+                        <SimpleTooltip title={t("entityUi.skillView.delete")}>
+                            <Button
+                                variant="ghost"
+                                size="icon-xs"
+                                aria-label={t("entityUi.skillView.delete")}
+                                onClick={() => onDelete(index)}
+                                className="text-muted-foreground hover:text-destructive"
+                            >
+                                <Trash aria-hidden />
+                            </Button>
+                        </SimpleTooltip>
                     </span>
                 ) : null}
             </div>
@@ -155,10 +167,10 @@ export function SkillFileMenu({
     }
 
     return (
-        <div className="flex max-h-[min(560px,70vh)] flex-col">
-            <div className="shrink-0 p-1.5 pb-1">
+        <div className={cn("flex flex-col", !inSheet && "max-h-[min(560px,70vh)]")}>
+            <div className={cn("shrink-0 pb-1", inSheet ? "px-2" : "p-1.5")}>
                 <InputAffix
-                    autoFocus
+                    autoFocus={!inSheet}
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     onKeyDown={onSearchKey}
@@ -169,7 +181,13 @@ export function SkillFileMenu({
                     prefix={<MagnifyingGlass size={13} className="text-muted-foreground" />}
                 />
             </div>
-            <div className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto px-1 pb-1">
+            <div
+                className={cn(
+                    "flex min-h-0 flex-1 flex-col px-1 pb-1",
+                    // In a sheet, the sheet is the one scroll area (LAYOUT-01).
+                    !inSheet && "overflow-y-auto",
+                )}
+            >
                 {searching ? (
                     results.length ? (
                         results.map((index, i) =>
@@ -190,12 +208,7 @@ export function SkillFileMenu({
                             className={cn(ROW, selected === "skill" ? CURRENT : "bg-transparent")}
                         >
                             <FileIcon size={12} className="shrink-0 text-muted-foreground" />
-                            <span
-                                className={cn(
-                                    "min-w-0 flex-1 truncate font-mono text-meta leading-5",
-                                    selected === "skill" && "font-medium",
-                                )}
-                            >
+                            <span className="min-w-0 flex-1 truncate font-mono text-meta leading-5">
                                 SKILL.md
                             </span>
                             <EditedDot show={edited("skill")} />
@@ -205,7 +218,7 @@ export function SkillFileMenu({
                             group.folder === "" ? (
                                 group.files.map((index) => fileRow(index, {withFolder: true}))
                             ) : (
-                                <div key={group.folder} className="flex flex-col gap-px">
+                                <div key={group.folder} className="flex flex-col">
                                     <button
                                         type="button"
                                         aria-expanded={!folded.has(group.folder)}
@@ -258,7 +271,7 @@ export function SkillFileMenu({
                 ) : null}
                 {!disabled && !searching ? (
                     <button type="button" onClick={onUpload} className={SKILL_ACTION_ROW}>
-                        <ArrowUp size={14} className="text-foreground" />
+                        <UploadSimple size={14} className="text-foreground" />
                         {t("entityUi.skillView.uploadFolderOrZip")}
                     </button>
                 ) : null}

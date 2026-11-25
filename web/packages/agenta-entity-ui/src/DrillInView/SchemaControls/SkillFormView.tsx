@@ -20,6 +20,7 @@ import skillViewCatalog from "@agenta/i18n/catalogs/entityUi.skillView"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {message} from "@agenta/ui/app-message"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
+import {BottomSheet, useIsPhone} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
 import {
     AlertDialog,
@@ -37,6 +38,7 @@ import {
     Popover,
     PopoverContent,
     PopoverTrigger,
+    SimpleTooltip,
     Switch,
 } from "@agenta/ui/ui"
 import {
@@ -368,26 +370,21 @@ export function SkillFormView({
     const downloadKind = downloadable ? skillDownloadKind(skill) : null
     const deletingName = deleting === null ? "" : fileName(pathOf(files[deleting]))
 
+    const expandLabel = expanded
+        ? t("entityUi.skillView.shrinkEditor")
+        : t("entityUi.skillView.expandEditor")
     const expandButton = (
-        <button
-            type="button"
-            aria-label={
-                expanded
-                    ? t("entityUi.skillView.shrinkEditor")
-                    : t("entityUi.skillView.expandEditor")
-            }
-            title={
-                expanded
-                    ? t("entityUi.skillView.shrinkEditor")
-                    : t("entityUi.skillView.expandEditor")
-            }
-            onClick={() => setExpanded((prev) => !prev)}
-            className={cn(
-                "flex size-6 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-muted-foreground hover:bg-accent hover:text-foreground",
-            )}
-        >
-            {expanded ? <ArrowsInSimple size={14} /> : <ArrowsOutSimple size={14} />}
-        </button>
+        <SimpleTooltip title={expandLabel}>
+            <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label={expandLabel}
+                onClick={() => setExpanded((prev) => !prev)}
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+            >
+                {expanded ? <ArrowsInSimple aria-hidden /> : <ArrowsOutSimple aria-hidden />}
+            </Button>
+        </SimpleTooltip>
     )
     // The toolbar sits in this view's own row, beside the Source switch and the expand button.
     const [toolbarHost, setToolbarHost] = useState<HTMLDivElement | null>(null)
@@ -395,90 +392,110 @@ export function SkillFormView({
 
     // Menus render inside the form, so a modal drawer around it keeps their lists scrollable.
     const [formRoot, setFormRoot] = useState<HTMLDivElement | null>(null)
+    // A compact window opens the file menu as a bottom sheet (COMPACT-04).
+    const phone = useIsPhone()
+    const fileTrigger = (
+        <Button
+            variant="outline"
+            size="compact"
+            title={activeFile ? activePath : "SKILL.md"}
+            aria-haspopup="dialog"
+            className="min-w-0 max-w-[70%] justify-start"
+        >
+            <FileIcon aria-hidden className="text-muted-foreground" />
+            <span className="min-w-0 truncate font-mono text-meta leading-5">
+                {uploading
+                    ? "SKILL.md"
+                    : activeFile
+                      ? middleCut(activePath || t("entityUi.skillForm.untitled"))
+                      : "SKILL.md"}
+            </span>
+            <CaretUpDown aria-hidden className="text-muted-foreground" />
+        </Button>
+    )
+    const fileMenu = (
+        <SkillFileMenu
+            files={files}
+            selected={selected}
+            edited={edited}
+            folded={folded}
+            onToggleFolder={(folder) =>
+                setFolded((prev) => {
+                    const next = new Set(prev)
+                    if (next.has(folder)) next.delete(folder)
+                    else next.add(folder)
+                    return next
+                })
+            }
+            onOpen={open}
+            onRename={rename}
+            onDelete={(index) => {
+                setMenuOpen(false)
+                setDeleting(index)
+            }}
+            onAddFile={addFile}
+            onUpload={() => {
+                setMenuOpen(false)
+                setUploading(true)
+            }}
+            download={
+                downloadKind
+                    ? {
+                          label: t("entityUi.skillForm.download"),
+                          onDownload: () => {
+                              setMenuOpen(false)
+                              downloadSkill(skill)
+                          },
+                      }
+                    : undefined
+            }
+            disabled={disabled}
+            inSheet={phone}
+        />
+    )
 
     return (
         <div ref={setFormRoot} className="flex h-full min-h-0 flex-col">
             {/* The file bar: a full-width band under the header (F07 f1). */}
-            <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-y border-solid border-border-muted bg-muted px-4">
-                <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-                    <PopoverTrigger asChild>
-                        <button
-                            type="button"
-                            title={activeFile ? activePath : "SKILL.md"}
-                            aria-haspopup="dialog"
-                            className="box-border flex h-7 min-w-0 max-w-[70%] cursor-pointer items-center gap-2 rounded-md border border-solid border-border bg-background px-2.5 font-[inherit] text-foreground hover:bg-accent"
-                        >
-                            <FileIcon size={14} className="shrink-0 text-muted-foreground" />
-                            <span className="min-w-0 truncate font-mono text-meta leading-5">
-                                {uploading
-                                    ? "SKILL.md"
-                                    : activeFile
-                                      ? middleCut(activePath || t("entityUi.skillForm.untitled"))
-                                      : "SKILL.md"}
-                            </span>
-                            <CaretUpDown size={14} className="shrink-0 text-muted-foreground" />
-                        </button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                        align="start"
-                        alignOffset={-1}
-                        sideOffset={4}
-                        container={formRoot}
-                        className="w-[340px] p-0"
+            <div className="flex h-row-double shrink-0 items-center gap-2 border-0 border-y border-solid border-border-muted bg-muted px-4">
+                {phone ? (
+                    <BottomSheet
+                        open={menuOpen}
+                        onOpenChange={setMenuOpen}
+                        title={t("entityUi.skillView.findFile")}
+                        showTitle={false}
+                        keepKeyboardClosed
+                        trigger={fileTrigger}
                     >
-                        <SkillFileMenu
-                            files={files}
-                            selected={selected}
-                            edited={edited}
-                            folded={folded}
-                            onToggleFolder={(folder) =>
-                                setFolded((prev) => {
-                                    const next = new Set(prev)
-                                    if (next.has(folder)) next.delete(folder)
-                                    else next.add(folder)
-                                    return next
-                                })
-                            }
-                            onOpen={open}
-                            onRename={rename}
-                            onDelete={(index) => {
-                                setMenuOpen(false)
-                                setDeleting(index)
-                            }}
-                            onAddFile={addFile}
-                            onUpload={() => {
-                                setMenuOpen(false)
-                                setUploading(true)
-                            }}
-                            download={
-                                downloadKind
-                                    ? {
-                                          label:
-                                              downloadKind === "zip"
-                                                  ? t("entityUi.skillForm.downloadZip")
-                                                  : t("entityUi.skillForm.downloadSkillMd"),
-                                          onDownload: () => {
-                                              setMenuOpen(false)
-                                              downloadSkill(skill)
-                                          },
-                                      }
-                                    : undefined
-                            }
-                            disabled={disabled}
-                        />
-                    </PopoverContent>
-                </Popover>
+                        {fileMenu}
+                    </BottomSheet>
+                ) : (
+                    <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+                        <PopoverTrigger asChild>{fileTrigger}</PopoverTrigger>
+                        <PopoverContent
+                            align="start"
+                            alignOffset={-1}
+                            sideOffset={4}
+                            container={formRoot}
+                            className="w-popover-md p-0"
+                        >
+                            {fileMenu}
+                        </PopoverContent>
+                    </Popover>
+                )}
                 {/* A file just added has no bin yet (canvas F07 f6). */}
                 {activeIndex !== null && activeIndex !== freshFile && !disabled && !uploading ? (
-                    <button
-                        type="button"
-                        aria-label={t("entityUi.skillView.deleteFile")}
-                        title={t("entityUi.skillView.deleteFile")}
-                        onClick={() => setDeleting(activeIndex)}
-                        className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-muted-foreground hover:bg-accent hover:text-destructive"
-                    >
-                        <Trash size={14} />
-                    </button>
+                    <SimpleTooltip title={t("entityUi.skillView.deleteFile")}>
+                        <Button
+                            variant="ghost"
+                            size="icon-compact"
+                            aria-label={t("entityUi.skillView.deleteFile")}
+                            onClick={() => setDeleting(activeIndex)}
+                            className="shrink-0 hover:text-destructive"
+                        >
+                            <Trash aria-hidden />
+                        </Button>
+                    </SimpleTooltip>
                 ) : null}
                 <span className="ml-auto shrink-0 text-meta text-muted-foreground">
                     {countLine}
@@ -612,9 +629,9 @@ export function SkillFormView({
                                             onChange={(event) =>
                                                 set("description", event.target.value)
                                             }
-                                            autoSize={{minRows: 4}}
+                                            // Grows with the text up to six whole lines.
+                                            autoSize={{minRows: 3, maxRows: 6}}
                                             size="compact"
-                                            className="resize-y"
                                             aria-invalid={
                                                 descriptionMissing || descriptionError
                                                     ? true
@@ -652,9 +669,7 @@ export function SkillFormView({
                                                 v === "source" ? "rendered" : "source",
                                             )
                                         }
-                                        className={cn(
-                                            "shrink-0 cursor-pointer rounded-md border-0 bg-transparent px-1.5 py-0.5 font-[inherit] text-meta font-medium text-foreground underline underline-offset-2 hover:bg-accent",
-                                        )}
+                                        className="shrink-0 cursor-pointer rounded-md border-0 bg-transparent px-1.5 py-0.5 font-[inherit] text-meta font-medium text-foreground underline underline-offset-2 transition-colors duration-[var(--duration-fast)] hover:bg-accent motion-reduce:transition-none"
                                     >
                                         {bodyView === "source"
                                             ? t("entityUi.schemaControls.richText")
@@ -784,9 +799,9 @@ export function SkillFormView({
                                 />
                             </>
                         ) : null}
-                        {/* Plain text in one 330 px box, with no toolbar row and no expand
+                        {/* Plain text in one fixed box, with no toolbar row and no expand
                             button (F07 f4, f6). */}
-                        <div className="flex h-[330px] shrink-0 flex-col overflow-hidden rounded-md border border-solid border-border">
+                        <div className="flex h-75 shrink-0 flex-col overflow-hidden rounded-md border border-solid border-border">
                             <div className="flex min-h-0 flex-1 flex-col">
                                 {/* Keyed by index (paths are editable) for a fresh editor per file;
                                     no debounce, so a file switch cannot drop a pending edit. */}

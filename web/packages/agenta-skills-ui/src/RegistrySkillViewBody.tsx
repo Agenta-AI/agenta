@@ -22,9 +22,12 @@ import {
 } from "@agenta/entity-ui/drill-in"
 import {richText, useT} from "@agenta/i18n"
 import skillViewCatalog from "@agenta/i18n/catalogs/entityUi.skillView"
+import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
+import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
 import {getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
+import {timeAgo} from "@agenta/shared/utils"
 import {
     archiveSkill,
     commitSkillRevision,
@@ -34,6 +37,7 @@ import {
     unarchiveSkill,
 } from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
+import {message} from "@agenta/ui/app-message"
 import type {RegistrySkillParams} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {
@@ -46,6 +50,7 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
+    Badge,
     Button,
     Popover,
     PopoverAnchor,
@@ -169,7 +174,7 @@ const RegistrySkillEditor = ({
     /** The host shows the view read only (a phone): no edit, no archive, no restore. */
     viewReadOnly: boolean
 }) => {
-    const t = useT(skillsGalleryCatalog, skillViewCatalog)
+    const t = useT(skillsGalleryCatalog, skillViewCatalog, skillsEditorCatalog, skillsPageCatalog)
     // Leave without a question: after an archive or a restore there is nothing left to save.
     const onLeave = nav.cancel
     const agentHref = useContext(SkillAgentHrefContext)
@@ -224,6 +229,8 @@ const RegistrySkillEditor = ({
         {
             dirty,
             valid,
+            // Read only (archived, built-in, a phone): nothing to save, so no Cancel and Save row.
+            ...(readOnly ? {actionRow: false as const} : {}),
             leaveDescription: t("entityUi.skillView.registryLeaveDescription"),
             save: async () => {
                 // The stored name is the typed name's slug, as the skill page saves it.
@@ -270,6 +277,7 @@ const RegistrySkillEditor = ({
                 else await archiveSkill({projectId, workflowId})
                 invalidateSkillsListCache()
                 setArchiveOpen(false)
+                if (restore) message.success(t("skills.page.restored"))
                 onLeave()
             } catch (err) {
                 setArchiveError(
@@ -392,16 +400,28 @@ const RegistrySkillEditor = ({
         </TooltipProvider>
     ) : null
 
-    const usage =
-        !inAgent && usedBy.length ? (
-            <UsedBy
-                container={editorRoot}
-                usedBy={usedBy}
-                agentHref={agentHref}
-                dirty={dirty}
-                onLeave={onLeave}
-                onAskLeave={nav.back}
-            />
+    const usage = !usageQuery.data ? null : usedBy.length ? (
+        <UsedBy
+            container={editorRoot}
+            usedBy={usedBy}
+            agentHref={agentHref}
+            dirty={dirty}
+            onLeave={onLeave}
+            onAskLeave={nav.back}
+        />
+    ) : (
+        <span>{t("skills.page.notUsed")}</span>
+    )
+    const editedAt = head?.createdAt ? new Date(head.createdAt).getTime() : NaN
+    const edited = Number.isNaN(editedAt) ? "" : timeAgo(editedAt)
+    // "Used by · Edited" under the name, as on the Skills page.
+    const meta =
+        !isBuiltin && (usage || edited) ? (
+            <div className="flex shrink-0 flex-wrap items-center gap-x-1.5 px-4 pb-2 text-meta text-muted-foreground">
+                {usage}
+                {usage && edited ? <span aria-hidden>·</span> : null}
+                {edited ? <span>{t("skills.page.edited", {age: edited})}</span> : null}
+            </div>
         ) : null
 
     return (
@@ -410,22 +430,25 @@ const RegistrySkillEditor = ({
                 compact
                 // The name is the view's title, edited in place, as on the skill page.
                 title={
-                    <SkillNameTitle
-                        value={toSkillDraft(value).name}
-                        onChange={(name) => setDraft({...value, name})}
-                        readOnly={readOnly}
-                        invalid={dirty && !valid && !toSkillDraft(value).name.trim()}
-                    />
+                    <div className="flex min-w-0 items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                            <SkillNameTitle
+                                value={toSkillDraft(value).name}
+                                onChange={(name) => setDraft({...value, name})}
+                                readOnly={readOnly}
+                                invalid={dirty && !valid && !toSkillDraft(value).name.trim()}
+                                error={t("skills.editor.nameMissing")}
+                            />
+                        </div>
+                        {skill.archived ? (
+                            <Badge className="shrink-0">{t("skills.gallery.archived")}</Badge>
+                        ) : null}
+                    </div>
                 }
                 end={<div ref={setFilesSlot} className="flex empty:hidden" />}
                 name={skillTitle(skill)}
                 status={status}
-                extra={
-                    <>
-                        {provenance}
-                        {usage}
-                    </>
-                }
+                extra={provenance}
                 actions={actions}
                 menuTop={addToAgent}
                 menuOpen={menuOpen}
@@ -436,6 +459,7 @@ const RegistrySkillEditor = ({
                 busy={archiveBusy}
                 error={error ?? (archiveOpen ? null : archiveError)}
             />
+            {meta}
             {skill.archived && !isBuiltin && !viewReadOnly ? (
                 <div className="flex shrink-0 items-center gap-2 px-4 pb-3">
                     <Button

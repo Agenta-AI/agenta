@@ -36,6 +36,13 @@ export const toSkillDraft = (skill?: Record<string, unknown> | null): SkillDraft
 export const draftSkillName = (draft: Pick<SkillDraft, "name">): string =>
     SKILL_NAME_PATTERN.test(draft.name) ? draft.name : slugifySkillName(draft.name)
 
+/** Why the name cannot be saved: nothing typed, or no letter or number to make a slug from. */
+export const skillNameProblem = (name: string): "missing" | "invalid" | null =>
+    !name.trim() ? "missing" : draftSkillName({name}) ? null : "invalid"
+
+/** The skill name input carries this attribute, so a failed create can move the focus to it. */
+export const SKILL_NAME_INPUT = "data-skill-name"
+
 export const toSkillContent = (draft: SkillDraft): Record<string, unknown> => ({
     name: draftSkillName(draft),
     description: draft.description.trim(),

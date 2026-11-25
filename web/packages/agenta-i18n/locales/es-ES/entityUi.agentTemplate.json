@@ -22,6 +22,8 @@
     "unresolved": "Sin resolver",
     "unresolvedTip": "No se pudo resolver esta herramienta: es posible que la acción se haya renombrado o quitado. Ábrela para revisar la definición sin procesar.",
     "publishedRowChanged": "El skill se publicó en el registro, pero esta fila cambió durante la publicación: añádelo desde el selector.",
+    "skillArchived": "Archivada",
+    "skillArchivedTip": "Esta skill está archivada en el registro, así que el agente ya no la usa. Restáurala en la página Skills o quítala aquí.",
     "updateAvailable": "Actualización disponible",
     "updateAvailableTip": "Este skill está fijado y el registro tiene una versión más reciente. Vuelve a añadirlo fijado para actualizarlo o cambia la referencia a la más reciente.",
     "noModelSelected": "No hay ningún modelo seleccionado.",

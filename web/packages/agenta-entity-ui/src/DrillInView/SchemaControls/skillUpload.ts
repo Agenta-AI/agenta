@@ -132,9 +132,7 @@ function repeatedArchivePath(raw: RawFile[]): string | undefined {
         // Folders and ignored files never reach the skill, so their repeats do not count.
         const names = zipEntries(f.bytes)
             .map((entry) => entry.name)
-            .filter(
-            (name) => !name.endsWith("/") && !IGNORED.test(name),
-        )
+            .filter((name) => !name.endsWith("/") && !IGNORED.test(name))
         const repeated = names.find((name, i) => names.indexOf(name) !== i)
         if (repeated !== undefined) return repeated
     }
@@ -247,6 +245,8 @@ export async function parseSkillFromDataTransfer(dt: DataTransfer): Promise<Pars
 // ---------------------------------------------------------------------------
 
 export interface SkillScanCandidate {
+    /** Unique per candidate, even when two loose SKILL.md files share a folder. Key rows by it. */
+    key: string
     /** SKILL.md's directory, "" at the upload root. Doubles as the row label. */
     dir: string
     skill: ParsedSkill
@@ -296,9 +296,12 @@ export function scanSkillFiles(raw: RawFile[]): SkillUploadScan {
     const skillFiles = usable.filter((f) => SKILL_MD.test(f.path))
     // Every SKILL.md, skipped ones too, fences its folder off from the parent skill.
     const allSkillFiles = files.filter((f) => SKILL_MD.test(f.path))
-    const candidates: SkillScanCandidate[] = skillFiles.map((skillFile) => {
+    const candidates: SkillScanCandidate[] = skillFiles.map((skillFile, index) => {
         const dir = skillFile.path.replace(/SKILL\.md$/i, "").replace(/\/$/, "")
         const prefix = dir ? `${dir}/` : ""
+        // Another SKILL.md in the same folder (two loose files) is its own candidate.
+        const sibling = (f: RawFile) =>
+            f !== skillFile && SKILL_MD.test(f.path) && f.path.replace(/SKILL\.md$/i, "") === prefix
         // The candidate owns its subtree; a nested skill's files never leak into the parent's.
         const nestedDirs = allSkillFiles
             .filter((other) => other !== skillFile)
@@ -307,9 +310,10 @@ export function scanSkillFiles(raw: RawFile[]): SkillUploadScan {
         const scope = usable.filter(
             (f) =>
                 f.path.startsWith(prefix) &&
+                !sibling(f) &&
                 !nestedDirs.some((nested) => f.path.startsWith(nested)),
         )
-        return {dir, skill: buildSkillFromFiles(scope)}
+        return {key: `${index}:${skillFile.path}`, dir, skill: buildSkillFromFiles(scope)}
     })
 
     return {candidates, skipped, fileCount: files.length}

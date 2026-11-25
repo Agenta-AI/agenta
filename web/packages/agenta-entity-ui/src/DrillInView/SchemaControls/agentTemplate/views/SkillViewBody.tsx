@@ -45,11 +45,14 @@ const AgentOnlySkillBody = ({
     entry,
     writer,
     nav,
+    viewReadOnly,
 }: {
     skillKey: string
     entry: Skill
     writer: AgentConfigWriter
     nav: ViewProps<SkillViewParams>["nav"]
+    /** The host shows the view read only (a phone): no edit, no Save, no upload. */
+    viewReadOnly: boolean
 }) => {
     const t = useT(skillViewCatalog, configItemsCatalog, agentTemplateCatalog)
     const {skills: bridge} = useDrillInUI()
@@ -58,7 +61,9 @@ const AgentOnlySkillBody = ({
     const [draft, setDraft] = useState(original)
     const [publishing, setPublishing] = useState(false)
     const [publishError, setPublishError] = useState<string | null>(null)
-    const readOnly = writer.readOnly || isStaticSkill(entry)
+    // Values as text: the host or the editor gives no edit right.
+    const asText = viewReadOnly || writer.readOnly
+    const readOnly = asText || isStaticSkill(entry)
     const dirty = JSON.stringify(draft) !== JSON.stringify(original)
     const invalid =
         skillDraftError(draft) !== undefined || firstBadFile(skillFilesOf(draft)) !== undefined
@@ -129,8 +134,9 @@ const AgentOnlySkillBody = ({
                     baseline={original}
                     downloadable
                     disabled={readOnly || publishing}
-                    valuesAsText={writer.readOnly}
-                    onUploadControl={onUploadControl}
+                    valuesAsText={asText}
+                    // Read only, the step never opens; without the view's row it would lose Upload.
+                    onUploadControl={readOnly ? undefined : onUploadControl}
                     // Save is off while the draft is invalid, so there is no press to wait for: an
                     // edited draft that misses a required field says so in the fields.
                     showMissing={dirty && invalid}
@@ -161,6 +167,7 @@ const SkillViewBody = ({params, target, nav, readOnly}: ViewProps<SkillViewParam
                 entry={entry}
                 writer={writer}
                 nav={nav}
+                viewReadOnly={Boolean(readOnly)}
             />
         )
     }

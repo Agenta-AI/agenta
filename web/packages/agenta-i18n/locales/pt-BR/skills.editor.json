@@ -3,6 +3,7 @@
     "nameHint": "Letras minúsculas, números e hifens, por exemplo pr-review.",
     "namePlaceholder": "Dê um nome à sua habilidade, ex.: Relatório semanal",
     "nameMissing": "Dê um nome à habilidade.",
+    "nameInvalid": "Use letras, números e hifens no nome.",
     "savedAs": "Salvo como {{name}}.",
     "description": "Descrição",
     "descriptionHint": "Os agentes leem isto para decidir quando a habilidade serve para uma tarefa.",

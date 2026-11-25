@@ -1,15 +1,20 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import skillsAgentCatalog from "@agenta/i18n/catalogs/skills.agent"
 import {useDrillInUI} from "@agenta/ui/drill-in"
-import {useViewForm, useViewTitle, ViewFooterStart, type ViewProps} from "@agenta/ui/view-stack"
+import {
+    useViewForm,
+    useViewTitle,
+    ViewFooterStart,
+    type ViewProps,
+    type ViewTarget,
+} from "@agenta/ui/view-stack"
 
 import {isEmbedRefSkill, staticEmbedSlug} from "../itemDescriptors"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 
-import type {SkillAddViewParams} from "./skillAddView"
-import {skillNewView} from "./skillNewView"
+import {skillAddNewView, type SkillAddViewParams} from "./skillAddView"
 
 type Skill = Record<string, unknown>
 
@@ -25,6 +30,11 @@ interface Picks {
 }
 
 const NO_PICKS: Picks = {add: new Map(), remove: new Set()}
+
+/** The open "Add skills" view of each revision takes the skills its "New skill" makes. */
+const stagedIntake = new Map<string, (entries: Skill[]) => void>()
+
+const intakeKey = (target: ViewTarget) => (target.kind === "agent_draft" ? target.revisionId : "")
 
 /** The registry list of the skills bridge; Done writes the staged picks into the agent. */
 const SkillAddViewBody = ({target, nav}: ViewProps<SkillAddViewParams>) => {
@@ -55,6 +65,15 @@ const SkillAddViewBody = ({target, nav}: ViewProps<SkillAddViewParams>) => {
             return {...current, add: new Map(current.add).set(slug, entry)}
         })
     }, [])
+    // A skill made in "New skill" is staged like a pick: Done adds it, Cancel drops it.
+    const key = intakeKey(target)
+    useEffect(() => {
+        const take = (entries: Skill[]) => entries.forEach(onAdd)
+        stagedIntake.set(key, take)
+        return () => {
+            if (stagedIntake.get(key) === take) stagedIntake.delete(key)
+        }
+    }, [key, onAdd])
     const onRemove = useCallback((slug: string) => {
         setPicks((current) => {
             const add = new Map(current.add)
@@ -89,7 +108,7 @@ const SkillAddViewBody = ({target, nav}: ViewProps<SkillAddViewParams>) => {
     })
 
     const {push} = nav
-    const onNewSkill = useCallback(() => void push?.(skillNewView, {}, target), [push, target])
+    const onNewSkill = useCallback(() => void push?.(skillAddNewView, {}, target), [push, target])
     const Body = bridge?.AddSkillsBody
     if (!Body) return null
     return (
@@ -107,6 +126,15 @@ const SkillAddViewBody = ({target, nav}: ViewProps<SkillAddViewParams>) => {
             </ViewFooterStart>
         </>
     )
+}
+
+/** "New skill" opened from "Add skills": each made skill joins the staged picks below it. */
+export const StagedSkillNewViewBody = ({target, nav}: ViewProps<SkillAddViewParams>) => {
+    const {skills: bridge} = useDrillInUI()
+    const key = intakeKey(target)
+    const onCreated = useCallback((entries: Skill[]) => stagedIntake.get(key)?.(entries), [key])
+    const Body = bridge?.NewSkillBody
+    return Body ? <Body onCreated={onCreated} onDone={nav.cancel} /> : null
 }
 
 export default SkillAddViewBody

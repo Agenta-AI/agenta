@@ -1,7 +1,7 @@
 import {memo, useId, useMemo, useRef, useState, type DragEvent} from "react"
 import {createPortal} from "react-dom"
 
-import {useT} from "@agenta/i18n"
+import {formatList, useT} from "@agenta/i18n"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import type {SkillFile} from "@agenta/skills"
 import {message} from "@agenta/ui/app-message"
@@ -131,7 +131,10 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
         }
         if (skipped.length) {
             message.warning(
-                t("skills.editor.filesSkipped", {count: skipped.length, names: skipped.join(", ")}),
+                t("skills.editor.filesSkipped", {
+                    count: skipped.length,
+                    names: formatList(skipped),
+                }),
             )
         }
     }

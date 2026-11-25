@@ -1,16 +1,19 @@
 import {useState} from "react"
 
-import {createT, useT} from "@agenta/i18n"
+import {createT, formatList, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillNewCatalog from "@agenta/i18n/catalogs/entityUi.skillNew"
+import skillTemplateCatalog from "@agenta/i18n/catalogs/entityUi.skillTemplate"
 import skillsAgentCatalog from "@agenta/i18n/catalogs/skills.agent"
-import {Button} from "@agenta/ui/ui"
-import {Book, Compass, Plus} from "@phosphor-icons/react"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Book, Compass, Plus, Trash} from "@phosphor-icons/react"
 
 import {countSummary} from "../agentTemplateUtils"
-import {ConfigItemList} from "../ConfigItemList"
+import type {ConfigItemList} from "../ConfigItemList"
 import {CreateWithAIAddMenu} from "../CreateWithAIAddMenu"
 import {describeSkill, isEmbedRefSkill, skillCommandName} from "../itemDescriptors"
+import {ITEM_KINDS} from "../itemKinds"
+import {ItemRow} from "../ItemRow"
 import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
 import {SectionAddButton} from "../SectionAddButton"
 
@@ -63,9 +66,9 @@ export const skillsSection = ({
         summary: countSummary(skills.length, "skill") || tNow("common.none"),
         empty: skills.length === 0,
         phoneSummary:
-            skills
-                .map((skill) => skillCommandName(skill) ?? describeSkill(skill).name)
-                .join(", ") || tNow("common.none"),
+            formatList(
+                skills.map((skill) => skillCommandName(skill) ?? describeSkill(skill).name),
+            ) || tNow("common.none"),
         indicator: sectionIndicator("skills"),
         extra: !disabled ? (
             <SkillsHeaderActions t={t} onManage={handleAddSkill} onNew={handleNewSkill} />
@@ -144,21 +147,53 @@ const SkillsList = ({
     SkillsSectionParams,
     "skills" | "openSkillItem" | "removeItem" | "closeEditor" | "disabled" | "skillStatusFor"
 >) => {
-    const t = useT(skillNewCatalog)
+    const t = useT(skillNewCatalog, skillTemplateCatalog)
     const [removing, setRemoving] = useState<{index: number; entry: unknown} | null>(null)
     const entry = removing?.entry as Record<string, unknown> | undefined
-    const name = typeof entry?.name === "string" && entry.name ? entry.name : ""
+    const name = entry ? describeSkill(entry).name : ""
+    const kind = ITEM_KINDS.skill
+    if (skills.length === 0) {
+        return disabled ? null : (
+            <span className="text-meta text-muted-foreground">{kind.emptyLabel}</span>
+        )
+    }
     return (
         <>
-            <ConfigItemList
-                kind="skill"
-                items={skills}
-                openEdit={openSkillItem}
-                removeItem={(_kind, index) => setRemoving({index, entry: skills[index]})}
-                closeEditor={closeEditor}
-                disabled={disabled}
-                statusFor={skillStatusFor}
-            />
+            <div className="flex flex-col gap-2">
+                {skills.map((skill, index) => {
+                    const descriptor = kind.describe(skill)
+                    const locked = disabled || kind.isReadOnly(skill)
+                    const label = t("entityUi.skillTemplate.removeName", {name: descriptor.name})
+                    return (
+                        <ItemRow
+                            key={`skill-${index}`}
+                            descriptor={descriptor}
+                            onEdit={() => openSkillItem("skill", index, skill)}
+                            disabled={locked}
+                            status={skillStatusFor?.(skill, index)}
+                            extra={
+                                locked ? null : (
+                                    <SimpleTooltip title={label}>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon-xs"
+                                            aria-label={label}
+                                            // Shown on hover or focus; always on touch, which has no hover.
+                                            className="text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
+                                            onClick={(event) => {
+                                                event.stopPropagation()
+                                                setRemoving({index, entry: skill})
+                                            }}
+                                        >
+                                            <Trash size={14} />
+                                        </Button>
+                                    </SimpleTooltip>
+                                )
+                            }
+                        />
+                    )
+                })}
+            </div>
             {removing ? (
                 <RemoveFromAgentDialog
                     open
@@ -170,8 +205,10 @@ const SkillsList = ({
                     }
                     onRemove={() => {
                         // The list may have changed under the dialog: remove the same entry only.
-                        if (skills[removing.index] === removing.entry)
+                        if (skills[removing.index] === removing.entry) {
                             removeItem("skill", removing.index)
+                            closeEditor()
+                        }
                         setRemoving(null)
                     }}
                     onClose={() => setRemoving(null)}

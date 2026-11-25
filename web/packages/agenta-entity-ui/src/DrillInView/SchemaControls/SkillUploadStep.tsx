@@ -13,7 +13,7 @@ import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {cn} from "@agenta/ui/styles"
 import {Button, RadioGroup, RadioGroupItem, Spinner} from "@agenta/ui/ui"
 import {useViewForm, type ViewForm} from "@agenta/ui/view-stack"
-import {ArrowUp, File as FileIcon} from "@phosphor-icons/react"
+import {File as FileIcon, UploadSimple} from "@phosphor-icons/react"
 
 import {
     readSkillUploadFromDataTransfer,
@@ -127,14 +127,14 @@ export function SkillUploadStep({fileCount, onUpload, onCancel, onControl}: Skil
                     void read(() => readSkillUploadFromDataTransfer(dt), first)
                 }}
                 className={cn(
-                    "flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-background px-4 py-7 text-center transition-colors",
+                    "flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-background px-4 py-7 text-center transition-colors duration-[var(--duration-fast)] motion-reduce:transition-none",
                     over && "border-border-strong bg-accent",
                 )}
             >
                 {busy ? (
                     <Spinner size="small" />
                 ) : (
-                    <ArrowUp size={16} className="text-foreground" />
+                    <UploadSimple size={16} className="text-foreground" />
                 )}
                 <span className="text-label font-medium leading-5 text-foreground">
                     {/* ".zip" and ".skill" in the line's own font (F07 f7). */}

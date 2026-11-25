@@ -3,6 +3,7 @@
     "nameHint": "Lettres minuscules, chiffres et tirets, par exemple pr-review.",
     "namePlaceholder": "Nommez votre skill, p. ex. Rapport hebdomadaire",
     "nameMissing": "Donnez un nom au skill.",
+    "nameInvalid": "Utilisez des lettres, des chiffres et des tirets dans le nom.",
     "savedAs": "Enregistré sous {{name}}.",
     "description": "Description",
     "descriptionHint": "Les agents le lisent pour décider quand le skill convient à une tâche.",

@@ -2,6 +2,7 @@
     "skillReference": "Skill 引用",
     "skill": "Skill",
     "remove": "移除",
+    "removeName": "移除 {{name}}",
     "staticSkill": "静态 Skill",
     "staticSkillHint": "由 Agenta 提供。此 Skill 无法编辑或移除。",
     "skillTemplate": "Skill 模板",

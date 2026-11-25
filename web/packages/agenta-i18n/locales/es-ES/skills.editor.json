@@ -3,6 +3,7 @@
     "nameHint": "Minúsculas, números y guiones, por ejemplo pr-review.",
     "namePlaceholder": "Pon nombre a tu skill, p. ej. Informe semanal",
     "nameMissing": "Ponle un nombre a la skill.",
+    "nameInvalid": "Usa letras, números y guiones en el nombre.",
     "savedAs": "Se guarda como {{name}}.",
     "description": "Descripción",
     "descriptionHint": "Los agentes lo leen para decidir cuándo la skill sirve para una tarea.",

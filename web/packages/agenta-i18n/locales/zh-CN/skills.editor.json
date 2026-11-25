@@ -3,6 +3,7 @@
     "nameHint": "使用小写字母、数字和连字符，例如 pr-review。",
     "namePlaceholder": "为你的 Skill 命名，例如 周报",
     "nameMissing": "请为 Skill 命名。",
+    "nameInvalid": "名称请使用字母、数字和连字符。",
     "savedAs": "将保存为 {{name}}。",
     "description": "描述",
     "descriptionHint": "Agent 会阅读此内容，判断 Skill 何时适合某个任务。",
