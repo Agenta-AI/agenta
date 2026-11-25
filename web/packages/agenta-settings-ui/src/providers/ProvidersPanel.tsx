@@ -353,7 +353,7 @@ export const ProvidersPanel = ({
             label: t("common.connected"),
             list: true,
             items: [...builtin, ...owned.flatMap((group) => group.items)],
-            count: owned.reduce((sum, group) => sum + (group.count ?? 0), 0),
+            count: owned.reduce((sum, group) => sum + (group.count ?? 0), builtin.length),
             pendingRows: owned.some((group) => group.pendingRows) ? 1 : 0,
             footer: owned.some((group) => group.footer) ? (
                 <>

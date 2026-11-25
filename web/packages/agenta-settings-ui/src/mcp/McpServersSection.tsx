@@ -125,20 +125,21 @@ const hasGrantToRevoke = (endpoint: MCPEndpoint) =>
     endpoint.auth_mode === "oauth" && Boolean(endpoint.secret_id)
 
 type ColumnLabel = CatalogKey<typeof commonCatalog | typeof settingsMcpCatalog>
+type McpColumn = ListTableColumn & {label: ColumnLabel}
 
-const NAME_COLUMN = {key: "name", label: "common.name", width: "minmax(160px,1.4fr)"}
-const URL_COLUMN = {key: "url", label: "settings.mcp.serverUrl", width: "minmax(0,1fr)"}
-const STATUS_COLUMN = {key: "status", label: "common.status", width: LIST_COLUMN_WIDTH.secondary}
+const NAME_COLUMN: McpColumn = {key: "name", label: "common.name", width: "minmax(160px,1.4fr)"}
+const URL_COLUMN: McpColumn = {key: "url", label: "settings.mcp.serverUrl", width: "minmax(0,1fr)"}
+const STATUS_COLUMN: McpColumn = {key: "status", label: "common.status", width: LIST_COLUMN_WIDTH.secondary}
 /** The person's own sign-in: run-as, never ownership, so a status cell beside the server's. */
-const SIGN_IN_COLUMN = {key: "signin", label: "settings.mcp.yourSignIn", width: LIST_COLUMN_WIDTH.name}
-const ACTIONS_COLUMN = {
+const SIGN_IN_COLUMN: McpColumn = {key: "signin", label: "settings.mcp.yourSignIn", width: LIST_COLUMN_WIDTH.name}
+const ACTIONS_COLUMN: McpColumn = {
     key: "actions",
     label: "common.actions",
     srOnly: true,
     width: LIST_COLUMN_WIDTH.actions,
 }
 
-const columnsFor = (personal: boolean): (ListTableColumn & {label: ColumnLabel})[] =>
+const columnsFor = (personal: boolean): McpColumn[] =>
     personal
         ? [NAME_COLUMN, URL_COLUMN, STATUS_COLUMN, SIGN_IN_COLUMN, ACTIONS_COLUMN]
         : [NAME_COLUMN, URL_COLUMN, STATUS_COLUMN, ACTIONS_COLUMN]

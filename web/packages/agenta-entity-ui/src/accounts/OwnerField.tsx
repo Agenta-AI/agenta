@@ -75,7 +75,7 @@ export function OwnerField<Owner extends OwnerKind>({
                 className="gap-1"
             >
                 {shown.map((owner) => {
-                    const Icon = OWNER_ICON[owner]
+                    const Icon: ComponentType<IconProps> = OWNER_ICON[owner]
                     return (
                         <label
                             key={owner}

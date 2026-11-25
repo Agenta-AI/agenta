@@ -256,6 +256,13 @@ export const NamedSecretTable = ({
                 owner={ownerFilter}
                 onOwnerChange={setOwnerFilter}
             />
+            {!loadFailed && personal && personalQuery.isError ? (
+                <LoadError
+                    framed
+                    title={t("settings.secrets.loadFailed")}
+                    onRetry={() => void personalQuery.refetch()}
+                />
+            ) : null}
             {loadFailed ? (
                 <LoadError
                     framed

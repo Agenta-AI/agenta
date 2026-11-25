@@ -356,32 +356,8 @@ function ConnectedRow({
             </Button>
         ) : null
 
-    return (
-        <CatalogListRow
-            highlighted={choosing && (Boolean(onAdd) || browseList)}
-            actionLabel={onAdd ? t("entityUi.integrationDrawer.addName", {name}) : name}
-            onClick={
-                choosing && onAdd
-                    ? undefined
-                    : // As in Settings: a sign-in that never finished opens to finishing it.
-                      attention === "pending"
-                      ? () => handlers.onFinish(single, name, logo)
-                      : chooserButton || browseList
-                        ? () => setChoosing((value) => !value)
-                        : onAdd && !added && single.slug
-                          ? () => onAdd(single.slug ?? "")
-                          : // Settings: a project connection opens to running its tools.
-                            !onAdd && verbs.run
-                            ? () => verbs.run?.onRun(single)
-                            : undefined
-            }
-            variant={canvas ? "canvas" : "default"}
-            leading={<LogoTile logo={logo} />}
-            title={title}
-            titleSuffix={
-                chip ? (
-                    chip
-                ) : canvas ? (
+    const statusSuffix =
+        canvas ? (
                     attention ? (
                         <span className="inline-flex h-5 shrink-0 items-center rounded-sm px-2 text-caption text-warning bg-warning/10">
                             {attention === "inactive"
@@ -407,6 +383,37 @@ function ConnectedRow({
                 ) : !multiple && verbs.makeDefault && isConnectionDefault(single) ? (
                     <DefaultMark label={verbs.makeDefault.defaultLabel} />
                 ) : null
+    return (
+        <CatalogListRow
+            highlighted={choosing && (Boolean(onAdd) || browseList)}
+            actionLabel={onAdd ? t("entityUi.integrationDrawer.addName", {name}) : name}
+            onClick={
+                choosing && onAdd
+                    ? undefined
+                    : // As in Settings: a sign-in that never finished opens to finishing it.
+                      attention === "pending"
+                      ? () => handlers.onFinish(single, name, logo)
+                      : chooserButton || browseList
+                        ? () => setChoosing((value) => !value)
+                        : onAdd && !added && single.slug
+                          ? () => onAdd(single.slug ?? "")
+                          : // Settings: a project connection opens to running its tools.
+                            !onAdd && verbs.run
+                            ? () => verbs.run?.onRun(single)
+                            : undefined
+            }
+            variant={canvas ? "canvas" : "default"}
+            leading={<LogoTile logo={logo} />}
+            title={title}
+            titleSuffix={
+                chip ? (
+                    <span className="flex shrink-0 items-center gap-2">
+                        {chip}
+                        {statusSuffix}
+                    </span>
+                ) : (
+                    statusSuffix
+                )
             }
             action={
                 <span className={`flex items-center ${canvas ? "gap-2" : "gap-0.5"}`}>
