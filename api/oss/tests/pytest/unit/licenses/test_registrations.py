@@ -53,19 +53,27 @@ def admin(monkeypatch):
     monkeypatch.setattr(licenses_router, "is_instance_admin", is_admin)
     monkeypatch.setattr(licenses_router, "_is_cloud", lambda: False)
     monkeypatch.setattr(env.agenta, "web_url", "https://agenta.example.com")
+    is_admin.user_id = user_id
     return is_admin
 
 
-async def _register(email="ada@example.com", product_updates=True):
+SURVEY = {
+    "role": "Engineer (AI, SWE, ML)",
+    "team_size": "11-50",
+    "heard_from": "GitHub",
+}
+
+
+async def _register(email="ada@example.com", **fields):
     return await licenses_router.LicensesRouter().create_instance_registration(
         request=None,
-        body=InstanceRegistrationRequest(email=email, product_updates=product_updates),
+        body=InstanceRegistrationRequest(email=email, **fields),
     )
 
 
 @pytest.mark.asyncio
 async def test_registration_sends_the_instance_details_to_agenta(admin, agenta):
-    response = await _register()
+    response = await _register(product_updates=True, survey=SURVEY)
 
     assert response.model_dump() == {"email": "ada@example.com"}
     assert len(agenta.calls) == 1
@@ -76,21 +84,41 @@ async def test_registration_sends_the_instance_details_to_agenta(admin, agenta):
         "instance_id": str(INSTANCE_ID),
         "agenta_version": "v0.128.11",
         "web_url": "https://agenta.example.com",
+        "user_id": str(admin.user_id),
+        "product_updates": True,
+        "survey": SURVEY,
     }
 
 
 @pytest.mark.asyncio
-async def test_registration_without_consent_to_product_updates_gets_400(admin, agenta):
-    with pytest.raises(HTTPException) as error:
-        await _register(product_updates=False)
+async def test_registration_without_product_updates_still_registers(admin, agenta):
+    response = await _register(product_updates=False)
 
-    assert error.value.status_code == 400
-    assert agenta.calls == []
+    assert response.model_dump() == {"email": "ada@example.com"}
+    sent = json.loads(agenta.calls[0].content)
+    assert sent["product_updates"] is False
+    assert sent["survey"] == {}
+
+
+@pytest.mark.asyncio
+async def test_registration_forwards_only_the_answers_given(admin, agenta):
+    await _register(survey={"team_size": "Solo"})
+
+    assert json.loads(agenta.calls[0].content)["survey"] == {"team_size": "Solo"}
 
 
 def test_registration_refuses_a_value_that_is_not_an_email():
     with pytest.raises(ValidationError):
-        InstanceRegistrationRequest(email="not-an-email", product_updates=True)
+        InstanceRegistrationRequest(email="not-an-email")
+
+
+@pytest.mark.parametrize(
+    "survey",
+    [{"role": "x" * 65}, {"role": "Other\nmy own words"}, {"heard_from": ""}],
+)
+def test_registration_refuses_a_survey_answer_that_is_not_a_label(survey):
+    with pytest.raises(ValidationError):
+        InstanceRegistrationRequest(email="ada@example.com", survey=survey)
 
 
 @pytest.mark.asyncio
@@ -142,3 +170,64 @@ async def test_registration_answers_502_when_the_instance_id_is_not_wired(
 
     assert error.value.status_code == 502
     assert agenta.calls == []
+
+
+@pytest.fixture
+def prompt(monkeypatch):
+    dismiss = AsyncMock()
+    monkeypatch.setattr(licenses_router, "dismiss_registration_prompt", dismiss)
+    return dismiss
+
+
+@pytest.mark.asyncio
+async def test_the_instance_admin_dismisses_the_registration_prompt(admin, prompt):
+    await licenses_router.LicensesRouter().dismiss_instance_registration_prompt(
+        request=None
+    )
+
+    prompt.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_a_member_cannot_dismiss_the_registration_prompt(admin, prompt):
+    admin.return_value = False
+
+    with pytest.raises(HTTPException) as error:
+        await licenses_router.LicensesRouter().dismiss_instance_registration_prompt(
+            request=None
+        )
+
+    assert error.value.status_code == 403
+    prompt.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_the_registration_prompt_is_not_on_cloud(admin, prompt, monkeypatch):
+    monkeypatch.setattr(licenses_router, "_is_cloud", lambda: True)
+
+    with pytest.raises(HTTPException) as error:
+        await licenses_router.LicensesRouter().dismiss_instance_registration_prompt(
+            request=None
+        )
+
+    assert error.value.status_code == 404
+    prompt.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_the_oss_license_reports_whether_the_prompt_was_dismissed(
+    admin, monkeypatch
+):
+    monkeypatch.setattr(licenses_router, "is_ee", lambda: False)
+    monkeypatch.setattr(licenses_router, "count_users", AsyncMock(return_value=1))
+    monkeypatch.setattr(
+        licenses_router,
+        "is_registration_prompt_dismissed",
+        AsyncMock(return_value=True),
+    )
+
+    response = await licenses_router.LicensesRouter().fetch_instance_license(
+        request=None
+    )
+
+    assert response.registration_prompt_dismissed is True

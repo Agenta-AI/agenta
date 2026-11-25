@@ -4,6 +4,7 @@ Agenta signs a key with the plan `self_hosted_registered` and emails it with an
 activation link back to this instance. The instance stores nothing.
 """
 
+from typing import Optional
 from uuid import UUID
 
 import httpx
@@ -31,13 +32,24 @@ def _agenta_version() -> str:
     return get_agenta_version()
 
 
-async def create_registration(email: str) -> None:
+async def create_registration(
+    *,
+    email: str,
+    user_id: UUID,
+    product_updates: bool,
+    survey: Optional[dict[str, str]] = None,
+) -> None:
+    """`user_id` is the signed-in admin; Agenta links their analytics person to the
+    email. `survey` holds the setup answers as choice labels."""
     try:
         payload = {
             "email": email,
             "instance_id": str(await _instance_id()),
             "agenta_version": _agenta_version(),
             "web_url": env.agenta.web_url,
+            "user_id": str(user_id),
+            "product_updates": product_updates,
+            "survey": survey or {},
         }
     except ImportError as error:
         # Until the instance id and version modules ship in this image.
