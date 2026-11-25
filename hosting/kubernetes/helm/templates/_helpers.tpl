@@ -1285,6 +1285,14 @@ failureThreshold: 3
 - name: POSTHOG_API_URL
   value: {{ $posthog.apiUrl | quote }}
 {{- end }}
+{{- $telemetry := default dict .Values.telemetry }}
+{{- $releases := default dict .Values.releases }}
+- name: AGENTA_DEPLOYMENT_METHOD
+  value: "helm"
+- name: AGENTA_TELEMETRY_ENABLED
+  value: {{ ternary "true" "false" (ne $telemetry.enabled false) | quote }}
+- name: AGENTA_UPDATE_CHECK_ENABLED
+  value: {{ ternary "true" "false" (ne $releases.updateCheckEnabled false) | quote }}
 - name: SENDGRID_FROM_ADDRESS
   value: {{ $sendgrid.fromEmail | default $sendgrid.fromAddress | default "" | quote }}
 - name: COMPOSIO_API_URL

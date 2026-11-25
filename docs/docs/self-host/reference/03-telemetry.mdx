@@ -1,0 +1,161 @@
+---
+title: Telemetry
+sidebar_label: Telemetry
+description: What a self-hosted Agenta instance sends to Agenta, and how to turn it off
+slug: /self-host/telemetry
+sidebar_position: 3
+---
+
+A self-hosted Agenta instance sends a small amount of usage data to Agenta. We use it to learn how many instances run, which versions they use, and which features people use. This page explains what is sent and how to turn it off. It covers self-hosted instances only. For Agenta Cloud, see [Privacy and data handling](/administration/security/privacy).
+
+## What is never sent
+
+Agenta never receives your content, such as prompts, traces, test sets or model outputs. From the instance, it never receives email addresses, user names, organization or project names, secrets or license keys. The one email it receives is the one you give when you [register](#registration). Of the address of your instance, it receives only the host name (for example `agenta.example.com`), never the full address or a path.
+
+## What is sent
+
+An instance sends four kinds of data. Each one is linked to a random instance id, which the database creates when you install Agenta.
+
+- **An install ping.** A new instance sends one event when its first organization exists. The event carries only the instance id. An instance that upgrades from an older version does not send it.
+- **A startup event.** Each time the API starts, it sends the Agenta version and edition, the host name of the instance, the number of CPUs, the memory, and the operating system, Python and Postgres versions.
+- **A heartbeat.** Every 12 hours, the instance sends counts and settings: the Agenta version and edition, how you deployed it (for example Docker Compose or Helm), and the number of users, projects and workflows. It also counts the activity since the last heartbeat, such as traces, evaluations and deployments, and lists the most common email domains of your users, never full addresses.
+- **Product usage.** When a user creates an application, starts an evaluation or sends traces, the instance records that the action happened, with the Agenta version, the user's role and the name and version of the SDK that called. The browser records page views and the answers to the setup questions, with email addresses and links removed from typed answers. Every product event, from the API and from the browser, carries the instance kind (`production`, `development`, `ci` or `test`). Users are identified by their id in your database, never by email.
+
+## Turn telemetry off
+
+Set the switch on the API and restart it.
+
+- Docker Compose: add `AGENTA_TELEMETRY_ENABLED=false` to your `.env` file.
+- Helm: set `telemetry.enabled: false` in your values file.
+
+With the switch off, the instance sends no startup event, no heartbeat and no product usage. Only the one-time install ping still runs, because it carries nothing but the instance id.
+
+A paid license key keeps telemetry on, so the switch has no effect on an instance with one, unless your contract exempts it. The free key you get when you register does not change the switch.
+
+## Update check
+
+While people use the instance, it also checks `https://agenta.ai/releases.json`, at most once every 12 hours, so it can tell you when a newer version or a security fix is available. The check sends no data. Turn it off with `AGENTA_UPDATE_CHECK_ENABLED=false`.
+
+## Registration
+
+Registering links your instance to your email in our analytics. Instances that do not register stay anonymous.
+
+When an admin registers the instance for a free key, agenta.ai (not the instance) records the registration in the same analytics project. It does this whatever the instance's telemetry switch says, because the admin asked to register. It records three things:
+
+| Event | Distinct id | What it carries |
+|---|---|---|
+| `instance_registered` | The instance id | `email` (the email you registered with), `agenta_version`, `plan` (`self_hosted_registered`), the answers to the registration questions (role, team size, where you heard of Agenta), and `$groups` with the instance |
+| `$groupidentify` | The instance id | Sets `registered_email` on the `instance` group |
+| `$set` | `<instance id>:<user id>` of the admin who registered | Sets `email` on that user |
+
+## Settings
+
+| Variable | Default | Effect |
+|---|---|---|
+| `AGENTA_TELEMETRY_ENABLED` | `true` | `false` stops the startup event, the heartbeat and product usage. |
+| `AGENTA_UPDATE_CHECK_ENABLED` | `true` | `false` stops the update check. |
+| `AGENTA_DEPLOYMENT_METHOD` | detected | How you deployed Agenta. The compose files, the Helm chart and the Railway template set it. |
+| `AGENTA_TELEMETRY_INSTANCE_KIND` | detected | `production`, `development`, `ci` or `test`. Overrides the detected `instance_kind`. Set `test` on an instance that only runs tests. |
+
+All settings are listed in [Configuration](/self-host/configuration#telemetry).
+
+## Install ping
+
+Event name: `instance_installed`. The distinct id is the instance id. The event has these properties and no others. The API removes the properties the PostHog library adds on its own.
+
+| Property | Value |
+|---|---|
+| `$geoip_disable` | `true`. PostHog does not look up a location. |
+| `$ip` | Empty. The event itself carries no IP address. |
+
+## Startup event
+
+Event name: `instance_started`. The API sends it each time it starts, when telemetry is on. An API with several worker processes sends one per process. The distinct id is the instance id. If the send fails, the API logs one warning and does not try again until the next start.
+
+| Property | Value |
+|---|---|
+| `instance_id` | The instance id |
+| `instance_kind` | `production`, `development` (the web address is `localhost` or a private address), `ci`, or the value of `AGENTA_TELEMETRY_INSTANCE_KIND` when it is set |
+| `agenta_version` | The running version, such as `v0.129.0` |
+| `edition` | `oss` or `ee` |
+| `deployment_method` | `compose`, `helm`, `railway`, `kubernetes`, `docker`, or empty |
+| `instance_host` | The host name of `AGENTA_WEB_URL`, such as `agenta.example.com`. No scheme, port or path. |
+| `cpu_count` | The number of CPUs the API sees |
+| `memory_mb` | The memory of the machine, in MiB |
+| `memory_limit_mb` | The memory limit of the API container, in MiB, or empty when there is none |
+| `postgres_version` | The Postgres server version, such as `16.4` |
+| `$groups` | The instance, as a PostHog group of type `instance` |
+| `$process_person_profile` | `false`. PostHog makes no person for the instance. |
+| `$geoip_disable` | `true`. PostHog does not look up a location. |
+| `$lib` | The name of the PostHog library |
+| `$lib_version` | The version of the PostHog library |
+| `$python_runtime` | The Python implementation, such as `CPython` |
+| `$python_version` | The Python version |
+| `$os` | The operating system, such as `Linux` |
+| `$os_version` | The operating system version |
+| `$os_distro` | The Linux distribution, on Linux only |
+| `$is_server` | `true`. The event comes from a server, not a browser. |
+
+## Product events from the API
+
+The API sends one event when a user calls one of the routes below. The distinct id is `<instance id>:<user id>`, where the user id is the user's id in your database.
+
+| Event | Sent when a user |
+|---|---|
+| `app_created` | creates an application |
+| `app_variant_created` | creates a variant |
+| `app_revision_created` | commits a configuration |
+| `environment_revision_created` | deploys to an environment |
+| `app_revision_fetched` | fetches a configuration with an API key |
+| `testset_created` | creates a test set |
+| `testsets_fetched` | lists test sets |
+| `testset_updated` | changes a test set |
+| `evaluator_created` | creates an evaluator |
+| `evaluator_updated` | changes an evaluator |
+| `evaluation_created` | starts an evaluation |
+| `spans_created` | sends traces |
+| `spans_fetched` | reads traces |
+| `query_created` | creates a query |
+| `user_invitation_sent_v1` | invites a member |
+| `invitation_created` | sends an invitation again |
+| `user_signed_up_v1` | signs up |
+
+Each of these events has these properties:
+
+| Property | Value |
+|---|---|
+| `path` | The route that was called, such as `/apps` |
+| `method` | The HTTP method |
+| `status_code` | The HTTP status of the answer |
+| `auth_method` | `ApiKey`, `Bearer`, `Secret` or `Session` |
+| `agenta_version` | The running version, such as `v0.129.0` |
+| `instance_kind` | The same value as on the startup event, so events from development, CI and test instances can be left out |
+| `sdk_name` | The client that called: the SDK name it sends, else the first name in its `User-Agent`, such as `python-httpx`. Empty for a browser. |
+| `sdk_version` | The version that goes with `sdk_name` |
+| `project_id` | The project id, when the route has one |
+| `workspace_id` | The workspace id, when the route has one |
+| `organization_id` | The organization id, when the route has one |
+| `$set` | Sets `role` on the user: `owner`, `admin`, `editor`, `viewer` or another role the user has in the project of the event. A role name that is not a plain word is sent as `custom`. |
+
+The PostHog library also adds its own name and version, the Python version and the operating system.
+
+`user_signed_up_v1` has these properties instead:
+
+| Property | Value |
+|---|---|
+| `source` | `auth` |
+| `is_ee` | `true` on the enterprise edition |
+| `cloud_region` | `Other` on a self-hosted instance |
+| `agenta_version` | The running version |
+| `instance_kind` | The same value as on the startup event |
+
+The first time a user reaches a feature, the API also marks it on the user with an `$identify` event that carries `instance_kind`. Each mark is set to `true`:
+
+| Mark | Set when a user first |
+|---|---|
+| `activated_prompt_management` | fetches a configuration with an API key |
+| `activated_online_evaluation` | creates a query |
+| `activated_observability` | sends traces with an API key |
+| `activated_evaluation` | starts an evaluation |
+| `activated_playground` | creates a variant |
+| `invited_user_v1` | invites a member |
