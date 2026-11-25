@@ -112,9 +112,9 @@ describe("locked enterprise settings", () => {
     it("shows Audit Log as locked on OSS, with the upgrade docs and the contact page", async () => {
         await mount(<AuditLogTab workspaceId="ws-1" projectId="proj-1" />)
 
-        expect(document.body.textContent).toContain("Audit Log is not available on your plan")
-        expect(document.body.textContent).toContain("Available with an Enterprise license.")
-        expect(labels()).toEqual(expect.arrayContaining(["How to upgrade", "Talk to us"]))
+        expect(document.body.textContent).toContain("Available on the Enterprise plan")
+        expect(document.body.textContent).toContain("Audit log.")
+        expect(labels()).toEqual(["Talk to us", "How to upgrade"])
         expect(labels()).not.toContain("Add a license key")
         expect(control("Talk to us")?.getAttribute("href")).toBe(
             "https://agenta.ai/contact?feature=audit",
@@ -147,7 +147,7 @@ describe("locked enterprise settings", () => {
         ])
     })
 
-    it("shows each Access & Security feature as locked on OSS and calls none of their routes", async () => {
+    it("shows one Enterprise box for the locked Access & Security features and calls none of their routes", async () => {
         await mount(<AccessSecurityTab workspaceId="ws-1" projectId="proj-1" />)
 
         expect(events("upgrade_prompt_viewed")).toEqual([
@@ -155,7 +155,15 @@ describe("locked enterprise settings", () => {
             {feature: "domains", screen: "organization"},
             {feature: "sso", screen: "organization"},
         ])
-        expect(labels().filter((label) => label === "Talk to us")).toHaveLength(3)
+        const text = document.body.textContent ?? ""
+        expect(text.match(/Available on the Enterprise plan/g)).toHaveLength(1)
+        expect(text).toContain("Access controls.")
+        expect(text).toContain("Verified domains.")
+        expect(text).toContain("SSO providers.")
+        // Each setting stays visible below the box, read only.
+        expect(text).toContain("Sign-in methods, join rules.")
+        expect(text).toContain("No domains.")
+        expect(labels().filter((label) => label === "Talk to us")).toHaveLength(1)
         expect(fixture.api.fetchOrganizationDomains).not.toHaveBeenCalled()
         expect(fixture.api.fetchOrganizationProviders).not.toHaveBeenCalled()
     })
@@ -194,8 +202,8 @@ describe("locked enterprise settings", () => {
 })
 
 describe("availableUpgradeActions", () => {
-    it("offers a license key on EE and the upgrade docs on OSS, then the contact page", () => {
-        expect(availableUpgradeActions(true)).toEqual(["add_license_key", "talk_to_us"])
-        expect(availableUpgradeActions(false)).toEqual(["upgrade_docs", "talk_to_us"])
+    it("offers the contact page, then a license key on EE or the upgrade docs on OSS", () => {
+        expect(availableUpgradeActions(true)).toEqual(["talk_to_us", "add_license_key"])
+        expect(availableUpgradeActions(false)).toEqual(["talk_to_us", "upgrade_docs"])
     })
 })

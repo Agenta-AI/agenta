@@ -1,7 +1,7 @@
 {
     "continue": "Continue",
-    "description": "Get product updates and the free features we add later. We email you a free key.",
+    "keepPromise": "You keep what your key unlocks. <link>Read about free keys</link>",
     "skip": "Skip",
     "talkAboutEnterprise": "Talk to us about Enterprise",
-    "title": "Get a free key"
+    "title": "Register this instance for free"
 }

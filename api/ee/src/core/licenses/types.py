@@ -28,6 +28,8 @@ class LicenseKey(BaseModel):
     issued_at: datetime
     expires_at: Optional[datetime] = None
     telemetry: Literal["required", "exempt"] = "required"
+    # The instance a free registration key was issued for; paid keys carry none.
+    instance_id: Optional[UUID] = None
 
     model_config = ConfigDict(extra="ignore")
 
