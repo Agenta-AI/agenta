@@ -1,10 +1,11 @@
-import {useState, type ReactNode} from "react"
+import {useMemo, useRef, useState, type ReactNode} from "react"
 
 import {subscriptionProviderName} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import {BottomSheet, useIsPhone} from "@agenta/ui/phone"
 import {Dialog, DialogContent, DialogHeader, DialogTitle} from "@agenta/ui/ui"
+import type {ViewForm} from "@agenta/ui/view-stack"
 
 import {BuiltinModelsPanel} from "./BuiltinModelsPanel"
 import {SubscriptionSignInPanel} from "./SubscriptionSignInPanel"
@@ -61,13 +62,30 @@ export const SubscriptionSheet = ({
 }) => {
     const [open, setOpen] = useState(true)
     const close = () => setOpen(false)
+    // A typed token or a changed project choice keeps the dialog open on Escape or an outside click.
+    const dirtyRef = useRef(false)
+    const trackForm = useMemo(
+        () => (form: ViewForm) => {
+            dirtyRef.current = form.dirty
+        },
+        [],
+    )
+    const dismiss = () => {
+        if (!dirtyRef.current) close()
+    }
     const {connection} = useSubscriptionViewConnection(params)
     const title = connection?.name || subscriptionProviderName(params.provider)
     const token = subscriptionViewFor(params.provider) === subscriptionTokenView
     return (
-        <SheetFrame title={title} open={open} onClose={close} onClosed={onClosed}>
+        <SheetFrame title={title} open={open} onClose={dismiss} onClosed={onClosed}>
             {token ? (
-                <SubscriptionTokenPanel params={params} onDone={close} onCancel={close} />
+                <SubscriptionTokenPanel
+                    params={params}
+                    onDone={close}
+                    onCancel={close}
+                    useForm={trackForm}
+                    actionsPlacement="footer"
+                />
             ) : (
                 <SubscriptionSignInPanel params={params} onDone={close} onCancel={close} />
             )}

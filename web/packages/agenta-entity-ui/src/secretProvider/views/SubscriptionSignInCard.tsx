@@ -62,9 +62,9 @@ export const SubscriptionSignInCard = ({
     const waiting = phase === "waiting" && attempt
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-4">
-            <section className="flex flex-col gap-2.5 rounded-lg bg-muted p-3 text-label">
+            {/* The host's title names the subscription, so the body starts with its status. */}
+            <section className="flex flex-col gap-2.5 text-label">
                 <div className="flex flex-col gap-0.5">
-                    <span className="text-label font-medium text-foreground">{name}</span>
                     {waiting ? (
                         <span className="flex items-center gap-1.5 text-muted-foreground">
                             <Spinner aria-hidden className="size-3" />

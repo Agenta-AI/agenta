@@ -37,6 +37,8 @@ export interface SubscriptionTokenPanelProps {
     useForm?: (form: ViewForm) => void
     /** Save through the host instead of here; the host leaves when it lands. */
     hostSave?: () => Promise<unknown>
+    /** "footer": Cancel and Connect in a footer row at the end (a dialog); else inside the steps. */
+    actionsPlacement?: "inline" | "footer"
 }
 
 const noTitle = (_name: string) => undefined
@@ -50,6 +52,7 @@ export const SubscriptionTokenPanel = ({
     useTitle = noTitle,
     useForm = noForm,
     hostSave,
+    actionsPlacement = "inline",
 }: SubscriptionTokenPanelProps) => {
     const t = useT(subscriptionSignInCatalog, providerListCatalog, commonCatalog)
     const {connection, organization} = useSubscriptionViewConnection(params)
@@ -103,40 +106,48 @@ export const SubscriptionTokenPanel = ({
             setSaving(false)
         }
     }
-    const actions = (
+    const footer = actionsPlacement === "footer"
+    const connectButton = (
+        <Button
+            size={footer ? "default" : "compact"}
+            disabled={!valid || saving}
+            onClick={() => void connect()}
+        >
+            {saving && typed ? t("entityUi.subscriptionSignIn.checking") : saveLabel}
+        </Button>
+    )
+    const cancelButton = (
+        <Button
+            variant="outline"
+            size={footer ? "default" : "compact"}
+            disabled={saving}
+            onClick={onCancel}
+        >
+            {t("common.cancel")}
+        </Button>
+    )
+    // A dialog footer reads Cancel then Connect, at its end; inline, Connect leads.
+    const actions = footer ? (
+        <div className="flex items-center justify-end gap-2">
+            {cancelButton}
+            {connectButton}
+        </div>
+    ) : (
         <div className="flex items-center gap-2">
-            {/* A phone keeps 44 px buttons (touch rule). */}
-            <Button
-                size="compact"
-                className=""
-                disabled={!valid || saving}
-                onClick={() => void connect()}
-            >
-                {saving && typed ? t("entityUi.subscriptionSignIn.checking") : saveLabel}
-            </Button>
-            <Button
-                variant="outline"
-                size="compact"
-                className=""
-                disabled={saving}
-                onClick={onCancel}
-            >
-                {t("common.cancel")}
-            </Button>
+            {connectButton}
+            {cancelButton}
         </div>
     )
 
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-4">
-            <section className="flex flex-col gap-2.5 rounded-lg bg-muted p-3 text-label">
-                <div className="flex flex-col gap-0.5">
-                    <span className="text-label font-medium text-foreground">{name}</span>
-                    <span className="text-muted-foreground">
-                        {connected
-                            ? t("entityUi.subscriptionSignIn.agentsCanRun")
-                            : t("entityUi.subscriptionSignIn.pasteToken")}
-                    </span>
-                </div>
+            {/* The host's title names the subscription, so the body starts with what to do. */}
+            <section className="flex flex-col gap-4 text-label">
+                <span className="text-muted-foreground">
+                    {connected
+                        ? t("entityUi.subscriptionSignIn.agentsCanRun")
+                        : t("entityUi.subscriptionSignIn.pasteToken")}
+                </span>
                 {connected ? (
                     <div className="flex flex-col items-start gap-3">
                         <span className="flex items-center gap-2 text-success">
@@ -147,19 +158,20 @@ export const SubscriptionTokenPanel = ({
                             {t("entityUi.subscriptionSignIn.replaceToken")}
                         </Button>
                         {/* A ready token has nothing to connect; only a changed project choice saves. */}
-                        {draft.changed ? actions : null}
+                        {!footer && draft.changed ? actions : null}
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-3 rounded-lg bg-background p-3">
+                    <div className="flex flex-col gap-3">
                         <SubscriptionTokenSteps token={token} submitOnEnter={false} />
                         {/* Lines up with the step text: a 24 px number and a 12 px gap. */}
-                        <div className="pl-9">{actions}</div>
+                        {footer ? null : <div className="pl-9">{actions}</div>}
                     </div>
                 )}
             </section>
             {editProjects && organization ? (
                 <SubscriptionProjectsBlock organization={organization} draft={draft} />
             ) : null}
+            {footer && (!connected || draft.changed) ? actions : null}
         </div>
     )
 }
