@@ -56,6 +56,7 @@ import {
     PencilSimpleLine,
     Key,
     Plus,
+    SignIn,
     SignOut,
     SquaresFour,
     Trash,
@@ -71,7 +72,7 @@ import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {usePhoneColumns} from "../shared/usePhoneColumns"
 
-import {asksForSignIn, McpSignInCell} from "./McpSignInCell"
+import {asksForSignIn, isSignedIn, McpSignInCell} from "./McpSignInCell"
 import {McpTokenSignInDialog} from "./McpTokenSignInDialog"
 
 const tNow = createT(commonCatalog, settingsMcpCatalog)
@@ -140,9 +141,9 @@ const columnsFor = (personal: boolean): (ListTableColumn & {label: ColumnLabel})
         ? [NAME_COLUMN, AUTH_COLUMN, STATUS_COLUMN, SIGN_IN_COLUMN, ACTIONS_COLUMN]
         : [NAME_COLUMN, AUTH_COLUMN, STATUS_COLUMN, ACTIONS_COLUMN]
 
-/** A phone keeps the name, the person's sign-in when there is one, else the server's status. */
+/** A phone keeps the name and the menu; the person's sign-in moves under the name. */
 const phoneKeysFor = (personal: boolean) =>
-    personal ? ["name", "signin", "actions"] : ["name", "status", "actions"]
+    personal ? ["name", "actions"] : ["name", "status", "actions"]
 
 const matches = (endpoint: MCPEndpoint, term: string) =>
     !term ||
@@ -476,7 +477,13 @@ export default function McpServersSection({
                                 // One glyph for every server; the tile color follows the name.
                                 mark={<McpServerMark size={32} name={record.name || record.slug} />}
                                 title={record.name || record.slug || ""}
-                                meta={record.data.route.base_url ?? undefined}
+                                meta={
+                                    personal && !shows("signin") && asksForSignIn(record)
+                                        ? isSignedIn(record)
+                                            ? t("settings.mcp.signedInAsYou")
+                                            : t("settings.mcp.notSignedIn")
+                                        : (record.data.route.base_url ?? undefined)
+                                }
                             />
                         )}
                         {!shows("auth") ? null : record.auth_mode === "oauth" ? (
@@ -547,6 +554,19 @@ export default function McpServersSection({
                                         deferred: true,
                                         hidden: readOnly,
                                         onClick: () => setRenamingKey(rowKey(record)),
+                                    },
+                                    {
+                                        key: "sign-in",
+                                        label: t("common.signIn"),
+                                        icon: <SignIn size={14} />,
+                                        // A phone has no sign-in cell; the menu holds Sign in.
+                                        hidden:
+                                            shows("signin") ||
+                                            !personal ||
+                                            !asksForSignIn(record) ||
+                                            isSignedIn(record),
+                                        disabled: signIn.pendingId !== null,
+                                        onClick: () => startSignIn(record),
                                     },
                                     {
                                         key: "sign-out",
