@@ -664,10 +664,10 @@
                 },
                 {
                     "id": "LAYOUT-07",
-                    "rule": "A page body is a list, a form or a detail",
-                    "why": "When each page builds its own body, the toolbar, the groups and the rows move between pages.",
-                    "avoid": "A page that draws its own search row, group heading or row frame; a part shown with nothing in it",
-                    "do": "A list: `ListTableToolbar` and `ListTable` (search, filters, view switch, groups, counts and columns are each optional; `ListTableNameCell` for the Mark, title and meta line). A form: sections at `content-sm`. A detail: sections at `content-md`",
+                    "rule": "The page layout and the body are separate, and each part is optional",
+                    "why": "A page without a table or a toolbar must still get the same top, and a list must not decide the page frame.",
+                    "avoid": "A page that draws its own search row, group heading or row frame; a part shown with nothing in it; a toolbar that only works over a table",
+                    "do": "`PageLayout` frames every general page: title, description, an optional `toolbar` (`PageToolbar`: search, filters and an end slot, each optional) and any body. The body is what the page needs: a list (`ListTable`, with `ListTableNameCell`), cards, a form (sections at `content-sm`) or a detail (sections at `content-md`)",
                     "checkedBy": [
                         "review"
                     ]

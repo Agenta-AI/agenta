@@ -5,7 +5,7 @@ import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {ListTableToolbar} from "@agenta/ui/list-table"
+import {PageToolbar} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
 import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
@@ -61,7 +61,7 @@ export const ArchivedTestsetsScreen = ({
                     "Archived test sets are hidden from your workspace but can be restored at any time."
                 }
             >
-                <ListTableToolbar
+                <PageToolbar
                     search={search.value}
                     onSearchChange={search.onChange}
                     searchPlaceholder="Search"

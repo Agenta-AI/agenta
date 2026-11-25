@@ -11,8 +11,8 @@ import {useWaitingByAgent} from "@agenta/sessions/state"
 import {userAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
-import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {ListTableViewToggle} from "@agenta/ui/list-table"
+import {Button, PageToolbar} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
 
@@ -185,7 +185,7 @@ export const AgentListScreen = ({
                 description={t("agents.list.pageDescription")}
                 toolbar={
                     projectEmpty ? undefined : (
-                        <ListTableToolbar
+                        <PageToolbar
                             search={search}
                             onSearchChange={setSearch}
                             searchPlaceholder={t("agents.list.searchPlaceholder")}

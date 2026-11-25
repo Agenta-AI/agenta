@@ -1,7 +1,6 @@
 import type {KeyboardEvent, ReactNode, Ref} from "react"
 
-import {ListTableToolbar} from "@agenta/ui/list-table"
-import {SkeletonBlock, cn} from "@agenta/ui/ui"
+import {SkeletonBlock, cn, PageToolbar} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 
 import {SettingsGroupHeading} from "./SettingsGroupHeading"
@@ -211,7 +210,7 @@ export const SettingsCatalog = ({
                     data-sticky-search
                     className="sticky top-0 z-10 -mx-3 -mb-3 bg-background px-3 pb-3 pt-1"
                 >
-                    <ListTableToolbar
+                    <PageToolbar
                         className="mb-0"
                         search={search.value}
                         onSearchChange={search.onChange}

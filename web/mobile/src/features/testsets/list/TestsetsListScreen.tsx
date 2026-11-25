@@ -4,8 +4,8 @@ import {useT} from "@agenta/i18n"
 import testsetScreensCatalog from "@agenta/i18n/catalogs/testsets.screens"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {ListTableToolbar, type ListTableSelection} from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {type ListTableSelection} from "@agenta/ui/list-table"
+import {Button, PageToolbar} from "@agenta/ui/ui"
 import {Archive, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -255,7 +255,7 @@ export const TestsetsListScreen = ({
                     }
                 >
                     <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
-                        <ListTableToolbar
+                        <PageToolbar
                             search={draft}
                             onSearchChange={setDraft}
                             searchPlaceholder="Search"

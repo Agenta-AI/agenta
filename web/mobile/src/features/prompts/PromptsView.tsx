@@ -2,7 +2,7 @@ import type {ReactNode} from "react"
 
 import type {Folder} from "@agenta/entities/workflow"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {ListTableToolbar} from "@agenta/ui/list-table"
+import {PageToolbar} from "@agenta/ui/ui"
 
 import type {PromptsDialog} from "./promptDialogState"
 import type {PromptsRow} from "./promptRow"
@@ -67,7 +67,7 @@ export const PromptsView = ({
             newPrompt={newPrompt}
             onSetupWorkflow={onSetupWorkflow}
         />
-        <ListTableToolbar
+        <PageToolbar
             search={search}
             onSearchChange={onSearchChange}
             searchPlaceholder={promptsCopy.searchPlaceholder}

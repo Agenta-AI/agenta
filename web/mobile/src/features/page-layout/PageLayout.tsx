@@ -39,7 +39,7 @@ export interface PageLayoutProps {
     back?: PageBack
     /** The page actions: in the title row on an expanded window, in the compact bar below it. */
     actions?: ReactNode
-    /** The list toolbar (search, filters, view switch): pinned under the title, outside the scroll. */
+    /** An optional toolbar (`PageToolbar`, or any row): pinned under the title, outside the scroll. */
     toolbar?: ReactNode
     /** The content cap (LAYOUT-02). Lists `lg` (the default), item pages and Home `md`, forms `sm`. */
     width?: PageWidth

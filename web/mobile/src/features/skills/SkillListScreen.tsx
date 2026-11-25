@@ -22,7 +22,8 @@ import {
 } from "@agenta/skills-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
-import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
+import {ListTableViewToggle} from "@agenta/ui/list-table"
+import {PageToolbar} from "@agenta/ui/ui"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -204,7 +205,7 @@ export const SkillListScreen = ({
                 description={t("skills.list.pageDescription")}
                 toolbar={
                     projectEmpty ? undefined : (
-                        <ListTableToolbar
+                        <PageToolbar
                             search={typed}
                             onSearchChange={setTyped}
                             searchPlaceholder={t("skills.list.searchPlaceholder")}

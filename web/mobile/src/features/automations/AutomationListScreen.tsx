@@ -24,11 +24,10 @@ import {
     LIST_COLUMN_WIDTH,
     ListTable,
     ListTableNameCell,
-    ListTableToolbar,
     ListTableViewToggle,
     type ListTableColumn,
 } from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {Button, PageToolbar} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
@@ -301,7 +300,7 @@ export const AutomationListScreen = ({
                 description={t("automations.screens.pageDescription")}
                 toolbar={
                     projectEmpty ? undefined : (
-                        <ListTableToolbar
+                        <PageToolbar
                             search={search}
                             onSearchChange={setSearch}
                             searchPlaceholder={t("automations.screens.searchPlaceholder")}

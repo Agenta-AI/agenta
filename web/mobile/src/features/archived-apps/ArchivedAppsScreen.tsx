@@ -8,11 +8,10 @@ import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {
     ListTableExportButton,
-    ListTableToolbar,
     type ListTableCsvColumn,
     type ListTableSelection,
 } from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {Button, PageToolbar} from "@agenta/ui/ui"
 import {ArrowCounterClockwise} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -136,7 +135,7 @@ export const ArchivedAppsScreen = ({
                     href: backHref,
                 }}
             >
-                <ListTableToolbar
+                <PageToolbar
                     search={search.value}
                     onSearchChange={search.onChange}
                     searchPlaceholder="Search archived prompts by name…"

@@ -3,8 +3,8 @@ import {useCallback, useMemo, useState} from "react"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {ListTableColumnsMenu, ListTableToolbar} from "@agenta/ui/list-table"
-import {Button, Spinner} from "@agenta/ui/ui"
+import {ListTableColumnsMenu} from "@agenta/ui/list-table"
+import {Button, Spinner, PageToolbar} from "@agenta/ui/ui"
 import dynamic from "next/dynamic"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -159,7 +159,7 @@ export const EvaluationsScreen = ({
                                 onChange={filters.setKind}
                             />
                         </div>
-                        <ListTableToolbar
+                        <PageToolbar
                             search={searchField.value}
                             onSearchChange={searchField.onChange}
                             searchPlaceholder="Search evaluations"

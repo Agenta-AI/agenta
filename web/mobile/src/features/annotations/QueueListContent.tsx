@@ -1,6 +1,12 @@
 import type {SimpleQueueTableRow} from "@agenta/entities/simpleQueue"
-import {ListTableToolbar} from "@agenta/ui/list-table"
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+    PageToolbar,
+} from "@agenta/ui/ui"
 
 import {QueueListTable} from "./QueueListTable"
 import {QueueLoadMore} from "./QueueLoadMore"
@@ -56,7 +62,7 @@ export const QueueListContent = (props: QueueListContentProps) => {
 
     return (
         <>
-            <ListTableToolbar
+            <PageToolbar
                 search={props.search}
                 onSearchChange={props.onSearchChange}
                 searchPlaceholder="Search queues"

@@ -5,7 +5,7 @@ import {useT} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {ListTableToolbar} from "@agenta/ui/list-table"
+import {PageToolbar} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 
 import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
@@ -80,7 +80,7 @@ export const ArchivedEvaluatorsScreen = ({
                 <div className="mb-3 overflow-x-auto">
                     <EvaluatorCategoryTabs category={category} onChange={setCategory} />
                 </div>
-                <ListTableToolbar search={search.value} onSearchChange={search.onChange} />
+                <PageToolbar search={search.value} onSearchChange={search.onChange} />
                 {denied || archived.isError ? (
                     // A failed fetch must not read as "No archived evaluators".
                     <LoadError

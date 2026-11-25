@@ -18,9 +18,8 @@ import {
 } from "@agenta/sessions/state"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
-import {ListTableToolbar} from "@agenta/ui/list-table"
 import {useIsPhone} from "@agenta/ui/phone"
-import {Button} from "@agenta/ui/ui"
+import {Button, PageToolbar} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
@@ -237,7 +236,7 @@ const SessionListBody = ({
                                 what is below it. One control beside the field, not four — type,
                                 status, agent and grouping are rows inside it, so the bar stays
                                 a search bar. */
-        <ListTableToolbar
+        <PageToolbar
             search={search.value}
             onSearchChange={search.onChange}
             searchPlaceholder={t("sessions.mobileList.searchSessions")}
