@@ -135,7 +135,7 @@ Each of these events has these properties:
 | `project_id` | The project id, when the route has one |
 | `workspace_id` | The workspace id, when the route has one |
 | `organization_id` | The organization id, when the route has one |
-| `$set` | Sets `role` on the user: `owner`, `admin`, `editor`, `viewer` or another role the user has in the project of the event |
+| `$set` | Sets `role` on the user: `owner`, `admin`, `editor`, `viewer` or another role the user has in the project of the event. A role name that is not a plain word is sent as `custom`. |
 
 The PostHog library also adds its own name and version, the Python version and the operating system.
 
