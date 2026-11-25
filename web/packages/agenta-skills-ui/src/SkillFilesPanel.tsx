@@ -376,6 +376,7 @@ export const SkillFilesPanel = memo(function SkillFilesPanel({
                     </span>
                     <Switch
                         id="skill-exec-switch"
+                        size="sm"
                         aria-describedby="skill-exec-hint"
                         checked={allowExecutable}
                         disabled={readOnly}
