@@ -10,14 +10,17 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 const {logout, queryState} = vi.hoisted(() => ({
     logout: vi.fn(),
-    queryState: {data: undefined as unknown},
+    queryState: {data: undefined as unknown, hasOrganization: undefined as boolean | undefined},
 }))
 vi.mock("next/router", () => ({
     useRouter: () => ({isReady: true, query: {}, asPath: "/", replace: vi.fn()}),
 }))
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@tanstack/react-query")>()),
-    useQuery: () => ({data: queryState.data, refetch: vi.fn()}),
+    useQuery: ({queryKey}: {queryKey: string[]}) =>
+        queryKey[1] === "hasOrganization"
+            ? {data: queryState.hasOrganization, isError: false, refetch: vi.fn()}
+            : {data: queryState.data, refetch: vi.fn()},
 }))
 vi.mock("@/features/auth/useLogout", () => ({useLogout: () => logout}))
 vi.mock("@/features/home/states/HomePageSkeleton", () => ({HomePageSkeleton: () => null}))
@@ -53,6 +56,7 @@ const button = (label: string) =>
 describe("the /m root for a person with no organization", () => {
     it("explains the invitation and offers Check again and Sign out", async () => {
         queryState.data = {kind: "ok", projects: []}
+        queryState.hasOrganization = false
 
         await act(async () => root.render(createElement(ContextResolver)))
 
@@ -63,5 +67,26 @@ describe("the /m root for a person with no organization", () => {
         expect(button("Check again")).toBeDefined()
         act(() => button("Sign out")?.click())
         expect(logout).toHaveBeenCalledOnce()
+    })
+
+    it("tells a member of an organization with no project that there is none", async () => {
+        queryState.data = {kind: "ok", projects: []}
+        queryState.hasOrganization = true
+
+        await act(async () => root.render(createElement(ContextResolver)))
+
+        expect(container.textContent).toContain("No projects found.")
+        expect(container.textContent).not.toContain("You are not in an organization yet")
+        expect(button("Retry")).toBeDefined()
+        expect(button("Sign out")).toBeDefined()
+    })
+
+    it("waits for the organization read before it chooses a screen", async () => {
+        queryState.data = {kind: "ok", projects: []}
+        queryState.hasOrganization = undefined
+
+        await act(async () => root.render(createElement(ContextResolver)))
+
+        expect(container.textContent).toBe("")
     })
 })

@@ -1,5 +1,5 @@
 import {safeParseWithLogging} from "@agenta/entities/shared"
-import {getProjectsClient} from "@agenta/sdk/resources"
+import {getOrganizationsClient, getProjectsClient} from "@agenta/sdk/resources"
 import {isBillingEnabled} from "@agenta/shared/api"
 import {z} from "zod"
 
@@ -295,6 +295,16 @@ async function fetchProjectsOnce(): Promise<ProjectsResult> {
         if (status === 404) return {kind: "ok", projects: []}
         return {kind: "error"}
     }
+}
+
+/**
+ * Whether the signed-in person belongs to any organization. Read when the project list is
+ * empty: a person without one (sign-up at the instance's organization limit, or refused as an
+ * owner) needs an invitation, while a member may only lack a project.
+ */
+export async function fetchHasOrganization(): Promise<boolean> {
+    const organizations = await getOrganizationsClient().listOrganizations()
+    return Array.isArray(organizations) && organizations.length > 0
 }
 
 export async function fetchProjects(): Promise<ProjectsResult> {
