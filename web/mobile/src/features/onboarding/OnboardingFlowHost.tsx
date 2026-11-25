@@ -33,7 +33,7 @@ import {
 } from "./onboardingDraft"
 import {OnboardingFlow} from "./OnboardingFlow"
 import {endOnboarding, isOnboardingInvited, isOnboardingPending} from "./onboardingPending"
-import {personProperties, signupSurveyProperties, withoutWriteIns} from "./onboardingQuestions"
+import {personProperties, signupSurveyProperties} from "./onboardingQuestions"
 import {isFixedStep, onboardingSteps, stepIndex, type OnboardingStep} from "./onboardingRoute"
 import {useOnboardingModel} from "./useOnboardingModel"
 import {useSeedToolConnections} from "./useSeedToolConnections"
@@ -124,18 +124,13 @@ export const OnboardingFlowHost = ({
     }
 
     const onStepCompleted = (step: OnboardingStep, draft: OnboardingDraft) => {
-        // Self-hosted events carry the chosen answers, never a line the user typed.
-        const answers =
-            telemetry && isCloudTelemetry(telemetry)
-                ? draft.answers
-                : withoutWriteIns(draft.answers)
         track("onboarding_step_completed", {
             step: stepIndex(step) + 1,
             step_key: step,
-            $set: personProperties(answers),
+            $set: personProperties(draft.answers),
         })
         if (step === steps.findLast((shown) => !isFixedStep(shown))) {
-            track("survey sent", signupSurveyProperties(answers, surveyEmail))
+            track("survey sent", signupSurveyProperties(draft.answers, surveyEmail))
         }
     }
 
