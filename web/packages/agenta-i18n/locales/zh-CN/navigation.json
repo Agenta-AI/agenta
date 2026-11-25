@@ -25,7 +25,6 @@
     "items.githubSupport": "GitHub 支持",
     "items.helpDocs": "帮助与文档",
     "items.home": "首页",
-    "items.howToUpgrade": "如何升级",
     "items.inviteTeammate": "邀请队友",
     "items.keyboardShortcuts": "键盘快捷键",
     "items.newAgentOrOpen": "新建或打开 Agent",
@@ -84,5 +83,10 @@
     "settings.tools": "工具",
     "settings.watchWalkthrough": "观看演示",
     "settings.webhooks": "Webhook",
-    "settings.workspace": "成员"
+    "settings.workspace": "成员",
+    "items.newMinorVersion": "新的次要版本：{{version}}",
+    "items.newPatchVersion": "新的补丁版本：{{version}}",
+    "items.securityUpdate": "安全更新：{{version}}",
+    "items.releasesBehind_other": "落后 {{count}} 个版本",
+    "items.securityFix": "安全修复"
 }

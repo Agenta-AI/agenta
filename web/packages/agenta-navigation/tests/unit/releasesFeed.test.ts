@@ -9,6 +9,7 @@ import {
     newerReleases,
     noticeApplies,
     parseNotices,
+    updateSize,
 } from "../../src/releases/feed"
 
 const release = (id: string, extra: Partial<Release> = {}): Release => ({
@@ -114,7 +115,9 @@ describe("mergeReleases", () => {
         const feature = release("v0.129.0").features[0]
         const merged = mergeReleases(bundled, [
             release("v0.129.4", {
-                features: [{...feature, cover: "unknown" as unknown as Release["features"][0]["cover"]}],
+                features: [
+                    {...feature, cover: "unknown" as unknown as Release["features"][0]["cover"]},
+                ],
             }),
             release("v0.129.3", {features: [{...feature, cover: "models"}]}),
         ])
@@ -148,6 +151,28 @@ describe("mergeReleases", () => {
             }),
         ])
         expect(latestSecurityRelease(merged, "v0.127.3")?.id).toBe("v0.129.0")
+    })
+})
+
+describe("mergeReleases upgradeNotesLink", () => {
+    it("keeps an https link to the extra upgrade steps", () => {
+        const link = "https://agenta.ai/docs/self-host/upgrading#upgrading-to-01270"
+        const merged = mergeReleases([], [release("v0.127.0", {upgradeNotesLink: link})])
+        expect(merged[0]?.upgradeNotesLink).toBe(link)
+    })
+
+    it("drops a link that is not https but keeps the release", () => {
+        const merged = mergeReleases(
+            [],
+            [release("v0.127.0", {upgradeNotesLink: "javascript:alert(1)"})],
+        )
+        expect(merged.map((r) => r.id)).toEqual(["v0.127.0"])
+        expect(merged[0]).not.toHaveProperty("upgradeNotesLink")
+    })
+
+    it("drops a release whose link is not text", () => {
+        const bad = {...release("v0.127.0"), upgradeNotesLink: 42}
+        expect(mergeReleases([], [bad])).toEqual([])
     })
 })
 
@@ -191,6 +216,39 @@ describe("latestSecurityRelease", () => {
 
     it("is null when the version is unknown", () => {
         expect(latestSecurityRelease(releases, null)).toBeNull()
+    })
+})
+
+describe("updateSize", () => {
+    it("is minor when a newer minor exists", () => {
+        expect(updateSize([release("v0.131.0"), release("v0.130.0")], "v0.129.4")).toBe("minor")
+    })
+
+    it("is minor when only the newest release is a newer minor", () => {
+        expect(updateSize([release("v0.131.0"), release("v0.130.2")], "v0.130.1")).toBe("minor")
+    })
+
+    it("is minor across a major", () => {
+        expect(updateSize([release("v1.0.0")], "v0.131.2")).toBe("minor")
+    })
+
+    it("is patch when only patch releases are missing", () => {
+        expect(updateSize([release("v0.131.2"), release("v0.131.1")], "v0.131.0")).toBe("patch")
+    })
+
+    it("is security when any missing release has a security fix, whatever the size", () => {
+        expect(
+            updateSize([release("v0.131.2"), release("v0.131.1", {securityFix: true})], "v0.131.0"),
+        ).toBe("security")
+        expect(
+            updateSize([release("v0.131.0"), release("v0.130.1", {securityFix: true})], "v0.129.0"),
+        ).toBe("security")
+    })
+
+    it("is null when not behind or the version is unknown", () => {
+        expect(updateSize([], "v0.131.0")).toBeNull()
+        expect(updateSize([release("v0.131.0")], null)).toBeNull()
+        expect(updateSize([release("v0.131.0")], "unknown")).toBeNull()
     })
 })
 

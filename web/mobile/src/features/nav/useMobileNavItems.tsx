@@ -29,8 +29,15 @@ import {
     type SessionSidebarRef,
     type SidebarConfig,
     type SidebarEntityRef,
+    type UpdateSize,
+    updateSizeAtom,
 } from "@agenta/navigation"
-import {buildReleaseNavItems, SessionFilterMenu, SessionSearchButton} from "@agenta/navigation-ui"
+import {
+    buildReleaseNavItems,
+    SessionFilterMenu,
+    SessionSearchButton,
+    UPDATE_SIZE_COLOR,
+} from "@agenta/navigation-ui"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {
     SessionRowActions,
@@ -500,6 +507,13 @@ export const useMobileBottomNavItems = (
     )
 }
 
+/** The update row names the size of the newest missing update, as its marks' color does. */
+const UPDATE_LABEL = {
+    security: "navigation.items.securityUpdate",
+    minor: "navigation.items.newMinorVersion",
+    patch: "navigation.items.newPatchVersion",
+} as const satisfies Record<UpdateSize, string>
+
 /**
  * Help & Docs as an item the rail renders as an icon button beside the project switcher, the
  * same place the desktop rail puts it. It is a menu you reach for, not a place in the product,
@@ -513,13 +527,15 @@ export const useMobileHelpItem = ({
     const openWhatsNew = useSetAtom(whatsNewAtom)
     const releases = useAtomValue(releaseListAtom)
     const notInstalled = useAtomValue(notInstalledReleasesAtom)
+    const size = useAtomValue(updateSizeAtom)
     const {notices, dismiss: dismissReleaseNotice} = useReleaseNotices()
 
     return useMemo(() => {
+        const newest = notInstalled[0]
         const help = buildHelpDocsNavItem({
             icons: {
                 help:
-                    notInstalled.length > 0
+                    newest && size
                         ? createElement(
                               "span",
                               {
@@ -528,8 +544,8 @@ export const useMobileHelpItem = ({
                               },
                               createElement(QuestionIcon, {size: 16}),
                               createElement("span", {
-                                  className:
-                                      "absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-colorSuccess",
+                                  "data-update-size": size,
+                                  className: `absolute -right-0.5 -top-0.5 size-1.5 rounded-full ${UPDATE_SIZE_COLOR[size].bg}`,
                               }),
                           )
                         : createElement(QuestionIcon, {size: 16}),
@@ -554,14 +570,20 @@ export const useMobileHelpItem = ({
                     {
                         whatsNew: t("navigation.items.whatsNew"),
                         viewAll: t("navigation.items.viewAllReleases"),
-                        updateAvailable: t("navigation.items.updateAvailable"),
-                        howToUpgrade: t("navigation.items.howToUpgrade"),
+                        update: newest && size ? t(UPDATE_LABEL[size], {version: newest.id}) : "",
+                        releasesBehind: t("navigation.items.releasesBehind", {
+                            count: notInstalled.length,
+                        }),
                         notInstalled: t("navigation.items.notInstalled"),
+                        securityFix: t("navigation.items.securityFix"),
                     },
                     {
                         releases,
                         notInstalled,
                         notices,
+                        updateSize: size,
+                        // The dialog shows what the update brings, then how to install it.
+                        onOpenUpdate: (release) => openWhatsNew({releaseId: release.id}),
                         onOpenNotice: (notice) => {
                             window.open(notice.link, "_blank", "noopener,noreferrer")
                             dismissReleaseNotice(notice.id)
@@ -598,6 +620,7 @@ export const useMobileHelpItem = ({
         onOpenShortcuts,
         openWhatsNew,
         releases,
+        size,
         t,
         version,
     ])

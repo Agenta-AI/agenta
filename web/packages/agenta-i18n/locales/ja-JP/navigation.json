@@ -25,7 +25,6 @@
     "items.githubSupport": "GitHub サポート",
     "items.helpDocs": "ヘルプとドキュメント",
     "items.home": "ホーム",
-    "items.howToUpgrade": "アップグレード方法",
     "items.inviteTeammate": "チームメンバーを招待",
     "items.keyboardShortcuts": "キーボードショートカット",
     "items.newAgentOrOpen": "新しいエージェントを作成、または開く",
@@ -84,5 +83,10 @@
     "settings.tools": "ツール",
     "settings.watchWalkthrough": "ウォークスルーを見る",
     "settings.webhooks": "Webhook",
-    "settings.workspace": "メンバー"
+    "settings.workspace": "メンバー",
+    "items.newMinorVersion": "新しいマイナーバージョン: {{version}}",
+    "items.newPatchVersion": "新しいパッチバージョン: {{version}}",
+    "items.securityUpdate": "セキュリティ更新: {{version}}",
+    "items.releasesBehind_other": "{{count}} リリース遅れ",
+    "items.securityFix": "セキュリティ修正"
 }

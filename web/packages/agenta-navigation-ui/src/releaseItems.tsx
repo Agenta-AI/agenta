@@ -7,6 +7,7 @@ import {
     type Notice,
     type Release,
     type SidebarConfig,
+    type UpdateSize,
 } from "@agenta/navigation"
 import {
     ArrowCircleUpIcon,
@@ -64,13 +65,34 @@ const RowNote = ({children}: {children: ReactNode}) => (
     <span className="text-[11px] leading-none text-colorTextTertiary">{children}</span>
 )
 
+/**
+ * The color of the update marks (the dot on the help icon and the arrow on the update row) by the
+ * size of the newest missing update: red for a security fix, amber for a newer minor, grey when
+ * only patches are missing. Theme tokens, so both themes stay right.
+ */
+export const UPDATE_SIZE_COLOR: Record<UpdateSize, {text: string; bg: string}> = {
+    security: {text: "text-colorError", bg: "bg-colorError"},
+    minor: {text: "text-colorWarning", bg: "bg-colorWarning"},
+    patch: {text: "text-colorTextTertiary", bg: "bg-colorTextTertiary"},
+}
+
+/** The red tag on a release that carries a security fix. */
+const SecurityTag = ({children}: {children: ReactNode}) => (
+    <span className="rounded bg-colorErrorBg px-1 text-[10.5px] font-medium leading-4 text-colorErrorText">
+        {children}
+    </span>
+)
+
 /** The visible text of the block; the shell supplies it in the reader's language. */
 export interface ReleaseNavLabels {
     whatsNew: string
     viewAll: string
-    updateAvailable: string
-    howToUpgrade: string
+    /** The update row, e.g. "New minor version: v0.131.0". Only read when behind. */
+    update: string
+    /** The update row's note, e.g. "3 releases behind". Only read when behind. */
+    releasesBehind: string
     notInstalled: string
+    securityFix: string
 }
 
 export interface ReleaseNavOptions {
@@ -82,6 +104,10 @@ export interface ReleaseNavOptions {
     notices?: Notice[]
     /** Opens a notice. Without it, a notice row is a plain link. */
     onOpenNotice?: (notice: Notice) => void
+    /** The size of the newest missing update; colors the update row's arrow. */
+    updateSize?: UpdateSize | null
+    /** Opens the newest missing release. Without it, the update row links to the upgrade guide. */
+    onOpenUpdate?: (release: Release) => void
 }
 
 /**
@@ -95,9 +121,17 @@ export interface ReleaseNavOptions {
 export const buildReleaseNavItems = (
     appVersion: string | undefined,
     labels: ReleaseNavLabels,
-    {releases = RELEASES, notInstalled = [], notices = [], onOpenNotice}: ReleaseNavOptions = {},
+    {
+        releases = RELEASES,
+        notInstalled = [],
+        notices = [],
+        onOpenNotice,
+        updateSize,
+        onOpenUpdate,
+    }: ReleaseNavOptions = {},
 ): SidebarConfig[] => {
     const newer = new Set(notInstalled.map((release) => release.id))
+    const newest = notInstalled[0]
     return [
         {key: "releases-heading", title: labels.whatsNew, isGroupLabel: true},
         ...notices.map((notice) => ({
@@ -112,14 +146,22 @@ export const buildReleaseNavItems = (
                     <InfoIcon size={14} className="text-colorTextSecondary" />
                 ),
         })),
-        ...(newer.size > 0
+        ...(newest
             ? [
                   {
                       key: "update-available",
-                      title: labels.updateAvailable,
-                      link: UPGRADE_GUIDE_LINK,
-                      icon: <ArrowCircleUpIcon size={14} className="text-colorSuccessText" />,
-                      suffix: <RowNote>{labels.howToUpgrade}</RowNote>,
+                      title: labels.update,
+                      ...(onOpenUpdate
+                          ? {onClick: () => onOpenUpdate(newest)}
+                          : {link: UPGRADE_GUIDE_LINK}),
+                      icon: (
+                          <ArrowCircleUpIcon
+                              size={14}
+                              weight="fill"
+                              className={UPDATE_SIZE_COLOR[updateSize ?? "patch"].text}
+                          />
+                      ),
+                      suffix: <RowNote>{labels.releasesBehind}</RowNote>,
                   },
               ]
             : []),
@@ -129,7 +171,12 @@ export const buildReleaseNavItems = (
             link: release.features[0]?.link ?? ALL_RELEASES_LINK,
             icon: <ReleaseGlyph first={index === 0} />,
             rowClassName: RELEASE_ROW,
-            suffix: newer.has(release.id) ? <RowNote>{labels.notInstalled}</RowNote> : undefined,
+            suffix: newer.has(release.id) ? (
+                <span className="flex items-center gap-1">
+                    {release.securityFix ? <SecurityTag>{labels.securityFix}</SecurityTag> : null}
+                    <RowNote>{labels.notInstalled}</RowNote>
+                </span>
+            ) : undefined,
         })),
         {
             key: "all-releases",

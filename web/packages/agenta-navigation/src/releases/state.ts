@@ -3,9 +3,23 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {isVersion, latestSecurityRelease, mergeReleases, newerReleases, parseNotices} from "./feed"
+import {
+    isVersion,
+    latestSecurityRelease,
+    mergeReleases,
+    newerReleases,
+    parseNotices,
+    updateSize,
+} from "./feed"
 
-import {RELEASES, type InstanceReleases, type Notice, type Release} from "./index"
+import {
+    RELEASES,
+    type InstanceReleases,
+    type Notice,
+    type Release,
+    type UpdateSize,
+    type UpgradeMethod,
+} from "./index"
 
 // The API keeps the feed for 12 hours, so asking it at most once an hour is plenty.
 const STALE_TIME_MS = 60 * 60 * 1000
@@ -65,3 +79,22 @@ export const notInstalledReleasesAtom = atom<Release[]>((get) =>
 export const securityReleaseAtom = atom<Release | null>((get) =>
     latestSecurityRelease(get(releaseListAtom), get(upgradableVersionAtom)),
 )
+
+/** How big the newest missing update is (see `updateSize`). Null on cloud or when up to date. */
+export const updateSizeAtom = atom<UpdateSize | null>((get) =>
+    updateSize(get(notInstalledReleasesAtom), get(upgradableVersionAtom)),
+)
+
+const UPGRADE_METHODS: readonly string[] = ["compose", "helm", "railway"] satisfies UpgradeMethod[]
+
+/**
+ * How the instance was deployed, when the upgrade box has commands for it. Null for other
+ * methods (docker, kubernetes without the chart), when unknown, and on cloud.
+ */
+export const upgradeMethodAtom = atom<UpgradeMethod | null>((get) => {
+    if (isBillingEnabled()) return null
+    const method = get(instanceReleasesQueryAtom).data?.deployment_method
+    return typeof method === "string" && UPGRADE_METHODS.includes(method)
+        ? (method as UpgradeMethod)
+        : null
+})

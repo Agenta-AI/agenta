@@ -19,6 +19,9 @@ export interface ReleaseFeature {
     cover?: ReleaseCover
 }
 
+/** How big the newest missing update is: a security fix, a newer minor, or only patches. */
+export type UpdateSize = "security" | "minor" | "patch"
+
 /** The covers the What's new dialog can draw (see scripts/parse-entry.mjs). */
 export type ReleaseCover = "builder" | "models" | "channels"
 
@@ -33,6 +36,8 @@ export interface Release {
     fixes: ReleaseItem[]
     /** Set when an entry of this version has the docs tag "security". */
     securityFix?: true
+    /** Where this version's extra upgrade steps are, from the entry's `upgrade_notes`. */
+    upgradeNotesLink?: string
 }
 
 /** A message from the release feed, shown only where every filter matches. */
@@ -59,7 +64,12 @@ export interface ReleaseFeed {
 /** `GET /instance/releases`: the feed as the API cached it, and the running version. */
 export interface InstanceReleases extends ReleaseFeed {
     version: string
+    /** How the instance was deployed (AGENTA_DEPLOYMENT_METHOD); null when unknown. */
+    deployment_method?: string | null
 }
+
+/** The deployment methods the upgrade box has commands for. */
+export type UpgradeMethod = "compose" | "helm" | "railway"
 
 /** Where "View all releases" goes. */
 export const ALL_RELEASES_LINK = "https://agenta.ai/docs/changelog"
@@ -78,6 +88,7 @@ export {
     newerReleases,
     noticeApplies,
     parseNotices,
+    updateSize,
 } from "./feed"
 export {
     dismissReleaseNotice,
@@ -87,11 +98,13 @@ export {
 } from "./dismissed"
 export {
     instanceReleasesQueryAtom,
+    upgradeMethodAtom,
     notInstalledReleasesAtom,
     releaseListAtom,
     releaseNoticesAtom,
     runningVersionAtom,
     securityReleaseAtom,
+    updateSizeAtom,
 } from "./state"
 export {
     getUnseenReleases,

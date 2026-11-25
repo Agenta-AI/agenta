@@ -4,10 +4,12 @@ import {useT} from "@agenta/i18n"
 import securityWarningCatalog from "@agenta/i18n/catalogs/shell.securityWarning"
 import {dismissNotice, isNoticeDismissed, type MaintenanceNotice} from "@agenta/shared/analytics"
 import {X} from "@phosphor-icons/react"
+import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {isAnalyticsAuthRoute} from "@/features/analytics/client"
 import {useSecurityWarning} from "@/features/education/useSecurityWarning"
+import {whatsNewAtom} from "@/features/education/whatsNewAtom"
 import {cn} from "@/lib/utils"
 
 import {useMaintenanceNotice} from "./useMaintenanceNotice"
@@ -33,6 +35,7 @@ export const MaintenanceNoticeBar = () => {
     const t = useT(securityWarningCatalog)
     const maintenance = useMaintenanceNotice()
     const security = useSecurityWarning()
+    const openWhatsNew = useSetAtom(whatsNewAtom)
     const router = useRouter()
     const authRoute = isAnalyticsAuthRoute(router.asPath || router.pathname || "")
     // Start hidden: localStorage is not readable during the server render.
@@ -43,14 +46,17 @@ export const MaintenanceNoticeBar = () => {
     }, [maintenance])
 
     const showMaintenance = Boolean(maintenance) && !maintenanceDismissed
-    const notice: MaintenanceNotice | null = showMaintenance
+    const securityRelease = security.release
+    // The security link opens the What's new dialog on that release: its notes say why, and
+    // the dialog's upgrade box says how.
+    const notice: (MaintenanceNotice & {onLinkClick?: () => void}) | null = showMaintenance
         ? maintenance
-        : security.release
+        : securityRelease
           ? {
-                id: `security-${security.release.id}`,
-                message: t("shell.securityWarning.message", {version: security.release.id}),
-                linkHref: security.release.features[0]?.link,
-                linkLabel: t("shell.securityWarning.readNotes"),
+                id: `security-${securityRelease.id}`,
+                message: t("shell.securityWarning.message", {version: securityRelease.id}),
+                linkLabel: t("shell.securityWarning.howToUpgrade"),
+                onLinkClick: () => openWhatsNew({releaseId: securityRelease.id}),
                 tone: "warning",
             }
           : null
@@ -101,7 +107,18 @@ export const MaintenanceNoticeBar = () => {
             <span aria-hidden className="size-6 shrink-0" />
             <p className="min-w-0 flex-1 text-center">
                 {notice.message}
-                {notice.linkHref ? (
+                {notice.onLinkClick ? (
+                    <>
+                        {" "}
+                        <button
+                            type="button"
+                            onClick={notice.onLinkClick}
+                            className="cursor-pointer whitespace-nowrap border-0 bg-transparent p-0 font-[inherit] text-[inherit] underline underline-offset-2 hover:opacity-80"
+                        >
+                            {notice.linkLabel}
+                        </button>
+                    </>
+                ) : notice.linkHref ? (
                     <>
                         {" "}
                         <a

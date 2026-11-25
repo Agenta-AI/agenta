@@ -2199,7 +2199,28 @@
         "readChangelog": "c97da0c481bd",
         "play": "436e61016e26",
         "playFeature": "bc2e9f2d0190",
-        "notInstalled": "d177cdc09a4e"
+        "notInstalled": "d177cdc09a4e",
+        "upgradeVersions": "85a909f5beb8",
+        "releasesBehind_one": "c532ad0d952b",
+        "releasesBehind_other": "2203b5c6e02d",
+        "notInstalledCount_one": "e9e8cb74a92a",
+        "notInstalledCount_other": "89c3e2f69049",
+        "securityFixCount_one": "a2c138cd8837",
+        "securityFixCount_other": "0ede4c7e49ab",
+        "howToUpgrade": "0abda85c2a0c",
+        "securityFix": "b6d05c400785",
+        "commandsTitle": "58e096a6e13d",
+        "commandsCloneFolder": "972f31b0515e",
+        "copyCommands": "e614ef1572da",
+        "copyPrompt": "3c6179de35f7",
+        "commandsNote": "8240b147ab2a",
+        "extraSteps": "e5e6ce6cf38c",
+        "extraStepsLink": "720c14aaa8b8",
+        "askAdmin": "cee73ff8e467",
+        "promptSetupCompose": "e0c2abe6e483",
+        "promptSetupHelm": "61ef8f14d08f",
+        "promptSetupRailway": "76e4b90815da",
+        "agentPrompt": "fc50c2101643"
     },
     "entityUi.accountSwitch": {
         "chooseWhose": "c88b63844b25",
@@ -5018,7 +5039,6 @@
         "items.githubSupport": "0c337063c9da",
         "items.helpDocs": "ef9125a876f8",
         "items.home": "3a78695388b3",
-        "items.howToUpgrade": "0abda85c2a0c",
         "items.inviteTeammate": "41e2681609b5",
         "items.keyboardShortcuts": "e9bef0b0f3c2",
         "items.newAgentOrOpen": "5992bfc38674",
@@ -5074,7 +5094,13 @@
         "settings.tools": "ea93d6a262ec",
         "settings.watchWalkthrough": "bfdf6444aeac",
         "settings.webhooks": "45808d75bf89",
-        "settings.workspace": "1044a4c056d0"
+        "settings.workspace": "1044a4c056d0",
+        "items.newMinorVersion": "e712c89272b3",
+        "items.newPatchVersion": "4001e80a6360",
+        "items.securityUpdate": "ee9b04fd5671",
+        "items.releasesBehind_one": "c532ad0d952b",
+        "items.releasesBehind_other": "2203b5c6e02d",
+        "items.securityFix": "b6d05c400785"
     },
     "observability.addToTestset": {
         "sheetTitle": "12880f2e402e",
@@ -7074,7 +7100,7 @@
     },
     "shell.securityWarning": {
         "message": "c0856e93a82a",
-        "readNotes": "30bd4d5dc1fc"
+        "howToUpgrade": "0abda85c2a0c"
     },
     "shell.sessionFilter": {
         "agent": "11b39c93777e",

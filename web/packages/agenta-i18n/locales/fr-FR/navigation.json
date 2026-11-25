@@ -25,7 +25,6 @@
     "items.githubSupport": "Support GitHub",
     "items.helpDocs": "Aide et documentation",
     "items.home": "Accueil",
-    "items.howToUpgrade": "Comment mettre à jour",
     "items.inviteTeammate": "Inviter un coéquipier",
     "items.keyboardShortcuts": "Raccourcis clavier",
     "items.newAgentOrOpen": "Nouvel agent ou ouvrir un agent",
@@ -84,5 +83,12 @@
     "settings.tools": "Outils",
     "settings.watchWalkthrough": "Voir la présentation",
     "settings.webhooks": "Webhooks",
-    "settings.workspace": "Membres"
+    "settings.workspace": "Membres",
+    "items.newMinorVersion": "Nouvelle version mineure : {{version}}",
+    "items.newPatchVersion": "Nouvelle version corrective : {{version}}",
+    "items.securityUpdate": "Mise à jour de sécurité : {{version}}",
+    "items.releasesBehind_one": "{{count}} version de retard",
+    "items.releasesBehind_many": "{{count}} versions de retard",
+    "items.releasesBehind_other": "{{count}} versions de retard",
+    "items.securityFix": "Correctif de sécurité"
 }

@@ -1,4 +1,4 @@
-import type {Notice, Release, ReleaseCover} from "./index"
+import type {Notice, Release, ReleaseCover, UpdateSize} from "./index"
 
 const VERSION = /^v(\d+)\.(\d+)\.(\d+)$/
 
@@ -66,7 +66,8 @@ const isRelease = (value: unknown): value is Release => {
         Array.isArray(release.fixes) &&
         release.fixes.length <= MAX_LIST_LENGTH &&
         release.fixes.every(isReleaseItem) &&
-        (release.securityFix === undefined || release.securityFix === true)
+        (release.securityFix === undefined || release.securityFix === true) &&
+        (release.upgradeNotesLink === undefined || typeof release.upgradeNotesLink === "string")
     )
 }
 
@@ -75,8 +76,9 @@ const KNOWN_COVERS: readonly unknown[] = ["builder", "models", "channels"] satis
 
 // A bad link or a cover this build cannot draw must not hide the release (it may carry a
 // security fix): only that field goes.
-const withSafeFields = (release: Release): Release => ({
+const withSafeFields = ({upgradeNotesLink, ...release}: Release): Release => ({
     ...release,
+    ...(isHttpsLink(upgradeNotesLink) ? {upgradeNotesLink} : {}),
     features: release.features.map(({link, cover, ...feature}) => ({
         ...feature,
         ...(isHttpsLink(link) ? {link} : {}),
@@ -112,6 +114,20 @@ export const latestSecurityRelease = (
     releases: Release[],
     version: string | null,
 ): Release | null => newerReleases(releases, version).find((release) => release.securityFix) ?? null
+
+/**
+ * How big the newest missing update is, for the color of the update marks. Agenta versions are
+ * 0.MINOR.PATCH, so a newer minor (or major) is "minor" and only missing patches is "patch". Any
+ * missing release with a security fix makes it "security", whatever the size. Null when the
+ * instance is not behind or the running version is unknown.
+ */
+export const updateSize = (notInstalled: Release[], version: string | null): UpdateSize | null => {
+    const running = isVersion(version) ? VERSION.exec(version) : null
+    const newest = notInstalled[0] ? VERSION.exec(notInstalled[0].id) : null
+    if (!running || !newest) return null
+    if (notInstalled.some((release) => release.securityFix)) return "security"
+    return running[1] === newest[1] && running[2] === newest[2] ? "patch" : "minor"
+}
 
 /** Whether every filter the notice sets matches this instance. */
 export const noticeApplies = (

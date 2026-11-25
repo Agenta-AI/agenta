@@ -25,6 +25,7 @@ import {FadingScrollBody} from "./FadingScrollBody"
 import {ReleaseCover} from "./ReleaseCover"
 import {ReleaseFeatureVideo} from "./ReleaseFeatureVideo"
 import {ReleaseItemsSection} from "./ReleaseItemsSection"
+import {UpgradeBox} from "./UpgradeBox"
 import {whatsNewAtom} from "./whatsNewAtom"
 
 /** The rail lists this many releases, newest first; the rest are one link away. */
@@ -134,9 +135,20 @@ export const WhatsNewDialog = () => {
                                                 <span className="flex items-center gap-1.5">
                                                     {release.id}
                                                     {notInstalled.has(release.id) ? (
-                                                        <span className="rounded bg-colorWarningBg px-1.5 text-[10.5px] font-medium leading-4 text-colorWarning">
-                                                            {t("education.whatsNew.notInstalled")}
-                                                        </span>
+                                                        <>
+                                                            {release.securityFix ? (
+                                                                <span className="rounded bg-colorErrorBg px-1.5 text-[10.5px] font-medium leading-4 text-colorErrorText">
+                                                                    {t(
+                                                                        "education.whatsNew.securityFix",
+                                                                    )}
+                                                                </span>
+                                                            ) : null}
+                                                            <span className="rounded bg-colorWarningBg px-1.5 text-[10.5px] font-medium leading-4 text-colorWarning">
+                                                                {t(
+                                                                    "education.whatsNew.notInstalled",
+                                                                )}
+                                                            </span>
+                                                        </>
                                                     ) : index === 0 ? (
                                                         <span className="rounded bg-colorSuccessBg px-1.5 text-[10.5px] font-medium leading-4 text-colorSuccessText">
                                                             {t("education.whatsNew.latest")}
@@ -183,6 +195,8 @@ export const WhatsNewDialog = () => {
                         key={selected.id}
                         className="flex flex-col gap-8 px-4 pb-6 pt-12 md:min-h-0 md:flex-1 md:overflow-y-auto md:px-6 md:pt-6"
                     >
+                        {/* Only when behind: what the reader runs, what is missing, and how to get it. */}
+                        <UpgradeBox />
                         {selected.features.map((feature) => (
                             <section key={feature.id} className="flex flex-col gap-3">
                                 {feature.streamVideoId ? (
