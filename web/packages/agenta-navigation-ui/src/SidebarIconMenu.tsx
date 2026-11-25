@@ -43,11 +43,12 @@ const SidebarIconMenu = ({item}: {item: SidebarConfig}) => (
         {/* Opens upward from the rail's last row, and rightward from the trigger's left edge:
             the panel is wider than a narrow rail, so anchoring it to the trigger's RIGHT edge
             ran it off the left of the screen. It overhangs the content area instead, which is
-            empty space beside a nav — the same call the sessions filter makes. */}
+            empty space beside a nav — the same call the sessions filter makes. 340px fits the
+            update row ("New minor version: v0.131.0" with "2 releases behind") on one line. */}
         <DropdownMenuContent
             side="top"
             align="start"
-            className="max-h-[min(70vh,560px)] w-[228px] overflow-y-auto"
+            className="max-h-[min(70vh,560px)] w-[340px] overflow-y-auto"
         >
             <FlyoutChildren items={item.submenu ?? []} selectedKeys={[]} />
         </DropdownMenuContent>

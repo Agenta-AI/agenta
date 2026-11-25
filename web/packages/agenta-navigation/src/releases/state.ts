@@ -3,6 +3,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
+import {RELEASES} from "./bundled"
 import {
     isVersion,
     latestSecurityRelease,
@@ -12,14 +13,7 @@ import {
     updateSize,
 } from "./feed"
 
-import {
-    RELEASES,
-    type InstanceReleases,
-    type Notice,
-    type Release,
-    type UpdateSize,
-    type UpgradeMethod,
-} from "./index"
+import type {InstanceReleases, Notice, Release, UpdateSize, UpgradeMethod} from "./index"
 
 // The API keeps the feed for 12 hours, so asking it at most once an hour is plenty.
 const STALE_TIME_MS = 60 * 60 * 1000

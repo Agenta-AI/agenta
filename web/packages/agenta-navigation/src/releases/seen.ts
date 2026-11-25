@@ -1,4 +1,6 @@
-import {RELEASES, type Release} from "./index"
+import {RELEASES} from "./bundled"
+
+import type {Release} from "./index"
 
 // Seen ids are docs entry slugs, so an entry added later to a seen version still counts as new.
 const WHATS_NEW_SEEN_KEY = "agenta-whats-new-seen-entries"

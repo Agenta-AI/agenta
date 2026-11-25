@@ -1,5 +1,3 @@
-import changelogData from "./changelog.json"
-
 export interface ReleaseItem {
     area: string
     text: string
@@ -77,8 +75,7 @@ export const ALL_RELEASES_LINK = "https://agenta.ai/docs/changelog"
 /** The self-hosting upgrade guide. */
 export const UPGRADE_GUIDE_LINK = "https://agenta.ai/docs/self-host/upgrading"
 
-/** Newest first. Generated from docs/blog/entries by `pnpm generate:releases`; do not hand-edit. */
-export const RELEASES: Release[] = changelogData as Release[]
+export {RELEASES} from "./bundled"
 
 export {
     compareVersions,
