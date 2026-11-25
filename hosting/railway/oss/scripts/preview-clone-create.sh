@@ -255,8 +255,10 @@ apply_ci_auth_key() {
 # PostHog project, so every preview counted as a real install there. When CI
 # provides POSTHOG_API_KEY (the "Agenta Test Traffic" project), give it to the
 # services that run API code, with telemetry switched off where the API
-# supports AGENTA_TELEMETRY_ENABLED. Without the variable (local runs), the
-# clone keeps the template's values.
+# supports AGENTA_TELEMETRY_ENABLED and the instance kind set to test, so any
+# event, update check or registration that still goes out is marked as test
+# traffic. Without the variable (local runs), the clone keeps the template's
+# values.
 apply_ci_telemetry_project() {
     [ -n "${POSTHOG_API_KEY:-}" ] || return 0
     local svc svc_id
@@ -269,7 +271,7 @@ apply_ci_telemetry_project() {
         rw_graphql \
             'mutation($in: VariableCollectionUpsertInput!) { variableCollectionUpsert(input: $in) }' \
             "$(jq -nc --arg p "$PROJECT_ID" --arg e "$CLONE_ENV_ID" --arg s "$svc_id" --arg v "$POSTHOG_API_KEY" \
-                '{in: {projectId: $p, environmentId: $e, serviceId: $s, skipDeploys: true, replace: false, variables: {POSTHOG_API_KEY: $v, AGENTA_TELEMETRY_ENABLED: "false"}}}')" \
+                '{in: {projectId: $p, environmentId: $e, serviceId: $s, skipDeploys: true, replace: false, variables: {POSTHOG_API_KEY: $v, AGENTA_TELEMETRY_ENABLED: "false", AGENTA_TELEMETRY_INSTANCE_KIND: "test"}}}')" \
             >/dev/null || return 1
     done
     printf "CI telemetry project applied to every service that runs API code.\n"
