@@ -5,7 +5,12 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import type {SkillFile} from "@agenta/skills"
-import {useIsExpandedWindow, useScrollFadeEdges} from "@agenta/ui/hooks"
+import {
+    COMPACT_WINDOW_QUERY,
+    useIsExpandedWindow,
+    useScrollFadeEdges,
+    useWindowMatch,
+} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
 import {Button, Field, IconTile, Input, RightPane, SimpleTooltip, Textarea} from "@agenta/ui/ui"
 import {ArrowLeft, CaretRight, Files} from "@phosphor-icons/react"
@@ -78,6 +83,9 @@ export function SkillEditor({
     const tCommon = useT(commonCatalog)
     const inline = filesPlacement === "inline"
     const expanded = useIsExpandedWindow() && !inline
+    // From a medium window up, the page header's toggle opens Files; a phone keeps the Files row.
+    const compact = useWindowMatch(COMPACT_WINDOW_QUERY)
+    const headerToggle = !inline && !compact && filesToggleSlot !== undefined
     const [filesOpen, setFilesOpen] = useState(expanded)
     // Docked beside the editor on a wide window; a drill-in a tap away on a narrow one.
     useEffect(() => setFilesOpen(expanded), [expanded])
@@ -135,7 +143,7 @@ export function SkillEditor({
 
     // A narrow window opens Files from this row; a wide one from the header toggle when it has one.
     const filesRow =
-        filesOpen || (expanded && filesToggleSlot !== undefined) ? null : (
+        filesOpen || headerToggle ? null : (
             <button
                 type="button"
                 onClick={() => setFilesOpen(true)}
@@ -155,7 +163,7 @@ export function SkillEditor({
         )
 
     const filesToggle =
-        expanded && filesToggleSlot
+        headerToggle && filesToggleSlot
             ? createPortal(
                   <SimpleTooltip title={t("skills.editor.files")}>
                       <Button

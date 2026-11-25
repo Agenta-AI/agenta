@@ -8,11 +8,13 @@ export function SkillNameTitle({
     onChange,
     readOnly,
     invalid,
+    autoFocus,
 }: {
     value: string
     onChange: (next: string) => void
     readOnly?: boolean
     invalid?: boolean
+    autoFocus?: boolean
 }) {
     const t = useT(skillsEditorCatalog)
     if (readOnly)
@@ -21,6 +23,7 @@ export function SkillNameTitle({
         <h1 className="m-0 min-w-0">
             <input
                 value={value}
+                autoFocus={autoFocus}
                 aria-label={t("skills.editor.name")}
                 aria-invalid={invalid || undefined}
                 placeholder={t("skills.editor.namePlaceholder")}

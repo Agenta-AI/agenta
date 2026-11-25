@@ -7,6 +7,7 @@ import {
     SkillCandidateList,
     SkillCreateWays,
     SkillEditor,
+    SkillNameTitle,
     SkillGithubImport,
     useSkillCreateFlow,
     type CreatedSkill,
@@ -109,8 +110,6 @@ export const SkillCreateScreen = ({
             <SkillEditor
                 draft={flow.draft}
                 onChange={flow.setDraft}
-                showName
-                autoFocusName={!flow.draft.name}
                 showMissing={flow.attempted}
                 filesToggleSlot={filesSlot}
                 notices={
@@ -223,6 +222,14 @@ export const SkillCreateScreen = ({
                                 {t("skills.page.importTitle")}
                             </h1>
                         </span>
+                    ) : flow.step === "write" ? (
+                        // The name is the page title, edited in place, as on the skill page.
+                        <SkillNameTitle
+                            value={flow.draft.name}
+                            onChange={(name) => flow.setDraft({...flow.draft, name})}
+                            invalid={flow.attempted && !flow.draft.name.trim()}
+                            autoFocus={!flow.draft.name}
+                        />
                     ) : (
                         t("skills.page.newSkill")
                     )
@@ -235,7 +242,9 @@ export const SkillCreateScreen = ({
                 description={
                     flow.step === "import"
                         ? t("skills.page.importHint")
-                        : t("skills.page.createDescription")
+                        : flow.step === "write"
+                          ? undefined
+                          : t("skills.page.createDescription")
                 }
                 actions={
                     flow.step === "write" ? (
