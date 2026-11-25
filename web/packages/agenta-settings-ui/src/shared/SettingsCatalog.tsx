@@ -61,7 +61,7 @@ const ConnectMark = ({label}: {label: string}) => (
         title={label}
         aria-label={label}
         role="img"
-        className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground"
+        className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground transition-opacity duration-[var(--duration-fast)] group-hover/row:opacity-100 group-focus-within/row:opacity-100 [@media(hover:hover)]:opacity-0"
     >
         <Plus size={15} />
     </span>
@@ -91,7 +91,7 @@ const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
             aria-disabled={item.disabled || undefined}
             className={cn(
                 // One row height per list (ROW-01): row-double with a description, row-single without.
-                "-mx-3 box-border flex min-w-0 items-center gap-3 rounded-md px-3",
+                "group/row -mx-3 box-border flex min-w-0 items-center gap-3 rounded-md px-3",
                 item.description ? "h-row-double" : "h-row-single",
                 item.disabled && "cursor-not-allowed opacity-60",
                 open && "cursor-pointer transition-colors duration-[var(--duration-fast)] hover:bg-accent",

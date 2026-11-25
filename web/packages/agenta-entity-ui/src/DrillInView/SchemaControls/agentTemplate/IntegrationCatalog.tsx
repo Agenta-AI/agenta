@@ -594,6 +594,8 @@ function CatalogRow({
                     <Button
                         variant="ghost"
                         size={canvas ? "icon-compact" : "icon-sm"}
+                        // Shown on row hover, always on touch.
+                        className="focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 [@media(hover:hover)]:opacity-0"
                         aria-label={t("entityUi.integrationDrawer.connectName", {
                             name: integration.name,
                         })}
