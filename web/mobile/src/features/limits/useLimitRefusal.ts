@@ -1,4 +1,4 @@
-import {useCallback, useState} from "react"
+import {useCallback, useEffect, useState} from "react"
 
 import {isBillingEnabled} from "@agenta/shared/api"
 
@@ -21,6 +21,11 @@ export const useLimitRefusal = (
         usage.isSuccess &&
         usage.dataUpdatedAt >= stored.at &&
         !isAtLimit(current)
+
+    // Once lifted, drop it: a later failed usage read must not bring it back.
+    useEffect(() => {
+        if (lifted) setStored(null)
+    }, [lifted])
 
     const {refetch} = usage
     /** Hold the refusal and read the usage again. */

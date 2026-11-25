@@ -54,6 +54,14 @@ describe("useLimitRefusal", () => {
         // The key was activated in another tab: the next read has no limit.
         rerender({isSuccess: true, dataUpdatedAt: Date.now() + 1, current: {count: 1, limit: null}})
         expect(result.current.refusal).toBeNull()
+
+        // A later usage read fails: the lifted refusal does not come back.
+        rerender({
+            isSuccess: false,
+            dataUpdatedAt: Date.now() + 1,
+            current: {count: 1, limit: null},
+        })
+        expect(result.current.refusal).toBeNull()
     })
 
     it("keeps the refusal while the newer read still shows the limit, or only older data", () => {
