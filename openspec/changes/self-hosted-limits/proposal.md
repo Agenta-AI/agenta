@@ -18,9 +18,9 @@ Existing installs keep every project and organization they have. Only new ones a
 ## What Changes
 
 - One image per component, published under today's public names (`agenta-api`, `agenta-services`, `agenta-runner`, `agenta-web-mobile`). The API image always contains `api/ee`. An existing open source install upgrades by pulling and restarting, with no file edits.
-- The EE code path runs on every install. `AGENTA_LICENSE` stops choosing the code path. It keeps one job: the default database name prefix (`agenta_oss` or `agenta_ee`), so existing installs keep their databases.
+- The EE code path runs on every install. `AGENTA_LICENSE` stops choosing the code path. In the API it keeps one job: the default database name prefix (`agenta_oss` or `agenta_ee`), so existing installs keep their databases. The services keep today's provider keys rule, which reads it.
 - One migration runner for every install. It adopts an open source database into the enterprise schema on the first start, and gives members the same project access they had.
-- Fixes for behavior that is right on cloud and wrong on self-hosted: Hobby rate limits outside cloud, provider keys from the environment, analytics settings, "cloud" labels in `/m`, and the stored plan.
+- Fixes for behavior that is right on cloud and wrong on self-hosted: Hobby rate limits outside cloud, analytics settings, "cloud" labels in `/m`, and the stored plan.
 - Project limit by plan, checked on every install. Refusal: HTTP 403 with `detail.code = "project_limit_reached"`.
 - Organization limit by plan, checked on `POST /organizations/` (HTTP 403, `detail.code = "instance_organization_limit_reached"`) and at sign-up, which skips the personal organization instead of failing.
 - `/m` shows both refusals translated in 7 locales, with a next step by role, and a clear screen for a person who has no organization.
@@ -41,7 +41,7 @@ Existing installs keep every project and organization they have. Only new ones a
 ## Impact
 
 - API: `api/oss/src/utils/env.py`, `api/oss/src/utils/common.py`, both migration runners, `api/ee/src/middlewares/throttling.py`, analytics, `api/ee/src/core/subscriptions`, `api/ee/src/core/access/entitlements/` (limits tables and checks), `api/oss/src/routers/projects_router.py`, `api/oss/src/routers/organization_router.py`, `api/oss/src/services/commoners.py`.
-- SDK: `sdks/python/agenta/sdk/middlewares/running/vault.py` (provider keys from the environment).
+- SDK: none. Provider keys from the environment keep today's rule (decided 2026-11-25).
 - Frontend: `web/entrypoint.sh`, `/m` cloud checks, analytics, the License tab, the project and organization refusals, the zero-organization screen, 7 locales.
 - Images and hosting: Dockerfiles, `hosting/docker-compose/{oss,ee}`, `run.sh`, the Helm chart, Railway, public workflows 17, 42, 12 and 44, and the private image build (workflows 19, 63 and 43 in the cloud repo, a separate PR there).
 - Legal: `api/ee/LICENSE`, `web/ee/LICENSE`, `services/ee/LICENSE`, `ee/LICENSE`.

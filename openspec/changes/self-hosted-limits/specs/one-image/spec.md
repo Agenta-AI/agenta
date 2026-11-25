@@ -59,7 +59,7 @@ Both runner modules SHALL run the same chains, pick the legacy chain from the da
 
 ### Requirement: Self-hosted installs are not treated as cloud
 
-Outside cloud, the API SHALL apply no throttles for a plan that has none, the SDK SHALL read provider keys from the environment unless `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` is false, and `/m` SHALL use cloud settings only on cloud.
+Outside cloud, the API SHALL apply no throttles for a plan that has none, the SDK SHALL keep today's rule for provider keys from the environment (on unless `AGENTA_LICENSE` is `ee`, and `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` overrides it; decided 2026-11-25), and `/m` SHALL use cloud settings only on cloud.
 
 #### Scenario: Slow routes on an instance with no key
 
