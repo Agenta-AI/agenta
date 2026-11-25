@@ -97,7 +97,6 @@ export const SkillCreateScreen = ({
                 showName
                 autoFocusName={!flow.draft.name}
                 showMissing={flow.attempted}
-                defaultView="write"
                 notices={
                     <>
                         {flow.duplicate?.workflow_slug ? (

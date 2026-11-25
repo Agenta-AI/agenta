@@ -1,43 +1,15 @@
 import {useState} from "react"
 
 import {MarkdownEditor} from "@agenta/entity-ui/drill-in"
-import {useT} from "@agenta/i18n"
-import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import {MarkdownPreview} from "@agenta/ui"
 import {cn} from "@agenta/ui/styles"
-import {Segmented} from "@agenta/ui/ui"
 
-export type MarkdownView = "write" | "preview"
-
-/** Write/Preview for a SkillMarkdownFrame; the host puts it in its label row. */
-export function SkillMarkdownViewSwitch({
-    value,
-    onChange,
-}: {
-    value: MarkdownView
-    onChange: (next: MarkdownView) => void
-}) {
-    const t = useT(skillsEditorCatalog)
-    return (
-        <Segmented
-            size="sm"
-            value={value}
-            onChange={(next) => onChange(next as MarkdownView)}
-            options={[
-                {value: "write", label: t("skills.editor.write")},
-                {value: "preview", label: t("skills.editor.preview")},
-            ]}
-        />
-    )
-}
-
-/** One bordered markdown box: in Write, the formatting tools on top of the text; in Preview, the text only. */
+/** One bordered markdown box: the formatting tools on top of the text; read-only shows the rendered text. */
 export function SkillMarkdownFrame({
     value,
     onChange,
     placeholder,
     empty,
-    view,
     readOnly = false,
     invalid = false,
 }: {
@@ -48,10 +20,9 @@ export function SkillMarkdownFrame({
     empty: string
     readOnly?: boolean
     invalid?: boolean
-    view: MarkdownView
 }) {
     const [toolbarHost, setToolbarHost] = useState<HTMLDivElement | null>(null)
-    const writing = view === "write" && !readOnly
+    const writing = !readOnly
 
     return (
         <div

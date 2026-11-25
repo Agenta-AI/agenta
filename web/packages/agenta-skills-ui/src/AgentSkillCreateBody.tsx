@@ -106,7 +106,6 @@ export function AgentSkillCreateBody({onCreated, onDone}: NewSkillBodyProps) {
                     showName
                     autoFocusName={!flow.draft.name}
                     showMissing={flow.attempted}
-                    defaultView="write"
                     filesPlacement="inline"
                     notices={
                         <>

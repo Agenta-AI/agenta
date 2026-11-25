@@ -18,7 +18,7 @@ import {
     type SkillDraft,
 } from "./skillDraft"
 import {SkillFilesPanel} from "./SkillFilesPanel"
-import {SkillMarkdownFrame, SkillMarkdownViewSwitch, type MarkdownView} from "./SkillMarkdownFrame"
+import {SkillMarkdownFrame} from "./SkillMarkdownFrame"
 
 export interface SkillEditorProps {
     draft: SkillDraft
@@ -29,8 +29,6 @@ export interface SkillEditorProps {
     autoFocusName?: boolean
     /** Paints empty required fields once a save was tried. */
     showMissing?: boolean
-    /** Where Instructions opens: Preview for a saved skill, Write for a new one. */
-    defaultView?: MarkdownView
     /** Above the fields (banners). */
     notices?: ReactNode
     /**
@@ -48,7 +46,6 @@ export function SkillEditor({
     showName = false,
     autoFocusName = false,
     showMissing = false,
-    defaultView = "preview",
     notices,
     filesPlacement = "pane",
 }: SkillEditorProps) {
@@ -60,8 +57,6 @@ export function SkillEditor({
     // Docked beside the editor on a wide window; a drill-in a tap away on a narrow one.
     useEffect(() => setFilesOpen(expanded), [expanded])
     const [openPath, setOpenPath] = useState<string | null>(null)
-    const [view, setView] = useState<MarkdownView>(readOnly ? "preview" : defaultView)
-    const [fileMode, setFileMode] = useState<MarkdownView>("preview")
 
     // Latest draft and handler in refs, so the files panel gets stable callbacks and skips keystrokes.
     const latest = useRef(draft)
@@ -146,9 +141,6 @@ export function SkillEditor({
                         />
                     </label>
                 )}
-                {isMarkdownPath(current.path) && !readOnly ? (
-                    <SkillMarkdownViewSwitch value={fileMode} onChange={setFileMode} />
-                ) : null}
                 <Button
                     type="button"
                     variant="ghost"
@@ -169,7 +161,6 @@ export function SkillEditor({
                     placeholder={t("skills.editor.filePlaceholder")}
                     empty={t("skills.editor.nothingWritten")}
                     readOnly={readOnly}
-                    view={fileMode}
                 />
             ) : (
                 <Textarea
@@ -237,7 +228,6 @@ export function SkillEditor({
                 label={t("skills.editor.instructions")}
                 tooltip={t("skills.editor.instructionsHint")}
                 error={missingBody ? t("skills.editor.instructionsMissing") : undefined}
-                labelEnd={readOnly ? null : <SkillMarkdownViewSwitch value={view} onChange={setView} />}
             >
                 <SkillMarkdownFrame
                     value={draft.body}
@@ -246,7 +236,6 @@ export function SkillEditor({
                     empty={readOnly ? t("skills.editor.nothingWritten") : t("skills.editor.nothingYet")}
                     readOnly={readOnly}
                     invalid={missingBody}
-                    view={view}
                 />
             </Field>
         </div>
