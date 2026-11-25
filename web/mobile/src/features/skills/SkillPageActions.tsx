@@ -58,7 +58,8 @@ export const SkillPageActions = ({
 }) => {
     const t = useT(skillsPageCatalog)
     return (
-        <>
+        // Grouped buttons sit 4px apart (SPACE-02).
+        <div className="flex items-center gap-1">
             {editable && dirty ? (
                 <Button variant="outline" onClick={onDiscard} disabled={saving}>
                     {t("skills.page.discard")}
@@ -114,6 +115,6 @@ export const SkillPageActions = ({
                     )}
                 </DropdownMenuContent>
             </DropdownMenu>
-        </>
+        </div>
     )
 }

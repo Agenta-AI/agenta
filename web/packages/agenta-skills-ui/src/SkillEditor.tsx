@@ -195,7 +195,11 @@ export function SkillEditor({
             {current.executable && !draft.allowExecutable ? (
                 <p className="m-0 text-meta text-warning">{t("skills.editor.turnOnPrograms")}</p>
             ) : null}
-            <div ref={setFileBox} style={{height: fileHeight}} className="flex min-h-0 flex-col">
+            <div
+                ref={setFileBox}
+                style={{height: fileHeight}}
+                className={cn("flex min-h-0 flex-col", !inline && "-mb-8")}
+            >
                 {isMarkdownPath(current.path) ? (
                     <SkillMarkdownFrame
                         value={current.content}
@@ -277,7 +281,7 @@ export function SkillEditor({
                 <div
                     ref={setBodyBox}
                     style={inline ? undefined : {height: bodyHeight}}
-                    className="flex min-h-0 flex-col"
+                    className={cn("flex min-h-0 flex-col", !inline && "-mb-8")}
                 >
                     <SkillMarkdownFrame
                         fill={!inline}
