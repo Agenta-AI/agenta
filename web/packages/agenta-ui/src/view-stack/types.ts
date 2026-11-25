@@ -129,6 +129,8 @@ export interface ViewForm {
     cancel?: () => void
     /** What the header's Back does for now: a step inside the view goes to the step before. */
     back?: () => void
+    /** The name of the step that `back` returns to, for the phone's back label. */
+    backTitle?: string
     /** The unsaved-changes dialog's title, in place of the generic one. */
     leaveTitle?: string
     /** `false`: the unsaved-changes dialog offers only Keep editing and Discard. */

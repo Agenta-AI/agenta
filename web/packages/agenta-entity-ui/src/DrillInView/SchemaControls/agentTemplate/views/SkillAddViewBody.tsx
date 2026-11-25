@@ -100,7 +100,7 @@ const SkillAddViewBody = ({target, nav}: ViewProps<SkillAddViewParams>) => {
                 onRemove={onRemove}
                 onNewSkill={onNewSkill}
             />
-            <ViewFooterStart>
+            <ViewFooterStart ownLineOnPhone>
                 <span className="text-meta text-muted-foreground">
                     {t("skills.agent.onAgent", {count})}
                 </span>

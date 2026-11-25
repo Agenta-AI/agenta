@@ -44,7 +44,7 @@ export const PanelViewChrome = ({
     return (
         <div className="flex h-full min-h-0 min-w-0 flex-col">
             {phone ? (
-                <PhoneViewHeader crumbs={crumbs} onBack={onBack} />
+                <PhoneViewHeader crumbs={crumbs} onBack={onBack} form={form} />
             ) : (
                 <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted pl-2 pr-1.5">
                     {/* A step inside the view goes back to the step before. */}

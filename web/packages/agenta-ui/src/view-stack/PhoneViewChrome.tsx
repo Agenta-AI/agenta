@@ -7,13 +7,19 @@ import {ViewFormActions} from "./ViewFormActions"
  * The top row of the phone chrome: the back arrow to the screen before (the previous crumb, read
  * "Back to Configuration") and the view's title. For a container that draws its own frame.
  */
-export const PhoneViewHeader = ({crumbs, onBack}: Pick<ViewChromeProps, "crumbs" | "onBack">) => {
+export const PhoneViewHeader = ({
+    crumbs,
+    onBack,
+    form,
+}: Pick<ViewChromeProps, "crumbs" | "onBack"> & {form?: ViewChromeProps["form"]}) => {
     const current = crumbs.at(-1)
     const previous = crumbs.length > 1 ? crumbs.at(-2) : undefined
+    // A step inside the view goes back to its own step before, not to the previous view.
+    const backTitle = form?.back ? form.backTitle : previous?.title
     return (
         <PhoneScreenHeader
             title={current?.title ?? ""}
-            backTitle={previous?.title || undefined}
+            backTitle={backTitle || undefined}
             onBack={onBack}
         />
     )
@@ -38,7 +44,7 @@ export const PhoneViewChrome = ({
     children,
 }: ViewChromeProps) => (
     <div data-testid="phone-view-chrome" className="flex h-full min-h-0 min-w-0 flex-col">
-        <PhoneViewHeader crumbs={crumbs} onBack={onBack} />
+        <PhoneViewHeader crumbs={crumbs} onBack={onBack} form={form} />
         {/* Edge to edge: each view pads itself. */}
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
         {hideActionRow ? null : (

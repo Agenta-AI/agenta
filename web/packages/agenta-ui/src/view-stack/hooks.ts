@@ -1,4 +1,4 @@
-import {useContext, useEffect, useRef, type ReactNode} from "react"
+import {createElement, useContext, useEffect, useRef, type ReactNode} from "react"
 
 import {createPortal} from "react-dom"
 
@@ -30,6 +30,7 @@ export const useViewForm = (form: ViewForm): void => {
         leaveTitle,
         leaveCanSave,
         saveWhenClean,
+        backTitle,
     } = form
     const hasCancel = Boolean(form.cancel)
     const hasBack = Boolean(form.back)
@@ -46,6 +47,7 @@ export const useViewForm = (form: ViewForm): void => {
             saveWhenClean,
             cancel: hasCancel ? () => cancelRef.current?.() : undefined,
             back: hasBack ? () => backRef.current?.() : undefined,
+            backTitle,
             save: () => saveRef.current(),
         })
     }, [
@@ -59,6 +61,7 @@ export const useViewForm = (form: ViewForm): void => {
         leaveTitle,
         leaveCanSave,
         saveWhenClean,
+        backTitle,
         hasCancel,
         hasBack,
     ])
@@ -70,10 +73,21 @@ export const useViewForm = (form: ViewForm): void => {
  * Done (canvas F02: "Remove from agent"). Nothing shows while the view is not on top or the chrome
  * draws no action row; it leaves with the view.
  */
-export const ViewFooterStart = ({children}: {children: ReactNode}) => {
+export const ViewFooterStart = ({
+    children,
+    ownLineOnPhone = false,
+}: {
+    children: ReactNode
+    /** On a phone, a line of its own above the buttons (a status text, not a control). */
+    ownLineOnPhone?: boolean
+}) => {
     useViewEntry("ViewFooterStart") // only inside a view
     const footerStart = useContext(ViewFooterStartContext)
-    return footerStart ? createPortal(children, footerStart) : null
+    if (!footerStart) return null
+    const content = ownLineOnPhone
+        ? createElement("span", {"data-footer-line": "", className: "contents"}, children)
+        : children
+    return createPortal(content, footerStart)
 }
 
 /** The view reports its breadcrumb title. A renamed item updates the crumb at once. */

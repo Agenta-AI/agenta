@@ -90,7 +90,7 @@ export function AgentSkillCreateBody({onCreated, onDone}: NewSkillBodyProps) {
         ...(step === "upload" ? {saveWhenClean: true as const} : {}),
         // The choice and the GitHub import carry their own controls.
         ...(step === "choose" || step === "import" ? {actionRow: false as const} : {}),
-        ...(step === "choose" ? {} : {back: () => guard(reset)}),
+        ...(step === "choose" ? {} : {back: () => guard(reset), backTitle: titles.choose}),
         ...(writing ? {cancel: () => guard(leave)} : {}),
     })
 
@@ -116,9 +116,7 @@ export function AgentSkillCreateBody({onCreated, onDone}: NewSkillBodyProps) {
                                     showIcon
                                     message={t("skills.page.duplicateNew", {
                                         name:
-                                            flow.duplicate.skill_name ??
-                                            flow.duplicate.name ??
-                                            "",
+                                            flow.duplicate.skill_name ?? flow.duplicate.name ?? "",
                                     })}
                                 />
                             ) : null}
@@ -126,7 +124,7 @@ export function AgentSkillCreateBody({onCreated, onDone}: NewSkillBodyProps) {
                         </>
                     }
                 />
-                <ViewFooterStart>
+                <ViewFooterStart ownLineOnPhone>
                     <span className="text-meta text-muted-foreground">
                         {t("skills.agent.savedAndAdded")}
                     </span>

@@ -3,6 +3,7 @@ import viewStackCatalog from "@agenta/i18n/catalogs/ui.viewStack"
 
 import {Button} from "../components/ui/button"
 import {Spinner} from "../components/ui/spinner"
+import {cn} from "../components/ui/utils"
 
 import type {ViewChromeProps} from "./types"
 
@@ -26,7 +27,16 @@ export const ViewFormActions = ({
     phone?: boolean
 }) => {
     const t = useT(viewStackCatalog)
-    const start = <span ref={startRef} className="mr-auto flex empty:hidden" />
+    // A phone puts an `ownLineOnPhone` start on its own line above the buttons.
+    const start = (
+        <span
+            ref={startRef}
+            className={cn(
+                "mr-auto flex empty:hidden",
+                phone && "has-[[data-footer-line]]:basis-full",
+            )}
+        />
+    )
     const button = phone ? "flex-1" : undefined
     // The canvas scale on the desktop (h28, r6, 13 px); a phone uses the kit default.
     const size = phone ? undefined : "compact"
@@ -47,7 +57,7 @@ export const ViewFormActions = ({
                     {t("ui.viewStack.saveFailed")}
                 </span>
             ) : null}
-            <div className="flex items-center justify-end gap-2">
+            <div className={cn("flex items-center justify-end gap-2", phone && "flex-wrap")}>
                 {start}
                 <Button
                     variant="outline"
