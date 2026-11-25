@@ -439,9 +439,6 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                     <div
                                         className={clsx(
                                             "pointer-events-none absolute inset-0 select-none break-words text-muted-foreground",
-                                            // The editor reads 16 px under touch (touch.css);
-                                            // the hint keeps the caret's size.
-                                            "pointer-coarse:text-field-lg",
                                             leading,
                                             // The canvas editor is one line high: a long hint
                                             // ends in "…" rather than spilling under the toolbar.
