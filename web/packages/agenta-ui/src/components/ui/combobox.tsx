@@ -78,6 +78,8 @@ export interface ComboboxProps extends Pick<SelectTriggerProps, "size" | "varian
     /** className for the trigger. */
     className?: string
     contentClassName?: string
+    /** Which trigger edge the menu lines up with. */
+    align?: "start" | "center" | "end"
     /** Start open (for forced-open parity stories / initial-open UX). */
     defaultOpen?: boolean
     /** Portal target for the dropdown; defaults to document.body. */
@@ -104,6 +106,7 @@ export function Combobox({
     variant,
     className,
     contentClassName,
+    align = "start",
     defaultOpen = false,
     container,
     icon,
@@ -339,7 +342,8 @@ export function Combobox({
                 </div>
             </PopoverAnchor>
             <PopoverContent
-                align="start"
+                align={align}
+                collisionPadding={8}
                 container={container}
                 // The popup is the listbox; name the Radix Popover dialog wrapper so it isn't an
                 // unnamed dialog, and stop it stealing focus from the input (activedescendant pattern).
