@@ -52,9 +52,11 @@ vi.mock("@agenta/entities/gatewayTool", async () => {
 vi.mock("@agenta/entity-ui/gatewayTool", () => ({
     useDirectToolConnect: () => ({connect: tools.connect, connectingKey: null}),
 }))
+const edition = vi.hoisted(() => ({billing: false}))
 vi.mock("@agenta/shared/api/env", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/shared/api/env")>()),
     isToolsEnabled: () => true,
+    isBillingEnabled: () => edition.billing,
 }))
 vi.mock("@agenta/entity-ui/secretProvider", () => ({
     KEY_PROVIDERS: [],
@@ -310,6 +312,7 @@ let host: HTMLDivElement | undefined
 beforeEach(() => vi.useFakeTimers())
 
 afterEach(() => {
+    edition.billing = false
     tools.set([])
     tools.connect.mockReset()
     if (root) act(() => root!.unmount())
@@ -685,6 +688,35 @@ describe("first agent onboarding", () => {
         const [step, draft] = onStepCompleted.mock.lastCall!
         expect(step).toBe("goals")
         expect(personProperties(draft.answers)).toMatchObject({agent_goals_v1: ["Coding"]})
+    })
+
+    it("keeps the step dots closed while the registration offer shows", () => {
+        const props = baseProps()
+        render(props)
+        answer(/^Engineering/)
+        const openDots = () =>
+            [...host!.querySelectorAll<HTMLButtonElement>("nav button")].filter(
+                (dot) => !dot.disabled,
+            )
+        expect(openDots()).not.toHaveLength(0)
+
+        act(() => root!.render(<OnboardingFlow {...props} interstitial={<p>Offer</p>} />))
+        expect(openDots()).toHaveLength(0)
+    })
+
+    it("names the credits dot Credits on cloud and Register on self-hosted", () => {
+        const creditsDot = () =>
+            [...host!.querySelectorAll<HTMLButtonElement>("nav button")][
+                onboardingSteps().indexOf("credits")
+            ].getAttribute("aria-label")
+
+        edition.billing = true
+        render(baseProps())
+        expect(creditsDot()).toBe("Credits")
+
+        edition.billing = false
+        render(baseProps())
+        expect(creditsDot()).toBe("Register")
     })
 
     it("offers Skip only on the first-agent step", () => {

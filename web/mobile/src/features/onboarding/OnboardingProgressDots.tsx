@@ -1,5 +1,6 @@
 import {useT} from "@agenta/i18n"
 import flowCatalog from "@agenta/i18n/catalogs/onboarding.flow"
+import {isBillingEnabled} from "@agenta/shared/api/env"
 import {motion} from "motion/react"
 
 import {useMotionPresets} from "@/lib/motion/presets"
@@ -27,7 +28,12 @@ export const OnboardingProgressDots = ({
     const questionText = useQuestionText()
     const dotLabel = (step: OnboardingStep) =>
         questionText.dot(step) ??
-        (step === "credits" ? t("onboarding.flow.dotCredits") : t("onboarding.flow.dotTemplates"))
+        (step === "credits"
+            ? // Cloud gives credits on this step; self-hosted offers a key there.
+              isBillingEnabled()
+                ? t("onboarding.flow.dotCredits")
+                : t("onboarding.flow.dotRegister")
+            : t("onboarding.flow.dotTemplates"))
     return (
         <nav
             aria-label={t("onboarding.flow.stepCounter", {

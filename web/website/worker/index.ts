@@ -34,19 +34,32 @@ import {
   notFoundMarkdown,
   type Representation,
 } from "./negotiate";
+import {
+  REGISTRATION_PATH,
+  handleRegistration,
+  CAPS_PREFIX,
+  type RegistrationEnv,
+} from "./registrations";
 
 // The entire Workers runtime surface this script uses.
-interface Env {
+interface Env extends RegistrationEnv {
   ASSETS: { fetch(request: Request): Promise<Response> };
   MEDIA: {
     head(key: string): Promise<{ size: number } | null>;
+    put(
+      key: string,
+      value: string,
+      options?: { onlyIf: { etagMatches?: string; etagDoesNotMatch?: string } },
+    ): Promise<unknown>;
     get(
       key: string,
       options?: { range: { offset: number; length: number } },
     ): Promise<{
       body: ReadableStream;
+      etag: string;
       httpEtag: string;
       size: number;
+      text(): Promise<string>;
       writeHttpMetadata(headers: Headers): void;
     } | null>;
   };
@@ -68,6 +81,17 @@ const JSON_TYPE = "application/json; charset=utf-8";
 
 export default {
   async fetch(request: Request, env: Env, ctx?: Context): Promise<Response> {
+    // An API route, not a page: it answers for itself and never falls back to assets.
+    if (new URL(request.url).pathname === REGISTRATION_PATH) {
+      return handleRegistration(
+        request,
+        env,
+        undefined,
+        undefined,
+        undefined,
+        ctx ? (promise) => ctx.waitUntil(promise) : undefined,
+      );
+    }
     try {
       if (new URL(request.url).pathname === "/releases.json") {
         return await serveReleases(request, env, ctx);
@@ -222,7 +246,11 @@ async function serveMedia(
   rangeHeader: string | null,
   env: Env,
 ): Promise<Response> {
-  if (!key || key.split("/").some((segment) => segment === "..")) {
+  if (
+    !key ||
+    key.split("/").some((segment) => segment === "..") ||
+    key.startsWith(CAPS_PREFIX)
+  ) {
     return new Response(null, { status: 404, headers: HEADERS });
   }
 

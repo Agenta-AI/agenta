@@ -13,6 +13,7 @@ from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
+from ee.src.core.access.entitlements.types import DefaultPlan
 from ee.src.core.licenses.interfaces import LicensesDAOInterface
 from ee.src.core.licenses.keys import parse_license_key
 from ee.src.core.licenses.types import (
@@ -33,6 +34,46 @@ CACHE_KEY = "active"
 # short time bounds that to seconds, at one database read per interval for the instance.
 CACHE_TTL = 10
 
+# Why a free key that names another instance is refused, as the License tab says it.
+OTHER_INSTANCE = "other_instance"
+
+
+async def _this_instance_id() -> Optional[UUID]:
+    """This instance's id, or None when the image has no instance id module (#8237).
+
+    Any other error raises, so a failed read never drops a valid free key and never
+    puts a state without the key in the shared cache."""
+    try:
+        # The instance id module ships with #8237; hoist this import when it lands.
+        from oss.src.core.instances.service import get_instance_id  # noqa: PLC0415
+    except ImportError:
+        log.warning("[licenses] the instance id module is not in this image")
+        return None
+    return await get_instance_id()
+
+
+async def check_instance(license_key: LicenseKey) -> None:
+    """A free registration key works only on the instance it was issued for. A paid key
+    is not tied to an instance."""
+    if license_key.plan != DefaultPlan.SELF_HOSTED_REGISTERED.value:
+        return
+    if license_key.instance_id is None or (
+        license_key.instance_id != await _this_instance_id()
+    ):
+        raise InvalidLicenseKey(OTHER_INSTANCE)
+
+
+async def _here(state: LicenseState) -> LicenseState:
+    """The state without its key when that key is a free key of another instance."""
+    if state.license is None:
+        return state
+    try:
+        await check_instance(state.license)
+    except InvalidLicenseKey:
+        log.warning("[licenses] the free key belongs to another instance")
+        return LicenseState(source=state.source, license=None)
+    return state
+
 
 class LicensesService:
     def __init__(self, *, licenses_dao: LicensesDAOInterface):
@@ -42,13 +83,13 @@ class LicensesService:
         # The environment key belongs to this process, so it never goes in the shared
         # cache: a cached state would outlive a restart with another key.
         if env.license.key:
-            return _environment_state(env.license.key)
+            return await _here(_environment_state(env.license.key))
 
         cached = await get_cache(namespace=CACHE_NAMESPACE, key=CACHE_KEY)
         if cached is not None:
             return LicenseState.model_validate(cached)
 
-        state = await self._load_stored_state()
+        state = await _here(await self._load_stored_state())
         await set_cache(
             namespace=CACHE_NAMESPACE,
             key=CACHE_KEY,
@@ -73,6 +114,7 @@ class LicensesService:
             raise InvalidLicenseKey("plan")
         if license_key.is_expired():
             raise InvalidLicenseKey("expired")
+        await check_instance(license_key)
 
         await self.licenses_dao.replace(
             key_id=license_key.key_id,

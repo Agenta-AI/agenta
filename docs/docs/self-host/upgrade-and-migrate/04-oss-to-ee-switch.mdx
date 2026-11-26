@@ -9,6 +9,8 @@ description: 'How to switch an existing self-hosted Agenta OSS deployment to EE 
 You run a self-hosted **OSS** Agenta deployment on **v0.104.0** or later and want to move to **EE** without losing data. EE reuses the same core schema as OSS and adds a few tables of its own. Switching keeps your organizations, members, projects, and traces; the first EE start creates the extra tables and backfills the EE-only data.
 :::
 
+On OSS, the **Access & Security** and **Audit Log** settings show these features as locked, with a **How to upgrade** link to this page. After the switch, an instance admin turns them on with a license key under **Settings > License**. See [`AGENTA_LICENSE_KEY`](/self-host/configuration#license) for how the key sets the plan. To ask about a license, [talk to us](https://agenta.ai/contact).
+
 ## How the switch works
 
 OSS and EE store data in databases whose names carry the edition: `agenta_oss_core` / `agenta_oss_tracing` for OSS, `agenta_ee_core` / `agenta_ee_tracing` for EE. Switching the license alone would make EE look for `agenta_ee_*`, find nothing, and start empty.
@@ -132,7 +134,8 @@ Run it from a checkout of the same release, with `POSTGRES_URI_CORE` set to your
 ## After the switch
 
 - All organizations, members, projects, and traces are unchanged.
-- The EE-only tables are populated, and EE features become available.
+- The EE-only tables are populated.
+- Enterprise features stay locked until an instance admin adds a license key under **Settings > License**, or you set `AGENTA_LICENSE_KEY`.
 
 ## Rollback
 
