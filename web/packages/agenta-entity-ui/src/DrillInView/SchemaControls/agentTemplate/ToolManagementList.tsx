@@ -174,9 +174,9 @@ function IntegrationListRow({
                 name,
                 monoName: false,
                 mono: "",
-                // The logo carries the identity here, so the avatar square stays out of the way.
                 color: "transparent",
-                icon: <ProviderLogo logo={integration?.logo ?? null} size={20} />,
+                // A 16 px logo on the neutral tile, so the tile shows around it like other rows.
+                icon: <ProviderLogo logo={integration?.logo ?? null} size={16} />,
                 tags: row.legacyIndices.length > 0 ? [t("entityUi.configItems.oldFormatTag")] : [],
                 typeLabel: t("entityUi.itemDescriptors.integrationType"),
                 subtitle: t("entityUi.configItems.integrationRowSubtitle", {
