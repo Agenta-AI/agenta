@@ -9,7 +9,7 @@ vi.mock("@agenta/shared/api", () => ({
 
 import {annotationSchema} from "../../src/annotation/core/schema"
 import {evaluationQueueSchema} from "../../src/evaluationQueue/core/schema"
-import {queryEvaluationRunsPage, runTagLabels} from "../../src/evaluationRun"
+import {buildRunEditBody, queryEvaluationRunsPage, runTagLabels} from "../../src/evaluationRun"
 import {evaluationMetricSchema, evaluationRunSchema} from "../../src/evaluationRun/core/schema"
 import {simpleQueueSchema} from "../../src/simpleQueue/core/schema"
 
@@ -91,6 +91,36 @@ describe("evaluationRunSchema tags and references", () => {
     })
 })
 
+describe("buildRunEditBody with a slug-only revision reference", () => {
+    // The edit body lists steps by revision id, and the API deletes the saved results of every
+    // step it leaves out. A rename must fail rather than drop the slug-only step.
+    it("throws instead of leaving the step out", () => {
+        const parsed = evaluationRunSchema.parse(
+            run({
+                data: {
+                    steps: [
+                        {
+                            key: "testset",
+                            type: "input",
+                            references: {testset_revision: {id: "tsr-1"}},
+                        },
+                        {
+                            key: "evaluator",
+                            type: "annotation",
+                            origin: "human",
+                            references: {evaluator_revision: {id: null, slug: "exact-match"}},
+                        },
+                    ],
+                },
+            }),
+        )
+
+        expect(() => buildRunEditBody(parsed, {name: "Renamed", description: ""})).toThrow(
+            /evaluator_revision/,
+        )
+    })
+})
+
 describe("queue schemas tags", () => {
     it("accept dictionary tags on an evaluation queue and a simple queue", () => {
         const queue = {id: "q-1", run_id: "run-1", tags: {owner: "qa"}}
@@ -116,12 +146,11 @@ describe("annotationSchema references and meta", () => {
         expect(result.success && result.data.references?.evaluator.id).toBeUndefined()
     })
 
-    it("keeps the annotation when meta.tags is not a list", () => {
+    it("rejects meta.tags that is not a list, so an edit cannot drop the stored tags", () => {
         const result = annotationSchema.safeParse(
             annotation({meta: {name: "Score", tags: {suite: "bench"}}}),
         )
-        expect(result.success).toBe(true)
-        expect(result.success && result.data.meta).toEqual({name: "Score", tags: undefined})
+        expect(result.success).toBe(false)
     })
 })
 

@@ -33,7 +33,11 @@ export interface RunEditBody {
     }
 }
 
-/** `{revisionId: origin}` for the steps of one type that reference `refKey`. */
+/**
+ * `{revisionId: origin}` for the steps of one type that reference `refKey`. Throws when such a
+ * step's reference has no id (a slug-only reference): the body cannot carry that step, and the
+ * API deletes the saved results of every step the body leaves out.
+ */
 function stepOrigins(
     steps: readonly EvaluationRunDataStep[],
     type: EvaluationRunDataStep["type"],
@@ -43,8 +47,11 @@ function stepOrigins(
     const origins: Record<string, RunStepOrigin> = {}
     for (const step of steps) {
         if (step.type !== type) continue
-        const id = step.references?.[refKey]?.id
-        if (id) origins[id] = step.origin ?? fallback
+        const ref = step.references?.[refKey]
+        if (!ref) continue
+        if (!ref.id)
+            throw new Error(`Step "${step.key}" has no ${refKey} id, so the run cannot be edited.`)
+        origins[ref.id] = step.origin ?? fallback
     }
     return origins
 }

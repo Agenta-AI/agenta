@@ -92,9 +92,9 @@ export const annotationReferencesSchema = z.object({
 export const annotationMetaSchema = z.object({
     name: z.string().optional(),
     description: z.string().optional(),
-    // `meta` is free-form on the API. The app writes `tags` as a list of output keys, but a
-    // client may write another shape, which must not drop the annotation.
-    tags: z.array(z.string()).optional().catch(undefined),
+    // Strict on purpose: an edit sends `meta` back whole, so an annotation whose tags this
+    // schema dropped would lose them on the first score change.
+    tags: z.array(z.string()).optional(),
 })
 
 /**
