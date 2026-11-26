@@ -302,6 +302,38 @@ apply_ci_runtime_key() {
     printf "CI runtime key applied to API and Services.\n"
 }
 
+# The clone copies the live template, which can lag template.json until
+# apply.sh runs on it (template/README.md step 4). The alembic service is the
+# one place where that lag breaks a deploy: the API image runs the EE code, so
+# it needs the EE migration chains. Give the clone the committed alembic
+# startCommand and remove the variables that pointed the migrations at the open
+# source chain. Both changes apply without a deploy.
+apply_template_alembic_config() {
+    local svc_id start_command name
+    svc_id="$(clone_service_id alembic)"
+    [ -n "$svc_id" ] || return 1
+    start_command="$(jq -r '.services.alembic.startCommand // ""' "$SCRIPT_DIR/../template/template.json")"
+    [ -n "$start_command" ] || return 1
+    rw_graphql \
+        'mutation($s: String!, $e: String!, $in: ServiceInstanceUpdateInput!) { serviceInstanceUpdate(serviceId: $s, environmentId: $e, input: $in) }' \
+        "$(jq -nc --arg s "$svc_id" --arg e "$CLONE_ENV_ID" --arg c "$start_command" '{s: $s, e: $e, in: {startCommand: $c}}')" \
+        >/dev/null || return 1
+    local live_vars
+    live_vars="$(rw_graphql \
+        'query($p: String!, $e: String!, $s: String!) { variables(projectId: $p, environmentId: $e, serviceId: $s) }' \
+        "$(jq -nc --arg p "$PROJECT_ID" --arg e "$CLONE_ENV_ID" --arg s "$svc_id" '{p: $p, e: $e, s: $s}')" \
+        | jq -r '.data.variables // {} | keys[]')" || return 1
+    for name in ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING; do
+        grep -qx "$name" <<<"$live_vars" || continue
+        rw_graphql \
+            'mutation($in: VariableDeleteInput!) { variableDelete(input: $in) }' \
+            "$(jq -nc --arg p "$PROJECT_ID" --arg e "$CLONE_ENV_ID" --arg s "$svc_id" --arg n "$name" \
+                '{in: {projectId: $p, environmentId: $e, serviceId: $s, name: $n}}')" \
+            >/dev/null || return 1
+    done
+    printf "Template alembic config applied to the clone.\n"
+}
+
 clone_service_id() {
     jq -r --arg n "$1" \
         '.data.environment.serviceInstances.edges[].node | select(.serviceName == $n) | .serviceId' \
@@ -659,6 +691,7 @@ main() {
         apply_ci_auth_key || die "could not apply the CI auth key to the clone"
         apply_ci_runtime_key || die "could not apply the CI runtime key to the clone"
         apply_ci_telemetry_project || die "could not apply the CI telemetry project to the clone"
+        apply_template_alembic_config || die "could not apply the template alembic config to the clone"
         t_created=$(( $(now) - t0 ))
 
         # Domain BEFORE app deploys: web/api render
