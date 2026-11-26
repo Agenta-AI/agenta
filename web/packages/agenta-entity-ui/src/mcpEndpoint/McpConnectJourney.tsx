@@ -91,9 +91,12 @@ import {
     CredentialBindingFields,
     headerSchemeHint,
     HintedField,
+    NewSecretButton,
     OAuthAdvancedFields,
     ProbeResultCard,
     ShowResponsePanel,
+    SkeletonChoiceSwitch,
+    SkeletonField,
 } from "./components"
 
 export interface McpConnectJourneyProps {
@@ -1360,17 +1363,6 @@ const WaitingCard = ({
     </div>
 )
 
-/** Beside a secret field's label: creates a project secret in the create drawer. */
-const NewSecretButton = ({disabled, onClick}: {disabled?: boolean; onClick: () => void}) => {
-    const t = useT(mcpJourneyCatalog)
-    return (
-        <Button variant="link" size="xs" className="px-0" disabled={disabled} onClick={onClick}>
-            <Plus data-icon="inline-start" />
-            {t("entityUi.mcpJourney.newSecret")}
-        </Button>
-    )
-}
-
 /**
  * The project-secret picker.
  *
@@ -1460,16 +1452,6 @@ const SecretSelect = ({
     )
 }
 
-/** A field's 18px label line over its control (the kit `Field`, gap 4px). */
-const SkeletonField = ({label, children}: {label: string; children: ReactNode}) => (
-    <div className="flex flex-col gap-1">
-        <div className="flex h-4.5 items-center">
-            <SkeletonBlock className={cn("h-3", label)} />
-        </div>
-        {children}
-    </div>
-)
-
 /**
  * While the address is checked: the result card, Name, Owner and Authentication in their
  * loaded places and heights (STATE-02). The mode's own fields depend on the answer, so stop there.
@@ -1487,15 +1469,7 @@ function ProbeSkeleton({owner, inputClass}: {owner: boolean; inputClass?: string
             </SkeletonField>
             {owner ? (
                 <SkeletonField label="w-12">
-                    <div className="flex h-[74px] gap-0.5 rounded-lg bg-secondary p-0.5">
-                        {[0, 1].map((i) => (
-                            <div key={i} className="flex flex-1 flex-col gap-1.5 px-2.5 py-2">
-                                <SkeletonBlock className="mt-1 h-3 w-16" />
-                                <SkeletonBlock className="h-2.5 w-4/5" />
-                                <SkeletonBlock className="h-2.5 w-1/2" />
-                            </div>
-                        ))}
-                    </div>
+                    <SkeletonChoiceSwitch />
                 </SkeletonField>
             ) : null}
             <SkeletonField label="w-24">

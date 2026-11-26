@@ -56,10 +56,11 @@ const SecretAttachViewBody = ({params, target, nav}: ViewProps<SecretAttachViewP
     })
 
     useViewForm({
-        dirty: form.dirty,
+        // Never dirty: leaving asks nothing and drops the draft, as the MCP connect view does.
+        dirty: false,
+        saveWhenClean: true,
         valid: form.canSubmit,
         save: form.submit,
-        leaveDescription: t("entityUi.secretViews.attachLeaveDescription"),
         saveLabel: form.submitLabel,
     })
 

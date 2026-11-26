@@ -3,22 +3,17 @@ import type {Ref} from "react"
 
 import {useT} from "@agenta/i18n"
 import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
-import {AutosizeTextarea, Input} from "@agenta/ui/ui"
+import {AutosizeTextarea, Field, Input} from "@agenta/ui/ui"
 
 import type {SecretFormController} from "./SecretForm"
 
 const NAME_FIELD_ID = "agent-secret-attach-name"
 const VALUE_FIELD_ID = "agent-secret-attach-value"
 
-/** The canvas form label (F04 f7): 12 px, weight 500, secondary. */
-const LABEL_CLASS = "text-meta font-medium text-muted-foreground"
-/** A control-md field (44 on touch), 13 px text, radius 6. */
-const FIELD_CLASS = "h-control rounded-md py-0 leading-6 text-label"
-
 export function SecretCreateFields({
     controller,
     focusValue = false,
-    hint,
+    valueTooltip,
     onNameChange,
     nameRef,
     valueRef,
@@ -26,8 +21,8 @@ export function SecretCreateFields({
     controller: SecretFormController
     /** A seeded name means the value is the only thing left to type. */
     focusValue?: boolean
-    /** The line under the value, or nothing. */
-    hint?: string
+    /** The help in the Value label's tooltip, or nothing. */
+    valueTooltip?: string
     onNameChange?: (name: string) => void
     nameRef?: Ref<HTMLInputElement>
     valueRef?: Ref<HTMLTextAreaElement>
@@ -35,15 +30,12 @@ export function SecretCreateFields({
     const t = useT(secretFormCatalog)
     return (
         <>
-            <div className="flex flex-col gap-1">
-                <label htmlFor={NAME_FIELD_ID} className={LABEL_CLASS}>
-                    {t("entityUi.secretForm.name")}
-                </label>
+            <Field label={t("entityUi.secretForm.name")}>
                 <Input
                     id={NAME_FIELD_ID}
                     ref={nameRef}
                     autoFocus={!focusValue}
-                    className={`font-mono ${FIELD_CLASS}`}
+                    className="font-mono"
                     placeholder={t("entityUi.secretForm.envPlaceholder")}
                     value={controller.name}
                     onChange={(event) => {
@@ -51,17 +43,17 @@ export function SecretCreateFields({
                         onNameChange?.(event.target.value)
                     }}
                 />
-            </div>
-            <div className="flex flex-col gap-1 ph-no-capture">
-                <label htmlFor={VALUE_FIELD_ID} className={LABEL_CLASS}>
-                    {t("entityUi.secretForm.value")}
-                </label>
-                {/* One line like an input, as drawn; it grows for a value with several lines. */}
+            </Field>
+            <Field
+                label={t("entityUi.secretForm.value")}
+                tooltip={valueTooltip}
+                className="ph-no-capture"
+            >
+                {/* One line like an input; it grows for a value with several lines. */}
                 <AutosizeTextarea
                     id={VALUE_FIELD_ID}
                     ref={valueRef}
                     autoSize={{minRows: 1, maxRows: 6}}
-                    className="rounded-md py-1.5 leading-5 text-label"
                     placeholder={t("entityUi.secretForm.pasteSecret")}
                     autoFocus={focusValue}
                     value={controller.textValue}
@@ -69,8 +61,7 @@ export function SecretCreateFields({
                     autoComplete="off"
                     spellCheck={false}
                 />
-                {hint ? <span className="text-meta text-muted-foreground">{hint}</span> : null}
-            </div>
+            </Field>
         </>
     )
 }

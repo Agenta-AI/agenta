@@ -253,14 +253,14 @@ afterEach(async () => {
     document.body.innerHTML = ""
 })
 
-describe("Attach a secret: the list and the scope tags", () => {
-    it("lists project secrets as Everyone, own secrets as Only me, and Create new secret last", async () => {
+describe("Attach a secret: the list and the owner chips", () => {
+    it("lists project secrets as Project, own secrets as Personal, and Create new secret last", async () => {
         await openIn(secretAttachView, {}, AGENT)
         await findByText("here:Attach a secret")
         expect(await options(secretSelect()!)).toEqual([
-            "billing-prodEveryone",
-            "github-botEveryone",
-            "my-github-tokenOnly me",
+            "billing-prodProject",
+            "github-botProject",
+            "my-github-tokenPersonal",
             "Create new secret",
         ])
         expect(document.body.textContent).not.toContain("Each person's own secret")
@@ -271,8 +271,8 @@ describe("Attach a secret: the list and the scope tags", () => {
         await openIn(secretAttachView, {}, AGENT)
         await findByText("here:Attach a secret")
         expect(await options(secretSelect()!)).toEqual([
-            "billing-prodEveryone",
-            "github-botEveryone",
+            "billing-prodProject",
+            "github-botProject",
             "Create new secret",
         ])
     })
@@ -425,7 +425,7 @@ describe("Attach a secret: Save & attach", () => {
 
     it("a new secret for everyone goes to the vault, then the agent attaches it", async () => {
         await fillNew()
-        await click(byText("Everyone in Acme Agency"))
+        await click(byText("Project"))
         expect(envField().value).toBe("CRM_TOKEN")
         await click(saveButton("Save & attach"))
         await waitFor(() => expect(fx.commits).toHaveLength(1))
@@ -452,7 +452,7 @@ describe("Attach a secret: Save & attach", () => {
     it("saved but not attached: says so, keeps the secret picked, and Attach retries", async () => {
         fx.commitError = "boom"
         await fillNew()
-        await click(byText("Everyone in Acme Agency"))
+        await click(byText("Project"))
         await click(saveButton("Save & attach"))
         await findByText("Saved in vault; not attached. boom")
         fx.commitError = null
