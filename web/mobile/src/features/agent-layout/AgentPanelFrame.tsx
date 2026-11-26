@@ -1,4 +1,5 @@
 import {
+    useCallback,
     useEffect,
     useRef,
     useState,
@@ -72,6 +73,11 @@ export const AgentPanelFrame = ({
     const frameRef = useRef<HTMLDivElement>(null)
     // Dialogs and alerts opened in the panel cover the panel, not the page.
     const [frameEl, setFrameEl] = useState<HTMLDivElement | null>(null)
+    // Stable, or React re-runs it each render and the state change loops.
+    const setFrame = useCallback((node: HTMLDivElement | null) => {
+        frameRef.current = node
+        setFrameEl(node)
+    }, [])
     const [drawn, setDrawn] = useState<number | null>(null)
     useEffect(() => {
         const frame = frameRef.current
@@ -156,10 +162,7 @@ export const AgentPanelFrame = ({
                 />
             ) : null}
             <div
-                ref={(node) => {
-                    frameRef.current = node
-                    setFrameEl(node)
-                }}
+                ref={setFrame}
                 className={cn(
                     "ag-panel-motion min-h-0",
                     !present && "hidden",
