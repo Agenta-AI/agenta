@@ -153,7 +153,9 @@ export const ChatMessage = memo(
 
         const wrapperClass = cn(
             "group/message w-full",
-            isError && "[&_.message-user-select]:text-destructive",
+            // An error reads as one, as a completion's error does: red label and text.
+            isError &&
+                "[&_.message-user-select]:text-destructive [&_.editor-input]:text-destructive",
             // A tool reply and an error have a fixed role: show it, but do not let it change.
             (isTool || isError) &&
                 "[&_.message-user-select]:pointer-events-none [&_.message-user-select_svg]:hidden",

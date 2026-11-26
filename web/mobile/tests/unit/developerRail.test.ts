@@ -45,13 +45,31 @@ describe("the developer rows of the main rail", () => {
                     },
                     {
                         key: "developer-view-annotation-queues",
-                        title: "Annotation Queues",
+                        title: "Annotation queues",
                         link: `${P}/annotations`,
                     },
                 ],
             },
             {key: "mobile-observability", title: "Observability", link: `${P}/observability`},
         ])
+    })
+
+    it("titles every developer row through the nav translator", () => {
+        const t = (key: string) => `[${key}]`
+        const beta = developerNavSlots(P, DEVELOPER_VIEWS, true, [], t)
+        const titles = JSON.stringify(shape([...beta.afterHome, ...beta.afterSessions]))
+        for (const key of [
+            "prompts",
+            "evaluation",
+            "testSets",
+            "evaluators",
+            "evaluationRuns",
+            "annotationQueues",
+        ]) {
+            expect(titles).toContain(`[navigation.items.${key}]`)
+        }
+        const plain = developerNavSlots(P, DEVELOPER_VIEWS, false, [], t)
+        expect(plain.afterSessions[0]?.title).toBe("[navigation.items.developer]")
     })
 
     it("beta developer mode lists no Endpoints, Archived apps or Registry row, as the old app", () => {

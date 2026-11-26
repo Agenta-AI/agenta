@@ -3,6 +3,7 @@ import type {KeyboardEvent} from "react"
 
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import {ChevronDown} from "lucide-react"
 
 import {Checkbox} from "../components/ui/checkbox"
 import {CollapseCaret} from "../components/ui/collapse-caret"
@@ -11,6 +12,14 @@ import {cn} from "../components/ui/utils"
 
 import {ListTableSelectionBar} from "./ListTableSelectionBar"
 import type {ListTableColumn, ListTableProps} from "./types"
+
+/**
+ * A group heading's collapse button on a phone: a 44px tap area that fills the heading's own
+ * padding (14px above the one-line label, 10px below it) and so never reaches the row under it.
+ * Not PHONE_TOUCH_TARGET_CLASS: that one is centred, and the room above and below is not equal.
+ */
+const GROUP_TOGGLE_PHONE_TARGET =
+    "max-md:relative max-md:after:absolute max-md:after:inset-x-0 max-md:after:-bottom-2.5 max-md:after:-top-3.5 max-md:after:min-w-11 max-md:after:content-['']"
 
 /** The checkbox column `selection` adds in front of the consumer's columns. */
 const SELECT_COLUMN: ListTableColumn = {
@@ -90,8 +99,12 @@ export const ListTable = <Row,>({
     onToggleGroup,
     empty,
     stickyHeader = false,
+    flushFirstRows = false,
     hideHeader: hideHeaderProp = false,
     density = "default",
+    groupCaret = "fill",
+    rowClassName,
+    headerClassName,
     selection,
     className,
 }: ListTableProps<Row>) => {
@@ -130,7 +143,8 @@ export const ListTable = <Row,>({
     // `min(100%, …)`, so a container narrower than one card still gets one card, not a scroller.
     const cardGrid = `repeat(auto-fill, minmax(min(100%, ${cardMinWidth}px), 1fr))`
     // One value for the rows AND their skeleton, so loading holds the rhythm the rows arrive in.
-    const rowPad = density === "compact" ? "py-2" : "py-[13px]"
+    // A compact one-line row is 40px; a phone row is a tap target, so it is at least 44px there.
+    const rowPad = density === "compact" ? "py-2 max-md:min-h-11" : "py-[13px]"
     const isEmpty = groups.every((group) => group.rows.length === 0)
     // A grid has no column header, so a stuck heading sits at the scroller's own top.
     // Selection lives in the header row (select all, the bulk bar), so it keeps the header.
@@ -167,8 +181,16 @@ export const ListTable = <Row,>({
         // both sides, and the hover fill ends in a square edge instead of a rounded one.
         // A grid never scrolls sideways — its columns are however many fit — so it keeps the
         // wrapper (the headings align to it) and drops the scroller.
-        <div className={cn("-mx-3 px-3", !stickyHeader && !isGrid && "overflow-x-auto", className)}>
-            <div style={isGrid ? undefined : {minWidth}}>
+        // `relative` contains the absolute sr-only header cells, or they widen the whole window.
+        <div
+            className={cn(
+                "relative -mx-3 px-3",
+                !stickyHeader && !isGrid && "overflow-x-auto",
+                className,
+            )}
+        >
+            {/* An empty list has no columns to fit: its message takes the page width. */}
+            <div style={isGrid || (isEmpty && !loading) ? undefined : {minWidth}}>
                 {isGrid ? null : (
                     <div
                         role="row"
@@ -192,6 +214,7 @@ export const ListTable = <Row,>({
                                       stickyHeader
                                           ? `sticky top-0 z-20 ${STICKY.height} items-center bg-background`
                                           : "mb-1 py-2",
+                                      headerClassName,
                                   ],
                         )}
                         style={{gridTemplateColumns: grid}}
@@ -269,7 +292,11 @@ export const ListTable = <Row,>({
                             {Array.from({length: skeletonRows}, (_, row) => (
                                 <div
                                     key={row}
-                                    className={cn("grid w-full items-center gap-3", rowPad)}
+                                    className={cn(
+                                        "grid w-full items-center gap-3",
+                                        rowPad,
+                                        rowClassName,
+                                    )}
                                     style={{gridTemplateColumns: grid}}
                                 >
                                     {allColumns.map((column, index) => (
@@ -317,9 +344,13 @@ export const ListTable = <Row,>({
                                 // would let rows show through as they pass under), so the first
                                 // run pays it back as padding instead — without it the first
                                 // row's hover fill sits flush on the header's rule. A grid has no
-                                // header to pay back.
+                                // header to pay back. `flushFirstRows` opts out.
                                 className={cn(
-                                    stickyHeader && !isGrid && groupIndex === 0 && "pt-1",
+                                    stickyHeader &&
+                                        !flushFirstRows &&
+                                        !isGrid &&
+                                        groupIndex === 0 &&
+                                        "pt-1",
                                 )}
                             >
                                 {group.label === null && !actions ? null : (
@@ -328,7 +359,9 @@ export const ListTable = <Row,>({
                                     // inside the collapse button.
                                     <div
                                         className={cn(
-                                            "flex items-center gap-2 pb-1.5 pt-3.5",
+                                            // 10px under it on a phone, the room the collapse
+                                            // button's tap area reaches below it.
+                                            "flex items-center gap-2 pb-1.5 pt-3.5 max-md:pb-2.5",
                                             // Stuck directly under the column header, so a long
                                             // run still says which group you are reading.
                                             stickyHeader &&
@@ -345,13 +378,28 @@ export const ListTable = <Row,>({
                                                     "border-0 bg-transparent p-0 text-left font-[inherit]",
                                                     "text-[13px] text-muted-foreground hover:text-foreground",
                                                     FOCUS_RING,
+                                                    // 20px high however the label sets its line height, so
+                                                    // the tap area below adds up to 44px.
+                                                    "max-md:min-h-5",
+                                                    GROUP_TOGGLE_PHONE_TARGET,
                                                 )}
                                             >
                                                 {/* A heading names a run, it does not wrap: a
                                                     long repository truncates so the group's
                                                     action keeps its place on the right. */}
                                                 <span className="truncate">{group.label}</span>
-                                                <CollapseCaret open={!collapsed} size={12} />
+                                                {groupCaret === "chevron" ? (
+                                                    <ChevronDown
+                                                        aria-hidden
+                                                        size={12}
+                                                        className={cn(
+                                                            "shrink-0 text-colorTextTertiary transition-transform duration-150 motion-reduce:transition-none",
+                                                            collapsed && "-rotate-90",
+                                                        )}
+                                                    />
+                                                ) : (
+                                                    <CollapseCaret open={!collapsed} size={12} />
+                                                )}
                                             </button>
                                         ) : (
                                             <p className="m-0 min-w-0 truncate text-[13px] text-muted-foreground">
@@ -432,6 +480,7 @@ export const ListTable = <Row,>({
                                                     "group grid w-full items-center gap-3 rounded-md border-0 bg-transparent text-left",
                                                     rowPad,
                                                     "-mx-3 w-[calc(100%+1.5rem)] px-3",
+                                                    rowClassName,
                                                     opens(row) &&
                                                         "cursor-pointer hover:bg-accent/60",
                                                     opens(row) && FOCUS_RING,

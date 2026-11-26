@@ -19,7 +19,6 @@ import {Play, SidebarSimple} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import DeleteTraceModal from "../delete"
 import {deleteTraceModalAtom} from "../delete/store/atom"
 
 import {getTraceDrawerReferences} from "./referenceSlots"
@@ -233,7 +232,7 @@ const TraceTypeHeader = ({
                 >
                     <Tag
                         className="font-mono truncate bg-[var(--ag-c-0517290F)]"
-                        label={`# ${activeTrace?.span_id || "-"}`}
+                        label={`# ${activeTrace?.span_id || "—"}`}
                     />
                 </TooltipWithCopyAction>
                 {/* Like the slotted actions, the button exists only when the host binds the
@@ -297,8 +296,6 @@ const TraceTypeHeader = ({
                     />
                 )}
             </div>
-
-            <DeleteTraceModal />
         </div>
     )
 }

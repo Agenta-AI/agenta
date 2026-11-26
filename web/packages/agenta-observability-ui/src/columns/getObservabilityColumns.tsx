@@ -18,8 +18,8 @@ import {ColumnVisibilityMenuTrigger, type ColumnDefs, type ExtendedColumn} from 
 import {CostCell} from "../cells/CostCell"
 import {DurationCell} from "../cells/DurationCell"
 import EvaluatorMetricsCell from "../cells/EvaluatorMetricsCell"
-import {NodeNameCell} from "../cells/NodeNameCell"
 import {SpanIdChip} from "../cells/SpanIdChip"
+import {SpanNameCell} from "../cells/SpanNameCell"
 import {StatusRenderer} from "../cells/StatusRenderer"
 import {TimestampCell} from "../cells/TimestampCell"
 import {UsageCell} from "../cells/UsageCell"
@@ -78,7 +78,7 @@ export const getObservabilityColumns = ({evaluatorSlugs, t}: ObservabilityColumn
             fixed: "left",
             render: (_, record) => {
                 const spanId = record.span_id || ""
-                const shortId = spanId ? spanId.split("-")[0] : "-"
+                const shortId = spanId ? spanId.split("-")[0] : "—"
                 return (
                     <TooltipWithCopyAction copyText={spanId || ""} title={label("copySpanId")}>
                         <SpanIdChip id={shortId} />
@@ -99,7 +99,13 @@ export const getObservabilityColumns = ({evaluatorSlugs, t}: ObservabilityColumn
                 style: {verticalAlign: "middle"},
             }),
             fixed: "left",
-            render: (_, record) => <NodeNameCell name={record.span_name} type={record.span_type} />,
+            render: (_, record) => (
+                <SpanNameCell
+                    name={record.span_name}
+                    type={record.span_type}
+                    references={record.references}
+                />
+            ),
         },
         {
             title: label("spanType"),

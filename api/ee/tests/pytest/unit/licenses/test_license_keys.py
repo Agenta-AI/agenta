@@ -1,3 +1,4 @@
+import base64
 from uuid import uuid4
 
 import pytest
@@ -82,6 +83,16 @@ def test_a_plan_outside_the_plan_table_is_refused(signing_key):
 def test_a_malformed_key_is_refused(signing_key, text):
     with pytest.raises(InvalidLicenseKey):
         parse_license_key(text)
+
+
+def test_a_payload_with_an_integer_over_the_digit_limit_is_refused():
+    payload = b'{"seats": ' + b"9" * 5000 + b"}"
+    body = base64.urlsafe_b64encode(payload).rstrip(b"=").decode("ascii")
+
+    with pytest.raises(InvalidLicenseKey) as error:
+        parse_license_key(f"agenta_license_v1.{body}.AA")
+
+    assert error.value.reason == "payload"
 
 
 def test_the_release_key_signs_any_plan(signing_key):

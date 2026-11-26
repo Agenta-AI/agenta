@@ -38,7 +38,7 @@ The spec section 7 glossary applies. The names that every layer uses:
 | Run person | none | `run_person_id(envelope)` | none | none |
 | Run accounts | none | `RunAccount`, `RequestAccess.run_accounts` | claim `run_accounts` | none |
 | Sign-in | `secrets` rows of kind `OAUTH_GRANT` and `MCP_TOKEN` | `SecretKind.MCP_TOKEN`, `grant_slug`, `token_slug` | `owner_kind=user` on `connect`; `account_source=user` on the MCP gateway route; `user_sign_in` on the MCP endpoint response | the MCP texts of spec 5.1 and 5.4 |
-| Deployment switch | none | `env.access.personal_accounts_enabled` | environment variable `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` | none |
+| Deployment switch | none | `env.agenta.access.personal_accounts_enabled` | environment variable `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` (on by default) | none |
 
 The interface labels come from spec section 5 and `UX-DECISIONS.md`; this column only points to them.
 
@@ -371,7 +371,8 @@ With the deployment switch off, step 3 is skipped and the claim is empty, so eve
 - The claim has no value, no name and no person id. The run person comes from the credential's authority.
 - Signing: `sign_secret_token(...)` in `middlewares/auth.py` takes `run_accounts: Optional[List[dict]] = None` and writes `auth_context["run_accounts"]` when it is set. It is not an envelope claim: `ENVELOPE_CLAIM_KEYS` in `core/access/principals.py` does not change. The build carried `gateway_bindings` the same way.
 - Verify: the auth middleware sets `request.state.run_accounts = run_accounts_from_claim(auth_context.get("run_accounts"))`, which is the input of `_build_request_access_from_state` (`middlewares/auth.py`), and `RequestAccess` (`core/access/dtos.py`) gets `run_accounts: Tuple[RunAccount, ...] = ()`. `request.state` has one writer (the middleware) and one reader (that builder). Every other reader calls `run_account(get_request_access(), item_key)`.
-- Re-mint: three routes mint a new credential from a run credential and carry `run_accounts` unchanged: `apis/fastapi/access/router.py` (A), `apis/fastapi/gateways/credentials_router.py` (A) and `apis/fastapi/gateways/mcps/router.py` (C). A adds `run_accounts(request) -> List[dict]` to `core/gateways/run_claims.py`, next to `gateway_run_id` and `gateway_tools`, with the same signature as its siblings; it serializes `request.state.run_accounts` (`model_dump(mode="json", exclude_none=True)`). Each route passes it to `sign_secret_token`.
+- Re-mint: three routes mint a new credential from a run credential and carry `run_accounts` unchanged (and drop it when the deployment switch is off), through `exchange_run_accounts`: `apis/fastapi/access/router.py` (A), `apis/fastapi/gateways/credentials_router.py` (A) and `apis/fastapi/gateways/mcps/router.py` (C). A adds `run_accounts(request) -> List[dict]` to `core/gateways/run_claims.py`, next to `gateway_run_id` and `gateway_tools`, with the same signature as its siblings; it serializes `request.state.run_accounts` (`model_dump(mode="json", exclude_none=True)`). Each route passes it to `sign_secret_token`.
+- First mint: a caller that is not a run names its "user" items by `item_keys`, and the claim resolves for that caller. The access exchange takes them as a query parameter (the agent service, for a playground or chat turn), and `POST /gateways/credentials` takes them in its body (the server view in Configuration, to list the tools of a `"user"` MCP item with the viewer's own sign-in, then relayed with `account_source=user`). Both call `exchange_run_accounts` in `core/account_choices/claims.py`. The keys only name items: the person is the caller of the authenticated request, and the read is scoped to its project and organization. A run credential carries its own claim on unchanged.
 
 ### 6.3 How each path reads it
 
@@ -400,7 +401,7 @@ Errors use the shipped shape: `{"detail": {"code": "<code>", "message": "<text a
 Three checks that the tables below name:
 
 - **Person.** The caller's principal is a human, the request carries no run envelope, and the request has an organization (the build's `require_person`, in `apis/fastapi/shared/personal.py`). Otherwise `403`, code `user_required`.
-- **Switch.** With `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` off, every route that reads or writes a person's rows or account choices answers `403`, code `personal_accounts_disabled`. The screens read the switch from that answer (section 12), the same way `organizationConnectionsAccessAtom` reads organization access today. Rows created while the switch was on stay stored, hidden and unused, until it is on again or the person leaves the organization.
+- **Switch.** The switch is on by default; an installation can set `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` to false. With it off, every route that reads or writes a person's rows or account choices answers `403`, code `personal_accounts_disabled`. The screens read the switch from that answer (section 12), the same way `organizationConnectionsAccessAtom` reads organization access today. Rows created while the switch was on stay stored, hidden and unused, until it is on again or the person leaves the organization.
 - **May run the agent.** `Permission.RUN_SESSIONS` on the project, and `allow_agent(request, action=Permission.RUN_SESSIONS, artifact_id=workflow_id)` (`apis/fastapi/sharing/utils.py`). A hidden or unknown agent answers `404`, code `not_found`.
 
 ### 7.1 Account choices (new, builder A)

@@ -1,11 +1,12 @@
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 import Link from "next/link"
 
 import {ICON_LINK} from "./lib/interactive"
 
-const CLASS = `text-muted-foreground -ml-1.5 inline-flex min-w-0 items-center gap-[5px] rounded-md py-[3px] pr-2 pl-1.5 text-xs no-underline`
+const CLASS = `text-muted-foreground -ml-1.5 inline-flex min-w-0 items-center gap-[5px] rounded-md py-[3px] pr-2 pl-1.5 text-xs no-underline ${PHONE_TOUCH_TARGET_CLASS}`
 
 /**
  * Back up one level.

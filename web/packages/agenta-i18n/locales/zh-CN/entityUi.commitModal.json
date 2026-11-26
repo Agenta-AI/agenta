@@ -32,7 +32,7 @@
     "newVersion": "新版本",
     "newVariant": "新变体",
     "variantNote": "创建一个独立的变体。<name>{{name}}</name> 保持在 v{{version}}。",
-    "versionNote": "保存为<version>版本 {{version}}</version>。所有使用 {{name}} 的人都会获得你的更改。",
+    "versionNote": "保存为 {{name}} 的<version>v{{version}}</version>。已部署的环境会保留其版本，直到你部署此版本。",
     "createsVariantFrom": "这将基于 <name>{{name}}</name> 创建一个新变体。",
     "createsRevisionOf": "这将为 <name>{{name}}</name> 创建一个新修订版本。",
     "newVariantFallback": "新变体",

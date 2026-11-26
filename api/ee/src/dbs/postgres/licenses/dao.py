@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Awaitable, Callable, Optional
 from uuid import UUID
 
 from sqlalchemy import delete, select, text
@@ -41,6 +41,7 @@ class LicensesDAO(LicensesDAOInterface):
         key_id: UUID,
         key: str,
         created_by_id: UUID,
+        before_commit: Optional[Callable[[], Awaitable[None]]] = None,
     ) -> StoredLicense:
         async with self.engine.session() as session:
             # Two concurrent replaces would each delete only the rows they saw and
@@ -49,6 +50,9 @@ class LicensesDAO(LicensesDAOInterface):
             await session.execute(delete(LicenseDBE))
             dbe = LicenseDBE(id=key_id, key=key, created_by_id=created_by_id)
             session.add(dbe)
+            await session.flush()
+            if before_commit is not None:
+                await before_commit()
             await session.commit()
             await session.refresh(dbe)
             return _to_stored(dbe)

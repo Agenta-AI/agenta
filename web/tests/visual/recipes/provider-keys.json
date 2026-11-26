@@ -1,0 +1,236 @@
+[
+    {
+        "id": "provider-keys-openai-new-light",
+        "story": "builderlayout-provider-keys-provider-key-forms--open-ai-new",
+        "width": 600,
+        "height": 840,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Agenta checks the key as soon as you paste it."
+    },
+    {
+        "id": "provider-keys-openai-new-dark",
+        "story": "builderlayout-provider-keys-provider-key-forms--open-ai-new",
+        "width": 600,
+        "height": 840,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Agenta checks the key as soon as you paste it."
+    },
+    {
+        "id": "provider-keys-openai-checking-light",
+        "story": "builderlayout-provider-keys-provider-key-forms--open-ai-checking",
+        "width": 600,
+        "height": 840,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Checking the key with OpenAI…"
+    },
+    {
+        "id": "provider-keys-openai-checking-dark",
+        "story": "builderlayout-provider-keys-provider-key-forms--open-ai-checking",
+        "width": 600,
+        "height": 840,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Checking the key with OpenAI…"
+    },
+    {
+        "id": "provider-keys-openai-key-works-light",
+        "story": "builderlayout-provider-keys-provider-key-forms--open-ai-key-works",
+        "width": 600,
+        "height": 840,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=The key works. Agenta found 42 models."
+    },
+    {
+        "id": "provider-keys-openai-key-works-dark",
+        "story": "builderlayout-provider-keys-provider-key-forms--open-ai-key-works",
+        "width": 600,
+        "height": 840,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=The key works. Agenta found 42 models."
+    },
+    {
+        "id": "provider-keys-openai-key-rejected-light",
+        "story": "builderlayout-provider-keys-provider-key-forms--open-ai-key-rejected",
+        "width": 600,
+        "height": 840,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Check again"
+    },
+    {
+        "id": "provider-keys-openai-key-rejected-dark",
+        "story": "builderlayout-provider-keys-provider-key-forms--open-ai-key-rejected",
+        "width": 600,
+        "height": 840,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Check again"
+    },
+    {
+        "id": "provider-keys-harnesses-open-light",
+        "story": "builderlayout-provider-keys-provider-key-forms--harnesses-open",
+        "width": 600,
+        "height": 840,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Enable this connection in"
+    },
+    {
+        "id": "provider-keys-harnesses-open-dark",
+        "story": "builderlayout-provider-keys-provider-key-forms--harnesses-open",
+        "width": 600,
+        "height": 840,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Enable this connection in"
+    },
+    {
+        "id": "provider-keys-edit-connection-light",
+        "story": "builderlayout-provider-keys-provider-key-forms--edit-connection",
+        "width": 600,
+        "height": 840,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=List updated just now ·"
+    },
+    {
+        "id": "provider-keys-edit-connection-dark",
+        "story": "builderlayout-provider-keys-provider-key-forms--edit-connection",
+        "width": 600,
+        "height": 840,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=List updated just now ·"
+    },
+    {
+        "id": "provider-keys-azure-light",
+        "story": "builderlayout-provider-keys-provider-key-forms--azure",
+        "width": 600,
+        "height": 840,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Your resource endpoint"
+    },
+    {
+        "id": "provider-keys-azure-dark",
+        "story": "builderlayout-provider-keys-provider-key-forms--azure",
+        "width": 600,
+        "height": 840,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Your resource endpoint"
+    },
+    {
+        "id": "provider-keys-bedrock-api-key-light",
+        "story": "builderlayout-provider-keys-provider-key-forms--bedrock-api-key",
+        "width": 600,
+        "height": 840,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=One Bedrock API key."
+    },
+    {
+        "id": "provider-keys-bedrock-api-key-dark",
+        "story": "builderlayout-provider-keys-provider-key-forms--bedrock-api-key",
+        "width": 600,
+        "height": 840,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=One Bedrock API key."
+    },
+    {
+        "id": "provider-keys-bedrock-access-keys-light",
+        "story": "builderlayout-provider-keys-provider-key-forms--bedrock-access-keys",
+        "width": 600,
+        "height": 840,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Access key ID"
+    },
+    {
+        "id": "provider-keys-bedrock-access-keys-dark",
+        "story": "builderlayout-provider-keys-provider-key-forms--bedrock-access-keys",
+        "width": 600,
+        "height": 840,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Access key ID"
+    },
+    {
+        "id": "provider-keys-vertex-light",
+        "story": "builderlayout-provider-keys-provider-key-forms--vertex",
+        "width": 600,
+        "height": 840,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Vertex credentials"
+    },
+    {
+        "id": "provider-keys-vertex-dark",
+        "story": "builderlayout-provider-keys-provider-key-forms--vertex",
+        "width": 600,
+        "height": 840,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Vertex credentials"
+    },
+    {
+        "id": "provider-keys-openai-compatible-light",
+        "story": "builderlayout-provider-keys-provider-key-forms--open-ai-compatible",
+        "width": 600,
+        "height": 840,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Anthropic Messages"
+    },
+    {
+        "id": "provider-keys-openai-compatible-dark",
+        "story": "builderlayout-provider-keys-provider-key-forms--open-ai-compatible",
+        "width": 600,
+        "height": 840,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Anthropic Messages"
+    },
+    {
+        "id": "provider-keys-phone-list-light",
+        "story": "builderlayout-provider-keys-provider-key-forms--phone-list",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Add a provider or subscription"
+    },
+    {
+        "id": "provider-keys-phone-list-dark",
+        "story": "builderlayout-provider-keys-provider-key-forms--phone-list",
+        "width": 390,
+        "height": 844,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Add a provider or subscription"
+    },
+    {
+        "id": "provider-keys-phone-form-light",
+        "story": "builderlayout-provider-keys-provider-key-forms--phone-form",
+        "width": 390,
+        "height": 844,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=The key works. Agenta found 42 models."
+    },
+    {
+        "id": "provider-keys-phone-form-dark",
+        "story": "builderlayout-provider-keys-provider-key-forms--phone-form",
+        "width": 390,
+        "height": 844,
+        "theme": "dark",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=The key works. Agenta found 42 models."
+    }
+]

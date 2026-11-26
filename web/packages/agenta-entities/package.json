@@ -32,6 +32,7 @@
         "./access": "./src/access/index.ts",
         "./accountChoice": "./src/accountChoice/index.ts",
         "./annotation": "./src/annotation/index.ts",
+        "./approvalChoice": "./src/approvalChoice/index.ts",
         "./annotation/dto": "./src/annotation/dto/index.ts",
         "./drive": "./src/drive/index.ts",
         "./environment": "./src/environment/index.ts",

@@ -7,20 +7,20 @@ import {
     loginAttemptKey,
     loginAttemptOutcome,
     loginAttemptQueryAtomFamily,
+    refreshSignedInAtom,
     refreshVaultSecretsAtom,
     startSubscriptionLoginAtom,
-    subscriptionAttemptErrorSentence,
     subscriptionProviderName,
-    subscriptionStatusLine,
     type ProviderConnection,
     type SecretOwnerScope,
 } from "@agenta/entities/secret"
 import {invalidateAgentRequirements} from "@agenta/entities/workflow"
-import {createT} from "@agenta/i18n"
+import {createT, textVersionAtom} from "@agenta/i18n"
 import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {subscriptionAttemptErrorSentence, subscriptionStatusLine} from "./subscriptionText"
 import {organizationRefusal} from "./useOrganizationProjectsDraft"
 
 /** The in-flight device login being shown. */
@@ -53,6 +53,7 @@ export const useSubscriptionSignIn = ({
     connection = null,
     scope = "project",
     organizationName = "",
+    onSignedIn,
 }: {
     provider?: string
     connection?: ProviderConnection | null
@@ -60,17 +61,24 @@ export const useSubscriptionSignIn = ({
     scope?: SecretOwnerScope
     /** For the organization refusal messages. */
     organizationName?: string
+    /** Called once a sign-in this hook started arrived and the vault lists the connection ready. */
+    onSignedIn?: () => void
 }) => {
     const createSubscriptionConnection = useSetAtom(createSubscriptionConnectionAtom)
     const startLogin = useSetAtom(startSubscriptionLoginAtom)
     const cancelLogin = useSetAtom(cancelSubscriptionLoginAtom)
     const forgetAttempt = useSetAtom(forgetLoginAttemptAtom)
     const refreshVault = useSetAtom(refreshVaultSecretsAtom)
+    const refreshSignedIn = useSetAtom(refreshSignedInAtom)
 
     const [pending, setPending] = useState<PendingAttempt | null>(null)
     const [starting, setStarting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [lostPoll, setLostPoll] = useState(false)
+    // A sign-in arrived and the vault refresh is on its way.
+    const [finishing, setFinishing] = useState(false)
+    const onSignedInRef = useRef(onSignedIn)
+    onSignedInRef.current = onSignedIn
     const [now, setNow] = useState(() => Date.now())
     // Bumped by each start and by `cancel`; a start that resolves under a newer value was abandoned.
     const startRef = useRef(0)
@@ -118,7 +126,15 @@ export const useSubscriptionSignIn = ({
         if (outcome === "succeeded" || outcome === "unreadable") void invalidateAgentRequirements()
         if (outcome === "succeeded") {
             setError(null)
-            void refreshVault()
+            setFinishing(true)
+            // Leave only once the vault lists it ready; otherwise show the lost-track line.
+            void refreshSignedIn(attempt.secretId)
+                .catch(() => false)
+                .then((signedIn) => {
+                    setFinishing(false)
+                    if (signedIn) onSignedInRef.current?.()
+                    else setLostPoll(true)
+                })
             return
         }
         if (outcome === "unreadable") {
@@ -149,6 +165,7 @@ export const useSubscriptionSignIn = ({
         outcome,
         pending,
         provider,
+        refreshSignedIn,
         refreshVault,
     ])
 
@@ -172,7 +189,7 @@ export const useSubscriptionSignIn = ({
                 return
             }
             if (!attempt.user_code || !attempt.verification_uri) {
-                throw new Error("The sign-in started without a code. Try again.")
+                throw new Error(tNow("entityUi.subscriptionSignIn.startedWithoutCode"))
             }
             const startedAt = Date.now()
             setPending({
@@ -226,12 +243,14 @@ export const useSubscriptionSignIn = ({
         closeAttempt(pending)
     }, [cancelLogin, closeAttempt, scope, pending])
 
+    // The line is text, so it is rebuilt when the language changes.
+    const textVersion = useAtomValue(textVersionAtom)
     const statusLine = useMemo(
         () =>
             pending
                 ? tNow("entityUi.subscriptionSignIn.waitingForSignIn")
                 : subscriptionStatusLine(connection?.subscription),
-        [connection?.subscription, pending],
+        [connection?.subscription, pending, textVersion],
     )
 
     return {
@@ -240,6 +259,7 @@ export const useSubscriptionSignIn = ({
         hasSignedInBefore,
         pending,
         starting,
+        finishing,
         error,
         lostPoll,
         now,

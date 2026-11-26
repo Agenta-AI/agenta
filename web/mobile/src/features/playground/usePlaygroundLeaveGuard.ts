@@ -1,5 +1,6 @@
 import {loadableController} from "@agenta/entities/loadable"
 import {isLocalDraftId} from "@agenta/entities/shared"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
 import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
 import {atom, useAtomValue} from "jotai"
@@ -13,8 +14,10 @@ import {useConfirmModal} from "../settings/useConfirmModal"
  * in it: they stay when the page is left, as in the old playground.
  */
 const loseOnLeaveAtom = atom((get) => {
-    const hasLocalCopy = get(playgroundController.selectors.nodes()).some((node) =>
-        isLocalDraftId(node.entityId),
+    // An untouched copy (Compare's new column) loses nothing: only an edited one counts.
+    const hasLocalCopy = get(playgroundController.selectors.nodes()).some(
+        (node) =>
+            isLocalDraftId(node.entityId) && get(workflowMolecule.selectors.isDirty(node.entityId)),
     )
     const loadableId = get(playgroundController.selectors.loadableId())
     const testsetChanged = loadableId

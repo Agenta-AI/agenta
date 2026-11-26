@@ -151,7 +151,7 @@ const openLoadDialog = async () => {
     })
     await settle()
     const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
-        (element) => element.textContent === "Connect test set",
+        (element) => element.textContent === "Load test set",
     )
     await act(async () => item!.click())
     await settle()

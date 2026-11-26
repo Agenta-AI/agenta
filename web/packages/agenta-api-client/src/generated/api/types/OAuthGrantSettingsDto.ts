@@ -10,4 +10,5 @@ export interface OAuthGrantSettingsDto {
     endpoint_id?: (string | null) | undefined;
     client_registration_slug?: (string | null) | undefined;
     client_id?: (string | null) | undefined;
+    account_name?: (string | null) | undefined;
 }

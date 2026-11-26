@@ -15,7 +15,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {ADD_TO_TESTSET_TARGET_ADAPTER, type AddToTestsetTargetSelection} from "./addToTestsetTarget"
 
-const START_FAILURE_TEXT = "Failed to start testset export"
+const START_FAILURE_TEXT = "Failed to start test set export"
 
 /**
  * Adds annotated items to a testset: an existing one picked from the list, or a new one named
@@ -42,7 +42,7 @@ export const AddToTestsetModal = ({queueId, queueName}: {queueId: string; queueN
                 })
                 return {success: true}
             } catch (cause) {
-                console.error("Starting the testset export failed", cause)
+                console.error("Starting the test set export failed", cause)
                 return {success: false, error: START_FAILURE_TEXT}
             }
         },
@@ -70,7 +70,7 @@ export const AddToTestsetModal = ({queueId, queueName}: {queueId: string; queueN
                     initialSelections={[pending]}
                     showLabels
                     showAutoIndicator={false}
-                    placeholders={["Select testset"]}
+                    placeholders={["Select test set"]}
                     onSelect={(selection) =>
                         setPending({
                             testsetId: selection.metadata.testsetId,
@@ -98,7 +98,7 @@ export const AddToTestsetModal = ({queueId, queueName}: {queueId: string; queueN
             canSubmit={canSubmit}
             createEntityFields={CREATE_TESTSET_FIELDS}
             submitLabel="Add"
-            actionLabel="Add to Testset"
+            actionLabel="Add to test set"
         />
     )
 }

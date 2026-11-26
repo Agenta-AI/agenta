@@ -46,6 +46,7 @@ from agenta.sdk.agents.tools.interfaces import (
     ToolSecretProvider,
     WorkflowToolResolver,
 )
+from agenta.sdk.agents.permission_rules import PermissionRule
 from agenta.sdk.utils.logging import get_module_logger
 
 from .connection import GatewayCredentialsError, PlatformConnection
@@ -76,6 +77,7 @@ async def resolve_tools(
     missing_secret_policy: MissingSecretPolicy = MissingSecretPolicy.ERROR,
     permission_default: PermissionMode = "allow_reads",
     session_id: Optional[str] = None,
+    permission_rules: Sequence[PermissionRule] = (),
 ) -> ResolvedToolSet:
     """Resolve tool declarations into runnable specs. Defaults to the Agenta platform adapters.
 
@@ -85,7 +87,8 @@ async def resolve_tools(
     carrying a direct ``call`` to the exposed Agenta endpoint.
 
     ``permission_default`` is the agent-wide mode the gateway permission compiler applies to an
-    ``inherit`` value on a ``gateway_connection`` entry. It is ignored by every other arm."""
+    ``inherit`` value on a ``gateway_connection`` entry. ``permission_rules`` are the authored
+    rules the runner gets; the session writes read both to keep the runner's permission."""
     default_gateway_resolver = AgentaGatewayToolResolver()
     return await ToolResolver(
         secret_provider=secret_provider or AgentaNamedSecretProvider(),
@@ -100,6 +103,7 @@ async def resolve_tools(
         coerce_tool_configs(tools).tool_configs,
         permission_default=permission_default,
         session_id=session_id,
+        permission_rules=permission_rules,
     )
 
 

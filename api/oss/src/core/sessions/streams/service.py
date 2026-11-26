@@ -19,6 +19,7 @@ from uuid import UUID
 from oss.src.core.access.dtos import (
     PrincipalRef,
     RunEnvelope,
+    RunOrigin,
 )
 from oss.src.utils.logging import get_module_logger
 
@@ -45,6 +46,7 @@ from oss.src.dbs.redis.sessions.locks import (
     get_alive_owner,
     get_running_owner,
     get_session_liveness,
+    get_turn_start,
     get_routable_turn_binding,
     mark_turn_superseded,
     record_turn_start,
@@ -72,6 +74,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamReadOptions,
 )
 from oss.src.core.sessions.streams.types import (
+    SessionCreationRequiresCallingSessionRecord,
     SessionCreationRequiresRunCredential,
     ConcurrencyLimitExceeded,
     SessionIdInvalid,
@@ -285,6 +288,25 @@ class SessionStreamsService:
     async def clock_ms(self) -> int:
         return await redis_time_ms(self._lock)
 
+    async def running_turn_start(
+        self, *, project_id: UUID, session_id: str
+    ) -> Tuple[Optional[str], Optional[int]]:
+        """The turn that holds `running` and its start in Redis milliseconds: the same
+        two values the unnamed cancel's displacement guard compares. The start is None
+        when nothing recorded it."""
+        turn_id = await get_running_owner(
+            self._lock, project_id=str(project_id), session_id=session_id
+        )
+        if turn_id is None:
+            return None, None
+        started_at_ms = await get_turn_start(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_id=turn_id,
+        )
+        return turn_id, started_at_ms
+
     async def _publish_lifecycle(
         self, *, project_id: UUID, session_id: str, state: str
     ) -> None:
@@ -350,11 +372,13 @@ class SessionStreamsService:
         user_id: UUID,
         request: SessionStreamCommandRequest,
         access: AccessPolicy,
+        envelope: Optional[RunEnvelope],
         arrived_at_ms: Optional[int] = None,
         recheck: Optional[SessionRecheck] = None,
     ) -> SessionStreamCommandResponse:
         """`access` is the policy a send or steer writes when it creates the row; an
-        existing row keeps its policy.
+        existing row keeps its policy. `envelope` is the request's run: a row that this
+        command creates takes its session origin from it (`session_origin_tags`).
 
         `recheck` is the route's session check. When that check found no row, a row that
         exists now was created by a concurrent request and was never checked. That path
@@ -393,6 +417,7 @@ class SessionStreamsService:
                             session_id=session_id,
                             name=proposed_name,
                             access=access,
+                            run_envelope=envelope,
                         ),
                     )
                     created_row = True
@@ -429,6 +454,7 @@ class SessionStreamsService:
                 session_id=session_id,
                 name=proposed_name,
                 access=access,
+                envelope=envelope,
                 recheck=recheck,
                 created_row=created_row,
             )
@@ -447,6 +473,7 @@ class SessionStreamsService:
                 session_id=session_id,
                 name=proposed_name,
                 access=access,
+                envelope=envelope,
                 recheck=recheck,
                 created_row=created_row,
             )
@@ -1083,6 +1110,7 @@ class SessionStreamsService:
                         references=request.references or None,
                         access=access,
                         channel_binding_id=channel_binding_id,
+                        run_envelope=envelope,
                     ),
                 )
             except SessionStreamAlreadyExists:
@@ -1264,6 +1292,7 @@ class SessionStreamsService:
         session_id: str,
         header: SessionStreamHeaderEdit,
         access: AccessPolicy,
+        envelope: Optional[RunEnvelope],
         name_source: SessionNameSource = SessionNameSource.manual,
         recheck: Optional[SessionRecheck] = None,
     ) -> Optional[SessionStream]:
@@ -1282,6 +1311,8 @@ class SessionStreamsService:
         holds no name to protect, and the concurrent-create arm re-enters the guarded update.
 
         `access` is written only by the create arm; a rename never changes the policy.
+        `envelope` is the request's run: the create arm takes the session origin from it
+        (`session_origin_tags`); a rename never changes the origin.
 
         `recheck` is the route's session check. When that check found no row, the call
         creates first and never edits a row it did not check: a row that a concurrent
@@ -1294,6 +1325,7 @@ class SessionStreamsService:
                 user_id=user_id,
                 session_id=session_id,
                 access=access,
+                envelope=envelope,
                 recheck=recheck,
             )
         unchecked = recheck is not None and session_was_missing(
@@ -1319,6 +1351,7 @@ class SessionStreamsService:
                         description=header.description,
                         name_source=name_source,
                         access=access,
+                        run_envelope=envelope,
                     ),
                 )
             except SessionStreamAlreadyExists:
@@ -1346,6 +1379,7 @@ class SessionStreamsService:
         user_id: Optional[UUID],
         session_id: str,
         access: AccessPolicy,
+        envelope: Optional[RunEnvelope],
         recheck: Optional[SessionRecheck],
     ) -> Optional[SessionStream]:
         """A header call with no header field only creates the session with `access`
@@ -1357,7 +1391,9 @@ class SessionStreamsService:
             created = await self._create_row(
                 project_id=project_id,
                 user_id=user_id,
-                stream=SessionStreamCreate(session_id=session_id, access=access),
+                stream=SessionStreamCreate(
+                    session_id=session_id, access=access, run_envelope=envelope
+                ),
             )
         except SessionStreamAlreadyExists:
             if recheck is not None and session_was_missing(
@@ -1528,6 +1564,7 @@ class SessionStreamsService:
         user_id: UUID,
         session_id: str,
         access: AccessPolicy,
+        envelope: Optional[RunEnvelope],
         name: Optional[str] = None,
         recheck: Optional[SessionRecheck] = None,
         created_row: bool = False,
@@ -1596,13 +1633,15 @@ class SessionStreamsService:
                         turn_id=turn_id,
                         name=name,
                         access=access,
+                        run_envelope=envelope,
                     ),
                 )
                 created = True
                 listed = True
-            except SessionIdTombstoned:
+            except (SessionIdTombstoned, SessionCreationRequiresCallingSessionRecord):
                 # The id is reserved (a deleted private session's, or a channel thread's
-                # that only its channel's run creates): hand back this turn's locks.
+                # that only its channel's run creates), or a calling session's run may not
+                # create the row: hand back this turn's locks.
                 await self._release_turn_locks(
                     project_id=project_id, session_id=session_id, turn_id=turn_id
                 )
@@ -1675,7 +1714,16 @@ class SessionStreamsService:
     ) -> SessionStream:
         """Insert the session row, then write its sharing cache entry (once per session;
         the next decision on it reads the entry it just wrote). `stream.channel_binding_id`:
-        the row is created by that channel binding's own run."""
+        the row is created by that channel binding's own run.
+
+        A run with the run origin `calling_session` creates no row here: a child session
+        is created only by its start, with the calling session record."""
+        if (
+            stream.run_envelope is not None
+            and stream.run_envelope.context.origin == RunOrigin.CALLING_SESSION
+            and stream.calling_session is None
+        ):
+            raise SessionCreationRequiresCallingSessionRecord(stream.session_id)
         created = await self._dao.create(
             project_id=project_id, user_id=user_id, stream=stream
         )

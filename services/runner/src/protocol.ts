@@ -172,8 +172,22 @@ export interface ResolvedToolSpec {
    * Layer-3 permission: `allow` runs with no prompt, `ask` raises a
    * human-in-the-loop request, `deny` never runs. Absent = fall back to the global
    * permission plan. The SDK derives a default from `readOnly` when the author set none.
+   * For the three session writes it is `ask` unless the configured permission is `deny`; the
+   * configured permission is then in `configuredPermission`.
    */
   permission?: ToolPermission;
+  /**
+   * Gate policy of the session writes (`start_session`, `send_session_message`,
+   * `cancel_session`). The SDK gives those three the runner permission `ask` and keeps the
+   * permission they had before that change here. The runner does not read it; it sends it to
+   * `tools.agenta.resolve_gate` with the call (see `tools/gate-answer.ts`).
+   */
+  configuredPermission?: ToolPermission;
+  /**
+   * Gate policy of the session writes: the permission set on each Subagent entry that sets one,
+   * keyed by the entry's slug. Sent to `tools.agenta.resolve_gate` with `configuredPermission`.
+   */
+  targetPermissions?: Record<string, ToolPermission>;
 }
 
 /** Where and how to route a tool call back through Agenta. */
@@ -232,10 +246,10 @@ export interface RunContext {
     id?: string;
   };
   /**
-   * The tool call being dispatched, filled by the relay for each direct call and never by the
-   * service. Its id stays the same when the same call is relayed again (a resumed approval
-   * reuses it), so an endpoint can key a side effect on it and answer a retry without repeating
-   * the effect.
+   * The tool call being dispatched, filled by the relay for each call (direct and callRef) and
+   * by the gate answer, and never by the service. Its id stays the same when the same call is
+   * relayed again (a resumed approval reuses it), so an endpoint or a handler can key a side
+   * effect on it and answer a retry without repeating the effect.
    */
   tool?: {
     call_id?: string;

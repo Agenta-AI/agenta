@@ -1,5 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import archivedAppsCatalog from "@agenta/i18n/catalogs/archivedApps.screen"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
@@ -35,8 +37,8 @@ import {useRestoreArchivedApp} from "./useRestoreArchivedApp"
 
 const CSV_COLUMNS: ListTableCsvColumn<ArchivedAppRow>[] = [
     {label: "Name", value: (row) => row.name},
-    {label: "Created At", value: (row) => row.createdAt},
-    {label: "Archived At", value: (row) => row.archivedAt},
+    {label: "Created at", value: (row) => row.createdAt},
+    {label: "Archived at", value: (row) => row.archivedAt},
 ]
 const CSV_FILE_NAME = "archived-apps.csv"
 
@@ -52,6 +54,7 @@ export const ArchivedAppsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const t = useT(archivedAppsCatalog)
     const PAGE_FRAME = useDeveloperPageFrame()
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
@@ -123,7 +126,7 @@ export const ArchivedAppsScreen = ({
 
     return (
         <>
-            <PageTitle title="Archived Apps" />
+            <PageTitle title={t("archivedApps.screen.title")} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
@@ -144,7 +147,7 @@ export const ArchivedAppsScreen = ({
                                     </Link>
                                 </Button>
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
-                                    Archived Apps
+                                    {t("archivedApps.screen.title")}
                                 </h1>
                             </div>
                         </div>
@@ -154,7 +157,7 @@ export const ArchivedAppsScreen = ({
                         <ListTableToolbar
                             search={search.value}
                             onSearchChange={search.onChange}
-                            searchPlaceholder="Search archived apps by name…"
+                            searchPlaceholder="Search archived prompts by name…"
                             actions={
                                 <ListTableExportButton
                                     rows={rows}
@@ -164,10 +167,10 @@ export const ArchivedAppsScreen = ({
                             }
                         />
                         {archived.isError ? (
-                            // A failed fetch must not read as "No archived apps".
+                            // A failed fetch must not read as "No archived prompts".
                             <LoadError
                                 framed
-                                title="Could not load archived apps"
+                                title={t("archivedApps.screen.loadFailed")}
                                 onRetry={() => void archived.refetch()}
                             />
                         ) : (

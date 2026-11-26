@@ -5,6 +5,8 @@ import {
     AgentTemplateSectionList,
     SchemaPropertyRenderer,
     SectionAddButton,
+    SectionListLayoutContext,
+    SectionPageAction,
     SectionTitleBadge,
     type AgentTemplateSectionDescriptor,
 } from "@agenta/entity-ui/drill-in"
@@ -378,6 +380,49 @@ export const SectionList: Story = {
                 openByKey={{tools: true, subagents: true, mcp: false, skills: false}}
                 onOpenChange={noop}
             />
+        </div>
+    ),
+}
+
+/**
+ * The Configuration page layout (canvas A04): a title with its action above one card per
+ * section. Subagents is empty; Secrets shows a read-only Add (disabled).
+ */
+export const PageLayout: Story = {
+    args: {
+        schema: AGENT_SCHEMA as SchemaProperty,
+        label: "Agent",
+        value: AGENT_VALUE,
+        onChange: noop,
+    },
+    render: () => (
+        <div className="flex max-w-[680px] flex-col p-6">
+            <SectionListLayoutContext.Provider value="page">
+                <AgentTemplateSectionList
+                    sections={[
+                        {
+                            ...SECTIONS[0],
+                            pageAction: <SectionPageAction action="change" onClick={noop} />,
+                        },
+                        {
+                            ...SECTIONS[1],
+                            pageAction: <SectionPageAction action="edit" onClick={noop} />,
+                        },
+                        {
+                            ...SECTIONS[3],
+                            content: <Body>No subagents yet</Body>,
+                            pageAction: <SectionPageAction action="add" onClick={noop} />,
+                        },
+                        {
+                            key: "secrets",
+                            title: "Secrets",
+                            content: <Body>BILLING_API_KEY</Body>,
+                            pageAction: <SectionPageAction action="add" onClick={noop} disabled />,
+                        },
+                        SECTIONS[6],
+                    ]}
+                />
+            </SectionListLayoutContext.Provider>
         </div>
     ),
 }

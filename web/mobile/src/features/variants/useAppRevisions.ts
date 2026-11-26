@@ -34,15 +34,23 @@ const hasContent = (value: unknown): boolean => {
     return true
 }
 
-/**
- * The empty first revision a new variant starts with: version 0 and nothing in its data (no
- * parameters, no script, no other config). A version 0 that holds anything is a real first commit
- * and stays.
- */
+const BUILTIN_URI_PREFIX = "agenta:builtin:"
+
+/** A new variant's empty v0: no parameters, or only a builtin service's uri/url/schemas. */
 export const isEmptySeed = (revision: {
     version?: number | string | null
     data?: Record<string, unknown> | null
-}) => Number(revision.version ?? 0) <= 0 && !Object.values(revision.data ?? {}).some(hasContent)
+}) => {
+    if (Number(revision.version ?? 0) > 0) return false
+    const data = revision.data ?? {}
+    if (!Object.values(data).some(hasContent)) return true
+    const {uri, url: _url, schemas: _schemas, ...rest} = data
+    return (
+        typeof uri === "string" &&
+        uri.startsWith(BUILTIN_URI_PREFIX) &&
+        !Object.values(rest).some(hasContent)
+    )
+}
 
 interface Page {
     rows: AppRevisionRow[]

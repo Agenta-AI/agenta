@@ -317,14 +317,15 @@ describe("evaluations screen", () => {
         expect(headerRow()?.className).not.toContain("sr-only")
     })
 
-    it("The SDK tab empty state offers Get Started and Learn More", async () => {
+    it("The SDK tab empty state offers Learn more, and only the toolbar creates", async () => {
         env.query = {kind: "custom"}
         const onCreate = vi.fn()
         await mount({onCreate})
-        expect(text()).toContain("Get Started with SDK Evaluations")
-        await act(async () => button(/^Get Started$/)?.click())
+        expect(text()).toContain("Get started with SDK evaluations")
+        expect(text()).toContain("Learn more")
+        expect(button(/^Get Started$/)).toBeUndefined()
+        await act(async () => button(/^New evaluation$/)?.click())
         expect(onCreate).toHaveBeenCalledWith("custom")
-        expect(text()).toContain("Learn More")
     })
 
     it("A kind tab create button opens that kind directly", async () => {
@@ -343,13 +344,11 @@ describe("evaluations screen", () => {
         expect(onCreate).toHaveBeenCalledWith("online")
     })
 
-    it("The Live empty state starts a live evaluation", async () => {
+    it("The Live empty state has no second create button", async () => {
         env.query = {kind: "online"}
-        const onCreate = vi.fn()
-        await mount({onCreate})
-        expect(text()).toContain("Get Started with Live Evaluation")
-        await act(async () => button(/^Create Evaluation$/)?.click())
-        expect(onCreate).toHaveBeenCalledWith("online")
+        await mount({onCreate: vi.fn()})
+        expect(text()).toContain("Get started with live evaluation")
+        expect(button(/^Create Evaluation$/)).toBeUndefined()
     })
 
     it("A reader without edit rights sees no Live entry", async () => {
@@ -369,35 +368,35 @@ describe("evaluations screen", () => {
         http.post.mockRejectedValue(new Error("403"))
         await mount()
         expect(text()).toContain("Could not load evaluations")
-        expect(text()).not.toContain("Get Started")
+        expect(text()).not.toContain("Get started")
         const calls = http.post.mock.calls.length
         await act(async () => button(/try again/i)?.click())
         await settle()
         expect(http.post.mock.calls.length).toBeGreaterThan(calls)
     })
 
-    it("The human tab empty state shows Get Started with Human Evaluation", async () => {
+    it("The human tab empty state shows Get started with human evaluation", async () => {
         env.query = {kind: "human"}
         await mount({onCreate: vi.fn()})
-        expect(text()).toContain("Get Started with Human Evaluation")
-        expect(button(/Create Evaluation/)).toBeDefined()
-        expect(text()).toContain("Learn More")
+        expect(text()).toContain("Get started with human evaluation")
+        expect(button(/Create Evaluation/)).toBeUndefined()
+        expect(text()).toContain("Learn more")
     })
 
     it("The empty state has no start button for a reader without edit rights", async () => {
         env.permissions = {}
         env.query = {kind: "auto"}
         await mount({onCreate: vi.fn()})
-        expect(text()).toContain("Get Started with Evaluations")
+        expect(text()).toContain("Get started with auto evaluations")
         expect(button(/Run Evaluation/)).toBeUndefined()
-        expect(text()).toContain("Learn More")
+        expect(text()).toContain("Learn more")
     })
 
     it("A search with no rows shows No evaluations match your filters", async () => {
         env.query = {q: "zzz"}
         await mount()
         expect(text()).toContain("No evaluations match your filters")
-        expect(text()).not.toContain("Get Started")
+        expect(text()).not.toContain("Get started")
         await act(async () => button(/Clear filters/)?.click())
         expect(env.replace).toHaveBeenLastCalledWith(
             {pathname: "/evaluations", query: {}},
@@ -478,7 +477,7 @@ describe("evaluations screen", () => {
         http.post.mockResolvedValue(page([], "cursor-1"))
         await mount()
         expect(text()).toContain("No matching evaluations in the newest runs")
-        expect(text()).not.toContain("Get Started")
+        expect(text()).not.toContain("Get started")
         expect(button(/Load more/)).toBeDefined()
     })
 
