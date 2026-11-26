@@ -15,6 +15,7 @@
     "grantViewOnlyByRole": "只能查看：他们在此项目中的角色无法发送。",
     "invalidGrantee": "{{name}} 已不再是此项目的成员。请移除此人，以便与其他人共享。",
     "inviteButton": "邀请",
+    "inviteRoleLabel": "受邀者的访问权限",
     "inviteViewOnly": "{{names}} 只能查看：他们在此项目中的角色无法发送。",
     "linkCopied": "链接已复制。只有有访问权限的人才能打开。",
     "linkCopiedNobodyYet": "链接已复制。目前还没有其他人能打开。",

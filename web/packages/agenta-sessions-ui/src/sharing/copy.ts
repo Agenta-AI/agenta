@@ -134,6 +134,9 @@ export const sessionSharingCopy = {
     get stopSharing() {
         return t("sessions.sharing.stopSharing")
     },
+    get inviteRoleLabel() {
+        return t("sessions.sharing.inviteRoleLabel")
+    },
     get copyLink() {
         return t("sessions.sharing.copyLink")
     },

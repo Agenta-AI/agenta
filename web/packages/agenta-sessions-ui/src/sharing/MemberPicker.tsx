@@ -1,4 +1,4 @@
-import {useId, useMemo, useRef, useState, type KeyboardEvent} from "react"
+import {useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode} from "react"
 
 import type {ProjectMemberProfile} from "@agenta/entities/sharing"
 import {
@@ -41,6 +41,8 @@ export interface MemberPickerProps {
     error?: boolean
     /** Opens the project's members page; the empty list offers it. */
     onAddMembers?: () => void
+    /** A control at the field's end (the invite role), inside its border. */
+    end?: ReactNode
     disabled?: boolean
     className?: string
 }
@@ -59,6 +61,7 @@ export const MemberPicker = ({
     loading = false,
     error = false,
     onAddMembers,
+    end,
     disabled = false,
     className,
 }: MemberPickerProps) => {
@@ -187,6 +190,12 @@ export const MemberPicker = ({
                             className="min-w-20 flex-1 border-0 bg-transparent p-0 text-field-md text-foreground outline-none [font-family:inherit] placeholder:text-muted-foreground"
                         />
                     ) : null}
+                    {end ? (
+                        // Its own clicks stay its own: they must not focus the search.
+                        <span className="ml-auto flex shrink-0" onClick={(e) => e.stopPropagation()}>
+                            {end}
+                        </span>
+                    ) : null}
                 </div>
             </PopoverAnchor>
             <PopoverContent
@@ -223,8 +232,10 @@ export const MemberPicker = ({
                                 <EmptyMedia variant="icon">
                                     <UsersIcon />
                                 </EmptyMedia>
-                                <EmptyTitle>{memberPickerCopy.noMembersTitle}</EmptyTitle>
-                                <EmptyDescription>
+                                <EmptyTitle className="text-label font-normal">
+                                    {memberPickerCopy.noMembersTitle}
+                                </EmptyTitle>
+                                <EmptyDescription className="text-label">
                                     {memberPickerCopy.noMembersDescription}
                                 </EmptyDescription>
                             </EmptyHeader>

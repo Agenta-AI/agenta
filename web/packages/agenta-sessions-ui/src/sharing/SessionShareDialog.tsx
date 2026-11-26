@@ -313,25 +313,33 @@ export const SessionShareDialog = ({
                                         error={membersError}
                                         disabled={saving === "invite"}
                                         onAddMembers={onAddMembers}
-                                    />
-                                    <Select
-                                        value={inviteRole}
-                                        onValueChange={(value) =>
-                                            setInviteRole(value as SessionRole)
+                                        // The role the invite gives, inside the field (one control, not three).
+                                        end={
+                                        <Select
+                                            value={inviteRole}
+                                            onValueChange={(value) =>
+                                                setInviteRole(value as SessionRole)
+                                            }
+                                        >
+                                            <SelectTrigger
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    aria-label={copy.inviteRoleLabel}
+                                                    className="-mr-1.5 h-control-xs w-auto shrink-0"
+                                                >
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="viewer">
+                                                    {sessionRoleCopy.viewer.label}
+                                                </SelectItem>
+                                                <SelectItem value="participant">
+                                                    {sessionRoleCopy.participant.label}
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                         }
-                                    >
-                                        <SelectTrigger className="w-auto shrink-0">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="viewer">
-                                                {sessionRoleCopy.viewer.label}
-                                            </SelectItem>
-                                            <SelectItem value="participant">
-                                                {sessionRoleCopy.participant.label}
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                                    />
                                     <LoadingButton
                                         loading={saving === "invite"}
                                         disabled={picked.length === 0}
@@ -365,7 +373,7 @@ export const SessionShareDialog = ({
                                 {copy.peopleSection}
                             </span>
                             {owner || ownerId ? (
-                                <div className="flex items-center gap-2 py-1.5">
+                                <div className="flex h-row-double items-center gap-2">
                                     <PersonAvatar
                                         person={owner ?? {user_id: ownerId ?? "", email: ""}}
                                     />
@@ -384,7 +392,9 @@ export const SessionShareDialog = ({
                                             </span>
                                         ) : null}
                                     </div>
-                                    <span className={`${ROLE_COLUMN_CLASS} px-1.5 text-label`}>
+                                    <span
+                                        className={`${ROLE_COLUMN_CLASS} px-1.5 text-label text-muted-foreground`}
+                                    >
                                         {copy.ownerRole}
                                     </span>
                                 </div>
@@ -398,7 +408,7 @@ export const SessionShareDialog = ({
                                         <div
                                             key={grant.user_id}
                                             data-testid="session-grant-row"
-                                            className="flex items-center gap-2 py-1.5"
+                                            className="flex h-row-double items-center gap-2"
                                         >
                                             <PersonAvatar person={person} />
                                             <div className="flex min-w-0 flex-1 flex-col">
