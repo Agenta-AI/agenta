@@ -10,7 +10,6 @@ import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import integrationsPhoneCatalog from "@agenta/i18n/catalogs/entityUi.integrationsPhone"
 import itemDescriptorsCatalog from "@agenta/i18n/catalogs/entityUi.itemDescriptors"
 import {humanizeActionKey} from "@agenta/shared/utils"
-import {cn} from "@agenta/ui/styles"
 import {CaretRight} from "@phosphor-icons/react"
 
 import {ProviderLogo} from "../sectionGroups"
@@ -25,7 +24,7 @@ import {
 import {ITEM_KINDS} from "./itemKinds"
 import {ItemRow, StatusTag, type ItemRowStatus, type ItemRowStatusTone} from "./ItemRow"
 import {usePhoneSections} from "./phoneSections"
-import {useSectionListLayout} from "./sectionListLayout"
+import {SectionEmpty} from "./SectionEmpty"
 
 const tNow = createT(configItemsCatalog, itemDescriptorsCatalog)
 
@@ -205,16 +204,6 @@ export interface ToolManagementListProps {
     statusFor?: ToolStatusFor
 }
 
-/** Shared empty-state line: one quiet line, the section header's "+" is the way to add. */
-function EmptyLine({label}: {label: string}) {
-    // In the panel accordion the line starts under the section title (ALIGN-01): the header's
-    // 4 px inset, the 14 px icon and its 8 px gap.
-    const panel = useSectionListLayout() === null && usePhoneSections() === null
-    return (
-        <span className={cn("text-meta text-muted-foreground", panel && "pl-[26px]")}>{label}</span>
-    )
-}
-
 /** The Integrations section body: one row per connected app, no sub-header. */
 export function ToolManagementList({
     tools,
@@ -230,7 +219,7 @@ export function ToolManagementList({
     const phone = usePhoneSections() !== null
     if (integrationRows.length === 0) {
         if (disabled) return null
-        return <EmptyLine label={t("entityUi.configItems.noIntegrationsYet")} />
+        return <SectionEmpty>{t("entityUi.configItems.noIntegrationsYet")}</SectionEmpty>
     }
 
     return (
@@ -335,7 +324,7 @@ export function SubagentList({
 
     if (entries.length === 0) {
         if (disabled) return null
-        return <EmptyLine label={t("entityUi.configItems.noSubagentsYet")} />
+        return <SectionEmpty>{t("entityUi.configItems.noSubagentsYet")}</SectionEmpty>
     }
 
     return (

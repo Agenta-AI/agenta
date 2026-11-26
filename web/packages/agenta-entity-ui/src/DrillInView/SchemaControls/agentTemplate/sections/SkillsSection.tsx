@@ -25,6 +25,7 @@ import {describeSkill, isEmbedRefSkill, skillCommandName} from "../itemDescripto
 import {ITEM_KINDS} from "../itemKinds"
 import {ItemRow} from "../ItemRow"
 import {SectionAddButton} from "../SectionAddButton"
+import {SectionEmpty} from "../SectionEmpty"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
 
@@ -163,7 +164,7 @@ const SkillsList = ({
     const kind = ITEM_KINDS.skill
     if (skills.length === 0) {
         return disabled ? null : (
-            <span className="text-meta text-muted-foreground">{kind.emptyLabel}</span>
+            <SectionEmpty>{kind.emptyLabel}</SectionEmpty>
         )
     }
     return (

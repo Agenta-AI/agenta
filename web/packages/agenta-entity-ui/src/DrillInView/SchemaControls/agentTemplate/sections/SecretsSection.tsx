@@ -42,6 +42,7 @@ import {ACCOUNT_COPY} from "../../../../accounts/copy"
 import {ItemRow, type ItemRowStatus} from "../ItemRow"
 import {needsSetupLabel, needsSetupReasonText} from "../needsSetupText"
 import {SectionAddButton} from "../SectionAddButton"
+import {SectionEmpty} from "../SectionEmpty"
 import {useSectionListLayout} from "../sectionListLayout"
 import {SectionPageAction} from "../SectionPageAction"
 
@@ -258,9 +259,7 @@ export const SecretsSectionBody = ({
                     <Spinner size="small" /> {t("entityUi.agentSecrets.loadingSecrets")}
                 </div>
             ) : bindings.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border-muted p-4 text-center text-meta text-muted-foreground">
-                    {t("entityUi.agentSecrets.noSecretsAttached")}
-                </div>
+                <SectionEmpty>{t("entityUi.agentSecrets.noSecretsAttached")}</SectionEmpty>
             ) : (
                 bindings.map((binding) => {
                     const envVar = binding.binding.name
