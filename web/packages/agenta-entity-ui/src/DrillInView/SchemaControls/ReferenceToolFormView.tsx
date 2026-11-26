@@ -260,12 +260,6 @@ function SubagentDetailPanel({
                                         {ProviderIcon ? <ProviderIcon /> : <Cpu />}
                                     </IconTile>
                                 }
-                                end={
-                                    modelName &&
-                                    modelName.toLowerCase() !== detail.model.toLowerCase() ? (
-                                        <span className="text-code-sm">{detail.model}</span>
-                                    ) : undefined
-                                }
                             >
                                 {modelName ?? detail.model}
                             </MarkLine>
@@ -277,13 +271,10 @@ function SubagentDetailPanel({
                         label={t("entityUi.toolForm.instructions")}
                         meta={
                             detail?.instructions
-                                ? `${detail.instructions.fileName} · ${t(
-                                      "entityUi.toolForm.wordCount",
-                                      {
-                                          count: detail.instructions.wordCount,
-                                          formatted: formatNumber(detail.instructions.wordCount),
-                                      },
-                                  )}`
+                                ? t("entityUi.toolForm.wordCount", {
+                                      count: detail.instructions.wordCount,
+                                      formatted: formatNumber(detail.instructions.wordCount),
+                                  })
                                 : undefined
                         }
                     >
@@ -293,10 +284,7 @@ function SubagentDetailPanel({
                             <Empty>{t("entityUi.toolForm.noInstructions")}</Empty>
                         )}
                     </Part>
-                    <Part
-                        label={t("entityUi.toolForm.integrations")}
-                        meta={detail?.integrations.length || undefined}
-                    >
+                    <Part label={t("entityUi.toolForm.integrations")}>
                         {detail?.integrations.length ? (
                             <div className="flex flex-col">
                                 {detail.integrations.map((app) => {
@@ -323,10 +311,7 @@ function SubagentDetailPanel({
                             <Empty>{t("entityUi.toolForm.noConnectedApps")}</Empty>
                         )}
                     </Part>
-                    <Part
-                        label={t("entityUi.toolForm.skills")}
-                        meta={detail?.skills.length || undefined}
-                    >
+                    <Part label={t("entityUi.toolForm.skills")}>
                         {detail?.skills.length ? (
                             <div className="flex flex-col">
                                 {detail.skills.map((skill) => (
