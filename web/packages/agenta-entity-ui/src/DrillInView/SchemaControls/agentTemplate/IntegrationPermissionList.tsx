@@ -24,6 +24,7 @@ import {
     EmptyHeader,
     EmptyMedia,
     EmptyTitle,
+    IconTile,
     SearchInput,
     SkeletonRows,
 } from "@agenta/ui/ui"
@@ -829,9 +830,11 @@ export function IntegrationTitle({
 
     return (
         // w-full + min-w-0: the title slot will not shrink alone, pushing the badge past the edge.
-        // A mark-md logo, 8px to the name, as the MCP server title (CONS-01, SPACE-04).
+        // A 24px tile, 8px to the name, as every item view's title (CONS-01, SPACE-04).
         <div className="flex w-full min-w-0 items-center gap-2">
-            <ProviderLogo logo={integration?.logo ?? null} size={24} />
+            <IconTile size={24} aria-hidden>
+                <ProviderLogo logo={integration?.logo ?? null} size={14} />
+            </IconTile>
             {/* The name alone: the key and the connection slug are internal ids. */}
             <div className="flex min-w-0 flex-1 items-baseline">
                 <span className="truncate text-label font-semibold leading-5">{displayName}</span>

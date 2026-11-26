@@ -214,7 +214,7 @@ export function SkillViewHeader({
     return (
         <div ref={setHeaderRoot} className="flex shrink-0 flex-col gap-1 px-4 py-3">
             <div className="flex min-w-0 items-center gap-2">
-                <SkillMark size={32} />
+                <SkillMark size={24} />
                 <div className="flex min-w-0 flex-1 flex-col">
                     <div className="flex min-w-0 items-center gap-2">
                         <span
