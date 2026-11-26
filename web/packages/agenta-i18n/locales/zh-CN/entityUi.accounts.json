@@ -1,5 +1,4 @@
 {
-    "label": "账号",
     "eachPersonSignIn": "每个人自己的登录",
     "projectSignIn": "项目的登录",
     "connectAnother": "连接另一个 {{name}} 账号",

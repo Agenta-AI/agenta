@@ -1,6 +1,5 @@
 {
     "chooseWhose": "选择 Agent 使用谁的 {{name}} 账号",
-    "eachPersonsOwn": "每个人自己的账号",
     "eachPersonsOwnNote": "每个人都使用自己的 {{name}} 账号。",
     "oneShared": "一个共享账号",
     "oneSharedNote": "所有人都使用你选择的账号。",

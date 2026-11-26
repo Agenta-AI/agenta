@@ -1,6 +1,5 @@
 {
     "chooseWhose": "Elige qué cuenta de {{name}} usa el agente",
-    "eachPersonsOwn": "La de cada persona",
     "eachPersonsOwnNote": "Cada persona usa su propia cuenta de {{name}}.",
     "oneShared": "Una cuenta compartida",
     "oneSharedNote": "Todos usan la cuenta que elijas.",

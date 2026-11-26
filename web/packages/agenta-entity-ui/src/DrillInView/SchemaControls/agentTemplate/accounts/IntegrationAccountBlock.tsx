@@ -1,4 +1,4 @@
-/** The "Account" part of an integration view (F10): whose account the agent uses. */
+/** The "Owner" part of an integration view (F10): whose account the agent uses, Personal or Project. */
 import {useMemo, type ReactNode} from "react"
 
 import {USER_ACCOUNT_SOURCE, userItemKey} from "@agenta/entities/accountChoice"
@@ -97,7 +97,7 @@ export function IntegrationAccountBlock({
         <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
                 <FieldHeading
-                    label={t("entityUi.accounts.label")}
+                    label={t("entityUi.accounts.owner")}
                     note={t("entityUi.accountSwitch.chooseWhose", {name})}
                 />
                 {showAccountSwitch(access, entry) ? (
@@ -116,7 +116,7 @@ export function IntegrationAccountBlock({
                             },
                         ]}
                         onChange={pickSource}
-                        aria-label={t("entityUi.accounts.label")}
+                        aria-label={t("entityUi.accounts.owner")}
                         disabled={disabled}
                     />
                 ) : null}

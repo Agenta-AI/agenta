@@ -1,5 +1,4 @@
 {
-    "label": "Compte",
     "eachPersonSignIn": "La connexion propre à chaque personne",
     "projectSignIn": "La connexion du projet",
     "connectAnother": "Connecter un autre compte {{name}}",

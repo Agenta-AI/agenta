@@ -1,6 +1,5 @@
 {
     "chooseWhose": "エージェントが使う{{name}}アカウントを選択",
-    "eachPersonsOwn": "各ユーザー自身のアカウント",
     "eachPersonsOwnNote": "全員が自分の{{name}}アカウントを使います。",
     "oneShared": "1つの共有アカウント",
     "oneSharedNote": "全員があなたが選んだアカウントを使います。",

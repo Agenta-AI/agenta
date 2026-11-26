@@ -1,6 +1,5 @@
 {
     "chooseWhose": "Choose whose {{name}} account the agent uses",
-    "eachPersonsOwn": "Each person's own",
     "eachPersonsOwnNote": "Everyone uses their own {{name}} account.",
     "oneShared": "One shared account",
     "oneSharedNote": "Everyone uses the account you pick.",

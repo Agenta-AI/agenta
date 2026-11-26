@@ -160,8 +160,8 @@ export function ChoiceSwitch<Value extends string>({
                         {choice.note ? (
                             <span
                                 className={cn(
-                                    // 12/16: `text-xs` is 13 px in /m.
-                                    "text-meta text-muted-foreground",
+                                    // 12/16, two lines tall: every choice card is one height (70 px).
+                                    "min-h-8 text-meta text-muted-foreground",
                                 )}
                             >
                                 {choice.note}

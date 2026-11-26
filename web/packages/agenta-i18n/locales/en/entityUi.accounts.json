@@ -1,5 +1,4 @@
 {
-    "label": "Account",
     "eachPersonSignIn": "Each person's own sign-in",
     "projectSignIn": "The project's sign-in",
     "connectAnother": "Connect another {{name}} account",
