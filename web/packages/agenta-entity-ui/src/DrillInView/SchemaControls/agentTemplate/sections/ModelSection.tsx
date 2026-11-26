@@ -46,10 +46,10 @@ export const modelSection = ({
             key: "model-harness",
             icon: <Cpu size={14} />,
             title: t("entityUi.agentTemplate.model"),
-            titleBadge: modelHarnessBadge,
-            // While the badge asks for setup, the row shows the badge alone.
-            summary: modelHarnessBadge ? undefined : mh.modelSummary,
-            indicator: sectionIndicator("model-harness"),
+            // While setup is needed, the badge stands at the end of the row in place of the model.
+            summary: modelHarnessBadge ?? mh.modelSummary,
+            // The badge at the row's end already says it; no second warning dot on the icon.
+            indicator: modelHarnessBadge ? undefined : sectionIndicator("model-harness"),
             defaultOpen: false,
             // The row opens the Model view, which holds today's list; a pick applies at once.
             onOpen: openModel,
