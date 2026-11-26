@@ -244,10 +244,11 @@ const PhoneSectionList = ({
             <div
                 data-config-section={shown.key}
                 // With a primary action the column fills its container's height (the phone
-                // container is a size container), so the action sits at the bottom of the screen.
+                // container is a size container), so the action sits at the bottom of the screen;
+                // -mb-3 takes back the host's bottom padding, so a short list does not scroll.
                 className={cn(
                     "flex flex-col gap-3 pt-3",
-                    shown.phoneAction ? "min-h-[100cqh]" : "pb-6",
+                    shown.phoneAction ? "-mb-3 min-h-[100cqh]" : "pb-6",
                     viewEnterClass(dir),
                 )}
                 onAnimationEnd={settle}
