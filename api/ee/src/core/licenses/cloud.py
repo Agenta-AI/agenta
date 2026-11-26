@@ -11,6 +11,7 @@ from functools import lru_cache
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
+from ee.src.core.licenses.keys import verify_license_key
 from ee.src.core.licenses.types import CLOUD_PLAN, InvalidLicenseKey
 
 log = get_module_logger(__name__)
@@ -23,11 +24,10 @@ def is_cloud() -> bool:
     if not env.license.key:
         return False
 
-    # Imported here: `keys` reads the plan table, whose build calls `is_cloud()`.
-    from ee.src.core.licenses.keys import parse_license_key  # noqa: PLC0415
-
+    # Not `parse_license_key`: that one reads the plan table, and the table's build
+    # calls `is_cloud()`.
     try:
-        license_key = parse_license_key(env.license.key)
+        license_key = verify_license_key(env.license.key)
     except InvalidLicenseKey:
         return False
     return license_key.plan == CLOUD_PLAN and not license_key.is_expired()
