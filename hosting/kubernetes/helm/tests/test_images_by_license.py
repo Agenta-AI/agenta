@@ -132,6 +132,10 @@ def check(license_value: str, web_repository: str, web_server: str) -> None:
     assert image_repository(docs, "web") == web_repository
 
     assert web_server in web_command(docs), web_command(docs)
+    # The entrypoint writes into ./<AGENTA_LICENSE>/public: it must match the build.
+    assert (
+        env_value(workload(docs, "web"), "AGENTA_LICENSE") == web_server.split("/")[1]
+    )
 
     alembic = workload(docs, "alembic")
     assert container(alembic)["command"][-1] == (
@@ -150,9 +154,11 @@ def check_web_override() -> None:
     docs = render("ee", "--set", f"web.image.repository={private}")
     assert image_repository(docs, "web") == private
     assert "./ee/server.js" in web_command(docs), web_command(docs)
+    assert env_value(workload(docs, "web"), "AGENTA_LICENSE") == "ee"
 
     docs = render("oss", "--set", f"web.image.repository={private}")
     assert "./oss/server.js" in web_command(docs), web_command(docs)
+    assert env_value(workload(docs, "web"), "AGENTA_LICENSE") == "oss"
 
 
 def main() -> int:
