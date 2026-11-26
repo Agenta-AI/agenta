@@ -250,10 +250,6 @@ export const SecretsSectionBody = ({
 
     return (
         <div className="flex flex-col gap-2">
-            {/* In the panel's section card, on the title's text line. */}
-            <span className="hidden pl-11.25 pr-2.5 text-meta text-muted-foreground in-data-section-card:block">
-                {t("entityUi.agentSecrets.aboutSecrets")}
-            </span>
             {notice ? (
                 <div
                     className={cn(
