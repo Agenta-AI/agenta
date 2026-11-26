@@ -841,6 +841,29 @@ describe("daily caps", () => {
     expect(sent).toHaveLength(DAILY_INSTANCE_CAP);
   });
 
+  it("counts two sends that were on their way at the same time", async () => {
+    const { bucket, objects } = capBucket();
+    const env = withLimits({ LICENSE_SIGNING_KEY: privatePem, MEDIA: bucket });
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const slow: MailSender = { send: () => gate };
+
+    const first = handleRegistration(post(VALID), env, slow, undefined, {
+      record: async () => {},
+    });
+    const second = handleRegistration(post(VALID), env, slow, undefined, {
+      record: async () => {},
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    release();
+    await Promise.all([first, second]);
+
+    const emailKey = [...objects.keys()].find((key) =>
+      key.includes("/email/"),
+    )!;
+    expect(JSON.parse(objects.get(emailKey)!)).toHaveLength(2);
+  });
+
   it("does not count a send that failed", async () => {
     const { bucket } = capBucket();
     const env = withLimits({ LICENSE_SIGNING_KEY: privatePem, MEDIA: bucket });

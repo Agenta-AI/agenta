@@ -485,10 +485,18 @@ async function dailyCaps(
     caps.map(({ key }) => recentSends(bucket, key, now)),
   );
   if (caps.some(({ cap }, index) => sends[index].length >= cap)) return null;
+  // Read the counts again when counting: another send may have been counted while
+  // this email was on its way.
   return async () => {
     await Promise.all(
-      caps.map(({ key }, index) =>
-        bucket.put(key, JSON.stringify([...sends[index], now])),
+      caps.map(async ({ key }) =>
+        bucket.put(
+          key,
+          JSON.stringify([
+            ...(await recentSends(bucket, key, Date.now())),
+            now,
+          ]),
+        ),
       ),
     );
   };
