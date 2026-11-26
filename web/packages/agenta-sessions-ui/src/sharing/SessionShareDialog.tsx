@@ -387,9 +387,12 @@ export const SessionShareDialog = ({
                                 </div>
                             ) : null}
                             {grants.length === 0 ? (
-                                <p className="m-0 py-1 pl-9 text-meta text-muted-foreground">
-                                    {copy.emptyGrants}
-                                </p>
+                                // The link note below already says nobody else can open it.
+                                onCopyLink && nobodyAdded ? null : (
+                                    <p className="m-0 py-1 pl-9 text-meta text-muted-foreground">
+                                        {copy.emptyGrants}
+                                    </p>
+                                )
                             ) : (
                                 grants.map((grant) => {
                                     const person = byId.get(grant.user_id) ?? {

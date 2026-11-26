@@ -415,7 +415,7 @@ export function useMcpPermissionSource({
             setTools({status: "ready", tools: listed})
         } catch (error) {
             if (latestRead.current !== read) return
-            console.error("[mcp] the tool list could not be read", error)
+            console.warn("[mcp] the tool list could not be read", error)
             setTools({status: "failed", ...toolListFailure(error)})
         }
     }, [accountSource, loadToolsFrom, projectId, slug])
