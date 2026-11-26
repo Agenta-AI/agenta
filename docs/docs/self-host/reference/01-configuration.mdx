@@ -45,6 +45,18 @@ This key has no env-var or `env.py` equivalent.
 | `AGENTA_SERVICES_INTERNAL_KEY` | `agenta.services_internal_key` | `agenta.servicesInternalKey` |
 | `AGENTA_RUNNER_TOKEN` | n/a (read by the runner and its caller) | `agenta.runnerToken` |
 
+`AGENTA_LICENSE` picks the default database names: `oss` (the default) gives `agenta_oss_core`,
+`agenta_oss_tracing` and `agenta_oss_supertokens`, and `ee` gives `agenta_ee_*`. The web
+container also reads it for the classic web app, and the services container reads it for
+[provider keys from the environment](#llm-provider-api-keys). It does not decide the plan or the
+features: a [license key](#license) does. `POSTGRES_DB_PREFIX` and the `POSTGRES_URI_*` variables
+override the names it picks. See [postgres](#postgres).
+
+:::warning Do not change `AGENTA_LICENSE` on an install that has data
+The install then opens other database names, which are empty, and looks as if its data is gone.
+To move to a paid plan, add a [license key](/self-host/license-keys) instead.
+:::
+
 `AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, `AGENTA_SERVICES_INTERNAL_KEY`, and `AGENTA_RUNNER_TOKEN`
 are required secrets: the examples ship them as `replace-me` and you must set a real value for
 each. See [Agent runner](#routing-and-authentication) for the runner token.
@@ -1335,8 +1347,11 @@ The `sessions` loop of `worker-streams` sends channel replies. Run it in exactly
 | Env var | env.py path | values.yaml path |
 |---|---|---|
 | `ALEMBIC_AUTO_MIGRATIONS` | `alembic.auto_migrations` | `alembic.autoMigrations` |
-| `ALEMBIC_CFG_PATH_CORE` | `alembic.cfg_path_core` | `alembic.cfgPathCore` |
-| `ALEMBIC_CFG_PATH_TRACING` | `alembic.cfg_path_tracing` | `alembic.cfgPathTracing` |
+| `ALEMBIC_CFG_PATH_CORE` | `alembic.cfg_path_core` | n/a |
+| `ALEMBIC_CFG_PATH_TRACING` | `alembic.cfg_path_tracing` | n/a |
+
+The migration job picks its migration chains itself and does not read `ALEMBIC_CFG_PATH_CORE` or
+`ALEMBIC_CFG_PATH_TRACING`.
 
 ## cloudflare
 
@@ -1432,7 +1447,7 @@ How to add a key, and what an instance gets without one, is on the
 
 A license key turns on the plan it names for every organization on a self-hosted instance. The
 key looks like `agenta_license_v1.<payload>.<signature>`. The instance checks it offline, with no
-network call. License keys need the Enterprise image.
+network call. Every Agenta image reads license keys.
 
 An instance admin can also add a key in the app, under **Settings > License**. An instance admin
 is a user whose email is in `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS`, or, when that list is unset, the
@@ -1440,11 +1455,12 @@ owner of the oldest organization. A key in `AGENTA_LICENSE_KEY` takes priority o
 the app, and the License page then shows the key but does not let you change it.
 
 On a self-hosted instance, the plan of every organization comes from the key. With no valid key, or after the
-key expires, the instance runs on `self_hosted_community`, which has no enterprise features. No data
-is deleted when a key expires. `AGENTA_ACCESS_DEFAULT_PLAN`, `AGENTA_ACCESS_PLANS` and
+key expires, the instance runs on `self_hosted_community`, which has no enterprise features and
+allows 1 project per organization and 1 organization per instance. No data is deleted when a key
+expires. See [Limits by plan](/self-host/license-keys#limits-by-plan). `AGENTA_ACCESS_DEFAULT_PLAN`, `AGENTA_ACCESS_PLANS` and
 `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` cannot turn on enterprise features without a key.
 
-Do not confuse it with `AGENTA_LICENSE`, which selects the edition (`oss` or `ee`).
+Do not confuse it with [`AGENTA_LICENSE`](#agenta-core), which picks the default database names.
 
 The Helm chart has no value for it. Set it on the `api`, `worker-queues` and `worker-streams`
 containers with `api.extraEnv`, `workerQueues.extraEnv` and `workerStreams.extraEnv`.
@@ -1470,8 +1486,8 @@ containers with `api.extraEnv`, `workerQueues.extraEnv` and `workerStreams.extra
 
 A prompt or an evaluator runs on the provider keys saved in its project. The keys above, set on
 the services container, are used only when a project has no key of its own for that provider,
-and only when `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` allows it. It defaults to `true` in the
-OSS edition and to `false` in the EE edition. With it off, a project without a saved key gets the
+and only when `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` allows it. It defaults to `true` when
+`AGENTA_LICENSE` is `oss` or unset, and to `false` when it is `ee`. With it off, a project without a saved key gets the
 error "No API key found for model". A custom provider always uses its own key and never one of
 these.
 
@@ -1499,6 +1515,20 @@ read from the services environment.
 | `POSTGRES_URI_CORE` | `postgres.uri_core` | `postgres.uriCore` |
 | `POSTGRES_URI_SUPERTOKENS` | `postgres.uri_supertokens` | `postgres.uriSupertokens` |
 | `POSTGRES_URI_TRACING` | `postgres.uri_tracing` | `postgres.uriTracing` |
+| `POSTGRES_DB_PREFIX` | `postgres.db_prefix` | n/a |
+
+The API finds its three databases in this order:
+
+1. `POSTGRES_URI_CORE`, `POSTGRES_URI_TRACING` and `POSTGRES_URI_SUPERTOKENS`, when set.
+2. Else `<prefix>_core`, `<prefix>_tracing` and `<prefix>_supertokens`, where the prefix is
+   `POSTGRES_DB_PREFIX`.
+3. Else the prefix is `agenta_` followed by `AGENTA_LICENSE`: `agenta_oss` when it is unset or
+   `oss`, `agenta_ee` when it is `ee`.
+
+The env file examples for new installs set `POSTGRES_DB_PREFIX`. Do not change it on an install
+that has data: the install then opens other, empty databases. The Helm chart has no value for the
+prefix. It names the bundled databases from `agenta.license`, and `postgresql.databases.*` overrides
+them.
 
 ### Connection pool
 

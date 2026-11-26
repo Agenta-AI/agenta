@@ -87,6 +87,25 @@ def add_project_member(admin_api, *, project_id, user_id, role) -> None:
     assert resp.status_code == 200, resp.text
 
 
+def create_project(admin_api, *, organization_id, name: str) -> str:
+    """A project made through the platform admin route, which the instance plan's
+    project limit does not apply to. No member gets a project row."""
+    resp = admin_api(
+        "POST",
+        "/admin/simple/accounts/projects/",
+        json={
+            "project": {
+                "name": f"{name}-{uuid4().hex[:6]}",
+                "organization_ref": {"id": organization_id},
+                "workspace_ref": {"id": organization_id},
+                "is_default": False,
+            }
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    return first_id(resp.json()["accounts"][0]["projects"])
+
+
 def api_key_for_project(admin_api, *, project_id, user_id) -> str:
     resp = admin_api(
         "POST",
@@ -121,6 +140,7 @@ class Team:
         self.project_id = first_id(self.owner["projects"])
         self.keys = {"owner": owner_key(self.owner)}
         self.user_ids = {"owner": self.owner["user"]["id"]}
+        self.roles = {"owner": "owner"}
         for label, role in members.items():
             self.add(label, role)
 
@@ -130,6 +150,7 @@ class Team:
         user_id = account["user"]["id"]
         self.emails[label] = email
         self.user_ids[label] = user_id
+        self.roles[label] = role
         add_organization_member(
             self.admin_api,
             organization_id=self.organization_id,
@@ -143,6 +164,21 @@ class Team:
         self.keys[label] = api_key_for_project(
             self.admin_api, project_id=self.project_id, user_id=user_id
         )
+
+    def add_project(self, name: str) -> str:
+        """A second project of the organization, through the platform admin route. Every
+        member gets a project row with their role, as `POST /projects/` seeds them."""
+        project_id = create_project(
+            self.admin_api, organization_id=self.organization_id, name=name
+        )
+        for label, user_id in self.user_ids.items():
+            add_project_member(
+                self.admin_api,
+                project_id=project_id,
+                user_id=user_id,
+                role=self.roles[label],
+            )
+        return project_id
 
     def headers(self, label: str) -> dict:
         return headers(self.keys[label])

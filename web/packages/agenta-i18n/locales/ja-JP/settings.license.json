@@ -61,6 +61,8 @@
     "usageOf": "{{count}} / {{limit}}",
     "usageOfUnlimited": "{{count}} / 無制限",
     "usageOrganizations": "このインスタンスの組織",
+    "usageOverLimitOrganizations_other": "組織 {{count}} 件、上限 {{limit}}",
+    "usageOverLimitProjects_other": "プロジェクト {{count}} 件、上限 {{limit}}",
     "usageProjects": "この組織のプロジェクト",
     "userCount_other": "{{count}} 人",
     "users": "ユーザー"

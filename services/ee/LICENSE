@@ -4,12 +4,13 @@ Agentatech UG (haftungsbeschränkt), doing business as "Agenta" ("Agenta")
 
 With regard to the Agenta Software:
 
-This software and associated documentation files (the "Software") may only be
-used in production, if you (and any entity that you represent) have agreed to,
-and are in compliance with, the Agenta Subscription Terms of Service, available
-at https://agenta.ai/terms (the "Enterprise Terms"), or other
-agreement governing the use of the Software, as agreed by you and Agenta,
-and otherwise have a valid Agenta Enterprise License.
+You may use this Software in production free of charge under the Community plan
+and the Registered plan, as described in the Agenta documentation, but only for
+the features those plans make available. Any other production use of this
+Software, including any feature that requires a paid license key, requires that
+you (and any entity that you represent) have agreed to, and comply with, the
+Agenta Subscription Terms of Service, available at https://agenta.ai/terms, or
+another agreement with Agenta, and hold a valid Agenta Enterprise License.
 
 Subject to the foregoing sentence, you are free to modify this Software and
 publish patches to the Software. You agree that Agenta and/or its licensors

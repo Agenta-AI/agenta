@@ -76,7 +76,6 @@ async def test_startup_event_sends_the_machine_facts(posthog):
         "memory_limit_mb": 4096,
         "postgres_version": "16.4",
         "$groups": {"instance": str(INSTANCE_ID)},
-        "$process_person_profile": False,
     }
 
 

@@ -106,7 +106,6 @@ async def test_startup_event_table_matches_the_payload_on_the_wire(monkeypatch):
         {
             **started.model_dump(mode="json"),
             "$groups": {"instance": instance_id},
-            "$process_person_profile": False,
         },
     )
     telemetry_service._sync_client.cache_clear()

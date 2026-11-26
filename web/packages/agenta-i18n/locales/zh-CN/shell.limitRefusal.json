@@ -1,0 +1,12 @@
+{
+    "organizationLimitInfo": "第二个组织需要 Enterprise 许可证。要与这里已有的人协作，请让现有组织的所有者邀请你。",
+    "projectLimitAskAdmin": "请联系实例管理员注册此实例，以获得更多项目。",
+    "projectLimitCloud": "Hobby 套餐包含 1 个项目。升级到 Starter 可获得无限项目。",
+    "projectLimitRegister": "免费注册此实例，即可创建更多项目。",
+    "projectsUsage": "此组织已使用 {{count}} / {{limit}} 个项目。免费注册此实例即可创建更多项目。",
+    "projectsUsageOverLimit_other": "此组织已使用 {{count}} 个项目，上限 {{limit}}。免费注册此实例即可创建更多项目。",
+    "register": "注册",
+    "registerInstance": "注册此实例",
+    "registerTitle": "注册以创建更多项目",
+    "upgradePlan": "升级套餐"
+}

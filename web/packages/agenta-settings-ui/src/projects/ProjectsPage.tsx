@@ -36,8 +36,12 @@ interface ProjectFormValues {
 
 /** Axios surfaces the backend's reason on `response.data.detail`. */
 const errorDetail = (error: unknown, fallback: string): string => {
-    const axiosLike = error as {response?: {data?: {detail?: string}}; message?: string}
-    return axiosLike?.response?.data?.detail || axiosLike?.message || fallback
+    const axiosLike = error as {
+        response?: {data?: {detail?: string | {message?: string}}}
+        message?: string
+    }
+    const detail = axiosLike?.response?.data?.detail
+    return (typeof detail === "object" ? detail?.message : detail) || axiosLike?.message || fallback
 }
 
 interface ProjectRow extends ProjectsResponse {
@@ -81,6 +85,8 @@ export interface ProjectDialogState<T> {
     onSubmit: (values: T) => void
     pending: boolean
     project?: ProjectsResponse | null
+    /** The last submit's failure while the dialog stays open, for a host that shows it. */
+    error?: unknown
 }
 
 export interface ProjectsPageProps {
@@ -107,6 +113,11 @@ export interface ProjectsPageProps {
      * elsewhere.
      */
     onChanged?: () => void
+    /**
+     * True for a create failure the host's dialog shows itself (from `error`), so the page
+     * shows no toast for it.
+     */
+    handlesCreateError?: (error: unknown) => boolean
 }
 
 export const ProjectsPage = ({
@@ -122,6 +133,7 @@ export const ProjectsPage = ({
     canSetDefault: canSetDefaultProp,
     canDelete,
     onChanged,
+    handlesCreateError,
 }: ProjectsPageProps) => {
     const t = useT(commonCatalog, settingsProjectsCatalog)
     const queryClient = useQueryClient()
@@ -173,6 +185,7 @@ export const ProjectsPage = ({
             setCreateModalOpen(false)
         },
         onError: (error) => {
+            if (handlesCreateError?.(error)) return
             message.error(errorDetail(error, t("settings.projects.createFailed")))
         },
     })
@@ -229,7 +242,13 @@ export const ProjectsPage = ({
     )
 
     const newProject = showCreate ? (
-        <Button onClick={() => setCreateModalOpen(true)} disabled={isLoading}>
+        <Button
+            onClick={() => {
+                createMutation.reset()
+                setCreateModalOpen(true)
+            }}
+            disabled={isLoading}
+        >
             <Plus size={14} />
             {t("settings.projects.newProject")}
         </Button>
@@ -373,6 +392,7 @@ export const ProjectsPage = ({
                 onClose: () => setCreateModalOpen(false),
                 onSubmit: handleCreate,
                 pending: createMutation.isPending,
+                error: createMutation.error,
             })}
 
             {renderDeleteDialog?.({

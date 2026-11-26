@@ -357,9 +357,11 @@ describe("release feed", () => {
         agenta_version: "v0.131.0",
         instance_kind: "production",
         $groups: { instance: "inst-1" },
-        $process_person_profile: false,
       },
     });
+    expect(events[0].body.properties).not.toHaveProperty(
+      "$process_person_profile",
+    );
   });
 
   it("records the test kind so test stacks can be filtered out", async () => {
@@ -383,6 +385,7 @@ describe("release feed", () => {
     expect(events[0].body.distinct_id).toBe("anonymous");
     expect(events[0].body.properties.agenta_version).toBe("v0.131.0");
     expect(events[0].body.properties).not.toHaveProperty("$groups");
+    expect(events[0].body.properties.$process_person_profile).toBe(false);
   });
 
   it("hands the event to waitUntil so the feed is not held", async () => {
