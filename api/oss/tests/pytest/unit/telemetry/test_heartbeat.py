@@ -410,19 +410,29 @@ async def test_failed_send_rolls_back(monkeypatch, dao):
 
 
 @pytest.mark.asyncio
-async def test_refused_group_properties_roll_back(monkeypatch, dao):
+async def test_refused_group_properties_keep_the_sent_window(monkeypatch, dao):
+    """PostHog has the event, so the window is committed. A retry under the same uuid
+    with a later end would be dropped by PostHog and lose the usage in between."""
+
     refusing = _PostHog(group_accepted=False)
     monkeypatch.setattr(telemetry_service, "_sync_client", lambda timeout: refusing)
 
-    assert await heartbeat.send_heartbeat() == "failed"
-    assert dao.heartbeat_sent_at is None
+    assert await heartbeat.send_heartbeat() == "sent"
+    assert dao.heartbeat_sent_at == dao.now
     assert len(refusing.captures) == 1
+    assert refusing.groups == []
 
+    dao.now += timedelta(hours=7)
     accepting = _PostHog()
     monkeypatch.setattr(telemetry_service, "_sync_client", lambda timeout: accepting)
 
     assert await heartbeat.send_heartbeat() == "sent"
-    assert accepting.captures[0]["uuid"] == refusing.captures[0]["uuid"]
+    assert (
+        accepting.captures[0]["properties"]["window_start"]
+        == (refusing.captures[0]["properties"]["window_end"])
+    )
+    assert accepting.captures[0]["uuid"] != refusing.captures[0]["uuid"]
+    assert len(accepting.groups) == 1
 
 
 @pytest.mark.asyncio

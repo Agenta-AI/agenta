@@ -276,8 +276,11 @@ async def send_heartbeat() -> HeartbeatReason:
 
     The counts are collected before the row lock, so the lock covers only the send.
     One container sends: the others skip the locked row. A failed send of the event
-    or of the group properties rolls back, so the next hourly run covers the same
-    window again; the fixed event uuid lets PostHog drop the copy.
+    rolls back, so the next hourly run covers the same window again; the fixed event
+    uuid lets PostHog drop the copy. The group properties are sent after the commit:
+    once PostHog has the event, the window must not be sent again under the same
+    uuid with a later end, because PostHog would drop it and lose the usage between
+    the two ends. A failed group update waits for the next heartbeat.
     """
 
     if env.stripe.enabled:
@@ -315,12 +318,6 @@ async def send_heartbeat() -> HeartbeatReason:
                 uuid=uuid5(instance_id, heartbeat.window_start),
                 timeout=HEARTBEAT_TIMEOUT_SECONDS,
             )
-            await telemetry.group_identify(
-                "instance",
-                heartbeat.instance_id,
-                heartbeat.model_dump(mode="json", include=set(GROUP_PROPERTIES)),
-                timeout=HEARTBEAT_TIMEOUT_SECONDS,
-            )
     except Exception as exc:  # noqa: BLE001
         log.warning(
             "Telemetry heartbeat not sent; the next run tries again",
@@ -328,5 +325,19 @@ async def send_heartbeat() -> HeartbeatReason:
             error=str(exc),
         )
         return "failed"
+
+    try:
+        await telemetry.group_identify(
+            "instance",
+            heartbeat.instance_id,
+            heartbeat.model_dump(mode="json", include=set(GROUP_PROPERTIES)),
+            timeout=HEARTBEAT_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning(
+            "Telemetry instance group properties not sent; the next heartbeat sends them",
+            reason=type(exc).__name__,
+            error=str(exc),
+        )
 
     return "sent"
