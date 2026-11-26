@@ -500,32 +500,6 @@ async def _create_org_membership_row(
         return membership_db.id, former_owner_id
 
 
-async def _adjust_members_gauge(*, organization_id: UUID, delta: int) -> None:
-    """EE: move the organization's members gauge, as signup and invites do. An admin
-    write is not refused at a plan's member limit; a failed write is logged."""
-    if not is_ee():
-        return
-    from ee.src.core.access.entitlements.service import (  # noqa: PLC0415
-        EntitlementsException,
-        check_entitlements,
-        scope_from,
-    )
-    from ee.src.core.access.entitlements.types import Gauge  # noqa: PLC0415
-
-    try:
-        await check_entitlements(
-            key=Gauge.USERS,
-            delta=delta,
-            scope=scope_from(organization_id=organization_id),
-        )
-    except EntitlementsException:
-        log.warning(
-            "[admin] members gauge not moved for organization %s",
-            organization_id,
-            exc_info=True,
-        )
-
-
 async def _create_project_membership_row(
     *,
     user_id: UUID,
@@ -980,7 +954,6 @@ class PlatformAdminAccountsService:
                 organization_id=org_id,
                 role=mem_create.role,
             )
-            await _adjust_members_gauge(organization_id=org_id, delta=1)
             await _invalidate_memberships(
                 user_ids=[user_id, former_owner_id], organization_ids=[org_id]
             )
@@ -2286,9 +2259,6 @@ class PlatformAdminAccountsService:
         found = await delete_fn(mid)
         if not found:
             raise AdminMembershipNotFoundError(membership_id)
-
-        if scope_type == "organization" and scope is not None:
-            await _adjust_members_gauge(organization_id=scope[1], delta=-1)
 
         if scope is not None:
             await _invalidate_memberships(
