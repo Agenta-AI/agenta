@@ -262,13 +262,44 @@ async def test_install_ping_the_client_swallows_still_rolls_back(
 
 @pytest.mark.asyncio
 async def test_install_ping_not_due_sends_nothing(
-    self_hosted, synchronous, install_row
+    monkeypatch, self_hosted, synchronous, install_row
 ):
+    # An upgraded (`preexisting`) install: the row is never due.
     install_row.instance_id = None
+    info = MagicMock()
+    monkeypatch.setattr(telemetry_service.log, "info", info)
 
     await telemetry_service.send_install_ping()
 
     assert synchronous.calls == []
+    # The log must not claim a ping that never left.
+    info.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_install_ping_logs_only_once_sent(
+    monkeypatch, self_hosted, synchronous, install_row
+):
+    info = MagicMock()
+    monkeypatch.setattr(telemetry_service.log, "info", info)
+
+    await telemetry_service.send_install_ping()
+
+    assert install_row.committed
+    info.assert_called_once_with("Install ping sent (instance_installed)")
+
+
+@pytest.mark.asyncio
+async def test_failed_install_ping_logs_no_send(monkeypatch, self_hosted, install_row):
+    failing = _Recorder(fail=ConnectionError("no route to host"))
+    monkeypatch.setattr(telemetry_service, "_sync_client", lambda timeout: failing)
+    info = MagicMock()
+    monkeypatch.setattr(telemetry_service.log, "info", info)
+    monkeypatch.setattr(telemetry_service.log, "warning", MagicMock())
+
+    await telemetry_service.send_install_ping()
+
+    info.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -744,6 +775,22 @@ async def test_startup_log_names_the_reason_and_the_docs(
     [message] = info.call_args.args
     assert message.startswith(expected)
     assert telemetry_service.TELEMETRY_DOCS_URL in message
+
+
+@pytest.mark.asyncio
+async def test_startup_log_with_switch_off_does_not_promise_a_ping(
+    monkeypatch, self_hosted
+):
+    monkeypatch.setattr(env.telemetry, "enabled", False)
+    monkeypatch.setattr(env.telemetry, "enabled_set", True)
+    info = MagicMock()
+    monkeypatch.setattr(telemetry_service.log, "info", info)
+
+    await telemetry_service.log_telemetry_status()
+
+    [message] = info.call_args.args
+    assert "still runs" not in message
+    assert "an upgraded install sends none" in message
 
 
 # --- a paid license key keeps telemetry on ----------------------------------

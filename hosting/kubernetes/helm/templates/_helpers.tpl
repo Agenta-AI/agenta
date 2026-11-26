@@ -466,7 +466,10 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
        runs the migrations before the app pods start, which is what an external database
        wants. See alembic-job.yaml. */ -}}
 {{- define "agenta.alembic.hookPhase" -}}{{ default "post" (default dict .Values.alembic).hookPhase }}{{- end }}
-{{- define "agenta.alembic.activeDeadlineSeconds" -}}{{ default 600 (default dict .Values.alembic).activeDeadlineSeconds }}{{- end }}
+{{- /* One hour. A data migration on a large instance takes minutes: adopting 41,006
+       organizations took 569 s of a 601 s run. Kubernetes stops the Job at the deadline
+       and the upgrade fails, so the default leaves room. */ -}}
+{{- define "agenta.alembic.activeDeadlineSeconds" -}}{{ default 3600 (default dict .Values.alembic).activeDeadlineSeconds }}{{- end }}
 {{- define "agenta.alembic.backoffLimit" -}}{{ default 3 (default dict .Values.alembic).backoffLimit }}{{- end }}
 {{- define "agenta.alembic.ttlSecondsAfterFinished" -}}{{ default 300 (default dict .Values.alembic).ttlSecondsAfterFinished }}{{- end }}
 

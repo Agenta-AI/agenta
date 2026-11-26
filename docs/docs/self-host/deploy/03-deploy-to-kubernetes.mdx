@@ -455,7 +455,7 @@ Migrations run as a Kubernetes Job with `post-install,post-upgrade` hooks. Post-
 |-------|---------|---------|
 | `alembic.enabled` | Enable migration job | `true` |
 | `alembic.hookPhase` | `post` or `pre` | `post` |
-| `alembic.activeDeadlineSeconds` | Job timeout | `600` |
+| `alembic.activeDeadlineSeconds` | Seconds the Job may run before Kubernetes stops it and the install or upgrade fails | `3600` |
 | `alembic.backoffLimit` | Retry count | `3` |
 | `alembic.ttlSecondsAfterFinished` | Cleanup delay | `300` |
 

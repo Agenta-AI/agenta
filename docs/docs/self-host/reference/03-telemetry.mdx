@@ -28,7 +28,9 @@ Set the switch on the API and restart it.
 - Docker Compose: add `AGENTA_TELEMETRY_ENABLED=false` to your `.env` file.
 - Helm: set `telemetry.enabled: false` in your values file.
 
-With the switch off, the instance sends no startup event, no heartbeat and no product usage. Only the one-time install ping still runs, because it carries nothing but the instance id and the instance kind.
+With the switch off, the instance sends no startup event, no heartbeat and no product usage. Only the one-time install ping still runs on a new instance, because it carries nothing but the instance id and the instance kind. An instance that upgraded from an older version sends no install ping. The API logs `Install ping sent` when the ping leaves.
+
+In Helm, `telemetry.enabled` reaches the API, the workers, cron and services. The web pods keep the PostHog key, but the browser loads analytics only after the API answers that telemetry is on, so with the switch off the browser sends nothing.
 
 A paid license key keeps telemetry on, so the switch has no effect on an instance with one, unless your contract exempts it. The free key you get when you register does not change the switch.
 
