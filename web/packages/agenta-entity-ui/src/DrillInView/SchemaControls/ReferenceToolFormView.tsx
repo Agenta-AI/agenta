@@ -59,7 +59,7 @@ const readableModelName = (
 /** One part of the agent's setup: its heading, a quiet count or file on the right, then the body. */
 function Part({label, meta, children}: {label: string; meta?: ReactNode; children: ReactNode}) {
     return (
-        <section className="flex flex-col gap-2">
+        <section className="flex flex-col gap-1">
             <div className="flex h-5 items-center gap-2">
                 <span className="text-label font-semibold leading-5 text-foreground">{label}</span>
                 {meta ? (
@@ -89,7 +89,7 @@ const MarkLine = ({mark, children, end}: {mark: ReactNode; children: ReactNode; 
 
 /** A loading part in the shape of a {@link Part} with one {@link MarkLine}. */
 const SkeletonPart = ({width}: {width: string}) => (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1">
         <div className="flex h-5 items-center">
             <SkeletonBlock className="h-3 w-20" />
         </div>
@@ -192,7 +192,7 @@ function SubagentDetailPanel({
     const modelName = detail?.model ? readableModelName(capabilities, detail.model) : null
 
     return (
-        <div className="flex flex-col gap-6 p-4">
+        <div className="flex flex-col gap-4 p-4">
             {name ? (
                 // The sibling item views' title: a 24px Mark, 8px to the name (CONS-02).
                 <div className="flex items-center gap-2">
@@ -205,7 +205,7 @@ function SubagentDetailPanel({
                     {configurationAction}
                 </div>
             ) : null}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1.5">
                 <FieldHeading
                     label={t("entityUi.toolForm.description")}
                     note={t("entityUi.toolForm.subagentDescriptionHint")}
@@ -241,7 +241,7 @@ function SubagentDetailPanel({
                 // The loaded parts, with bars for their values (STATE-02).
                 <>
                     <SkeletonPart width="w-28" />
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-1">
                         <div className="flex h-5 items-center">
                             <SkeletonBlock className="h-3 w-24" />
                         </div>
