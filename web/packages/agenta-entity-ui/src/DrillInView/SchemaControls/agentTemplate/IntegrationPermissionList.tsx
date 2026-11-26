@@ -283,7 +283,9 @@ const ToolRow = memo(function ToolRow({
 
     return (
         // A two-line row (ROW-01): no line and no hover fill, as the Share dialog's people list.
-        <div className={`flex flex-col ${phone ? "py-1" : "min-h-row-double justify-center py-1"}`}>
+        <div
+            className={`box-border flex flex-col ${phone ? "py-1" : "min-h-row-double justify-center py-1"}`}
+        >
             {/* Centred while collapsed; open, the select stays on the name line as the row grows. */}
             <div
                 className={

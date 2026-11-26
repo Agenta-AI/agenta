@@ -208,8 +208,11 @@ export function ItemRow({
                 page
                     ? PAGE_ROW
                     : cn(
-                          "gap-2 rounded-md border border-solid border-transparent px-2",
-                          twoLine ? "min-h-row-double py-1.5" : "min-h-row-single py-1",
+                          // box-border: the status border sits inside the row height (ROW-01).
+                          "box-border gap-2 rounded-md border border-solid border-transparent px-2 py-1",
+                          twoLine ? "min-h-row-double" : "min-h-row-single",
+                          // On a phone screen the row hangs its fill; its Mark stays on the line.
+                          phone && "-mx-2.25",
                       ),
                 page && !locked && "bg-background",
                 interactive && !status && "cursor-pointer hover:bg-accent",
@@ -243,8 +246,9 @@ export function ItemRow({
                 <ItemAvatar
                     descriptor={descriptor}
                     size={twoLine && phone ? 32 : 24}
-                    // A panel row's Mark is 28 px, the size of its section's tile.
-                    className={!page && !(twoLine && phone) ? PANE_MARK : undefined}
+                    // A panel row's Mark is 28 px, the size of its section's tile; a phone row's
+                    // follows the row (24 or 32, CONS-01).
+                    className={!page && !phone ? PANE_MARK : undefined}
                 />
                 <div className="min-w-0 flex-1">
                     <div

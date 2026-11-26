@@ -14,8 +14,8 @@ export const ROW_CLASS =
     // In the panel's flat list: a plain row with the hover fill, its Mark on the heading's line.
     "in-data-flat-rows:rounded-md in-data-flat-rows:border-transparent in-data-flat-rows:bg-transparent in-data-flat-rows:py-1.5 in-data-flat-rows:pl-2 in-data-flat-rows:pr-1 in-data-flat-rows:hover:border-transparent in-data-flat-rows:hover:bg-accent"
 
-/** The gap from the Mark to the name: 8 px beside the flat list's 28 px Mark. */
-export const ROW_LEAD_GAP = "gap-2.5 in-data-flat-rows:gap-2"
+/** The gap from the Mark to the name: 12 px beside the flat list's 32 px Mark (`mark-lg`). */
+export const ROW_LEAD_GAP = "gap-2.5 in-data-flat-rows:gap-3"
 
 /** The name on a desktop. */
 export const NAME_CLASS = "truncate text-label"
@@ -33,8 +33,8 @@ export function RowTile({children, className}: {children: ReactNode; className?:
             aria-hidden
             className={cn(
                 "flex size-6 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground [&_svg]:size-3.5",
-                // 28 px with a 16 px glyph in the panel's flat list.
-                "in-data-flat-rows:size-7 in-data-flat-rows:[&_svg]:size-4",
+                // A two-line row's 32 px Mark with a 16 px glyph in the panel's flat list.
+                "in-data-flat-rows:size-8 in-data-flat-rows:[&_svg]:size-4",
                 className,
             )}
         >

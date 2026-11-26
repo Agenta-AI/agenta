@@ -256,7 +256,7 @@ const PhoneSectionList = ({
                     type="button"
                     data-config-section={s.key}
                     data-config-section-title={sectionTitle(s)}
-                    className="flex min-h-row-double w-full cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-2 py-2 text-left font-[inherit] hover:bg-accent active:bg-accent"
+                    className="flex min-h-row-double w-full cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-2 py-1 text-left font-[inherit] hover:bg-accent active:bg-accent"
                     onClick={() =>
                         s.onOpen ? s.onOpen() : phoneSections.show(s.key, sectionTitle(s))
                     }

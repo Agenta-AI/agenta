@@ -57,7 +57,7 @@ export interface CreateWithAIAddMenuProps {
     contentClassName?: string
 }
 
-/** One row (canvas F02 f3): a plain 14 px icon, a 13 px name, a 12 px hint that wraps. */
+/** One row: the kit's `MENU_ITEM` (16 px icon, 8 px padding) with a 12 px hint under the name. */
 function MenuRow({
     icon,
     title,
@@ -70,11 +70,8 @@ function MenuRow({
     onSelect: () => void
 }) {
     return (
-        <DropdownMenuItem onSelect={onSelect} className="items-start gap-2 p-2">
-            <span
-                aria-hidden
-                className="mt-0.5 flex shrink-0 text-muted-foreground [&_svg]:!size-3.5"
-            >
+        <DropdownMenuItem onSelect={onSelect} className="items-start">
+            <span aria-hidden className="mt-0.5 flex shrink-0 text-muted-foreground">
                 {icon}
             </span>
             <span className="flex min-w-0 flex-col">

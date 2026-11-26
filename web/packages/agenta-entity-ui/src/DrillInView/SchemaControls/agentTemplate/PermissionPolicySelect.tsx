@@ -10,7 +10,6 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import permissionDrawerCatalog from "@agenta/i18n/catalogs/entityUi.permissionDrawer"
 import {
-    IconTile,
     Select,
     SelectContent,
     SelectItem,
@@ -104,14 +103,17 @@ export function PermissionPolicySelect({
                             disabled={option.disabled}
                             // Neutral rows: hover and the picked row share the accent wash, and the
                             // check alone marks the value, centred on the row like the tile.
-                            className="items-center px-2 py-1.5 data-[state=checked]:bg-transparent data-[state=checked]:font-normal data-[highlighted]:data-[state=checked]:bg-accent [&[data-highlighted]:not([data-state=checked])]:bg-accent [&>svg]:size-3.5 [&>svg]:text-foreground"
+                            className="items-center data-[state=checked]:bg-transparent data-[state=checked]:font-normal data-[highlighted]:data-[state=checked]:bg-accent [&[data-highlighted]:not([data-state=checked])]:bg-accent [&>svg]:size-3.5 [&>svg]:text-foreground"
                         >
-                            <span className="flex items-center gap-3">
-                                {/* The glyph on a 32 px tile, as two-line rows draw their Mark (SPACE-04). */}
+                            <span className="flex items-center gap-2">
+                                {/* A menu row's 16 px glyph (ROW-02, MENU_ITEM). */}
                                 {option.icon ? (
-                                    <IconTile size={32} aria-hidden>
+                                    <span
+                                        aria-hidden
+                                        className="flex shrink-0 text-muted-foreground"
+                                    >
                                         {option.icon}
-                                    </IconTile>
+                                    </span>
                                 ) : null}
                                 <span className="flex min-w-0 flex-col">
                                     <span className="whitespace-nowrap text-label leading-5">

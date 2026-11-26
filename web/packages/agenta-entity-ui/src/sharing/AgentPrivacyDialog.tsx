@@ -293,9 +293,10 @@ export const AgentPrivacyPanel = ({
             <>
                 <section className="flex flex-col gap-2">
                     <SectionLabel>{copy.whoSection}</SectionLabel>
-                    <div className="flex items-center gap-2.5">
-                        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted">
-                            <UsersIcon size={14} aria-hidden />
+                    {/* A two-line row's 32 px Mark, 12 px to its text (CONS-01). */}
+                    <div className="flex h-row-double items-center gap-3">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted">
+                            <UsersIcon size={16} aria-hidden />
                         </span>
                         <div className="flex min-w-0 flex-1 flex-col">
                             <span className="text-label">{copy.cardProject}</span>
