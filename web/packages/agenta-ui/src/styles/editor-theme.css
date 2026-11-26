@@ -1001,3 +1001,9 @@ pre::-webkit-scrollbar-thumb {
     line-height: 20px;
     color: var(--muted-foreground);
 }
+
+/* The import keeps each source line as its own paragraph: lines with no blank line between them
+   are one paragraph wrapped by hand, so they sit together. A blank line holds only a <br>. */
+.md-prose .editor-input:not(.markdown-view) > .editor-paragraph:has(+ .editor-paragraph > :not(br)) {
+    margin-bottom: 0;
+}
