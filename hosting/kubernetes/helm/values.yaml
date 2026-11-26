@@ -465,6 +465,11 @@ redisDurable:
 # services:
 #   gunicorn:
 #     keepAlive: 620           # same meaning and default as api.gunicorn.keepAlive
+# alembic:
+#   activeDeadlineSeconds: 3600  # seconds the migration Job may run before Kubernetes
+#                                # stops it and the upgrade fails. A data migration on a
+#                                # database with tens of thousands of organizations can
+#                                # take ten minutes or more.
 
 # ================================================================== #
 # networkPolicy — lock the bundled data stores down to this release.

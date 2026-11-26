@@ -292,6 +292,8 @@ async def send_install_ping() -> None:
                 uuid=uuid5(instance_id, INSTANCE_INSTALLED_EVENT),
                 timeout=INSTALL_PING_TIMEOUT_SECONDS,
             )
+        # After the row is marked as sent, so the log names the event only when it left.
+        log.info(f"Install ping sent ({INSTANCE_INSTALLED_EVENT})")
     except Exception as exc:  # noqa: BLE001
         log.warning(
             "Install ping not sent; the next start tries again",
@@ -365,6 +367,8 @@ async def log_telemetry_status() -> None:
         )
     else:
         log.info(
-            "Telemetry is off (AGENTA_TELEMETRY_ENABLED=false). The install ping "
-            f"still runs once. What is sent: {TELEMETRY_DOCS_URL}"
+            "Telemetry is off (AGENTA_TELEMETRY_ENABLED=false). No startup event, "
+            "heartbeat or product usage is sent. Only a new install sends one install "
+            "ping, with its instance id and kind; an upgraded install sends none. "
+            f"What is sent: {TELEMETRY_DOCS_URL}"
         )

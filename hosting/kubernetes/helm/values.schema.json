@@ -1166,7 +1166,10 @@
           "description": "Helm hook phase for the migration Job. 'post' (default) renders post-install,post-upgrade and is required with the bundled PostgreSQL, which does not exist yet at pre-install time. 'pre' renders pre-install,pre-upgrade so the migrations finish before the app pods start; use it with an external database."
         },
         "activeDeadlineSeconds": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": 1,
+          "default": 3600,
+          "description": "Seconds the migration Job may run before Kubernetes stops it and the install or upgrade fails. Default 3600. Raise it for a database with very many organizations."
         },
         "backoffLimit": {
           "type": "integer"

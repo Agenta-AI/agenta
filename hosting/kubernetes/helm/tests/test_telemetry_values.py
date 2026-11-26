@@ -86,6 +86,27 @@ def main() -> int:
     assert env["AGENTA_TELEMETRY_ENABLED"] == "false", env
     assert env["AGENTA_TELEMETRY_INSTANCE_KIND"] == "test", env
 
+    # --- Every backend pod that holds the PostHog key also gets the switch. ---
+    # The web pods hold the key too, but the browser sends nothing until the api's
+    # /instance/telemetry answer says telemetry is on, so they do not need the switch.
+    result = helm_template(["--set", "telemetry.enabled=false"])
+    assert result.returncode == 0, result.stderr
+    seen = set()
+    for doc in yaml.safe_load_all(result.stdout):
+        if not doc or doc.get("kind") not in ("Deployment", "Job"):
+            continue
+        component = doc["metadata"]["labels"].get("app.kubernetes.io/component")
+        for container in doc["spec"]["template"]["spec"]["containers"]:
+            values = {e["name"]: e.get("value") for e in container.get("env", [])}
+            if "POSTHOG_API_KEY" not in values or component in ("web", "web-mobile"):
+                continue
+            assert values.get("AGENTA_TELEMETRY_ENABLED") == "false", (
+                component,
+                container["name"],
+            )
+            seen.add(component)
+    assert {"api", "cron", "worker-streams", "worker-queues", "services"} <= seen, seen
+
     # --- The schema rejects a kind the api does not know. ---
     result = helm_template(["--set", "telemetry.instanceKind=staging"])
     assert result.returncode != 0, "an unknown telemetry.instanceKind must fail"
