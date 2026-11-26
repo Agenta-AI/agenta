@@ -9,7 +9,7 @@
 import type {MCPAuthMode} from "@agenta/entities/mcpEndpoint"
 import {useT, type CatalogKey} from "@agenta/i18n"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
-import {Segmented} from "@agenta/ui/ui"
+import {ChoiceSwitch, Field} from "@agenta/ui/ui"
 
 type McpConnectKey = CatalogKey<typeof mcpConnectCatalog>
 
@@ -53,32 +53,23 @@ export const AuthModeSelector = ({
         oauthSelectable ? null : OAUTH_UNAVAILABLE,
     ].filter((key): key is McpConnectKey => Boolean(key))
 
+    // The Owner field's ChoiceSwitch, so the two choices on this form are drawn the same way.
     return (
         <div className="flex flex-col gap-1.5" data-testid="mcp-auth-mode">
-            <span className="text-field-md text-foreground">
-                {t("entityUi.mcpConnect.authentication")}
-            </span>
-            <Segmented
-                block
-                aria-label={t("entityUi.mcpConnect.authentication")}
-                value={value}
-                disabled={disabled}
-                onChange={(next) => onChange(next as MCPAuthMode)}
-                options={ORDER.map((mode) => ({
-                    value: mode,
-                    disabled: mode === "oauth" && !oauthSelectable,
-                    label: (
-                        <span className="flex items-center gap-1.5">
-                            {t(MCP_AUTH_MODE_LABEL[mode])}
-                            {mode === detected ? (
-                                <span className="text-meta text-muted-foreground">
-                                    {t("entityUi.mcpConnect.detected")}
-                                </span>
-                            ) : null}
-                        </span>
-                    ),
-                }))}
-            />
+            <Field label={t("entityUi.mcpConnect.authentication")}>
+                <ChoiceSwitch<MCPAuthMode>
+                    aria-label={t("entityUi.mcpConnect.authentication")}
+                    value={value}
+                    disabled={disabled}
+                    onChange={onChange}
+                    choices={ORDER.map((mode) => ({
+                        value: mode,
+                        label: t(MCP_AUTH_MODE_LABEL[mode]),
+                        tag: mode === detected ? t("entityUi.mcpConnect.detected") : undefined,
+                        disabled: mode === "oauth" && !oauthSelectable,
+                    }))}
+                />
+            </Field>
             {hints.length ? (
                 <p className="m-0 text-meta text-muted-foreground">
                     {hints.map((key) => t(key)).join(" ")}

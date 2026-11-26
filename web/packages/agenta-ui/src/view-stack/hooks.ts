@@ -31,6 +31,7 @@ export const useViewForm = (form: ViewForm): void => {
         leaveCanSave,
         saveWhenClean,
         backTitle,
+        invalidReason,
     } = form
     const hasCancel = Boolean(form.cancel)
     const hasBack = Boolean(form.back)
@@ -45,6 +46,7 @@ export const useViewForm = (form: ViewForm): void => {
             leaveTitle,
             leaveCanSave,
             saveWhenClean,
+            invalidReason,
             cancel: hasCancel ? () => cancelRef.current?.() : undefined,
             back: hasBack ? () => backRef.current?.() : undefined,
             backTitle,
@@ -62,6 +64,7 @@ export const useViewForm = (form: ViewForm): void => {
         leaveCanSave,
         saveWhenClean,
         backTitle,
+        invalidReason,
         hasCancel,
         hasBack,
     ])

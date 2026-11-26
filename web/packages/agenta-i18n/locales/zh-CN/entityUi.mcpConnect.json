@@ -71,5 +71,6 @@
     "serverResponse": "服务器响应",
     "tryAnotherNameOrHost": "试试其他名称或主机。",
     "serversUnavailable": "无法加载项目的服务器",
-    "serversUnavailableDetail": "服务器没有响应，因此列表为空。代理已有的服务器仍可使用。"
+    "serversUnavailableDetail": "服务器没有响应，因此列表为空。代理已有的服务器仍可使用。",
+    "oauthApp": "OAuth 应用"
 }

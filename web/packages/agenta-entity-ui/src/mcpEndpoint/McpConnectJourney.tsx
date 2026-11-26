@@ -75,6 +75,7 @@ import {
     SelectSeparator,
     SelectTrigger,
     SelectValue,
+    SimpleTooltip,
     Spinner,
 } from "@agenta/ui/ui"
 import {ArrowSquareOut, Plus, WarningCircle} from "@phosphor-icons/react"
@@ -330,6 +331,18 @@ export interface McpConnectSheetProps extends Omit<
 export function McpConnectSheet({open, container = null, ...input}: McpConnectSheetProps) {
     const t = useT(mcpJourneyCatalog)
     const screens = useMcpConnectScreens(input)
+    const confirmButton = (
+        <LoadingButton
+            loading={screens.busy}
+            disabled={!screens.canConfirm}
+            onClick={screens.confirm}
+        >
+            {screens.confirmLabel}
+            {screens.confirmOpensWindow ? (
+                <ArrowSquareOut size={14} data-icon="inline-end" />
+            ) : null}
+        </LoadingButton>
+    )
     return (
         // Contained runs non-modal: the host drawer already traps focus.
         <Dialog
@@ -366,16 +379,16 @@ export function McpConnectSheet({open, container = null, ...input}: McpConnectSh
                         >
                             {t("entityUi.mcpJourney.cancel")}
                         </Button>
-                        <LoadingButton
-                            loading={screens.busy}
-                            disabled={!screens.canConfirm}
-                            onClick={screens.confirm}
-                        >
-                            {screens.confirmLabel}
-                            {screens.confirmOpensWindow ? (
-                                <ArrowSquareOut size={14} data-icon="inline-end" />
-                            ) : null}
-                        </LoadingButton>
+                        {/* A disabled button takes no pointer, so the tooltip sits on a wrapper. */}
+                        {screens.confirmBlockedReason ? (
+                            <SimpleTooltip title={screens.confirmBlockedReason}>
+                                <span className="inline-flex" tabIndex={0}>
+                                    {confirmButton}
+                                </span>
+                            </SimpleTooltip>
+                        ) : (
+                            confirmButton
+                        )}
                     </DialogFooter>
                 )}
             </DialogContent>
@@ -396,6 +409,8 @@ export interface McpConnectScreens {
     /** The screen's action ("Connect", "Try again"), opened inside the press. */
     confirm: () => void
     canConfirm: boolean
+    /** What is missing while the action is disabled, for its tooltip; null when nothing is. */
+    confirmBlockedReason: string | null
     confirmLabel: string
     /** The action opens the provider's window. */
     confirmOpensWindow: boolean
@@ -416,10 +431,7 @@ export interface McpConnectScreensInput {
     reconnect?: McpConnectJourneyProps["reconnect"]
     /** The "Who can use it" field, which the OAuth screen shows under the name. */
     ownerField?: ReactNode
-    /**
-     * Draw the fields at the canvas scale (12 px labels, 34 px fields, radius 6) from the
-     * desktop width up: the panel's connect step. The dialog keeps the app scale.
-     */
+    /** Draw the fields at the canvas scale (fields at control height, radius 6, 12 px gaps). */
     canvas?: boolean
 }
 
@@ -835,6 +847,25 @@ export function useMcpConnectScreens({
             credentialBindingComplete(binding) && urlMatchesCredentialBinding(state.url, binding),
         busy,
     })
+    const confirmBlockedReason = ((): string | null => {
+        if (confirmReady || busy || screen === "waiting") return null
+        if (screen === "url" || screen === "url_failed") {
+            if (!state.url.trim()) return t("entityUi.mcpJourney.missingUrl")
+            return isProbeableUrl(state.url) ? null : t("entityUi.mcpJourney.invalidUrl")
+        }
+        if (!state.name.trim()) return t("entityUi.mcpJourney.missingName")
+        if (nameProblem) return t("entityUi.mcpJourney.nameTaken")
+        if (screen === "api_key") {
+            if (!credentialBindingComplete(binding)) return t("entityUi.mcpJourney.missingKeyName")
+            if (!urlMatchesCredentialBinding(state.url, binding)) return urlProblem
+            return secretChosen ? null : t("entityUi.mcpJourney.missingProjectSecret")
+        }
+        if (screen === "oauth" && state.savedOauthConfig !== "loading" && !oauthConfigReady(state))
+            return state.oauthClientId.trim()
+                ? t("entityUi.mcpJourney.missingClientSecret")
+                : t("entityUi.mcpJourney.missingClient")
+        return hasUrlSecretPlaceholder(state.url) ? urlProblem : null
+    })()
     // The key screen draws its own address field where the key goes into the address.
     const keyScreenUrl =
         screen === "api_key" && (binding.kind === "url" || hasUrlSecretPlaceholder(state.url))
@@ -845,11 +876,9 @@ export function useMcpConnectScreens({
     const body = (
         <div
             className={cn(
-                "flex flex-col gap-4",
-                // The canvas labels at every width, as in ConnectOwnerField: 12/16, weight 500,
-                // secondary text. 12 px between fields on the desktop.
-                canvas &&
-                    "md:gap-3 [&_[data-slot=field-label]]:text-meta [&_[data-slot=field-label]]:text-muted-foreground",
+                // One gap at every width (SIZE-02): 12 px on the canvas, 16 px in the dialog.
+                "flex flex-col",
+                canvas ? "gap-3" : "gap-4",
             )}
             data-testid="mcp-connect-journey"
         >
@@ -928,13 +957,6 @@ export function useMcpConnectScreens({
                             }
                         />
                     ) : null}
-                    <AuthModeSelector
-                        value={path}
-                        detected={detected}
-                        oauthSelectable={state.oauthOffered}
-                        disabled={busy || sealed}
-                        onChange={journey.selectAuthMode}
-                    />
                 </>
             ) : null}
 
@@ -968,6 +990,17 @@ export function useMcpConnectScreens({
             ) : null}
 
             {screen === "oauth" ? ownerField : null}
+
+            {/* The fields of the chosen mode follow it directly, and Advanced comes last. */}
+            {screen === "oauth" || screen === "api_key" || screen === "no_auth" ? (
+                <AuthModeSelector
+                    value={path}
+                    detected={detected}
+                    oauthSelectable={state.oauthOffered}
+                    disabled={busy || sealed}
+                    onChange={journey.selectAuthMode}
+                />
+            ) : null}
 
             {(screen === "oauth" || screen === "no_auth") && urlProblem ? (
                 <InlineError headline={null}>{urlProblem}</InlineError>
@@ -1005,7 +1038,19 @@ export function useMcpConnectScreens({
                     scopesSelected={state.scopesSelected}
                     onToggleScope={journey.toggleScope}
                     needsOwnApp={needsOwnApp}
-                    summary={t("entityUi.mcpJourney.advancedSummary")}
+                    summary={t(
+                        needsOwnApp
+                            ? "entityUi.mcpJourney.advancedSummaryScopes"
+                            : state.scopesOffered.length
+                              ? "entityUi.mcpJourney.advancedSummary"
+                              : "entityUi.mcpJourney.advancedSummaryClient",
+                    )}
+                    clientSecretAction={
+                        <NewSecretButton
+                            disabled={busy}
+                            onClick={() => openSecretDrawer(undefined, "oauth_client")}
+                        />
+                    }
                     // Until the saved settings arrive, what is typed would be
                     // replaced by them.
                     disabled={busy || state.savedOauthConfig === "loading"}
@@ -1051,6 +1096,12 @@ export function useMcpConnectScreens({
                         <Field
                             label={t("entityUi.mcpJourney.projectSecret")}
                             invalid={state.status === "verify_failed"}
+                            labelEnd={
+                                <NewSecretButton
+                                    disabled={busy || !credentialBindingComplete(binding)}
+                                    onClick={() => openSecretDrawer()}
+                                />
+                            }
                         >
                             <SecretSelect
                                 value={secretSlug}
@@ -1178,6 +1229,7 @@ export function useMcpConnectScreens({
         sealed,
         confirm,
         canConfirm: confirmReady,
+        confirmBlockedReason,
         confirmLabel: t(confirmLabel(screen, state)),
         confirmOpensWindow: screen === "oauth" && !isConsentRefusal(state.status),
         handleClose,
@@ -1302,6 +1354,17 @@ const WaitingCard = ({
         {children}
     </div>
 )
+
+/** Beside a secret field's label: creates a project secret in the create drawer. */
+const NewSecretButton = ({disabled, onClick}: {disabled?: boolean; onClick: () => void}) => {
+    const t = useT(mcpJourneyCatalog)
+    return (
+        <Button variant="link" size="xs" className="px-0" disabled={disabled} onClick={onClick}>
+            <Plus data-icon="inline-start" />
+            {t("entityUi.mcpJourney.newSecret")}
+        </Button>
+    )
+}
 
 /**
  * The project-secret picker.

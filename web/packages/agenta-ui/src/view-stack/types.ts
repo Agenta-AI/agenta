@@ -112,7 +112,9 @@ export interface ViewForm {
      */
     save: () => Promise<ViewSaveResult>
     /** Text of the unsaved-changes dialog for this view (it names what Save writes). */
-    leaveDescription: string
+    leaveDescription?: string
+    /** Why Save is disabled while the form is invalid ("Add a client ID"), as Save's tooltip. */
+    invalidReason?: string
     /** The Save button's label when the view names its action (for example "Connect"). */
     saveLabel?: string
     /** The Save button's label while the save runs (for example "Checking…"). */

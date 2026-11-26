@@ -18,6 +18,6 @@ export const integrationView = defineView<IntegrationViewParams>({
     apply: "immediate",
     Component: lazyView(
         () => import("./IntegrationViewBody"),
-        <ToolPermissionsViewSkeleton title="name" />,
+        <ToolPermissionsViewSkeleton />,
     ),
 })

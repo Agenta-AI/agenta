@@ -71,5 +71,6 @@
     "serverResponse": "サーバーの応答",
     "tryAnotherNameOrHost": "別の名前またはホストを試してください。",
     "serversUnavailable": "プロジェクトのサーバーを読み込めませんでした",
-    "serversUnavailableDetail": "サーバーが応答しなかったため、一覧は空です。エージェントに追加済みのサーバーは引き続き使えます。"
+    "serversUnavailableDetail": "サーバーが応答しなかったため、一覧は空です。エージェントに追加済みのサーバーは引き続き使えます。",
+    "oauthApp": "OAuth アプリ"
 }

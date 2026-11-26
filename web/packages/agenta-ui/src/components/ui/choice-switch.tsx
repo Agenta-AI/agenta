@@ -6,6 +6,8 @@ import {cn} from "./utils"
 export interface ChoiceSwitchOption<Value extends string> {
     value: Value
     label: string
+    /** A short muted word on the label's line, after it ("Detected"). */
+    tag?: string
     /** One short sentence under the label. */
     note?: string
     /** Shown but not choosable (for example, not on this plan); arrow keys skip it. */
@@ -146,6 +148,11 @@ export function ChoiceSwitch<Value extends string>({
                             )}
                         >
                             {choice.label}
+                            {choice.tag ? (
+                                <span className="ml-1.5 text-meta font-normal text-muted-foreground">
+                                    {choice.tag}
+                                </span>
+                            ) : null}
                         </span>
                         {choice.note ? (
                             <span

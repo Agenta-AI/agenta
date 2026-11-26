@@ -73,5 +73,6 @@
     "serverResponse": "Serverantwort",
     "tryAnotherNameOrHost": "Versuchen Sie einen anderen Namen oder Host.",
     "serversUnavailable": "Die Server des Projekts konnten nicht geladen werden",
-    "serversUnavailableDetail": "Der Server hat nicht geantwortet, daher ist die Liste leer. Server, die der Agent schon hat, funktionieren weiterhin."
+    "serversUnavailableDetail": "Der Server hat nicht geantwortet, daher ist die Liste leer. Server, die der Agent schon hat, funktionieren weiterhin.",
+    "oauthApp": "OAuth-App"
 }

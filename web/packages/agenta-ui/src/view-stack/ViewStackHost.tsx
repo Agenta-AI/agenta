@@ -51,7 +51,7 @@ interface Entry {
 
 interface PendingQuestion {
     title?: string
-    description: string
+    description?: string
     canSave: boolean
     offerSave: boolean
     saveFailed: boolean

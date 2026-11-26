@@ -75,5 +75,6 @@
     "serverResponse": "Réponse du serveur",
     "tryAnotherNameOrHost": "Essayez un autre nom ou hôte.",
     "serversUnavailable": "Impossible de charger les serveurs du projet",
-    "serversUnavailableDetail": "Le serveur n'a pas répondu, donc la liste est vide. Les serveurs déjà ajoutés à l'agent fonctionnent toujours."
+    "serversUnavailableDetail": "Le serveur n'a pas répondu, donc la liste est vide. Les serveurs déjà ajoutés à l'agent fonctionnent toujours.",
+    "oauthApp": "App OAuth"
 }

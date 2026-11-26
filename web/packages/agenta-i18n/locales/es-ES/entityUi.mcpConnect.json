@@ -75,5 +75,6 @@
     "serverResponse": "Respuesta del servidor",
     "tryAnotherNameOrHost": "Prueba con otro nombre o host.",
     "serversUnavailable": "No se pudieron cargar los servidores del proyecto",
-    "serversUnavailableDetail": "El servidor no respondió, así que la lista está vacía. Los servidores que ya tiene el agente siguen funcionando."
+    "serversUnavailableDetail": "El servidor no respondió, así que la lista está vacía. Los servidores que ya tiene el agente siguen funcionando.",
+    "oauthApp": "App OAuth"
 }

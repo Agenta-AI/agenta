@@ -10,7 +10,6 @@ import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import mcpJourneyCatalog from "@agenta/i18n/catalogs/entityUi.mcpJourney"
-import mcpViewsCatalog from "@agenta/i18n/catalogs/entityUi.mcpViews"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
@@ -30,7 +29,7 @@ const hasUserActivation = (): boolean => {
 }
 
 const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
-    const t = useT(mcpViewsCatalog, mcpJourneyCatalog, mcpConnectCatalog)
+    const t = useT(mcpJourneyCatalog, mcpConnectCatalog)
     const endpoints = useAtomValue(mcpEndpointsQueryAtom).data
     const existingNames = useMemo(
         () => (endpoints ?? []).map((endpoint) => endpoint.name),
@@ -74,18 +73,17 @@ const McpConnectViewBody = ({params, nav}: ViewProps<McpConnectViewParams>) => {
 
     const done = connected !== null || journey.state.status === "connected"
     useViewForm({
-        // Until the connection is made: what the person typed, or for a reconnect the repair
-        // itself. Save (the step's action) needs a dirty form to run.
-        dirty: !done && (reconnect !== null || journey.state.url.trim() !== ""),
-        valid: screens.canConfirm && screens.screen !== "waiting",
-        leaveDescription: t("entityUi.mcpViews.connectLeaveDescription"),
+        // Never dirty: leaving asks nothing and drops the pending connection (see below).
+        dirty: false,
+        saveWhenClean: true,
+        valid: !done && screens.canConfirm && screens.screen !== "waiting",
+        invalidReason: screens.confirmBlockedReason ?? undefined,
         saveLabel: screens.confirmLabel,
         // Each press runs the screen's action inside the press, so the provider's window can
         // open. The step stays on this view; the journey shows what happens next.
         save: async () => {
-            // A step that opens the provider's window needs the press itself: from the
-            // unsaved-changes dialog (after awaits) the browser would refuse the window and the
-            // journey would send the whole tab to the provider. The person stays on the step.
+            // A step that opens the provider's window needs the press itself, or the browser
+            // refuses the window and the journey sends the whole tab to the provider.
             if (screens.confirmOpensWindow && !hasUserActivation()) return "stay"
             screens.confirm()
             return "stay"

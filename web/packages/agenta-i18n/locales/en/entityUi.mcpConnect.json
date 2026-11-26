@@ -73,5 +73,6 @@
     "serverResponse": "Server response",
     "tryAnotherNameOrHost": "Try another name or host.",
     "serversUnavailable": "Couldn't load the project's servers",
-    "serversUnavailableDetail": "The server did not answer, so the list is empty. Servers already on the agent still work."
+    "serversUnavailableDetail": "The server did not answer, so the list is empty. Servers already on the agent still work.",
+    "oauthApp": "OAuth app"
 }
