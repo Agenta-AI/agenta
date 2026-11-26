@@ -76,6 +76,7 @@ import {
     SelectTrigger,
     SelectValue,
     SimpleTooltip,
+    SkeletonBlock,
     Spinner,
 } from "@agenta/ui/ui"
 import {ArrowSquareOut, Plus, WarningCircle} from "@phosphor-icons/react"
@@ -922,6 +923,10 @@ export function useMcpConnectScreens({
                 </HintedField>
             ) : null}
 
+            {state.status === "checking_url" ? (
+                <ProbeSkeleton owner={Boolean(ownerField)} inputClass={fieldClass} />
+            ) : null}
+
             {screen === "url_failed" ? (
                 <>
                     <InlineError id={URL_PROBLEM_ID} headline={failureHeadline}>
@@ -1452,5 +1457,56 @@ const SecretSelect = ({
                 </Button>
             </SelectContent>
         </Select>
+    )
+}
+
+/** A field's 18px label line over its control (the kit `Field`, gap 4px). */
+const SkeletonField = ({label, children}: {label: string; children: ReactNode}) => (
+    <div className="flex flex-col gap-1">
+        <div className="flex h-4.5 items-center">
+            <SkeletonBlock className={cn("h-3", label)} />
+        </div>
+        {children}
+    </div>
+)
+
+/**
+ * While the address is checked: the result card, Name, Owner and Authentication in their
+ * loaded places and heights (STATE-02). The mode's own fields depend on the answer, so stop there.
+ */
+function ProbeSkeleton({owner, inputClass}: {owner: boolean; inputClass?: string}) {
+    return (
+        <div aria-hidden className="contents">
+            <div className="flex h-10 items-center gap-2 rounded-lg bg-muted px-3">
+                <SkeletonBlock className="size-4 rounded-sm" />
+                <SkeletonBlock className="h-3 w-48" />
+                <SkeletonBlock className="ml-auto h-3 w-12" />
+            </div>
+            <SkeletonField label="w-10">
+                <SkeletonBlock className={cn("h-control rounded-md", inputClass)} />
+            </SkeletonField>
+            {owner ? (
+                <SkeletonField label="w-12">
+                    <div className="flex h-[74px] gap-0.5 rounded-lg bg-secondary p-0.5">
+                        {[0, 1].map((i) => (
+                            <div key={i} className="flex flex-1 flex-col gap-1.5 px-2.5 py-2">
+                                <SkeletonBlock className="mt-1 h-3 w-16" />
+                                <SkeletonBlock className="h-2.5 w-4/5" />
+                                <SkeletonBlock className="h-2.5 w-1/2" />
+                            </div>
+                        ))}
+                    </div>
+                </SkeletonField>
+            ) : null}
+            <SkeletonField label="w-24">
+                <div className="flex h-10 gap-0.5 rounded-lg bg-secondary p-0.5">
+                    {[0, 1, 2].map((i) => (
+                        <div key={i} className="flex flex-1 items-center px-2.5">
+                            <SkeletonBlock className="h-3 w-14" />
+                        </div>
+                    ))}
+                </div>
+            </SkeletonField>
+        </div>
     )
 }
