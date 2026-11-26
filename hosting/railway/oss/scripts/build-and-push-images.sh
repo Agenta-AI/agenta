@@ -28,12 +28,12 @@ RUNNER_IMAGE="${REGISTRY}/${NAMESPACE}/agenta-runner:${TAG}"
 
 printf "Building local images with tag '%s'\n" "$TAG"
 
-docker build -t "$API_IMAGE" -f "$ROOT_DIR/api/oss/docker/Dockerfile.gh" "$ROOT_DIR"
+docker build -t "$API_IMAGE" -f "$ROOT_DIR/api/docker/Dockerfile.gh" "$ROOT_DIR"
 docker build -t "$WEB_IMAGE" -f "$ROOT_DIR/web/oss/docker/Dockerfile.gh" "$ROOT_DIR/web"
 # The mobile app is a second Next app in the same workspace: same build
 # context as the web image, different Dockerfile.
 docker build -t "$WEB_MOBILE_IMAGE" -f "$ROOT_DIR/web/mobile/docker/Dockerfile.gh" "$ROOT_DIR/web"
-docker build -t "$SERVICES_IMAGE" -f "$ROOT_DIR/services/oss/docker/Dockerfile.gh" "$ROOT_DIR"
+docker build -t "$SERVICES_IMAGE" -f "$ROOT_DIR/services/docker/Dockerfile.gh" "$ROOT_DIR"
 RUNNER_DOCKERFILE="$ROOT_DIR/services/runner/docker/Dockerfile.gh"
 if [ ! -f "$RUNNER_DOCKERFILE" ]; then
     RUNNER_DOCKERFILE="$ROOT_DIR/services/runner/images/service/Dockerfile.gh"

@@ -10,8 +10,8 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
     UV_LINK_MODE=copy \
     PATH="/opt/venv/bin:${PATH}"
 
-RUN --mount=type=cache,id=apt-api-oss-dev-cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,id=apt-api-oss-dev-lists,target=/var/lib/apt/lists,sharing=locked \
+RUN --mount=type=cache,id=apt-api-dev-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=apt-api-dev-lists,target=/var/lib/apt/lists,sharing=locked \
     apt-get update && \
     apt-get install -y --no-install-recommends curl gnupg2 lsb-release ca-certificates && \
     echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
@@ -50,10 +50,10 @@ COPY ./clients/python /clients/python/
 RUN --mount=type=cache,id=uv-dev,target=/root/.cache/uv,sharing=locked \
     UV_HTTP_TIMEOUT=300 uv pip install --python /opt/venv/bin/python --no-deps --editable /clients/python --editable /sdks/python
 
-#
 RUN groupadd --gid 10001 agenta && \
     useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta
 
+COPY --chown=agenta:agenta ./api/ee /app/ee/
 COPY --chown=agenta:agenta ./api/oss /app/oss/
 COPY --chown=agenta:agenta ./api/entrypoints /app/entrypoints/
 
@@ -68,14 +68,18 @@ COPY ./api/oss/src/crons/gateways.sh /gateways.sh
 COPY ./api/oss/src/crons/gateways.txt /etc/cron.d/gateways-cron
 COPY ./api/oss/src/crons/telemetry.sh /telemetry.sh
 COPY ./api/oss/src/crons/telemetry.txt /etc/cron.d/telemetry-cron
+COPY ./api/ee/src/crons/meters.sh /meters.sh
+COPY ./api/ee/src/crons/meters.txt /etc/cron.d/meters-cron
+COPY ./api/ee/src/crons/spans.sh /spans.sh
+COPY ./api/ee/src/crons/spans.txt /etc/cron.d/spans-cron
+COPY ./api/ee/src/crons/events.sh /events.sh
+COPY ./api/ee/src/crons/events.txt /etc/cron.d/events-cron
 
-RUN chmod +x /queries.sh /triggers.sh /gateways.sh /telemetry.sh \
-    && chmod 0644 /etc/cron.d/queries-cron /etc/cron.d/triggers-cron /etc/cron.d/gateways-cron /etc/cron.d/telemetry-cron \
-    && sed -i -e '$a\' /etc/cron.d/queries-cron \
-    && sed -i -e '$a\' /etc/cron.d/triggers-cron \
-    && sed -i -e '$a\' /etc/cron.d/gateways-cron \
-    && sed -i -e '$a\' /etc/cron.d/telemetry-cron \
-    && sed -E 's/^(([^[:space:]]+[[:space:]]+){5})root[[:space:]]+/\1/' /etc/cron.d/queries-cron /etc/cron.d/triggers-cron /etc/cron.d/gateways-cron /etc/cron.d/telemetry-cron \
+RUN chmod +x /queries.sh /triggers.sh /gateways.sh /telemetry.sh /meters.sh /spans.sh /events.sh \
+    && chmod 0644 /etc/cron.d/queries-cron /etc/cron.d/triggers-cron /etc/cron.d/gateways-cron /etc/cron.d/telemetry-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron /etc/cron.d/events-cron \
+    && for f in /etc/cron.d/queries-cron /etc/cron.d/triggers-cron /etc/cron.d/gateways-cron /etc/cron.d/telemetry-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron /etc/cron.d/events-cron; do sed -i -e '$a\' "$f"; done \
+    && cat /etc/cron.d/queries-cron /etc/cron.d/triggers-cron /etc/cron.d/gateways-cron /etc/cron.d/telemetry-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron /etc/cron.d/events-cron \
+        | sed -E 's/^(([^[:space:]]+[[:space:]]+){5})root[[:space:]]+/\1/' \
         | sed 's| >> /proc/1/fd/1 2>&1||' > /app/crontab \
     && chown agenta:agenta /app/crontab
 
