@@ -11,10 +11,11 @@ import type {SubagentDetail, WorkflowReferenceBridge} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {AutosizeTextarea, Badge, Button, SkeletonBlock} from "@agenta/ui/ui"
-import {ArrowUp, CaretDown, Cube, FileText, Lock} from "@phosphor-icons/react"
+import {AutosizeTextarea, Button, IconTile, SkeletonBlock} from "@agenta/ui/ui"
+import {CaretDown, Cube, FileText, Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
+import {FieldHeading} from "./agentTemplate/accounts/FieldHeading"
 import {normalizeSubagentReference} from "./agentTemplate/subagentReference"
 import {modelLabel} from "./connectionUtils"
 import {useIntegrationLogos} from "./hooks/useIntegrationLogos"
@@ -24,6 +25,8 @@ export interface ReferenceToolFormViewProps {
     value: Record<string, unknown>
     onChange: (next: Record<string, unknown>) => void
     disabled?: boolean
+    /** The called agent's name, over the form beside its Mark. */
+    name?: string
     /** Shown in the title of the read-only Configuration, next to the data it opens ("Open agent"). */
     configurationAction?: ReactNode
 }
@@ -105,12 +108,18 @@ function Instructions({file}: {file: NonNullable<SubagentDetail["instructions"]>
                 type="button"
                 onClick={() => setOpen((v) => !v)}
                 aria-expanded={open}
-                className="flex w-fit cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-label text-info"
+                className="flex w-fit cursor-pointer items-center gap-1 rounded-sm border-0 bg-transparent p-0 text-label text-muted-foreground transition-colors duration-[var(--duration-fast)] hover:text-foreground focus-ring"
             >
                 {open
                     ? t("entityUi.toolForm.hideInstructions")
                     : t("entityUi.toolForm.showFullInstructions")}
-                {open ? <ArrowUp size={12} /> : <CaretDown size={12} />}
+                <CaretDown
+                    size={12}
+                    className={cn(
+                        "transition-transform duration-[var(--duration-fast)]",
+                        open && "rotate-180",
+                    )}
+                />
             </button>
         </div>
     )
@@ -140,6 +149,7 @@ function SubagentDetailPanel({
     value,
     onChange,
     disabled,
+    name,
     configurationAction,
     detail,
     loading,
@@ -163,13 +173,24 @@ function SubagentDetailPanel({
 
     return (
         <div className="flex flex-col gap-6 p-4">
+            {name ? (
+                <div className="flex items-center gap-3">
+                    <IconTile size={32}>
+                        <Robot />
+                    </IconTile>
+                    <span className="min-w-0 flex-1 truncate text-label font-semibold leading-5">
+                        {name}
+                    </span>
+                    {configurationAction}
+                </div>
+            ) : null}
             <div className="flex flex-col gap-2">
-                {/* Canvas F03 f2: the label 12/16/500 in the secondary color. */}
-                <span className="text-meta font-medium text-muted-foreground">
-                    {t("entityUi.toolForm.description")}
-                </span>
+                <FieldHeading
+                    label={t("entityUi.toolForm.description")}
+                    note={t("entityUi.toolForm.subagentDescriptionHint")}
+                />
                 <AutosizeTextarea
-                    autoSize={{minRows: 5}}
+                    autoSize={{minRows: 2}}
                     value={description}
                     disabled={disabled}
                     onChange={(e) =>
@@ -177,31 +198,17 @@ function SubagentDetailPanel({
                     }
                     aria-label={t("entityUi.toolForm.subagentDescription")}
                 />
-                <span className="text-meta text-muted-foreground">
-                    {t("entityUi.toolForm.subagentDescriptionHint")}
-                </span>
             </div>
 
             <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                    <span className="text-label font-medium leading-5">
-                        {t("entityUi.toolForm.configuration")}
-                    </span>
-                    {/* Canvas F03 f2: a bordered 12 px tag, radius 4, with a 12 px lock. */}
-                    <Badge
-                        variant="default"
-                        className="m-0 gap-1 rounded-sm bg-background px-1.5 text-meta font-normal text-muted-foreground"
-                    >
-                        <Lock size={12} />
-                        {t("entityUi.toolForm.readOnly")}
-                    </Badge>
-                    {configurationAction ? (
+                    <FieldHeading
+                        label={t("entityUi.toolForm.configuration")}
+                        note={t("entityUi.toolForm.managedOnAgent")}
+                    />
+                    {!name && configurationAction ? (
                         <span className="ml-auto">{configurationAction}</span>
-                    ) : (
-                        <span className="text-meta text-muted-foreground">
-                            {t("entityUi.toolForm.managedOnAgent")}
-                        </span>
-                    )}
+                    ) : null}
                 </div>
                 <div className="overflow-hidden rounded-lg border border-solid border-border-muted">
                     {failed && !detail ? (
@@ -233,7 +240,8 @@ function SubagentDetailPanel({
                                                 <Cube size={11} />
                                             )}
                                         </span>
-                                        {modelName ? (
+                                        {modelName &&
+                                        modelName.toLowerCase() !== detail.model.toLowerCase() ? (
                                             // The readable name, the id under it (canvas F03 f2).
                                             <span className="flex min-w-0 flex-col">
                                                 <span className="truncate text-label leading-5">
@@ -245,7 +253,7 @@ function SubagentDetailPanel({
                                             </span>
                                         ) : (
                                             <span className="truncate text-label leading-5 tabular-nums">
-                                                {detail.model}
+                                                {modelName ?? detail.model}
                                             </span>
                                         )}
                                     </span>

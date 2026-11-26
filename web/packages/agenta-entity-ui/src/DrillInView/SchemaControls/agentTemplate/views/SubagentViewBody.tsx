@@ -108,6 +108,7 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
                         setDraft(typeof next.description === "string" ? next.description : "")
                     }
                     disabled={writer.readOnly}
+                    name={name}
                     configurationAction={
                         workflowReference ? (
                             <SubagentOpenAgentButton bridge={workflowReference} slug={slug} />

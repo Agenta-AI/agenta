@@ -23,7 +23,6 @@
     "subagentDescription": "Description du sous-agent",
     "subagentDescriptionHint": "L’agent lit cette description pour décider quand appeler ce sous-agent. Modifiez-la pour changer le moment où il est utilisé.",
     "configuration": "Configuration",
-    "readOnly": "Lecture seule",
     "managedOnAgent": "Géré sur l’agent lui-même",
     "model": "Modèle",
     "noModel": "Aucun modèle",
