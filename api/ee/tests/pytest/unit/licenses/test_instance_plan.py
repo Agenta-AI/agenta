@@ -1,5 +1,6 @@
 """The plan order without Stripe: a valid license key, else `self_hosted_community`."""
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -218,6 +219,30 @@ async def test_activate_clears_the_cached_state(self_hosted, signing_key, shared
         created_at=datetime.now(timezone.utc),
         created_by_id=uuid4(),
     )
+
+    assert await service.instance_plan() == ENTERPRISE
+
+
+@pytest.mark.asyncio
+async def test_a_read_that_started_before_activate_keeps_the_new_key(
+    self_hosted, signing_key, shared_cache
+):
+    service = _service()
+    row_read = asyncio.Event()
+    activated = asyncio.Event()
+
+    async def read_before_activate():
+        row_read.set()
+        await activated.wait()
+        return None
+
+    service.licenses_dao.read.side_effect = read_before_activate
+    reader = asyncio.create_task(service.read_state())
+    await row_read.wait()
+
+    await service.activate(key=sign_key(signing_key, plan=ENTERPRISE), user_id=uuid4())
+    activated.set()
+    await reader
 
     assert await service.instance_plan() == ENTERPRISE
 
