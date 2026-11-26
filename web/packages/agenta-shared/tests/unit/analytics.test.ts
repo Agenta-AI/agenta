@@ -77,6 +77,18 @@ describe("shared desktop and mobile analytics", () => {
         expect(sent?.properties.heard_from_other).toBe("via [link] ok")
     })
 
+    it("removes internal email addresses and links without a scheme", () => {
+        const sent = stripInstanceUrl({
+            properties: {
+                company_other: "ask admin@intranet",
+                heard_from_other: "see example.com/invite?token=SECRET or docs.agenta.ai",
+            },
+        })
+        expect(JSON.stringify(sent)).not.toContain("SECRET")
+        expect(sent?.properties.company_other).toBe("ask [email]")
+        expect(sent?.properties.heard_from_other).toBe("see [link] or docs.agenta.ai")
+    })
+
     it("answers cloud only when telemetry is on and names no instance group", () => {
         expect(
             isCloudTelemetry(

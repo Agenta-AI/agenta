@@ -16,13 +16,18 @@ const isInstanceUrlProperty = (key: string) =>
     INSTANCE_URL_PREFIXES.some((prefix) => key.startsWith(prefix))
 
 // Typed text, such as a survey answer, can hold an email address or a link with a
-// token in it.
-const EMAIL_ADDRESS = /[^\s@]+@[^\s@]+\.[^\s@]+/g
+// token in it. An internal address can have a domain with no dot, and a link can have
+// no scheme, such as `example.com/invite?token=...`.
+const EMAIL_ADDRESS = /[^\s@]+@[^\s@]+/g
 const LINK = /\b[a-z][a-z0-9+.-]*:\/\/\S+/gi
+const LINK_WITHOUT_SCHEME = /\b(?:[a-z0-9-]+\.)+[a-z]{2,}[/?#]\S*/gi
 
 const withoutEmails = (value: unknown): unknown => {
     if (typeof value === "string") {
-        return value.replace(LINK, "[link]").replace(EMAIL_ADDRESS, "[email]")
+        return value
+            .replace(LINK, "[link]")
+            .replace(EMAIL_ADDRESS, "[email]")
+            .replace(LINK_WITHOUT_SCHEME, "[link]")
     }
     if (Array.isArray(value)) return value.map(withoutEmails)
     if (value && typeof value === "object") {
