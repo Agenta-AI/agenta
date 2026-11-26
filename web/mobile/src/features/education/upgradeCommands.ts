@@ -34,14 +34,17 @@ export const upgradeCommands = (
         case "railway":
             return [
                 `# ${cloneComment}`,
-                'export RAILWAY_PROJECT_NAME="agenta-oss"',
-                'export RAILWAY_ENVIRONMENT_NAME="production"',
                 `export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:${latest}"`,
                 `export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:${latest}"`,
                 `export AGENTA_WEB_MOBILE_IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:${latest}"`,
                 `export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:${latest}"`,
                 `export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-runner:${latest}"`,
-                "./hosting/railway/oss/scripts/deploy-from-images.sh",
+                // The script takes its target and keys from the shell. It runs only when they
+                // are set, so a fresh shell neither upgrades a guessed project nor writes
+                // placeholder keys over the saved ones.
+                ': "${RAILWAY_PROJECT_NAME:?}" "${RAILWAY_ENVIRONMENT_NAME:?}" \\',
+                '  "${AGENTA_AUTH_KEY:?}" "${AGENTA_CRYPT_KEY:?}" "${AGENTA_SERVICES_INTERNAL_KEY:?}" &&',
+                "  ./hosting/railway/oss/scripts/deploy-from-images.sh",
             ].join("\n")
     }
 }

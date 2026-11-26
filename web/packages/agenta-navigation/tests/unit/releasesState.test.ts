@@ -3,6 +3,7 @@ import {beforeEach, describe, expect, it, vi} from "vitest"
 
 const billing = vi.hoisted(() => ({enabled: false}))
 const method = vi.hoisted(() => ({value: "compose" as unknown}))
+const feed = vi.hoisted(() => ({empty: false}))
 
 vi.mock("@agenta/shared/api", () => ({
     axios: {get: vi.fn()},
@@ -18,7 +19,10 @@ vi.mock("jotai-tanstack-query", () => ({
                 get deployment_method() {
                     return method.value
                 },
-                releases: [
+                get releases() {
+                    return feed.empty ? [] : this.newer
+                },
+                newer: [
                     {
                         id: "v999.0.0",
                         date: "2030-01-01",
@@ -47,6 +51,7 @@ describe("upgrade signals", () => {
     beforeEach(() => {
         billing.enabled = false
         method.value = "compose"
+        feed.empty = false
     })
 
     it("lists the newer release and its security fix on a self-hosted instance", () => {
@@ -67,6 +72,14 @@ describe("upgrade signals", () => {
     ])("reads the deployment method %s as %s", (value, expected) => {
         method.value = value
         expect(createStore().get(upgradeMethodAtom)).toBe(expected)
+    })
+
+    it("shows no upgrade and no security warning without the feed", () => {
+        feed.empty = true
+        const store = createStore()
+        expect(store.get(notInstalledReleasesAtom)).toEqual([])
+        expect(store.get(securityReleaseAtom)).toBeNull()
+        expect(store.get(updateSizeAtom)).toBeNull()
     })
 
     it("shows the release notes on cloud, but no upgrade and no security warning", () => {

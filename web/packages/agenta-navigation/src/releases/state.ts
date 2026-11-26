@@ -62,10 +62,13 @@ export const runningVersionAtom = atom<string | null>((get) => {
 })
 
 // Cloud (billing on) is upgraded by Agenta, so its readers see newer release notes but never
-// an upgrade to make.
-const upgradableVersionAtom = atom<string | null>((get) =>
-    isBillingEnabled() ? null : get(runningVersionAtom),
-)
+// an upgrade to make. Without the feed (update check off or feed unreachable) there is no
+// upgrade signal either: the bundled notes of a web image newer than the API would show one.
+const upgradableVersionAtom = atom<string | null>((get) => {
+    if (isBillingEnabled()) return null
+    const feedReleases = get(instanceReleasesQueryAtom).data?.releases
+    return Array.isArray(feedReleases) && feedReleases.length > 0 ? get(runningVersionAtom) : null
+})
 
 /** Releases newer than the running version, which the reader can install. Empty on cloud. */
 export const notInstalledReleasesAtom = atom<Release[]>((get) =>

@@ -35,7 +35,8 @@ export const useReleaseNotices = (): {notices: Notice[]; dismiss: (id: string) =
 
     const dismiss = useCallback((id: string) => {
         dismissReleaseNotice(id)
-        setDismissed(getDismissedReleaseNoticeIds())
+        // Kept in state too, so the notice closes when the browser refuses to store it.
+        setDismissed((previous) => [...new Set([...(previous ?? []), id])])
     }, [])
 
     return {notices: visible, dismiss}

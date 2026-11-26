@@ -281,7 +281,10 @@ describe("upgrade notices", () => {
                 [
                     'AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:v0.131.0"',
                     'AGENTA_WEB_MOBILE_IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:v0.131.0"',
-                    "deploy-from-images.sh",
+                    // Runs only with the operator's own target and saved keys in the shell.
+                    '"${RAILWAY_ENVIRONMENT_NAME:?}"',
+                    '"${AGENTA_AUTH_KEY:?}"',
+                    "&&\n  ./hosting/railway/oss/scripts/deploy-from-images.sh",
                 ],
             ],
         ] as const)("shows the %s commands to an admin", (method, lines) => {
@@ -289,6 +292,7 @@ describe("upgrade notices", () => {
             render(<UpgradeBox />)
 
             const code = host.querySelector("pre")?.textContent ?? ""
+            expect(code).not.toContain("export RAILWAY_")
             expect(code.startsWith("# In the folder where you cloned Agenta")).toBe(true)
             for (const line of lines) expect(code).toContain(line)
             expect(text()).toContain("Commands for your setup")

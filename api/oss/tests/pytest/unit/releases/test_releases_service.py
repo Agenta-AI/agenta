@@ -93,7 +93,7 @@ async def test_returns_the_feed_and_the_running_version(cache, requests):
     assert result.notices == FEED["notices"]
     assert cache.writes[0]["ttl"] == FEED_TTL_SECONDS
     assert cache.writes[0]["namespace"] == "releases:feed"
-    assert cache.writes[0]["key"] == "feed"
+    assert cache.writes[0]["key"] == "https://agenta.ai/releases.json"
 
 
 async def test_request_carries_only_the_version_and_the_kind(cache, requests):
@@ -138,6 +138,23 @@ async def test_download_uses_the_configured_feed_url(cache, requests, monkeypatc
         f"{preview}?version=v0.128.11&kind=production"
     ]
     assert result.releases == FEED["releases"]
+
+
+async def test_shared_cache_is_keyed_on_the_feed_url(cache, requests, monkeypatch):
+    preview = "https://preview.example.com/releases.json"
+    monkeypatch.setattr(env.releases, "feed_url", preview)
+    keys = []
+
+    async def get(**kwargs):
+        keys.append(kwargs["key"])
+        return None
+
+    monkeypatch.setattr(releases_service, "get_cache", get)
+
+    await ReleasesService().fetch_instance_releases()
+
+    assert keys == [preview]
+    assert [write["key"] for write in cache.writes] == [preview]
 
 
 @pytest.mark.parametrize("kind", ["test", "ci", "development"])

@@ -137,6 +137,8 @@ export const buildReleaseNavItems = (
         ...notices.map((notice) => ({
             key: `notice:${notice.id}`,
             title: notice.title,
+            // The help menu flyout draws the subtitle but not the tooltip.
+            subtitle: notice.body,
             tooltip: notice.body,
             ...(onOpenNotice ? {onClick: () => onOpenNotice(notice)} : {link: notice.link}),
             icon:

@@ -14,7 +14,6 @@ from oss.src.utils.version import get_agenta_version
 log = get_module_logger(__name__)
 
 CACHE_NAMESPACE = "releases:feed"
-CACHE_KEY = "feed"
 FEED_TTL_SECONDS = 12 * 60 * 60
 FAILED_FEED_TTL_SECONDS = 60 * 60
 FETCH_TIMEOUT_SECONDS = 5.0
@@ -124,9 +123,11 @@ class ReleasesService:
             if kept is not None:
                 return kept
 
+            # Keyed on the URL, so a new AGENTA_RELEASE_FEED_URL does not read the old feed.
+            cache_key = env.releases.feed_url
             cached = await get_cache(
                 namespace=CACHE_NAMESPACE,
-                key=CACHE_KEY,
+                key=cache_key,
                 model=ReleaseFeed,
                 retry=False,
             )
@@ -143,7 +144,7 @@ class ReleasesService:
             # A failed fetch is kept as empty too, so the next try is an hour later.
             await set_cache(
                 namespace=CACHE_NAMESPACE,
-                key=CACHE_KEY,
+                key=cache_key,
                 value=feed,
                 ttl=ttl_seconds,
             )
