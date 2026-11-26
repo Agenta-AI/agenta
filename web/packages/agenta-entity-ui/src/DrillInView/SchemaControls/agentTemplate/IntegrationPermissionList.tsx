@@ -39,8 +39,6 @@ import {
     partitionToolsByAccess,
     presetPermissions,
     readIntegrationPreset,
-    rollupGroupPermission,
-    rollupLabel,
     shownToolPermission,
     withStaleTools,
     type CatalogToolInfo,
@@ -333,9 +331,9 @@ const ToolRow = memo(function ToolRow({
                         // A fill, not a border: a long list reads as rows, not a column of fields.
                         variant="filled"
                         aria-label={t("entityUi.permissionDrawer.permissionFor", {tool: tool.key})}
-                        // On a phone a full-width field on its own line (M09).
+                        // One width for every value, so the column lines up; full width on a phone (M09).
                         triggerClassName={`${
-                            phone ? "w-full gap-2" : "w-auto min-w-28 shrink-0 gap-2"
+                            phone ? "w-full gap-2" : "w-32 shrink-0 gap-2"
                         } ${
                             permission === "deny" && !plainDeny
                                 ? "bg-destructive/10 text-destructive"
@@ -399,7 +397,6 @@ function ToolGroup({
     const open = expanded[storageKey] ?? true
     const setOpen = () =>
         setExpanded((prev) => ({...prev, [storageKey]: !(prev[storageKey] ?? true)}))
-    const rollup = useMemo(() => rollupGroupPermission(tools, permissions), [tools, permissions])
     const matching = useMemo(
         () => (search ? tools.filter((tool) => toolMatchesSearch(tool, search)) : tools),
         [tools, search],
@@ -410,19 +407,18 @@ function ToolGroup({
 
     return (
         <div className="flex flex-col gap-1">
-            {/* A quiet heading, not a band: spacing, not a box, sets the groups apart. */}
+            {/* The group heading, as the section rows read: the label, a muted count and the fold
+                caret at the end. The hover fill marks it as a toggle. */}
             <button
                 type="button"
                 onClick={setOpen}
                 aria-expanded={open}
-                className="flex h-row-dense cursor-pointer items-center gap-1.5 rounded-sm border-0 bg-transparent p-0 text-left text-meta text-muted-foreground transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)] font-[inherit] hover:text-foreground focus-ring"
+                className="-mx-2 flex h-row-single cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left font-[inherit] transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)] hover:bg-accent focus-ring"
             >
+                <span className="text-label font-semibold leading-5 text-foreground">{label}</span>
+                <span className="flex-1 text-label text-muted-foreground">{tools.length}</span>
+                {/* The fold caret at the row's end, as the section rows draw it. */}
                 <CollapseCaret open={open} />
-                {/* Sentence case: "Read-only · 22" is how every other count reads in the app. */}
-                <span className="flex-1 font-medium">
-                    {label} · {tools.length}
-                </span>
-                <span className="shrink-0">{rollupLabel(rollup)}</span>
             </button>
             <HeightCollapse open={open}>
                 <div className="flex flex-col gap-2">
