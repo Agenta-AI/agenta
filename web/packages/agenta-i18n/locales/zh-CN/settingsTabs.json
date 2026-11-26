@@ -10,6 +10,7 @@
     "creditsDescription": "你的组织还剩多少额度、用在了哪里，以及如何充值。",
     "integrationsDescription": "连接你的 Agent 可以使用的集成。",
     "integrationsDocs": "了解集成",
+    "licenseDescription": "此实例的许可证和套餐，适用于实例上的所有组织。",
     "llmsDescription": "连接你的 Agent、提示词和评测所使用的 AI 供应商。",
     "llmsDocs": "了解 AI 供应商",
     "mcpEndpointsDescription": "连接到此项目的 MCP 服务器。每个 Agent 可以选择使用哪些服务器，以及可以运行什么。",

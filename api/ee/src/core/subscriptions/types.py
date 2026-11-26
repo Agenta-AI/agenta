@@ -8,6 +8,7 @@ from oss.src.utils.env import env
 from pydantic import BaseModel
 
 from ee.src.core.access.entitlements.types import DefaultPlan
+from ee.src.core.licenses.cloud import is_cloud
 
 
 class Event(str, Enum):
@@ -33,14 +34,14 @@ def get_default_plan() -> str:
     Reads from `AGENTA_ACCESS_DEFAULT_PLAN` (canonical) or the legacy
     `AGENTA_DEFAULT_PLAN` env var (both surfaced via
     `env.agenta.access.default_plan`). If neither is set, defaults to:
-    - self_hosted_enterprise when Stripe is disabled
-    - cloud_v0_hobby when Stripe is enabled
+    - self_hosted_enterprise outside cloud
+    - cloud_v0_hobby on cloud (`is_cloud()`)
     """
     raw = env.agenta.access.default_plan
     if raw:
         return raw
 
-    if env.stripe.enabled:
+    if is_cloud():
         return DefaultPlan.CLOUD_V0_HOBBY.value
 
     return DefaultPlan.SELF_HOSTED_ENTERPRISE.value

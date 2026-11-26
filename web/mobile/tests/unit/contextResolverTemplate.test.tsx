@@ -27,7 +27,13 @@ vi.mock("@/components/ScreenScaffold", () => ({ScreenScaffold: () => null}))
 
 import {ContextResolver} from "@/features/context/ContextResolver"
 import {forgetInvite, rememberInvite} from "@/features/invite/pendingInvite"
-import {LAST_CONTEXT_KEY, peekTemplateKey, rememberTemplateKey} from "@/lib/context"
+import {
+    LAST_CONTEXT_KEY,
+    forgetLicenseKey,
+    peekTemplateKey,
+    rememberLicenseKey,
+    rememberTemplateKey,
+} from "@/lib/context"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -95,6 +101,22 @@ describe("the /m root after a sign-up that carried a template", () => {
         await render()
 
         expect(replace).toHaveBeenLastCalledWith("/w/ws1/p/p1/apps")
+    })
+})
+
+describe("the /m root after a sign-in that interrupted a license activation link", () => {
+    afterEach(() => forgetLicenseKey())
+
+    it("goes back to the License page", async () => {
+        rememberLicenseKey("agenta_license_v1.abc.def")
+        queryState.data = {
+            kind: "ok",
+            projects: [{project_id: "p1", project_name: "Default", workspace_id: "ws1"}],
+        }
+
+        await render()
+
+        expect(replace).toHaveBeenLastCalledWith("/w/ws1/p/p1/settings?tab=license")
     })
 })
 

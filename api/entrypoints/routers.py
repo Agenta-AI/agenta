@@ -175,6 +175,7 @@ from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
 
 from oss.src.core.accounts.service import PlatformAdminAccountsService
 from oss.src.apis.fastapi.accounts.router import PlatformAdminAccountsRouter
+from oss.src.apis.fastapi.licenses.router import LicensesRouter
 from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
 from oss.src.core.gateway.connections.providers.composio import (
     ComposioConnectionsAdapter,
@@ -398,6 +399,10 @@ async def lifespan(*args, **kwargs):
     warn_deprecated_env_vars()
     validate_required_env_vars()
     validate_platform_runtime_key()
+    if is_ee():
+        from ee.src.core.licenses.cloud import validate_cloud_license  # noqa: PLC0415
+
+        validate_cloud_license()
 
     await log_telemetry_status()
     schedule_install_ping()
@@ -2406,6 +2411,14 @@ app.include_router(
     router=platform_admin_accounts.router,
     prefix="/admin",
     tags=["Admin"],
+)
+
+licenses = LicensesRouter()
+
+app.include_router(
+    router=licenses.router,
+    prefix="/instance",
+    tags=["Instance"],
 )
 
 app.include_router(
