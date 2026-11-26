@@ -39,6 +39,10 @@ def wired(monkeypatch, self_hosted, signing_key):
         "is_registration_offer_dismissed",
         AsyncMock(return_value=False),
     )
+    monkeypatch.setattr(licenses_router, "project_usage", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        licenses_router, "organization_usage", AsyncMock(return_value=None)
+    )
     dao = SimpleNamespace(read=AsyncMock(return_value=None), replace=AsyncMock())
     service = LicensesService(licenses_dao=dao)
     monkeypatch.setattr(licenses_service_module, "_service", service)
@@ -55,7 +59,7 @@ async def test_get_without_a_key_reports_the_community_plan(wired):
         "plan": "self_hosted_community",
         "source": None,
         "license": None,
-        "usage": {"users": 3},
+        "usage": {"users": 3, "projects": None, "organizations": None},
         "registration_offer_dismissed": False,
     }
 

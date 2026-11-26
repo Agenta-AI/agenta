@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
@@ -20,11 +20,17 @@ export const CreateProjectSheet = ({
     onOpenChange,
     onSubmit,
     isPending,
+    notice,
+    submitDisabled,
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
     onSubmit: (name: string) => void
     isPending?: boolean
+    /** Shown under the field, for a refusal the reader can act on. */
+    notice?: ReactNode
+    /** The plan allows no more projects: Create stays off. */
+    submitDisabled?: boolean
 }) => {
     const t = useT(createProjectCatalog, commonCatalog)
     const [name, setName] = useState("")
@@ -35,7 +41,7 @@ export const CreateProjectSheet = ({
 
     const submit = () => {
         const trimmed = name.trim()
-        if (trimmed && !isPending) onSubmit(trimmed)
+        if (trimmed && !isPending && !submitDisabled) onSubmit(trimmed)
     }
 
     return (
@@ -61,12 +67,13 @@ export const CreateProjectSheet = ({
                     {/* Enter submits; the visible Create sits in the footer, outside this form. */}
                     <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
                 </form>
+                {notice}
                 <DialogFooter>
                     {/* Pending blocks submitting only: a dismissed create still lands and refetches. */}
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                         {t("common.cancel")}
                     </Button>
-                    <Button disabled={!name.trim() || isPending} onClick={submit}>
+                    <Button disabled={!name.trim() || isPending || submitDisabled} onClick={submit}>
                         {isPending ? t("shell.createProject.creating") : t("common.create")}
                     </Button>
                 </DialogFooter>

@@ -4,8 +4,13 @@ import {Badge, type BadgeProps} from "@agenta/ui/ui"
 
 import {formatDate} from "../wallet/walletFormat"
 
-import {REGISTERED_PLAN, type InstanceLicense, type InstanceLimitUsage} from "./licenseApi"
-import {LicenseUsageRow} from "./LicenseUsageRow"
+import {
+    REGISTERED_PLAN,
+    type InstanceLicense,
+    type InstanceLimitUsage,
+    type LicenseUsage,
+} from "./licenseApi"
+import {LicenseUsageRow, useLimitUsageText} from "./LicenseUsageRow"
 
 type LicenseKey = CatalogKey<typeof settingsLicenseCatalog>
 
@@ -34,27 +39,33 @@ const DAY_MS = 24 * 60 * 60 * 1000
 /** The instance plan in one line, its usage against the limits, and the key behind it. */
 export const LicenseSummary = ({
     license,
+    limits,
     now = Date.now(),
 }: {
     license: InstanceLicense
+    /** The project and organization counts, from the license usage read. */
+    limits?: LicenseUsage
     now?: number
 }) => {
     const t = useT(settingsLicenseCatalog)
     const key = license.license
-    const {users, projects, organizations} = license.usage
+    const {users} = license.usage
+    const projects = limits?.projects
+    const organizations = limits?.organizations
     const expiresAt = key?.expires_at ? new Date(key.expires_at).getTime() : null
     const expired = expiresAt !== null && expiresAt <= now
     const plan = PLANS[license.plan]
     const registered = license.plan === REGISTERED_PLAN
 
-    const usage = (label: LicenseKey, value: InstanceLimitUsage) => (
+    const usageText = useLimitUsageText()
+    const usage = (
+        label: LicenseKey,
+        kind: "projects" | "organizations",
+        value: InstanceLimitUsage,
+    ) => (
         <LicenseUsageRow
             label={t(label)}
-            value={
-                value.limit === null
-                    ? t("settings.license.usageOfUnlimited", {count: value.count})
-                    : t("settings.license.usageOf", {count: value.count, limit: value.limit})
-            }
+            value={usageText(kind, value)}
             count={value.count}
             limit={value.limit}
         />
@@ -88,8 +99,10 @@ export const LicenseSummary = ({
                         value={key.customer}
                     />
                 ) : null}
-                {projects ? usage("settings.license.usageProjects", projects) : null}
-                {organizations ? usage("settings.license.usageOrganizations", organizations) : null}
+                {projects ? usage("settings.license.usageProjects", "projects", projects) : null}
+                {organizations
+                    ? usage("settings.license.usageOrganizations", "organizations", organizations)
+                    : null}
                 {key && key.seats !== null ? (
                     <LicenseUsageRow
                         label={t("settings.license.seats")}

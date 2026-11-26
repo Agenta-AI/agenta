@@ -63,6 +63,8 @@
     "usageOf": "{{count}} / {{limit}}",
     "usageOfUnlimited": "{{count}} / 不限",
     "usageOrganizations": "此实例中的组织",
+    "usageOverLimitOrganizations_other": "{{count}} 个组织，上限 {{limit}}",
+    "usageOverLimitProjects_other": "{{count}} 个项目，上限 {{limit}}",
     "usageProjects": "此组织中的项目",
     "userCount_other": "{{count}} 位用户",
     "users": "用户"

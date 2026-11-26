@@ -377,9 +377,16 @@ async def test_bearer_without_parameters_ignores_a_state_cached_by_old_code(worl
 
 
 async def test_bearer_without_parameters_and_no_membership_at_all_is_refused(world):
+    # Only the profile, the project list and the organization list are open to a
+    # person without an organization.
     world.state.oldest_organization = None
-    with pytest.raises(UnauthorizedException):
-        await _bearer(world)
+    with pytest.raises(HTTPException) as error:
+        await _bearer(world, path="/apps/")
+    assert error.value.status_code == 401
+    # Not cached, so the profile and the project list still answer afterwards.
+    assert not _denied(world)
+    state = await _bearer(world, path="/profile")
+    assert state.project_id is None
 
 
 # --- API key ----------------------------------------------------------------- #
@@ -496,3 +503,30 @@ async def test_bearer_without_parameters_reads_nothing_more_for_a_default_member
     assert state.project_id == str(world.project.project_id)
     assert world.dao.reads == ["fetch_membership_row"]
     assert picked == []
+
+
+# --- a person without an organization ------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/projects/",
+        "/api/projects/",
+        "/profile",
+        "/profile/",
+        "/organizations/",
+        "/api/organizations",
+    ],
+)
+async def test_bearer_without_organization_reads_the_profile_and_lists(world, path):
+    # Sign-up at the instance's organization limit leaves the person without one.
+    world.state.oldest_organization = None
+
+    state = await _bearer(world, path=path)
+
+    assert str(state.user_id) == str(world.user)
+    assert state.project_id is None
+    assert state.organization_id is None
+    assert world.reads == ["fetch_oldest_organization_id"]
+    assert not _denied(world)
