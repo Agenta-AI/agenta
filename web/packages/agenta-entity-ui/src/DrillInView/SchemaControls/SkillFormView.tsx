@@ -465,6 +465,7 @@ export function SkillFormView({
                         title={t("entityUi.skillView.findFile")}
                         showTitle={false}
                         keepKeyboardClosed
+                        hideClose
                         trigger={fileTrigger}
                     >
                         {fileMenu}

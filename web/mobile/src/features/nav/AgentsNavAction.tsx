@@ -26,7 +26,15 @@ export const AgentsNavAction = ({base}: {base: string}) => {
             <Plus />
         </Button>
     )
-    const panel = <AgentsQuickPanel base={base} onDone={close} onBusyChange={setBusy} />
+    // On a phone the search waits for a tap, so the keyboard does not cover the list.
+    const panel = (
+        <AgentsQuickPanel
+            base={base}
+            onDone={close}
+            onBusyChange={setBusy}
+            autoFocusSearch={!phone}
+        />
+    )
 
     if (phone)
         return (
@@ -35,6 +43,8 @@ export const AgentsNavAction = ({base}: {base: string}) => {
                 onOpenChange={onOpenChange}
                 title={t("navigation.items.agents")}
                 trigger={trigger}
+                hideClose
+                keepKeyboardClosed
             >
                 {panel}
             </BottomSheet>

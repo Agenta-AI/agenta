@@ -248,6 +248,7 @@ export const AgentSidebarSwitcher = ({
                     onOpenChange={onOpenChange}
                     title={caption}
                     trigger={trigger}
+                    hideClose
                     data-testid="agent-sidebar-switcher-sheet"
                 >
                     {panel}

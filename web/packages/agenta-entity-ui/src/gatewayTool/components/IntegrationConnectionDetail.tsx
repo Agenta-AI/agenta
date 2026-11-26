@@ -205,6 +205,7 @@ export const IntegrationConnectionDetail = ({
                 onOpenChange={(next) => (next ? undefined : close())}
                 title={name}
                 showTitle
+                hideClose
                 onCloseAutoFocus={onClosed}
             >
                 <div className="flex flex-col gap-4 px-4 pb-4">

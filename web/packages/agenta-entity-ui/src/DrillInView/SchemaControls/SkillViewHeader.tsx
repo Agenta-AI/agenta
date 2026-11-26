@@ -147,6 +147,7 @@ export function SkillViewHeader({
             onOpenChange={setOpen}
             title={menuLabel}
             trigger={trigger}
+            hideClose
         >
             <div className="flex flex-col px-2">
                 {menuTop}

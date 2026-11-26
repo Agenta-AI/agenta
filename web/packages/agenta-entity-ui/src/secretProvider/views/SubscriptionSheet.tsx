@@ -42,6 +42,8 @@ const SheetFrame = ({
                 onOpenChange={(next) => (next ? undefined : onClose())}
                 title={title}
                 showTitle
+                // The sign-in panels draw their own Cancel; the model list needs none.
+                hideClose
                 onCloseAutoFocus={onClosed}
             >
                 <div className="px-4 pb-4">{children}</div>
