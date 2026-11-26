@@ -32,6 +32,7 @@ const SITE = assets({
 });
 
 const MEDIA = {
+  async put() {},
   async head(key: string) {
     return key === "blog/example/image-abc123.webp" ? { size: 5 } : null;
   },
@@ -54,6 +55,7 @@ const MEDIA = {
       }),
       httpEtag: '"abc123"',
       size: bytes.length,
+      text: async () => "media",
       writeHttpMetadata(headers: Headers) {
         headers.set("Content-Type", "image/webp");
       },
@@ -111,6 +113,26 @@ describe("R2 media", () => {
 
     expect(response.status).toBe(416);
     expect(response.headers.get("content-range")).toBe("bytes */5");
+  });
+
+  it("never serves the registration caps from the shared bucket", async () => {
+    const everything = {
+      ...MEDIA,
+      async head() {
+        return { size: 2 };
+      },
+      async get() {
+        return MEDIA.get("blog/example/image-abc123.webp");
+      },
+    };
+    const response = await worker.fetch(
+      new Request(
+        "https://agenta.ai/media/license-registrations/caps/email/abc",
+      ),
+      { ASSETS: SITE, MEDIA: everything },
+    );
+
+    expect(response.status).toBe(404);
   });
 
   it("returns 404 for missing or empty media keys", async () => {
