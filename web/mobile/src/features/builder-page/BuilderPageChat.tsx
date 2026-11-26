@@ -12,8 +12,8 @@ import {cn} from "@/lib/utils"
 
 import {rememberBuilderChat} from "../builder/builderChatLink"
 import {chipClass} from "../builder/chipText"
-import {sentContextOf, withContextLine, type PageContext} from "../builder/pageContext"
-import {SentContextChip} from "../builder/SentContextChip"
+import {withContextLine, type PageContext} from "../builder/pageContext"
+import {sentContextDivider} from "../builder/SentContextDivider"
 import {builderChatLinkVersionAtom} from "../builder/useBuilderChatList"
 import {BuilderChatContext} from "../chat/builderChat"
 import {ConversationRoleContext} from "../chat/conversationRole"
@@ -28,11 +28,6 @@ import {MoreIdeasDialog} from "./MoreIdeasDialog"
 import {NewBuilderChat} from "./NewBuilderChat"
 import {PageQuickActions} from "./PageQuickActions"
 import type {AgentRef} from "./paneAgent"
-
-const sentContextChip = (message: UIMessage) => {
-    const context = sentContextOf(message)
-    return context ? <SentContextChip context={context} /> : null
-}
 
 /**
  * The conversation of one builder chat on the builder page. A new chat shows the hero, the
@@ -199,7 +194,7 @@ export const BuilderPageChat = ({
                                 </div>
                             ) : null
                         }
-                        userMessageAccessory={sentContextChip}
+                        userMessageAccessory={sentContextDivider}
                         onMessagesChanged={handleMessages}
                     />
                     <MoreIdeasDialog

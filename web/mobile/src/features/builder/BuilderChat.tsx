@@ -6,7 +6,6 @@ import agentLayoutPhoneCatalog from "@agenta/i18n/catalogs/agentLayout.phone"
 import builderPanelCatalog from "@agenta/i18n/catalogs/builder.panel"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useQueryClient} from "@tanstack/react-query"
-import type {UIMessage} from "ai"
 import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {useAgentPanel} from "../agent-layout/agentPanelContext"
@@ -31,11 +30,11 @@ import {ContextChip} from "./ContextChip"
 import {newBuilderSessionId} from "./newBuilderSession"
 import {NewChatIntro} from "./NewChatIntro"
 import {sessionToOpen} from "./openRule"
-import {sentContextOf, withContextLine, type PageContext} from "./pageContext"
+import {withContextLine, type PageContext} from "./pageContext"
 import {readPagePart, removedPagePartAtom} from "./pagePart"
 import {QuickActions} from "./QuickActions"
 import {RecentChats} from "./RecentChats"
-import {SentContextChip} from "./SentContextChip"
+import {sentContextDivider} from "./SentContextDivider"
 import {builderChatLinkVersionAtom, useBuilderChatList} from "./useBuilderChatList"
 
 /**
@@ -47,11 +46,6 @@ const lastShownChat = new Map<string, {agentId: string; builderSessionId: string
 
 /** A boolean, so a switch between two sessions renders nothing here (only the chip reads the id). */
 const onSessionPageAtom = atom((get) => Boolean(get(pageSessionIdAtom)))
-
-const sentContextChip = (message: UIMessage) => {
-    const context = sentContextOf(message)
-    return context ? <SentContextChip context={context} /> : null
-}
 
 /**
  * The builder chat of one user about the agent of the screen. When it mounts and when the agent
@@ -228,7 +222,7 @@ export const BuilderChat = ({
                         </div>
                     ) : null
                 }
-                userMessageAccessory={sentContextChip}
+                userMessageAccessory={sentContextDivider}
             />
         )
 

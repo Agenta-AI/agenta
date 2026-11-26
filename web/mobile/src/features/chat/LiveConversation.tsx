@@ -233,8 +233,11 @@ export const LiveConversation = ({
      * (F05). Its approval and connect cards still answer.
      */
     hideComposer?: boolean
-    /** Shown with each sent user message, from the message as stored (with its full text). */
-    userMessageAccessory?: (message: UIMessage) => ReactNode
+    /**
+     * Shown with each sent user message, from the message as stored (with its full text), given
+     * the user message sent before it (null for the first).
+     */
+    userMessageAccessory?: (message: UIMessage, previous: UIMessage | null) => ReactNode
     /** Called after the messages change (the builder page reads its tool results). */
     onMessagesChanged?: (messages: UIMessage[]) => void
 }) => {
@@ -406,8 +409,12 @@ export const LiveConversation = ({
         () =>
             hasAccessory
                 ? (messageId: string) => {
-                      const source = messagesRef.current.find((m) => m.id === messageId)
-                      return source ? (accessoryRef.current?.(source) ?? null) : null
+                      const messages = messagesRef.current
+                      const index = messages.findIndex((m) => m.id === messageId)
+                      if (index < 0) return null
+                      const previous =
+                          messages.slice(0, index).findLast((m) => m.role === "user") ?? null
+                      return accessoryRef.current?.(messages[index], previous) ?? null
                   }
                 : null,
         [hasAccessory],

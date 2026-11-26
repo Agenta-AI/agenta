@@ -394,13 +394,7 @@ const TurnRowInner = ({
     const attachmentStrip = files.length ? (
         <AttachmentStrip files={files} align={turn.isUser ? "end" : "start"} />
     ) : null
-    const header =
-        accessory || attachmentStrip ? (
-            <>
-                {accessory}
-                {attachmentStrip}
-            </>
-        ) : null
+    const header = attachmentStrip
     // Attachments with no words paint no bubble; an assistant turn always paints its fold line.
     const hasBubbleContent =
         !turn.isUser ||
@@ -448,7 +442,7 @@ const TurnRowInner = ({
         )
     }
 
-    return (
+    const row = (
         <div
             className={`${mobileTurnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}
             {...rowMarkers}
@@ -491,6 +485,15 @@ const TurnRowInner = ({
                 </div>
             ) : null}
         </div>
+    )
+    // The host's accessory (the builder's context divider) spans the chat, above the turn.
+    return accessory ? (
+        <>
+            <div className="flex w-full min-w-0">{accessory}</div>
+            {row}
+        </>
+    ) : (
+        row
     )
 }
 
