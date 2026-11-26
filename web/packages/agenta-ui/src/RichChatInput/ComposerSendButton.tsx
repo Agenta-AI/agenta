@@ -21,6 +21,8 @@ export interface ComposerSendButtonProps {
      * that has not committed. The arrow becomes a spinner and the button refuses a second press.
      */
     sending?: boolean
+    /** The composer cannot send at all (not just empty): drawn inert on every surface. */
+    blocked?: boolean
     /** `canvas`: a dark 28 px kit icon button, dark even with nothing to send. */
     surface?: ComposerSurface
 }
@@ -40,6 +42,7 @@ export function ComposerSendButton({
     icon,
     sending,
     surface,
+    blocked,
 }: ComposerSendButtonProps) {
     const t = useT(uiChatInputCatalog)
     return (
@@ -57,9 +60,9 @@ export function ComposerSendButton({
             // do" and "working" at once.
             className={cn(
                 // The kit's control radius, never a circle (SHAPE-01).
-                surface === "canvas"
+                surface === "canvas" && !(blocked && !sending)
                     ? "!border-[var(--ag-composer-send-bg,var(--foreground))] !bg-[var(--ag-composer-send-bg,var(--foreground))] !text-[var(--ag-composer-send-fg,var(--background))] disabled:!opacity-100 hover:!opacity-90"
-                    : disabled && !sending
+                    : (disabled || blocked) && !sending
                       ? "!border-secondary !bg-secondary !text-muted-foreground"
                       : // Re-toned by its CONTAINER, not by a prop: the button sits five levels below
                         // any host that might want a different fill, and threading a colour down

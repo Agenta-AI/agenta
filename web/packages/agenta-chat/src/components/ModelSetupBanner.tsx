@@ -2,7 +2,7 @@ import {agentNeedsSetupTitle, modelNeedsSetupMessage} from "@agenta/entity-ui/ne
 import {useT} from "@agenta/i18n"
 import chatModelSetupBannerCatalog from "@agenta/i18n/catalogs/chat.modelSetupBanner"
 import {Alert, Button} from "@agenta/ui/ui"
-import {Lock} from "@phosphor-icons/react"
+import {WarningIcon} from "@phosphor-icons/react"
 
 import {useAgentModelSetup} from "../hooks/useAgentModelSetup"
 
@@ -30,7 +30,7 @@ export const ModelSetupBanner = ({
     const {blocked, canFix} = useAgentModelSetup(revisionId)
     const action =
         onSetUp && canFix ? (
-            <Button size="sm" className={`shrink-0`} onClick={onSetUp}>
+            <Button size="sm" variant="outline" className="shrink-0" onClick={onSetUp}>
                 {t("chat.modelSetupBanner.setUp")}
             </Button>
         ) : null
@@ -58,10 +58,10 @@ export const ModelSetupBanner = ({
                 className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-solid border-warning/30 bg-warning/10 px-3 py-2"
             >
                 <span className="flex min-w-0 items-center gap-2 text-meta text-warning">
-                    <Lock size={14} className="shrink-0" />
+                    <WarningIcon size={14} className="shrink-0" />
                     <span className="min-w-0">
                         <span className="block truncate font-medium">{agentNeedsSetupTitle()}</span>
-                        <span className="block truncate">{modelNeedsSetupMessage()}</span>
+                        <span className="block">{modelNeedsSetupMessage()}</span>
                     </span>
                 </span>
                 {action}

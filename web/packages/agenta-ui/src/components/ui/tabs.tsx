@@ -18,7 +18,7 @@ const TabsVariantContext = React.createContext<TabsListVariant>("line")
 
 const tabsListVariants = cva(
     // box-border/border-0: preflight is off app-wide.
-    "group/tabs-list box-border inline-flex h-8 w-fit items-center justify-center border-0 p-[3px] text-muted-foreground",
+    "group/tabs-list box-border inline-flex h-8 w-fit items-center justify-center border-0 p-1 text-muted-foreground",
     {
         variants: {
             variant: {
@@ -34,7 +34,7 @@ const tabsTriggerVariants = cva(
     [
         // CONTROL_RESET — preflight is off; triggers are <button>s, so the UA face is reset.
         "box-border border border-solid border-transparent font-[inherit] bg-transparent",
-        "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 whitespace-nowrap",
+        "relative inline-flex h-control-xs flex-1 items-center justify-center gap-1.5 whitespace-nowrap",
         "rounded-control-sm px-1.5 py-0.5 text-label text-muted-foreground",
         "cursor-pointer outline-none transition-[color,background-color,box-shadow]",
         "hover:text-foreground data-[state=active]:text-foreground",
@@ -48,7 +48,7 @@ const tabsTriggerVariants = cva(
                 // Raised on the surface while active, like the Segmented thumb.
                 track: "data-[state=active]:bg-background data-[state=active]:shadow-raised",
                 // A 2px underline at the bottom edge of the list, shown while active.
-                line: "after:absolute after:inset-x-0 after:-bottom-[4px] after:h-0.5 after:bg-foreground after:opacity-0 after:transition-opacity data-[state=active]:after:opacity-100",
+                line: "after:absolute after:inset-x-0 after:-bottom-1 after:h-0.5 after:bg-foreground after:opacity-0 after:transition-opacity data-[state=active]:after:opacity-100",
             },
         },
         defaultVariants: {variant: "line"},

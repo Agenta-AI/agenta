@@ -110,6 +110,7 @@ export function SendButton({
         <ComposerSendButton
             onClick={handleClick}
             disabled={sendDisabled}
+            blocked={disabled}
             sending={sending}
             surface={surface}
         />

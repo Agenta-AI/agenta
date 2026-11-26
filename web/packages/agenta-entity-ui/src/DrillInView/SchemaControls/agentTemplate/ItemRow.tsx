@@ -9,7 +9,15 @@ import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {ConfigRowTriangle, Tag} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
-import {IconTile, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+import {
+    Button,
+    IconTile,
+    SimpleTooltip,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {CaretRight, Trash} from "@phosphor-icons/react"
 
 import {describeInstruction, type ItemDescriptor} from "./itemDescriptors"
@@ -261,18 +269,7 @@ export function ItemRow({
                 {locked ? <Tag className={TAG_CLS}>{t("entityUi.configItems.locked")}</Tag> : null}
                 {extra}
                 {onRemove && !disabled && !locked ? (
-                    <button
-                        type="button"
-                        aria-label={t("entityUi.configItems.remove")}
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            onRemove()
-                        }}
-                        // A 24px ghost target, not a bare glyph: a hover-only icon is hard to hit.
-                        className={` flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-ring group-hover:opacity-100`}
-                    >
-                        <Trash size={14} />
-                    </button>
+                    <RemoveButton label={t("entityUi.configItems.remove")} onRemove={onRemove} />
                 ) : null}
                 {interactive ? (
                     // Canvas F01: a panel card ends with an outline chevron; A04: a page row
@@ -289,6 +286,26 @@ export function ItemRow({
                 ) : null}
             </div>
         </div>
+    )
+}
+
+/** Hover-revealed row action: shown on focus and always on touch (TOUCH-02). */
+function RemoveButton({label, onRemove}: {label: string; onRemove: () => void}) {
+    return (
+        <SimpleTooltip title={label}>
+            <Button
+                variant="destructive-ghost"
+                size="icon-xs"
+                aria-label={label}
+                onClick={(e) => {
+                    e.stopPropagation()
+                    onRemove()
+                }}
+                className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
+            >
+                <Trash />
+            </Button>
+        </SimpleTooltip>
     )
 }
 
@@ -352,17 +369,7 @@ export function ItemChildRow({
             >
                 {status ? <StatusTag status={status} /> : null}
                 {onRemove && !disabled ? (
-                    <button
-                        type="button"
-                        aria-label={t("entityUi.configItems.remove")}
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            onRemove()
-                        }}
-                        className={` flex cursor-pointer items-center border-0 bg-transparent p-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 pointer-coarse:opacity-100`}
-                    >
-                        <Trash size={14} />
-                    </button>
+                    <RemoveButton label={t("entityUi.configItems.remove")} onRemove={onRemove} />
                 ) : null}
                 <CaretRight size={14} className="text-muted-foreground" />
             </div>

@@ -316,7 +316,7 @@ export function ConfigAccordionSection({
                 transitions instead of the dot popping in and out. */}
             <span
                 className={cn(
-                    "absolute -right-1 -top-0.5 box-border h-2 w-2 rounded-sm border-[1.5px] border-solid border-background",
+                    "absolute -right-1 -top-0.5 size-2 rounded-full ring-2 ring-background",
                     // The dot fades in and out; it never scales (MOTION-02).
                     "motion-safe:transition-[opacity,background-color] motion-safe:duration-[var(--duration-base)] motion-safe:ease-[var(--ease-out)]",
                     indicator ? "opacity-100" : "opacity-0",
@@ -409,7 +409,8 @@ export function ConfigAccordionSection({
                         }
                     }}
                     className={cn(
-                        "flex items-center gap-2",
+                        "flex items-center gap-2 rounded-sm outline-none",
+                        headerActs && "focus-ring",
                         preserveTitle ? "shrink-0 max-w-full" : "min-w-0",
                     )}
                 >

@@ -103,9 +103,9 @@ export function Alert({
             {iconVisible ? (
                 <span
                     data-slot="alert-icon"
-                    // Nudged 2px down to sit on the title line.
+                    // As tall as one text-body line, so the icon sits on the title line.
                     className={cn(
-                        "flex size-4 shrink-0 translate-y-0.5 items-center justify-center [&_svg]:size-4",
+                        "flex h-5.5 w-4 shrink-0 items-center justify-center [&_svg]:size-4",
                         alertIconColor[resolvedType],
                     )}
                 >
@@ -116,7 +116,7 @@ export function Alert({
                 {message != null ? (
                     <div
                         data-slot="alert-title"
-                        className="font-medium leading-5 [&_a]:underline [&_a]:underline-offset-[3px] [&_a:hover]:text-foreground"
+                        className="text-body font-medium [&_a]:underline [&_a]:underline-offset-[3px] [&_a:hover]:text-foreground"
                     >
                         {message}
                     </div>

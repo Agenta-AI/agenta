@@ -58,7 +58,7 @@ export const ContextChip = ({
                     title={t("builder.context.remove")}
                     onClick={part.remove}
                     className={cn(
-                        "flex shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-muted-foreground hover:bg-accent hover:text-foreground",
+                        "focus-ring flex shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-muted-foreground outline-none hover:bg-accent hover:text-foreground",
                         phone
                             ? // Above the editor that follows, so the whole 44 px area answers.
                               "relative z-10 size-[26px] after:absolute after:-inset-[9px] after:content-['']"
