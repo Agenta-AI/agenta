@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * The annotation queues screen: which of the four states shows, and who sees "New Queue".
+ * The annotation queues screen: which of the four states shows, and who sees "New queue".
  * The list hook, the table and the page chrome are replaced, so no request is sent.
  */
 import {act} from "react"
@@ -163,9 +163,9 @@ describe("the annotation queues screen", () => {
 
     it("New Queue is hidden without edit rights", async () => {
         await render()
-        expect(buttonLabels()).toContain("New Queue")
+        expect(buttonLabels()).toContain("New queue")
         fixture.canEdit = false
         await render()
-        expect(buttonLabels()).not.toContain("New Queue")
+        expect(buttonLabels()).not.toContain("New queue")
     })
 })

@@ -6,7 +6,7 @@ import {createStore, Provider, type PrimitiveAtom} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {developerViewPreviewAtomFamily} from "@/features/developer/developerViewAccess"
+import {DEVELOPER_VIEWS_ENV} from "@/features/developer/developerViewAccess"
 import {DeveloperViewGate} from "@/features/developer/DeveloperViewGate"
 import {appPageTarget} from "@/features/developer/useAppPageRedirect"
 
@@ -69,14 +69,17 @@ describe("the app routes", () => {
         store = createStore()
         store.set(activeUserIdAtom, "u1")
     })
-    afterEach(() => act(() => root.unmount()))
+    afterEach(() => {
+        act(() => root.unmount())
+        vi.unstubAllEnvs()
+    })
 
     it("open in beta developer mode", () => {
         expect(render(true)).toBe("registry")
     })
 
-    it("are not found without beta developer mode, even with the view on", () => {
-        store.set(developerViewPreviewAtomFamily("variants"), true)
+    it("are not found without beta developer mode, even with the view forced on", () => {
+        vi.stubEnv(DEVELOPER_VIEWS_ENV, "variants")
         expect(render(false)).toBe("not found")
     })
 })

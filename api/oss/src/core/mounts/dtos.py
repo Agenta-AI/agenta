@@ -114,6 +114,8 @@ class MountFileContent(BaseModel):
     path: str
     content: str
     etag: Optional[str] = None
+    # False when the bytes are not valid UTF-8; `content` then holds U+FFFD for each bad byte.
+    is_utf8: bool = True
 
 
 class MountFileSeed(BaseModel):

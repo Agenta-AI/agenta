@@ -2,6 +2,8 @@ import {detectFileActivity, type FileActivity} from "@agenta/entities/session"
 import {canonicalClientToolName} from "@agenta/shared/clientTools"
 import type {ReasoningUIPart, TextUIPart, ToolUIPart} from "ai"
 
+import {resolveToolDisplay} from "../skin/registry"
+
 import {isExplainedByMcpNotice, mcpToolServerName, type McpServerNotice} from "./mcpServerNotice"
 import {partToolName} from "./parts"
 import type {RenderItem} from "./renderModel"
@@ -59,12 +61,20 @@ const unexplainedMcpFailure = (part: ToolUIPart, notices: readonly McpServerNoti
     return !isExplainedByMcpNotice(wireName, notices)
 }
 
+/**
+ * A tool that words its own failure (the session tools: "Could not start a session") keeps its
+ * failed row. The registry reads the canonical name, so the row stays whichever name the record
+ * carries: an approved call is renamed from `mcp.agenta-tools.start_session` to `start_session`.
+ */
+const wordsItsFailure = (part: ToolUIPart): boolean =>
+    !!resolveToolDisplay(partToolName(part), (part as {input?: unknown}).input).activity.failed
+
 /** Whether a call is kept out of the fold. It stays in the parts and in the trace. */
 export const hiddenFromFold = (
     part: ToolUIPart,
     notices: readonly McpServerNotice[] = [],
 ): boolean =>
-    (hasFailed(part) && !unexplainedMcpFailure(part, notices)) ||
+    (hasFailed(part) && !unexplainedMcpFailure(part, notices) && !wordsItsFailure(part)) ||
     HOUSEKEEPING.has(canonicalClientToolName(partToolName(part)).toLowerCase())
 
 /** A question that errored (bad schema, runner refusal, a stop): hidden like a failed call. */

@@ -344,3 +344,4 @@ e4bd75902cfcbaa16e0d3db5e3262b57b991b1ff:web/packages/agenta-entities/tests/fixt
 e4bd75902cfcbaa16e0d3db5e3262b57b991b1ff:web/packages/agenta-entities/tests/fixtures/evaluationRun/auto-metrics.json:generic-api-key:194
 e4bd75902cfcbaa16e0d3db5e3262b57b991b1ff:web/packages/agenta-entities/tests/fixtures/evaluationRun/auto-metrics.json:generic-api-key:204
 e4bd75902cfcbaa16e0d3db5e3262b57b991b1ff:web/packages/agenta-entities/tests/fixtures/evaluationRun/auto-metrics.json:generic-api-key:214
+38596739b03dbf12d5bef9dfd283929ffabbf8df:web/mobile/tests/unit/onboardingKeyRow.render.test.tsx:generic-api-key:189

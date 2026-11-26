@@ -23,5 +23,7 @@
     "timeUtc": "時刻（UTC）",
     "runTimeAria": "実行時刻 {{time}}（UTC）",
     "removeTime": "{{time}} を削除",
-    "add": "追加"
+    "add": "追加",
+    "hoursChip": "{{hours}} 時間",
+    "cronPlaceholder": "分 時 日 月 曜日 (UTC)"
 }

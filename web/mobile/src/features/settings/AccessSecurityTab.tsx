@@ -32,6 +32,7 @@ import {ConfirmModal} from "./ConfirmModal"
 import {DomainDnsInstructions} from "./DomainDnsInstructions"
 import {LockedEnterpriseFeatures} from "./LockedEnterpriseFeatures"
 import {OrganizationSlugField} from "./OrganizationSlugField"
+import {SeePlansButton} from "./SeePlansButton"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {useMobileSettingsAccess} from "./settingsTabs"
 import {SsoProviderDialog, type SsoProviderFormValues} from "./SsoProviderDialog"
@@ -216,7 +217,10 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
     ].filter(Boolean) as AccessFeature[]
     // Self-hosted shows one box with the upgrade actions; demand is still measured per feature.
     const lockedNotices = isBillingEnabled() ? (
-        <AccessUpgradeNotice locked={locked} />
+        <AccessUpgradeNotice
+            locked={locked}
+            action={<SeePlansButton workspaceId={workspaceId} projectId={projectId} />}
+        />
     ) : (
         <LockedEnterpriseFeatures features={locked} screen="organization" />
     )

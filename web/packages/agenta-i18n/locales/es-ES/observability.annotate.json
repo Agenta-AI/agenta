@@ -23,5 +23,6 @@
     "saveFailed": "No se pudieron actualizar las anotaciones",
     "saveSuccess": "Anotaciones actualizadas correctamente",
     "savePending": "Anotaciones guardadas. Pueden tardar un momento en aparecer.",
-    "required": "Obligatorio"
+    "required": "Obligatorio",
+    "noAnnotationsHint": "Elige un evaluador para puntuar esta traza."
 }

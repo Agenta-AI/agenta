@@ -505,6 +505,8 @@ class SimpleWorkflow(Identifier, Slug, Lifecycle, Header, Metadata):
 
 class SimpleWorkflowCreateResult(BaseModel):
     workflow: SimpleWorkflow
+    # The content revision the create wrote, or found on a replay.
+    revision: Optional[WorkflowRevision] = None
     replayed: bool
 
 
@@ -614,6 +616,39 @@ class CommitWarning(BaseModel):
     message: str
     target: Optional[List[Any]] = None
     operation_index: Optional[int] = None
+
+
+class ReadConfigRevision(BaseModel):
+    id: str
+    version: Optional[str] = None
+    workflow_variant_id: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class ReadConfigResponse(BaseModel):
+    revision: ReadConfigRevision
+    base_revision_id: str = Field(
+        description="Copy this into your next commit's `base_revision_id`.",
+    )
+    is_draft: bool = False
+    path: List[Any] = Field(default_factory=list)
+    value: Any = None
+    bytes: int = 0
+    warnings: Optional[List[CommitWarning]] = None
+
+
+class CreatedAgent(BaseModel):
+    """What `SimpleWorkflowsService.create_agent` made: the agent, its first configured
+    revision, the message of that revision, the engine's warnings, and the agent's stored
+    visibility."""
+
+    workflow: SimpleWorkflow
+    revision: Optional[WorkflowRevision] = None
+    # The agent's head now: the revision above, unless a replay finds later edits.
+    head: Optional[WorkflowRevision] = None
+    message: str
+    warnings: List[CommitWarning] = Field(default_factory=list)
+    visibility: Visibility
 
 
 class DeltaResolution(BaseModel):

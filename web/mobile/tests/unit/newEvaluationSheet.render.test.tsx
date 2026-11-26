@@ -153,15 +153,15 @@ afterEach(async () => {
 })
 
 describe("new evaluation sheet", () => {
-    it("The title reads New Human Evaluation for a human start", async () => {
+    it("The title reads New human evaluation for a human start", async () => {
         await mount("human")
-        expect(text()).toContain("New Human Evaluation")
-        expect(text()).not.toContain("Advanced Settings")
+        expect(text()).toContain("New human evaluation")
+        expect(text()).not.toContain("Advanced settings")
     })
 
     it("The sheet shows the step list with the Application table open", async () => {
         await mount("auto")
-        expect(text()).toContain("New Auto Evaluation")
+        expect(text()).toContain("New auto evaluation")
         const steps = [...document.querySelectorAll("nav[aria-label=Steps] button")].map(
             (step) => step.textContent,
         )
@@ -170,7 +170,7 @@ describe("new evaluation sheet", () => {
             "Revision",
             "Test set",
             "Evaluators",
-            "Advanced Settings",
+            "Advanced settings",
         ])
         expect(activeStep()).toBe("Application")
         expect(rowByText("Support bot")).toBeDefined()
@@ -271,7 +271,7 @@ describe("new evaluation sheet", () => {
         expect(chips("Application")).toEqual(["Support bot"])
         expect(chips("Revision")).toEqual(["default - v3"])
         expect(chips("Test set")).toEqual(["greetings - v2"])
-        expect(chips("Advanced Settings")).toEqual([
+        expect(chips("Advanced settings")).toEqual([
             "batch_size: 10",
             "max_retries: 3",
             "retry_delay: 3",
@@ -294,9 +294,30 @@ describe("new evaluation sheet", () => {
         expect(chips("Revision")).toEqual([])
     })
 
-    it("Advanced Settings shows its check with the default settings", async () => {
+    it("A blocked start shows the problem inline next to its field, and it clears once fixed", async () => {
+        hook.start.mockResolvedValue({
+            status: "invalid",
+            section: "revision",
+            message: "Enter an evaluation name",
+        })
         await mount("auto", "app-1")
-        expect(document.querySelector("[aria-label='Advanced Settings complete']")).not.toBeNull()
+        const submit = buttonByName("Start evaluation")
+        await act(async () => submit?.click())
+        expect(text()).toContain("Enter an evaluation name")
+        const name = dialog()?.querySelector<HTMLInputElement>("input")
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
+        await act(async () => {
+            setter?.call(name, "My run")
+            name?.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+        expect(text()).not.toContain("Enter an evaluation name")
+        await openStep("Test set")
+        expect(dialog()?.querySelector("[role=alert]")?.textContent).toBe("Select a test set")
+    })
+
+    it("Advanced settings shows its check with the default settings", async () => {
+        await mount("auto", "app-1")
+        expect(document.querySelector("[aria-label='Advanced settings complete']")).not.toBeNull()
     })
 
     it("The auto name follows the picks", async () => {
@@ -312,7 +333,7 @@ describe("new evaluation sheet", () => {
         hook.start.mockResolvedValue({status: "invalid", section: "evaluators"})
         await mount("auto", "app-1")
 
-        await act(async () => buttonByName("Start Evaluation")?.click())
+        await act(async () => buttonByName("Start evaluation")?.click())
 
         expect(activeStep()).toBe("Evaluators")
         expect(onClose).not.toHaveBeenCalled()
@@ -324,7 +345,7 @@ describe("new evaluation sheet", () => {
         await mount("auto", "app-1")
         await clickRow("default v3")
 
-        await act(async () => buttonByName("Start Evaluation")?.click())
+        await act(async () => buttonByName("Start evaluation")?.click())
 
         expect(onClose).not.toHaveBeenCalled()
         expect(chips("Revision")).toEqual(["default - v3"])
@@ -333,7 +354,7 @@ describe("new evaluation sheet", () => {
     it("A started evaluation closes the sheet without asking and reports its kind", async () => {
         await mount("auto", "app-1")
         await clickRow("default v3")
-        await act(async () => buttonByName("Start Evaluation")?.click())
+        await act(async () => buttonByName("Start evaluation")?.click())
         expect(confirmDialog()).toBeNull()
         expect(onStarted).toHaveBeenCalledWith("auto")
         expect(onClose).toHaveBeenCalled()

@@ -1,19 +1,13 @@
 import {useCallback} from "react"
 
-import {getChannelsClient} from "@agenta/sdk/resources"
 import {
-    AgentApiPanel,
-    AgentEmbedPanel,
     ChannelsPanelSheet,
-    agentHostFromApiUrl,
     useChannelPanel,
     type ChannelsPanelRenderProps,
 } from "@agenta/settings-ui"
-import {useRouter} from "next/router"
-
-import {getApiUrl} from "@/lib/env"
 
 import {useAgentChannels} from "./useAgentChannels"
+import {useAgentPublishViews} from "./useAgentPublishViews"
 
 /**
  * The agent overview's Publish panel and the channel connections behind it. Owned by the screen,
@@ -42,7 +36,7 @@ export const useAgentPublishPanel = ({
     /** False holds the channels read back until the host opens something that shows them. */
     channelsEnabled?: boolean
 }) => {
-    const {basePath} = useRouter()
+    const {api, embed} = useAgentPublishViews({agentId, agentName, projectId, workspaceId})
     const {connections, loading, loadError, actions, readAgainIfFailed} = useAgentChannels(
         agentId,
         {
@@ -62,24 +56,8 @@ export const useAgentPublishPanel = ({
             <ChannelsPanelSheet {...props} side={side} />
         ),
         // The same hub the header's Publish opens, API included.
-        api: (
-            <AgentApiPanel
-                agentId={agentId}
-                projectId={projectId}
-                workspaceId={workspaceId}
-                host={agentHostFromApiUrl(getApiUrl())}
-            />
-        ),
-        embed: (view) => (
-            <AgentEmbedPanel
-                {...view}
-                client={getChannelsClient()}
-                projectId={projectId}
-                agentId={agentId}
-                agentName={agentName}
-                widgetUrl={(embedId) => `${window.location.origin}${basePath}/embed/${embedId}`}
-            />
-        ),
+        api,
+        embed,
     })
     const {openRoute, openConnection: openConnectionView} = panel
     // Opening the panel reads again when the last read failed.

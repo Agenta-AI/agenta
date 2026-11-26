@@ -460,25 +460,6 @@ class ReadConfigRequest(BaseModel):
     max_bytes: Optional[int] = None
 
 
-class ReadConfigRevision(BaseModel):
-    id: str
-    version: Optional[str] = None
-    workflow_variant_id: Optional[str] = None
-    created_at: Optional[str] = None
-
-
-class ReadConfigResponse(BaseModel):
-    revision: ReadConfigRevision
-    base_revision_id: str = Field(
-        description="Copy this into your next commit's `base_revision_id`.",
-    )
-    is_draft: bool = False
-    path: List[Any] = Field(default_factory=list)
-    value: Any = None
-    bytes: int = 0
-    warnings: Optional[List[CommitWarning]] = None
-
-
 class WorkflowRevisionResponse(BaseModel):
     count: int = Field(
         default=0,

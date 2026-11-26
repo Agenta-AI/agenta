@@ -749,6 +749,8 @@ export interface CreateWorkflowPayload {
     flags?: WorkflowRoleFlags
     tags?: Workflow["tags"]
     meta?: Record<string, unknown> | null
+    /** The folder the workflow is created in. */
+    folderId?: string | null
     /** Commit message for the initial revision */
     message?: string | null
     data?: WorkflowData | null
@@ -807,6 +809,7 @@ export async function createWorkflow(
                 flags: payload.flags,
                 tags: payload.tags,
                 meta: payload.meta,
+                ...(payload.folderId ? {folder_id: payload.folderId} : {}),
                 ...(payload.visibility ? {visibility: payload.visibility} : {}),
             },
         },
@@ -1079,6 +1082,9 @@ export interface CommitWorkflowRevisionPayload {
     name?: string
     data: NonNullable<UpdateWorkflowPayload["data"]>
     message?: string | null
+    /** The revision the change was made on. The server refuses the commit (409) when the
+     *  variant's head has moved since. */
+    baseRevisionId?: string
 }
 
 export async function commitWorkflowRevisionApi(
@@ -1097,6 +1103,7 @@ export async function commitWorkflowRevisionApi(
                 data: payload.data,
                 flags: revisionFlags,
                 message: payload.message ?? undefined,
+                base_revision_id: payload.baseRevisionId ?? undefined,
             },
         },
         {params: {project_id: projectId}},

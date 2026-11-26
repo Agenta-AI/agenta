@@ -11,7 +11,7 @@ describe("@agenta/annotation from mobile", () => {
     it("lists the session tabs in order", () => {
         expect(SESSION_TABS.map((tab) => tab.label)).toEqual([
             "Annotate",
-            "All Annotations",
+            "All annotations",
             "Configuration",
         ])
     })
@@ -24,9 +24,9 @@ describe("@agenta/annotation from mobile", () => {
         const base = {scenarioId: "s1", isCompleted: false, isSubmitting: false}
         expect(
             getAddToTestsetDisabledReason({...base, scenarioId: "", hasPendingChanges: false}),
-        ).toBe("Select a scenario before adding it to a testset.")
+        ).toBe("Select an item before adding it to a test set.")
         expect(getAddToTestsetDisabledReason({...base, hasPendingChanges: true})).toBe(
-            "Save annotations before adding to a testset.",
+            "Mark this item completed before adding it to a test set.",
         )
         expect(
             getAddToTestsetDisabledReason({...base, isSubmitting: true, hasPendingChanges: false}),

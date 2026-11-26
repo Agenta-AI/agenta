@@ -21,7 +21,10 @@ const renewal = (subscription: BillingSubscription | null | undefined, isOnFreeP
             : tNow("billing.planSummaryCard.trialEnded", {
                   date: formatDate(end.toISOString()),
               })
-    return tNow("billing.planSummaryCard.renews", {date: formatDate(end.toISOString())})
+    // A period end already behind us is stale; a past "Renews" date would be false.
+    return end > new Date()
+        ? tNow("billing.planSummaryCard.renews", {date: formatDate(end.toISOString())})
+        : null
 }
 
 /** The plan the organization is on, what it costs and grants, and the ways to change it. */

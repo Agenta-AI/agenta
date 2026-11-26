@@ -14,5 +14,6 @@
     "toggleDiff": "Alternar visualização de diferenças",
     "cancel": "Cancelar",
     "useRefined": "Usar o prompt refinado",
-    "refineFailed": "Não foi possível refinar o prompt. Tente novamente."
+    "refineFailed": "Não foi possível refinar o prompt. Tente novamente.",
+    "refineAiDisabled": "Não foi possível refinar o prompt: os serviços de IA estão desativados nesta implantação."
 }

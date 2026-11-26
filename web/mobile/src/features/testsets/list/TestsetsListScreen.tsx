@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import testsetScreensCatalog from "@agenta/i18n/catalogs/testsets.screens"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar, type ListTableSelection} from "@agenta/ui/list-table"
@@ -70,6 +72,7 @@ export const TestsetsListScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const t = useT(testsetScreensCatalog)
     const PAGE_FRAME = useDeveloperPageFrame()
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
@@ -219,7 +222,7 @@ export const TestsetsListScreen = ({
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
-                                    Testsets
+                                    Test sets
                                 </h1>
                                 <Button asChild variant="ghost" size="sm">
                                     <Link href={`${base}/testsets/archived`} prefetch={false}>
@@ -231,18 +234,20 @@ export const TestsetsListScreen = ({
                                 </Button>
                                 {createHandler && developerMode ? (
                                     <Button
-                                        aria-label="Create new testset"
+                                        aria-label={t("testsets.screens.createTestset")}
                                         // Square icon button on a phone, where the label is hidden.
                                         className="max-sm:size-8 max-sm:px-0"
                                         onClick={createHandler}
                                     >
                                         <Plus aria-hidden data-icon="inline-start" />
-                                        <span className="hidden sm:inline">Create new testset</span>
+                                        <span className="hidden sm:inline">
+                                            {t("testsets.screens.createTestset")}
+                                        </span>
                                     </Button>
                                 ) : null}
                                 {createHandler && !developerMode ? (
                                     <Button size="sm" onClick={createHandler}>
-                                        Create new testset
+                                        {t("testsets.screens.createTestset")}
                                     </Button>
                                 ) : null}
                             </div>

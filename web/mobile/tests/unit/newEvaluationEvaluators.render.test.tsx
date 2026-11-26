@@ -158,7 +158,6 @@ describe("evaluators step", () => {
             "Name",
             "Type",
             "Tags",
-            "Date Created",
             "Last modified",
             "Modified by",
             "Commit message",
@@ -173,13 +172,7 @@ describe("evaluators step", () => {
 
     it("A human run shows the Feedback column with the fields each evaluator asks for", async () => {
         await mountEvaluators("human")
-        expect(headers()).toEqual([
-            "Name",
-            "Feedback",
-            "Date Created",
-            "Last modified",
-            "Modified by",
-        ])
+        expect(headers()).toEqual(["Name", "Feedback", "Last modified", "Modified by"])
         expect(rowByText("Helpfulness")?.textContent).toContain("scorecomment")
         expect(rowByText("Quality Rating")?.textContent).toContain("approved")
         expect(rowByText("Exact Match")).toBeUndefined()
@@ -365,6 +358,18 @@ describe("advanced settings section", () => {
             '{"batch_size":10,"max_retries":3,"retry_delay":3}',
         )
         expect(reset()).toBeUndefined()
+    })
+
+    it("A batch size of 0 shows Must be at least 1; zero retries and delay are fine", async () => {
+        await mount(
+            <AdvancedSettingsSection
+                concurrency={{batch_size: 0, max_retries: 0, retry_delay: 0}}
+                onChange={() => undefined}
+                onReset={() => undefined}
+            />,
+        )
+        expect(host.textContent).toContain("Must be at least 1")
+        expect(host.textContent).not.toContain("Must be at least 0")
     })
 
     it("An empty field shows This field is required", async () => {

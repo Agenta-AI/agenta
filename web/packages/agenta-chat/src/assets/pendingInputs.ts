@@ -3,6 +3,7 @@ import type {FileUIPart} from "ai"
 
 import type {QueuedMessage} from "../hooks/useAgentChatQueue"
 
+import {childUpdateOfInput, isServerInput} from "./childUpdate"
 import {attachmentContentUrl} from "./transcriptToMessages"
 
 export interface SessionPendingInputView {
@@ -89,6 +90,7 @@ export const pendingInputToQueuedMessage = (input: PendingSessionInput): QueuedM
         return null
     if (typeof display === "string") text = display
 
+    const childUpdate = childUpdateOfInput(input)
     return {
         id: input.id,
         text,
@@ -97,7 +99,10 @@ export const pendingInputToQueuedMessage = (input: PendingSessionInput): QueuedM
         policy: input.policy,
         source: "server",
         clientId: input.idempotency_key ?? null,
-        editable: input.state === "pending" && display === undefined,
+        kind: input.kind ?? "message",
+        // A server input is read-only: removable, never edited.
+        editable: input.state === "pending" && display === undefined && !isServerInput(input),
+        ...(childUpdate ? {childUpdate} : {}),
         // Promoted: its turn is starting, so it can no longer be removed, edited or sent again.
         ...(input.state === "promoted"
             ? {removable: false, promotedExecutionId: input.promoted_execution_id ?? null}

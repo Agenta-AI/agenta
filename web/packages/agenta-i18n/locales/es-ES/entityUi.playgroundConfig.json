@@ -31,5 +31,7 @@
     "resetToDefault": "Restablecer valores predeterminados",
     "tabModel": "Modelo",
     "tabFallback": "Alternativo",
-    "tabRetry": "Reintento"
+    "tabRetry": "Reintento",
+    "noConfiguration": "Sin configuración",
+    "revisionNoConfig": "Esta revisión aún no tiene prompt ni ajustes."
 }

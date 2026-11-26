@@ -30,7 +30,7 @@ const WIDE_COLUMNS = [
     NAME,
     {key: "kind", label: "Kind", width: "minmax(70px,1fr)"},
     TYPE,
-    {key: "created", label: "Created At", width: "minmax(150px,1fr)"},
+    {key: "created", label: "Date created", width: "minmax(150px,1fr)"},
 ]
 const NARROW_COLUMNS = [PICK, {...NAME, width: "minmax(120px,2fr)"}, TYPE]
 

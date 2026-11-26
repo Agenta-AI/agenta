@@ -26,5 +26,6 @@
     "created": "Creada",
     "actions": "Acciones",
     "testConnection": "Probar conexión",
-    "refreshConnection": "Actualizar conexión"
+    "refreshConnection": "Actualizar conexión",
+    "apiKeyNeverVerified": "Su clave de API nunca se verificó, así que los agentes aún no pueden usar sus herramientas. Elimínala y vuelve a conectar con una clave válida."
 }

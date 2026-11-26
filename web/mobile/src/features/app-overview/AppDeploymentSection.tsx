@@ -12,7 +12,15 @@ import {SectionTitle} from "./states/SectionTitle"
  * Where each environment points. A card opens that environment in the deployments tab of the
  * variants view, by its slug, and is a plain block while that view is off.
  */
-export const AppDeploymentSection = ({app, base}: {app: Workflow; base: string}) => {
+export const AppDeploymentSection = ({
+    projectId,
+    app,
+    base,
+}: {
+    projectId: string
+    app: Workflow
+    base: string
+}) => {
     const {environments} = useAppEnvironments(app.id)
     const variantsEnabled = useDeveloperViewEnabled("variants") === true
 
@@ -30,6 +38,8 @@ export const AppDeploymentSection = ({app, base}: {app: Workflow; base: string})
             ) : (
                 <EnvironmentCards
                     environments={environments.data}
+                    // Each card dates the last deployment, not the revision it points to.
+                    history={{projectId, appId: app.id, appSlug: app.slug ?? null}}
                     getHref={
                         variantsEnabled
                             ? (environment) =>

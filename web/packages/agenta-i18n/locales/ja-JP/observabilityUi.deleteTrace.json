@@ -6,5 +6,10 @@
     "confirmMany": "{{count}} 件のトレースを削除してもよろしいですか？",
     "notReversible": "この操作は元に戻せません。",
     "cancel": "キャンセル",
-    "delete": "削除"
+    "delete": "削除",
+    "descriptionOne": "このトレースとそのすべてのスパンは完全に削除されます。元に戻せません。",
+    "descriptionMany": "これらのトレースとそのすべてのスパンは完全に削除されます。元に戻せません。",
+    "deleting": "削除中…",
+    "deletedOne": "トレースを削除しました",
+    "deletedMany": "{{count}} 件のトレースを削除しました"
 }

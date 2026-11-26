@@ -1,20 +1,27 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import automationsPanelCatalog from "@agenta/i18n/catalogs/automations.panel"
+
+import {AutomationActiveSwitch} from "./AutomationActiveSwitch"
 import {AutomationAgentField} from "./AutomationAgentField"
 import {AutomationFailureBanner} from "./AutomationFailureBanner"
 import {AutomationInstructionField} from "./AutomationInstructionField"
 import {AutomationMetaRow} from "./AutomationMetaRow"
 import type {Automation} from "./automationModel"
-import {AutomationRunHistoryCard} from "./AutomationRunHistoryCard"
 import {AutomationRunPersonNotice} from "./AutomationRunPersonNotice"
+import {AutomationRunsSection, AutomationViewSection} from "./AutomationRunsSection"
 import {AutomationRunsWhenField} from "./AutomationRunsWhenField"
 import {AutomationSaveBar} from "./AutomationSaveBar"
 import {AutomationTitle} from "./AutomationTitle"
 import type {EventSelection} from "./pickers/EventPickerPanel"
 
 /**
- * One automation, read top to bottom: what it is, whether it is on, what is wrong, the three
- * things you can change, and the way through to its runs.
+ * One automation (F05 f5), read top to bottom: what it is and whether it is on, then two groups.
+ * "Runs" is what happened and what will happen, with "Run now" in its title; "Settings" is what
+ * the user can change, with "Discard" and "Save". A failed last run is the red dot on "Last
+ * run", not a banner. Where there is no run history to open (the drawer), the banner stays.
  *
  * The three config fields are ONE edit: they read the draft (`preview`) rather than the saved row,
  * and leave together through the footer. The name and the switch are not part of that edit and
@@ -29,7 +36,6 @@ export const AutomationDetailBody = ({
     automation,
     preview,
     agentName,
-    runHistoryCaption = "",
     onOpenRunHistory,
     className,
     hideSaveBar = false,
@@ -47,19 +53,19 @@ export const AutomationDetailBody = ({
     onDiscard,
     onSave,
     actions,
-    testRun,
+    runNow,
+    panel = false,
 }: {
     /** The saved row — the identity half of the screen. */
     automation: Automation
     /** The saved row with the unsaved config written over it — what the fields render. */
     preview: Automation
     agentName: string | null
-    runHistoryCaption?: string
     /**
-     * Opens the run history over this screen. Absent on a surface that has nowhere to put it
-     * (the drawer), which hides the card rather than offering a dead one.
+     * Opens the run history over this screen; with a run id, that run open. Absent on a surface
+     * that has nowhere to put it (the drawer), which hides the "Runs" group.
      */
-    onOpenRunHistory?: () => void
+    onOpenRunHistory?: (runId?: string) => void
     /**
      * The frame this body sits in. Defaults to the page column a screen wants; a drawer passes
      * its own, because the drawer already owns the gutters.
@@ -88,37 +94,28 @@ export const AutomationDetailBody = ({
     onSave: () => void
     /** The actions menu — on the title's line, not the page header. */
     actions?: ReactNode
-    /** The Run now control — beside the name on a wide screen, under it on a phone. */
-    testRun?: ReactNode
-}) => (
-    <div className={className ?? "mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px] pt-1"}>
-        <div className="flex min-w-0 items-start gap-2">
-            <AutomationTitle
-                name={automation.name}
-                description={automation.description}
-                onRename={onRename}
-            />
-            <span className="ml-auto flex shrink-0 items-center gap-1.5">
-                {/* Run now sits by the name from lg up; on a phone it drops to the meta line
-                    beside the switch, where the row has the room. */}
-                {testRun ? <span className="hidden lg:flex">{testRun}</span> : null}
-                {actions}
-            </span>
-        </div>
-        <AutomationMetaRow
-            active={automation.isActive}
-            agentName={agentName}
-            updatedAt={automation.updatedAt}
-            onToggle={onToggle}
-            trailing={testRun ? <span className="lg:hidden">{testRun}</span> : null}
-        />
-        <AutomationFailureBanner reason={failureReason} />
-        <div className="mt-[26px] flex flex-col gap-[22px]">
-            <AutomationAgentField
-                agentId={preview.agentId}
-                agentName={agentName}
-                onSelectAgent={onSelectAgent}
-            />
+    /** The Run now control: in the "Runs" title, or by the name where there is no "Runs" group. */
+    runNow?: ReactNode
+    /**
+     * The panel's shape (F05 f5): a 16 px name with "On" and the switch at its right, the facts
+     * under it, and no Agent field (the panel opens over the agent that runs it).
+     */
+    panel?: boolean
+}) => {
+    const t = useT(automationsPanelCatalog)
+    const tEditor = useT(automationsEditorCatalog)
+    // With the "Runs" group, Run now sits in its title rather than by the name.
+    const grouped = Boolean(onOpenRunHistory)
+    const titleRun = grouped ? null : runNow
+    const fields = (
+        <div className={`flex flex-col ${panel ? "gap-3" : "gap-[22px]"}`}>
+            {panel ? null : (
+                <AutomationAgentField
+                    agentId={preview.agentId}
+                    agentName={agentName}
+                    onSelectAgent={onSelectAgent}
+                />
+            )}
             <AutomationRunsWhenField
                 automation={preview}
                 onChangeCron={onChangeCron}
@@ -136,25 +133,110 @@ export const AutomationDetailBody = ({
                 automation={automation}
             />
         </div>
-        {onOpenRunHistory ? (
-            <AutomationRunHistoryCard onOpen={onOpenRunHistory} caption={runHistoryCaption} />
-        ) : null}
-        {/* Next to the save it is about: right above the bar, or last in a drawer whose
-            footer holds the bar. */}
-        <AutomationRunPersonNotice
-            automation={automation}
-            draftAgentId={preview.agentId}
-            dirty={dirty}
-        />
-        {/* Last on the page: the bar commits the whole screen, so it reads as the end of the
-            form rather than a divider halfway down it. */}
-        {hideSaveBar ? null : (
-            <AutomationSaveBar
-                dirty={dirty}
-                saving={saving}
-                onDiscard={onDiscard}
-                onSave={onSave}
+    )
+    const header = panel ? (
+        <div className="flex min-w-0 flex-col gap-0.5">
+            <div className="flex min-w-0 items-center gap-2">
+                <div className="min-w-0 flex-1">
+                    <AutomationTitle
+                        name={automation.name}
+                        description={automation.description}
+                        onRename={onRename}
+                        compact
+                    />
+                </div>
+                {titleRun}
+                {actions}
+                <span aria-hidden className="text-[12px] text-muted-foreground">
+                    {automation.isActive
+                        ? tEditor("automations.editor.on")
+                        : tEditor("automations.editor.off")}
+                </span>
+                <AutomationActiveSwitch
+                    active={automation.isActive}
+                    onToggle={onToggle}
+                    label={false}
+                />
+            </div>
+            <AutomationMetaRow
+                active={automation.isActive}
+                agentName={agentName}
+                updatedAt={automation.updatedAt}
+                onToggle={onToggle}
+                factsOnly
             />
-        )}
-    </div>
-)
+        </div>
+    ) : (
+        <>
+            <div className="flex min-w-0 items-start gap-2">
+                <AutomationTitle
+                    name={automation.name}
+                    description={automation.description}
+                    onRename={onRename}
+                />
+                <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                    {/* Run now sits by the name from lg up; on a phone it drops to the meta line
+                    beside the switch, where the row has the room. */}
+                    {titleRun ? <span className="hidden lg:flex">{titleRun}</span> : null}
+                    {actions}
+                </span>
+            </div>
+            <AutomationMetaRow
+                active={automation.isActive}
+                agentName={agentName}
+                updatedAt={automation.updatedAt}
+                onToggle={onToggle}
+                trailing={titleRun ? <span className="lg:hidden">{titleRun}</span> : null}
+            />
+        </>
+    )
+
+    return (
+        <div
+            className={
+                // On a phone 8px of top room (the header gives back 4px) keeps the name and the
+                // actions menu, the first row, from losing their 44px tap areas to the scroll clip.
+                className ??
+                "mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px] pt-1 max-md:pt-2"
+            }
+        >
+            {header}
+            {onOpenRunHistory ? (
+                <div
+                    className={`flex flex-col ${panel ? "mt-[18px] gap-[18px]" : "mt-[26px] gap-[26px]"}`}
+                >
+                    <AutomationRunsSection
+                        automation={automation}
+                        runNow={runNow}
+                        onOpenRunHistory={onOpenRunHistory}
+                    />
+                    <AutomationViewSection title={t("automations.panel.settings")}>
+                        {fields}
+                    </AutomationViewSection>
+                </div>
+            ) : (
+                <>
+                    <AutomationFailureBanner reason={failureReason} />
+                    <div className="mt-[26px]">{fields}</div>
+                </>
+            )}
+            {/* Next to the save it is about: right above the bar, or last in a drawer whose
+            footer holds the bar. */}
+            <AutomationRunPersonNotice
+                automation={automation}
+                draftAgentId={preview.agentId}
+                dirty={dirty}
+            />
+            {/* Last on the page: the bar commits the whole screen, so it reads as the end of the
+            form rather than a divider halfway down it. */}
+            {hideSaveBar ? null : (
+                <AutomationSaveBar
+                    dirty={dirty}
+                    saving={saving}
+                    onDiscard={onDiscard}
+                    onSave={onSave}
+                />
+            )}
+        </div>
+    )
+}

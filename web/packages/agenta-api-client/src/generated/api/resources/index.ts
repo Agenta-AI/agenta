@@ -7,6 +7,8 @@ export * as annotations from "./annotations/index.js";
 export * from "./applications/client/requests/index.js";
 export * as applications from "./applications/index.js";
 export * from "./applications/types/index.js";
+export * from "./approvalChoices/client/requests/index.js";
+export * as approvalChoices from "./approvalChoices/index.js";
 export * from "./billing/client/requests/index.js";
 export * as billing from "./billing/index.js";
 export * from "./channels/client/requests/index.js";

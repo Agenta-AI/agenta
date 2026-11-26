@@ -1,0 +1,5 @@
+{
+    "annotateToSeeScores": "Annotate the scenarios of this run to see each evaluator's scores here.",
+    "missingInputsHint": "Every row will fail with missing inputs. Pick another test set, or add the column to this one.",
+    "namePlaceholder": "Enter a name"
+}
