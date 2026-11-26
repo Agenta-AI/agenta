@@ -36,11 +36,11 @@ export function SubagentCurrentName({
     return <>{children(name || fallback)}</>
 }
 
-/** "Open agent": the subagent's own agent screen, in a new tab as in production. */
 /** The agent's saved subagent slugs, in list order: the set the section's rows read. */
 export const savedSubagentSlugs = (tools: unknown[]): string[] =>
     tools.map(toolReferenceSlug).filter((slug): slug is string => Boolean(slug))
 
+/** "Open agent": the subagent's own agent screen, in a new tab as in production. */
 export function SubagentOpenAgentButton({
     bridge,
     slug,
@@ -53,16 +53,11 @@ export function SubagentOpenAgentButton({
     const href = detail?.workflowId ? (bridge.agentHref?.(detail.workflowId) ?? null) : null
     if (!href) return null
     return (
-        // A quiet link with the external-link glyph (canvas F03 f2); 44 px on a phone.
-        <Button
-            variant="ghost"
-            size="compact"
-            className="gap-1.5 text-muted-foreground [&_svg]:size-3"
-            asChild
-        >
+        // A quiet link; -mr-2 puts its text on the card's right edge, the fill hangs outside.
+        <Button variant="ghost" size="compact" className="-mr-2" asChild>
             {/* no-underline: a bare anchor picks up the app's link styling inside a button. */}
             <a href={href} target="_blank" rel="noreferrer" className="no-underline">
-                <ArrowSquareOut />
+                <ArrowSquareOut data-icon="inline-start" />
                 {t("entityUi.configItems.openAgent")}
             </a>
         </Button>
