@@ -2,7 +2,9 @@
 
 import pytest
 from oss.src.utils.common import is_ee
+from oss.tests.pytest.utils.plans import plan_offers
 from oss.tests.pytest.acceptance.organization_secrets.conftest import (
+    RBAC_PLAN,
     custom_provider,
     organization_scope,
     provider_key,
@@ -233,7 +235,7 @@ def test_projects_route_limits(org):
         path,
         json={"availability": "selected_projects", "project_ids": [org.sales]},
     )
-    if not is_ee():
+    if not is_ee() or not plan_offers(org.admin_api, plan=RBAC_PLAN, flag="rbac"):
         assert response.status_code == 403
         assert (
             org.call("PUT", path, json={"availability": "all_projects"}).status_code

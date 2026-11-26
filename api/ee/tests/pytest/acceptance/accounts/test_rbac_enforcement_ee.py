@@ -14,6 +14,8 @@ oss/tests/pytest/acceptance/accounts/test_member_role.py.
 
 from uuid import uuid4
 
+from utils.plans import skip_unless_plan_offers
+
 
 def _create_account(admin_api, *, email, plan=None):
     """Create a seeded account, optionally pinned to a subscription plan.
@@ -111,6 +113,7 @@ def _create_api_key_for_project(admin_api, *, project_id, user_id):
 
 class TestRbacEnforcementEe:
     def test_owner_allowed_viewer_denied(self, admin_api):
+        skip_unless_plan_offers(admin_api, plan="cloud_v0_business", flags=("rbac",))
         uid = uuid4().hex[:12]
         owner_email = f"rbac-ee-owner-{uid}@test.agenta.ai"
         viewer_email = f"rbac-ee-viewer-{uid}@test.agenta.ai"
@@ -239,6 +242,7 @@ class TestRbacWithoutEntitlementEe:
             _delete_account_by_email(admin_api, email=viewer_email)
 
     def test_business_offers_every_role_but_owner(self, admin_api):
+        skip_unless_plan_offers(admin_api, plan="cloud_v0_business", flags=("rbac",))
         uid = uuid4().hex[:12]
         owner_email = f"rbac-biz-owner-{uid}@test.agenta.ai"
         owner = _create_account(admin_api, email=owner_email, plan="cloud_v0_business")

@@ -277,6 +277,30 @@ apply_ci_telemetry_project() {
     printf "CI telemetry project applied to every service that runs API code.\n"
 }
 
+# Since the one image, every preview runs the enterprise code path, and outside
+# cloud the plan comes from the instance license key. A clone has no key, so it
+# runs on the community plan and the plan-gated tests skip. When CI provides
+# AGENTA_PREVIEW_LICENSE_KEY (a test key signed for the "ci-previews" customer),
+# give it as AGENTA_LICENSE_KEY to the services that run API code. Without the
+# variable (forks, local runs), the clone stays on the community plan.
+apply_ci_license_key() {
+    [ -n "${AGENTA_PREVIEW_LICENSE_KEY:-}" ] || return 0
+    local svc svc_id
+    for svc in api worker-queues worker-streams cron; do
+        svc_id="$(clone_service_id "$svc")"
+        if [ -z "$svc_id" ]; then
+            skip_absent_service "$svc" || return 1
+            continue
+        fi
+        rw_graphql \
+            'mutation($in: VariableCollectionUpsertInput!) { variableCollectionUpsert(input: $in) }' \
+            "$(jq -nc --arg p "$PROJECT_ID" --arg e "$CLONE_ENV_ID" --arg s "$svc_id" --arg v "$AGENTA_PREVIEW_LICENSE_KEY" \
+                '{in: {projectId: $p, environmentId: $e, serviceId: $s, skipDeploys: true, replace: false, variables: {AGENTA_LICENSE_KEY: $v}}}')" \
+            >/dev/null || return 1
+    done
+    printf "CI license key applied to every service that runs API code.\n"
+}
+
 # A write-only vault connection can be resolved only by the trusted platform
 # runtime. Give API and Services one ephemeral shared proof before deploy; do
 # not reuse the admin key and do not expose this proof to any other service.
@@ -691,6 +715,7 @@ main() {
         apply_ci_auth_key || die "could not apply the CI auth key to the clone"
         apply_ci_runtime_key || die "could not apply the CI runtime key to the clone"
         apply_ci_telemetry_project || die "could not apply the CI telemetry project to the clone"
+        apply_ci_license_key || die "could not apply the CI license key to the clone"
         apply_template_alembic_config || die "could not apply the template alembic config to the clone"
         t_created=$(( $(now) - t0 ))
 
