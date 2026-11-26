@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 import httpx
 
-from oss.src.core.instances.service import get_instance_kind
+from oss.src.core.instances.service import get_instance_id, get_instance_kind
 from oss.src.core.releases.dtos import InstanceReleases, ReleaseFeed
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env
@@ -18,6 +18,7 @@ CACHE_NAMESPACE = "releases:feed"
 FEED_TTL_SECONDS = 12 * 60 * 60
 FAILED_FEED_TTL_SECONDS = 60 * 60
 FETCH_TIMEOUT_SECONDS = 5.0
+INSTANCE_ID_TIMEOUT_SECONDS = 2.0
 # The published feed is about 10 KB; anything far larger is not the feed.
 MAX_FEED_BYTES = 1024 * 1024
 
@@ -35,16 +36,31 @@ def _parse_feed(payload: Any) -> Optional[ReleaseFeed]:
     )
 
 
-async def _read_feed_body() -> bytes:
+async def _feed_params() -> dict[str, str]:
+    # The running version, as other self-hosted products send with their update check,
+    # the instance kind, so Agenta's own test stacks can be filtered out, and the
+    # instance id, so each check counts once per instance.
+    # AGENTA_UPDATE_CHECK_ENABLED=false stops the request.
+    params = {"version": get_agenta_version(), "kind": get_instance_kind()}
+    try:
+        # A slow database must not use up the time of the feed request.
+        instance_id = await asyncio.wait_for(
+            get_instance_id(), INSTANCE_ID_TIMEOUT_SECONDS
+        )
+        params["instance_id"] = str(instance_id)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        # Without the id, the check still runs and agenta.ai records it as anonymous.
+        log.warning("[releases] instance id is unavailable", error=str(e) or repr(e))
+    return params
+
+
+async def _read_feed_body(params: dict[str, str]) -> bytes:
     body = bytearray()
     async with httpx.AsyncClient(timeout=FETCH_TIMEOUT_SECONDS) as client:
         async with client.stream(
             "GET",
             env.releases.feed_url,
-            # The running version, as other self-hosted products send with their update
-            # check, and the instance kind, so Agenta's own test stacks can be filtered
-            # out. AGENTA_UPDATE_CHECK_ENABLED=false stops the request.
-            params={"version": get_agenta_version(), "kind": get_instance_kind()},
+            params=params,
         ) as response:
             response.raise_for_status()
             async for chunk in response.aiter_bytes():
@@ -55,9 +71,10 @@ async def _read_feed_body() -> bytes:
 
 
 async def _download_feed() -> Optional[ReleaseFeed]:
+    params = await _feed_params()
     try:
         # The client timeout applies per read; this one bounds the whole download.
-        body = await asyncio.wait_for(_read_feed_body(), FETCH_TIMEOUT_SECONDS)
+        body = await asyncio.wait_for(_read_feed_body(params), FETCH_TIMEOUT_SECONDS)
         feed = _parse_feed(json.loads(body))
     except Exception as e:  # pylint: disable=broad-exception-caught
         log.warning("[releases] release feed fetch failed", error=str(e) or repr(e))

@@ -36,7 +36,7 @@ A paid license key keeps telemetry on, so the switch has no effect on an instanc
 
 ## Update check
 
-While people use the instance, it also checks `https://agenta.ai/releases.json`, at most once every 12 hours, so it can tell you when a newer version or a security fix is available. The check sends the running version (for example `?version=v0.131.0`) and nothing else about your instance. agenta.ai records each check as an `instance_update_check` event in the same analytics project. Turn it off with `AGENTA_UPDATE_CHECK_ENABLED=false`.
+While people use the instance, it also checks `https://agenta.ai/releases.json`, at most once every 12 hours, so it can tell you when a newer version or a security fix is available. The check sends the running version, the instance kind and the instance id (for example `?version=v0.131.0&kind=production&instance_id=...`) and nothing else about your instance. agenta.ai records each check as an `instance_update_check` event in the same analytics project, with the instance id as the distinct id. The update check has its own switch, so it still runs when telemetry is off. Turn it off with `AGENTA_UPDATE_CHECK_ENABLED=false`; then the instance sends nothing to `https://agenta.ai/releases.json`.
 
 ## Registration
 
