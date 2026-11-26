@@ -13,7 +13,7 @@ from oss.src.core.access.dtos import PrincipalKind, RequestCredentialKind
 import ee.src.core.licenses.service as licenses_service_module
 from ee.src.core.licenses.service import LicensesService
 
-from .conftest import fake_replace, sign_key
+from .conftest import sign_key
 
 
 def _access(*, kind=RequestCredentialKind.BEARER_SESSION, user_id=None):
@@ -34,7 +34,7 @@ def wired(monkeypatch, self_hosted, signing_key):
     is_admin = AsyncMock(return_value=True)
     monkeypatch.setattr(licenses_router, "is_instance_admin", is_admin)
     monkeypatch.setattr(licenses_router, "count_users", AsyncMock(return_value=3))
-    dao = SimpleNamespace(read=AsyncMock(return_value=None), replace=fake_replace())
+    dao = SimpleNamespace(read=AsyncMock(return_value=None), replace=AsyncMock())
     service = LicensesService(licenses_dao=dao)
     monkeypatch.setattr(licenses_service_module, "_service", service)
     return SimpleNamespace(access=access, is_admin=is_admin, dao=dao)

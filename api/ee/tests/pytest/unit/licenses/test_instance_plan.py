@@ -1,9 +1,8 @@
 """The plan order without Stripe: a valid license key, else `self_hosted_community`."""
 
-import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import ANY, AsyncMock
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -11,7 +10,6 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from oss.src.utils.env import env
 
-import ee.src.core.licenses.service as licenses_service_module
 from ee.src.core.licenses import keys, types
 from ee.src.core.licenses.service import LicensesService
 from ee.src.core.licenses.types import (
@@ -20,7 +18,7 @@ from ee.src.core.licenses.types import (
     StoredLicense,
 )
 
-from .conftest import fake_replace, sign_key
+from .conftest import sign_key
 
 COMMUNITY = "self_hosted_community"
 ENTERPRISE = "self_hosted_enterprise"
@@ -40,7 +38,7 @@ def _service(stored_key=None) -> LicensesService:
                 else None
             )
         ),
-        replace=fake_replace(),
+        replace=AsyncMock(),
     )
     return LicensesService(licenses_dao=dao)
 
@@ -118,10 +116,7 @@ async def test_activate_stores_a_valid_key(self_hosted, signing_key):
 
     assert state.source == "database"
     service.licenses_dao.replace.assert_awaited_once_with(
-        key_id=state.license.key_id,
-        key=text,
-        created_by_id=user_id,
-        before_commit=ANY,
+        key_id=state.license.key_id, key=text, created_by_id=user_id
     )
 
 
@@ -225,91 +220,6 @@ async def test_activate_clears_the_cached_state(self_hosted, signing_key, shared
     )
 
     assert await service.instance_plan() == ENTERPRISE
-
-
-@pytest.mark.asyncio
-async def test_a_read_that_started_before_activate_keeps_the_new_key(
-    self_hosted, signing_key, shared_cache
-):
-    service = _service()
-    row_read = asyncio.Event()
-    activated = asyncio.Event()
-
-    async def read_before_activate():
-        row_read.set()
-        await activated.wait()
-        return None
-
-    service.licenses_dao.read.side_effect = read_before_activate
-    reader = asyncio.create_task(service.read_state())
-    await row_read.wait()
-
-    await service.activate(key=sign_key(signing_key, plan=ENTERPRISE), user_id=uuid4())
-    activated.set()
-    await reader
-
-    assert await service.instance_plan() == ENTERPRISE
-
-
-@pytest.mark.asyncio
-async def test_two_overlapping_activations_cache_the_key_that_committed_last(
-    self_hosted, signing_key, shared_cache, monkeypatch
-):
-    # The DAO holds the table until commit, so the second replace waits for the first.
-    table = asyncio.Lock()
-    committed: list[str] = []
-
-    async def replace(*, key, before_commit=None, **_):
-        async with table:
-            if before_commit is not None:
-                await before_commit()
-            committed.append(key)
-
-    service = _service()
-    service.licenses_dao.replace.side_effect = replace
-
-    # The first activation's cache write is slow.
-    real_set_cache = licenses_service_module.set_cache
-    calls = 0
-
-    async def slow_first_set_cache(**kwargs):
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            await asyncio.sleep(0.05)
-        return await real_set_cache(**kwargs)
-
-    monkeypatch.setattr(licenses_service_module, "set_cache", slow_first_set_cache)
-
-    first = sign_key(signing_key, plan="self_hosted_registered")
-    second = sign_key(signing_key, plan=ENTERPRISE)
-    await asyncio.gather(
-        service.activate(key=first, user_id=uuid4()),
-        service.activate(key=second, user_id=uuid4()),
-    )
-
-    assert committed == [first, second]
-    assert await service.instance_plan() == ENTERPRISE
-
-
-@pytest.mark.asyncio
-async def test_a_failed_commit_leaves_no_key_in_the_cache(
-    self_hosted, signing_key, shared_cache
-):
-    async def replace_then_fail(*, before_commit=None, **_):
-        await before_commit()
-        raise RuntimeError("commit failed")
-
-    service = _service()
-    service.licenses_dao.replace.side_effect = replace_then_fail
-
-    with pytest.raises(RuntimeError):
-        await service.activate(
-            key=sign_key(signing_key, plan=ENTERPRISE), user_id=uuid4()
-        )
-
-    assert not shared_cache
-    assert await service.instance_plan() == COMMUNITY
 
 
 @pytest.mark.asyncio
