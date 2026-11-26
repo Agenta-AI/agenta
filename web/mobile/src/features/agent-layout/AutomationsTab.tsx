@@ -6,7 +6,6 @@ import {
     triggerSubscriptionDrawerAtom,
 } from "@agenta/entities/gatewayTrigger"
 import {AgentOperationsSections, type TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
-import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
 import {useIsPhone} from "@agenta/ui/phone"
 import {useViewStack} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
@@ -19,19 +18,14 @@ import {useProjectPermissionState} from "../context/useProjectPermission"
 const kindOf = (kind: TriggerOwnerRef["kind"]) =>
     kind === "schedule" ? ("schedule" as const) : ("event" as const)
 
-/** The Automations tab: the agent's automations and its recent files, as production shows them. */
+/** The Automations tab: the agent's automations. Files live in the Files pane. */
 export const AutomationsTab = ({
     revisionId,
     workspaceId,
-    sessionId,
-    filesScope,
     projectId,
 }: {
     revisionId: string
     workspaceId: string
-    /** The session whose recent files show under the automations; absent, no files part. */
-    sessionId?: string
-    filesScope?: string
     projectId: string
 }) => {
     const editAccess = useProjectPermissionState(projectId, "edit_workflows")
@@ -80,25 +74,7 @@ export const AutomationsTab = ({
                     revisionId={revisionId}
                     disabled={!editAccess.pending && !editAccess.allowed}
                     sticky={false}
-                    showFiles={Boolean(sessionId && filesScope)}
-                    storage={
-                        sessionId && filesScope ? (
-                            <StorageSection
-                                revisionId={revisionId}
-                                sessionId={sessionId}
-                                scope={filesScope}
-                            />
-                        ) : null
-                    }
-                    storageHeader={
-                        sessionId && filesScope ? (
-                            <StorageFilesHeader
-                                revisionId={revisionId}
-                                sessionId={sessionId}
-                                scope={filesScope}
-                            />
-                        ) : null
-                    }
+                    showFiles={false}
                     // The automations open as views; the session workspace still mounts the
                     // automation drawers for its other openers.
                     automationDrawer={null}

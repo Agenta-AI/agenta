@@ -41,8 +41,6 @@ const PHONE_TABS = TABS.filter((tab) => tab.key !== "channels")
 export const ConfigurationRoot = ({
     agentId,
     revisionId,
-    sessionId,
-    filesScope,
     workspaceId,
     projectId,
     phoneSection,
@@ -170,8 +168,6 @@ export const ConfigurationRoot = ({
                         <AutomationsTab
                             revisionId={revisionId}
                             workspaceId={workspaceId}
-                            sessionId={sessionId}
-                            filesScope={filesScope}
                             projectId={projectId}
                         />
                     ) : configTab === "channels" ? (

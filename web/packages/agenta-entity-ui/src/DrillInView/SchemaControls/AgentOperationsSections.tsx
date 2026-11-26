@@ -146,14 +146,7 @@ export function AgentOperationsSections({
         <>
             {/* On a phone the list is the whole screen: its white sheet runs down to the button. */}
             <section className={phone ? "flex grow flex-col" : "flex flex-col"}>
-                {/* No header bar: the tab already names the list. "Add automation" is a bordered
-                    button at the top right; the kind is chosen in its menu (F05 f1, f2). A phone
-                    has the button at the bottom instead (M10). */}
-                {phone || disabled ? null : (
-                    <div className={`${sectionsBodyClass} flex justify-end pt-3.5`}>
-                        <AddTriggerDropdown entityId={revisionId} onAdd={onAddAutomation} />
-                    </div>
-                )}
+                {/* No header bar: the tab already names the list. */}
                 <div className={phone ? `${sectionsBodyClass} grow` : sectionsBodyClass}>
                     <TriggerManagementSection
                         entityId={revisionId}
@@ -164,6 +157,12 @@ export function AgentOperationsSections({
                         phone={phone}
                     />
                 </div>
+                {/* "Add automation" follows the list, as on a phone (M10). */}
+                {phone || disabled ? null : (
+                    <div className={`${sectionsBodyClass} flex pb-3.5`}>
+                        <AddTriggerDropdown entityId={revisionId} onAdd={onAddAutomation} />
+                    </div>
+                )}
             </section>
 
             {/* Last region: it grows so its white sheet runs to the panel's bottom edge instead of
