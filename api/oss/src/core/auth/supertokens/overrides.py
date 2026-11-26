@@ -60,6 +60,7 @@ from oss.src.core.auth.helper import (
 from oss.src.core.auth.service import AuthService
 from oss.src.core.telemetry.service import (
     distinct_id_for,
+    instance_groups,
     self_hosted_event_properties,
 )
 from oss.src.utils.version import get_agenta_version
@@ -219,6 +220,8 @@ async def _create_account(email: str, uid: str) -> bool:
             if env.stripe.enabled:
                 properties["cloud_url"] = _get_signup_cloud_url()
                 properties["$set"] = {"email": auth_info.email}
+            else:
+                properties["$groups"] = await instance_groups()
             posthog.capture(
                 distinct_id=await distinct_id_for(user.id, auth_info.email),
                 event="user_signed_up_v1",
