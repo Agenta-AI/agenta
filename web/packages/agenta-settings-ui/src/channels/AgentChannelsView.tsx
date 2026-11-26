@@ -193,9 +193,6 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
         ]
         return (
             <div className="flex flex-col gap-5" data-testid="agent-channels">
-                <p className="m-0 text-body-sm text-muted-foreground">
-                    {t("agentPages.channels.intro", {agent: agentName})}
-                </p>
                 {loadError ? (
                     <div
                         role="alert"
@@ -222,6 +219,7 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                     <SettingsCatalogSection
                         group={{
                             label: t("agentPages.channels.addChannel"),
+                            description: t("agentPages.channels.intro", {agent: agentName}),
                             items: addItems,
                             list: true,
                             count: null,

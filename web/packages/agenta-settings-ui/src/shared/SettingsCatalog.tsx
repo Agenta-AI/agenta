@@ -48,6 +48,8 @@ export interface SettingsCatalogGroup {
     keepWhenEmpty?: boolean
     /** One row per line, like a table, in place of two columns. */
     list?: boolean
+    /** One line under the heading that says what the group is for. */
+    description?: ReactNode
 }
 
 const FOCUS_RING = "outline-none focus-ring"
@@ -170,6 +172,9 @@ export const SettingsCatalogSection = ({
             onToggle={group.onToggle}
             action={group.action}
         />
+        {group.description ? (
+            <p className="-mt-1.5 m-0 text-label text-muted-foreground">{group.description}</p>
+        ) : null}
         {group.collapsed ? null : group.items.length || group.pendingRows ? (
             <div
                 // ROW-04: two-line rows 8 px apart, one-line rows 4 px.
