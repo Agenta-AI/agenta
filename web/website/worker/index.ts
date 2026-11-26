@@ -167,7 +167,6 @@ async function serveMedia(
   if (
     !key ||
     key.split("/").some((segment) => segment === "..") ||
-    // The registration caps share the bucket; their counts are not media.
     key.startsWith(CAPS_PREFIX)
   ) {
     return new Response(null, { status: 404, headers: HEADERS });
