@@ -172,7 +172,7 @@ export const SessionHeader = ({
         return (
             <header
                 data-testid="session-header"
-                className="box-border flex h-11 min-w-0 shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted bg-background px-2"
+                className="box-border flex h-11 min-w-0 shrink-0 items-center gap-1 bg-background px-2"
             >
                 <PageTitle title={session.data?.name} />
                 {shortcuts}
@@ -230,7 +230,7 @@ export const SessionHeader = ({
     return (
         <header
             data-testid="session-header"
-            className="box-border flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted bg-background px-3"
+            className="box-border flex h-12 shrink-0 items-center gap-2 bg-background px-3"
         >
             <PageTitle title={session.data?.name} />
             {shortcuts}
