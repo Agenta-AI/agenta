@@ -26,7 +26,8 @@ export const ChannelsTab = ({
     const t = useT(agentLayoutPanelCatalog)
     const panel = useAgentPanel()
     return (
-        <div className={cn("h-full min-h-0 overflow-y-auto p-4", className)}>
+        // A flex column, so an open view fills it and its footer sits at the bottom.
+        <div className={cn("flex h-full min-h-0 flex-col overflow-y-auto p-4", className)}>
             <AgentChannels
                 agentId={agentId}
                 workspaceId={workspaceId}
@@ -37,6 +38,7 @@ export const ChannelsTab = ({
                         ? undefined
                         : (view) => (
                               <PaneBackView
+                                  className="flex flex-1 flex-col"
                                   back={{
                                       title: view.onBack
                                           ? view.title

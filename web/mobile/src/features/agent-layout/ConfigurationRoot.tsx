@@ -175,8 +175,10 @@ export const ConfigurationRoot = ({
                             agentId={agentId}
                             workspaceId={workspaceId}
                             projectId={projectId}
-                            // The pane's own 24 px margins (`panel-side`).
-                            className={panel.phone ? undefined : "px-6"}
+                            // The pane's own 24 px margins; the footer band bleeds by the same.
+                            className={
+                                panel.phone ? undefined : "px-6 [--panel-bleed-x:--spacing(6)]"
+                            }
                         />
                     ) : (
                         <AccessTab
