@@ -225,7 +225,7 @@ function DialogTitle({className, ...props}: React.ComponentProps<typeof DialogPr
         <DialogPrimitive.Title
             data-slot="dialog-title"
             // m-0 resets the UA <h2> margin (preflight off).
-            className={cn("m-0 text-title leading-none", className)}
+            className={cn("m-0 text-title", className)}
             {...props}
         />
     )

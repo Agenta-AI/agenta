@@ -291,7 +291,8 @@ function Segmented({
                         onClick={() => commit(opt.value, opt)}
                     >
                         {opt.icon}
-                        {opt.label}
+                        {/* An element, so an icon beside a label is not `svg:only-child` (icon-only). */}
+                        {opt.label != null && opt.label !== "" ? <span>{opt.label}</span> : null}
                     </button>
                 )
             })}
