@@ -841,6 +841,35 @@ describe("daily caps", () => {
     expect(sent).toHaveLength(DAILY_INSTANCE_CAP);
   });
 
+  it("does not count a send that failed", async () => {
+    const { bucket } = capBucket();
+    const env = withLimits({ LICENSE_SIGNING_KEY: privatePem, MEDIA: bucket });
+    const failing: MailSender = {
+      async send() {
+        throw new Error("down");
+      },
+    };
+    for (let index = 0; index < DAILY_EMAIL_CAP + 1; index++) {
+      expect((await handleRegistration(post(VALID), env, failing)).status).toBe(
+        502,
+      );
+    }
+
+    const { sender, sent } = fakeSender();
+    const response = await handleRegistration(
+      post(VALID),
+      env,
+      sender,
+      undefined,
+      {
+        record: async () => {},
+      },
+    );
+
+    expect(response.status).toBe(202);
+    expect(sent).toHaveLength(1);
+  });
+
   it("keeps only hashes of the email and the instance id in the bucket", async () => {
     const { sender } = fakeSender();
     const { bucket, objects } = capBucket();
