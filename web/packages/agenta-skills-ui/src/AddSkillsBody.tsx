@@ -30,7 +30,7 @@ import {
     SimpleTooltip,
     SkeletonBlock,
 } from "@agenta/ui/ui"
-import {Check, DotsThreeVertical, MagnifyingGlass, MinusCircle, Plus} from "@phosphor-icons/react"
+import {Check, DotsThreeVertical, MagnifyingGlass, Plus, Trash} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {filterSkillOptions, pickerEmbedEntry, toPickerItem} from "./pickerOptions"
@@ -84,7 +84,7 @@ function AddedRow({option, onRemove}: {option: SkillListItem; onRemove: () => vo
                                 onSelect={onRemove}
                                 aria-label={t("skills.agent.removeSkillFromAgent", {name: title})}
                             >
-                                <MinusCircle />
+                                <Trash />
                                 {t("entityUi.integrationViews.removeFromAgent")}
                             </DropdownMenuItem>
                         </DropdownMenuContent>
