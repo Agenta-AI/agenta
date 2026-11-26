@@ -5,12 +5,12 @@
  * author configures afterwards, from the integration's row, is the permission policy. There is no
  * per-action catalog here any more.
  *
- * Three ways in, all landing the same entry: quick-add from a connection the project already has,
- * pick a connection when an integration has several, and Connect, which the host opens (the
- * connect view) and which stores a project connection; the catalog then adds the new connection.
+ * Each connection is its own row. Two ways in, both landing the same entry: quick-add from a
+ * connection the project already has, and Connect, which the host opens (the connect view) and
+ * which stores a project connection; the catalog then adds the new connection.
  *
- * A new integration lands on "Allow all". Choosing another connection for an
- * integration that is already configured REPLACES its entry, keeping the policy already set.
+ * A new integration lands on "Allow all". "Use" on another connection of an integration that is
+ * already configured REPLACES its entry, keeping the policy already set.
  *
  * Settings mounts the same list as its page (`layout="page"`), with the person's own accounts,
  * Run and the project switch as props.
@@ -32,7 +32,8 @@ import {
     type ToolCatalogIntegrationDetails,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
-import {createT, useT} from "@agenta/i18n"
+import {useUserDisplayName} from "@agenta/entities/shared"
+import {createT, formatDate, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import {connectionDisplayName} from "@agenta/shared/utils"
@@ -47,8 +48,6 @@ import {
     EmptyHeader,
     EmptyMedia,
     EmptyTitle,
-    RadioGroup,
-    RadioGroupItem,
     SearchInput,
     SimpleTooltip,
 } from "@agenta/ui/ui"
@@ -164,34 +163,28 @@ export interface IntegrationCatalogControls {
     onClearSearch?: () => void
 }
 
-interface ConnectedGroup {
+/** One connection in "Connected", with the provider and integration it belongs to. */
+interface ConnectedEntry {
     integrationKey: string
     provider: string
-    connections: ToolConnection[]
+    connection: ToolConnection
 }
 
 /** The identity of an integration row is the PAIR; the integration alone merges two providers. */
 const groupKey = (provider: string, integration: string): string => `${provider}:${integration}`
 
-/** The project's connections, grouped by the provider and integration they belong to. */
-function groupConnections(connections: ToolConnection[]): ConnectedGroup[] {
-    const groups = new Map<string, ConnectedGroup>()
+/** One entry per connection; an app's connections stay next to each other. */
+function connectionEntries(connections: ToolConnection[]): ConnectedEntry[] {
+    const byApp = new Map<string, ConnectedEntry[]>()
     for (const connection of connections) {
         if (!connection.integration_key || !connection.slug) continue
         const provider = connection.provider_key ?? "composio"
         const key = groupKey(provider, connection.integration_key)
-        let group = groups.get(key)
-        if (!group) {
-            group = {
-                integrationKey: connection.integration_key,
-                provider,
-                connections: [],
-            }
-            groups.set(key, group)
-        }
-        group.connections.push(connection)
+        const entries = byApp.get(key) ?? []
+        entries.push({integrationKey: connection.integration_key, provider, connection})
+        byApp.set(key, entries)
     }
-    return [...groups.values()]
+    return [...byApp.values()].flat()
 }
 
 /** Connections are shown by NAME; one named only by its slug reads as the app (see helper). */
@@ -262,9 +255,17 @@ const DefaultMark = ({label}: {label: string}) => (
     <span className="shrink-0 text-meta font-normal text-muted-foreground">{label}</span>
 )
 
-/** A row in "Connected in your workspace": quick-add, or open the connection chooser. */
+/** When a connection was made: "Nov 19", with the year when it is not this year. */
+const connectedDate = (value: string | null | undefined): string | null => {
+    const at = value ? Date.parse(value) : Number.NaN
+    if (Number.isNaN(at)) return null
+    const thisYear = new Date(at).getFullYear() === new Date().getFullYear()
+    return formatDate(at, {day: "numeric", month: "short", year: thisYear ? undefined : "numeric"})
+}
+
+/** One connection in "Connected": add it, switch the agent to it, or open it (Settings). */
 function ConnectedRow({
-    group,
+    entry,
     row,
     onAdd,
     handlers,
@@ -276,7 +277,7 @@ function ConnectedRow({
     canvas?: boolean
     /** After the name, e.g. the owner chip in Settings' mixed list. */
     chip?: ReactNode
-    group: ConnectedGroup
+    entry: ConnectedEntry
     /** The agent's row for this integration, in EITHER format, or undefined when it holds none. */
     row: IntegrationRow | undefined
     /** Absent where nothing is added to an agent: the row only lists the connection. */
@@ -285,120 +286,87 @@ function ConnectedRow({
     verbs?: RowVerbs
 }) {
     const t = useT(integrationDrawerCatalog)
-    const {integration} = useToolIntegrationDetail(group.integrationKey)
-    const name = integration?.name || group.integrationKey
-    const multiple = group.connections.length > 1
-    const [choosing, setChoosing] = useState(false)
-    const currentSlug = row?.entry?.connection
-    const [selected, setSelected] = useState(() => currentSlug ?? group.connections[0]?.slug ?? "")
-    const selectedName = connectionLabel(
-        group.connections.find((connection) => connection.slug === selected) ??
-            group.connections[0],
-        integration?.name,
-    )
-
-    // Adding again would give one integration two model-facing surfaces, so one the agent already
-    // holds offers no Add. Choosing another connection edits the entry, which an integration still
-    // on the legacy per-action format does not have.
-    const added = Boolean(row)
-    const swappable = Boolean(row?.entry)
-    const single = group.connections[0]
-    const singleLabel = connectionLabel(single, integration?.name)
-
+    const {integration} = useToolIntegrationDetail(entry.integrationKey)
+    const {connection} = entry
+    const name = integration?.name || entry.integrationKey
+    const label = connectionLabel(connection, name)
     const logo = integration?.logo ?? null
-    // One connection reads as Settings reads it: the connection's own name, then "App · Auth".
-    const attention = multiple ? null : attentionOf(single)
-    // "Added" only while the connection the agent uses works; with several connections that is
-    // the one its entry names.
-    const addedConnection = multiple
-        ? group.connections.find((connection) => connection.slug === currentSlug)
-        : single
-    const addedWorks = !addedConnection || attentionOf(addedConnection) === null
-    // The panel names the app and puts the account under it (canvas F02 f4).
-    const title = multiple || canvas ? name : singleLabel
+    const slug = connection.slug ?? ""
+    const attention = attentionOf(connection)
+    const connectedBy = useUserDisplayName(connection.created_by_id)
 
+    // A legacy per-action entry has no connection to switch, and adding again would give one
+    // integration two model-facing surfaces.
+    const legacy = Boolean(row) && !row?.entry
+    const inUse = row?.entry
+        ? row.entry.connection === slug
+        : Boolean(row) && (!row?.legacyConnections.length || row.legacyConnections.includes(slug))
+    const switchable = Boolean(onAdd) && Boolean(row?.entry) && !inUse
+
+    const when = connectedDate(connection.created_at)
+    const connectedText = when
+        ? connectedBy
+            ? t("entityUi.integrationDrawer.connectedByWhen", {name: connectedBy, when})
+            : t("entityUi.integrationDrawer.connectedWhen", {when})
+        : null
+    // What tells same-named connections apart, without ids: the app, the sign-in, when and who.
     const subtitle =
-        choosing && onAdd
-            ? t("entityUi.integrationDrawer.chooseConnection")
-            : added && !swappable
-              ? t("entityUi.integrationDrawer.alreadyAddedOldFormat")
-              : multiple
-                ? t("entityUi.integrationDrawer.connectionCount", {count: group.connections.length})
-                : canvas
-                  ? singleLabel
-                  : // What the app does says more than repeating its name; the old line is the fallback.
-                    integration?.description?.trim() ||
-                    [name, authLabel(single)].filter(Boolean).join(" · ")
+        onAdd && legacy
+            ? t("entityUi.integrationDrawer.alreadyAddedOldFormat")
+            : [label === name ? null : name, authLabel(connection), connectedText]
+                  .filter(Boolean)
+                  .join(" · ")
 
-    // An added integration offers Change only when it has an entry to edit; adding a second
-    // surface to one still on the legacy format is never the intent.
-    const chooserButton = Boolean(onAdd) && multiple && (!added || swappable)
-    // With no agent, an app with several connections opens to manage each one.
-    const browseList = !onAdd && multiple
-
-    // Adding is the row's own click; only switching connections needs a visible button.
-    const rowAction =
-        chooserButton && (choosing || added) ? (
-            <Button
-                variant={canvas ? "outline" : "ghost"}
-                size={canvas ? "compact" : "sm"}
-                className={canvas ? "font-normal" : undefined}
-                onClick={() => setChoosing((v) => !v)}
-            >
-                {choosing
-                    ? t("entityUi.integrationDrawer.cancel")
-                    : t("entityUi.integrationDrawer.change")}
-            </Button>
+    const attentionTag = attention
+        ? attention === "inactive"
+            ? t("entityUi.integrationDrawer.inactive")
+            : t("entityUi.integrationDrawer.pending")
+        : null
+    const defaultMark =
+        verbs.makeDefault && isConnectionDefault(connection) ? (
+            <DefaultMark label={verbs.makeDefault.defaultLabel} />
         ) : null
 
     const statusSuffix = canvas ? (
-        attention ? (
+        attentionTag ? (
             <span className="inline-flex h-5 shrink-0 items-center rounded-sm px-2 text-caption text-warning bg-warning/10">
-                {attention === "inactive"
-                    ? t("entityUi.integrationDrawer.inactive")
-                    : t("entityUi.integrationDrawer.pending")}
+                {attentionTag}
             </span>
-        ) : !multiple && verbs.makeDefault && isConnectionDefault(single) ? (
-            <DefaultMark label={verbs.makeDefault.defaultLabel} />
-        ) : null
-    ) : added && !choosing ? (
+        ) : (
+            defaultMark
+        )
+    ) : inUse ? (
         <span className="flex shrink-0 items-center gap-1 text-meta font-normal text-success">
             <Check size={11} weight="bold" />
             {t("entityUi.integrationDrawer.added")}
         </span>
-    ) : attention ? (
+    ) : attentionTag ? (
         // Beside the name and never truncated, so the problem always shows.
         <span className="flex shrink-0 items-center gap-1.5 text-label font-medium text-warning">
             <span aria-hidden className="size-1.5 rounded-round bg-current" />
-            {attention === "inactive"
-                ? t("entityUi.integrationDrawer.inactive")
-                : t("entityUi.integrationDrawer.pending")}
+            {attentionTag}
         </span>
-    ) : !multiple && verbs.makeDefault && isConnectionDefault(single) ? (
-        <DefaultMark label={verbs.makeDefault.defaultLabel} />
-    ) : null
+    ) : (
+        defaultMark
+    )
+
     return (
         <CatalogListRow
-            highlighted={choosing && (Boolean(onAdd) || browseList)}
-            actionLabel={onAdd ? t("entityUi.integrationDrawer.addName", {name}) : name}
+            actionLabel={onAdd ? t("entityUi.integrationDrawer.addName", {name: label}) : label}
             onClick={
-                choosing && onAdd
-                    ? undefined
-                    : // As in Settings: a sign-in that never finished opens to finishing it.
-                      attention === "pending"
-                      ? () => handlers.onFinish(single, name, logo)
-                      : chooserButton || browseList
-                        ? () => setChoosing((value) => !value)
-                        : onAdd && !added && single.slug
-                          ? () => onAdd(single.slug ?? "")
-                          : // Settings: a connection opens to its detail.
-                            !onAdd && handlers.onOpen
-                            ? () => handlers.onOpen?.(single, name, logo)
-                            : undefined
+                // As in Settings: a sign-in that never finished opens to finishing it.
+                attention === "pending"
+                    ? () => handlers.onFinish(connection, name, logo)
+                    : onAdd && !row && slug
+                      ? () => onAdd(slug)
+                      : // Settings: a connection opens to its detail.
+                        !onAdd && handlers.onOpen
+                        ? () => handlers.onOpen?.(connection, name, logo)
+                        : undefined
             }
             variant={canvas ? "canvas" : "default"}
             leading={<LogoTile logo={logo} />}
-            title={title}
+            title={label}
             titleSuffix={
                 chip ? (
                     <span className="flex shrink-0 items-center gap-2">
@@ -413,151 +381,60 @@ function ConnectedRow({
                 <span className={`flex items-center ${canvas ? "gap-2" : "gap-0.5"}`}>
                     {/* "Added" only on a working connection; a pending or inactive one shows its
                         tag instead (canvas F02 f4). */}
-                    {canvas && added && !choosing && addedWorks ? (
+                    {canvas && inUse && !attention ? (
                         <span className="flex shrink-0 items-center gap-1 text-meta text-muted-foreground">
                             <Check size={14} />
                             {t("entityUi.integrationDrawer.added")}
                         </span>
                     ) : null}
-                    {rowAction}
+                    {switchable ? (
+                        <Button
+                            variant={canvas ? "outline" : "ghost"}
+                            size={canvas ? "compact" : "sm"}
+                            className={canvas ? "font-normal" : undefined}
+                            onClick={() => onAdd?.(slug)}
+                        >
+                            {t("entityUi.integrationDrawer.use")}
+                        </Button>
+                    ) : null}
                     {canvas && attention === "pending" ? (
                         <CaretRight size={12} className="shrink-0 text-muted-foreground" />
                     ) : null}
-                    {/* Per-connection verbs need one connection to act on. In the panel they take
-                        no room until the row is hovered or focused; touch shows them always. */}
-                    {multiple ? null : (
-                        <span
-                            className={
-                                canvas
-                                    ? // Zero width, not hidden, so Tab still reaches the menu button;
-                                      // -ml-2 takes back the row's gap while it is closed. Touch
-                                      // does not clip, so the button keeps its 44px tap area.
-                                      "-ml-2 flex max-w-0 overflow-hidden group-focus-within/row:ml-0 group-focus-within/row:max-w-none group-hover/row:ml-0 group-hover/row:max-w-none has-[[data-state=open]]:ml-0 has-[[data-state=open]]:max-w-none [@media(hover:none)]:ml-0 [@media(hover:none)]:max-w-none [@media(hover:none)]:overflow-visible"
-                                    : "contents"
+                    {/* In the panel the menu takes no room until the row is hovered or focused;
+                        touch shows it always. */}
+                    <span
+                        className={
+                            canvas
+                                ? // Zero width, not hidden, so Tab still reaches the menu button;
+                                  // -ml-2 takes back the row's gap while it is closed. Touch
+                                  // does not clip, so the button keeps its 44px tap area.
+                                  "-ml-2 flex max-w-0 overflow-hidden group-focus-within/row:ml-0 group-focus-within/row:max-w-none group-hover/row:ml-0 group-hover/row:max-w-none has-[[data-state=open]]:ml-0 has-[[data-state=open]]:max-w-none [@media(hover:none)]:ml-0 [@media(hover:none)]:max-w-none [@media(hover:none)]:overflow-visible"
+                                : "contents"
+                        }
+                    >
+                        <ConnectionRowMenu
+                            items={menuItems(connection, verbs)}
+                            onRefresh={() => handlers.onRefresh(connection)}
+                            onRevoke={
+                                verbs.manage === false
+                                    ? undefined
+                                    : () => handlers.onConfirm("revoke", connection, label)
                             }
-                        >
-                            <ConnectionRowMenu
-                                items={menuItems(single, verbs)}
-                                onRefresh={() => handlers.onRefresh(single)}
-                                onRevoke={
-                                    verbs.manage === false
-                                        ? undefined
-                                        : () => handlers.onConfirm("revoke", single, singleLabel)
-                                }
-                                onDelete={
-                                    verbs.manage === false
-                                        ? undefined
-                                        : () => handlers.onConfirm("delete", single, singleLabel)
-                                }
-                            />
-                        </span>
-                    )}
+                            onDelete={
+                                verbs.manage === false
+                                    ? undefined
+                                    : () => handlers.onConfirm("delete", connection, label)
+                            }
+                        />
+                    </span>
                 </span>
             }
-            expansion={
-                choosing && browseList ? (
-                    <div className="ml-11 mt-2 flex flex-col gap-1">
-                        {group.connections.map((connection) => {
-                            const label = connectionLabel(connection, integration?.name)
-                            const pending = attentionOf(connection) === "pending"
-                            return (
-                                <div
-                                    key={connection.slug}
-                                    className="flex items-center gap-2 rounded-md bg-muted px-2.5 py-1 text-label"
-                                >
-                                    <span className="flex-1 truncate">{label}</span>
-                                    {verbs.makeDefault && isConnectionDefault(connection) ? (
-                                        <DefaultMark label={verbs.makeDefault.defaultLabel} />
-                                    ) : null}
-                                    {pending ? (
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() =>
-                                                handlers.onFinish(connection, name, logo)
-                                            }
-                                        >
-                                            {t("entityUi.integrationDrawer.pending")}
-                                        </Button>
-                                    ) : isConnectionValid(connection) ? null : (
-                                        <span className="shrink-0 text-warning">
-                                            {t("entityUi.integrationDrawer.needsReconnect")}
-                                        </span>
-                                    )}
-                                    <ConnectionRowMenu
-                                        items={menuItems(connection, verbs)}
-                                        onRefresh={() => handlers.onRefresh(connection)}
-                                        onRevoke={
-                                            verbs.manage === false
-                                                ? undefined
-                                                : () =>
-                                                      handlers.onConfirm(
-                                                          "revoke",
-                                                          connection,
-                                                          label,
-                                                      )
-                                        }
-                                        onDelete={
-                                            verbs.manage === false
-                                                ? undefined
-                                                : () =>
-                                                      handlers.onConfirm(
-                                                          "delete",
-                                                          connection,
-                                                          label,
-                                                      )
-                                        }
-                                    />
-                                </div>
-                            )
-                        })}
-                    </div>
-                ) : choosing && onAdd ? (
-                    <div className="ml-11 mt-2 flex flex-col gap-1">
-                        <RadioGroup value={selected} onValueChange={setSelected}>
-                            {group.connections.map((connection) => (
-                                <label
-                                    key={connection.slug}
-                                    className={`flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-label transition-colors duration-[var(--duration-fast)] ${
-                                        selected === connection.slug ? "bg-accent" : "bg-muted"
-                                    }`}
-                                >
-                                    <RadioGroupItem value={connection.slug ?? ""} />
-                                    <span className="flex-1 truncate">
-                                        {connectionLabel(connection, integration?.name)}
-                                    </span>
-                                    {isConnectionValid(connection) ? null : (
-                                        <span className="shrink-0 text-warning">
-                                            {t("entityUi.integrationDrawer.needsReconnect")}
-                                        </span>
-                                    )}
-                                </label>
-                            ))}
-                        </RadioGroup>
-                        <div className="flex justify-end">
-                            <Button
-                                variant="default"
-                                size="sm"
-                                disabled={!selected || selected === currentSlug}
-                                onClick={() => {
-                                    onAdd?.(selected)
-                                    setChoosing(false)
-                                }}
-                            >
-                                {added
-                                    ? t("entityUi.integrationDrawer.useName", {name: selectedName})
-                                    : t("entityUi.integrationDrawer.addWithName", {
-                                          name: selectedName,
-                                      })}
-                            </Button>
-                        </div>
-                    </div>
-                ) : null
-            }
         >
-            <span className="truncate text-meta text-muted-foreground" title={subtitle}>
-                {subtitle}
-            </span>
+            {subtitle ? (
+                <span className="truncate text-meta text-muted-foreground" title={subtitle}>
+                    {subtitle}
+                </span>
+            ) : null}
         </CatalogListRow>
     )
 }
@@ -783,17 +660,19 @@ export function IntegrationCatalog({
     const showsOwner = (owner: "user" | "project") =>
         !controls || controls.owner === "all" || controls.owner === owner
 
-    const allConnectedGroups = useMemo(() => groupConnections(connections), [connections])
+    const allConnectedEntries = useMemo(() => connectionEntries(connections), [connections])
     const showsYours = Boolean(yours)
-    const allYoursGroups = useMemo(
-        () => (showsYours ? groupConnections(personalConnections ?? []) : []),
+    const allYoursEntries = useMemo(
+        () => (showsYours ? connectionEntries(personalConnections ?? []) : []),
         [showsYours, personalConnections],
     )
 
     // Read through the SAME query atoms each row uses, so this shares their cache.
     // Keyed by the joined keys: a new atom on every render would subscribe again and loop.
     const connectedKeys = [
-        ...new Set([...allConnectedGroups, ...allYoursGroups].map((group) => group.integrationKey)),
+        ...new Set(
+            [...allConnectedEntries, ...allYoursEntries].map((entry) => entry.integrationKey),
+        ),
     ]
         .sort()
         .join("\n")
@@ -820,11 +699,11 @@ export function IntegrationCatalog({
     }, [connectedDetails])
 
     // Filtered here, not inside each row, so the section count matches the rows it heads.
-    const {connected: connectedGroups, connectable: allRows} = useMemo(
+    const {connected: connectedEntries, connectable: allRows} = useMemo(
         () =>
             catalogSections({
                 integrations,
-                groups: allConnectedGroups,
+                groups: allConnectedEntries,
                 query,
                 category,
                 categoriesByIntegration,
@@ -832,7 +711,7 @@ export function IntegrationCatalog({
             }),
         [
             integrations,
-            allConnectedGroups,
+            allConnectedEntries,
             query,
             category,
             categoriesByIntegration,
@@ -850,16 +729,16 @@ export function IntegrationCatalog({
             ),
         )
     }, [allRows, query])
-    const yoursGroups = useMemo(
+    const yoursEntries = useMemo(
         () =>
             filterConnectedGroups({
-                groups: allYoursGroups,
+                groups: allYoursEntries,
                 query,
                 category,
                 categoriesByIntegration,
                 namesByIntegration,
             }),
-        [allYoursGroups, query, category, categoriesByIntegration, namesByIntegration],
+        [allYoursEntries, query, category, categoriesByIntegration, namesByIntegration],
     )
     const rowsByIntegration = useMemo(
         () =>
@@ -905,8 +784,8 @@ export function IntegrationCatalog({
     const catalogLoading = isLoading && integrations.length === 0
     const nothingFound =
         !catalogLoading &&
-        connectedGroups.length === 0 &&
-        yoursGroups.length === 0 &&
+        connectedEntries.length === 0 &&
+        yoursEntries.length === 0 &&
         catalogRows.length === 0 &&
         // More pages may still hold a match for a local narrowing.
         !hasNextPage
@@ -914,9 +793,10 @@ export function IntegrationCatalog({
     // category shows only what it matched (no pinned heading, no empty note).
     const filtering = searching || category !== null
     const showConnected =
-        connectedGroups.length > 0 || (Boolean(projectHeading) && !filtering && !connectionsLoading)
+        connectedEntries.length > 0 ||
+        (Boolean(projectHeading) && !filtering && !connectionsLoading)
     const yoursFooter =
-        yours?.error ?? (!filtering && yoursGroups.length === 0 ? yours?.empty : null)
+        yours?.error ?? (!filtering && yoursEntries.length === 0 ? yours?.empty : null)
 
     // Settings' Connected footer: a failed personal read on every tab, the empty note on Personal.
     const connectedFooter = !showsOwner("user")
@@ -936,18 +816,18 @@ export function IntegrationCatalog({
         />
     )
 
-    const renderRows = (groups: ConnectedGroup[], verbs: RowVerbs, chip?: ReactNode) =>
-        groups.map((group) => (
+    const renderRows = (entries: ConnectedEntry[], verbs: RowVerbs, chip?: ReactNode) =>
+        entries.map((entry) => (
             <ConnectedRow
-                key={groupKey(group.provider, group.integrationKey)}
-                group={group}
-                row={rowsByIntegration.get(groupKey(group.provider, group.integrationKey))}
+                key={`${groupKey(entry.provider, entry.integrationKey)}:${entry.connection.slug}`}
+                entry={entry}
+                row={rowsByIntegration.get(groupKey(entry.provider, entry.integrationKey))}
                 onAdd={
                     adding
                         ? (slug) =>
                               slug &&
                               adding.onAddIntegration(
-                                  {provider: group.provider, integration: group.integrationKey},
+                                  {provider: entry.provider, integration: entry.integrationKey},
                                   slug,
                               )
                         : undefined
@@ -999,8 +879,8 @@ export function IntegrationCatalog({
                 >
                     {controls ? (
                         // Settings: one Connected grid, as All apps, narrow owners first, chips in All.
-                        (showsOwner("user") && yoursGroups.length > 0) ||
-                        (showsOwner("project") && connectedGroups.length > 0) ||
+                        (showsOwner("user") && yoursEntries.length > 0) ||
+                        (showsOwner("project") && connectedEntries.length > 0) ||
                         connectedFooter ? (
                             <RowGroup
                                 // With an owner segment the heading names the tab, as "Personal connections".
@@ -1010,8 +890,8 @@ export function IntegrationCatalog({
                                         : t("entityUi.integrationDrawer.connected")
                                 }
                                 count={
-                                    (showsOwner("user") ? yoursGroups.length : 0) +
-                                    (showsOwner("project") ? connectedGroups.length : 0)
+                                    (showsOwner("user") ? yoursEntries.length : 0) +
+                                    (showsOwner("project") ? connectedEntries.length : 0)
                                 }
                                 page={page}
                                 footer={
@@ -1022,7 +902,7 @@ export function IntegrationCatalog({
                             >
                                 {showsOwner("user")
                                     ? renderRows(
-                                          yoursGroups,
+                                          yoursEntries,
                                           yoursVerbs,
                                           yours && controls.owner === "all" ? (
                                               <OwnerChip owner="user" />
@@ -1031,7 +911,7 @@ export function IntegrationCatalog({
                                     : null}
                                 {showsOwner("project")
                                     ? renderRows(
-                                          connectedGroups,
+                                          connectedEntries,
                                           projectVerbs,
                                           yours && controls.owner === "all" ? (
                                               <OwnerChip owner="project" />
@@ -1044,10 +924,10 @@ export function IntegrationCatalog({
                         <>
                             {yours &&
                             showsOwner("user") &&
-                            (yoursGroups.length > 0 || yoursFooter) ? (
+                            (yoursEntries.length > 0 || yoursFooter) ? (
                                 <RowGroup
                                     label={yours.label}
-                                    count={yoursGroups.length}
+                                    count={yoursEntries.length}
                                     collapsed={!searching && yoursCollapsed}
                                     onToggle={
                                         searching
@@ -1061,7 +941,7 @@ export function IntegrationCatalog({
                                         ) : null
                                     }
                                 >
-                                    {renderRows(yoursGroups, yoursVerbs)}
+                                    {renderRows(yoursEntries, yoursVerbs)}
                                 </RowGroup>
                             ) : null}
 
@@ -1070,7 +950,7 @@ export function IntegrationCatalog({
                                     label={
                                         projectHeading ?? t("entityUi.integrationDrawer.connected")
                                     }
-                                    count={connectedGroups.length}
+                                    count={connectedEntries.length}
                                     collapsed={!projectHeading && !searching && connectedCollapsed}
                                     onToggle={
                                         projectHeading || searching
@@ -1079,7 +959,7 @@ export function IntegrationCatalog({
                                     }
                                     page={page}
                                 >
-                                    {renderRows(connectedGroups, projectVerbs)}
+                                    {renderRows(connectedEntries, projectVerbs)}
                                 </RowGroup>
                             ) : null}
                         </>
