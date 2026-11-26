@@ -4,7 +4,7 @@
     "mintError": "Couldn't set up your agent.",
     "stepCounter": "Step {{current}} of {{total}}",
     "skip": "Skip for now",
-    "dotCredits": "Credits",
+    "dotRegister": "Register",
     "dotTemplates": "First agent",
     "keyHint": "Press {{key}}",
     "continue": "Continue",
