@@ -1,10 +1,12 @@
-import {useState, type ReactNode} from "react"
+import {useCallback, useState, type ReactNode} from "react"
 
 import {SAVE_AS_TEMPLATE_MESSAGE} from "@agenta/entities/workflow"
-import {AgentKindBadge, useAgentActions} from "@agenta/entity-ui/agent"
+import {AgentKindBadge, useAgentActions, useRenameAgent} from "@agenta/entity-ui/agent"
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
+import agentsListCatalog from "@agenta/i18n/catalogs/agents.list"
 import {openAgentVersionHistoryAtom} from "@agenta/playground-ui/agent-version-history"
+import {InlineRenameInput, useDeferredMenuSelect, useInlineRename} from "@agenta/sessions-ui"
 import {BottomSheetMenu} from "@agenta/ui/phone"
 import {
     Button,
@@ -77,6 +79,18 @@ export const AgentMenu = ({
     // agent actions, so the menu learns the result from the agent list.
     const [archiveAskedFor, setArchiveAskedFor] = useState<string | null>(null)
     const [sheetOpen, setSheetOpen] = useState(false)
+    // Desktop renames in place: the name becomes a field where it stands.
+    const tAgents = useT(agentsListCatalog)
+    const renameAgent = useRenameAgent()
+    const inline = useInlineRename({
+        current: name,
+        onCommit: useCallback((next: string) => renameAgent(agentId, next), [renameAgent, agentId]),
+        errorText: tAgents("agents.list.renameFailed"),
+    })
+    // The field mounts after the menu closes, so the menu's focus return does not blur it.
+    const {handleSelect, handleCloseAutoFocus} = useDeferredMenuSelect((key) =>
+        key === "rename" ? () => inline.start() : undefined,
+    )
     const entries: AgentMenuEntry[] = [
         {
             key: "history",
@@ -90,7 +104,7 @@ export const AgentMenu = ({
                       key: "rename",
                       label: t("agentLayout.header.rename"),
                       icon: <PencilSimple />,
-                      onSelect: () => actions.rename(target),
+                      onSelect: () => (phone ? actions.rename(target) : handleSelect("rename")),
                   },
               ]
             : []),
@@ -172,36 +186,48 @@ export const AgentMenu = ({
             {leave}
             {/* The icon (it opens the icon picker), then the name and the arrow as one button. */}
             <AgentKindBadge workflowId={agentId} />
-            <DropdownMenu>
-                {/* The full name on hover: a narrow column cuts it first. */}
-                <SimpleTooltip title={name}>
-                    <DropdownMenuTrigger asChild>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="min-w-0 shrink gap-1.5 px-2 text-foreground"
-                        >
-                            <span className="truncate">{name}</span>
-                            <CaretDown
-                                aria-hidden
-                                className="ag-caret size-3.5 shrink-0 text-muted-foreground"
-                            />
-                        </Button>
-                    </DropdownMenuTrigger>
-                </SimpleTooltip>
-                <DropdownMenuContent align="start" className="w-52">
-                    {entries.map((entry) => (
-                        <DropdownMenuItem
-                            key={entry.key}
-                            disabled={entry.disabled}
-                            onSelect={entry.onSelect}
-                        >
-                            {entry.icon}
-                            {entry.label}
-                        </DropdownMenuItem>
-                    ))}
-                </DropdownMenuContent>
-            </DropdownMenu>
+            {inline.renaming ? (
+                <InlineRenameInput
+                    rename={inline}
+                    ariaLabel={tAgents("agents.list.agentName")}
+                    className="ml-0.5 box-border h-control-sm w-56 min-w-0 rounded-control-sm border border-solid border-border bg-background px-2 text-btn-sm font-medium text-foreground outline-none [font-family:inherit] focus-ring-field"
+                />
+            ) : (
+                <DropdownMenu>
+                    {/* The full name on hover: a narrow column cuts it first. */}
+                    <SimpleTooltip title={name}>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="min-w-0 shrink gap-1.5 px-2 text-foreground"
+                            >
+                                <span className="truncate">{name}</span>
+                                <CaretDown
+                                    aria-hidden
+                                    className="ag-caret size-3.5 shrink-0 text-muted-foreground"
+                                />
+                            </Button>
+                        </DropdownMenuTrigger>
+                    </SimpleTooltip>
+                    <DropdownMenuContent
+                        align="start"
+                        className="w-52"
+                        onCloseAutoFocus={handleCloseAutoFocus}
+                    >
+                        {entries.map((entry) => (
+                            <DropdownMenuItem
+                                key={entry.key}
+                                disabled={entry.disabled}
+                                onSelect={entry.onSelect}
+                            >
+                                {entry.icon}
+                                {entry.label}
+                            </DropdownMenuItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            )}
         </>
     )
 }
