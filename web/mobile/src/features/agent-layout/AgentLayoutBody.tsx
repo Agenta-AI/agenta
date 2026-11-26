@@ -48,6 +48,9 @@ const BuilderPanel = dynamic(() => import("../builder/BuilderPanel").then((m) =>
     loading: ChatLoading,
 })
 
+/** How long the pane takes to slide out: the theme's duration-base. */
+const PANEL_EXIT_MS = 200
+
 /** The session column a pushed panel leaves at least (the header's name, session and icons). */
 const SESSION_COLUMN_MIN = 480
 
@@ -304,7 +307,25 @@ export const AgentLayoutBody = ({
         if (content && !mounted.has(content)) setMounted(new Set(mounted).add(content))
     }, [content, mounted])
 
-    const isFiles = content === "files"
+    // The last content stays drawn while the pane slides out, so it leaves with its content. Set
+    // during render: an effect would leave one frame with no pane, and the close would jump.
+    const [leaving, setLeaving] = useState<PanelContent | null>(null)
+    const [prevContent, setPrevContent] = useState(content)
+    if (content !== prevContent) {
+        setPrevContent(content)
+        const reduced =
+            typeof window !== "undefined" &&
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        setLeaving(content === null && !reduced ? prevContent : null)
+    }
+    useEffect(() => {
+        if (!leaving) return undefined
+        const timer = window.setTimeout(() => setLeaving(null), PANEL_EXIT_MS)
+        return () => window.clearTimeout(timer)
+    }, [leaving])
+    const shown = content ?? leaving
+
+    const isFiles = shown === "files"
 
     const panelBody = (
         <>
@@ -339,9 +360,7 @@ export const AgentLayoutBody = ({
                 </div>
             ) : null}
             {canConfigure && (mounted.has("configuration") || content === "configuration") ? (
-                <div
-                    className={content === "configuration" ? "ag-view-enter h-full min-h-0" : "hidden"}
-                >
+                <div className={shown === "configuration" ? "ag-view-enter h-full min-h-0" : "hidden"}>
                     <ConfigurationContent
                         key={agentId}
                         agentId={agentId!}
@@ -354,7 +373,7 @@ export const AgentLayoutBody = ({
                 </div>
             ) : null}
             {available.builder && (mounted.has("builder") || content === "builder") ? (
-                <div className={content === "builder" ? "ag-view-enter h-full min-h-0" : "hidden"}>
+                <div className={shown === "builder" ? "ag-view-enter h-full min-h-0" : "hidden"}>
                     {/* No page session id goes into the builder: it runs its own chat (design D6). */}
                     <BuilderPanel
                         agentId={agentId!}
@@ -402,6 +421,7 @@ export const AgentLayoutBody = ({
                 </div>
                 <AgentPanelFrame
                     open={open}
+                    present={shown !== null}
                     mode={mode}
                     width={width}
                     resize={resize}

@@ -447,6 +447,54 @@
         transform: translateY(100%);
     }
 }
+/* The agent layout's right pane (MOTION-01). Beside the page it grows from no width, so the page
+   column slides; over the page or full screen it slides in from the right edge. The content keeps
+   its width while the pane moves, so nothing reflows. */
+@keyframes ag-panel-push-in {
+    from {
+        width: 0;
+        min-width: 0;
+    }
+}
+@keyframes ag-panel-push-out {
+    to {
+        width: 0;
+        min-width: 0;
+    }
+}
+@keyframes ag-panel-slide-in {
+    from {
+        transform: translateX(100%);
+    }
+}
+@keyframes ag-panel-slide-out {
+    to {
+        transform: translateX(100%);
+    }
+}
+.ag-panel-motion[data-mode="push"]:is([data-animating], [data-state="closed"]) {
+    overflow-x: clip;
+}
+.ag-panel-motion[data-mode="push"]:is([data-animating], [data-state="closed"]) > [data-testid="agent-panel"] {
+    min-width: var(--ag-panel-w);
+}
+.ag-panel-motion[data-mode="push"][data-state="open"] {
+    animation: ag-panel-push-in var(--duration-base) var(--ease-out);
+}
+.ag-panel-motion[data-mode="push"][data-state="closed"] {
+    animation: ag-panel-push-out var(--duration-base) var(--ease-in-out) forwards;
+}
+.ag-panel-motion:not([data-mode="push"])[data-state="open"] {
+    animation: ag-panel-slide-in var(--duration-base) var(--ease-out);
+}
+.ag-panel-motion:not([data-mode="push"])[data-state="closed"] {
+    animation: ag-panel-slide-out var(--duration-base) var(--ease-in-out) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+    .ag-panel-motion[data-state] {
+        animation: none;
+    }
+}
 @keyframes accordion-down {
     from {
         height: 0;

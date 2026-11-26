@@ -2,6 +2,7 @@ import {
     useEffect,
     useRef,
     useState,
+    type CSSProperties,
     type KeyboardEvent as ReactKeyboardEvent,
     type PointerEvent as ReactPointerEvent,
     type ReactNode,
@@ -35,6 +36,7 @@ export interface PanelResize {
  */
 export const AgentPanelFrame = ({
     open,
+    present,
     mode,
     width,
     resize,
@@ -44,6 +46,8 @@ export const AgentPanelFrame = ({
     children,
 }: {
     open: boolean
+    /** Still drawn: open, or sliding out after a close. */
+    present: boolean
     mode: PanelMode
     width: number
     /** Null: no resize edge (a widened view). */
@@ -56,6 +60,8 @@ export const AgentPanelFrame = ({
     children: ReactNode
 }) => {
     const tControls = useT(uiControlsCatalog)
+    // While the pane grows or shrinks its content keeps the settled width, so nothing reflows.
+    const [animating, setAnimating] = useState(false)
     const clamp = (value: number) =>
         resize ? Math.min(resize.max, Math.max(resize.min, value)) : value
     // Beside the page the panel may draw narrower than `width` (the page keeps its column), and
@@ -133,12 +139,14 @@ export const AgentPanelFrame = ({
     return (
         <>
             {/* Over the page the panel dims what it covers; a click there closes it (LAYOUT-04). */}
-            {open && mode === "overlay" ? (
+            {present && mode === "overlay" ? (
                 <div
                     aria-hidden
                     data-testid="agent-panel-scrim"
+                    data-state={open ? "open" : "closed"}
                     className={cn(
                         "absolute inset-x-0 bottom-0 z-20 bg-overlay",
+                        "data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out data-[state=closed]:opacity-0",
                         overlayTop ?? "top-0",
                     )}
                     onClick={onClose}
@@ -147,8 +155,8 @@ export const AgentPanelFrame = ({
             <div
                 ref={frameRef}
                 className={cn(
-                    "min-h-0",
-                    !open && "hidden",
+                    "ag-panel-motion min-h-0",
+                    !present && "hidden",
                     // Beside the page it gives way to the page's minimum column, down to its own
                     // minimum width; over the page it keeps its width.
                     mode === "push" ? "relative h-full shrink" : "shrink-0",
@@ -157,10 +165,20 @@ export const AgentPanelFrame = ({
                     mode === "full" && "absolute inset-0 z-30",
                     mode !== "full" && "border-0 border-l border-solid border-border-muted",
                 )}
+                data-state={open ? "open" : "closed"}
+                data-mode={mode}
+                data-animating={animating || undefined}
+                onAnimationStart={(event) => {
+                    if (event.target === event.currentTarget) setAnimating(true)
+                }}
+                onAnimationEnd={(event) => {
+                    if (event.target === event.currentTarget) setAnimating(false)
+                }}
                 style={
                     mode === "full"
                         ? undefined
-                        : {
+                        : ({
+                              "--ag-panel-w": `${width}px`,
                               width,
                               minWidth:
                                   mode === "push"
@@ -169,7 +187,7 @@ export const AgentPanelFrame = ({
                               // Over the page it never runs past the room the page leaves, so the
                               // resize edge and the start of the content stay in view.
                               maxWidth: mode === "overlay" ? "100%" : undefined,
-                          }
+                          } as CSSProperties)
                 }
                 onKeyDown={(event) => {
                     // A view goes back first (the view stack handles it); a menu or dialog closes itself.
