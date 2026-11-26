@@ -478,16 +478,20 @@ export const Composer = ({
                             headerExtra={headerExtra}
                             beforeSend={
                                 modelButtonModel ? (
-                                    <ComposerModelButton
-                                        groups={slash.modelGroups}
-                                        selectedKey={slash.currentModelKey}
-                                        modelId={modelButtonModel}
-                                        open={slash.picker === "model"}
-                                        disabled={disabled}
-                                        onOpen={openModelPicker}
-                                        onClose={closePicker}
-                                        buttonRef={modelButtonRef}
-                                    />
+                                    <>
+                                        <ComposerModelButton
+                                            groups={slash.modelGroups}
+                                            selectedKey={slash.currentModelKey}
+                                            modelId={modelButtonModel}
+                                            open={slash.picker === "model"}
+                                            disabled={disabled}
+                                            onOpen={openModelPicker}
+                                            onClose={closePicker}
+                                            buttonRef={modelButtonRef}
+                                        />
+                                        {/* A 1px line sets the model off from Send, as in the session header. */}
+                                        <span aria-hidden className="h-4 w-px shrink-0 bg-border" />
+                                    </>
                                 ) : null
                             }
                             disabled={disabled}
