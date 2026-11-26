@@ -9,11 +9,15 @@ import {
 } from "vitest";
 import worker from "./index";
 import {
+  CAPS_PREFIX,
+  DAILY_EMAIL_CAP,
+  DAILY_INSTANCE_CAP,
   POSTHOG_BATCH_URL,
   POSTHOG_PROJECT_TOKEN,
   REGISTRATION_PATH,
   handleRegistration,
   parseRegistration,
+  type CapBucket,
   type ContactRecorder,
   type MailSender,
   type RateLimiter,
@@ -89,10 +93,26 @@ function limiter(limit = Infinity) {
   return { binding, keys };
 }
 
+/** An in-memory stand-in for the R2 bucket that holds the daily caps. */
+function capBucket() {
+  const objects = new Map<string, string>();
+  const bucket: CapBucket = {
+    async get(key) {
+      const value = objects.get(key);
+      return value === undefined ? null : { text: async () => value };
+    },
+    async put(key, value) {
+      objects.set(key, value);
+    },
+  };
+  return { bucket, objects };
+}
+
 function withLimits(env: RegistrationEnv = {}): RegistrationEnv {
   return {
     REGISTRATION_IP_LIMIT: limiter().binding,
     REGISTRATION_EMAIL_LIMIT: limiter().binding,
+    MEDIA: capBucket().bucket,
     ...env,
   };
 }
@@ -752,13 +772,106 @@ describe("worker routing", () => {
           throw new Error("assets must not be called");
         },
       },
-      MEDIA: { head: async () => null, get: async () => null },
       ...withLimits(),
+      MEDIA: {
+        head: async () => null,
+        get: async () => null,
+        put: async () => undefined,
+      },
     };
 
     const response = await worker.fetch(post(VALID), env);
 
     // No secrets in this env, so the handler answers for itself.
     expect(response.status).toBe(503);
+  });
+});
+
+describe("daily caps", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function registrationFor(email: string, instanceId: string) {
+    return post({ ...VALID, email, instance_id: instanceId });
+  }
+
+  it("sends at most 3 key emails to one address in 24 hours", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const { sender, sent } = fakeSender();
+    const { bucket } = capBucket();
+    const env = withLimits({ LICENSE_SIGNING_KEY: privatePem, MEDIA: bucket });
+    const send = (instanceId: string) =>
+      handleRegistration(
+        registrationFor("Person@Example.com", instanceId),
+        env,
+        sender,
+        undefined,
+        { record: async () => {} },
+      );
+
+    for (let index = 0; index < DAILY_EMAIL_CAP; index++) {
+      expect((await send(crypto.randomUUID())).status).toBe(202);
+    }
+    expect((await send(crypto.randomUUID())).status).toBe(429);
+    expect(sent).toHaveLength(DAILY_EMAIL_CAP);
+
+    vi.setSystemTime(Date.now() + 24 * 60 * 60 * 1000);
+    expect((await send(crypto.randomUUID())).status).toBe(202);
+  });
+
+  it("sends at most 20 key emails for one instance in 24 hours", async () => {
+    const { sender, sent } = fakeSender();
+    const { bucket } = capBucket();
+    const env = withLimits({ LICENSE_SIGNING_KEY: privatePem, MEDIA: bucket });
+    const instanceId = crypto.randomUUID();
+    const send = (index: number) =>
+      handleRegistration(
+        registrationFor(`person${index}@example.com`, instanceId),
+        env,
+        sender,
+        undefined,
+        { record: async () => {} },
+      );
+
+    for (let index = 0; index < DAILY_INSTANCE_CAP; index++) {
+      expect((await send(index)).status).toBe(202);
+    }
+    expect((await send(DAILY_INSTANCE_CAP)).status).toBe(429);
+    expect(sent).toHaveLength(DAILY_INSTANCE_CAP);
+  });
+
+  it("keeps only hashes of the email and the instance id in the bucket", async () => {
+    const { sender } = fakeSender();
+    const { bucket, objects } = capBucket();
+
+    await handleRegistration(
+      post(VALID),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem, MEDIA: bucket }),
+      sender,
+      undefined,
+      { record: async () => {} },
+    );
+
+    const keys = [...objects.keys()];
+    expect(keys).toHaveLength(2);
+    for (const key of keys) {
+      expect(key.startsWith(CAPS_PREFIX)).toBe(true);
+      expect(key).not.toContain(VALID.email);
+      expect(key).not.toContain(VALID.instance_id);
+    }
+  });
+
+  it("refuses to run without the bucket", async () => {
+    const { sender, sent } = fakeSender();
+
+    const response = await handleRegistration(
+      post(VALID),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem, MEDIA: undefined }),
+      sender,
+    );
+
+    expect(response.status).toBe(503);
+    expect(sent).toHaveLength(0);
   });
 });

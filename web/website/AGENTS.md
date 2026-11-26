@@ -157,8 +157,11 @@ release private key never goes in this worker.
 The route is public, so it refuses a body over 2 KiB (413) and checks two rate limit bindings
 from the `ratelimits` block of both wrangler configs before it signs: `REGISTRATION_IP_LIMIT`
 (per caller IP) and `REGISTRATION_EMAIL_LIMIT` (per email). Over a limit it answers 429; with a
-binding missing it answers 503. These limits count per minute and per Cloudflare location; they are
-not a daily cap.
+binding missing it answers 503. These limits count per minute and per Cloudflare location. The
+daily caps are on top: at most 3 key emails per email and 20 per instance id in 24 hours, counted in
+the `MEDIA` R2 bucket under `license-registrations/caps/` (keys are SHA-256 hashes, never served
+under `/media`). Over a cap it answers 429, which the API turns into its usual "could not send"
+error.
 
 `/openapi.json` is published by `scripts/copy-openapi.mjs` (a `prebuild` step)
 from the committed `docs/docs/reference/openapi.json`: it rewrites the spec's

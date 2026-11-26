@@ -37,6 +37,7 @@ import {
 import {
   REGISTRATION_PATH,
   handleRegistration,
+  CAPS_PREFIX,
   type RegistrationEnv,
 } from "./registrations";
 
@@ -45,6 +46,7 @@ interface Env extends RegistrationEnv {
   ASSETS: { fetch(request: Request): Promise<Response> };
   MEDIA: {
     head(key: string): Promise<{ size: number } | null>;
+    put(key: string, value: string): Promise<unknown>;
     get(
       key: string,
       options?: { range: { offset: number; length: number } },
@@ -52,6 +54,7 @@ interface Env extends RegistrationEnv {
       body: ReadableStream;
       httpEtag: string;
       size: number;
+      text(): Promise<string>;
       writeHttpMetadata(headers: Headers): void;
     } | null>;
   };
@@ -161,7 +164,12 @@ async function serveMedia(
   rangeHeader: string | null,
   env: Env,
 ): Promise<Response> {
-  if (!key || key.split("/").some((segment) => segment === "..")) {
+  if (
+    !key ||
+    key.split("/").some((segment) => segment === "..") ||
+    // The registration caps share the bucket; their counts are not media.
+    key.startsWith(CAPS_PREFIX)
+  ) {
     return new Response(null, { status: 404, headers: HEADERS });
   }
 
