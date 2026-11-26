@@ -7,6 +7,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import type {SkillFile} from "@agenta/skills"
 import {useIsExpandedWindow} from "@agenta/ui/hooks"
+import {useIsPhone} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
 import {Button, Field, IconTile, RightPane, SimpleTooltip, Textarea} from "@agenta/ui/ui"
 import {ArrowLeft, CaretRight, Files} from "@phosphor-icons/react"
@@ -60,6 +61,9 @@ export function SkillEditor({
     const t = useT(skillsEditorCatalog)
     const tCommon = useT(commonCatalog)
     const inline = filesPlacement === "inline"
+    // Inline on a phone the fields take their content height: the host is the one scroller (LAYOUT-01).
+    const flow = useIsPhone() && inline
+    const fillHost = inline && !flow
     const expanded = useIsExpandedWindow() && !inline
     // With a header slot, the header's toggle opens Files at every width.
     const headerToggle = filesToggleSlot !== undefined
@@ -167,7 +171,7 @@ export function SkillEditor({
     const fileView = current ? (
         <section
             key={current.path}
-            className={cn("ag-view-enter flex flex-col gap-1", inline && "min-h-0 flex-1")}
+            className={cn("ag-view-enter flex flex-col gap-1", fillHost && "min-h-0 flex-1")}
         >
             {/* On a phone the tools take their own row, so the file name keeps its place. */}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -194,7 +198,10 @@ export function SkillEditor({
             <div
                 ref={setFileBox}
                 style={inline ? undefined : {height: fileHeight}}
-                className={cn("flex min-h-0 flex-col", inline ? "min-h-60 flex-1" : "-mb-8")}
+                className={cn(
+                    "flex min-h-0 flex-col",
+                    fillHost ? "min-h-60 flex-1" : flow ? "min-h-60" : "-mb-8",
+                )}
             >
                 {isMarkdownPath(current.path) ? (
                     <SkillMarkdownFrame
@@ -204,7 +211,7 @@ export function SkillEditor({
                         empty={t("skills.editor.fileEmpty")}
                         readOnly={readOnly}
                         toolbar={fileTools}
-                        fill
+                        fill={!flow}
                     />
                 ) : (
                     <Textarea
@@ -225,7 +232,7 @@ export function SkillEditor({
             className={cn(
                 "flex flex-col gap-4",
                 fileShown && "ag-view-enter",
-                inline && "min-h-0 flex-1",
+                fillHost && "min-h-0 flex-1",
             )}
         >
             <div className="flex flex-col gap-1">
@@ -248,7 +255,10 @@ export function SkillEditor({
                         placeholder={t("skills.editor.descriptionPlaceholder")}
                         onChange={(event) => set({description: event.target.value})}
                         // Three whole lines (20px each) plus padding and border, so no line is cut.
-                        className="field-sizing-content min-h-0 max-h-19.5 resize-none overflow-y-auto [scrollbar-width:none]"
+                        className={cn(
+                            "field-sizing-content min-h-0 resize-none",
+                            !flow && "max-h-19.5 overflow-y-auto [scrollbar-width:none]",
+                        )}
                     />
                 </Field>
             </div>
@@ -257,7 +267,7 @@ export function SkillEditor({
                 tooltip={t("skills.editor.instructionsHint")}
                 error={missingBody ? t("skills.editor.instructionsMissing") : undefined}
                 labelEnd={readOnly ? null : <ToolsSlot onSlot={setBodyTools} />}
-                className={inline ? "min-h-0 flex-1" : undefined}
+                className={fillHost ? "min-h-0 flex-1" : undefined}
             >
                 {/* Without the error, the box runs into the page's bottom padding. */}
                 <div
@@ -268,11 +278,11 @@ export function SkillEditor({
                     }
                     className={cn(
                         "flex min-h-0 flex-col",
-                        inline ? "min-h-70 flex-1" : !missingBody && "-mb-8",
+                        fillHost ? "min-h-70 flex-1" : flow ? undefined : !missingBody && "-mb-8",
                     )}
                 >
                     <SkillMarkdownFrame
-                        fill
+                        fill={!flow}
                         value={draft.body}
                         onChange={(body) => set({body})}
                         placeholder={t("skills.editor.instructionsPlaceholder")}
@@ -311,9 +321,14 @@ export function SkillEditor({
         // One Files panel: a column at 672px and wider; below, it takes the fields' place while open.
         return (
             // Fills its host's height, so the Files panel can pin the programs card to the bottom.
-            <div className="@container flex min-h-0 min-w-0 flex-1 flex-col">
+            <div
+                className={cn(
+                    "@container flex min-w-0 flex-col",
+                    !flow && "min-h-0 flex-1",
+                )}
+            >
                 {filesToggle}
-                <div className="flex min-h-0 min-w-0 flex-1 gap-6">
+                <div className={cn("flex min-w-0 gap-6", !flow && "min-h-0 flex-1")}>
                     <div
                         className={cn(
                             "min-h-0 min-w-0 flex-1 flex-col gap-4",

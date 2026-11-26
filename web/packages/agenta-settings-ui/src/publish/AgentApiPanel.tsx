@@ -5,7 +5,7 @@ import publishCatalog from "@agenta/i18n/catalogs/publish"
 import {createApiKey} from "@agenta/settings"
 import {message} from "@agenta/ui/app-message"
 import {CopyButton} from "@agenta/ui/components/presentational"
-import {Input, LoadingButton, Segmented, Switch} from "@agenta/ui/ui"
+import {LoadingButton, PasswordInput, Segmented, Switch} from "@agenta/ui/ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 
 import {CodeBlock} from "../channels/CodeBlock"
@@ -105,8 +105,9 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
             <div className="flex flex-col gap-1.5">
                 <FieldLabel htmlFor={keyInputId}>{t("publish.apiKey")}</FieldLabel>
                 <div className="flex min-w-0 items-center gap-2">
-                    <Input
+                    <PasswordInput
                         id={keyInputId}
+                        autoComplete="off"
                         className="min-w-0 flex-1"
                         placeholder={t("publish.apiKeyPlaceholder")}
                         value={apiKeyValue}
@@ -140,7 +141,8 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
                 <CodeBlock
                     label={SNIPPET_FILE[lang]}
                     code={code}
-                    maxHeightClass="max-h-105"
+                    // Compact window: the page scrolls, not the code too (LAYOUT-01).
+                    maxHeightClass="max-h-105 max-sm:max-h-none"
                     data-testid="agent-api-snippet"
                 />
             </div>
