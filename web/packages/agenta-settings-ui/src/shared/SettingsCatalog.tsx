@@ -173,7 +173,7 @@ export const SettingsCatalogSection = ({
             action={group.action}
         />
         {group.description ? (
-            <p className="-mt-1.5 m-0 text-label text-muted-foreground">{group.description}</p>
+            <p className="-mt-1.5 m-0 text-body-sm text-muted-foreground">{group.description}</p>
         ) : null}
         {group.collapsed ? null : group.items.length || group.pendingRows ? (
             <div
