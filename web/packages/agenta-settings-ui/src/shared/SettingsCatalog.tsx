@@ -133,13 +133,19 @@ const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
     )
 }
 
-/** A row's shape while it loads: the tile, the name, the subtitle. */
+/** A row's shape while it loads (STATE-02): the muted tile with its logo, the name and its line. */
 const SkeletonRow = () => (
-    <div className="box-border flex h-row-double items-center gap-3" aria-hidden>
-        <SkeletonBlock active className="size-8 shrink-0 rounded-lg" />
-        <div className="flex flex-1 flex-col gap-1.5">
-            <SkeletonBlock active className="h-4 w-1/3 rounded" />
-            <SkeletonBlock active className="h-3.5 w-2/3 rounded" />
+    <div className="-mx-3 box-border flex h-row-double items-center gap-3 px-3" aria-hidden>
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted">
+            <SkeletonBlock active className="size-4" />
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-px">
+            <div className="flex h-5 items-center">
+                <SkeletonBlock active className="h-3.5 w-1/3" />
+            </div>
+            <div className="flex h-4.5 items-center">
+                <SkeletonBlock active className="h-3 w-2/3" />
+            </div>
         </div>
     </div>
 )
