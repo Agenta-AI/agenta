@@ -29,7 +29,10 @@ log = get_module_logger(__name__)
 
 CACHE_NAMESPACE = "licenses:active"
 CACHE_KEY = "active"
-CACHE_TTL = 5 * 60
+# Short on purpose: a read that loaded the row before an activation, or a cache write
+# that lost a race with another activation, can keep an older key in the cache. The
+# short time bounds that to seconds, at one database read per interval for the instance.
+CACHE_TTL = 10
 
 # Why a free key that names another instance is refused, as the License tab says it.
 OTHER_INSTANCE = "other_instance"
@@ -87,14 +90,11 @@ class LicensesService:
             return LicenseState.model_validate(cached)
 
         state = await _here(await self._load_stored_state())
-        # `nx`: a read that loaded the row before an activation must not replace the
-        # state that activation wrote.
         await set_cache(
             namespace=CACHE_NAMESPACE,
             key=CACHE_KEY,
             value=state.model_dump(mode="json"),
             ttl=CACHE_TTL,
-            nx=True,
         )
         return state
 
@@ -116,34 +116,16 @@ class LicensesService:
             raise InvalidLicenseKey("expired")
         await check_instance(license_key)
 
-        state = LicenseState(source="database", license=license_key)
-
-        async def publish() -> None:
-            # Inside the replace transaction: two activations write the cache in the
-            # order they commit, so the cache never keeps the older key.
-            await set_cache(
-                namespace=CACHE_NAMESPACE,
-                key=CACHE_KEY,
-                value=state.model_dump(mode="json"),
-                ttl=CACHE_TTL,
-            )
-
-        try:
-            await self.licenses_dao.replace(
-                key_id=license_key.key_id,
-                key=key.strip(),
-                created_by_id=user_id,
-                before_commit=publish,
-            )
-        except BaseException:
-            # The commit failed after `publish`: the cache must not keep a key the
-            # database does not have.
-            await invalidate_cache(namespace=CACHE_NAMESPACE, key=CACHE_KEY)
-            raise
+        await self.licenses_dao.replace(
+            key_id=license_key.key_id,
+            key=key.strip(),
+            created_by_id=user_id,
+        )
+        await invalidate_cache(namespace=CACHE_NAMESPACE, key=CACHE_KEY)
 
         log.info("[licenses] license key %s added", license_key.key_id)
 
-        return state
+        return LicenseState(source="database", license=license_key)
 
     async def _load_stored_state(self) -> LicenseState:
         stored = await self.licenses_dao.read()

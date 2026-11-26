@@ -19,7 +19,7 @@ from ee.src.core.licenses.keys import parse_license_key
 from ee.src.core.licenses.service import LicensesService
 from ee.src.core.licenses.types import InvalidLicenseKey
 
-from .conftest import REGISTRATION, fake_replace, public_key_line, sign_key
+from .conftest import REGISTRATION, public_key_line, sign_key
 
 
 def _cloud_key(private_key, **fields) -> str:
@@ -116,7 +116,7 @@ def test_startup_accepts_self_hosted_without_stripe(self_hosted, signing_key):
 
 @pytest.mark.asyncio
 async def test_a_cloud_key_cannot_be_added_in_the_app(self_hosted, signing_key):
-    dao = SimpleNamespace(read=AsyncMock(return_value=None), replace=fake_replace())
+    dao = SimpleNamespace(read=AsyncMock(return_value=None), replace=AsyncMock())
     service = LicensesService(licenses_dao=dao)
 
     with pytest.raises(InvalidLicenseKey) as error:
