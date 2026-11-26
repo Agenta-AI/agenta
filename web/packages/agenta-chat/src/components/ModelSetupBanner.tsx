@@ -41,7 +41,7 @@ export const ModelSetupBanner = ({revisionId, onSetUp}: ModelSetupBannerProps) =
         <RevealCollapse open={blocked} animate={settledFor === revisionId}>
             <div
                 role="status"
-                className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-solid border-warning/30 bg-warning/10 px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded-lg border border-solid border-warning/30 bg-warning/10 px-3 py-2"
             >
                 <span className="flex min-w-0 items-center gap-2 text-meta text-warning">
                     <WarningIcon size={14} className="shrink-0" />
