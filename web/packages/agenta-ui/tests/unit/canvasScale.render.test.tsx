@@ -30,35 +30,16 @@ const InDialog = ({children}: {children: React.ReactNode}) => (
 )
 
 describe("Button size on the canvas scale", () => {
-    it("a confirmation dialog gives a plain Button and its own action the compact size", () => {
+    it("an alert's buttons keep the app scale", () => {
         render(
             <InDialog>
                 <Button variant="outline">Cancel</Button>
                 <AlertDialogAction>Delete</AlertDialogAction>
             </InDialog>,
         )
-        expect(byName("Cancel").dataset.size).toBe("compact")
-        expect(byName("Delete").className).toContain("h-control-sm")
-    })
-
-    it("an icon-only Button in the dialog takes the compact icon size", () => {
-        render(
-            <InDialog>
-                <Button aria-label="More">
-                    <svg />
-                </Button>
-            </InDialog>,
-        )
-        expect(byName("More").dataset.size).toBe("icon-compact")
-    })
-
-    it("an explicit size beats the dialog's default", () => {
-        render(
-            <InDialog>
-                <Button size="lg">Big</Button>
-            </InDialog>,
-        )
-        expect(byName("Big").dataset.size).toBe("lg")
+        expect(byName("Cancel").dataset.size).toBe("default")
+        expect(byName("Delete").className).toContain("h-control")
+        expect(byName("Delete").className).not.toContain("h-control-sm")
     })
 
     it("outside a dialog a Button keeps the app scale", () => {
@@ -86,14 +67,12 @@ describe("Button size on the canvas scale", () => {
         expect(byName("Pick").className.split(" ")).not.toContain("text-muted-foreground")
     })
 
-    it("a ghost Keep editing in an alert footer is a compact secondary ghost", () => {
+    it("a ghost Keep editing in an alert footer keeps the app scale", () => {
         render(
             <InDialog>
                 <Button variant="ghost">Keep editing</Button>
             </InDialog>,
         )
-        const keep = byName("Keep editing")
-        expect(keep.dataset.size).toBe("compact")
-        expect(keep.className.split(" ")).toContain("text-muted-foreground")
+        expect(byName("Keep editing").dataset.size).toBe("default")
     })
 })

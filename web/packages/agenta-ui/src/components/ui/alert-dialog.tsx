@@ -5,13 +5,13 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import {XIcon} from "@phosphor-icons/react"
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 
-import {Button, ButtonSizeContext, buttonVariants} from "./button"
+import {Button, buttonVariants} from "./button"
 import {useDialogScope} from "./dialog-scope"
 import {cn} from "./utils"
 
 /**
- * AlertDialog — the shadcn confirm dialog on Radix, drawn on the canvas scale: 400px wide, a
- * 14px/600 title, 13px secondary text and 28px buttons in a row under it, with no footer band.
+ * AlertDialog — the shadcn confirm dialog on Radix: the title and text, then the buttons in a
+ * muted footer band, the same band as DialogFooter.
  * Replaces antd Modal.confirm: Action = primary Button, Cancel = outline Button.
  */
 
@@ -85,9 +85,7 @@ function AlertDialogContent({
                     )}
                     {...props}
                 >
-                    <ButtonSizeContext.Provider value="compact">
-                        {children}
-                    </ButtonSizeContext.Provider>
+                    {children}
                     {showCloseButton ? (
                         // Dismiss = cancel.
                         <AlertDialogPrimitive.Cancel data-slot="alert-dialog-close-x" asChild>
@@ -121,8 +119,15 @@ function AlertDialogFooter({className, ...props}: React.ComponentProps<"div">) {
     return (
         <div
             data-slot="alert-dialog-footer"
-            // The buttons sit in a row under the text, with no band; stacked on a phone, same size.
-            className={cn("mt-1 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)}
+            // Full-bleed muted band (-m undoes the content's p-5), as in DialogFooter.
+            // border-0 first: preflight is off, so `border-solid` alone would paint every side.
+            className={cn(
+                "-mx-5 -mb-5 mt-3 flex flex-col-reverse gap-2 rounded-b-xl px-5 py-4",
+                "sm:flex-row sm:justify-end",
+                "border-0 border-t border-solid border-border-muted",
+                "bg-[color:color-mix(in_srgb,var(--secondary)_50%,transparent)]",
+                className,
+            )}
             {...props}
         />
     )
@@ -166,7 +171,7 @@ function AlertDialogAction({
         <AlertDialogPrimitive.Action
             data-slot="alert-dialog-action"
             asChild={asChild}
-            className={cn(!asChild && buttonVariants({size: "compact"}), className)}
+            className={cn(!asChild && buttonVariants(), className)}
             {...props}
         />
     )
@@ -183,7 +188,7 @@ function AlertDialogCancel({
             data-slot="alert-dialog-cancel"
             asChild={asChild}
             className={cn(
-                !asChild && buttonVariants({variant: "outline", size: "compact"}),
+                !asChild && buttonVariants({variant: "outline"}),
                 className,
             )}
             {...props}
