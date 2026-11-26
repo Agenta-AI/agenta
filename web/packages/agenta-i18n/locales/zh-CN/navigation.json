@@ -67,6 +67,7 @@
     "settings.channels": "渠道",
     "settings.credits": "额度",
     "settings.integrationsLabel": "集成",
+    "settings.license": "许可证",
     "settings.llms": "AI 供应商",
     "settings.mcpEndpoints": "MCP",
     "settings.organization": "访问与安全",

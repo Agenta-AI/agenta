@@ -10,6 +10,7 @@
     "creditsDescription": "Lo que le queda a tu organización, en qué se ha gastado y cómo añadir más.",
     "integrationsDescription": "Conecta las integraciones que pueden usar tus agentes.",
     "integrationsDocs": "Más información sobre las integraciones",
+    "licenseDescription": "La licencia y el plan de esta instancia, para todas sus organizaciones.",
     "llmsDescription": "Conecta los proveedores de IA con los que se ejecutan tus agentes, prompts y evaluaciones.",
     "llmsDocs": "Más información sobre los proveedores de IA",
     "mcpEndpointsDescription": "Servidores MCP conectados a este proyecto. Cada agente elige cuáles usar y qué puede ejecutar.",
