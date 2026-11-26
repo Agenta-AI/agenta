@@ -16,6 +16,8 @@ import {
 } from "@agenta/ui/ui"
 import {ArrowLeft, CaretRight, ChatCircleText, Code} from "@phosphor-icons/react"
 
+import {SettingsCatalogSection, type SettingsCatalogItem} from "../shared/SettingsCatalog"
+
 import {
     CHANNEL_PLATFORMS,
     EMPTY_CONNECTIONS,
@@ -115,6 +117,117 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
         } finally {
             setRetrying(false)
         }
+    }
+
+    // A desktop pane lists channels as Settings > Channels does: one catalog row per line.
+    if (!phone) {
+        const brokenOf = (platform: ChannelPlatform) => {
+            const mine = agentConnectionsOf(connections, platform)
+            const broken = mine.find((c) => summarizeConnection(platform, c, agentId).needsAttention)
+            return broken ? summarizeConnection(platform, broken, agentId).sub : null
+        }
+        const connectedItems: SettingsCatalogItem[] = connected.map(({platform, summary}) => {
+            const mine = agentConnectionsOf(connections, platform)
+            const problem = brokenOf(platform)
+            return {
+                key: platform,
+                logo: platformLogo(platform, 18),
+                name: platformLabel(platform),
+                description:
+                    mine.length > 1
+                        ? mine.map((c) => connectionLabel(c, hostedHandle)).join(", ")
+                        : summary.sub,
+                status: problem ? "attention" : "connected",
+                statusLabel: problem ?? t("common.manage"),
+                onOpen: () => manage(platform),
+                testId: `agent-channels-${platform}`,
+            }
+        })
+        const addItems: SettingsCatalogItem[] = [
+            ...(ready
+                ? toAdd.map(
+                      ({platform, summary}): SettingsCatalogItem => ({
+                          key: platform,
+                          logo: platformLogo(platform, 18),
+                          name: platformLabel(platform),
+                          description: summary.sub,
+                          status: "available",
+                          statusLabel:
+                              summary.action === "connect-here"
+                                  ? t("channels.page.connectHere")
+                                  : t("common.connect"),
+                          onOpen: () => open(platform),
+                          testId: `agent-channels-${platform}`,
+                      }),
+                  )
+                : []),
+            // API and Embed need no channel read: they stay while it loads or fails.
+            ...(api
+                ? [
+                      {
+                          key: "api",
+                          logo: <Code />,
+                          name: "API",
+                          description: t("channels.hub.apiAlwaysOn"),
+                          status: "connected" as const,
+                          statusLabel: "API",
+                          onOpen: () => openRoute({view: "api"}),
+                          testId: "agent-channels-api",
+                      },
+                  ]
+                : []),
+            ...(embed
+                ? [
+                      {
+                          key: "embed",
+                          logo: <ChatCircleText />,
+                          name: t("channels.hub.embed"),
+                          description: t("channels.hub.embedDescription"),
+                          status: "connected" as const,
+                          statusLabel: t("channels.hub.embed"),
+                          onOpen: () => openRoute({view: "embed", connectionId: null}),
+                          testId: "agent-channels-embed",
+                      },
+                  ]
+                : []),
+        ]
+        return (
+            <div className="flex flex-col gap-5" data-testid="agent-channels">
+                <p className="m-0 text-body-sm text-muted-foreground">
+                    {t("agentPages.channels.intro", {agent: agentName})}
+                </p>
+                {loadError ? (
+                    <div
+                        role="alert"
+                        className="flex items-center justify-between gap-3 rounded-lg border border-solid border-border px-3 py-2.5 text-label text-destructive"
+                    >
+                        <span className="min-w-0">{loadError}</span>
+                        <Button variant="outline" size="sm" disabled={retrying} onClick={retry}>
+                            {retrying ? t("common.retrying") : t("common.tryAgain")}
+                        </Button>
+                    </div>
+                ) : null}
+                {loading ? <ChannelRowsSkeleton phone={false} /> : null}
+                {connectedItems.length ? (
+                    <SettingsCatalogSection
+                        group={{
+                            label: t("agentPages.channels.connected"),
+                            items: connectedItems,
+                            list: true,
+                        }}
+                    />
+                ) : null}
+                {addItems.length ? (
+                    <SettingsCatalogSection
+                        group={{
+                            label: t("agentPages.channels.addChannel"),
+                            items: addItems,
+                            list: true,
+                        }}
+                    />
+                ) : null}
+            </div>
+        )
     }
 
     return (
