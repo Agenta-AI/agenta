@@ -39,5 +39,7 @@
     "showValue": "値を表示",
     "hideValue": "値を非表示",
     "searchEllipsis": "検索…",
-    "searchLabel": "{{label}}を検索"
+    "searchLabel": "{{label}}を検索",
+    "required": "必須",
+    "optional": "任意"
 }

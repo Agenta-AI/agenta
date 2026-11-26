@@ -39,5 +39,7 @@
     "showValue": "Mostrar valor",
     "hideValue": "Ocultar valor",
     "searchEllipsis": "Buscar…",
-    "searchLabel": "Buscar {{label}}"
+    "searchLabel": "Buscar {{label}}",
+    "required": "Obligatorio",
+    "optional": "Opcional"
 }

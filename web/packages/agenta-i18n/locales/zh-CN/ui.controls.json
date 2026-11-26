@@ -39,5 +39,7 @@
     "showValue": "显示值",
     "hideValue": "隐藏值",
     "searchEllipsis": "搜索…",
-    "searchLabel": "搜索{{label}}"
+    "searchLabel": "搜索{{label}}",
+    "required": "必填",
+    "optional": "选填"
 }

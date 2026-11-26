@@ -127,11 +127,11 @@ export const OAuthAdvancedFields = ({
             <HintedField
                 label={t("entityUi.mcpConnect.clientId")}
                 required={needsOwnApp}
+                optional={!needsOwnApp}
                 tooltip={needsOwnApp ? undefined : t("entityUi.mcpConnect.clientHelp")}
             >
                 <Input
                     className="font-mono text-label"
-                    placeholder={needsOwnApp ? undefined : t("entityUi.mcpConnect.optional")}
                     value={clientId}
                     disabled={disabled}
                     aria-label={t("entityUi.mcpConnect.clientId")}
@@ -142,6 +142,7 @@ export const OAuthAdvancedFields = ({
                 <HintedField
                     label={t("entityUi.mcpConnect.clientSecret")}
                     required={needsOwnApp}
+                    optional={!needsOwnApp}
                     labelEnd={clientSecretAction}
                 >
                     {clientSecret}
@@ -204,7 +205,9 @@ export const OAuthAdvancedFields = ({
         ) : null
 
     // Advanced holds only what is optional; with nothing optional left it is not drawn.
-    const advanced = needsOwnApp ? scopes : (
+    const advanced = needsOwnApp ? (
+        scopes
+    ) : (
         <>
             {appFields}
             {scopes}

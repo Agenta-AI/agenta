@@ -18,6 +18,7 @@ export const HintedField = ({
     label: string
     tooltip?: string
     required?: boolean
+    optional?: boolean
     labelEnd?: ReactNode
     error?: string
     invalid?: boolean
@@ -35,9 +36,7 @@ export const HintedField = ({
 
     return (
         <div className="flex flex-col gap-1.5">
-            <Field {...field}>
-                {cloneElement(children, {"aria-describedby": describedBy})}
-            </Field>
+            <Field {...field}>{cloneElement(children, {"aria-describedby": describedBy})}</Field>
             {hint ? (
                 <p id={hintId} className="m-0 text-meta leading-normal text-muted-foreground">
                     {hint}

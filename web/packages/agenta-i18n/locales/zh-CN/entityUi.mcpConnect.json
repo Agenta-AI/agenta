@@ -50,7 +50,6 @@
     "copy": "复制",
     "copyByHand": "请选中 URL 并复制。",
     "clientId": "客户端 ID",
-    "optional": "可选",
     "clientSecret": "客户端密钥",
     "clientAuthentication": "客户端认证",
     "scopes": "权限范围",

@@ -50,7 +50,6 @@
     "copy": "コピー",
     "copyByHand": "URL を選択してコピーしてください。",
     "clientId": "クライアント ID",
-    "optional": "任意",
     "clientSecret": "クライアントシークレット",
     "clientAuthentication": "クライアント認証",
     "scopes": "スコープ",

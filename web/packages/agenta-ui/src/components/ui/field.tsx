@@ -54,8 +54,10 @@ const GAP_CLASS = {
 export interface FieldProps extends VariantProps<typeof fieldLabelVariants> {
     /** Field label. Rendered inside a `<label>` associated with the control. */
     label?: React.ReactNode
-    /** Appends a `colorError` asterisk after the label. */
+    /** Appends a muted "Required" after the label. */
     required?: boolean
+    /** Appends a muted "Optional" after the label, for an optional field among required ones. */
+    optional?: boolean
     /** Info tooltip shown on a small icon beside the label (was LabeledField's `description`). */
     tooltip?: React.ReactNode
     /** Side the tooltip opens on. Mirrors LabeledField's `tooltipPlacement`. Defaults to `right`. */
@@ -94,6 +96,7 @@ export interface FieldProps extends VariantProps<typeof fieldLabelVariants> {
 function Field({
     label,
     required = false,
+    optional = false,
     tooltip,
     tooltipPlacement = "right",
     labelEnd,
@@ -173,15 +176,17 @@ function Field({
                     >
                         <span data-slot="field-label-text">
                             {label}
-                            {required && (
+                            {required || optional ? (
+                                // A word, not a red asterisk: status needs a word (COLOR-03).
                                 <span
-                                    data-slot="field-required"
-                                    aria-hidden="true"
-                                    className="ml-0.5 text-destructive"
+                                    data-slot={required ? "field-required" : "field-optional"}
+                                    className="ml-1.5 text-meta font-normal text-muted-foreground"
                                 >
-                                    *
+                                    {required
+                                        ? t("ui.controls.required")
+                                        : t("ui.controls.optional")}
                                 </span>
-                            )}
+                            ) : null}
                         </span>
                     </Label>
                     {tooltip != null && (

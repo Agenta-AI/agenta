@@ -51,7 +51,6 @@
     "copy": "Kopieren",
     "copyByHand": "Markieren Sie die URL und kopieren Sie sie.",
     "clientId": "Client-ID",
-    "optional": "Optional",
     "clientSecret": "Client-Secret",
     "clientAuthentication": "Client-Authentifizierung",
     "scopes": "Bereiche",
