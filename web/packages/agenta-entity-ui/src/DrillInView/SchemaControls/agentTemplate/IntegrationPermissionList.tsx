@@ -16,8 +16,16 @@ import permissionDrawerCatalog from "@agenta/i18n/catalogs/entityUi.permissionDr
 import {humanizeActionKey} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
 import {useIsPhone} from "@agenta/ui/phone"
-import {Badge, SearchInput, SkeletonRows} from "@agenta/ui/ui"
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {
+    Badge,
+    Empty,
+    EmptyHeader,
+    EmptyMedia,
+    EmptyTitle,
+    SearchInput,
+    SkeletonRows,
+} from "@agenta/ui/ui"
+import {CaretDown, CaretRight, Wrench} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -46,6 +54,7 @@ import type {
 } from "../toolUtils"
 
 import {ExpandableDescription} from "./ExpandableDescription"
+import {FieldHeading} from "./accounts/FieldHeading"
 import {PolicyGlyph} from "./PermissionGlyph"
 import {PermissionPolicySelect, type PermissionPolicyOption} from "./PermissionPolicySelect"
 
@@ -602,11 +611,12 @@ export function PermissionDrawerBody({
                 {readOnly ? null : account}
 
                 {readOnly ? null : (
-                    <div className="flex flex-col gap-1.5">
-                        {/* 12/16/500 (canvas F02 f6, M09); `text-meta` is 13 px in /m. */}
-                        <span className="text-meta font-medium text-muted-foreground">
-                            {t("entityUi.permissionDrawer.defaultPermission")}
-                        </span>
+                    <div className="flex flex-col gap-2">
+                        {/* The same heading as the account parts above it. */}
+                        <FieldHeading
+                            label={t("entityUi.permissionDrawer.defaultPermission")}
+                            note={t("entityUi.permissionDrawer.defaultPermissionNote")}
+                        />
                         {presets?.pending ? (
                             // One bar at the select's own height, so the row keeps its shape while
                             // the answer is on the way. Decorative, like the list's rows.
@@ -675,7 +685,15 @@ export function PermissionDrawerBody({
                     // an empty one.
                     catalog.errorNode
                 ) : catalogTools.length === 0 ? (
-                    <div className="px-1 py-4 text-meta text-muted-foreground">{emptyLabel}</div>
+                    // The kit empty state, as the Share dialog's member list draws it.
+                    <Empty className="gap-3 p-4">
+                        <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                                <Wrench />
+                            </EmptyMedia>
+                            <EmptyTitle className="text-label font-normal">{emptyLabel}</EmptyTitle>
+                        </EmptyHeader>
+                    </Empty>
                 ) : noMatches ? (
                     // Said in place of the groups, headers and all: two empty groups under their
                     // own counts read as a server that stopped advertising its tools, which is a
@@ -743,6 +761,8 @@ export function IntegrationDrawerBody({
     // and a partial list misreports every one of them. Search filters client-side for the same
     // reason, and this query carries no shared search atom to fight over.
     const {actions, complete, isLoading, error} = useToolIntegrationCatalog(target.integration)
+    // The app's name in what people read, never its key.
+    const appName = useToolIntegrationDetail(target.integration).integration?.name || target.integration
 
     // Kept separate from the stale-key pass in the body: this one walks the whole catalog, and it
     // must not rerun each time a per-tool click gives `permissions` a new identity.
@@ -769,13 +789,11 @@ export function IntegrationDrawerBody({
             complete,
             errorNode: (
                 <div className="px-1 py-4 text-meta text-muted-foreground">
-                    {tNow("entityUi.permissionDrawer.toolsNotLoaded", {
-                        integration: target.integration,
-                    })}
+                    {tNow("entityUi.permissionDrawer.toolsNotLoaded", {integration: appName})}
                 </div>
             ),
         }),
-        [complete, error, fetchedTools, isLoading, target.integration],
+        [appName, complete, error, fetchedTools, isLoading],
     )
 
     return (
@@ -783,9 +801,7 @@ export function IntegrationDrawerBody({
             {...rest}
             catalog={catalog}
             catalogKey={target.integration}
-            emptyLabel={t("entityUi.permissionDrawer.noToolsListed", {
-                integration: target.integration,
-            })}
+            emptyLabel={t("entityUi.permissionDrawer.noToolsListed", {integration: appName})}
             permissions={permissions}
         />
     )
@@ -834,14 +850,12 @@ export function IntegrationTitle({
     attention?: string | null
 }) {
     const tCommon = useT(commonCatalog)
-    const phone = useIsPhone()
     const {integration} = useToolIntegrationDetail(target.integration)
     const {connections, isLoading, error} = useToolConnectionsQuery()
     const connection = findTargetConnection(connections, target, connectionSlug)
     // A saved shared connection the project no longer has needs attention; a failed read says nothing.
     const missing = Boolean(connectionSlug) && !isLoading && !error && !connection
     const displayName = integration?.name || target.integration
-    const showSlug = displayName.toLowerCase() !== target.integration.toLowerCase()
     // A healthy connection shows no tag.
     const healthy = connection && isConnectionActive(connection) && isConnectionValid(connection)
     // Canvas F10 f3: a bordered 12 px tag.
@@ -851,20 +865,9 @@ export function IntegrationTitle({
         // w-full + min-w-0: the title slot will not shrink alone, pushing the badge past the edge.
         <div className="flex w-full min-w-0 items-center gap-2.5">
             <ProviderLogo logo={integration?.logo ?? null} size={22} />
-            {/* Canvas F02 f6: name 13/20/600, the account 12/16; a phone shows the name alone at
-                15/20 (M09). */}
-            <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+            {/* The name alone: the key and the connection slug are internal ids. */}
+            <div className="flex min-w-0 flex-1 items-baseline">
                 <span className="truncate text-label font-semibold leading-5">{displayName}</span>
-                {showSlug && !phone ? (
-                    <span className="shrink-0 text-meta font-normal text-muted-foreground">
-                        {target.integration}
-                    </span>
-                ) : null}
-                {connectionSlug && !phone ? (
-                    <span className="min-w-0 truncate text-meta font-normal text-muted-foreground">
-                        {connectionSlug}
-                    </span>
-                ) : null}
             </div>
             {notConnected || missing ? (
                 // Canvas F10 f3: a square white tag with a light border.

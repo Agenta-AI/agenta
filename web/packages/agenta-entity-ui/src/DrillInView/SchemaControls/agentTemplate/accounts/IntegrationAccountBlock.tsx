@@ -84,6 +84,9 @@ export function IntegrationAccountBlock({
         [projectConnections, entry],
     )
 
+    // One project account, already the agent's: nothing to pick, so the picker stays hidden.
+    const onlySharedPicked = shared.length === 1 && shared[0].slug === entry.connection
+
     const pickSource = (next: string) => {
         const pick = accountSourcePick(next, entry, shared)
         if ("write" in pick) onChange(pick.write)
@@ -131,7 +134,8 @@ export function IntegrationAccountBlock({
                         onConnect={() => onConnect("user")}
                     />
                 ) : null
-            ) : (
+            ) : onlySharedPicked ? null : (
+                // Picking only matters with two or more project accounts, or none yet.
                 <div className="flex flex-col gap-2">
                     <FieldHeading
                         label={t("entityUi.accountSwitch.sharedAccount")}
