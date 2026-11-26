@@ -83,7 +83,7 @@ export function CatalogListRow({
             // One hover fill (SURF-05) and the control radius (SHAPE-01).
             className={`group/row -mx-2 rounded-md px-2 py-2 outline-none transition-colors duration-[var(--duration-fast)] focus-ring ${
                 highlighted ? "bg-secondary" : ""
-            } ${onClick ? "cursor-pointer hover:bg-accent" : ""} ${className ?? ""}`}
+            } ${onClick ? "cursor-pointer" : ""} hover:bg-accent ${className ?? ""}`}
         >
             {/* 12 px from the 32 px Mark to its text (SPACE-04). */}
             <div className={`flex gap-3 ${align === "start" ? "items-start" : "items-center"}`}>
