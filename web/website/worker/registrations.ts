@@ -478,19 +478,27 @@ async function recentSends(
 }
 
 // Conditional writes: a count written by another send in between makes the write
-// fail, and the update reads again. Not unbounded, so a stuck object cannot hang
+// fail, and the update reads again. R2 also refuses a second write to one key within
+// a second; that try waits a second. Not unbounded, so a stuck object cannot hang
 // the request.
 const COUNT_ATTEMPTS = 5;
+const COUNT_RETRY_MS = 1000;
 
 async function addSend(bucket: CapBucket, key: string, time: number) {
   for (let attempt = 0; attempt < COUNT_ATTEMPTS; attempt++) {
     const { etag, times } = await readSends(bucket, key, Date.now());
-    const written = await bucket.put(key, JSON.stringify([...times, time]), {
-      onlyIf: etag ? { etagMatches: etag } : { etagDoesNotMatch: "*" },
-    });
+    let written: unknown;
+    try {
+      written = await bucket.put(key, JSON.stringify([...times, time]), {
+        onlyIf: etag ? { etagMatches: etag } : { etagDoesNotMatch: "*" },
+      });
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, COUNT_RETRY_MS));
+      continue;
+    }
     if (written !== null) return;
   }
-  throw new Error("the cap count kept changing");
+  throw new Error("the cap count could not be written");
 }
 
 /** Null when the email or the instance already got its daily number of key emails.

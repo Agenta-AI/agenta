@@ -881,6 +881,30 @@ describe("daily caps", () => {
     expect(JSON.parse(objects.get(instanceKey)!)).toHaveLength(2);
   });
 
+  it("counts a send whose first count write R2 refused", async () => {
+    let refused = false;
+    const { bucket, objects } = capBucket(async () => {
+      if (!refused) {
+        refused = true;
+        throw new Error("too many writes to this object");
+      }
+    });
+    const { sender } = fakeSender();
+
+    const response = handleRegistration(
+      post(VALID),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem, MEDIA: bucket }),
+      sender,
+      undefined,
+      { record: async () => {} },
+    );
+    expect((await response).status).toBe(202);
+    for (const times of objects.values()) {
+      expect(JSON.parse(times)).toHaveLength(1);
+    }
+    expect(objects.size).toBe(2);
+  });
+
   it("does not count a send that failed", async () => {
     const { bucket } = capBucket();
     const env = withLimits({ LICENSE_SIGNING_KEY: privatePem, MEDIA: bucket });
