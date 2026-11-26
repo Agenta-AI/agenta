@@ -1,7 +1,6 @@
 {
     "actionAddLicenseKey": "ライセンスキーを追加",
     "actionTalkToUs": "お問い合わせ",
-    "actionUpgradeDocs": "アップグレード方法",
     "addFailed": "キーを追加できませんでした。もう一度お試しください。",
     "addKey": "キーを追加",
     "adding": "追加中…",
@@ -38,7 +37,6 @@
     "lockedSso": "<strong>SSO プロバイダー。</strong>メンバーは会社の ID プロバイダーでサインインします。",
     "lockedSsoRow": "プロバイダーはありません。",
     "lockedTitle": "Enterprise プランで利用できます",
-    "needsEnterpriseImage": "ライセンスキーには Enterprise イメージが必要です。<link>アップグレード方法</link>",
     "never": "なし",
     "noticeExpired": "このライセンスは {{date}} に有効期限が切れました。インスタンスは Community プランになっています。",
     "noticeExpires": "このライセンスは {{date}} に有効期限が切れます。",

@@ -1,9 +1,8 @@
 import {useEffect, useState} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
-import {createT, richText, useT} from "@agenta/i18n"
+import {createT, useT} from "@agenta/i18n"
 import settingsLicenseCatalog from "@agenta/i18n/catalogs/settings.license"
-import {isEE} from "@agenta/shared/api"
 import {Button} from "@agenta/ui/ui"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
 
@@ -22,7 +21,7 @@ import type {SettingsTabProps} from "./settingsTabProps"
 import {BillingLoadError} from "./states/BillingLoadError"
 import {LicenseAdminOnly} from "./states/LicenseAdminOnly"
 import {SettingsTabSkeleton} from "./states/SettingsTabSkeleton"
-import {CONTACT_URL, PRICING_URL, UPGRADE_DOCS_URL} from "./upgradePrompt"
+import {CONTACT_URL, PRICING_URL} from "./upgradePrompt"
 import {useActivationLinkKey} from "./useActivationLinkKey"
 import {instanceLicenseQueryKey, useInstanceLicense} from "./useInstanceLicense"
 
@@ -35,18 +34,11 @@ const errorMessage = (error: unknown) =>
           ? tNow("settings.license.invalidKey")
           : tNow("settings.license.addFailed")
 
-const externalLink = (href: string) => (text: string) => (
-    <a href={href} target="_blank" rel="noreferrer" className="text-foreground underline">
-        {text}
-    </a>
-)
-
 /**
  * The instance license, for the instance admin: the plan with its usage, then one next step.
  * Without a key, the free registration; with the free key, the Enterprise offer; with a paid
  * key, replace it or talk to us. A license key goes in through a dialog. An activation link
- * (`#key=`) asks to confirm, then adds its key. On the OSS image the key check is not there,
- * so the page points to the Enterprise image instead of the dialog.
+ * (`#key=`) asks to confirm, then adds its key.
  */
 export const LicenseTab = ({projectId}: SettingsTabProps) => {
     const t = useT(settingsLicenseCatalog)
@@ -72,9 +64,7 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
     })
 
     // A reader who cannot add the key: drop it, so the `/m` root stops sending them here.
-    const cannotAddKey =
-        license.notInstanceAdmin ||
-        (license.data && (!isEE() || license.data.source === "environment"))
+    const cannotAddKey = license.notInstanceAdmin || license.data?.source === "environment"
     useEffect(() => {
         if (linkKey && cannotAddKey) dismissLinkKey()
     }, [linkKey, cannotAddKey, dismissLinkKey])
@@ -89,9 +79,8 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
         )
     if (!license.data) return <SettingsTabSkeleton />
 
-    const enterprise = isEE()
     const fromEnvironment = license.data.source === "environment"
-    const canAddKey = enterprise && !fromEnvironment
+    const canAddKey = !fromEnvironment
     const key = license.data.license
     const registered = license.data.plan === REGISTERED_PLAN
     const openDialog = () => {
@@ -106,13 +95,7 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
                 {t(`settings.license.${label}`)}
             </Button>
         ) : null
-    const keyNote = !enterprise ? (
-        <p className="text-muted-foreground m-0 text-[13px]">
-            {richText(t("settings.license.needsEnterpriseImage"), {
-                link: externalLink(UPGRADE_DOCS_URL),
-            })}
-        </p>
-    ) : fromEnvironment ? (
+    const keyNote = fromEnvironment ? (
         <p className="text-muted-foreground m-0 text-[13px]">
             {t("settings.license.fromEnvironment")}
         </p>

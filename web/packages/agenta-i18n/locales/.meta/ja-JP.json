@@ -2160,7 +2160,26 @@
         "dontShowAgain": "497a0f940e31",
         "readChangelog": "c97da0c481bd",
         "play": "436e61016e26",
-        "playFeature": "bc2e9f2d0190"
+        "playFeature": "bc2e9f2d0190",
+        "notInstalled": "d177cdc09a4e",
+        "upgradeVersions": "85a909f5beb8",
+        "releasesBehind_other": "2203b5c6e02d",
+        "notInstalledCount_other": "89c3e2f69049",
+        "securityFixCount_other": "0ede4c7e49ab",
+        "howToUpgrade": "0abda85c2a0c",
+        "securityFix": "b6d05c400785",
+        "commandsTitle": "58e096a6e13d",
+        "commandsCloneFolder": "972f31b0515e",
+        "copyCommands": "e614ef1572da",
+        "copyPrompt": "3c6179de35f7",
+        "commandsNote": "8240b147ab2a",
+        "extraSteps": "e5e6ce6cf38c",
+        "extraStepsLink": "720c14aaa8b8",
+        "askAdmin": "cee73ff8e467",
+        "promptSetupCompose": "e0c2abe6e483",
+        "promptSetupHelm": "61ef8f14d08f",
+        "promptSetupRailway": "76e4b90815da",
+        "agentPrompt": "fc50c2101643"
     },
     "entityUi.accountSwitch": {
         "chooseWhose": "c88b63844b25",
@@ -4895,6 +4914,7 @@
         "items.keyboardShortcuts": "e9bef0b0f3c2",
         "items.newAgentOrOpen": "5992bfc38674",
         "items.newSessionWith": "29f7cf206b3f",
+        "items.notInstalled": "d177cdc09a4e",
         "items.observability": "a37c93100e7c",
         "items.overview": "d4b1ea5708dd",
         "items.playground": "a6273fb551f2",
@@ -4909,6 +4929,7 @@
         "items.templates": "56b564b75c7f",
         "items.untitledPrompt": "5e9072a82479",
         "items.untitledSession": "3d9b66fd4938",
+        "items.updateAvailable": "ff8b555d818f",
         "items.viewAllReleases": "fd37943859cc",
         "items.whatsNew": "623aab5c4dfa",
         "projectMenu.createOrganization": "f14e1b22393c",
@@ -4945,7 +4966,12 @@
         "settings.tools": "ea93d6a262ec",
         "settings.watchWalkthrough": "bfdf6444aeac",
         "settings.webhooks": "45808d75bf89",
-        "settings.workspace": "1044a4c056d0"
+        "settings.workspace": "1044a4c056d0",
+        "items.newMinorVersion": "e712c89272b3",
+        "items.newPatchVersion": "4001e80a6360",
+        "items.securityUpdate": "ee9b04fd5671",
+        "items.releasesBehind_other": "2203b5c6e02d",
+        "items.securityFix": "b6d05c400785"
     },
     "observability.addToTestset": {
         "sheetTitle": "12880f2e402e",
@@ -6516,7 +6542,6 @@
     "settings.license": {
         "actionAddLicenseKey": "e03656a79493",
         "actionTalkToUs": "1d1d94fb5397",
-        "actionUpgradeDocs": "0abda85c2a0c",
         "addFailed": "d31464d0033e",
         "addKey": "12626d65b219",
         "adding": "c6de6f45c827",
@@ -6553,7 +6578,6 @@
         "lockedSso": "f3a940e9de84",
         "lockedSsoRow": "eab3efdcebbf",
         "lockedTitle": "737e9d971e1c",
-        "needsEnterpriseImage": "8524b70de584",
         "never": "6300ef800bb8",
         "noticeExpired": "e481a7e555ee",
         "noticeExpires": "b77296de75df",
@@ -7004,6 +7028,10 @@
         "failed": "c9920c977a44",
         "namePlaceholder": "25498193b898",
         "title": "fa67e4d0dae5"
+    },
+    "shell.securityWarning": {
+        "message": "c0856e93a82a",
+        "howToUpgrade": "0abda85c2a0c"
     },
     "shell.sessionFilter": {
         "agent": "11b39c93777e",

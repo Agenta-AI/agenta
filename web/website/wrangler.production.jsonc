@@ -71,6 +71,8 @@
       "/marketplace/*",
       "/creators/*",
       "/media/*",
+      // The release feed runs the worker so an instance's update check is counted.
+      "/releases.json",
       "!/blog/*/*",
       "!/authors/*.*",
       "!/marketplace/*/*",

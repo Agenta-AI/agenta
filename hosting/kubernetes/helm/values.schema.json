@@ -1086,6 +1086,31 @@
         }
       }
     },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "AGENTA_TELEMETRY_ENABLED."
+        },
+        "instanceKind": {
+          "type": "string",
+          "enum": ["", "production", "development", "ci", "test"],
+          "description": "AGENTA_TELEMETRY_INSTANCE_KIND. Empty lets the API detect it."
+        }
+      }
+    },
+    "releases": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "updateCheckEnabled": {
+          "type": "boolean",
+          "description": "AGENTA_UPDATE_CHECK_ENABLED."
+        }
+      }
+    },
     "sendgrid": {
       "type": "object",
       "additionalProperties": false,

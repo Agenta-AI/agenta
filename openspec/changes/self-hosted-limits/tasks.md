@@ -30,8 +30,8 @@ Shared files: M1 and M2 both touch `api/oss/src/services/commoners.py` (limit ch
 - [x] R.8 The self-hosted survey event carries no email, with a unit test.
 - [x] R.9 Free key tied to the instance: the worker writes the instance id; the API accepts a free key only on that instance; the License tab says when a key belongs to another instance.
 - [x] R.10 License tab redesign (before a key, after a free key, after a paid key), the "Add a license key" dialog, and one "Available on the Enterprise plan" box per locked page.
-- [x] R.11 Free key docs: the new flow, the promise "You keep what your key unlocks.", and the analytics sentence.
-- [x] R.12 The same analytics sentence on the telemetry page in #8237.
+- [x] R.11 Free key docs: the new flow, and the promise "You keep what your key unlocks."
+- [x] R.12 Dropped (decided 2026-11-26): the telemetry page in #8237 has no sentence about registration in analytics.
 
 ## M1. Limits in `ee/` (API and /m)
 

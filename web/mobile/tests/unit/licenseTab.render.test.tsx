@@ -12,14 +12,12 @@ globalThis.ResizeObserver ??= class {
 } as unknown as typeof ResizeObserver
 
 const fixture = vi.hoisted(() => ({
-    edition: "ee" as "oss" | "ee",
     license: null as unknown,
     activate: vi.fn(),
 }))
 
 vi.mock("@agenta/shared/api", async (importOriginal) => ({
     ...(await importOriginal<object>()),
-    isEE: () => fixture.edition === "ee",
     isBillingEnabled: () => false,
 }))
 
@@ -62,7 +60,6 @@ describe("License tab", () => {
     let host: HTMLDivElement
 
     beforeEach(() => {
-        fixture.edition = "ee"
         fixture.activate.mockReset()
         host = document.createElement("div")
         document.body.appendChild(host)
@@ -191,14 +188,5 @@ describe("License tab", () => {
                 "This free key was issued for another instance. Register this instance to get its own key.",
             ),
         )
-    })
-
-    it("on the OSS image, points to the Enterprise image instead of the key dialog", async () => {
-        fixture.edition = "oss"
-        fixture.license = community()
-        await mount()
-
-        expect(button("Add a license key")).toBeUndefined()
-        expect(text()).toContain("License keys need the Enterprise image.")
     })
 })

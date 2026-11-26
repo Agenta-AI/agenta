@@ -9,7 +9,7 @@ import {
 } from "@agenta/entity-ui/drill-in"
 import {useLLMProviderConfig} from "@agenta/entity-ui/secretProvider"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
-import {isEE} from "@agenta/shared/api"
+import {isCloud} from "@agenta/shared/api"
 import {useSkillsBridge} from "@agenta/skills-ui"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
@@ -70,7 +70,7 @@ export const DrillInBridgeProvider = ({
     const permissions = useMemo(() => ({canEditSecrets}), [canEditSecrets])
 
     // Deployment policy never changes at runtime; a stable identity keeps the context value stable.
-    const deployment = useMemo(() => ({isCloud: isEE()}), [])
+    const deployment = useMemo(() => ({isCloud: isCloud()}), [])
 
     const components = useMemo(
         () =>

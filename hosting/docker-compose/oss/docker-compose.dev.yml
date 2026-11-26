@@ -171,6 +171,8 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
+            # Telemetry reports how Agenta was deployed. A value from the shell or --env-file wins.
+            AGENTA_DEPLOYMENT_METHOD: ${AGENTA_DEPLOYMENT_METHOD:-compose}
             AGENTA_SERVICES_INTERNAL_KEY: ${AGENTA_SERVICES_INTERNAL_KEY:?AGENTA_SERVICES_INTERNAL_KEY is required}
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             AGENTA_GATEWAYS_MOCKS_ENABLED: "true"
@@ -339,6 +341,7 @@ services:
             - ../../../api/oss/src/crons/queries.sh:/queries.sh
             - ../../../api/oss/src/crons/triggers.sh:/triggers.sh
             - ../../../api/oss/src/crons/gateways.sh:/gateways.sh
+            - ../../../api/oss/src/crons/telemetry.sh:/telemetry.sh
             - ../../../api/ee/src/crons/meters.sh:/meters.sh
             - ../../../api/ee/src/crons/spans.sh:/spans.sh
             - ../../../api/ee/src/crons/events.sh:/events.sh

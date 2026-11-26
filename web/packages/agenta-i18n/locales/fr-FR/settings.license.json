@@ -1,7 +1,6 @@
 {
     "actionAddLicenseKey": "Ajouter une clé de licence",
     "actionTalkToUs": "Nous contacter",
-    "actionUpgradeDocs": "Comment effectuer la mise à niveau",
     "addFailed": "Impossible d’ajouter la clé. Réessayez.",
     "addKey": "Ajouter la clé",
     "adding": "Ajout…",
@@ -40,7 +39,6 @@
     "lockedSso": "<strong>Fournisseurs SSO.</strong> Les membres se connectent avec le fournisseur d’identité de votre entreprise.",
     "lockedSsoRow": "Aucun fournisseur.",
     "lockedTitle": "Disponible avec le plan Enterprise",
-    "needsEnterpriseImage": "Les clés de licence nécessitent l’image Enterprise. <link>Comment effectuer la mise à niveau</link>",
     "never": "Jamais",
     "noticeExpired": "Cette licence a expiré le {{date}}. L’instance est sur l’offre Community.",
     "noticeExpires": "Cette licence expire le {{date}}.",
