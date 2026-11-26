@@ -62,6 +62,9 @@ async def test_outside_cloud_the_subscription_plan_is_the_instance_plan(
 @pytest.mark.asyncio
 async def test_on_cloud_entitlements_read_the_subscription(cloud, monkeypatch):
     instance_plan = AsyncMock(return_value=COMMUNITY)
+    set_cache = AsyncMock()
+    monkeypatch.setattr(entitlements_service, "get_cache", AsyncMock(return_value=None))
+    monkeypatch.setattr(entitlements_service, "set_cache", set_cache)
     monkeypatch.setattr(entitlements_service, "instance_plan", instance_plan)
     monkeypatch.setattr(
         entitlements_service,
@@ -72,6 +75,11 @@ async def test_on_cloud_entitlements_read_the_subscription(cloud, monkeypatch):
     data = await entitlements_service._subscription_data(uuid4())
 
     assert data == {"plan": "cloud_v0_business", "anchor": 7}
+    # A cache miss stores the plan and the billing anchor for the throttle to read.
+    assert set_cache.await_args.kwargs["value"] == {
+        "plan": "cloud_v0_business",
+        "anchor": 7,
+    }
     instance_plan.assert_not_awaited()
 
 

@@ -9,6 +9,7 @@ const fixture = vi.hoisted(() => ({
     edition: "self_hosted" as "self_hosted" | "cloud",
     capture: vi.fn(),
     replace: vi.fn(),
+    entitlementOptions: [] as unknown[],
     api: {
         fetchOrganizationDomains: vi.fn(),
         fetchOrganizationProviders: vi.fn(),
@@ -50,20 +51,22 @@ vi.mock("@agenta/entities/organization", async (importOriginal) => ({
 vi.mock("@agenta/settings-ui", async (importOriginal) => ({
     ...(await importOriginal<object>()),
     // The plan includes none of the enterprise features.
-    useEntitlements: () => ({
-        hasAccessControl: false,
-        hasDomains: false,
-        hasSSO: false,
-        hasRBAC: false,
-        hasHooks: false,
-        hasAudit: false,
-        isLoading: false,
-    }),
+    useEntitlements: (options: unknown) => {
+        fixture.entitlementOptions.push(options)
+        return {
+            hasAccessControl: false,
+            hasDomains: false,
+            hasSSO: false,
+            hasRBAC: false,
+            hasHooks: false,
+            hasAudit: false,
+            isLoading: false,
+        }
+    },
 }))
 
 import {AccessSecurityTab} from "@/features/settings/AccessSecurityTab"
 import {AuditLogTab} from "@/features/settings/AuditLogTab"
-import {availableUpgradeActions} from "@/features/settings/upgradePrompt"
 
 import {nextRouterModule, routerQuery} from "../support/nextRouter"
 import {WithQueryClient} from "../support/queryClient"
@@ -85,6 +88,7 @@ describe("locked enterprise settings", () => {
         fixture.edition = "self_hosted"
         fixture.capture.mockReset()
         fixture.replace.mockReset()
+        fixture.entitlementOptions = []
         fixture.api.fetchOrganizationDomains.mockReset()
         fixture.api.fetchOrganizationProviders.mockReset()
         routerQuery.tab = undefined
@@ -114,6 +118,8 @@ describe("locked enterprise settings", () => {
             "https://agenta.ai/contact?feature=audit",
         )
         expect(events("upgrade_prompt_viewed")).toEqual([{feature: "audit", screen: "auditLog"}])
+        // The entitlement read runs on self-hosted too: the lock comes from the plan.
+        expect(fixture.entitlementOptions).toContainEqual({projectId: "proj-1"})
     })
 
     it("sends upgrade_prompt_viewed once per view under StrictMode", async () => {
@@ -190,11 +196,5 @@ describe("locked enterprise settings", () => {
         expect(document.body.textContent).toContain("Available on Business and Enterprise plans.")
         expect(labels()).not.toContain("Talk to us")
         expect(fixture.capture).not.toHaveBeenCalled()
-    })
-})
-
-describe("availableUpgradeActions", () => {
-    it("offers the contact page, then a license key, on every self-hosted install", () => {
-        expect(availableUpgradeActions()).toEqual(["talk_to_us", "add_license_key"])
     })
 })
