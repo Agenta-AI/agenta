@@ -3,14 +3,7 @@ import {useState} from "react"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {BottomSheet, PHONE_BUTTON_CLASS, useIsPhone} from "@agenta/ui/phone"
-import {
-    Button,
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@agenta/ui/ui"
+import {Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 
 import type {SecretOwner} from "./agentSecretRules"
 import {SecretFormFields, useSecretFormSetup} from "./useSecretFormSetup"

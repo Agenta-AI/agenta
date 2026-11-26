@@ -78,8 +78,7 @@ const useProjectProvidersSource = (): ProvidersSource => {
     return useMemo(() => {
         // Manager-only rows 409 on edit; the drawer still gets every connection.
         const rows = connections.filter(
-            (connection) =>
-                connection.managementPolicy !== SecretManagementPolicy.ManagerOnly,
+            (connection) => connection.managementPolicy !== SecretManagementPolicy.ManagerOnly,
         )
         return {
             connections,
@@ -88,22 +87,21 @@ const useProjectProvidersSource = (): ProvidersSource => {
             // A subscription has no key and no model list worth a line: its sign-in status only.
             describe: (connection: ProviderConnection) =>
                 isSubscriptionConnection(connection)
-                    ? subscriptionStatusLine(connection.subscription) ||
-                      t("common.notConnected")
+                    ? subscriptionStatusLine(connection.subscription) || t("common.notConnected")
                     : [
-                    connection.title !== connection.name
-                        ? providerTitle(connection.kind, connection.title, t)
-                        : null,
-                    credentialSummaryText(connection),
-                    activeModelsSummary(connection, capabilities, {
-                        // No saved list: the row says nothing about models.
-                        defaults: "",
-                        active: (active, total) =>
-                            t("settings.providers.modelsActive", {active, total}),
-                    }),
-                ]
-                    .filter(Boolean)
-                    .join(" · "),
+                          connection.title !== connection.name
+                              ? providerTitle(connection.kind, connection.title, t)
+                              : null,
+                          credentialSummaryText(connection),
+                          activeModelsSummary(connection, capabilities, {
+                              // No saved list: the row says nothing about models.
+                              defaults: "",
+                              active: (active, total) =>
+                                  t("settings.providers.modelsActive", {active, total}),
+                          }),
+                      ]
+                          .filter(Boolean)
+                          .join(" · "),
             manage: true,
             offersSubscriptions: true,
             remove: async (connection: ProviderConnection) => {

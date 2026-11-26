@@ -75,19 +75,19 @@ export const ViewDrawerHost = <P,>({
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-[inherit] p-0 text-field-md text-foreground">
             <DrawerCloseContext.Provider value={close}>
                 <DrawerBareContext.Provider value={bare && (!phone || sheet)}>
-                <DrawerDialogContext.Provider value={presentation === "dialog"}>
-                <ViewStackHost
-                    chrome={phone && !sheet ? PhoneViewChrome : DrawerViewChrome}
-                    phone={phone}
-                    confirmLeave={presentation !== "dialog"}
-                >
-                    <OpenOnMount
-                        request={request as ViewRequest}
-                        stackRef={stackRef}
-                        onEmpty={finish}
-                    />
-                </ViewStackHost>
-                </DrawerDialogContext.Provider>
+                    <DrawerDialogContext.Provider value={presentation === "dialog"}>
+                        <ViewStackHost
+                            chrome={phone && !sheet ? PhoneViewChrome : DrawerViewChrome}
+                            phone={phone}
+                            confirmLeave={presentation !== "dialog"}
+                        >
+                            <OpenOnMount
+                                request={request as ViewRequest}
+                                stackRef={stackRef}
+                                onEmpty={finish}
+                            />
+                        </ViewStackHost>
+                    </DrawerDialogContext.Provider>
                 </DrawerBareContext.Provider>
             </DrawerCloseContext.Provider>
         </div>

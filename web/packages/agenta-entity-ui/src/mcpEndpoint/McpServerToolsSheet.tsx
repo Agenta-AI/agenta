@@ -26,7 +26,11 @@ export interface McpServerToolsSheetProps {
 }
 
 /** A project server's tools, read-only, in the kit sheet: a permission belongs to an agent. */
-export const McpServerToolsSheet = ({endpoint, onReconnect, onClosed}: McpServerToolsSheetProps) => {
+export const McpServerToolsSheet = ({
+    endpoint,
+    onReconnect,
+    onClosed,
+}: McpServerToolsSheetProps) => {
     const [open, setOpen] = useState(true)
     const slug = endpoint.slug ?? ""
     const name = endpoint.name || slug

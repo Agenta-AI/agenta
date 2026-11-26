@@ -80,7 +80,11 @@ export function OwnerField<Owner extends OwnerKind>({
         <Field label={t("entityUi.accounts.owner")}>
             <AccountSwitch
                 value={value}
-                choices={shown.map((owner) => ({value: owner, label: word(owner), note: note(owner)}))}
+                choices={shown.map((owner) => ({
+                    value: owner,
+                    label: word(owner),
+                    note: note(owner),
+                }))}
                 onChange={onChange}
                 aria-label={t("entityUi.accounts.owner")}
             />

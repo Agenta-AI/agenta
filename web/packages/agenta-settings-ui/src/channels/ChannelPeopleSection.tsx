@@ -576,9 +576,11 @@ export const ChannelPeopleSection = ({
                                     </>
                                 )}
                             </span>
-                            <SimpleTooltip title={t("channels.people.removePerson", {
+                            <SimpleTooltip
+                                title={t("channels.people.removePerson", {
                                     name: person.name ?? person.id,
-                                })}>
+                                })}
+                            >
                                 <Button
                                     variant="ghost"
                                     size="icon-xs"

@@ -351,33 +351,32 @@ function ConnectedRow({
             </Button>
         ) : null
 
-    const statusSuffix =
-        canvas ? (
-                    attention ? (
-                        <span className="inline-flex h-5 shrink-0 items-center rounded-sm px-2 text-caption text-warning bg-warning/10">
-                            {attention === "inactive"
-                                ? t("entityUi.integrationDrawer.inactive")
-                                : t("entityUi.integrationDrawer.pending")}
-                        </span>
-                    ) : !multiple && verbs.makeDefault && isConnectionDefault(single) ? (
-                        <DefaultMark label={verbs.makeDefault.defaultLabel} />
-                    ) : null
-                ) : added && !choosing ? (
-                    <span className="flex shrink-0 items-center gap-1 text-meta font-normal text-success">
-                        <Check size={11} weight="bold" />
-                        {t("entityUi.integrationDrawer.added")}
-                    </span>
-                ) : attention ? (
-                    // Beside the name and never truncated, so the problem always shows.
-                    <span className="flex shrink-0 items-center gap-1.5 text-label font-medium text-warning">
-                        <span aria-hidden className="size-1.5 rounded-round bg-current" />
-                        {attention === "inactive"
-                            ? t("entityUi.integrationDrawer.inactive")
-                            : t("entityUi.integrationDrawer.pending")}
-                    </span>
-                ) : !multiple && verbs.makeDefault && isConnectionDefault(single) ? (
-                    <DefaultMark label={verbs.makeDefault.defaultLabel} />
-                ) : null
+    const statusSuffix = canvas ? (
+        attention ? (
+            <span className="inline-flex h-5 shrink-0 items-center rounded-sm px-2 text-caption text-warning bg-warning/10">
+                {attention === "inactive"
+                    ? t("entityUi.integrationDrawer.inactive")
+                    : t("entityUi.integrationDrawer.pending")}
+            </span>
+        ) : !multiple && verbs.makeDefault && isConnectionDefault(single) ? (
+            <DefaultMark label={verbs.makeDefault.defaultLabel} />
+        ) : null
+    ) : added && !choosing ? (
+        <span className="flex shrink-0 items-center gap-1 text-meta font-normal text-success">
+            <Check size={11} weight="bold" />
+            {t("entityUi.integrationDrawer.added")}
+        </span>
+    ) : attention ? (
+        // Beside the name and never truncated, so the problem always shows.
+        <span className="flex shrink-0 items-center gap-1.5 text-label font-medium text-warning">
+            <span aria-hidden className="size-1.5 rounded-round bg-current" />
+            {attention === "inactive"
+                ? t("entityUi.integrationDrawer.inactive")
+                : t("entityUi.integrationDrawer.pending")}
+        </span>
+    ) : !multiple && verbs.makeDefault && isConnectionDefault(single) ? (
+        <DefaultMark label={verbs.makeDefault.defaultLabel} />
+    ) : null
     return (
         <CatalogListRow
             highlighted={choosing && (Boolean(onAdd) || browseList)}
@@ -492,13 +491,21 @@ function ConnectedRow({
                                             verbs.manage === false
                                                 ? undefined
                                                 : () =>
-                                                      handlers.onConfirm("revoke", connection, label)
+                                                      handlers.onConfirm(
+                                                          "revoke",
+                                                          connection,
+                                                          label,
+                                                      )
                                         }
                                         onDelete={
                                             verbs.manage === false
                                                 ? undefined
                                                 : () =>
-                                                      handlers.onConfirm("delete", connection, label)
+                                                      handlers.onConfirm(
+                                                          "delete",
+                                                          connection,
+                                                          label,
+                                                      )
                                         }
                                     />
                                 </div>
@@ -735,10 +742,7 @@ export function IntegrationCatalog({
         }),
         [refreshConnection, confirmAction, page],
     )
-    const projectVerbs = useMemo<RowVerbs>(
-        () => ({manage: canManageProject}),
-        [canManageProject],
-    )
+    const projectVerbs = useMemo<RowVerbs>(() => ({manage: canManageProject}), [canManageProject])
     const yoursVerbs = useMemo<RowVerbs>(() => ({makeDefault: yours?.makeDefault}), [yours])
 
     const setSearch = useSetAtom(toolIntegrationsSearchAtom)

@@ -208,17 +208,16 @@ export const SessionListTable = ({
         (run: ListTableGroup<SessionRowVm>) => {
             if (group !== "agent" || !onNewSession || run.key === "pinned") return null
             const agentId = run.rows[0]?.agentId
-            if (!agentId || !agentNames.has(agentId)) return null
+            const agent = agentId ? agentNames.get(agentId) : undefined
+            if (!agentId || agent === undefined) return null
             return (
-                <SimpleTooltip
-                    title={t("sessions.mobileList.newSessionWith", {agent: run.label ?? ""})}
-                >
+                <SimpleTooltip title={t("sessions.mobileList.newSessionWith", {agent})}>
                     <Button
                         type="button"
                         variant="ghost"
                         size="icon-sm"
                         aria-label={t("sessions.mobileList.newSessionWith", {
-                            agent: run.label ?? "",
+                            agent,
                         })}
                         className={`size-6 text-muted-foreground hover:text-foreground`}
                         onClick={() => onNewSession(agentId)}

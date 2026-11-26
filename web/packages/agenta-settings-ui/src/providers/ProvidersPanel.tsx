@@ -41,7 +41,6 @@ import {
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
-
 /** What the host needs to render its own confirm chrome; the page owns the removal itself. */
 export interface ProviderRemovalState {
     connection: ProviderConnection | null
@@ -96,7 +95,6 @@ interface DrawerTarget {
 }
 
 type SubscriptionProvider = "chatgpt" | "claude"
-
 
 const subscriptionProviderOf = (connection: ProviderConnection): SubscriptionProvider | null => {
     const provider = connection.subscription?.provider
@@ -179,7 +177,12 @@ export const ProvidersPanel = ({
     renderRemoveDialog?: (state: ProviderRemovalState) => ReactNode
     subscriptionDocsUrl: string
 }) => {
-    const t = useT(commonCatalog, settingsProvidersCatalog, settingsSharedCatalog, providerListCatalog)
+    const t = useT(
+        commonCatalog,
+        settingsProvidersCatalog,
+        settingsSharedCatalog,
+        providerListCatalog,
+    )
     const builtinEndpoints = useAtomValue(builtinModelEndpointsQueryAtom).data
     const builtinModels = useMemo(() => builtinModelsOf(builtinEndpoints), [builtinEndpoints])
     const [drawerTarget, setDrawerTarget] = useState<DrawerTarget | null>(null)
@@ -271,55 +274,58 @@ export const ProvidersPanel = ({
                 if (provider) openSignIn([groupKey], provider, connection.id)
                 else setDrawerTarget({groupKey, connectionId: connection.id})
             }
-            const held = source.rows.filter((connection) => !neverSignedIn(connection)).map<SettingsCatalogItem>((connection) => {
-                // A subscription that is not signed in needs attention, not a connected mark.
-                const needsSignIn =
-                    !!connection.subscription && !subscriptionIsReady(connection.subscription)
-                return {
-                    key: connection.id,
-                    logo: <ProviderLogo kind={connection.kind} />,
-                    name: connection.name,
-                    badge,
-                    description: source.describe(connection),
-                    status: needsSignIn ? "attention" : "connected",
-                    statusLabel: needsSignIn
-                        ? t("settings.providers.needsSignIn")
-                        : t("common.connected"),
-                    onOpen: (source.canOpen?.(connection) ?? true) ? () => open(connection) : undefined,
-                    menu: source.manage ? (
-                        <SettingsRowMenu
-                            label={t("settings.providers.actionsFor", {name: connection.name})}
-                            items={[
-                                {
-                                    key: "edit",
-                                    label: t("common.edit"),
-                                    icon: <PencilSimpleLine size={14} />,
-                                    hidden: !(source.canOpen?.(connection) ?? true),
-                                    onClick: () => open(connection),
-                                },
-                                {type: "divider"},
-                                {
-                                    key: "delete",
-                                    label: t("common.delete"),
-                                    icon: <Trash size={14} />,
-                                    danger: true,
-                                    hidden: !canRemove,
-                                    onClick: () => requestRemoval(groupKey, connection),
-                                },
-                            ]}
-                        />
-                    ) : undefined,
-                }
-            })
+            const held = source.rows
+                .filter((connection) => !neverSignedIn(connection))
+                .map<SettingsCatalogItem>((connection) => {
+                    // A subscription that is not signed in needs attention, not a connected mark.
+                    const needsSignIn =
+                        !!connection.subscription && !subscriptionIsReady(connection.subscription)
+                    return {
+                        key: connection.id,
+                        logo: <ProviderLogo kind={connection.kind} />,
+                        name: connection.name,
+                        badge,
+                        description: source.describe(connection),
+                        status: needsSignIn ? "attention" : "connected",
+                        statusLabel: needsSignIn
+                            ? t("settings.providers.needsSignIn")
+                            : t("common.connected"),
+                        onOpen:
+                            (source.canOpen?.(connection) ?? true)
+                                ? () => open(connection)
+                                : undefined,
+                        menu: source.manage ? (
+                            <SettingsRowMenu
+                                label={t("settings.providers.actionsFor", {name: connection.name})}
+                                items={[
+                                    {
+                                        key: "edit",
+                                        label: t("common.edit"),
+                                        icon: <PencilSimpleLine size={14} />,
+                                        hidden: !(source.canOpen?.(connection) ?? true),
+                                        onClick: () => open(connection),
+                                    },
+                                    {type: "divider"},
+                                    {
+                                        key: "delete",
+                                        label: t("common.delete"),
+                                        icon: <Trash size={14} />,
+                                        danger: true,
+                                        hidden: !canRemove,
+                                        onClick: () => requestRemoval(groupKey, connection),
+                                    },
+                                ]}
+                            />
+                        ) : undefined,
+                    }
+                })
             // Offered once the list is in, so a held sign-in never shows as one to connect.
             const offered =
                 source.offersSubscriptions && !source.loading
-                    ? SUBSCRIPTION_PROVIDERS.filter(
-                          (provider) => {
-                              const existing = subscriptionConnectionFor(source.connections, provider)
-                              return !existing || neverSignedIn(existing)
-                          },
-                      )
+                    ? SUBSCRIPTION_PROVIDERS.filter((provider) => {
+                          const existing = subscriptionConnectionFor(source.connections, provider)
+                          return !existing || neverSignedIn(existing)
+                      })
                     : []
             return {
                 key: groupKey,
@@ -335,17 +341,19 @@ export const ProvidersPanel = ({
         // The deployment's own models: no owner, shown with the project's rows.
         const builtin: SettingsCatalogItem[] =
             builtinModels.length && ownerGroups.some((group) => group.key === projectGroup?.key)
-                ? ([
-                      {
-                          key: "builtin:agenta",
-                          logo: <ProviderLogo kind="agenta" />,
-                          name: t("entityUi.providerList.agenta"),
-                          description: t("entityUi.providerList.builtIn"),
-                          status: "connected",
-                          statusLabel: t("common.connected"),
-                          onOpen: () => setSheet({id: Date.now(), view: "builtin"}),
-                      },
-                  ] satisfies SettingsCatalogItem[]).filter(matches)
+                ? (
+                      [
+                          {
+                              key: "builtin:agenta",
+                              logo: <ProviderLogo kind="agenta" />,
+                              name: t("entityUi.providerList.agenta"),
+                              description: t("entityUi.providerList.builtIn"),
+                              status: "connected",
+                              statusLabel: t("common.connected"),
+                              onOpen: () => setSheet({id: Date.now(), view: "builtin"}),
+                          },
+                      ] satisfies SettingsCatalogItem[]
+                  ).filter(matches)
                 : []
         const footers = owned.flatMap((group) =>
             group.footer ? [<Fragment key={`${group.key}:failure`}>{group.footer}</Fragment>] : [],

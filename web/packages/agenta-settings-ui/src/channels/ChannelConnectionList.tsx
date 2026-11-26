@@ -85,9 +85,17 @@ export const ChannelConnectionList = ({
                     </span>
                     <span className="text-body">
                         {isSlack
-                            ? t(empty ? "channels.list.addFirstWorkspace" : "channels.list.addWorkspace")
+                            ? t(
+                                  empty
+                                      ? "channels.list.addFirstWorkspace"
+                                      : "channels.list.addWorkspace",
+                              )
                             : platform === "whatsapp"
-                              ? t(empty ? "channels.list.addFirstNumber" : "channels.list.addNumber")
+                              ? t(
+                                    empty
+                                        ? "channels.list.addFirstNumber"
+                                        : "channels.list.addNumber",
+                                )
                               : hostedHere
                                 ? t("channels.list.addOwnBot")
                                 : t("channels.list.addBot")}

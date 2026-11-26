@@ -17,6 +17,7 @@ vi.mock("@agenta/ui/ui", async () => {
         "data-testid"?: string
     }
     return {
+        SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
         Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
         SheetFooter: ({children}: {children?: React.ReactNode}) => <div>{children}</div>,
         Button: ({children, onClick, disabled, ...props}: React.ComponentProps<"button">) => (

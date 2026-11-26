@@ -32,11 +32,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {LoadFailed} from "../shared/LoadFailed"
 
-import {
-    providerTitle,
-    type ProvidersGroup,
-    type ProvidersSource,
-} from "./ProvidersPanel"
+import {providerTitle, type ProvidersGroup, type ProvidersSource} from "./ProvidersPanel"
 
 /**
  * Who may use a connection, in the row's words. Selected projects are named; until every name is
@@ -187,9 +183,7 @@ export const useOrganizationProvidersGroup = (
 
     return useMemo(
         () => ({
-            group: source
-                ? {key: "organization", owner: "organization" as const, source}
-                : null,
+            group: source ? {key: "organization", owner: "organization" as const, source} : null,
             manageScope: manage ? drawerScope : null,
         }),
         [source, manage, drawerScope],

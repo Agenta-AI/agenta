@@ -224,6 +224,10 @@ describe("C1, the address", () => {
         await open(state({status: "url_entry", url: ""}))
 
         expect(text()).toContain("Connect MCP server")
+        // The help sits behind the info button beside the label.
+        await act(async () =>
+            document.querySelector<HTMLElement>("[data-slot=field-tooltip-trigger]")?.click(),
+        )
         expect(text()).toContain(
             "The server's HTTP endpoint. Agenta checks it and detects whether it needs OAuth, an API key, or nothing.",
         )
@@ -390,15 +394,11 @@ describe("the address field's description, in both states", () => {
     const describedNodes = (element: HTMLElement | null) =>
         describedIds(element).map((id) => document.getElementById(id))
 
-    it("points at the help line while the address is still being typed", async () => {
+    it("points at nothing missing while the address is still being typed", async () => {
         await open(state({status: "url_entry"}))
 
         const field = control("Server URL")
-        expect(describedIds(field)).toHaveLength(1)
         expect(describedNodes(field).every(Boolean)).toBe(true)
-        expect(describedNodes(field)[0]?.textContent).toContain(
-            "The server's HTTP endpoint. Agenta checks it and detects whether it needs OAuth, an API key, or nothing.",
-        )
     })
 
     it("points at the failure once the check has failed", async () => {

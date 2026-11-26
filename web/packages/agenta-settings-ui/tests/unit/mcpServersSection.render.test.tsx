@@ -365,13 +365,14 @@ describe("the status cell", () => {
 })
 
 describe("the row menu", () => {
-    it("puts both destructive verbs below the divider, on a row that has a grant", () => {
+    it("puts both destructive verbs last and quiet, on a row that has a grant", () => {
         show([LINEAR])
         openRowMenu("Linear")
         expect(menuItems()).toEqual(["Reconnect", "View tools", "Rename", "Disconnect", "Remove"])
+        // The confirm carries the red, not the menu (ACT-03).
         for (const verb of ["Disconnect", "Remove"]) {
             expect(screen.getByRole("menuitem", {name: verb}).getAttribute("data-variant")).toBe(
-                "destructive",
+                "default",
             )
         }
     })
@@ -509,7 +510,7 @@ describe("removing", () => {
             fireEvent.click(screen.getByRole("menuitem", {name: "Remove"}))
         })
         const request = confirmSpy.mock.calls[0][0]
-        expect(request.title).toBe("Remove server")
+        expect(request.title).toBe("Remove Linear?")
         expect(request.message).toContain("reconnecting later creates a new connection")
         expect(setters.remove).not.toHaveBeenCalled()
     })
@@ -569,9 +570,9 @@ describe("the empty page", () => {
         expect(screen.getAllByTestId("mcp-connect-open")).toHaveLength(2)
     })
 
-    it("draws the empty state's icon, not a row tile", () => {
+    it("draws one compact empty row, not a row tile", () => {
         const {container} = show([])
-        expect(container.querySelector('[data-slot="empty-icon"]')).not.toBeNull()
+        expect(container.querySelector('[data-slot="empty"]')).not.toBeNull()
         expect(container.querySelector('[data-slot="icon-tile"]')).toBeNull()
     })
 
@@ -631,11 +632,9 @@ describe("read-only", () => {
 })
 
 describe("the page's own sentence", () => {
-    it("separates connecting a server from deciding what it may do", () => {
-        // The subtitle is the only place the two jobs are told apart, which is why permissions
-        // are absent from this page without that reading as an omission.
+    it("says in one line what a server adds", () => {
         expect(getSettingsTabDescription("mcpEndpoints", {} as never)).toBe(
-            "MCP servers connected to this project. Each agent chooses which of these to use and what it may run.",
+            "Add servers that give your agents more tools.",
         )
     })
 })

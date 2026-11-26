@@ -11,6 +11,28 @@ const {RadioChange} = vi.hoisted(() => {
     return {RadioChange: createContext<(value: string) => void>(() => undefined)}
 })
 vi.mock("@agenta/ui/ui", () => ({
+    SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
+    Field: ({
+        label,
+        labelEnd,
+        tooltip,
+        error,
+        children,
+    }: {
+        label?: React.ReactNode
+        labelEnd?: React.ReactNode
+        tooltip?: React.ReactNode
+        error?: React.ReactNode
+        children?: React.ReactNode
+    }) => (
+        <div>
+            {label}
+            {labelEnd}
+            {tooltip}
+            {children}
+            {error}
+        </div>
+    ),
     RadioGroup: ({
         children,
         onValueChange,

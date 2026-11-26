@@ -7,6 +7,7 @@ import {afterEach, beforeEach, expect, it, vi} from "vitest"
 vi.mock("@agenta/ui/ui", () => {
     const Wrap = ({children}: {children: React.ReactNode}) => <div>{children}</div>
     return {
+        SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
         Accordion: Wrap,
         AccordionContent: Wrap,
         AccordionItem: Wrap,

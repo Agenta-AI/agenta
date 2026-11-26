@@ -78,40 +78,37 @@ export const SettingsEmpty = ({
             ) : null}
         </div>
     ) : (
-    <Empty
-        className={
-            plain
-                ? "py-12"
-                : "relative overflow-hidden rounded-lg border border-solid border-border bg-muted py-16"
-        }
-    >
-        {/* Dots behind the ghost rows, fading out before the frame's edge. */}
-        {plain ? null : (
-            <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0 bg-[radial-gradient(var(--border)_1px,transparent_1px)] bg-[size:16px_16px] [mask-image:radial-gradient(ellipse_55%_50%_at_50%_32%,black,transparent)]"
-            />
-        )}
-        <EmptyHeader className="relative max-w-md">
-            {icon && !plain ? <GhostRows icon={icon} /> : null}
-            {icon && plain ? (
-                <EmptyMedia
-                    variant="icon"
-                    className="bg-muted"
-                >
-                    {icon}
-                </EmptyMedia>
+        <Empty
+            className={
+                plain
+                    ? "py-12"
+                    : "relative overflow-hidden rounded-lg border border-solid border-border bg-muted py-16"
+            }
+        >
+            {/* Dots behind the ghost rows, fading out before the frame's edge. */}
+            {plain ? null : (
+                <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 bg-[radial-gradient(var(--border)_1px,transparent_1px)] bg-[size:16px_16px] [mask-image:radial-gradient(ellipse_55%_50%_at_50%_32%,black,transparent)]"
+                />
+            )}
+            <EmptyHeader className="relative max-w-md">
+                {icon && !plain ? <GhostRows icon={icon} /> : null}
+                {icon && plain ? (
+                    <EmptyMedia variant="icon" className="bg-muted">
+                        {icon}
+                    </EmptyMedia>
+                ) : null}
+                <EmptyTitle className="text-title">{title}</EmptyTitle>
+                {description ? (
+                    <EmptyDescription className="text-label">{description}</EmptyDescription>
+                ) : null}
+            </EmptyHeader>
+            {action || secondary ? (
+                <EmptyContent className="relative flex-row justify-center gap-3">
+                    {action}
+                    {secondary}
+                </EmptyContent>
             ) : null}
-            <EmptyTitle className="text-title">{title}</EmptyTitle>
-            {description ? (
-                <EmptyDescription className="text-label">{description}</EmptyDescription>
-            ) : null}
-        </EmptyHeader>
-        {action || secondary ? (
-            <EmptyContent className="relative flex-row justify-center gap-3">
-                {action}
-                {secondary}
-            </EmptyContent>
-        ) : null}
-    </Empty>
-)
+        </Empty>
+    )

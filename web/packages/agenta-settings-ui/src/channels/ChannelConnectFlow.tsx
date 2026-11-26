@@ -1057,7 +1057,10 @@ export const ChannelConnectFlow = ({
             )
         } else if (tgStep === "idle") {
             cta = (
-                <Button onClick={() => void mintTelegramLink()} data-testid="channels-get-telegram-link">
+                <Button
+                    onClick={() => void mintTelegramLink()}
+                    data-testid="channels-get-telegram-link"
+                >
                     {t("channels.connect.getLink")}
                 </Button>
             )

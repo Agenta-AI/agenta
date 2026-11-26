@@ -78,9 +78,9 @@ describe("McpSignInCell", () => {
                 onSignIn={vi.fn()}
             />,
         )
-        expect(
-            (screen.getByRole("button", {name: "Sign in"}) as HTMLButtonElement).disabled,
-        ).toBe(true)
+        expect((screen.getByRole("button", {name: "Sign in"}) as HTMLButtonElement).disabled).toBe(
+            true,
+        )
     })
 
     it("shows nothing for a server that asks for no sign-in", () => {

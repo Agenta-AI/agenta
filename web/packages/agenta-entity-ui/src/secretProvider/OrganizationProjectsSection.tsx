@@ -23,7 +23,14 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@agenta/ui/ui"
-import {ArrowSquareOut, CaretUpDown, Check, LockSimple, WarningCircle, X} from "@phosphor-icons/react"
+import {
+    ArrowSquareOut,
+    CaretUpDown,
+    Check,
+    LockSimple,
+    WarningCircle,
+    X,
+} from "@phosphor-icons/react"
 
 import {AccountSwitch} from "../accounts/AccountSwitch"
 

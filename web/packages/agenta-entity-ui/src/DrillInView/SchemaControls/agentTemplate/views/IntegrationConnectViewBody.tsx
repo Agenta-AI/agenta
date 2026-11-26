@@ -33,7 +33,8 @@ const IntegrationConnectViewBody = ({params}: ViewProps<IntegrationConnectViewPa
         )
     }
     // The form starts from the app's sign-in methods, so it waits for them in its own shape.
-    if (!integration) return <ConnectFormSkeleton askOwner={Boolean(params.owners && params.owners.length > 1)} />
+    if (!integration)
+        return <ConnectFormSkeleton askOwner={Boolean(params.owners && params.owners.length > 1)} />
     return (
         <ConnectForm
             params={params}

@@ -3,11 +3,7 @@ import {useState} from "react"
 import {useT} from "@agenta/i18n"
 import channelsHubCatalog from "@agenta/i18n/catalogs/channels.hub"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {
-    Button,
-    SimpleTooltip,
-    SkeletonBlock,
-} from "@agenta/ui/ui"
+import {Button, SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, CaretUp, ChatCircleText, Code, Plus} from "@phosphor-icons/react"
 
 import {ChannelsHubDiagram, type ChannelsHubDiagramTarget} from "./ChannelsHubDiagram"
@@ -211,13 +207,15 @@ export const ChannelsHubView = ({
                                         {mine.length ? t("common.add") : t("common.connect")}
                                     </Button>
                                 )}
-                                <SimpleTooltip title={
+                                <SimpleTooltip
+                                    title={
                                         canExpand
                                             ? open
                                                 ? t("common.collapse")
                                                 : t("common.expand")
                                             : t("common.open")
-                                    }>
+                                    }
+                                >
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"

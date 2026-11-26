@@ -7,6 +7,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 vi.mock("@agenta/ui/ui", () => {
     const Wrap = ({children}: {children?: React.ReactNode}) => <div>{children}</div>
     return {
+        SimpleTooltip: ({children}: {children?: React.ReactNode}) => <>{children}</>,
         Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
         cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
         SheetFooter: ({children}: {children?: React.ReactNode}) => <div>{children}</div>,

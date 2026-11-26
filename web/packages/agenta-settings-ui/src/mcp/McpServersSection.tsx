@@ -132,9 +132,17 @@ type McpColumn = ListTableColumn & {label: ColumnLabel}
 
 const NAME_COLUMN: McpColumn = {key: "name", label: "common.name", width: "minmax(160px,1.4fr)"}
 const URL_COLUMN: McpColumn = {key: "url", label: "settings.mcp.serverUrl", width: "minmax(0,1fr)"}
-const STATUS_COLUMN: McpColumn = {key: "status", label: "common.status", width: LIST_COLUMN_WIDTH.secondary}
+const STATUS_COLUMN: McpColumn = {
+    key: "status",
+    label: "common.status",
+    width: LIST_COLUMN_WIDTH.secondary,
+}
 /** The person's own sign-in: run-as, never ownership, so a status cell beside the server's. */
-const SIGN_IN_COLUMN: McpColumn = {key: "signin", label: "settings.mcp.yourSignIn", width: LIST_COLUMN_WIDTH.name}
+const SIGN_IN_COLUMN: McpColumn = {
+    key: "signin",
+    label: "settings.mcp.yourSignIn",
+    width: LIST_COLUMN_WIDTH.name,
+}
 const ACTIONS_COLUMN: McpColumn = {
     key: "actions",
     label: "common.actions",
@@ -156,7 +164,6 @@ const matches = (endpoint: MCPEndpoint, term: string) =>
     [endpoint.name, endpoint.slug, endpoint.data.route.base_url].some((value) =>
         value?.toLowerCase().includes(term),
     )
-
 
 export interface McpServersSectionProps {
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
@@ -383,7 +390,6 @@ export default function McpServersSection({
     )
     const {columns, shows, wide} = usePhoneColumns(allColumns, phoneKeysFor(layoutPersonal))
 
-
     const connect = (
         <Button data-testid="mcp-connect-open" onClick={openConnect}>
             <Plus size={14} />
@@ -520,13 +526,13 @@ export default function McpServersSection({
                                         ? authLine
                                         : !personal
                                           ? (record.data.route.base_url ?? undefined)
-                                        : status !== "connected"
-                                          ? getMcpConnectionStatusLabel(status)
-                                          : asksForSignIn(record)
-                                            ? isSignedIn(record)
-                                                ? t("settings.mcp.signedInAsYou")
-                                                : t("settings.mcp.notSignedIn")
-                                            : (record.data.route.base_url ?? undefined)
+                                          : status !== "connected"
+                                            ? getMcpConnectionStatusLabel(status)
+                                            : asksForSignIn(record)
+                                              ? isSignedIn(record)
+                                                  ? t("settings.mcp.signedInAsYou")
+                                                  : t("settings.mcp.notSignedIn")
+                                              : (record.data.route.base_url ?? undefined)
                                 }
                                 // Red only where the dot is red; a warning dot keeps a muted line.
                                 metaTone={
@@ -545,28 +551,28 @@ export default function McpServersSection({
                             </span>
                         ) : null}
                         {!shows("status") ? null : (
-                        <span
-                            data-testid="mcp-connection-status"
-                            className="flex min-w-0 items-center gap-2"
-                        >
-                            <span className="flex min-w-0 flex-col">
-                                <StatusIndicator
-                                    tone={STATUS_TONE[status]}
-                                    label={getMcpConnectionStatusLabel(status)}
-                                    // min-w-0 lets the label truncate instead of pushing the menu out.
-                                    className="min-w-0 text-label"
-                                />
-                                {checkLabel ? (
-                                    <span
-                                        data-testid="mcp-connection-check"
-                                        className="truncate text-meta text-muted-foreground"
-                                        title={checkLabel}
-                                    >
-                                        {checkLabel}
-                                    </span>
-                                ) : null}
+                            <span
+                                data-testid="mcp-connection-status"
+                                className="flex min-w-0 items-center gap-2"
+                            >
+                                <span className="flex min-w-0 flex-col">
+                                    <StatusIndicator
+                                        tone={STATUS_TONE[status]}
+                                        label={getMcpConnectionStatusLabel(status)}
+                                        // min-w-0 lets the label truncate instead of pushing the menu out.
+                                        className="min-w-0 text-label"
+                                    />
+                                    {checkLabel ? (
+                                        <span
+                                            data-testid="mcp-connection-check"
+                                            className="truncate text-meta text-muted-foreground"
+                                            title={checkLabel}
+                                        >
+                                            {checkLabel}
+                                        </span>
+                                    ) : null}
+                                </span>
                             </span>
-                        </span>
                         )}
                         {shows("signin") ? (
                             <McpSignInCell
@@ -576,72 +582,73 @@ export default function McpServersSection({
                             />
                         ) : null}
                         <SettingsRowMenu
-                                label={t("settings.mcp.serverActions")}
-                                items={[
-                                    {
-                                        key: "reconnect",
-                                        label: t("common.reconnect"),
-                                        icon: <ArrowsClockwise size={14} />,
-                                        hidden: readOnly,
-                                        onClick: () => openReconnect(record),
-                                    },
-                                    {
-                                        key: "view-tools",
-                                        label: t("settings.mcp.viewTools"),
-                                        icon: <Wrench size={14} />,
-                                        hidden: readOnly || !canListTools,
-                                        onClick: () => setToolsKey(rowKey(record)),
-                                    },
-                                    {
-                                        key: "rename",
-                                        label: t("common.rename"),
-                                        icon: <PencilSimpleLine size={14} />,
-                                        deferred: true,
-                                        hidden: readOnly,
-                                        onClick: () => setRenamingKey(rowKey(record)),
-                                    },
-                                    {
-                                        key: "sign-in",
-                                        label: t("common.signIn"),
-                                        icon: <SignIn size={14} />,
-                                        // A phone has no sign-in cell; the menu holds Sign in.
-                                        hidden:
-                                            shows("signin") ||
-                                            !personal ||
-                                            !asksForSignIn(record) ||
-                                            isSignedIn(record),
-                                        disabled: signIn.pendingId !== null,
-                                        onClick: () => startSignIn(record),
-                                    },
-                                    {
-                                        key: "sign-out",
-                                        label: t("common.signOut"),
-                                        icon: <SignOut size={14} />,
-                                        // Only a sign-in the person has can be removed.
-                                        hidden: !personal || !record.user_sign_in || !asksForSignIn(record),
-                                        disabled: signIn.pendingId !== null,
-                                        onClick: () => confirmSignOut(record),
-                                    },
-                                    {type: "divider"},
-                                    {
-                                        key: "disconnect",
-                                        label: t("common.disconnect"),
-                                        icon: <LinkBreak size={14} />,
-                                        danger: true,
-                                        // Only an OAuth grant can be revoked; anything else is a 400.
-                                        hidden: readOnly || !hasGrantToRevoke(record),
-                                        onClick: () => handleDisconnect(record),
-                                    },
-                                    {
-                                        key: "remove",
-                                        label: t("common.remove"),
-                                        icon: <Trash size={14} />,
-                                        danger: true,
-                                        hidden: readOnly,
-                                        onClick: () => handleRemove(record),
-                                    },
-                                ]}
-                            />
+                            label={t("settings.mcp.serverActions")}
+                            items={[
+                                {
+                                    key: "reconnect",
+                                    label: t("common.reconnect"),
+                                    icon: <ArrowsClockwise size={14} />,
+                                    hidden: readOnly,
+                                    onClick: () => openReconnect(record),
+                                },
+                                {
+                                    key: "view-tools",
+                                    label: t("settings.mcp.viewTools"),
+                                    icon: <Wrench size={14} />,
+                                    hidden: readOnly || !canListTools,
+                                    onClick: () => setToolsKey(rowKey(record)),
+                                },
+                                {
+                                    key: "rename",
+                                    label: t("common.rename"),
+                                    icon: <PencilSimpleLine size={14} />,
+                                    deferred: true,
+                                    hidden: readOnly,
+                                    onClick: () => setRenamingKey(rowKey(record)),
+                                },
+                                {
+                                    key: "sign-in",
+                                    label: t("common.signIn"),
+                                    icon: <SignIn size={14} />,
+                                    // A phone has no sign-in cell; the menu holds Sign in.
+                                    hidden:
+                                        shows("signin") ||
+                                        !personal ||
+                                        !asksForSignIn(record) ||
+                                        isSignedIn(record),
+                                    disabled: signIn.pendingId !== null,
+                                    onClick: () => startSignIn(record),
+                                },
+                                {
+                                    key: "sign-out",
+                                    label: t("common.signOut"),
+                                    icon: <SignOut size={14} />,
+                                    // Only a sign-in the person has can be removed.
+                                    hidden:
+                                        !personal || !record.user_sign_in || !asksForSignIn(record),
+                                    disabled: signIn.pendingId !== null,
+                                    onClick: () => confirmSignOut(record),
+                                },
+                                {type: "divider"},
+                                {
+                                    key: "disconnect",
+                                    label: t("common.disconnect"),
+                                    icon: <LinkBreak size={14} />,
+                                    danger: true,
+                                    // Only an OAuth grant can be revoked; anything else is a 400.
+                                    hidden: readOnly || !hasGrantToRevoke(record),
+                                    onClick: () => handleDisconnect(record),
+                                },
+                                {
+                                    key: "remove",
+                                    label: t("common.remove"),
+                                    icon: <Trash size={14} />,
+                                    danger: true,
+                                    hidden: readOnly,
+                                    onClick: () => handleRemove(record),
+                                },
+                            ]}
+                        />
                     </>
                 )
             }}

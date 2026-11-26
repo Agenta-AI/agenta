@@ -20,7 +20,6 @@ import {modelDisplayName} from "../../DrillInView/SchemaControls/connectionUtils
 import {harnessMetaFor} from "../../DrillInView/SchemaControls/harnessMeta"
 import {harnessMarkNode} from "../harnessMark"
 
-
 /** The built-in models: Agenta's locked key, its models and the harnesses that run them. */
 export const BuiltinModelsPanel = () => {
     const t = useT(providerListCatalog, providerConnectionCatalog, settingsProvidersCatalog)
@@ -59,10 +58,7 @@ export const BuiltinModelsPanel = () => {
                     {models.map((model) => {
                         const name = modelDisplayName(capabilities, harnesses[0], model)
                         return (
-                            <li
-                                key={model}
-                                className="flex flex-col px-3 py-2"
-                            >
+                            <li key={model} className="flex flex-col px-3 py-2">
                                 <span className="text-label text-foreground">{name}</span>
                                 {name !== model ? (
                                     <span className="text-code-sm text-muted-foreground">
@@ -95,4 +91,3 @@ export const BuiltinModelsPanel = () => {
         </div>
     )
 }
-

@@ -58,56 +58,59 @@ export const DrawerViewChrome = ({
             {bare ? (
                 <div className="absolute right-3 top-4 z-10">{closeButton}</div>
             ) : (
-            <div
-                className={cn(
-                    "flex h-12 shrink-0 items-center gap-1 px-3",
-                    !inDialog && "border-0 border-b border-solid border-border-muted",
-                )}
-            >
-                {showBack ? (
-                    <SimpleTooltip title={t("common.back")}>
-                        <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={t("common.back")}
-                            onClick={onBack}
-                        >
-                            <ArrowLeft size={16} />
-                        </Button>
-                    </SimpleTooltip>
-                ) : null}
-                <nav className="flex min-w-0 flex-1 items-center gap-1 text-label">
-                    {crumbs.map((crumb, index) => (
-                        <span key={index} className="flex min-w-0 items-center gap-1">
-                            {index > 0 ? (
-                                <CaretRight size={12} className="shrink-0 text-muted-foreground" />
-                            ) : null}
-                            {crumb.onSelect ? (
-                                <button
-                                    type="button"
-                                    title={crumb.title}
-                                    className="truncate text-muted-foreground hover:text-foreground"
-                                    onClick={crumb.onSelect}
-                                >
-                                    {crumb.title}
-                                </button>
-                            ) : (
-                                <span
-                                    title={crumb.title}
-                                    className={cn(
-                                        "truncate",
-                                        index === crumbs.length - 1 &&
-                                            "font-medium text-foreground",
-                                    )}
-                                >
-                                    {crumb.title}
-                                </span>
-                            )}
-                        </span>
-                    ))}
-                </nav>
-                {closeButton}
-            </div>
+                <div
+                    className={cn(
+                        "flex h-12 shrink-0 items-center gap-1 px-3",
+                        !inDialog && "border-0 border-b border-solid border-border-muted",
+                    )}
+                >
+                    {showBack ? (
+                        <SimpleTooltip title={t("common.back")}>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={t("common.back")}
+                                onClick={onBack}
+                            >
+                                <ArrowLeft size={16} />
+                            </Button>
+                        </SimpleTooltip>
+                    ) : null}
+                    <nav className="flex min-w-0 flex-1 items-center gap-1 text-label">
+                        {crumbs.map((crumb, index) => (
+                            <span key={index} className="flex min-w-0 items-center gap-1">
+                                {index > 0 ? (
+                                    <CaretRight
+                                        size={12}
+                                        className="shrink-0 text-muted-foreground"
+                                    />
+                                ) : null}
+                                {crumb.onSelect ? (
+                                    <button
+                                        type="button"
+                                        title={crumb.title}
+                                        className="truncate text-muted-foreground hover:text-foreground"
+                                        onClick={crumb.onSelect}
+                                    >
+                                        {crumb.title}
+                                    </button>
+                                ) : (
+                                    <span
+                                        title={crumb.title}
+                                        className={cn(
+                                            "truncate",
+                                            index === crumbs.length - 1 &&
+                                                "font-medium text-foreground",
+                                        )}
+                                    >
+                                        {crumb.title}
+                                    </span>
+                                )}
+                            </span>
+                        ))}
+                    </nav>
+                    {closeButton}
+                </div>
             )}
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
             {hideActionRow ? null : (

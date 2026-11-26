@@ -28,10 +28,7 @@ export const BasicCredentialHelper = ({disabled, onCreateSecret}: BasicCredentia
     const usernameHasColon = username.includes(":")
 
     return (
-        <div
-            className="flex flex-col gap-3 rounded-lg bg-muted p-3"
-            data-testid="mcp-basic-helper"
-        >
+        <div className="flex flex-col gap-3 rounded-lg bg-muted p-3" data-testid="mcp-basic-helper">
             <span className="text-label font-medium text-foreground">
                 {t("entityUi.mcpConnect.basicTitle")}
             </span>

@@ -14,14 +14,7 @@ import accountsCatalog from "@agenta/i18n/catalogs/entityUi.accounts"
 import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import {timeAgo} from "@agenta/shared/utils"
 import {BottomSheet, PHONE_BUTTON_CLASS, useIsPhone} from "@agenta/ui/phone"
-import {
-    Button,
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@agenta/ui/ui"
+import {Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 import {ArrowSquareOut, Lightning} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import Image from "next/image"
@@ -81,12 +74,17 @@ export const IntegrationConnectionDetail = ({
         signsIn ? {label: t("entityUi.integrationDrawer.signsInWith"), value: signsIn} : null,
         kind ? {label: t("entityUi.integrationDrawer.kindOfApp"), value: kind} : null,
     ]
-    const facts = allFacts.filter((fact): fact is {label: string; value: ReactNode} => Boolean(fact))
+    const facts = allFacts.filter((fact): fact is {label: string; value: ReactNode} =>
+        Boolean(fact),
+    )
 
     const statusLine = (
         <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-meta">
             <span className={works ? "text-success" : "text-warning"}>
-                <span aria-hidden className="mr-1 inline-block size-1.5 rounded-round bg-current align-middle" />
+                <span
+                    aria-hidden
+                    className="mr-1 inline-block size-1.5 rounded-round bg-current align-middle"
+                />
                 {works ? t("common.connected") : t("entityUi.integrationDrawer.needsSignInAgain")}
             </span>
             {connectedWhen ? (
@@ -108,7 +106,10 @@ export const IntegrationConnectionDetail = ({
             {facts.length ? (
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2">
                     {facts.map((fact) => (
-                        <div key={fact.label} className="flex flex-col gap-0.5 rounded-lg bg-muted px-3 py-2">
+                        <div
+                            key={fact.label}
+                            className="flex flex-col gap-0.5 rounded-lg bg-muted px-3 py-2"
+                        >
                             <span className="text-meta text-muted-foreground">{fact.label}</span>
                             <span className="flex min-w-0 truncate text-label text-foreground">
                                 {fact.value}
@@ -132,7 +133,11 @@ export const IntegrationConnectionDetail = ({
                                 title={action.description ?? undefined}
                                 className="flex min-w-0 items-center gap-2 text-label text-foreground"
                             >
-                                <Lightning size={12} aria-hidden className="shrink-0 text-muted-foreground" />
+                                <Lightning
+                                    size={12}
+                                    aria-hidden
+                                    className="shrink-0 text-muted-foreground"
+                                />
                                 <span className="truncate">{action.name}</span>
                             </li>
                         ))}
@@ -178,7 +183,14 @@ export const IntegrationConnectionDetail = ({
     const mark = (
         <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
             {logo ? (
-                <Image src={logo} alt="" width={20} height={20} className="size-5 object-contain" unoptimized />
+                <Image
+                    src={logo}
+                    alt=""
+                    width={20}
+                    height={20}
+                    className="size-5 object-contain"
+                    unoptimized
+                />
             ) : (
                 <span className="text-label font-medium text-muted-foreground">
                     {name.charAt(0).toUpperCase()}
