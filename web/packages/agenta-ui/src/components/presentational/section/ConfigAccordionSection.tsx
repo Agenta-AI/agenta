@@ -40,6 +40,7 @@ import {Lock} from "@phosphor-icons/react"
 
 import {cn} from "../../../utils/styles"
 import {HeightCollapse} from "../../HeightCollapse"
+import {IconTile} from "../../ui/icon-tile"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 
 import {
@@ -195,6 +196,8 @@ export interface ConfigAccordionSectionProps {
     drawerAffordance?: "chevron" | "triangle"
     /** Tint the header row (the builder page's "Changed by the builder", canvas B03). */
     highlight?: boolean
+    /** Draw the icon on a 24 px {@link IconTile}, the same Mark the section's item rows use. */
+    iconTile?: boolean
     /** Section body. */
     children?: ReactNode
 }
@@ -230,6 +233,7 @@ export function ConfigAccordionSection({
     canvas,
     drawerAffordance = "chevron",
     highlight = false,
+    iconTile = false,
     children,
 }: ConfigAccordionSectionProps) {
     const divider = "border-border-muted"
@@ -307,11 +311,17 @@ export function ConfigAccordionSection({
             className={cn(
                 "relative flex shrink-0 items-center motion-safe:transition-colors motion-safe:duration-[var(--duration-base)] motion-safe:ease-[var(--ease-out)]",
                 // A list row's icon is `icon-lg` (16px), whatever size the section passes (ICON-04).
-                canvas && "[&>svg]:size-4",
+                canvas && !iconTile && "[&>svg]:size-4",
             )}
             style={{color: iconColor}}
         >
-            {icon}
+            {iconTile ? (
+                <IconTile size={24} style={{color: iconColor}}>
+                    {icon}
+                </IconTile>
+            ) : (
+                icon
+            )}
             {/* Always mounted: state changes play as scale/opacity/color
                 transitions instead of the dot popping in and out. */}
             <span

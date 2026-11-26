@@ -160,6 +160,8 @@ export const AgentTemplateSectionList = ({
                             // lines (SURF-01); the builder pane keeps its dividers (B03).
                             canvas={pane ? "pane" : "panel"}
                             noDivider={!pane}
+                            // The section icon sits on the same Mark as its item rows.
+                            iconTile={!pane}
                             {...(controlled
                                 ? {
                                       open: openByKey?.[s.key] ?? s.defaultOpen ?? false,
