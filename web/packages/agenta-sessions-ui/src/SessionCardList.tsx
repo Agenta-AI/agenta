@@ -20,7 +20,7 @@ import {SimpleTooltip, SkeletonBlock, Spinner} from "@agenta/ui/ui"
 import {
     ArrowRightIcon,
     ChatCircleIcon,
-    CircleIcon,
+    ChatsIcon,
     ClockIcon,
     LightningIcon,
 } from "@phosphor-icons/react"
@@ -66,18 +66,15 @@ export interface SessionCardListProps extends UseSessionCardListArgs {
 const COMPACT_SKELETON_TITLE_WIDTHS = ["w-[58%]", "w-[42%]", "w-[66%]", "w-[36%]", "w-[50%]"]
 
 /**
- * The nav rail's status glyph, so a compact row reads exactly as the same session does in the
- * sidebar: a turn in flight spins, an automation is a bolt, a chat is a dot; fill means live,
- * amber means it is waiting on you.
+ * The menu row's 16px icon: the Session term icon (ICON-05), a spinner while a turn runs, the
+ * Automation bolt for a run; amber when it waits on you.
  */
 const CompactStatusGlyph = ({vm}: {vm: SessionRowVm}) => {
     const {status} = vm.status
-    if (status === "running") return <Spinner aria-hidden className="size-3" />
-    const live = status === "waiting" || status === "alive"
+    if (status === "running") return <Spinner aria-hidden className="size-3.5" />
     const amber = status === "waiting" ? "text-[var(--ag-run-status-warning)]" : undefined
-    if (vm.automation)
-        return <LightningIcon size={12} weight={live ? "fill" : "regular"} className={amber} />
-    return <CircleIcon size={10} weight={live ? "fill" : "regular"} className={amber} />
+    if (vm.automation) return <LightningIcon size={16} className={amber} />
+    return <ChatsIcon size={16} className={amber} />
 }
 
 /** One row, and the owner of its rename state. The pin toggles in place; the rest is the host's. */
@@ -127,21 +124,20 @@ const Row = ({
     )
 
     const row = compact ? (
-        // The rail's row, restated: one line, 28px, the glyph on the left and the time on the
-        // right. The whole row opens; the title is still the button so the keyboard reaches it.
+        // A menu row (ROW-02): 32px, 8px sides, a 16px icon 8px from the text, 2px apart, so
+        // it lines up with the menu's own New session and Sessions rows.
         <div
             onClick={() => onOpenRow(vm)}
             className={clsx(
-                "group relative box-border mb-1 flex h-7 w-full cursor-pointer select-none items-center gap-2 rounded-md px-3 text-label leading-7",
-                // A fill, not the rail's inset ring: on the popover's white the ring read as a
-                // drawn box. Same step the selected tab chip wears, so the two agree.
-                active
-                    ? "bg-secondary font-medium text-foreground"
-                    : "text-foreground hover:bg-accent",
+                "group relative box-border mb-0.5 flex h-8 w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 text-label",
+                // The open session: the selected fill, same weight as the other rows.
+                active ? "bg-secondary text-foreground" : "text-foreground hover:bg-accent",
+                // Keyboard focus fills the row, as a highlighted menu item does.
+                "has-[button:focus-visible]:bg-accent",
             )}
         >
             <SimpleTooltip title={vm.status.label}>
-                <span className="flex shrink-0 items-center text-muted-foreground">
+                <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
                     <CompactStatusGlyph vm={vm} />
                 </span>
             </SimpleTooltip>
@@ -162,7 +158,7 @@ const Row = ({
                         event.stopPropagation()
                         onOpenRow(vm)
                     }}
-                    className="flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left text-inherit [font-family:inherit] [font-weight:inherit]"
+                    className="flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left text-inherit outline-none [font-family:inherit] [font-weight:inherit]"
                 >
                     <span className="min-w-0 truncate" title={vm.title}>
                         {vm.title}
@@ -170,16 +166,7 @@ const Row = ({
                     {vm.automation ? <SessionAutomationKind kind={vm.automation.kind} /> : null}
                 </button>
             )}
-            {/* Beside the name, not in the gutter: the time keeps the right edge and the pin
-                surfaces on hover next to what it pins. */}
-            <SessionPinButton
-                pinned={vm.isPinned}
-                onToggle={() => onTogglePin(vm.id)}
-                revealOnHover={!alwaysShowPin}
-                tooltip={false}
-                className={clsx("flex", menuHasPin && "hidden sm:flex")}
-            />
-            {/* No gate chip: the amber dot and the group heading already say it is waiting. */}
+            {/* No pin here: the row's context menu pins it. No gate chip: the amber dot and the group heading already say it is waiting. */}
             <span className="ml-auto shrink-0 text-meta leading-none text-muted-foreground">
                 {vm.activityAt ? timeAgo(Date.parse(vm.activityAt)) : "—"}
             </span>
@@ -334,7 +321,7 @@ export const SessionCardList = ({
                               // the three. Inert wherever the container does not scroll.
                               className={clsx(
                                   "bg-inherit sticky z-10 m-0 overflow-hidden pb-1 pt-1 text-meta text-muted-foreground",
-                                  compact ? "px-3" : "px-2",
+                                  "px-2",
                               )}
                               // Pins BELOW the host's own sticky header rather than on top of it:
                               // two sticky elements both at `top-0` in one scroller pin to the
@@ -381,14 +368,14 @@ export const SessionCardList = ({
     )
 
     if (list.isPending) {
-        // Compact: the rail row's own geometry — 28px, glyph, title, time — so the rows land on
+        // Compact: the menu row's geometry — 32px, icon, title, time — so the rows land on
         // the placeholder without a shift.
         if (compact) {
             return (
                 <div className="flex flex-col" aria-busy>
                     {COMPACT_SKELETON_TITLE_WIDTHS.map((width) => (
-                        <div key={width} className="mb-1 flex h-7 items-center gap-2 px-3">
-                            <SkeletonBlock active shape="mark" className="size-2.5 shrink-0" />
+                        <div key={width} className="mb-0.5 flex h-8 items-center gap-2 px-2">
+                            <SkeletonBlock active shape="mark" className="size-4 shrink-0" />
                             <SkeletonBlock active className={clsx("h-3", width)} />
                             <SkeletonBlock active className="ml-auto h-3 w-12 shrink-0" />
                         </div>
