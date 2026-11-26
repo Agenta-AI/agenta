@@ -4,7 +4,7 @@
  * `SelectLLMProviderBase`, whose popover stays for the inline controls.
  *
  * Each group shows its logo, name, tag and harness ("via Claude Code") on one row, then its
- * models. A row shows the readable name with the raw id after it. A disabled group (a
+ * models. A row shows the readable name only; search still matches the raw id. A disabled group (a
  * subscription that needs a new sign-in) is left out: Model providers fixes it.
  */
 import {useLayoutEffect, useMemo, useRef, useState, type ReactNode} from "react"
@@ -132,7 +132,6 @@ const ModelPickerList = ({
                     disabled={disabled}
                     onClick={() => onChange(option.value, option)}
                     // A 32 px menu row: the raw id on the same line, after the name (ROW-02).
-                    title={option.label !== option.value ? option.value : undefined}
                     className={clsx(
                         MENU_ITEM,
                         "border-0 bg-transparent text-left font-[inherit] hover:bg-accent aria-pressed:bg-accent disabled:cursor-not-allowed disabled:opacity-60",
@@ -146,11 +145,6 @@ const ModelPickerList = ({
                             {option.hint ? (
                                 <span className="shrink-0 text-meta text-muted-foreground">
                                     {option.hint}
-                                </span>
-                            ) : null}
-                            {option.label !== option.value ? (
-                                <span className="min-w-0 truncate font-mono text-caption text-muted-foreground">
-                                    {option.value}
                                 </span>
                             ) : null}
                         </span>
@@ -182,7 +176,9 @@ const ModelPickerList = ({
                     {harnessText(section, single)}
                 </div>
             ) : null}
-            <ul className={clsx("m-0 flex list-none flex-col p-0", !popover && "gap-1.5")}>
+            <ul
+                className={clsx("m-0 flex list-none flex-col p-0", popover ? "gap-0.5" : "gap-1.5")}
+            >
                 {section.options.map(renderRow)}
             </ul>
         </div>
@@ -260,8 +256,7 @@ const ModelPickerList = ({
             >
                 <SearchInput
                     size="compact-search"
-                    // The canvas field (`.find`): a quiet border and no focus ring, even with the
-                    // caret in it on open. A phone keeps the 32px field it had.
+                    // The canvas field (`.find`): a quiet border. A phone keeps the 32px field it had.
                     className="border-border-muted"
                     placeholder={searchPlaceholder}
                     value={search}
