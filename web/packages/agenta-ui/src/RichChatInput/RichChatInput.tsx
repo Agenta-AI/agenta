@@ -385,9 +385,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         // page in dark and settles into it in light, where "elevated" is the page colour.
                         "relative flex flex-col overflow-hidden border border-solid border-border transition-colors",
                         canvas
-                            ? // A card with the shared field focus ring. A size container:
+                            ? // A card (radius-lg, as the banner above it) with the shared field focus ring. A size container:
                               // the key hints give way in a narrow box (the builder panel).
-                              "@container/composer rounded-xl bg-background focus-ring-field"
+                              "@container/composer rounded-lg bg-background focus-ring-field"
                             : // Focus is the shared field ring (FORM-02).
                               "rounded-lg bg-secondary focus-ring-field",
                         disabled && "opacity-60",
