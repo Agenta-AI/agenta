@@ -5,7 +5,6 @@ import {
     findCustomMcpEndpoint,
     getMcpConnectionStatus,
     getMcpConnectionStatusLabel,
-    hostnameLabel,
     mcpEndpointsQueryAtom,
     mcpReconnectTarget,
     readMcpConnectionSlug,
@@ -74,30 +73,22 @@ const useReconnect = (endpoint: MCPEndpoint | undefined, nav: ViewNav) => {
  */
 const ServerTitle = ({
     name,
-    endpoint,
     status,
     onReconnect,
 }: {
     name: string
-    endpoint: MCPEndpoint | undefined
     /** The project's sign-in state; absent when it is not the one this place uses. */
     status: McpConnectionStatus | undefined
     onReconnect?: () => void
 }) => {
     const t = useT(mcpPermissionsCatalog)
-    const host = endpoint ? hostnameLabel(endpoint.data.route.base_url ?? "") : ""
     return (
-        // Canvas F03 f7: the name 13/20/600 with the host under it, 12/16 mono; 15/20 on a phone.
+        // The sibling item views' title: a 24px Mark, 8px to the name.
         <div className="flex min-w-0 items-center gap-2 px-4 pt-4">
             <McpServerMark size={24} name={name} />
-            <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-label font-semibold leading-5">{name}</span>
-                {host ? (
-                    <span className="truncate font-mono text-meta text-muted-foreground">
-                        {host}
-                    </span>
-                ) : null}
-            </div>
+            <span className="min-w-0 flex-1 truncate text-label font-semibold leading-5">
+                {name}
+            </span>
             {status && status !== "connected" ? (
                 <>
                     <Badge variant="warning" className="shrink-0">
@@ -198,7 +189,6 @@ const AgentServer = ({
         <div className="flex min-h-0 flex-1 flex-col">
             <ServerTitle
                 name={name}
-                endpoint={endpoint}
                 status={personal ? undefined : projectStatus}
                 onReconnect={writer.readOnly ? undefined : onReconnect}
             />
@@ -211,8 +201,7 @@ const AgentServer = ({
                     disabled={writer.readOnly}
                     account={
                         <McpAccountBlock
-                            endpoint={endpoint}
-                            source={readMcpAccountSource(entry)}
+                                        source={readMcpAccountSource(entry)}
                             onChange={(source) =>
                                 update((current) => withMcpAccountSource(current, source))
                             }
@@ -280,7 +269,6 @@ const ProjectServer = ({nav, slug}: ViewProps<McpServerViewParams> & {slug: stri
         <div className="flex min-h-0 flex-1 flex-col">
             <ServerTitle
                 name={name}
-                endpoint={endpoint}
                 status={endpoint ? getMcpConnectionStatus(endpoint) : undefined}
                 onReconnect={onReconnect}
             />
