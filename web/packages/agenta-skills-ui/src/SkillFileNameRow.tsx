@@ -83,7 +83,7 @@ export function SkillFileNameRow({
 
     return (
         <div className="flex flex-col gap-1">
-            <div className="flex min-h-row-single items-center gap-2 px-2 max-sm:min-h-11">
+            <div className="flex min-h-row-single items-center gap-2 px-2">
                 <IconTile size={24} aria-hidden>
                     <FileText />
                 </IconTile>

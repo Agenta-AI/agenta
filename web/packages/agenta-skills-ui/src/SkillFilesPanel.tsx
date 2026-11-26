@@ -39,7 +39,7 @@ import {filePathProblem, SkillFileNameRow} from "./SkillFileNameRow"
 
 // The row draws its button's focus ring inset, so the list scroller cannot clip it.
 const ROW =
-    "group relative flex min-h-row-single items-center gap-2 rounded-md px-2 text-label transition-colors duration-[var(--duration-fast)] max-sm:min-h-11 motion-reduce:transition-none has-[>button:focus-visible]:outline-solid has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:outline-offset-[-2px] has-[>button:focus-visible]:outline-ring"
+    "group relative flex min-h-row-single items-center gap-2 rounded-md px-2 text-label transition-colors duration-[var(--duration-fast)] motion-reduce:transition-none has-[>button:focus-visible]:outline-solid has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:outline-offset-[-2px] has-[>button:focus-visible]:outline-ring"
 const ROW_BUTTON =
     "min-w-0 flex-1 cursor-pointer truncate border-0 bg-transparent p-0 text-left font-[inherit] text-label text-foreground outline-none after:absolute after:inset-0 after:content-['']"
 const ROW_ACTIONS =

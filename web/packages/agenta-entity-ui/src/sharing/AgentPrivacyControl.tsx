@@ -51,8 +51,10 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                 }}
             >
                 <PopoverTrigger asChild>
-                    <button
+                    <Button
                         type="button"
+                        variant="outline"
+                        size="xs"
                         data-testid="agent-privacy-trigger"
                         aria-label={
                             shownPrivate
@@ -62,7 +64,7 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                                   : undefined
                         }
                         disabled={!sharing && loading}
-                        className="relative box-border flex h-6 w-[92px] shrink-0 cursor-pointer items-center justify-between gap-1 rounded-control-sm border border-solid border-border bg-background pl-2 pr-1.5 text-meta text-foreground [font-family:inherit] hover:bg-accent disabled:cursor-default"
+                        className="w-[92px] shrink-0 justify-between"
                     >
                         {loadError ? (
                             <WarningCircleIcon size={12} aria-hidden />
@@ -78,8 +80,8 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                         ) : (
                             <SkeletonBlock className="h-3 w-12" />
                         )}
-                        <CaretDownIcon size={11} aria-hidden />
-                    </button>
+                        <CaretDownIcon aria-hidden />
+                    </Button>
                 </PopoverTrigger>
                 <PopoverContent align="end" className="flex w-[300px] flex-col gap-2.5 p-3.5">
                     <span className="text-label font-semibold">{copy.panelTitle}</span>

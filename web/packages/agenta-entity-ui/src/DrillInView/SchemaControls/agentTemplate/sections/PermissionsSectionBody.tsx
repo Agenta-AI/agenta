@@ -49,8 +49,6 @@ export const permissionsSectionBody = ({
                     }
                     options={runnerPermissionOptions}
                     disabled={disabled}
-                    // The canvas scale (F04 f8): a 28 px trigger, radius 6, 13 px text and options.
-                    triggerClassName={`h-7 w-full rounded-md text-label`}
                     contentClassName="[&_[role=option]]:text-label"
                     aria-label={t("entityUi.modelHarness.policy")}
                 />

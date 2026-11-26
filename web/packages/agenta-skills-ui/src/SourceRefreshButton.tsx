@@ -76,23 +76,23 @@ export function SourceRefreshButton({skillIds}: {skillIds: string[]}) {
             {pending.length > 0 && !busy ? (
                 <Button
                     variant="ghost"
-                    size="sm"
+                    size="xs"
                     onClick={() => void apply()}
                     aria-label={t("skills.gallery.applyAria")}
-                    className="h-6 px-1.5 text-caption font-medium text-primary"
+                    className="font-medium text-primary"
                 >
                     {t("skills.gallery.apply")}
                 </Button>
             ) : null}
             <Button
                 variant="ghost"
-                size="sm"
+                size="xs"
                 onClick={() => void check()}
                 disabled={busy}
                 aria-label={t("skills.gallery.checkAria")}
-                className="h-6 gap-1 px-1.5 text-caption text-muted-foreground"
+                className="text-muted-foreground"
             >
-                {busy ? <Spinner size="small" /> : <ArrowsClockwise size={12} />}
+                {busy ? <Spinner size="small" /> : <ArrowsClockwise />}
                 {t("skills.gallery.checkUpdates")}
             </Button>
         </span>
