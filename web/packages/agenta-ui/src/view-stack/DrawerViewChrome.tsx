@@ -114,7 +114,13 @@ export const DrawerViewChrome = ({
             )}
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
             {hideActionRow ? null : (
-                <div className="shrink-0 border-0 border-t border-solid border-border-muted px-4 py-3">
+                <div
+                    className={cn(
+                        "shrink-0 border-0 border-t border-solid border-border-muted px-4 py-3",
+                        // An instant view with nothing in its start shows no footer at all.
+                        apply === "immediate" && "[&:has([data-footer-start]:empty)]:hidden",
+                    )}
+                >
                     <ViewFormActions
                         apply={apply}
                         form={form}

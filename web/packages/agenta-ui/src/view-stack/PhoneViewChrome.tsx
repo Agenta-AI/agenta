@@ -1,3 +1,4 @@
+import {cn} from "../components/ui/utils"
 import {PhoneScreenHeader} from "../phone/PhoneScreenHeader"
 
 import type {ViewChromeProps} from "./types"
@@ -48,7 +49,13 @@ export const PhoneViewChrome = ({
         {/* Edge to edge: each view pads itself. */}
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
         {hideActionRow ? null : (
-            <div className="shrink-0 border-0 border-t border-solid border-border-muted px-4 pb-6 pt-3">
+            <div
+                className={cn(
+                    "shrink-0 border-0 border-t border-solid border-border-muted px-4 pb-6 pt-3",
+                    // An instant view with nothing in its start shows no footer at all.
+                    apply === "immediate" && "[&:has([data-footer-start]:empty)]:hidden",
+                )}
+            >
                 <ViewFormActions
                     phone
                     apply={apply}

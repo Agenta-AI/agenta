@@ -3,6 +3,7 @@ import viewStackCatalog from "@agenta/i18n/catalogs/ui.viewStack"
 
 import {Button} from "../components/ui/button"
 import {Spinner} from "../components/ui/spinner"
+import {SimpleTooltip} from "../components/ui/tooltip-composed"
 import {cn} from "../components/ui/utils"
 
 import type {ViewChromeProps} from "./types"
@@ -17,7 +18,6 @@ import type {ViewChromeProps} from "./types"
 export const ViewFormActions = ({
     apply,
     form,
-    onBack,
     onCancel,
     onSave,
     startRef,
@@ -41,21 +41,27 @@ export const ViewFormActions = ({
     const button = phone ? "flex-1" : undefined
     // The canvas scale on the desktop (h28, r6, 13 px); a phone uses the kit default.
     const size = phone ? undefined : "compact"
-    // An instant view saves as it goes: on the desktop the header's back link leaves it, so the
-    // footer keeps only its start (a "Remove" action) and no "Done".
-    if (apply === "immediate" && !phone) {
+    // An instant view saves as it goes and the header's back leaves it, so the footer keeps
+    // only its start (a "Remove" action) and no "Done".
+    if (apply === "immediate") {
         return <div className="flex items-center gap-2">{start}</div>
     }
-    if (apply === "immediate") {
-        return (
-            <div className="flex items-center justify-end gap-2">
-                {start}
-                <Button size={size} className={phone ? "w-24" : undefined} onClick={onBack}>
-                    {t("ui.viewStack.done")}
-                </Button>
-            </div>
-        )
-    }
+    // Disabled until the view registers its form, and while it is clean or invalid.
+    const saveDisabled = !form || form.saving || (!form.dirty && !form.saveWhenClean) || !form.valid
+    const saveButton = (
+        <Button
+            size={size}
+            className={button}
+            disabled={saveDisabled}
+            aria-busy={form?.saving}
+            onClick={onSave}
+        >
+            {form?.saving ? <Spinner size="small" /> : null}
+            {form?.saving
+                ? (form.savingLabel ?? t("ui.viewStack.saving"))
+                : (form?.saveLabel ?? t("ui.viewStack.save"))}
+        </Button>
+    )
     return (
         <div className="flex flex-col gap-2">
             {form?.saveFailed ? (
@@ -74,21 +80,16 @@ export const ViewFormActions = ({
                 >
                     {t("ui.viewStack.cancel")}
                 </Button>
-                <Button
-                    size={size}
-                    className={button}
-                    // Disabled until the view registers its form, and while it is clean or invalid.
-                    disabled={
-                        !form || form.saving || (!form.dirty && !form.saveWhenClean) || !form.valid
-                    }
-                    aria-busy={form?.saving}
-                    onClick={onSave}
-                >
-                    {form?.saving ? <Spinner size="small" /> : null}
-                    {form?.saving
-                        ? (form.savingLabel ?? t("ui.viewStack.saving"))
-                        : (form?.saveLabel ?? t("ui.viewStack.save"))}
-                </Button>
+                {/* A disabled button takes no pointer, so the reason's tooltip sits on a wrapper. */}
+                {saveDisabled && form?.invalidReason ? (
+                    <SimpleTooltip title={form.invalidReason}>
+                        <span className={cn("inline-flex", button)} tabIndex={0}>
+                            {saveButton}
+                        </span>
+                    </SimpleTooltip>
+                ) : (
+                    saveButton
+                )}
             </div>
         </div>
     )

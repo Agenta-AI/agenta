@@ -95,9 +95,7 @@ export const PanelViewChrome = ({
                             ? "border-0 border-t border-solid border-border-muted pb-6 pt-3"
                             : "bg-muted py-2.5",
                         // An instant view with nothing in its start shows no footer at all.
-                        apply === "immediate" &&
-                            !phone &&
-                            "[&:has([data-footer-start]:empty)]:hidden",
+                        apply === "immediate" && "[&:has([data-footer-start]:empty)]:hidden",
                     )}
                 >
                     <ViewFormActions
