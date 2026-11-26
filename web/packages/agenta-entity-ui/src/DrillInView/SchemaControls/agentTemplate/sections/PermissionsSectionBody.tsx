@@ -37,21 +37,24 @@ export const permissionsSectionBody = ({
         {/* No rail label: the section header already reads "Policy: …", so the select
             takes the full width. */}
         {runnerPermissionSchema && policyInFocus ? (
-            <PermissionPolicySelect
-                value={currentRunnerPermission}
-                onChange={(v) =>
-                    setSection("runner", {
-                        ...runner,
-                        permissions: {...runnerPermissions, default: v},
-                    })
-                }
-                options={runnerPermissionOptions}
-                disabled={disabled}
-                // The canvas scale (F04 f8): a 28 px trigger, radius 6, 13 px text and options.
-                triggerClassName={`h-7 w-full rounded-md text-label`}
-                contentClassName="[&_[role=option]]:text-label"
-                aria-label={t("entityUi.modelHarness.policy")}
-            />
+            // In the panel card: a control spans the card from the tile edge, as item rows do.
+            <div className="in-data-section-card:px-2.25 in-data-section-card:pb-2.5 in-data-section-card:pt-1">
+                <PermissionPolicySelect
+                    value={currentRunnerPermission}
+                    onChange={(v) =>
+                        setSection("runner", {
+                            ...runner,
+                            permissions: {...runnerPermissions, default: v},
+                        })
+                    }
+                    options={runnerPermissionOptions}
+                    disabled={disabled}
+                    // The canvas scale (F04 f8): a 28 px trigger, radius 6, 13 px text and options.
+                    triggerClassName={`h-7 w-full rounded-md text-label`}
+                    contentClassName="[&_[role=option]]:text-label"
+                    aria-label={t("entityUi.modelHarness.policy")}
+                />
+            </div>
         ) : null}
     </>
 )
