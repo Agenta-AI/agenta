@@ -117,8 +117,9 @@ export const OnboardingFlowHost = ({
     } | null>(null)
     // The instance flag is the one state: Skip or Continue sets it, so the offer closes here
     // and the offer after an upgrade never asks again, in any browser.
-    const offerOpen =
-        survey !== null &&
+    const offersRegistration =
+        !preview &&
+        !invited &&
         Boolean(license.data) &&
         !license.data?.registration_offer_dismissed &&
         shouldOfferRegistration({
@@ -126,6 +127,7 @@ export const OnboardingFlowHost = ({
             isInstanceAdmin: license.isInstanceAdmin,
             hasKey: Boolean(license.data?.license),
         })
+    const offerOpen = survey !== null && offersRegistration
     const closeOffer = useDismissRegistrationOffer(projectId)
     const telemetry = useInstanceTelemetry(userId)
     // Self-hosted surveys go out without the email answer.
@@ -252,6 +254,7 @@ export const OnboardingFlowHost = ({
             onQuestionsDone={invited ? onQuestionsDone : undefined}
             onCreate={onCreate}
             onSkip={onSkip}
+            registrationStep={offersRegistration}
             interstitial={
                 offerOpen ? (
                     <RegistrationOffer

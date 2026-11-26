@@ -205,10 +205,10 @@ _PUBLIC_ENDPOINTS = (
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
 # The reads a signed-in person without an organization may make: their profile,
-# their (empty) project list and their (empty) organization list. Sign-up skips the
-# personal organization when the instance is at its organization limit; with these
-# the app can tell that the person has no organization, show the invitation screen
-# and accept an invitation.
+# their (empty) project list, their (empty) organization list and the instance's
+# telemetry setting (not organization data). Sign-up skips the personal organization
+# when the instance is at its organization limit; with these the app can tell that
+# the person has no organization, show the invitation screen and accept an invitation.
 _ORGANIZATIONLESS_READ_PATHS = frozenset(
     {
         "/profile",
@@ -222,6 +222,8 @@ _ORGANIZATIONLESS_READ_PATHS = frozenset(
         "/organizations/",
         "/api/organizations",
         "/api/organizations/",
+        "/instance/telemetry",
+        "/api/instance/telemetry",
     }
 )
 _INVITE_ACCEPT_ENDPOINT_IDENTIFIER = "/invite/accept"

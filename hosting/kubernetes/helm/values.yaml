@@ -50,8 +50,10 @@
 # Agenta — License (https://agenta.ai/pricing)
 # ================================================================== #
 agenta:
-  # Picks the default database names (agenta_<license>_*) and the classic web
-  # (/w) build. The api, services and runner images are the same for both values.
+  # Picks the default database names (agenta_<license>_*). The api, services,
+  # runner, web and web-mobile images are the same public images for both values.
+  # With ee, setting web.image.repository (for example the private
+  # ghcr.io/agenta-ai/internal-ee-agenta-web) runs that build's ./ee/server.js.
   # With ee, the services ignore provider keys from the environment (llm.*) unless
   # AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED is true.
   # Changing it on an existing install points it at other, empty databases.

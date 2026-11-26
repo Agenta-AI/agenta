@@ -64,8 +64,9 @@ spec:
           env:
             - name: HOSTNAME
               value: "0.0.0.0"
+            {{- /* The web build's own license: its entrypoint writes into ./<license>/public. */}}
             - name: AGENTA_LICENSE
-              value: {{ include "agenta.edition" . | quote }}
+              value: {{ include "agenta.webBuild" . | quote }}
             {{- /* Use the *Effective helpers, like every other workload: they fall back to
                    ingress.host when the operator does not set agenta.webUrl/apiUrl/servicesUrl.
                    Reading the raw values here shipped empty URLs to the browser bundle. */}}

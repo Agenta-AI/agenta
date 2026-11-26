@@ -321,15 +321,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{ include "agenta.apiImageRepository" . }}:{{ $img.tag | default .Chart.AppVersion }}
 {{- end }}
 
+{{/* The classic web (/w) only forwards to /m, so both licenses default to the public
+     build. A repository set in values keeps the license's server path (see below). */}}
 {{- define "agenta.webImageRepository" -}}
 {{- $img := default dict (default dict .Values.web).image -}}
-{{- if $img.repository -}}
-{{- $img.repository -}}
-{{- else if eq (include "agenta.edition" .) "ee" -}}
-ghcr.io/agenta-ai/internal-ee-agenta-web
-{{- else -}}
-ghcr.io/agenta-ai/agenta-web
-{{- end -}}
+{{- default "ghcr.io/agenta-ai/agenta-web" $img.repository -}}
 {{- end }}
 
 {{- define "agenta.webImage" -}}
@@ -565,12 +561,21 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{/* ================================================================
    Edition-specific paths and database names
    ================================================================ */}}
-{{- define "agenta.webServerPath" -}}
-{{- if eq (include "agenta.edition" .) "ee" -}}
-./ee/server.js
+{{/* The build of the classic web (/w) image: its server path and the AGENTA_LICENSE its
+     entrypoint reads (the entrypoint writes into ./<license>/public). The public web
+     image is the oss build. An ee build set through web.image.repository (for example
+     ghcr.io/agenta-ai/internal-ee-agenta-web) is the ee build. */}}
+{{- define "agenta.webBuild" -}}
+{{- $img := default dict (default dict .Values.web).image -}}
+{{- if and $img.repository (eq (include "agenta.edition" .) "ee") -}}
+ee
 {{- else -}}
-./oss/server.js
+oss
 {{- end -}}
+{{- end }}
+
+{{- define "agenta.webServerPath" -}}
+./{{ include "agenta.webBuild" . }}/server.js
 {{- end }}
 
 {{- define "agenta.postgresDbCore" -}}
