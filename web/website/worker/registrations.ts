@@ -461,15 +461,16 @@ async function recentSends(
     : [];
 }
 
-/** False when the email or the instance already got its daily number of key
- * emails; otherwise counts this send for both. Two requests at the same moment can
- * both pass; the per-minute email limit keeps that rare. */
-async function withinDailyCaps(
+/** Null when the email or the instance already got its daily number of key emails.
+ * Otherwise a function that counts one more send for both; call it once the email
+ * went out, so a failed send does not use up a slot. Two requests at the same moment
+ * can both pass; the per-minute email limit keeps that rare. */
+async function dailyCaps(
   bucket: CapBucket,
   email: string,
   instanceId: string,
   now: number,
-): Promise<boolean> {
+): Promise<(() => Promise<void>) | null> {
   const caps = [
     {
       key: `${CAPS_PREFIX}email/${await sha256Hex(email)}`,
@@ -483,13 +484,14 @@ async function withinDailyCaps(
   const sends = await Promise.all(
     caps.map(({ key }) => recentSends(bucket, key, now)),
   );
-  if (caps.some(({ cap }, index) => sends[index].length >= cap)) return false;
-  await Promise.all(
-    caps.map(({ key }, index) =>
-      bucket.put(key, JSON.stringify([...sends[index], now])),
-    ),
-  );
-  return true;
+  if (caps.some(({ cap }, index) => sends[index].length >= cap)) return null;
+  return async () => {
+    await Promise.all(
+      caps.map(({ key }, index) =>
+        bucket.put(key, JSON.stringify([...sends[index], now])),
+      ),
+    );
+  };
 }
 
 const TOO_MANY = () =>
@@ -558,16 +560,13 @@ async function register(
   if (!(await allowed(emailLimit, emailKey))) {
     return TOO_MANY();
   }
-  if (
-    !(await withinDailyCaps(
-      env.MEDIA,
-      emailKey,
-      registration.instance_id.toLowerCase(),
-      Date.now(),
-    ))
-  ) {
-    return TOO_MANY();
-  }
+  const countSend = await dailyCaps(
+    env.MEDIA,
+    emailKey,
+    registration.instance_id.toLowerCase(),
+    Date.now(),
+  );
+  if (!countSend) return TOO_MANY();
 
   const sender =
     mailSender ??
@@ -597,6 +596,10 @@ async function register(
   } catch {
     return error(502, "mail_failed", "The email could not be sent.");
   }
+  // The key already went out, so a failed count must not fail the registration.
+  await countSend().catch((cause) =>
+    console.error("Registration cap count failed", cause),
+  );
 
   // The key already went out, so a failed or slow contact or analytics update must not
   // fail the registration: they run after the answer when the runtime allows it.
