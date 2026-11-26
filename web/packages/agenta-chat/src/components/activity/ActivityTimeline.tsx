@@ -316,6 +316,8 @@ export interface ActivityTimelineProps {
     renderClientTool?: (part: ToolUIPart) => ReactNode
     /** The run failed: the header names it and the server's raw text is the fold's last step. */
     failure?: ActivityFailure
+    /** Who answered, on the header's row before the line ("Builder · Worked for 10 s"). */
+    leading?: ReactNode
 }
 
 export interface ActivityFailure {
@@ -343,6 +345,7 @@ export const ActivityTimeline = ({
     runStartedAt,
     renderClientTool,
     failure,
+    leading,
 }: ActivityTimelineProps) => {
     // Any turn can cold start: a parked environment outlives an idle gap by minutes at most.
     const stage = useTurnStage(streaming && sessionId ? sessionId : "")
@@ -477,36 +480,48 @@ export const ActivityTimeline = ({
 
     return (
         <div className="flex min-w-0 flex-col">
-            <button
-                type="button"
-                onClick={() => setExpanded({key, value: !open})}
-                // Nothing to open yet (no step, no raw failure): a plain line, not a toggle.
-                disabled={!nodes}
-                aria-expanded={nodes ? open : undefined}
-                className={`-ml-1.5 flex w-fit max-w-full cursor-pointer disabled:cursor-default items-center gap-2 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-label text-muted-foreground group/row`}
-            >
-                {awaiting ? (
-                    <WaitingGlyph kind={waitingKind(steps)} />
-                ) : line ? (
-                    <AgentActivityDots format={line.format} />
+            <div className="flex min-w-0 items-center gap-1.5">
+                {leading ? (
+                    <>
+                        <span className="flex shrink-0 items-center gap-1.5 text-label text-muted-foreground">
+                            {leading}
+                        </span>
+                        <span aria-hidden className="shrink-0 text-label text-muted-foreground">
+                            ·
+                        </span>
+                    </>
                 ) : null}
-                <span className="flex min-w-0 items-center whitespace-nowrap transition-colors group-hover/row:text-foreground">
-                    {title}
-                </span>
-                {!live && files.length ? (
-                    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-muted-foreground">
-                        <span>·</span>
-                        <FileText size={12} />
-                        {tNow("chat.activity.fileCount", {count: files.length})}
+                <button
+                    type="button"
+                    onClick={() => setExpanded({key, value: !open})}
+                    // Nothing to open yet (no step, no raw failure): a plain line, not a toggle.
+                    disabled={!nodes}
+                    aria-expanded={nodes ? open : undefined}
+                    className={`-ml-1.5 flex w-fit max-w-full min-w-0 cursor-pointer disabled:cursor-default items-center gap-2 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-label text-muted-foreground group/row`}
+                >
+                    {awaiting ? (
+                        <WaitingGlyph kind={waitingKind(steps)} />
+                    ) : line ? (
+                        <AgentActivityDots format={line.format} />
+                    ) : null}
+                    <span className="flex min-w-0 items-center whitespace-nowrap transition-colors group-hover/row:text-foreground">
+                        {title}
                     </span>
-                ) : null}
-                {/* Nothing to open before the first step. */}
-                {nodes ? (
-                    <span className="flex shrink-0 text-muted-foreground">
-                        <StepCaret open={open} />
-                    </span>
-                ) : null}
-            </button>
+                    {!live && files.length ? (
+                        <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-muted-foreground">
+                            <span>·</span>
+                            <FileText size={12} />
+                            {tNow("chat.activity.fileCount", {count: files.length})}
+                        </span>
+                    ) : null}
+                    {/* Nothing to open before the first step. */}
+                    {nodes ? (
+                        <span className="flex shrink-0 text-muted-foreground">
+                            <StepCaret open={open} />
+                        </span>
+                    ) : null}
+                </button>
+            </div>
             <RevealCollapse open={open}>
                 <div className="relative mt-3 mb-1.5 flex flex-col">
                     {/* The wire behind the nodes; one node has nothing to join. */}
