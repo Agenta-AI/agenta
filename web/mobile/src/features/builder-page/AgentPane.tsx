@@ -166,7 +166,7 @@ export const AgentPane = ({
     else if (tab === "agent" && revisionId)
         body = (
             <SectionMarksContext.Provider value={sectionMarks}>
-                <ConfigPane entityId={revisionId} column inset />
+                <ConfigPane entityId={revisionId} column />
             </SectionMarksContext.Provider>
         )
     else if (tab === "automations" && revisionId)
@@ -183,8 +183,6 @@ export const AgentPane = ({
                 agentId={agentId}
                 workspaceId={workspaceId}
                 projectId={projectId}
-                // The pane's own 24 px margins; the footer band bleeds by the same.
-                className="px-6 [--panel-bleed-x:--spacing(6)]"
             />
         )
     else if (tab === "access")
@@ -193,7 +191,6 @@ export const AgentPane = ({
                 agentId={agentId}
                 workspaceId={workspaceId}
                 projectId={projectId}
-                className="px-6"
             />
         )
     else if (tab === "drives")

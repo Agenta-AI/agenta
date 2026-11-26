@@ -108,7 +108,7 @@ export const ConfigurationRoot = ({
                     </>
                 )
             ) : (
-                // The pane header: the session bar's 48 px, the tab text on the pane's 24 px line.
+                // The pane header: the session bar's 48 px, the tab text on the pane's 16 px line.
                 tabRow(paneBack, <PanelCloseButton onClose={() => void panel.close()} />)
             )}
             <PaneBackContext.Provider value={setPaneBack}>
@@ -121,7 +121,7 @@ export const ConfigurationRoot = ({
                     {configTab === "agent" ? (
                         // Save status and History live in the session header's version pill.
                         <div className="flex h-full min-h-0 flex-col">
-                            <ConfigPane entityId={revisionId} inset={!panel.phone} />
+                            <ConfigPane entityId={revisionId} />
                         </div>
                     ) : configTab === "automations" ? (
                         <AutomationsTab
@@ -134,17 +134,12 @@ export const ConfigurationRoot = ({
                             agentId={agentId}
                             workspaceId={workspaceId}
                             projectId={projectId}
-                            // The pane's own 24 px margins; the footer band bleeds by the same.
-                            className={
-                                panel.phone ? undefined : "px-6 [--panel-bleed-x:--spacing(6)]"
-                            }
                         />
                     ) : (
                         <AccessTab
                             agentId={agentId}
                             workspaceId={workspaceId}
                             projectId={projectId}
-                            className={panel.phone ? undefined : "px-6"}
                         />
                     )}
                 </div>

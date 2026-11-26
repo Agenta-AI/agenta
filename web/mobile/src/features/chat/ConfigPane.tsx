@@ -2,8 +2,6 @@ import {useContext} from "react"
 
 import {AgentEditorContext} from "@agenta/entity-ui/drill-in"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
-import {cn} from "@agenta/ui/styles"
-
 /**
  * The Agent tab of the panel: the SHARED config panel, the same sections the desktop playground
  * renders.
@@ -17,14 +15,8 @@ import {cn} from "@agenta/ui/styles"
 export const ConfigPane = ({
     entityId,
     column = false,
-    inset = false,
 }: {
     entityId: string
-    /**
-     * The side pane on a wide window: the sections sit on the pane's own 24 px line
-     * (`panel-side`, LAYOUT-04, ALIGN-01).
-     */
-    inset?: boolean
     /** A wide host (the builder page pane): the sections sit in a centered 760 px column. */
     column?: boolean
 }) => {
@@ -33,15 +25,8 @@ export const ConfigPane = ({
 
     return (
         // On a phone the size container lets a section screen fill the pane (its primary action at
-        // the bottom).
-        // With `inset`, `px-1` puts the sections' 20 px inset on the pane's 24 px line (the
-        // section icons and the row Marks).
-        <div
-            className={cn(
-                "ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto max-md:[container-type:size]",
-                inset && "px-1",
-            )}
-        >
+        // the bottom). The sections' own 16 px inset is the pane's line (ALIGN-01).
+        <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto max-md:[container-type:size]">
             <AgentBuildPanel
                 className={column ? "mx-auto w-full max-w-content-md" : undefined}
                 revisionId={entityId}

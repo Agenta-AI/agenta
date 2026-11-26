@@ -41,7 +41,7 @@ export const AgentConfigTabs = <K extends string>({
     if (back)
         return (
             // The same header as a Configuration view: the way back, then Close.
-            <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted pl-2 pr-3">
+            <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted pl-2.5 pr-3">
                 <div className="flex min-w-0 flex-1 items-center pl-1.5">
                     <BackLink
                         size="bar"
@@ -61,7 +61,8 @@ export const AgentConfigTabs = <K extends string>({
             activationMode="manual"
             className={cn(
                 "box-border shrink-0 flex-row items-center justify-between border-0 border-b border-solid border-border-muted",
-                phone ? "h-10 gap-1 pl-1.5 pr-4" : "h-12 gap-2 pl-3.5 pr-3",
+                // The tab text on the pane's 16 px line; the trigger's fill hangs out by its padding.
+                phone ? "h-10 gap-1 pl-1.25 pr-4" : "h-12 gap-2 pl-1.25 pr-3",
             )}
         >
             <TabsList

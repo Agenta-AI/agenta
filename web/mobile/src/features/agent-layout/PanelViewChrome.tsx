@@ -65,7 +65,7 @@ export const PanelViewChrome = ({
             {phone ? (
                 <PhoneViewHeader crumbs={crumbs} onBack={onBack} form={form} />
             ) : (
-                <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted pl-2 pr-1.5">
+                <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted pl-2.5 pr-1.5">
                     {/* One way up, named for where it leads: the view's own last step, else the
                         view it opened from ("← Agent"). */}
                     <div className="flex min-w-0 flex-1 items-center pl-1.5">
