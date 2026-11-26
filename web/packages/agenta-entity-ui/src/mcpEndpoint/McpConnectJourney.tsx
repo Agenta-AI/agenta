@@ -990,7 +990,7 @@ export function useMcpConnectScreens({
                     <Alert
                         type="warning"
                         showIcon
-                        icon={<WarningCircle size={15} weight="regular" />}
+                        icon={<WarningCircle size={16} />}
                         className="items-start border-warning/30 bg-warning/10 px-3 py-2.5"
                         message={
                             <span className="text-meta font-normal leading-normal text-foreground">
@@ -1345,7 +1345,7 @@ const InlineError = ({
             id={id}
             type="error"
             showIcon
-            icon={<WarningCircle size={15} weight="regular" />}
+            icon={<WarningCircle size={16} />}
             className={`items-start border-destructive/40 bg-destructive/10 px-3 py-2.5 ${className ?? ""}`}
             message={
                 <span className="text-meta font-normal leading-normal text-muted-foreground">
@@ -1462,7 +1462,7 @@ const SecretSelect = ({
                     }}
                     className="min-h-control w-full justify-start gap-2 rounded-control-sm px-3 py-1 text-field-md font-normal"
                 >
-                    <Plus size={13} className="shrink-0" />
+                    <Plus size={14} className="shrink-0" />
                     {t("entityUi.mcpJourney.createSecret")}
                 </Button>
             </SelectContent>

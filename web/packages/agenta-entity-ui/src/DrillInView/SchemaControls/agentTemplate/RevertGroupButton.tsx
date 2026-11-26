@@ -68,7 +68,7 @@ export function RevertGroupButton({
                     // would be emitted into globals.css as invalid CSS and break the build.)
                     className="!h-auto !px-1 !py-0.5 !text-meta !text-muted-foreground"
                 >
-                    <ArrowCounterClockwise size={13} />
+                    <ArrowCounterClockwise size={12} />
                     {t("entityUi.configItems.revert")}
                 </Button>
             </PopoverTrigger>

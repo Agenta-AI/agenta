@@ -354,7 +354,7 @@ export function ParameterNodeEditor({
                                 onClick={() => onAddChild(childContainerPath)}
                                 disabled={disabled}
                             >
-                                <Plus size={13} />
+                                <Plus />
                                 {t("entityUi.parameterEditor.addProperty")}
                             </Button>
                             <span className="text-meta text-muted-foreground">

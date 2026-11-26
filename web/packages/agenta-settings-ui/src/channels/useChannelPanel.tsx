@@ -484,7 +484,7 @@ export const useChannelPanel = ({
             case "hub":
                 return {title: t("channels.panel.publish"), icon: <Broadcast size={18} />}
             case "api":
-                return {title: t("channels.panel.api"), icon: <Code size={18} weight="bold" />}
+                return {title: t("channels.panel.api"), icon: <Code size={18} />}
             case "embed":
                 return {
                     title: t("channels.panel.embed"),

@@ -71,7 +71,7 @@ export const ChannelsHubView = ({
             live: agentConnectionsOf(connections, platform).some((c) => isLiveForAgent(c, agentId)),
         })),
         ...(showApi
-            ? [{key: "api", name: "API", icon: <Code size={12} weight="bold" />, live: apiLive}]
+            ? [{key: "api", name: "API", icon: <Code size={12} />, live: apiLive}]
             : []),
         ...(showEmbed
             ? [
@@ -203,7 +203,7 @@ export const ChannelsHubView = ({
                                         }}
                                         data-testid={`channels-hub-add-${platform}`}
                                     >
-                                        <Plus weight="bold" data-icon="inline-start" />
+                                        <Plus data-icon="inline-start" />
                                         {mine.length ? t("common.add") : t("common.connect")}
                                     </Button>
                                 )}
@@ -281,7 +281,7 @@ export const ChannelsHubView = ({
                                                     }`}
                                                 />
                                                 <CaretRight
-                                                    size={11}
+                                                    size={12}
                                                     className="flex-none text-muted-foreground"
                                                 />
                                             </Button>

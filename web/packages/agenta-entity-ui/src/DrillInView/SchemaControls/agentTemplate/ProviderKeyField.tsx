@@ -84,7 +84,7 @@ const ProviderKeyField = ({
             {hideHeader ? (
                 hasKey ? (
                     <span className="inline-flex items-center gap-1 text-meta text-success">
-                        <CheckCircle size={13} weight="fill" />
+                        <CheckCircle size={12} weight="fill" />
                         {/* TODO(copy: owner) */}
                         {provider.keyPreview
                             ? t("entityUi.providerCredentials.keyConfiguredPreview", {
@@ -101,7 +101,7 @@ const ProviderKeyField = ({
                     </span>
                     {hasKey ? (
                         <span className="mt-1 inline-flex items-center gap-1 text-meta text-success">
-                            <CheckCircle size={13} weight="fill" />
+                            <CheckCircle size={12} weight="fill" />
                             {/* TODO(copy: owner) */}
                             {provider.keyPreview
                                 ? t("entityUi.providerCredentials.keyConfiguredPreview", {

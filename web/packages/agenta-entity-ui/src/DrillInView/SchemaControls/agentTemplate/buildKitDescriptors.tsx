@@ -201,8 +201,7 @@ const buildKitDescriptor = ({name, description}: BuildKitCopy): ItemDescriptor =
     monoName: false,
     description,
     mono: "",
-    color: "#0d9488",
-    icon: <Wrench size={15} weight="fill" />,
+    icon: <Wrench />,
     // No type tag: "platform" and "@ag.embed" are internal vocabulary (#6025).
     tags: [],
     typeLabel: t("entityUi.buildKit.playgroundToolType"),

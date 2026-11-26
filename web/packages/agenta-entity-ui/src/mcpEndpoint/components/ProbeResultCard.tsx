@@ -40,7 +40,7 @@ export const ProbeResultCard = ({mode, onChange}: ProbeResultCardProps) => {
             className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2.5"
         >
             <span className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-success/10 text-success">
-                <Check size={12} weight="bold" />
+                <Check size={12} />
             </span>
             <span className="min-w-0 flex-1 truncate text-label leading-5 text-foreground">
                 {t(SUMMARY[mode])}

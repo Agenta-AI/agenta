@@ -25,7 +25,7 @@ import modelHarnessCatalog from "@agenta/i18n/catalogs/entityUi.modelHarness"
 import secretAttachmentCatalog from "@agenta/i18n/catalogs/entityUi.secretAttachment"
 import secretViewsCatalog from "@agenta/i18n/catalogs/entityUi.secretViews"
 import {cn} from "@agenta/ui/styles"
-import {LockSimple, Plus} from "@phosphor-icons/react"
+import {Plus, Vault} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {ACCOUNT_COPY} from "../../../../accounts/copy"
@@ -68,7 +68,7 @@ export const secretsSection = ({
 }: SecretsSectionParams): SectionResult =>
     Boolean(revisionId) && {
         key: "secrets",
-        icon: <LockSimple size={14} />,
+        icon: <Vault size={14} />,
         title: tNow("entityUi.secretViews.secrets"),
         summary: bindings.length
             ? tNow("entityUi.modelHarness.attachedCount", {count: bindings.length})
@@ -305,8 +305,7 @@ export const SecretsSectionBody = ({
                                     name: envVar,
                                     description: secretName,
                                     mono: "",
-                                    color: "",
-                                    icon: <LockSimple size={14} />,
+                                    icon: <Vault size={14} />,
                                     avatarClassName: "bg-secondary text-muted-foreground",
                                     tags: [],
                                     typeLabel: "",

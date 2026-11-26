@@ -4,7 +4,7 @@ import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {createT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {humanizeActionKey} from "@agenta/shared/utils"
-import {Plus, Wrench} from "@phosphor-icons/react"
+import {Plugs, Plus} from "@phosphor-icons/react"
 
 import type {IntegrationRow} from "../../toolUtils"
 import {countSummary} from "../agentTemplateUtils"
@@ -52,7 +52,7 @@ export const integrationsSection = ({
     hasTools &&
     (Boolean(openAddIntegration) || integrationCount > 0) && {
         key: "tools",
-        icon: <Wrench size={14} />,
+        icon: <Plugs size={14} />,
         title: t("entityUi.agentTemplate.integrations"),
         // "None" when empty, as the canvas draws the phone (M07).
         summary: countSummary(integrationCount, "integration") || tNow("common.none"),
