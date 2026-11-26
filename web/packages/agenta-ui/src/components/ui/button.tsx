@@ -18,7 +18,7 @@ const buttonVariants = cva(
         "box-border border-solid font-[inherit] py-0",
         "group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap",
         "border border-transparent bg-clip-padding font-medium",
-        "cursor-pointer select-none transition-all",
+        "cursor-pointer select-none transition-[color,background-color,border-color,opacity]",
         "outline-none focus-ring",
         // Press nudge, skipped on menu/popover triggers.
         "active:[&:not([aria-haspopup])]:translate-y-px",

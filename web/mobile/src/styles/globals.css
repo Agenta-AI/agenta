@@ -164,20 +164,22 @@
        The kit's Sheet, Dialog and Accordion animate with NAMED utilities
        (`animate-sheet-in-right`, `animate-overlay-in`, …). Tailwind only emits a utility it can
        resolve, so the keyframes and these names must exist here. */
-    --animate-overlay-in: overlay-in 0.2s ease;
-    --animate-overlay-out: overlay-out 0.2s ease;
-    --animate-dialog-in: dialog-in 0.2s cubic-bezier(0.08, 0.82, 0.17, 1);
-    --animate-dialog-out: dialog-out 0.2s cubic-bezier(0.6, 0.04, 0.98, 0.34);
-    --animate-sheet-in-right: sheet-in-right 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-    --animate-sheet-out-right: sheet-out-right 0.3s cubic-bezier(0.755, 0.05, 0.855, 0.06);
-    --animate-sheet-in-left: sheet-in-left 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-    --animate-sheet-out-left: sheet-out-left 0.3s cubic-bezier(0.755, 0.05, 0.855, 0.06);
-    --animate-sheet-in-top: sheet-in-top 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-    --animate-sheet-out-top: sheet-out-top 0.3s cubic-bezier(0.755, 0.05, 0.855, 0.06);
-    --animate-sheet-in-bottom: sheet-in-bottom 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-    --animate-sheet-out-bottom: sheet-out-bottom 0.3s cubic-bezier(0.755, 0.05, 0.855, 0.06);
-    --animate-accordion-down: accordion-down 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
-    --animate-accordion-up: accordion-up 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+    /* Theme durations and easings only (MOTION-01): dialogs and sheets enter at duration-slow,
+       leave faster at duration-base. */
+    --animate-overlay-in: overlay-in var(--duration-base) var(--ease-out);
+    --animate-overlay-out: overlay-out var(--duration-base) var(--ease-in-out);
+    --animate-dialog-in: dialog-in var(--duration-slow) var(--ease-out);
+    --animate-dialog-out: dialog-out var(--duration-base) var(--ease-in-out);
+    --animate-sheet-in-right: sheet-in-right var(--duration-slow) var(--ease-out);
+    --animate-sheet-out-right: sheet-out-right var(--duration-base) var(--ease-in-out);
+    --animate-sheet-in-left: sheet-in-left var(--duration-slow) var(--ease-out);
+    --animate-sheet-out-left: sheet-out-left var(--duration-base) var(--ease-in-out);
+    --animate-sheet-in-top: sheet-in-top var(--duration-slow) var(--ease-out);
+    --animate-sheet-out-top: sheet-out-top var(--duration-base) var(--ease-in-out);
+    --animate-sheet-in-bottom: sheet-in-bottom var(--duration-slow) var(--ease-out);
+    --animate-sheet-out-bottom: sheet-out-bottom var(--duration-base) var(--ease-in-out);
+    --animate-accordion-down: accordion-down var(--duration-base) var(--ease-in-out);
+    --animate-accordion-up: accordion-up var(--duration-base) var(--ease-in-out);
     --animate-skeleton: skeleton 1.4s ease infinite;
     --animate-config-shimmer: config-shimmer 1.8s ease-in-out 2 forwards;
     /* The live line's verb (activity fold, startup label): a light sweeps through the words. */

@@ -181,7 +181,7 @@ export const AgentMenu = ({
                         <span className="truncate">{name}</span>
                         <CaretDown
                             aria-hidden
-                            className="size-3.5 shrink-0 text-muted-foreground"
+                            className="ag-caret size-3.5 shrink-0 text-muted-foreground"
                         />
                     </Button>
                 </DropdownMenuTrigger>

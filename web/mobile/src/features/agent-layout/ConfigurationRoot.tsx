@@ -1,4 +1,4 @@
-import type {ReactNode} from "react"
+import {useState, type ReactNode} from "react"
 
 import type {PhoneSection} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
@@ -59,9 +59,12 @@ export const ConfigurationRoot = ({
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
     const tabs = panel.phone ? PHONE_TABS : TABS
     const configTab = shownConfigTab(panel)
+    // The pane's own entry animates its first tab; only a tab switch animates the tab body.
+    const [tabSwitched, setTabSwitched] = useState(false)
     const selectTab = (tab: ConfigTab) => {
         onCloseSection()
         panel.setConfigTab(tab)
+        setTabSwitched(true)
     }
     // The kit Tabs (TabsList, 32 px) inside the pane header. Selection runs on click, so a key
     // press moves focus and Enter or Space selects (one Tab stop for the row).
@@ -149,7 +152,7 @@ export const ConfigurationRoot = ({
                 id="agent-config-tabpanel"
                 role="tabpanel"
                 aria-labelledby={`agent-config-tab-${configTab}`}
-                className="min-h-0 flex-1"
+                className={cn("min-h-0 flex-1", tabSwitched && "ag-view-enter-children")}
             >
                 {configTab === "agent" ? (
                     <div className="flex h-full min-h-0 flex-col">

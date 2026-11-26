@@ -305,7 +305,7 @@ export const AgentLayoutBody = ({
     const panelBody = (
         <>
             {mounted.has("files") || isFiles ? (
-                <div className={isFiles ? "flex h-full min-h-0 flex-col" : "hidden"}>
+                <div className={isFiles ? "ag-view-enter flex h-full min-h-0 flex-col" : "hidden"}>
                     {/* On a phone Files covers the session: the phone header returns to it. */}
                     {phone ? (
                         <PhoneScreenHeader
@@ -335,7 +335,9 @@ export const AgentLayoutBody = ({
                 </div>
             ) : null}
             {canConfigure && (mounted.has("configuration") || content === "configuration") ? (
-                <div className={content === "configuration" ? "h-full min-h-0" : "hidden"}>
+                <div
+                    className={content === "configuration" ? "ag-view-enter h-full min-h-0" : "hidden"}
+                >
                     <ConfigurationContent
                         key={agentId}
                         agentId={agentId!}
@@ -348,7 +350,7 @@ export const AgentLayoutBody = ({
                 </div>
             ) : null}
             {available.builder && (mounted.has("builder") || content === "builder") ? (
-                <div className={content === "builder" ? "h-full min-h-0" : "hidden"}>
+                <div className={content === "builder" ? "ag-view-enter h-full min-h-0" : "hidden"}>
                     {/* No page session id goes into the builder: it runs its own chat (design D6). */}
                     <BuilderPanel
                         agentId={agentId!}
