@@ -1,0 +1,254 @@
+import asyncio
+import re
+from functools import lru_cache
+from typing import Any, Dict, Optional
+from uuid import UUID, uuid5
+
+from posthog import Posthog
+
+from oss.src.core.instances.service import (
+    get_instance_id,
+    get_instance_kind,
+    instances_dao,
+)
+from oss.src.core.telemetry.dtos import InstanceTelemetry, TelemetryStatus
+from oss.src.core.telemetry.runtime import InstanceStarted, collect_runtime_facts
+from oss.src.utils.env import env
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
+
+TELEMETRY_DOCS_URL = "https://docs.agenta.ai/self-host/telemetry"
+
+INSTANCE_INSTALLED_EVENT = "instance_installed"
+# Exactly what the install ping sends besides the instance id and `instance_kind`.
+# The docs page lists it.
+INSTANCE_INSTALLED_PROPERTIES = {"$geoip_disable": True, "$ip": ""}
+INSTALL_PING_TIMEOUT_SECONDS = 5
+
+INSTANCE_STARTED_EVENT = "instance_started"
+STARTUP_EVENT_TIMEOUT_SECONDS = 5
+
+# What the PostHog library adds to every event. The install ping is sent even with the
+# switch off, so it sends only its own properties and these are dropped before the send.
+# Every other event keeps them.
+_LIBRARY_PROPERTIES = (
+    "$lib",
+    "$lib_version",
+    "$python_runtime",
+    "$python_version",
+    "$os",
+    "$os_version",
+    "$os_distro",
+    "$is_server",
+)
+
+
+async def telemetry_status() -> TelemetryStatus:
+    if env.stripe.enabled:
+        return TelemetryStatus(enabled=True, reason="cloud")
+    if env.telemetry.enabled_set:
+        return TelemetryStatus(enabled=env.telemetry.enabled, reason="switch")
+    return TelemetryStatus(enabled=env.telemetry.enabled, reason="default")
+
+
+async def telemetry_enabled() -> bool:
+    """The one gate for PostHog events other than the install ping."""
+
+    return (await telemetry_status()).enabled
+
+
+async def distinct_id_for(user_id: UUID, email: str) -> str:
+    if env.stripe.enabled:
+        return email
+    return f"{await get_instance_id()}:{user_id}"
+
+
+# Role names can be configured (AGENTA_ACCESS_ROLES), so only a plain name is sent.
+_ROLE_NAME = re.compile(r"[A-Za-z][\w\-]{0,63}")
+
+
+def role_label(role: str) -> str:
+    """The role name as telemetry sends it: the name when it is a plain word, else
+    `custom`, so a role named like an email address never leaves the instance."""
+
+    return role if _ROLE_NAME.fullmatch(role) else "custom"
+
+
+def self_hosted_event_properties() -> Dict[str, str]:
+    """Self-hosted only: the instance kind that every per-user event carries, so
+    events from development, CI and test instances can be filtered out. Cloud events
+    carry none: the result is empty."""
+
+    if env.stripe.enabled:
+        return {}
+    return {"instance_kind": get_instance_kind()}
+
+
+async def instance_telemetry_for(user_id: UUID, email: str) -> InstanceTelemetry:
+    """What the browser needs to send the same identity as the API."""
+
+    if not await telemetry_enabled():
+        return InstanceTelemetry(enabled=False)
+    if env.stripe.enabled:
+        return InstanceTelemetry(enabled=True, distinct_id=email)
+    instance_id = str(await get_instance_id())
+    return InstanceTelemetry(
+        enabled=True,
+        distinct_id=await distinct_id_for(user_id, email),
+        groups={"instance": instance_id},
+        properties=self_hosted_event_properties(),
+    )
+
+
+def _install_ping_without_library_properties(
+    message: Dict[str, Any],
+) -> Dict[str, Any]:
+    if message.get("event") != INSTANCE_INSTALLED_EVENT:
+        return message
+    properties = message.get("properties") or {}
+    for key in _LIBRARY_PROPERTIES:
+        properties.pop(key, None)
+    return message
+
+
+@lru_cache(maxsize=None)
+def _sync_client(timeout: int) -> Posthog:
+    return Posthog(
+        project_api_key=env.posthog.api_key,
+        host=env.posthog.api_url,
+        sync_mode=True,
+        timeout=timeout,
+        before_send=_install_ping_without_library_properties,
+    )
+
+
+async def capture(
+    event: str,
+    distinct_id: str,
+    properties: Dict[str, Any],
+    *,
+    uuid: Optional[UUID] = None,
+    timeout: int = INSTALL_PING_TIMEOUT_SECONDS,
+) -> None:
+    """Send one event and return once PostHog accepted it; raise when it did not.
+
+    For instance events only (install ping, startup event, telemetry heartbeat).
+    Per-user events use the queued client from `_load_posthog()`. A fixed `uuid`
+    lets PostHog drop a copy.
+    """
+
+    sent = await asyncio.to_thread(
+        _sync_client(timeout).capture,
+        event,
+        distinct_id=distinct_id,
+        properties=properties,
+        uuid=uuid,
+    )
+    # The client catches its own send errors and returns None instead of the event uuid.
+    if sent is None:
+        raise RuntimeError(f"PostHog did not accept {event}")
+
+
+async def send_install_ping() -> None:
+    """Send `instance_installed` once per new instance, whatever the switch says.
+
+    An install that upgraded from a version without the `instances` table is
+    `preexisting` and never sends it.
+
+    The row stays locked until PostHog accepts the event, so one container sends it.
+    """
+
+    if env.stripe.enabled:
+        return
+
+    try:
+        async with instances_dao.lock_unsent_install_ping() as instance_id:
+            if instance_id is None:
+                return
+            await capture(
+                INSTANCE_INSTALLED_EVENT,
+                str(instance_id),
+                {
+                    **INSTANCE_INSTALLED_PROPERTIES,
+                    "instance_kind": get_instance_kind(),
+                },
+                uuid=uuid5(instance_id, INSTANCE_INSTALLED_EVENT),
+                timeout=INSTALL_PING_TIMEOUT_SECONDS,
+            )
+    except Exception as exc:  # noqa: BLE001
+        log.warning(
+            "Install ping not sent; the next start tries again",
+            reason=type(exc).__name__,
+        )
+
+
+async def send_startup_event() -> None:
+    """Send `instance_started` once per API process start, when telemetry is on.
+
+    A failed send is logged and not retried: the next start sends a new one.
+    """
+
+    if env.stripe.enabled:
+        return
+
+    try:
+        if not await telemetry_enabled():
+            return
+        instance_id = str(await get_instance_id())
+        facts = await collect_runtime_facts()
+        started = InstanceStarted(instance_id=instance_id, **facts.model_dump())
+        await capture(
+            INSTANCE_STARTED_EVENT,
+            instance_id,
+            {
+                **started.model_dump(mode="json"),
+                "$groups": {"instance": instance_id},
+                "$process_person_profile": False,
+            },
+            timeout=STARTUP_EVENT_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Startup event not sent", reason=type(exc).__name__)
+
+
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _run_in_background(coroutine) -> None:
+    task = asyncio.create_task(coroutine)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
+def schedule_install_ping() -> None:
+    """Send the install ping without holding up the caller."""
+
+    _run_in_background(send_install_ping())
+
+
+def schedule_startup_event() -> None:
+    """Send the startup event without holding up the start."""
+
+    _run_in_background(send_startup_event())
+
+
+_STATUS_REASONS = {
+    "cloud": "Agenta Cloud",
+    "default": "on by default",
+    "switch": "AGENTA_TELEMETRY_ENABLED",
+}
+
+
+async def log_telemetry_status() -> None:
+    status = await telemetry_status()
+    if status.enabled:
+        log.info(
+            f"Telemetry is on ({_STATUS_REASONS[status.reason]}). "
+            f"What is sent and how to turn it off: {TELEMETRY_DOCS_URL}"
+        )
+    else:
+        log.info(
+            "Telemetry is off (AGENTA_TELEMETRY_ENABLED=false). The install ping "
+            f"still runs once. What is sent: {TELEMETRY_DOCS_URL}"
+        )
