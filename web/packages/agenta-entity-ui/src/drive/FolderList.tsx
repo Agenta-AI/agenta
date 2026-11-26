@@ -3,7 +3,6 @@ import {type KeyboardEvent, useCallback, useMemo} from "react"
 
 import {
     type DriveTreeNode,
-    fileTypeLabel,
     humanSize,
     isHiddenPath,
     itemCountLabel,
@@ -28,7 +27,6 @@ const columnsFor = (
     t: (key: CatalogKey<typeof driveExplorerCatalog | typeof driveBrowserCatalog>) => string,
 ): ListTableColumn[] => [
     {key: "name", label: t("entityUi.driveBrowser.columnName"), width: "minmax(180px,2fr)"},
-    {key: "type", label: t("entityUi.driveBrowser.columnType"), width: "92px"},
     {key: "size", label: t("entityUi.driveBrowser.columnSize"), width: "84px"},
     {key: "modified", label: t("entityUi.driveBrowser.columnModified"), width: "92px"},
     {key: "download", label: t("entityUi.driveExplorer.download"), srOnly: true, width: "28px"},
@@ -83,9 +81,6 @@ export const FolderList = ({
                                 {n.name}
                             </span>
                         )}
-                    </span>
-                    <span className="truncate text-meta text-muted-foreground">
-                        {n.isFolder ? tNow("entityUi.driveBrowser.folder") : fileTypeLabel(n.path)}
                     </span>
                     <span className="text-meta tabular-nums text-muted-foreground">
                         {n.isFolder
