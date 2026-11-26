@@ -21,17 +21,72 @@ The repository at [github.com/Agenta-AI/agenta](https://github.com/Agenta-AI/age
 
 The OSS build does not include any Enterprise-licensed code. The OSS Docker images are built only from the MIT-licensed directories, and the application never loads `ee/` code when it runs with the OSS license.
 
-## What every edition has
+## Feature availability
 
-Every edition has prompt management and the playground, observability and tracing, automatic and human evaluation, agents with the agent runner and sandboxed execution, custom workflows, API keys and SDKs, provider keys and secrets, multiple organizations, invitations, and role checks. A self-hosted instance has no limit on users, applications, traces or evaluations.
+Every product feature is available in every edition. OSS, EE with or without a key, and Agenta Cloud have the same prompt management, tracing, evaluation, agents, channels, MCP gateway and secrets. The editions differ in governance (SSO per organization, roles, audit log) and in how many projects and organizations an instance can hold.
 
-## What differs
-
-The two EE columns in the middle are the same image. The license key decides the plan:
+The EE image is the same with or without a key. The license key decides the plan:
 
 - **No key**: the Community plan.
-- **Free key**: the Registered plan, from the [free registration key](/self-host/license-keys#get-a-free-registration-key). Today it has the same features as the Community plan.
+- **Free key**: the Registered plan, from the [free registration key](/self-host/license-keys#get-a-free-registration-key).
 - **Enterprise key**: the Enterprise plan, from a key you buy.
+
+### LLMOps
+
+| Feature | OSS | EE, no key | EE, free key | EE, Enterprise key | Agenta Cloud |
+|---|---|---|---|---|---|
+| Prompt management and playground | Yes | Yes | Yes | Yes | Yes |
+| Observability and tracing | Yes | Yes | Yes | Yes | Yes |
+| Automatic and human evaluation | Yes | Yes | Yes | Yes | Yes |
+
+### Agents and automations
+
+| Feature | OSS | EE, no key | EE, free key | EE, Enterprise key | Agenta Cloud |
+|---|---|---|---|---|---|
+| Agents, agent runner and sandboxed execution | Yes | Yes | Yes | Yes | Yes |
+
+### Channels
+
+| Feature | OSS | EE, no key | EE, free key | EE, Enterprise key | Agenta Cloud |
+|---|---|---|---|---|---|
+| Channels, such as Slack | Yes | Yes | Yes | Yes | Yes |
+
+### MCP gateway
+
+| Feature | OSS | EE, no key | EE, free key | EE, Enterprise key | Agenta Cloud |
+|---|---|---|---|---|---|
+| MCP gateway | Yes | Yes | Yes | Yes | Yes |
+
+### Custom secrets
+
+| Feature | OSS | EE, no key | EE, free key | EE, Enterprise key | Agenta Cloud |
+|---|---|---|---|---|---|
+| Provider keys and custom secrets | Yes | Yes | Yes | Yes | Yes |
+
+### Projects
+
+| Feature | OSS | EE, no key | EE, free key | EE, Enterprise key | Agenta Cloud |
+|---|---|---|---|---|---|
+| Projects per organization | No limit | 1 | No limit | No limit | 1 on the Hobby plan, no limit on paid plans |
+
+An organization that already has more projects keeps them. The limit only refuses new projects.
+
+### Organizations
+
+| Feature | OSS | EE, no key | EE, free key | EE, Enterprise key | Agenta Cloud |
+|---|---|---|---|---|---|
+| Organizations per instance | No limit | 1 | 1 | No limit | Not applicable |
+
+An instance that already has more organizations keeps them. The limit only refuses new organizations.
+
+### Roles
+
+| Feature | OSS | EE, no key | EE, free key | EE, Enterprise key | Agenta Cloud |
+|---|---|---|---|---|---|
+| Owner, admin and member | Yes | Yes | Yes | Yes | Yes |
+| Developer, editor, annotator and viewer | No | No | No | Yes | Business and Enterprise plans |
+
+### Governance
 
 | Feature | OSS | EE, no key | EE, free key | EE, Enterprise key | Agenta Cloud |
 |---|---|---|---|---|---|
@@ -39,10 +94,7 @@ The two EE columns in the middle are the same image. The license key decides the
 | SSO providers per organization, set up in the app | No | No | No | Yes | Business and Enterprise plans |
 | Sign-in method enforcement per organization | No | No | No | Yes | Business and Enterprise plans |
 | Domain verification | No | No | No | Yes | Business and Enterprise plans |
-| Roles beyond owner, admin and member in invitations | No | No | No | Yes | Business and Enterprise plans |
 | Audit log | No | No | No | Yes | Business and Enterprise plans |
-| Telemetry switch (`AGENTA_TELEMETRY_ENABLED`) | Works | Works | Works | Telemetry stays on, unless your contract exempts the instance | Not applicable |
-| "Update available" and security warnings | Yes | Yes | Yes | Yes | No. Agenta upgrades Cloud. |
 
 On OSS and on EE without an Enterprise key, the **Access & Security** and **Audit Log** settings show the enterprise features as locked.
 
@@ -52,27 +104,13 @@ Every self-hosted edition supports email and password login, email one-time code
 
 The Enterprise plan adds SSO per organization: each organization sets up its own OIDC provider in the app, verifies its email domain through DNS, and decides which sign-in methods its members may use.
 
-### Roles
+### Audit logs
 
-Every edition checks roles on every request. Agenta ships seven built-in roles: owner, admin, member, developer, editor, annotator and viewer. Without the Enterprise plan, invitations and role changes offer admin and member. Members who already have another role keep it. The Enterprise plan offers every role.
-
-### Audit log
-
-The audit log records who did what across the organization, with a screen and an API to search the events. It needs the Enterprise plan. The OSS edition has neither the screen nor the API.
-
-### Telemetry and update notices
-
-A self-hosted instance sends usage data to Agenta, with no content, names or email addresses. You can turn it off with `AGENTA_TELEMETRY_ENABLED=false`. An instance with an Enterprise key keeps telemetry on unless your contract exempts it. The free key does not change the switch. The Telemetry page in the self-hosting docs lists what is sent.
-
-A self-hosted instance also shows when a newer release is available, and warns organization owners and admins when a newer release fixes a security issue. `AGENTA_UPDATE_CHECK_ENABLED=false` turns this off.
+Audit logs need the Enterprise plan. The Enterprise plan records who did what across the workspace and provides a screen and an API to search those events. The OSS edition has neither the screen nor the API.
 
 ## Move to the Enterprise features
 
-- From OSS: [switch to the EE image](/self-host/upgrades/oss-to-ee-switch), then add a license key.
-- From EE without a key: add a key under **Settings > License**. See [License keys](/self-host/license-keys).
-- If you upgrade an EE instance that ran without a key, see [Upgrade an existing Enterprise instance](/self-host/license-keys#upgrade-an-existing-enterprise-instance) for what changes.
-
-To get an Enterprise key, [talk to us](https://agenta.ai/contact). To use the hosted service, [create an account](https://app.agenta.ai).
+To get an Enterprise key, [talk to us](https://agenta.ai/contact).
 
 ## Frequently asked questions
 
@@ -82,7 +120,7 @@ Yes. The MIT license allows commercial use without restrictions.
 
 ### Is there a limit to how many users or applications I can create?
 
-No, not on a self-hosted instance. Seat limits and usage quotas exist only on the Agenta Cloud plans. An Enterprise key can name a number of seats. The **License** tab shows a notice when the instance has more users, but it does not block them.
+A self-hosted instance has no limit on users or applications. Seat limits and usage quotas exist only on the Agenta Cloud plans. Projects and organizations have limits on EE without an Enterprise key. See [Projects](#projects) and [Organizations](#organizations). An Enterprise key can name a number of seats. The **License** tab shows a notice when the instance has more users, but it does not block them.
 
 ### Is it safe to use the OSS edition in an enterprise environment?
 
