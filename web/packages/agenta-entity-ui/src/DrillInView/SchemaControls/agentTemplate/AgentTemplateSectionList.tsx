@@ -125,8 +125,8 @@ export const AgentTemplateSectionList = ({
     return (
         // Canvas F01 for the panel, B03 for the pane: there the rows run full width, so `-mx-4`
         // undoes the host's inset and the rows carry it.
-        <div className={pane ? "-mx-4 flex flex-col" : "flex flex-col gap-1 pt-3"}>
-            {sections.map((s) => {
+        <div className={pane ? "-mx-4 flex flex-col" : "flex flex-col pt-3"}>
+            {sections.map((s, index) => {
                 const controlled = Boolean(controlledKeys?.has(s.key))
                 return (
                     // An anchor per section, so a host can list the sections and scroll to one.
@@ -155,11 +155,13 @@ export const AgentTemplateSectionList = ({
                                       ? PANEL_INSET_BODY
                                       : PANEL_BODY)
                             }
-                            // Canvas F01: rows inset in the panel's `px-4`, an open section stays
-                            // white (no band). The panel separates its sections by space, not
-                            // lines (SURF-01); the builder pane keeps its dividers (B03).
+                            // Canvas F01: rows inset in the panel's `px-4`; the builder pane keeps
+                            // its full-width dividers (B03).
                             canvas={pane ? "pane" : "panel"}
-                            noDivider={!pane}
+                            // A quiet hairline between the panel's sections; none under the last.
+                            noDivider={!pane && index === sections.length - 1}
+                            // 6 px of room on each side of the hairline.
+                            className={pane ? undefined : "py-1.5"}
                             // The section icon sits on the same Mark as its item rows.
                             iconTile={!pane}
                             {...(controlled
