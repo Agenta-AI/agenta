@@ -12,5 +12,7 @@
     "noAgentsMatch": "没有与你的搜索匹配的 Agent",
     "noAgentsYet": "还没有 Agent",
     "tryDifferentName": "试试其他名称。",
-    "createAgentFirst": "先创建一个 Agent，然后回到这里添加它。"
+    "createAgentFirst": "先创建一个 Agent，然后回到这里添加它。",
+    "addedGroup": "已添加",
+    "allAgents": "所有 Agent"
 }

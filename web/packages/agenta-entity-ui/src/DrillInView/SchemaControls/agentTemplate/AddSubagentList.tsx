@@ -1,16 +1,32 @@
 /** "Add subagents" (F03 f1): pick the agents this agent can call. Presentational: every agent
  *  arrives as a prop, and the view that mounts it gives the chrome and "Done". */
-import {useMemo, useState} from "react"
+import {useMemo, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import addSubagentCatalog from "@agenta/i18n/catalogs/entityUi.addSubagent"
+import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {agentIconChrome, type AgentIconSelection} from "@agenta/ui/agent-icon"
 import {cn} from "@agenta/ui/styles"
-import {Button, EmptyState, SearchInput, SkeletonBlock} from "@agenta/ui/ui"
-import {Check, Plus, Robot} from "@phosphor-icons/react"
+import {
+    Button,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    EmptyState,
+    SearchInput,
+    SimpleTooltip,
+    SkeletonBlock,
+} from "@agenta/ui/ui"
+import {Check, DotsThreeVertical, Plus, Robot, Trash} from "@phosphor-icons/react"
 
 import {ScrollFadeArea} from "../../../shared/ScrollFadeArea"
+
+import {CatalogListRow} from "./CatalogListRow"
+import {CatalogRowSkeleton} from "./CatalogRowSkeleton"
 
 /** One selectable agent. */
 export interface SubagentOption {
@@ -40,24 +56,20 @@ export interface AddSubagentListProps {
     onRemove: (options: SubagentOption[]) => void | Promise<void>
 }
 
-const FOCUS_RING = "focus-visible:border-ring focus-ring"
-/** Canvas F03 f1: rows on the column's 16 px inset, 8 px above and below, 8 px apart. */
-const ROW =
-    "box-border flex w-full cursor-pointer appearance-none items-center gap-2.5 rounded-lg border-0 bg-transparent px-0 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent disabled:cursor-not-allowed " +
-    FOCUS_RING
+/** The catalog's quiet row action: `secondary` stacks on the row's hover fill (SURF-06). */
+const ROW_ACTION = "text-muted-foreground hover:bg-secondary hover:text-foreground"
 
-/** The agent's tile: 32 px, radius 8, a 14 px glyph; the agent type's blue when the author never
- *  picked an icon (canvas F03 f1). */
+/** The agent's own icon and tile color, or the agents list's grey Robot. */
 function SubagentTile({icon}: {icon?: AgentIconSelection | null}) {
     const chrome = agentIconChrome(icon, {
-        size: 14,
-        fallbackGlyph: <Robot aria-hidden size={14} />,
+        size: 16,
+        fallbackGlyph: <Robot aria-hidden size={16} />,
         fallbackClassName: "bg-secondary text-muted-foreground",
     })
     return (
         <span
             className={cn(
-                "flex size-8 shrink-0 items-center justify-center rounded-lg",
+                "flex size-8 shrink-0 items-center justify-center rounded-md",
                 chrome.className,
             )}
             style={chrome.style}
@@ -67,76 +79,142 @@ function SubagentTile({icon}: {icon?: AgentIconSelection | null}) {
     )
 }
 
-/** One row toggles its agent: click adds it, click again removes it. Added rows say "✓ Added". */
-function SubagentRow({
+function Description({option}: {option: SubagentOption}) {
+    const t = useT(addSubagentCatalog)
+    const text = option.description?.trim() || t("entityUi.addSubagent.noDescription")
+    return (
+        <span className="truncate text-meta text-muted-foreground" title={text}>
+            {text}
+        </span>
+    )
+}
+
+/** An agent already called: "✓ Added" and a menu that removes it, as an added skill's row. */
+function AddedRow({
     option,
     busy,
-    onAdd,
     onRemove,
 }: {
     option: SubagentOption
     busy?: boolean
-    onAdd: () => void
     onRemove: () => void
 }) {
-    const t = useT(addSubagentCatalog, subagentViewsCatalog)
+    const t = useT(
+        addSubagentCatalog,
+        subagentViewsCatalog,
+        integrationViewsCatalog,
+        uiControlsCatalog,
+    )
     return (
-        <button
-            type="button"
-            disabled={busy}
-            onClick={option.added ? onRemove : onAdd}
-            aria-pressed={Boolean(option.added)}
-            aria-label={
-                option.added
-                    ? t("entityUi.addSubagent.removeAsSubagent", {name: option.name})
-                    : t("entityUi.addSubagent.addAsSubagent", {name: option.name})
+        <CatalogListRow
+            variant="canvas"
+            leading={<SubagentTile icon={option.icon} />}
+            title={option.name}
+            action={
+                <span className="flex items-center gap-1">
+                    <span className="flex shrink-0 items-center gap-1 text-meta text-muted-foreground">
+                        <Check size={14} />
+                        {t("entityUi.subagentViews.added")}
+                    </span>
+                    <DropdownMenu>
+                        <SimpleTooltip title={t("ui.controls.moreActions")}>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    type="button"
+                                    size="icon-sm"
+                                    variant="ghost"
+                                    disabled={busy}
+                                    aria-label={t("ui.controls.moreActions")}
+                                    className={`${ROW_ACTION} aria-expanded:bg-secondary`}
+                                >
+                                    <DotsThreeVertical aria-hidden />
+                                </Button>
+                            </DropdownMenuTrigger>
+                        </SimpleTooltip>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                                onSelect={onRemove}
+                                aria-label={t("entityUi.addSubagent.removeAsSubagent", {
+                                    name: option.name,
+                                })}
+                            >
+                                <Trash />
+                                {t("entityUi.integrationViews.removeFromAgent")}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </span>
             }
-            className={ROW}
         >
-            <SubagentTile icon={option.icon} />
-            {/* The description line renders even when empty so rows keep one height. */}
-            <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-label font-medium leading-5 text-foreground">
-                    {option.name}
-                </span>
-                <span className="truncate text-meta text-muted-foreground">
-                    {option.description?.trim() || t("entityUi.addSubagent.noDescription")}
-                </span>
-            </span>
-            {option.added ? (
-                <span className="ml-2 flex shrink-0 items-center gap-1 text-meta text-muted-foreground">
-                    <Check aria-hidden size={14} />
-                    {t("entityUi.subagentViews.added")}
-                </span>
-            ) : (
-                // The canvas "+" target: 28 px, a 14 px glyph. The row is the button.
-                <span className="ml-2 flex size-7 shrink-0 items-center justify-center text-muted-foreground">
-                    <Plus aria-hidden size={14} />
-                </span>
-            )}
-        </button>
+            <Description option={option} />
+        </CatalogListRow>
     )
 }
 
-/** A loading row in the row's own geometry, so the list replaces it without shifting. */
-function RowSkeleton({widths}: {widths: [string, string]}) {
+/** An agent not called yet: the row and its "+" add it. */
+function AvailableRow({
+    option,
+    busy,
+    onAdd,
+}: {
+    option: SubagentOption
+    busy?: boolean
+    onAdd: () => void
+}) {
+    const t = useT(addSubagentCatalog, commonCatalog)
+    const label = t("entityUi.addSubagent.addAsSubagent", {name: option.name})
     return (
-        <div className="flex items-center gap-2.5 py-2">
-            <SkeletonBlock className="size-8 shrink-0 rounded-lg" />
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                <SkeletonBlock className={`h-3.5 ${widths[0]}`} />
-                <SkeletonBlock className={`h-3 ${widths[1]}`} />
-            </div>
+        <CatalogListRow
+            variant="canvas"
+            onClick={busy ? undefined : onAdd}
+            actionLabel={label}
+            leading={<SubagentTile icon={option.icon} />}
+            title={option.name}
+            action={
+                <SimpleTooltip title={t("common.add")}>
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={busy}
+                        // Shown on row hover and focus, always on touch (TOUCH-02).
+                        className={`${ROW_ACTION} focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 [@media(hover:hover)]:opacity-0`}
+                        aria-label={label}
+                        onClick={onAdd}
+                    >
+                        <Plus />
+                    </Button>
+                </SimpleTooltip>
+            }
+        >
+            <Description option={option} />
+        </CatalogListRow>
+    )
+}
+
+/** The catalog's group: a heading, 8px, then the rows. */
+function RowGroup({label, children}: {label: ReactNode; children: ReactNode}) {
+    return (
+        <div className="flex flex-col">
+            <div className="flex items-center pt-3 text-subtitle text-foreground">{label}</div>
+            {/* -mx/px: the rows' hover fill and focus ring stay inside the scroll's clip. */}
+            <div className="-mx-2 flex flex-col gap-2 px-2 pt-2">{children}</div>
         </div>
     )
 }
 
-/** Uneven widths: three identical bars read as a loading graphic, not as rows about to arrive. */
-const SKELETON_WIDTHS: [string, string][] = [
-    ["w-36", "w-full"],
-    ["w-28", "w-4/5"],
-    ["w-44", "w-3/5"],
-]
+/** The loaded list's shape: a group heading over catalog rows (STATE-02). */
+function ListSkeleton() {
+    return (
+        <div aria-hidden className="flex flex-col">
+            <div className="mt-3 flex h-4.5 items-center">
+                <SkeletonBlock active className="h-3.5 w-24" />
+            </div>
+            <div className="pt-2">
+                <CatalogRowSkeleton count={4} />
+            </div>
+        </div>
+    )
+}
 
 export function AddSubagentList({
     options,
@@ -169,13 +247,15 @@ export function AddSubagentList({
         )
     }, [options, search])
 
+    const added = visible.filter((o) => o.added)
+    const others = visible.filter((o) => !o.added)
+
     return (
-        <div className="flex min-h-0 flex-1 flex-col">
-            {/* Canvas F03 f1: the 30 px search field, 14 px under the header. */}
-            <div className="shrink-0 px-4 pt-3.5">
+        <div className="flex min-h-0 flex-1 flex-col pt-3">
+            {/* Fixed above the scroll, as the catalog's. pt-1 keeps the focus ring inside the clip. */}
+            <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-1">
                 <SearchInput
-                    size="compact-search"
-                    className="border-border-muted"
+                    className="min-w-0 flex-1 border-border-muted"
                     placeholder={t("entityUi.addSubagent.searchAgents")}
                     aria-label={t("entityUi.addSubagent.searchAgents")}
                     value={search}
@@ -183,13 +263,9 @@ export function AddSubagentList({
                 />
             </div>
 
-            <ScrollFadeArea className="flex min-h-0 flex-1 flex-col gap-3 px-4 pb-2 pt-2">
+            <ScrollFadeArea className="flex min-h-0 flex-1 flex-col gap-2 px-4 pb-3">
                 {loading ? (
-                    <div className="flex flex-col">
-                        {SKELETON_WIDTHS.map((widths, index) => (
-                            <RowSkeleton key={index} widths={widths} />
-                        ))}
-                    </div>
+                    <ListSkeleton />
                 ) : visible.length === 0 && (failedCount === 0 || search.trim()) ? (
                     <EmptyState
                         title={
@@ -204,24 +280,39 @@ export function AddSubagentList({
                         }
                     />
                 ) : (
-                    <div className="flex flex-col gap-2">
-                        {visible.map((option) => (
-                            <SubagentRow
-                                key={option.id}
-                                option={option}
-                                busy={busy}
-                                onAdd={() => void run(() => onAdd([option]))}
-                                onRemove={() => void run(() => onRemove([option]))}
-                            />
-                        ))}
-                    </div>
+                    <>
+                        {added.length > 0 ? (
+                            <RowGroup label={t("entityUi.addSubagent.addedGroup")}>
+                                {added.map((option) => (
+                                    <AddedRow
+                                        key={option.id}
+                                        option={option}
+                                        busy={busy}
+                                        onRemove={() => void run(() => onRemove([option]))}
+                                    />
+                                ))}
+                            </RowGroup>
+                        ) : null}
+                        {others.length > 0 ? (
+                            <RowGroup label={t("entityUi.addSubagent.allAgents")}>
+                                {others.map((option) => (
+                                    <AvailableRow
+                                        key={option.id}
+                                        option={option}
+                                        busy={busy}
+                                        onAdd={() => void run(() => onAdd([option]))}
+                                    />
+                                ))}
+                            </RowGroup>
+                        ) : null}
+                    </>
                 )}
 
                 {/* One line at the end of the list: the agents that are listed still work. */}
                 {!loading && failedCount > 0 ? (
                     <div
                         role="status"
-                        className="flex items-center gap-2 text-meta text-muted-foreground"
+                        className="flex items-center gap-2 pt-3 text-meta text-muted-foreground"
                     >
                         <span className="min-w-0 flex-1">
                             {t("entityUi.addSubagent.agentsNotLoaded", {count: failedCount})}
