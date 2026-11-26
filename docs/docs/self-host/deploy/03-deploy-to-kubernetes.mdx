@@ -108,19 +108,17 @@ helm install agenta hosting/kubernetes/helm \
   -f hosting/kubernetes/oss/.values.oss.yaml
 ```
 
-For EE, the API, services, runner and mobile app images are the same public images as OSS. Only the Enterprise build of the classic web app (`ghcr.io/agenta-ai/internal-ee-agenta-web`, the `web` component) is private. Kubernetes needs credentials to pull it, so create a `docker-registry` Secret in the target namespace before installing. The example EE values reference it by name in `global.imagePullSecrets`:
-
-```yaml
-global:
-  imagePullSecrets:
-    - name: ghcr-pull-secret
-```
-
-Create the namespace and the Secret with your EE GHCR username and personal access token (PAT with `read:packages`):
+For EE, every image is the same public image as OSS. Install with the EE values:
 
 ```bash
-kubectl create namespace agenta
+helm install agenta hosting/kubernetes/helm \
+  --namespace agenta --create-namespace \
+  -f hosting/kubernetes/ee/.values.ee.yaml
+```
 
+The classic web app (the `web` component) only forwards to the main app. To run the private Enterprise build of it instead, set `web.image.repository` to `ghcr.io/agenta-ai/internal-ee-agenta-web`. Kubernetes then needs credentials to pull it. Create a `docker-registry` Secret with your EE GHCR username and personal access token (PAT with `read:packages`), and reference it in `global.imagePullSecrets`:
+
+```bash
 kubectl create secret docker-registry ghcr-pull-secret \
   --docker-server=ghcr.io \
   --docker-username=<your-github-username> \
@@ -128,15 +126,14 @@ kubectl create secret docker-registry ghcr-pull-secret \
   --namespace agenta
 ```
 
-Then install:
-
-```bash
-helm install agenta hosting/kubernetes/helm \
-  --namespace agenta \
-  -f hosting/kubernetes/ee/.values.ee.yaml
+```yaml
+global:
+  imagePullSecrets:
+    - name: ghcr-pull-secret
+web:
+  image:
+    repository: ghcr.io/agenta-ai/internal-ee-agenta-web
 ```
-
-If you change the Secret name, update `global.imagePullSecrets[0].name` in your values file to match.
 
 :::info
 The chart automatically wires `postgres.password` to both the application pods and the Bitnami PostgreSQL subchart (via a shared Kubernetes Secret). You only need to set it once.
@@ -287,7 +284,7 @@ To enable transactional emails (invitations and password resets), configure Send
 |-------|---------|---------|
 | `api.image.repository` | API image | `ghcr.io/agenta-ai/agenta-api` |
 | `api.image.tag` | API image tag | `.Chart.AppVersion` |
-| `web.image.repository` | Classic web app image | Derived from `agenta.license`: `ghcr.io/agenta-ai/agenta-web` or `ghcr.io/agenta-ai/internal-ee-agenta-web` |
+| `web.image.repository` | Classic web app image | `ghcr.io/agenta-ai/agenta-web` |
 | `web.image.tag` | Web image tag | `.Chart.AppVersion` |
 | `services.image.repository` | Services image | `ghcr.io/agenta-ai/agenta-services` |
 | `services.image.tag` | Services image tag | `.Chart.AppVersion` |

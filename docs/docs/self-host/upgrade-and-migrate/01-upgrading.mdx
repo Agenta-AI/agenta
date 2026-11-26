@@ -64,7 +64,7 @@ The first time the instance admin opens the app after the upgrade, the app offer
 
 ### Enterprise: images
 
-The Enterprise compose files and Helm chart now pull the public API, services and runner images. Only the Enterprise build of the classic web app (`ghcr.io/agenta-ai/internal-ee-agenta-web`) stays private. The private `internal-ee-agenta-api`, `internal-ee-agenta-services` and `internal-ee-agenta-runner` names still receive the same images, so older compose files and values keep working.
+The Enterprise compose files and Helm chart now pull the public API, services and runner images. The Enterprise compose files still pull the private Enterprise build of the classic web app (`ghcr.io/agenta-ai/internal-ee-agenta-web`). The Helm chart pulls the public `ghcr.io/agenta-ai/agenta-web` for both licenses, so an EE Helm install needs no pull secret. To keep the private build on Helm, set `web.image.repository`. The private `internal-ee-agenta-api`, `internal-ee-agenta-services` and `internal-ee-agenta-runner` names still receive the same images, so older compose files and values keep working.
 
 ## Upgrading to 0.128.2: old workspace ids stop working
 

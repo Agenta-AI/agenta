@@ -126,6 +126,11 @@ class EntitlementsException(Exception):
     pass
 
 
+# The app's copy for a locked feature (`settings.license.lockedTitle`): a self-hosted
+# install has no plan to upgrade in the app, so it names the plan that has the feature.
+SELF_HOSTED_FEATURE_LOCKED_MESSAGE = "Available on the Enterprise plan."
+
+
 def NOT_ENTITLED_RESPONSE(tracker=None) -> JSONResponse:
     return JSONResponse(
         status_code=403,
@@ -137,7 +142,11 @@ def NOT_ENTITLED_RESPONSE(tracker=None) -> JSONResponse:
                     "You have reached your quota limit. Please upgrade your plan to continue."
                     if tracker == Tracker.GAUGES
                     else (
-                        "You do not have access to this feature. Please upgrade your plan to continue."
+                        (
+                            "You do not have access to this feature. Please upgrade your plan to continue."
+                            if is_cloud()
+                            else SELF_HOSTED_FEATURE_LOCKED_MESSAGE
+                        )
                         if tracker == Tracker.FLAGS
                         else "You do not have access to this feature."
                     )

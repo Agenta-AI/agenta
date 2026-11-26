@@ -52,11 +52,9 @@ vi.mock("@agenta/entities/gatewayTool", async () => {
 vi.mock("@agenta/entity-ui/gatewayTool", () => ({
     useDirectToolConnect: () => ({connect: tools.connect, connectingKey: null}),
 }))
-const edition = vi.hoisted(() => ({billing: false}))
 vi.mock("@agenta/shared/api/env", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/shared/api/env")>()),
     isToolsEnabled: () => true,
-    isBillingEnabled: () => edition.billing,
 }))
 vi.mock("@agenta/entity-ui/secretProvider", () => ({
     KEY_PROVIDERS: [],
@@ -312,7 +310,6 @@ let host: HTMLDivElement | undefined
 beforeEach(() => vi.useFakeTimers())
 
 afterEach(() => {
-    edition.billing = false
     tools.set([])
     tools.connect.mockReset()
     if (root) act(() => root!.unmount())
@@ -704,18 +701,18 @@ describe("first agent onboarding", () => {
         expect(openDots()).toHaveLength(0)
     })
 
-    it("names the credits dot Credits on cloud and Register on self-hosted", () => {
+    it("names the credits dot Register only while the registration offer takes that step", () => {
         const creditsDot = () =>
             [...host!.querySelectorAll<HTMLButtonElement>("nav button")][
                 onboardingSteps().indexOf("credits")
             ].getAttribute("aria-label")
 
-        edition.billing = true
+        // Cloud, and a self-hosted instance with a key: the step sets up credits and models.
         render(baseProps())
         expect(creditsDot()).toBe("Credits")
 
-        edition.billing = false
-        render(baseProps())
+        // A self-hosted instance with no key: the registration offer shows there.
+        render(baseProps({registrationStep: true}))
         expect(creditsDot()).toBe("Register")
     })
 

@@ -517,6 +517,10 @@ async def test_bearer_without_parameters_reads_nothing_more_for_a_default_member
         "/profile/",
         "/organizations/",
         "/api/organizations",
+        # The instance setting the app reads at start; a refusal looped the session
+        # refresh on the no-organization screen.
+        "/instance/telemetry",
+        "/api/instance/telemetry",
     ],
 )
 async def test_bearer_without_organization_reads_the_profile_and_lists(world, path):

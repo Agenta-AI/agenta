@@ -73,6 +73,8 @@ export interface OnboardingFlowProps {
      * it: the registration offer after the survey. The URL keeps the next step.
      */
     interstitial?: ReactNode
+    /** The registration offer shows, or will show, at the credits step: its dot says Register. */
+    registrationStep?: boolean
 }
 
 const QUESTION_WIDTH = "max-w-[680px]"
@@ -101,6 +103,7 @@ export const OnboardingFlow = ({
     onCreate,
     onSkip,
     interstitial,
+    registrationStep = false,
 }: OnboardingFlowProps) => {
     const [draft, dispatch] = useReducer(onboardingReducer, draftKey, readOnboardingDraft)
     const flushDraft = useDraftSave(draftKey, draft)
@@ -310,6 +313,7 @@ export const OnboardingFlow = ({
                     isStepOpen(target, draft, steps)
                 }
                 onGo={(target) => go(stepRoute(target))}
+                registrationStep={registrationStep}
             />
         </div>
     )

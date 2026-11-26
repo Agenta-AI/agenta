@@ -1,6 +1,5 @@
 import {useT} from "@agenta/i18n"
 import flowCatalog from "@agenta/i18n/catalogs/onboarding.flow"
-import {isBillingEnabled} from "@agenta/shared/api/env"
 import {motion} from "motion/react"
 
 import {useMotionPresets} from "@/lib/motion/presets"
@@ -15,6 +14,7 @@ export const OnboardingProgressDots = ({
     current,
     reached,
     onGo,
+    registrationStep = false,
 }: {
     steps: readonly OnboardingStep[]
     /** Index of the current dot. */
@@ -22,6 +22,8 @@ export const OnboardingProgressDots = ({
     /** Whether a dot's step can be opened from here. */
     reached: (step: OnboardingStep) => boolean
     onGo: (step: OnboardingStep) => void
+    /** The registration offer takes the credits step's place; else the step sets up credits. */
+    registrationStep?: boolean
 }) => {
     const {stepTransition} = useMotionPresets()
     const t = useT(flowCatalog)
@@ -29,10 +31,9 @@ export const OnboardingProgressDots = ({
     const dotLabel = (step: OnboardingStep) =>
         questionText.dot(step) ??
         (step === "credits"
-            ? // Cloud gives credits on this step; self-hosted offers a key there.
-              isBillingEnabled()
-                ? t("onboarding.flow.dotCredits")
-                : t("onboarding.flow.dotRegister")
+            ? registrationStep
+                ? t("onboarding.flow.dotRegister")
+                : t("onboarding.flow.dotCredits")
             : t("onboarding.flow.dotTemplates"))
     return (
         <nav

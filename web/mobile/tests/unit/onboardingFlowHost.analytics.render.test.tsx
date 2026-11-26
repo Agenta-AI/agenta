@@ -339,6 +339,29 @@ describe("the registration step after the survey", () => {
         expect(offer()).toBeUndefined()
     })
 
+    // The credits dot says Register only where the offer takes that step (#8242 named it
+    // Register on every self-hosted instance, also where a paid key leaves the agent setup).
+    it.each([
+        ["self-hosted admin with no key", false, true, null, true],
+        ["self-hosted admin with a key", false, true, {key_id: "k"}, false],
+        ["self-hosted member who is not the admin", false, false, null, false],
+        ["cloud", true, true, null, false],
+    ])("marks the credits step as registration for a %s", (_, billing, admin, key, expected) => {
+        state.billing = billing
+        state.license = {isInstanceAdmin: admin, data: {license: key}}
+        mount()
+        expect(flow().registrationStep).toBe(expected)
+    })
+
+    it("stops marking the credits step as registration once the offer is dismissed", () => {
+        state.license = {
+            isInstanceAdmin: true,
+            data: {license: null, registration_offer_dismissed: true},
+        }
+        mount()
+        expect(flow().registrationStep).toBe(false)
+    })
+
     it("stays away for a user who is not the instance admin", () => {
         state.license = {isInstanceAdmin: false, data: {license: null}}
         mount()

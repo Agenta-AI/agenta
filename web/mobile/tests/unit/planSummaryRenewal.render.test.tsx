@@ -8,19 +8,20 @@ import {PlanSummaryCard} from "@/features/settings/PlanSummaryCard"
 afterEach(cleanup)
 
 const DAY = 24 * 60 * 60
-const subscription = (offsetDays: number) =>
+const subscription = (offsetDays: number, plan = "cloud_v0_pro") =>
     ({
-        plan: "cloud_v0_pro",
+        plan,
         period_end: Math.floor(Date.now() / 1000) + offsetDays * DAY,
     }) as unknown as BillingSubscription
 
-const card = (offsetDays: number) =>
+const card = (offsetDays: number, {plan, selfHosted}: {plan?: string; selfHosted?: boolean} = {}) =>
     render(
         <PlanSummaryCard
-            subscription={subscription(offsetDays)}
+            subscription={subscription(offsetDays, plan)}
             monthlyCreditsMusd={null}
             isOnFreePlan={false}
             isCustomPlan={false}
+            selfHosted={selfHosted}
         />,
     )
 
@@ -35,4 +36,13 @@ describe("plan renewal line", () => {
         card(-25)
         expect(screen.queryByText(/^Renews /)).toBeNull()
     })
+
+    // A self-hosted plan comes from the license key; a paid key's expiry is on the License tab.
+    it.each(["self_hosted_community", "self_hosted_registered", "self_hosted_enterprise"])(
+        "hides the renewal line on the self-hosted plan %s",
+        (plan) => {
+            card(10, {plan, selfHosted: true})
+            expect(screen.queryByText(/^Renews /)).toBeNull()
+        },
+    )
 })
