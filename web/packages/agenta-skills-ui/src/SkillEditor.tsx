@@ -7,16 +7,14 @@ import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import type {SkillFile} from "@agenta/skills"
 import {useIsExpandedWindow} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
-import {Button, Field, IconTile, Input, RightPane, SimpleTooltip, Textarea} from "@agenta/ui/ui"
+import {Button, Field, IconTile, RightPane, SimpleTooltip, Textarea} from "@agenta/ui/ui"
 import {ArrowLeft, CaretRight, Files} from "@phosphor-icons/react"
 
 import {
     baseOf,
     descriptionTooLong,
     dirOf,
-    draftSkillName,
     isMarkdownPath,
-    skillNameProblem,
     type SkillDraft,
 } from "./skillDraft"
 import {SkillFilesPanel} from "./SkillFilesPanel"
@@ -27,9 +25,6 @@ export interface SkillEditorProps {
     draft: SkillDraft
     onChange: (next: SkillDraft) => void
     readOnly?: boolean
-    /** A Name field on top (the create page; the skill page edits the name in its title). */
-    showName?: boolean
-    autoFocusName?: boolean
     /** Paints empty required fields once a save was tried. */
     showMissing?: boolean
     /** Above the fields (banners). */
@@ -53,8 +48,6 @@ export function SkillEditor({
     draft,
     onChange,
     readOnly = false,
-    showName = false,
-    autoFocusName = false,
     showMissing = false,
     notices,
     filesPlacement = "pane",
@@ -77,9 +70,9 @@ export function SkillEditor({
     // The inline Files header's slot for Add, on the Back + title row.
     const [inlineAddSlot, setInlineAddSlot] = useState<HTMLDivElement | null>(null)
     const [fileBox, setFileBox] = useState<HTMLDivElement | null>(null)
-    const fileHeight = useFillPageHeight(fileBox)
+    const fileHeight = useFillPageHeight(inline ? null : fileBox)
     const [bodyBox, setBodyBox] = useState<HTMLDivElement | null>(null)
-    // On a page the instructions take the rest of the height; in a drawer they grow with the text.
+    // On a page the height is measured; inline, flex fills the host's height.
     const bodyHeight = useFillPageHeight(inline ? null : bodyBox)
 
     // Latest draft and handler in refs, so the files panel gets stable callbacks and skips keystrokes.
@@ -113,14 +106,10 @@ export function SkillEditor({
 
     const current = draft.files.find((file) => file.path === openPath) ?? null
     const tooLong = descriptionTooLong(draft)
-    // Bad characters show at once; an empty name only after a create was tried.
-    const nameProblem = skillNameProblem(draft.name)
-    const missingName = nameProblem === "invalid" || (showMissing && nameProblem === "missing")
     const missingDescription = showMissing && !draft.description.trim()
     // The editor reports text after a short delay; typing clears the error at once.
     const [bodyTyped, setBodyTyped] = useState(false)
     const missingBody = showMissing && !draft.body.trim() && !bodyTyped
-    const savedAs = draft.name.trim() ? draftSkillName(draft) : ""
 
     const setFile = (patch: Partial<SkillFile>) =>
         updateFiles((files) =>
@@ -169,7 +158,10 @@ export function SkillEditor({
             : null
 
     const fileView = current ? (
-        <section key={current.path} className="ag-view-enter flex flex-col gap-1">
+        <section
+            key={current.path}
+            className={cn("ag-view-enter flex flex-col gap-1", inline && "min-h-0 flex-1")}
+        >
             {/* On a phone the tools take their own row, so the file name keeps its place. */}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span
@@ -194,8 +186,8 @@ export function SkillEditor({
             ) : null}
             <div
                 ref={setFileBox}
-                style={{height: fileHeight}}
-                className={cn("flex min-h-0 flex-col", !inline && "-mb-8")}
+                style={inline ? undefined : {height: fileHeight}}
+                className={cn("flex min-h-0 flex-col", inline ? "min-h-60 flex-1" : "-mb-8")}
             >
                 {isMarkdownPath(current.path) ? (
                     <SkillMarkdownFrame
@@ -222,37 +214,7 @@ export function SkillEditor({
     ) : null
 
     const skillView = (
-        <div className="ag-view-enter flex flex-col gap-4">
-            {showName ? (
-                <div className="flex flex-col gap-1">
-                    <Field
-                        label={t("skills.editor.name")}
-                        tooltip={t("skills.editor.nameHint")}
-                        error={
-                            !missingName
-                                ? undefined
-                                : nameProblem === "invalid"
-                                  ? t("skills.editor.nameInvalid")
-                                  : t("skills.editor.nameMissing")
-                        }
-                    >
-                        <Input
-                            data-skill-name=""
-                            autoFocus={autoFocusName}
-                            value={draft.name}
-                            readOnly={readOnly}
-                            aria-invalid={missingName || undefined}
-                            placeholder={t("skills.editor.namePlaceholder")}
-                            onChange={(event) => set({name: event.target.value})}
-                        />
-                    </Field>
-                    {!missingName && savedAs && savedAs !== draft.name ? (
-                        <p className="m-0 text-meta text-muted-foreground">
-                            {t("skills.editor.savedAs", {name: savedAs})}
-                        </p>
-                    ) : null}
-                </div>
-            ) : null}
+        <div className={cn("ag-view-enter flex flex-col gap-4", inline && "min-h-0 flex-1")}>
             <div className="flex flex-col gap-1">
                 <Field
                     label={t("skills.editor.description")}
@@ -282,6 +244,7 @@ export function SkillEditor({
                 tooltip={t("skills.editor.instructionsHint")}
                 error={missingBody ? t("skills.editor.instructionsMissing") : undefined}
                 labelEnd={readOnly ? null : <ToolsSlot onSlot={setBodyTools} />}
+                className={inline ? "min-h-0 flex-1" : undefined}
             >
                 {/* Without the error, the box runs into the page's bottom padding. */}
                 <div
@@ -290,10 +253,13 @@ export function SkillEditor({
                     onInput={(event) =>
                         setBodyTyped(!!(event.target as HTMLElement).textContent?.trim())
                     }
-                    className={cn("flex min-h-0 flex-col", !inline && !missingBody && "-mb-8")}
+                    className={cn(
+                        "flex min-h-0 flex-col",
+                        inline ? "min-h-70 flex-1" : !missingBody && "-mb-8",
+                    )}
                 >
                     <SkillMarkdownFrame
-                        fill={!inline}
+                        fill
                         value={draft.body}
                         onChange={(body) => set({body})}
                         placeholder={t("skills.editor.instructionsPlaceholder")}
@@ -332,12 +298,12 @@ export function SkillEditor({
         // One Files panel: a column at 672px and wider; below, it takes the fields' place while open.
         return (
             // Fills its host's height, so the Files panel can pin the programs card to the bottom.
-            <div className="@container flex min-w-0 flex-1 flex-col">
+            <div className="@container flex min-h-0 min-w-0 flex-1 flex-col">
                 {filesToggle}
-                <div className="flex min-w-0 flex-1 gap-6">
+                <div className="flex min-h-0 min-w-0 flex-1 gap-6">
                     <div
                         className={cn(
-                            "min-w-0 flex-1 flex-col gap-4",
+                            "min-h-0 min-w-0 flex-1 flex-col gap-4",
                             filesOpen ? "hidden @2xl:flex" : "flex",
                         )}
                     >

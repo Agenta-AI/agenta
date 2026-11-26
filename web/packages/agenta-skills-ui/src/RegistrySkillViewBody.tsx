@@ -20,7 +20,7 @@ import {
     useSkillDownloadAction,
     type SkillAction,
 } from "@agenta/entity-ui/drill-in"
-import {richText, useT} from "@agenta/i18n"
+import {useT} from "@agenta/i18n"
 import skillViewCatalog from "@agenta/i18n/catalogs/entityUi.skillView"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
@@ -56,13 +56,9 @@ import {
     PopoverAnchor,
     PopoverContent,
     Spinner,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
 } from "@agenta/ui/ui"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
-import {Archive, ArrowUUpLeft, Info, Plus} from "@phosphor-icons/react"
+import {Archive, ArrowUUpLeft, Plus} from "@phosphor-icons/react"
 import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
@@ -368,38 +364,6 @@ const RegistrySkillEditor = ({
         t("skills.gallery.archived")
     ) : null
 
-    // Where an imported skill came from, behind an info mark beside the name.
-    const provenance = skill.source ? (
-        <TooltipProvider>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <button
-                        type="button"
-                        aria-label={t("skills.gallery.provenanceAria")}
-                        className="box-border inline-flex shrink-0 cursor-help items-center border-0 bg-transparent p-0 font-[inherit] text-muted-foreground hover:text-foreground"
-                    >
-                        <Info size={14} aria-hidden />
-                    </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" align="start">
-                    <span className="flex flex-col gap-0.5">
-                        <span>
-                            {richText(
-                                t("skills.gallery.importedFrom", {source: skill.source.label}),
-                                {mono: (text) => <span className="font-mono">{text}</span>},
-                            )}
-                        </span>
-                        {skill.source.detached ? (
-                            <span className="opacity-80">
-                                {t("skills.gallery.modifiedLocally")}
-                            </span>
-                        ) : null}
-                    </span>
-                </TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
-    ) : null
-
     const usage = !usageQuery.data ? null : usedBy.length ? (
         <UsedBy
             container={editorRoot}
@@ -448,7 +412,6 @@ const RegistrySkillEditor = ({
                 end={<div ref={setFilesSlot} className="flex empty:hidden" />}
                 name={skillTitle(skill)}
                 status={status}
-                extra={provenance}
                 actions={actions}
                 menuTop={addToAgent}
                 menuOpen={menuOpen}

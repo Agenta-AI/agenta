@@ -1,6 +1,7 @@
 /** The agent's "New skill" view: choose how, then write, upload or import; each skill joins the agent. */
 import {useCallback, useEffect, useRef, useState} from "react"
 
+import {SkillViewHeader} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import skillsAgentCatalog from "@agenta/i18n/catalogs/skills.agent"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
@@ -8,6 +9,7 @@ import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
 import {projectIdAtom} from "@agenta/shared/state"
 import {buildSkillEmbedEntry} from "@agenta/skills"
 import type {NewSkillBodyProps} from "@agenta/ui/drill-in"
+import {cn} from "@agenta/ui/styles"
 import {
     Alert,
     AlertDialog,
@@ -19,13 +21,15 @@ import {
     Button,
     Spinner,
 } from "@agenta/ui/ui"
-import {useViewForm, useViewTitle, ViewFooterStart} from "@agenta/ui/view-stack"
+import {useViewForm, useViewTitle} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
 import {SkillCandidateList} from "./SkillCandidateList"
 import {SkillCreateWays} from "./SkillCreateWays"
+import {draftSkillName} from "./skillDraft"
 import {SkillEditor} from "./SkillEditor"
 import {SkillGithubImport, type ImportedSkill} from "./SkillGithubImport"
+import {SkillNameTitle} from "./SkillNameTitle"
 import {useSkillCreateFlow, type CreatedSkill} from "./useSkillCreateFlow"
 
 type Made = CreatedSkill | ImportedSkill
@@ -60,6 +64,8 @@ export function AgentSkillCreateBody({onCreated, onDone}: NewSkillBodyProps) {
     }, [])
     const flow = useSkillCreateFlow({projectId, onCreated: add})
     const [asking, setAsking] = useState<(() => void) | null>(null)
+    // The header's slot for the editor's Files toggle, as in the skill view.
+    const [filesSlot, setFilesSlot] = useState<HTMLDivElement | null>(null)
 
     const {step, reset, write, upload, setStep} = flow
     const writing = step === "write"
@@ -115,36 +121,57 @@ export function AgentSkillCreateBody({onCreated, onDone}: NewSkillBodyProps) {
 
     let body: React.ReactNode
     if (step === "write") {
+        const {draft} = flow
+        const savedAs = draft.name.trim() ? draftSkillName(draft) : ""
+        // The same header and editor layout as an existing skill's view.
         body = (
             <>
-                <SkillEditor
-                    draft={flow.draft}
-                    onChange={flow.setDraft}
-                    showName
-                    autoFocusName={!flow.draft.name}
-                    showMissing={flow.attempted}
-                    filesPlacement="inline"
-                    notices={
-                        <>
-                            {flow.duplicate ? (
-                                <Alert
-                                    type="warning"
-                                    showIcon
-                                    message={t("skills.page.duplicateNew", {
-                                        name:
-                                            flow.duplicate.skill_name ?? flow.duplicate.name ?? "",
-                                    })}
-                                />
-                            ) : null}
-                            {errorAlert}
-                        </>
+                <SkillViewHeader
+                    compact
+                    name={draft.name}
+                    title={
+                        <SkillNameTitle
+                            value={draft.name}
+                            onChange={(name) => flow.setDraft({...draft, name})}
+                            autoFocus={!draft.name}
+                            invalid={flow.attempted && !savedAs}
+                            error={t("skills.editor.nameMissing")}
+                        />
                     }
+                    end={<div ref={setFilesSlot} className="flex empty:hidden" />}
+                    actions={[]}
                 />
-                <ViewFooterStart ownLineOnPhone>
-                    <span className="text-meta text-muted-foreground">
-                        {t("skills.agent.savedAndAdded")}
-                    </span>
-                </ViewFooterStart>
+                {savedAs && savedAs !== draft.name ? (
+                    <p className="m-0 shrink-0 px-4 pb-2 text-meta text-muted-foreground">
+                        {t("skills.editor.savedAs", {name: savedAs})}
+                    </p>
+                ) : null}
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4 pt-3">
+                    <SkillEditor
+                        draft={draft}
+                        onChange={flow.setDraft}
+                        showMissing={flow.attempted}
+                        filesPlacement="inline"
+                        filesToggleSlot={filesSlot}
+                        notices={
+                            <>
+                                {flow.duplicate ? (
+                                    <Alert
+                                        type="warning"
+                                        showIcon
+                                        message={t("skills.page.duplicateNew", {
+                                            name:
+                                                flow.duplicate.skill_name ??
+                                                flow.duplicate.name ??
+                                                "",
+                                        })}
+                                    />
+                                ) : null}
+                                {errorAlert}
+                            </>
+                        }
+                    />
+                </div>
             </>
         )
     } else if (step === "upload") {
@@ -210,7 +237,7 @@ export function AgentSkillCreateBody({onCreated, onDone}: NewSkillBodyProps) {
         <div
             ref={rootRef}
             tabIndex={-1}
-            className="flex min-h-0 flex-1 flex-col px-4 py-4 outline-none"
+            className={cn("flex min-h-0 flex-1 flex-col outline-none", !writing && "px-4 py-4")}
         >
             {body}
             {/* Asks before a step back drops a skill that is not created yet. */}
