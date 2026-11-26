@@ -89,8 +89,15 @@ export const PanelViewChrome = ({
             {hideActionRow ? null : (
                 <div
                     className={cn(
-                        "shrink-0 border-0 border-t border-solid border-border-muted px-4",
-                        phone ? "pb-6 pt-3" : "py-3",
+                        "shrink-0 px-4",
+                        // A filled band on the desktop, a hairline on a phone.
+                        phone
+                            ? "border-0 border-t border-solid border-border-muted pb-6 pt-3"
+                            : "bg-muted py-2.5",
+                        // An instant view with nothing in its start shows no footer at all.
+                        apply === "immediate" &&
+                            !phone &&
+                            "[&:has([data-footer-start]:empty)]:hidden",
                     )}
                 >
                     <ViewFormActions

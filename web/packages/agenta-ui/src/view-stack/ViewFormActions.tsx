@@ -31,6 +31,7 @@ export const ViewFormActions = ({
     const start = (
         <span
             ref={startRef}
+            data-footer-start=""
             className={cn(
                 "mr-auto flex empty:hidden",
                 phone && "has-[[data-footer-line]]:basis-full",
@@ -40,6 +41,11 @@ export const ViewFormActions = ({
     const button = phone ? "flex-1" : undefined
     // The canvas scale on the desktop (h28, r6, 13 px); a phone uses the kit default.
     const size = phone ? undefined : "compact"
+    // An instant view saves as it goes: on the desktop the header's back link leaves it, so the
+    // footer keeps only its start (a "Remove" action) and no "Done".
+    if (apply === "immediate" && !phone) {
+        return <div className="flex items-center gap-2">{start}</div>
+    }
     if (apply === "immediate") {
         return (
             <div className="flex items-center justify-end gap-2">
