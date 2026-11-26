@@ -1,5 +1,6 @@
 {
     "showMore_other": "さらに {{count}} 件を表示",
     "viewFullDiff": "差分をすべて表示",
-    "lineCount_other": "{{count}} 行"
+    "lineCount_other": "{{count}} 行",
+    "changed": "変更済み"
 }

@@ -3,6 +3,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-orchestration.test.ts)
  */
+import { TurnApprovalRows } from "../../src/sessions/interactions.ts";
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
@@ -1148,6 +1149,32 @@ describe("runSandboxAgent orchestration", () => {
       /^\/home\/sandbox\/agenta-fake-cwd\/agents\/skills\/[a-f0-9]{64}$/,
     );
     rmSync(skill, { recursive: true, force: true });
+  });
+
+  it("starts a Claude session in the default permission mode, and leaves Pi alone", async () => {
+    // claude-agent-acp starts a session in `auto` unless told otherwise; `auto` lets Claude Code
+    // approve tool calls without asking the runner's permission plan.
+    const claude = fakeHarness();
+    const claudeResult = await runSandboxAgent(
+      { harness: "claude", messages: [{ role: "user", content: "hello" }] },
+      undefined,
+      undefined,
+      claude.deps,
+    );
+    assert.equal(claudeResult.ok, true);
+    assert.deepEqual(claude.calls.createSessionOptions.sessionInit.configOptions, [
+      { configId: "mode", value: "default" },
+    ]);
+
+    const pi = fakeHarness();
+    const piResult = await runSandboxAgent(
+      { harness: "pi_core", messages: [{ role: "user", content: "hello" }] },
+      undefined,
+      undefined,
+      pi.deps,
+    );
+    assert.equal(piResult.ok, true);
+    assert.equal(pi.calls.createSessionOptions.sessionInit.configOptions, undefined);
   });
 
   it("advertises durable agent storage only after a confirmed local mount", async () => {
@@ -3892,6 +3919,23 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
       undefined,
       undefined,
       deps,
+      {
+        // The person's answer, as the API stored it on the gate's row.
+        approvalRows: new TurnApprovalRows(
+          [
+            {
+              token: "perm-1",
+              kind: "user_approval",
+              status: "responded",
+              data: {
+                request: { tool: "edit", args: {} },
+                resolution: { approved: true },
+              },
+            },
+          ],
+          async () => true,
+        ),
+      },
     );
     await flushPromises();
 

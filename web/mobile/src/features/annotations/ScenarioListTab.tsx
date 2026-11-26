@@ -150,7 +150,7 @@ export const ScenarioListTab = ({
                     onClick={addToTestset}
                 >
                     <Plus aria-hidden size={14} />
-                    Add to Testset
+                    Add to test set
                 </LoadingButton>
             </div>
             <ListTable

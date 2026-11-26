@@ -155,6 +155,37 @@ def effective_permission(
     return mode
 
 
+_STRICTNESS: Dict[str, int] = {"allow": 0, "ask": 1, "deny": 2}
+
+
+def stricter_permission(first: Permission, second: Permission) -> Permission:
+    """The stricter of two permissions: ``deny`` over ``ask`` over ``allow``."""
+    return second if _STRICTNESS[second] > _STRICTNESS[first] else first
+
+
+def target_permission(
+    tool_permission: Permission,
+    entry_permission: Optional[Permission],
+) -> Permission:
+    """The permission of a session start or send for one target: the stricter of the
+    tool's permission and the permission on the target's Subagent entry. The tool's
+    permission when the target has no entry or the entry sets none. The one place that
+    computes it (design D12)."""
+    if entry_permission is None:
+        return tool_permission
+    return stricter_permission(tool_permission, entry_permission)
+
+
+# The session writes whose gate the runner asks the server about (`resolve_gate`, design
+# D34). The resolver sends them as ``ask`` unless ``deny``, with the two policy fields.
+START_SESSION_CALL_REF = "tools.agenta.start_session"
+SEND_SESSION_MESSAGE_CALL_REF = "tools.agenta.send_session_message"
+CANCEL_SESSION_CALL_REF = "tools.agenta.cancel_session"
+SESSION_WRITE_CALL_REFS = frozenset(
+    {START_SESSION_CALL_REF, SEND_SESSION_MESSAGE_CALL_REF, CANCEL_SESSION_CALL_REF}
+)
+
+
 class ToolConfigBase(BaseModel):
     """Fields shared by every persisted declaration of a single tool."""
 
@@ -276,7 +307,8 @@ class GatewayConnectionToolConfig(BaseModel):
 
 
 # The Agenta tools an ``agenta_tools`` entry can turn on, in every run of the agent. Every one is
-# a platform op; ``search_skills`` stays in the playground build kit only.
+# a platform op; ``search_skills`` stays in the playground build kit only. The session tools at
+# the end are not in the build kit: an agent gets them only when its author lists them (design D12).
 AGENTA_TOOLS: tuple = (
     "get_current_session",
     "rename_session",
@@ -294,6 +326,13 @@ AGENTA_TOOLS: tuple = (
     "read_config",
     "check_skill_updates",
     "apply_skill_update",
+    "start_session",
+    "send_session_message",
+    "wait_for_sessions",
+    "cancel_session",
+    "list_sessions",
+    "read_session",
+    "read_session_spans",
 )
 # What a new agent's entry holds. The defaults live in the saved entry, never in the resolver.
 DEFAULT_AGENTA_TOOLS: Dict[str, Literal["allow", "ask"]] = {
@@ -676,6 +715,20 @@ class CallbackToolSpec(ToolSpecBase):
         default=None,
         validation_alias=AliasChoices("ephemeral_args", "ephemeralArgs"),
         serialization_alias="ephemeralArgs",
+    )
+    # Policy fields of the session writes (`SESSION_WRITE_CALL_REFS`), which the runner
+    # forwards to `resolve_gate` without reading them. ``configured_permission`` is the
+    # tool's permission before the resolver set ``ask``; ``target_permissions`` maps the
+    # slug of a Subagent entry to the permission set on it, for entries that set one.
+    configured_permission: Optional[Permission] = Field(
+        default=None,
+        validation_alias=AliasChoices("configured_permission", "configuredPermission"),
+        serialization_alias="configuredPermission",
+    )
+    target_permissions: Optional[Dict[str, Permission]] = Field(
+        default=None,
+        validation_alias=AliasChoices("target_permissions", "targetPermissions"),
+        serialization_alias="targetPermissions",
     )
 
     @model_validator(mode="after")

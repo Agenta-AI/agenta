@@ -59,7 +59,8 @@ export const AutomationListNoMatch = ({
 
 /** Mirrors the detail body's own rhythm — identity, meta row, field stack — at its measurements. */
 export const AutomationDetailSkeleton = () => (
-    <div className="mx-auto w-full max-w-[760px] px-8 pb-[70px]" aria-hidden>
+    // max-md:pt-1 takes back the 4px the phone header gives up, as the loaded body does.
+    <div className="mx-auto w-full max-w-[760px] px-8 pb-[70px] max-md:pt-1" aria-hidden>
         {/* Identity: name, then the description under it. */}
         <SkeletonBlock active className="h-[30px] w-1/2" />
         <SkeletonBlock active className="mt-1.5 h-4 w-2/3" />

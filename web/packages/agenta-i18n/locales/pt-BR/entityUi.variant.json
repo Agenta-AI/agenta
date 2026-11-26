@@ -3,5 +3,6 @@
     "discardFailed": "Falha ao descartar as alterações do rascunho",
     "noDeployment": "Sem implantação",
     "discardDraft": "Descartar alterações do rascunho",
-    "lastModified": "Última modificação"
+    "lastModified": "Última modificação",
+    "deployedTo": "Implantado em {{name}}"
 }

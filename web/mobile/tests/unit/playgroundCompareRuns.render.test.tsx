@@ -451,13 +451,15 @@ describe("Variant card averages", () => {
         await start(false)
         const card = (id: string) =>
             host.querySelector(`[data-testid="variant-card-${id}"]`)?.textContent ?? ""
-        expect(card("rev-1")).toContain("-")
+        expect(card("rev-1")).toContain("—")
 
         await click("Run all")
 
         expect(card("rev-1")).toContain("1.5")
         expect(card("rev-2")).toContain("500")
         expect(card("rev-1")).toContain("30")
+        // Tokens and cost are separate, labelled rows.
+        expect(card("rev-1")).toContain("Average tokens")
     })
 })
 

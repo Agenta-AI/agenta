@@ -13,12 +13,20 @@ vi.mock("@agenta/entities/workflow", async () => {
                 reads.count += 1
                 return {data: {name: `Name ${id}`}}
             }),
-        workflowMolecule: {selectors: {variantLabel: () => atom(() => "v1")}},
+        workflowMolecule: {
+            selectors: {
+                variantLabel: () => atom(() => "v1"),
+                data: () => atom(() => ({version: 1})),
+            },
+        },
     }
 })
 vi.mock("@agenta/entities/testset", async () => {
     const {atom} = await import("jotai")
-    return {testsetQueryAtomFamily: (id: string) => atom(() => ({data: {name: `Set ${id}`}}))}
+    return {
+        testsetQueryAtomFamily: (id: string) => atom(() => ({data: {name: `Set ${id}`}})),
+        testsetRevisionHeaderAtomFamily: () => atom(() => ({data: {revisionVersion: 2}})),
+    }
 })
 vi.mock("@agenta/entities/evaluationRun", () => ({}))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =

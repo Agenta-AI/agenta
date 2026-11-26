@@ -5,6 +5,7 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+import {resolveRunsScope} from "@/features/evaluations/list/runsScope"
 import {
     EMPTY_RUN_FILTERS,
     parseKindTab,
@@ -44,12 +45,14 @@ let latest: ReturnType<typeof useEvaluationRunsList>
 const Probe = ({
     kind = "all",
     appId = null,
+    evaluatorId = null,
     search = "",
     statuses = [],
     panel = {},
 }: {
     kind?: EvaluationKindTab
     appId?: string | null
+    evaluatorId?: string | null
     search?: string
     statuses?: string[]
     panel?: Partial<RunFilterValues>
@@ -58,6 +61,7 @@ const Probe = ({
         projectId: "pr",
         kind,
         appId,
+        evaluatorId,
         search,
         panel: {...EMPTY_RUN_FILTERS, statuses, ...panel},
     })
@@ -127,6 +131,23 @@ describe("evaluation runs filters", () => {
             undefined,
             {shallow: true},
         )
+    })
+})
+
+describe("runs scope of an app path", () => {
+    it("An evaluator's path scopes the runs to the runs it graded", () => {
+        expect(resolveRunsScope("ev-1", {id: "ev-1", flags: {is_evaluator: true}})).toEqual({
+            appId: null,
+            evaluatorId: "ev-1",
+        })
+    })
+
+    it("An app, an unloaded workflow or another workflow's detail keeps the app scope", () => {
+        const app = {appId: "app-1", evaluatorId: null}
+        expect(resolveRunsScope("app-1", {id: "app-1", flags: {is_evaluator: false}})).toEqual(app)
+        expect(resolveRunsScope("app-1", null)).toEqual(app)
+        expect(resolveRunsScope("app-1", {id: "other", flags: {is_evaluator: true}})).toEqual(app)
+        expect(resolveRunsScope(null, undefined)).toEqual({appId: null, evaluatorId: null})
     })
 })
 
@@ -282,6 +303,18 @@ describe("evaluation runs list", () => {
         await mount({appId: "app-1"})
         expect(bodies()[0].run).toEqual({
             references: [{application: {id: "app-1"}}],
+            flags: {has_testcases: false, has_traces: false},
+        })
+    })
+
+    it("An evaluator scope is sent as the evaluator reference, not as the application", async () => {
+        http.post.mockResolvedValue(page([]))
+        await mount({
+            evaluatorId: "ev-9",
+            panel: {references: {...EMPTY_RUN_FILTERS.references, testset: ["ts-1"]}},
+        })
+        expect(bodies()[0].run).toEqual({
+            references: [{evaluator: {id: "ev-9"}}, {testset: {id: "ts-1"}}],
             flags: {has_testcases: false, has_traces: false},
         })
     })

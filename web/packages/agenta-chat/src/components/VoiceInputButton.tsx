@@ -3,7 +3,8 @@ import {useCallback, useEffect, useRef, useState, type RefObject} from "react"
 import {useT} from "@agenta/i18n"
 import chatVoiceInputButtonCatalog from "@agenta/i18n/catalogs/chat.voiceInputButton"
 import {pushToTalkLabel} from "@agenta/shared/utils"
-import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import type {ComposerSurface, RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
 import {
     Button,
     DropdownMenu,
@@ -63,6 +64,7 @@ const VoiceInputButton = ({
     onDictatingChange,
     stopRef,
     disabled,
+    surface = "default",
 }: {
     inputRef: RefObject<RichChatInputHandle | null>
     onStartAudio: () => void
@@ -84,6 +86,8 @@ const VoiceInputButton = ({
      * mode leads and explains itself in the menu — it never blocks recording (D6). */
     audioPerceivable: boolean | null
     disabled?: boolean
+    /** The composer's look: `canvas` draws the mic like the paperclip, a 24 px box. */
+    surface?: ComposerSurface
 }) => {
     const t = useT(chatVoiceInputButtonCatalog)
     const modeLabel = (mode: VoiceMode) =>
@@ -228,6 +232,12 @@ const VoiceInputButton = ({
                 <Button
                     variant={dictating ? "destructive" : "ghost"}
                     size="icon"
+                    // A phone: 36 px drawn and a 44 px area (4 px reach), as the design canvas.
+                    className={`${
+                        surface === "canvas"
+                            ? `size-6 ${dictating ? "" : "text-colorTextTertiary"}`
+                            : ""
+                    } max-md:size-9 ${PHONE_TOUCH_TARGET_CLASS}`}
                     onClick={toggle}
                     // A second press while the prompt is open would only queue another request.
                     disabled={disabled || (!dictating && (audioPending || audioBlocked))}

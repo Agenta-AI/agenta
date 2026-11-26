@@ -1,4 +1,4 @@
-import {useRef, type CSSProperties} from "react"
+import {useRef, useState, type CSSProperties} from "react"
 
 import {createQueueDrawerDefaultKindAtom, createQueueDrawerOpenAtom} from "@agenta/annotation"
 import {Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from "@agenta/ui/ui"
@@ -18,6 +18,9 @@ export const CreateQueueSheet = () => {
     const defaultKind = useAtomValue(createQueueDrawerDefaultKindAtom)
     const {submit, close, isSubmitting, selection, followUp} = useCreateQueue()
     const contentRef = useRef<HTMLDivElement>(null)
+    // With input in the form, only Cancel or the close button discard it.
+    const [dirty, setDirty] = useState(false)
+    const guarded = isSubmitting || dirty
 
     return (
         <Sheet open={open} onOpenChange={(next) => !next && close()}>
@@ -26,15 +29,13 @@ export const CreateQueueSheet = () => {
                 style={SHEET_WIDTH}
                 className="overflow-hidden"
                 ref={contentRef}
-                // Close, Escape and a click on the overlay do nothing while the request runs.
-                // Escape pressed in a panel portaled out of the sheet (the evaluator picker)
-                // belongs to that panel: it must not close the sheet and lose the form.
+                // Escape and an overlay click do nothing while the form has input or is submitting.
                 onEscapeKeyDown={(event) => {
                     const fromSheet = contentRef.current?.contains(event.target as Node) ?? false
-                    if (isSubmitting || !fromSheet) event.preventDefault()
+                    if (guarded || !fromSheet) event.preventDefault()
                 }}
-                onPointerDownOutside={(event) => isSubmitting && event.preventDefault()}
-                onInteractOutside={(event) => isSubmitting && event.preventDefault()}
+                onPointerDownOutside={(event) => guarded && event.preventDefault()}
+                onInteractOutside={(event) => guarded && event.preventDefault()}
             >
                 <SheetHeader showCloseButton={!isSubmitting}>
                     <SheetTitle>Create annotation queue</SheetTitle>
@@ -49,6 +50,7 @@ export const CreateQueueSheet = () => {
                         isSubmitting={isSubmitting}
                         onSubmit={(values) => void submit(values)}
                         onCancel={close}
+                        onDirtyChange={setDirty}
                     />
                 ) : null}
             </SheetContent>

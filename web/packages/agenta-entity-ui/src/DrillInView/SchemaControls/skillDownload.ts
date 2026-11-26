@@ -9,6 +9,7 @@
 import {downloadBlob} from "@agenta/shared/utils"
 import {strToU8, zipSync} from "fflate"
 
+import {isSafeSkillPath} from "./skillFiles"
 import {slugifySkillName} from "./skillName"
 
 export interface SkillDownload {
@@ -32,20 +33,11 @@ export function composeSkillMarkdown(skill: Record<string, unknown>): string {
     return `${frontmatter}\n\n${asText(skill.body)}\n`
 }
 
-// The backend's bundled-path rules, so an unsaved draft cannot write outside the skill folder.
-const isSafePath = (path: string): boolean =>
-    Boolean(path) &&
-    !path.startsWith("/") &&
-    !/^[A-Za-z]:/.test(path) &&
-    !path.includes("\\") &&
-    !path.split("/").some((segment) => segment === "" || segment === "." || segment === "..") &&
-    path.toLowerCase() !== "skill.md"
-
 const bundledFiles = (skill: Record<string, unknown>): {path: string; content: string}[] =>
     (Array.isArray(skill.files) ? (skill.files as unknown[]) : []).flatMap((entry) => {
         const file = (entry ?? {}) as Record<string, unknown>
         return typeof file.path === "string" &&
-            isSafePath(file.path) &&
+            isSafeSkillPath(file.path) &&
             typeof file.content === "string"
             ? [{path: file.path, content: file.content}]
             : []

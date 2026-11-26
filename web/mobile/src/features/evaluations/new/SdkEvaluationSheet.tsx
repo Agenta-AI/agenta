@@ -18,7 +18,7 @@ import {SHEET_FRAME} from "./sheetFrame"
 
 const COLAB_HREF =
     "https://colab.research.google.com/github/agenta-ai/agenta/blob/main/examples/jupyter/evaluation/quick-start.ipynb"
-const DOCS_HREF = "https://agenta.ai/docs/evaluation/evaluation-from-sdk/quick-start"
+const DOCS_HREF = "https://docs.agenta.ai/evaluation/evaluation-from-sdk/quick-start"
 
 const INSTALL_CODE = "pip install -U agenta"
 

@@ -25,17 +25,12 @@ import {
     getMcpConnectionStatusLabel,
     readMcpConnectionHealth,
     mcpEndpointsQueryAtom,
-    readMcpToolCount,
     refreshMcpEndpointsAtom,
     type McpConnectionStatus,
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
 import {customNamedSecretsAtom, personalAccountsAccessAtom} from "@agenta/entities/secret"
-import {
-    McpConnectJourney,
-    McpConnectionDetail,
-    McpPermissionDrawer,
-} from "@agenta/entity-ui/mcpEndpoint"
+import {McpConnectionDetail, mcpConnectView, mcpServerView} from "@agenta/entity-ui/mcpEndpoint"
 import {useT, createT, type CatalogKey} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsMcpCatalog from "@agenta/i18n/catalogs/settings.mcp"
@@ -45,7 +40,8 @@ import {McpServerMark} from "@agenta/ui/agent-icon"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
-import {Button} from "@agenta/ui/ui"
+import {Button, PHONE_TOUCH_TARGET_CLASS} from "@agenta/ui/ui"
+import {ViewDrawerHost} from "@agenta/ui/view-stack"
 import {
     ArrowsClockwise,
     LinkBreak,
@@ -191,8 +187,6 @@ export default function McpServersSection({
     const [viewingKey, setViewingKey] = useState<string | null>(null)
     /** "View tools", tracked by key for the same reason as the connection above. */
     const [toolsKey, setToolsKey] = useState<string | null>(null)
-    // The tools drawer's panel: a reconnect started there opens inside it, not over the page.
-    const [toolsPanel, setToolsPanel] = useState<HTMLDivElement | null>(null)
     const [renamingKey, setRenamingKey] = useState<string | null>(null)
     const projectId = useAtomValue(projectIdAtom)
 
@@ -322,7 +316,11 @@ export default function McpServersSection({
     const empty = !isPending && rows.length === 0
 
     const connect = (
-        <Button data-testid="mcp-connect-open" onClick={openConnect}>
+        <Button
+            data-testid="mcp-connect-open"
+            className={PHONE_TOUCH_TARGET_CLASS}
+            onClick={openConnect}
+        >
             <Plus size={14} />
             {copy.connect}
         </Button>
@@ -356,9 +354,8 @@ export default function McpServersSection({
                 return (
                     <>
                         <span className="flex min-w-0 items-center gap-2.5">
-                            {/* One generic glyph for every server: the registry holds arbitrary
-                            URLs, so there is no per-server branding to show. */}
-                            <McpServerMark size={28} />
+                            {/* One glyph for every server; the tile color follows the name. */}
+                            <McpServerMark size={28} name={record.name || record.slug} />
                             <InlineName
                                 value={record.name || record.slug || ""}
                                 editing={!readOnly && renamingKey === rowKey(record)}
@@ -512,46 +509,38 @@ export default function McpServersSection({
                 projectTable
             )}
 
-            <McpConnectJourney
-                // A new controller per attempt. The component unmounts itself while closed,
-                // which covers open/close; the key covers the other way in, where a reconnect
-                // is chosen while one is already open and the hook would otherwise keep the
-                // endpoint it was mounted with.
-                key={reconnecting?.id ?? "new"}
-                open={connecting}
-                onClose={closeConnect}
-                existingNames={names}
-                reconnect={mcpReconnectTarget(reconnecting)}
-                onConnected={() => void refresh()}
-                container={viewingTools ? toolsPanel : null}
-            />
+            {connecting ? (
+                // The connect step, the same view the agent opens, in a drawer of its own. A new
+                // drawer per attempt: a reconnect chosen while one is open starts over.
+                <ViewDrawerHost
+                    key={reconnecting?.id ?? "new"}
+                    request={{
+                        view: mcpConnectView,
+                        params: {
+                            reconnect: mcpReconnectTarget(reconnecting),
+                            onConnected: () => void refresh(),
+                        },
+                        target: {kind: "project"},
+                    }}
+                    onClosed={closeConnect}
+                />
+            ) : null}
 
             {/*
-                "View tools" is the agent's permission drawer with nothing to set: the header,
-                the groups and the rows, no selects and no footer (decision 23). A Settings row
-                belongs to no agent, so there is no policy to read or write here — the empty
-                policy and the ignored `onChange` say that, and `readOnly` makes it true rather
-                than merely unused.
+                "View tools" is the agent's server view with nothing to set: a Settings row
+                belongs to no agent, so the view shows the project's connection read-only.
             */}
-            <McpPermissionDrawer
-                open={Boolean(viewingTools)}
-                onClose={() => setToolsKey(null)}
-                slug={viewingTools?.slug ?? undefined}
-                connectionName={viewingTools?.name || viewingTools?.slug || undefined}
-                // Passed rather than defaulted: the drawer assumes "connected" when given
-                // nothing, which would claim a healthy server for a lapsed one.
-                status={viewingTools ? getMcpConnectionStatus(viewingTools) : undefined}
-                // Null for every row until the query response carries a count, so the header
-                // shows none. Wired now so it starts working with no change here.
-                cachedToolCount={
-                    viewingTools ? (readMcpToolCount(viewingTools) ?? undefined) : undefined
-                }
-                policy={{}}
-                onChange={() => undefined}
-                onReconnect={viewingTools ? () => openReconnect(viewingTools) : undefined}
-                readOnly
-                panelRef={setToolsPanel}
-            />
+            {viewingTools?.slug ? (
+                <ViewDrawerHost
+                    key={rowKey(viewingTools)}
+                    request={{
+                        view: mcpServerView,
+                        params: {connectionSlug: viewingTools.slug},
+                        target: {kind: "project"},
+                    }}
+                    onClosed={() => setToolsKey(null)}
+                />
+            ) : null}
 
             <McpConnectionDetail
                 endpoint={viewing}

@@ -14,7 +14,8 @@ const ACTIONS_COLUMN: ListTableColumn = {
     key: "actions",
     label: "Actions",
     srOnly: true,
-    width: "24px",
+    // The row menu button is 28 px.
+    width: "32px",
 }
 const NAME = col("name", "Name", "minmax(180px,2fr)")
 const LAST_MODIFIED = col("updated", "Last modified", "minmax(110px,1fr)")
@@ -22,16 +23,16 @@ const LAST_MODIFIED = col("updated", "Last modified", "minmax(110px,1fr)")
 const AUTOMATIC_COLUMNS = [
     NAME,
     col("type", "Type", "minmax(120px,1fr)"),
-    col("tags", "Tags", "minmax(140px,1.5fr)"),
-    col("created", "Date Created", "minmax(110px,1fr)"),
+    col("tags", "Tags", "minmax(120px,1.5fr)"),
+    col("created", "Date created", "minmax(110px,1fr)"),
     LAST_MODIFIED,
     col("modifiedBy", "Modified by", "minmax(120px,1fr)"),
-    col("message", "Commit message", "minmax(140px,1.5fr)"),
+    col("message", "Commit message", "minmax(120px,1.5fr)"),
 ]
 const HUMAN_COLUMNS = [
     NAME,
     col("feedback", "Feedback", "minmax(160px,2fr)"),
-    col("created", "Date Created", "minmax(110px,1fr)"),
+    col("created", "Date created", "minmax(110px,1fr)"),
     LAST_MODIFIED,
     col("modifiedBy", "Modified by", "minmax(120px,1fr)"),
 ]
@@ -79,11 +80,12 @@ export const EvaluatorsTable = ({
     const narrow = !useMediaQuery(WIDE_QUERY)
     const body = narrow ? NARROW_COLUMNS : category === "human" ? HUMAN_COLUMNS : AUTOMATIC_COLUMNS
     const columns = [...body, ACTIONS_COLUMN]
+    const expandSlot = rows.some((entry) => entry.hasOlder)
 
     return (
         <ListTable<EvaluatorListRow>
             columns={columns}
-            minWidth={narrow ? 300 : category === "human" ? 760 : 1080}
+            minWidth={narrow ? 300 : category === "human" ? 760 : 1000}
             stickyHeader
             loading={isLoading}
             groups={[{key: "all", label: null, rows}]}
@@ -117,6 +119,7 @@ export const EvaluatorsTable = ({
                     canEdit={selectable}
                     expanded={expanded.has(row.workflowId)}
                     loadingOlder={loadingOlder.has(row.workflowId)}
+                    expandSlot={expandSlot}
                     onToggleExpand={() => onToggleExpand(row.workflowId)}
                     onOpen={() => onOpen(row)}
                     onArchive={

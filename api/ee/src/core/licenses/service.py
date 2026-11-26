@@ -9,7 +9,7 @@ from functools import lru_cache
 from typing import Optional
 from uuid import UUID
 
-from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
+from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -87,11 +87,14 @@ class LicensesService:
             return LicenseState.model_validate(cached)
 
         state = await _here(await self._load_stored_state())
+        # `nx`: a read that loaded the row before an activation must not replace the
+        # state that activation wrote.
         await set_cache(
             namespace=CACHE_NAMESPACE,
             key=CACHE_KEY,
             value=state.model_dump(mode="json"),
             ttl=CACHE_TTL,
+            nx=True,
         )
         return state
 
@@ -118,11 +121,17 @@ class LicensesService:
             key=key.strip(),
             created_by_id=user_id,
         )
-        await invalidate_cache(namespace=CACHE_NAMESPACE, key=CACHE_KEY)
+        state = LicenseState(source="database", license=license_key)
+        await set_cache(
+            namespace=CACHE_NAMESPACE,
+            key=CACHE_KEY,
+            value=state.model_dump(mode="json"),
+            ttl=CACHE_TTL,
+        )
 
         log.info("[licenses] license key %s added", license_key.key_id)
 
-        return LicenseState(source="database", license=license_key)
+        return state
 
     async def _load_stored_state(self) -> LicenseState:
         stored = await self.licenses_dao.read()

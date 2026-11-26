@@ -16,7 +16,8 @@
         "test:unit:coverage": "vitest run --coverage"
     },
     "exports": {
-        ".": "./src/index.ts"
+        ".": "./src/index.ts",
+        "./channel-icons": "./src/channels/icons.tsx"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",

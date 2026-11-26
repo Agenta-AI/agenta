@@ -78,6 +78,8 @@ For every changelog announcement, you write one entry and regenerate the in-app 
 
 ### 3. **Writing Style Guidelines**
 
+For the in-app What's new copy (title, `<Summary>`, improvements, fixes and the `cover` field), follow the `write-whats-new` skill (`.agents/skills/write-whats-new/SKILL.md`).
+
 Apply these writing guidelines rigorously:
 
 - **Clarity above all else**: Use 11th grade English for non-technical terms

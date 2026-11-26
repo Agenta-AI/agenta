@@ -76,6 +76,11 @@ export interface MCPEndpointFlags {
 /** The caller's own sign-in to one server. */
 export interface MCPUserSignIn {
     is_ready: boolean
+    /**
+     * The account the person signed in as, when an OAuth server named it at sign-in. Absent for a
+     * token sign-in and when the server gave no name.
+     */
+    account_name?: string | null
 }
 
 export interface MCPEndpoint {

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Any, List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import Boolean, cast, delete, func, literal, select, update
+from sqlalchemy import Boolean, String, cast, delete, func, literal, select, update
 from sqlalchemy.dialects.postgresql import JSON, JSONB, insert
 from sqlalchemy.exc import IntegrityError
 
@@ -24,10 +24,11 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscriptionEdit,
     TriggerSubscriptionQuery,
 )
-from oss.src.core.access.dtos import PrincipalRef
+from oss.src.core.access.dtos import PrincipalRef, RunEnvelope
 from oss.src.core.triggers.interfaces import KEEP_ARTIFACT_ID, TriggersDAOInterface
 from oss.src.utils.logging import get_module_logger
 
+from oss.src.dbs.postgres.access.mappings import map_envelope_to_column
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
     get_transactions_engine,
@@ -49,11 +50,61 @@ from oss.src.dbs.postgres.triggers.mappings import (
     map_subscription_dto_to_dbe_edit,
 )
 from oss.src.dbs.postgres.triggers.upsert_utils import (
+    build_trigger_delivery_claim,
     build_trigger_delivery_conflict,
     build_trigger_delivery_values,
 )
 
 log = get_module_logger(__name__)
+
+
+def _map_schedule_rows(
+    dbes: List[TriggerScheduleDBE],
+) -> List[Tuple[UUID, TriggerSchedule]]:
+    schedules: List[Tuple[UUID, TriggerSchedule]] = []
+    for dbe in dbes:
+        try:
+            schedules.append(
+                (dbe.project_id, map_schedule_dbe_to_dto(schedule_dbe=dbe))
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            # One malformed row must not drop every project's active
+            # schedules for the tick; skip it and keep the rest.
+            # Pydantic's ValidationError.__str__ embeds the offending
+            # input_value, so log the exception type only, never {e}.
+            log.error(
+                "[SCHEDULE] Skipping malformed schedule row",
+                schedule_id=str(dbe.id),
+                project_id=str(dbe.project_id),
+                error_type=type(e).__name__,
+            )
+    return schedules
+
+
+def _schedule_is_visible():
+    """Not a hidden schedule (`flags.is_hidden`). Every read that a public route uses
+    filters on it; the fire path reads through its own functions."""
+    return func.coalesce(
+        TriggerScheduleDBE.flags["is_hidden"].astext.cast(Boolean), False
+    ).is_(False)
+
+
+def _schedule_is_hidden():
+    """A hidden schedule (`flags.is_hidden`)."""
+    return TriggerScheduleDBE.flags.contains({"is_hidden": True})
+
+
+def _delivery_is_visible():
+    """Not a delivery of a hidden schedule."""
+    return ~(
+        select(TriggerScheduleDBE.id)
+        .where(
+            TriggerScheduleDBE.project_id == TriggerDeliveryDBE.project_id,
+            TriggerScheduleDBE.id == TriggerDeliveryDBE.schedule_id,
+            _schedule_is_hidden(),
+        )
+        .exists()
+    )
 
 
 def _set_principal(dbe, *, principal: PrincipalRef) -> None:
@@ -725,6 +776,7 @@ class TriggersDAO(TriggersDAOInterface):
             stmt = select(TriggerDeliveryDBE).where(
                 TriggerDeliveryDBE.project_id == project_id,
                 TriggerDeliveryDBE.id == delivery_id,
+                _delivery_is_visible(),
             )
 
             result = await session.execute(stmt)
@@ -750,6 +802,7 @@ class TriggersDAO(TriggersDAOInterface):
         async with self.engine.session() as session:
             stmt = select(TriggerDeliveryDBE).filter(
                 TriggerDeliveryDBE.project_id == project_id,
+                _delivery_is_visible(),
             )
 
             if delivery:
@@ -946,6 +999,7 @@ class TriggersDAO(TriggersDAOInterface):
                 TriggerScheduleDBE.project_id == project_id,
                 TriggerScheduleDBE.id == schedule_id,
                 TriggerScheduleDBE.deleted_at.is_(None),
+                _schedule_is_visible(),
             )
 
             result = await session.execute(stmt)
@@ -970,6 +1024,7 @@ class TriggersDAO(TriggersDAOInterface):
             stmt = select(TriggerScheduleDBE).where(
                 TriggerScheduleDBE.project_id == project_id,
                 TriggerScheduleDBE.id == schedule_id,
+                _schedule_is_visible(),
             )
             schedule_dbe = (await session.execute(stmt)).scalar_one_or_none()
             if schedule_dbe is None:
@@ -994,6 +1049,7 @@ class TriggersDAO(TriggersDAOInterface):
                     TriggerScheduleDBE.id == schedule.id,
                     TriggerScheduleDBE.project_id == project_id,
                     TriggerScheduleDBE.deleted_at.is_(None),
+                    _schedule_is_visible(),
                 )
                 .with_for_update()
             )
@@ -1043,6 +1099,7 @@ class TriggersDAO(TriggersDAOInterface):
                     TriggerScheduleDBE.project_id == project_id,
                     TriggerScheduleDBE.id == schedule_id,
                     TriggerScheduleDBE.deleted_at.is_(None),
+                    _schedule_is_visible(),
                 )
                 .values(
                     deleted_at=now,
@@ -1085,6 +1142,7 @@ class TriggersDAO(TriggersDAOInterface):
             stmt = select(TriggerScheduleDBE).filter(
                 TriggerScheduleDBE.project_id == project_id,
                 TriggerScheduleDBE.deleted_at.is_(None),
+                _schedule_is_visible(),
             )
 
             if schedule:
@@ -1138,15 +1196,17 @@ class TriggersDAO(TriggersDAOInterface):
                 for dbe in result.scalars().all()
             ]
 
-    async def fetch_active_schedules_with_project(
+    async def fetch_active_recurring_schedules_with_project(
         self,
         *,
         project_id: Optional[UUID] = None,
     ) -> List[Tuple[UUID, TriggerSchedule]]:
         async with self.engine.session() as session:
+            # One-time schedules (`run_at` set) have their own pass.
             stmt = select(TriggerScheduleDBE).where(
                 TriggerScheduleDBE.flags.contains({"is_active": True}),
                 TriggerScheduleDBE.deleted_at.is_(None),
+                TriggerScheduleDBE.run_at.is_(None),
             )
 
             if project_id is not None:
@@ -1156,22 +1216,241 @@ class TriggersDAO(TriggersDAOInterface):
 
             result = await session.execute(stmt)
 
-            schedules: List[Tuple[UUID, TriggerSchedule]] = []
-            for dbe in result.scalars().all():
-                try:
-                    schedules.append(
-                        (dbe.project_id, map_schedule_dbe_to_dto(schedule_dbe=dbe))
-                    )
-                except Exception as e:  # pylint: disable=broad-exception-caught
-                    # One malformed row must not drop every project's active
-                    # schedules for the tick; skip it and keep the rest.
-                    # Pydantic's ValidationError.__str__ embeds the offending
-                    # input_value, so log the exception type only, never {e}.
-                    log.error(
-                        "[SCHEDULE] Skipping malformed schedule row",
-                        schedule_id=str(dbe.id),
-                        project_id=str(dbe.project_id),
-                        error_type=type(e).__name__,
-                    )
+            return _map_schedule_rows(result.scalars().all())
 
+    async def fetch_due_one_time_schedules(
+        self,
+        *,
+        due_by: datetime,
+        limit: int,
+    ) -> List[Tuple[UUID, TriggerSchedule]]:
+        """Active one-time schedules with `run_at <= due_by` that have not fired,
+        earliest first, at most `limit`. Reads through `ix_trigger_schedules_run_at`.
+
+        "Fired" means a delivery row with the schedule's event id
+        `<schedule id>:<run_at in ISO form>` exists and is not retryable, as in
+        `_dedup_seen_from_status`: a retryable delivery fires again at a later tick.
+        The expression below renders `run_at` as `_ONE_TIME_RUN_AT_FORMAT` in the
+        triggers service does (UTC, to the second); the two must stay equal.
+        """
+        event_id = func.concat(
+            cast(TriggerScheduleDBE.id, String),
+            ":",
+            func.to_char(
+                func.timezone("UTC", TriggerScheduleDBE.run_at),
+                'YYYY-MM-DD"T"HH24:MI:SS"+00:00"',
+            ),
+        )
+        fired = (
+            select(TriggerDeliveryDBE.id)
+            .where(
+                TriggerDeliveryDBE.project_id == TriggerScheduleDBE.project_id,
+                TriggerDeliveryDBE.schedule_id == TriggerScheduleDBE.id,
+                TriggerDeliveryDBE.event_id == event_id,
+                func.coalesce(TriggerDeliveryDBE.status["code"].astext, "")
+                != TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE,
+            )
+            .exists()
+        )
+
+        async with self.engine.session() as session:
+            stmt = (
+                select(TriggerScheduleDBE)
+                .where(
+                    TriggerScheduleDBE.run_at.is_not(None),
+                    TriggerScheduleDBE.run_at <= due_by,
+                    TriggerScheduleDBE.deleted_at.is_(None),
+                    TriggerScheduleDBE.flags.contains({"is_active": True}),
+                    ~fired,
+                )
+                .order_by(TriggerScheduleDBE.run_at)
+                .limit(limit)
+            )
+
+            result = await session.execute(stmt)
+
+            return _map_schedule_rows(result.scalars().all())
+
+    # --- SCHEDULES THAT SERVER CODE CREATES ---------------------------------- #
+
+    async def fetch_schedule_to_fire(
+        self,
+        *,
+        project_id: UUID,
+        schedule_id: UUID,
+    ) -> Optional[TriggerSchedule]:
+        """The schedule a queued fire names, hidden or not. Only the fire path reads
+        through it; the public reads leave hidden schedules out."""
+        async with self.engine.session() as session:
+            stmt = select(TriggerScheduleDBE).where(
+                TriggerScheduleDBE.project_id == project_id,
+                TriggerScheduleDBE.id == schedule_id,
+                TriggerScheduleDBE.deleted_at.is_(None),
+            )
+            schedule_dbe = (await session.execute(stmt)).scalar_one_or_none()
+            if schedule_dbe is None:
+                return None
+            return map_schedule_dbe_to_dto(schedule_dbe=schedule_dbe)
+
+    async def create_hidden_schedule(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        schedule_id: UUID,
+        schedule: TriggerScheduleCreate,
+        principal: PrincipalRef,
+        run_envelope: RunEnvelope,
+    ) -> Optional[TriggerSchedule]:
+        """Insert a hidden schedule with the given id, or do nothing when a row with
+        that id exists. Returns the hidden schedule with that id, the earlier one on a
+        repeat, or None when the id names a visible schedule."""
+        schedule_dbe = map_schedule_dto_to_dbe_create(
+            project_id=project_id,
+            user_id=user_id,
+            schedule=schedule,
+        )
+        _set_principal_and_target(schedule_dbe, principal=principal, artifact_id=None)
+        values = {
+            column.name: getattr(schedule_dbe, column.name)
+            for column in TriggerScheduleDBE.__table__.columns
+            if getattr(schedule_dbe, column.name) is not None
+        }
+        values["id"] = schedule_id
+        values["run_envelope"] = map_envelope_to_column(envelope=run_envelope)
+
+        insert_stmt = (
+            insert(TriggerScheduleDBE)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=["project_id", "id"])
+        )
+        async with self.engine.session() as session:
+            await session.execute(insert_stmt)
+            await session.commit()
+            stmt = select(TriggerScheduleDBE).where(
+                TriggerScheduleDBE.project_id == project_id,
+                TriggerScheduleDBE.id == schedule_id,
+                _schedule_is_hidden(),
+            )
+            stored = (await session.execute(stmt)).scalar_one_or_none()
+            if stored is None:
+                return None
+            return map_schedule_dbe_to_dto(schedule_dbe=stored)
+
+    async def purge_hidden_schedule(
+        self,
+        *,
+        project_id: UUID,
+        schedule_id: UUID,
+    ) -> Optional[TriggerSchedule]:
+        """Remove a hidden schedule from the table; its deliveries go with it
+        (`ON DELETE CASCADE`). Returns the removed schedule, or None when no hidden
+        schedule has this id. Never removes a visible schedule."""
+        async with self.engine.session() as session:
+            stmt = (
+                delete(TriggerScheduleDBE)
+                .where(
+                    TriggerScheduleDBE.project_id == project_id,
+                    TriggerScheduleDBE.id == schedule_id,
+                    _schedule_is_hidden(),
+                )
+                .returning(TriggerScheduleDBE)
+            )
+            removed = (await session.execute(stmt)).scalar_one_or_none()
+            schedule = (
+                map_schedule_dbe_to_dto(schedule_dbe=removed)
+                if removed is not None
+                else None
+            )
+            await session.commit()
+            return schedule
+
+    async def purge_stale_hidden_schedules(
+        self,
+        *,
+        first_fired_before: datetime,
+        limit: int,
+    ) -> List[Tuple[UUID, TriggerSchedule]]:
+        """Remove, in every project, the hidden schedules whose first fire attempt
+        (the delivery's `created_at`) is older than `first_fired_before`, with their
+        deliveries, at most `limit`. A schedule that never fired has no delivery and
+        stays, so a late tick still fires it. Returns each removed schedule with its
+        project id."""
+        stale = (
+            select(TriggerScheduleDBE.project_id, TriggerScheduleDBE.id)
+            .where(
+                _schedule_is_hidden(),
+                select(TriggerDeliveryDBE.id)
+                .where(
+                    TriggerDeliveryDBE.project_id == TriggerScheduleDBE.project_id,
+                    TriggerDeliveryDBE.schedule_id == TriggerScheduleDBE.id,
+                    TriggerDeliveryDBE.created_at < first_fired_before,
+                )
+                .exists(),
+            )
+            .limit(limit)
+            .subquery()
+        )
+        async with self.engine.session() as session:
+            stmt = (
+                delete(TriggerScheduleDBE)
+                .where(
+                    TriggerScheduleDBE.project_id == stale.c.project_id,
+                    TriggerScheduleDBE.id == stale.c.id,
+                )
+                .returning(TriggerScheduleDBE)
+            )
+            removed = (await session.execute(stmt)).scalars().all()
+            schedules = _map_schedule_rows(removed)
+            await session.commit()
             return schedules
+
+    async def claim_schedule_delivery(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        #
+        delivery_id: UUID,
+        schedule_id: UUID,
+        event_id: str,
+        data: TriggerDeliveryData,
+    ) -> bool:
+        """Claim the delivery of one fire of a live, active schedule, and create no
+        session (a fire into an existing session). The same claim as
+        `claim_trigger_delivery`: an insert on the dedup key that only a retryable
+        delivery lets a second attempt take over. True when this call holds it."""
+        values = build_trigger_delivery_values(
+            {
+                "id": delivery_id,
+                "project_id": project_id,
+                "created_by_id": user_id,
+                "subscription_id": None,
+                "schedule_id": schedule_id,
+                "event_id": event_id,
+                "status": Status(code="102", message="claimed").model_dump(
+                    mode="json", exclude_none=True
+                ),
+                "data": data.model_dump(mode="json", exclude_none=True),
+            }
+        )
+        live_schedule = (
+            select(TriggerScheduleDBE.id)
+            .where(
+                TriggerScheduleDBE.project_id == project_id,
+                TriggerScheduleDBE.id == schedule_id,
+                TriggerScheduleDBE.deleted_at.is_(None),
+                TriggerScheduleDBE.flags.contains({"is_active": True}),
+            )
+            .with_for_update()
+            .cte("live_trigger_schedule")
+        )
+        stmt = build_trigger_delivery_claim(
+            values, by_schedule=True, live_parent=live_schedule
+        ).returning(TriggerDeliveryDBE.id)
+
+        async with self.engine.session() as session:
+            claimed = (await session.execute(stmt)).scalar_one_or_none() is not None
+            await session.commit()
+        return claimed

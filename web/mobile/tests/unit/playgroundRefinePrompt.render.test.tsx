@@ -128,7 +128,7 @@ const refinedMessages = [
 
 /** How the refine tool answers the next call. */
 const refineAnswer = {
-    mode: "ok" as "ok" | "tool-error" | "http-error",
+    mode: "ok" as "ok" | "tool-error" | "http-error" | "ai-off",
     hold: null as Promise<void> | null,
 }
 
@@ -191,6 +191,11 @@ beforeEach(() => {
             if (refineAnswer.hold) await refineAnswer.hold
             if (refineAnswer.mode === "http-error") {
                 throw new Error("Request failed with status code 503")
+            }
+            if (refineAnswer.mode === "ai-off") {
+                throw Object.assign(new Error("Request failed with status code 503"), {
+                    response: {status: 503, data: {detail: "AI services are disabled"}},
+                })
             }
             if (refineAnswer.mode === "tool-error") {
                 return {
@@ -493,6 +498,15 @@ describe("Refine prompt", () => {
         expect(String(log.mock.calls.flat().join(" "))).toContain("status code 503")
         expect(isDisabled("Use refined prompt")).toBe(true)
         expect(isDirty()).toBe(false)
+    })
+
+    it("A deployment with AI services off says so", async () => {
+        vi.spyOn(console, "error").mockImplementation(() => undefined)
+        refineAnswer.mode = "ai-off"
+        await openRefine()
+        await refineWith("Be shorter")
+
+        expect(text()).toContain("AI services are turned off on this deployment")
     })
 
     it("An error from the tool shows the same plain message", async () => {

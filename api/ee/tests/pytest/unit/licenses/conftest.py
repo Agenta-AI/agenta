@@ -119,13 +119,12 @@ def shared_cache(monkeypatch) -> dict:
     async def get_cache(*, namespace, key, **_):
         return store.get((namespace, key))
 
-    async def set_cache(*, namespace, key, value, **_):
+    async def set_cache(*, namespace, key, value, nx=False, **_):
+        if nx and (namespace, key) in store:
+            return False
         store[(namespace, key)] = value
-
-    async def invalidate_cache(*, namespace, key, **_):
-        store.pop((namespace, key), None)
+        return True
 
     monkeypatch.setattr(licenses_service_module, "get_cache", get_cache)
     monkeypatch.setattr(licenses_service_module, "set_cache", set_cache)
-    monkeypatch.setattr(licenses_service_module, "invalidate_cache", invalidate_cache)
     return store

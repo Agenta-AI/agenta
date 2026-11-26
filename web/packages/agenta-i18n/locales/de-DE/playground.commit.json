@@ -13,5 +13,7 @@
     "failedToCreateWorkflow": "Der Workflow konnte nicht erstellt werden",
     "variantNameRequired": "Der Name der Variante ist erforderlich",
     "failedToCreateVariant": "Die neue Variante konnte nicht erstellt werden",
-    "failedToCommit": "Die Revision konnte nicht committet werden"
+    "failedToCommit": "Die Revision konnte nicht committet werden",
+    "agentName": "Agent-Name",
+    "promptName": "Prompt-Name"
 }

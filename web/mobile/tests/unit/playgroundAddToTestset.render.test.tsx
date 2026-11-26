@@ -426,7 +426,7 @@ describe("Add to test set from the playground", {timeout: 90_000}, () => {
 
         await openMenu()
 
-        expect(menuItem("Connect test set")).toBeDefined()
+        expect(menuItem("Load test set")).toBeDefined()
         expect(menuItem("Add to test set")).toBeUndefined()
     })
 })

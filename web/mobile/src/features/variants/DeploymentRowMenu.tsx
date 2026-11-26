@@ -63,7 +63,7 @@ export const DeploymentRowMenu = ({
                 <DropdownMenuItem asChild>
                     <Link href={extras.playgroundHref} prefetch={false}>
                         <Play aria-hidden size={14} />
-                        Open in Playground
+                        Open in playground
                     </Link>
                 </DropdownMenuItem>
             ) : null}

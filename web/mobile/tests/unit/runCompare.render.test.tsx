@@ -519,7 +519,7 @@ describe("compared overview", () => {
         })
         await open(base, {compare: verbose})
         await until(
-            () => Boolean(host.querySelector('section[aria-label="Exact Match: success"]')),
+            () => Boolean(host.querySelector('section[aria-label="Exact Match: Success"]')),
             "compared overview shown",
         )
 
@@ -551,7 +551,7 @@ describe("compared overview", () => {
         expect(cellsOf("duration")).toEqual(["261 ms", "565 ms"])
         expect(cellsOf(`ev-1:${SUCCESS}`)).toEqual(["100.00%", "0.00%"])
 
-        const card = host.querySelector<HTMLElement>('section[aria-label="Exact Match: success"]')
+        const card = host.querySelector<HTMLElement>('section[aria-label="Exact Match: Success"]')
         expect(card?.textContent).toContain("100.00%")
         expect(card?.textContent).toContain("0.00%")
         expect(card?.textContent).toContain("-100%")

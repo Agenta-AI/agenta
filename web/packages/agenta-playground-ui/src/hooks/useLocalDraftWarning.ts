@@ -1,16 +1,12 @@
 import {useEffect, useMemo} from "react"
 
-import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {createT} from "@agenta/i18n"
 import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {playgroundController} from "@agenta/playground"
 import {atom, useAtomValue} from "jotai"
 
-/**
- * Asks the browser to confirm before the page unloads while a revision on the playground is a
- * local draft or has unsaved edits. Returns that flag, so a host can guard in-app navigation as well.
- */
+/** Confirms page unload while a playground revision has unsaved edits; returns that flag. */
 export const useLocalDraftWarning = (): boolean => {
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
 
@@ -19,10 +15,8 @@ export const useLocalDraftWarning = (): boolean => {
             // Every node, not only the first ones: the evaluator playground edits an evaluator
             // that runs after an app.
             atom((get) =>
-                nodes.some((node) => {
-                    if (isLocalDraftId(node.entityId)) return true
-                    return get(workflowMolecule.selectors.isDirty(node.entityId))
-                }),
+                // A local copy is dirty against its source revision, so an untouched copy is not.
+                nodes.some((node) => get(workflowMolecule.selectors.isDirty(node.entityId))),
             ),
         [nodes],
     )

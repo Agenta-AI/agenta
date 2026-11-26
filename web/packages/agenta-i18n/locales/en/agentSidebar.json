@@ -1,0 +1,21 @@
+{
+    "agent": "Agent",
+    "analytics": "Analytics",
+    "backToMainSidebar": "Back to the main sidebar",
+    "channels": "Channels",
+    "configuration": "Configuration",
+    "earlier": "Earlier",
+    "loadError": "Could not load sessions",
+    "loading": "Loading",
+    "newSession": "New session",
+    "noSessionsMatch": "No sessions match these filters",
+    "retry": "Retry",
+    "searchAgents": "Search agents",
+    "seeAllSessions": "See all sessions",
+    "sessions": "Sessions",
+    "showOlderSessionsShort": "Show older sessions",
+    "showOlderSessions_one": "Show {{count}} older session",
+    "showOlderSessions_other": "Show {{count}} older sessions",
+    "today": "Today",
+    "yesterday": "Yesterday"
+}
