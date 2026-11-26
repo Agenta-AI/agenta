@@ -36,6 +36,12 @@ export interface RateLimiter {
   limit(options: { key: string }): Promise<{ success: boolean }>;
 }
 
+/** The part of an R2 bucket the daily caps use. */
+export interface CapBucket {
+  get(key: string): Promise<{ text(): Promise<string> } | null>;
+  put(key: string, value: string): Promise<unknown>;
+}
+
 export interface RegistrationEnv {
   LICENSE_SIGNING_KEY?: string;
   LOOPS_API_KEY?: string;
@@ -44,7 +50,17 @@ export interface RegistrationEnv {
   LOOPS_TRANSACTIONAL_ID?: string;
   REGISTRATION_IP_LIMIT?: RateLimiter;
   REGISTRATION_EMAIL_LIMIT?: RateLimiter;
+  // The site's R2 bucket; the daily caps keep their counts under CAPS_PREFIX.
+  MEDIA?: CapBucket;
 }
+
+// Key emails one address, and one instance, may get in a day. The rate limit
+// bindings count per minute only.
+export const DAILY_EMAIL_CAP = 3;
+export const DAILY_INSTANCE_CAP = 20;
+const DAY_MS = 24 * 60 * 60 * 1000;
+// Not served under /media (see index.ts).
+export const CAPS_PREFIX = "license-registrations/caps/";
 
 // The body is a few short fields; anything larger is not a registration.
 const MAX_BODY_BYTES = 2048;
@@ -421,6 +437,61 @@ async function allowed(limiter: RateLimiter, key: string): Promise<boolean> {
   return (await limiter.limit({ key })).success;
 }
 
+async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(text),
+  );
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** The send times in the last 24 hours, stored under the hash of the value. */
+async function recentSends(
+  bucket: CapBucket,
+  key: string,
+  now: number,
+): Promise<number[]> {
+  const object = await bucket.get(key);
+  if (!object) return [];
+  const times: unknown = JSON.parse(await object.text());
+  return Array.isArray(times)
+    ? times.filter((time) => typeof time === "number" && now - time < DAY_MS)
+    : [];
+}
+
+/** False when the email or the instance already got its daily number of key
+ * emails; otherwise counts this send for both. Two requests at the same moment can
+ * both pass; the per-minute email limit keeps that rare. */
+async function withinDailyCaps(
+  bucket: CapBucket,
+  email: string,
+  instanceId: string,
+  now: number,
+): Promise<boolean> {
+  const caps = [
+    {
+      key: `${CAPS_PREFIX}email/${await sha256Hex(email)}`,
+      cap: DAILY_EMAIL_CAP,
+    },
+    {
+      key: `${CAPS_PREFIX}instance/${await sha256Hex(instanceId)}`,
+      cap: DAILY_INSTANCE_CAP,
+    },
+  ];
+  const sends = await Promise.all(
+    caps.map(({ key }) => recentSends(bucket, key, now)),
+  );
+  if (caps.some(({ cap }, index) => sends[index].length >= cap)) return false;
+  await Promise.all(
+    caps.map(({ key }, index) =>
+      bucket.put(key, JSON.stringify([...sends[index], now])),
+    ),
+  );
+  return true;
+}
+
 const TOO_MANY = () =>
   error(429, "too_many_requests", "Too many registrations. Try again later.");
 
@@ -463,7 +534,7 @@ async function register(
   const ipLimit = env.REGISTRATION_IP_LIMIT;
   const emailLimit = env.REGISTRATION_EMAIL_LIMIT;
   // A missing binding is a deploy mistake; refuse rather than run without a limit.
-  if (!ipLimit || !emailLimit) {
+  if (!ipLimit || !emailLimit || !env.MEDIA) {
     return error(503, "unavailable", "Registration is not available.");
   }
   const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
@@ -485,6 +556,16 @@ async function register(
   }
   const emailKey = registration.email.toLowerCase();
   if (!(await allowed(emailLimit, emailKey))) {
+    return TOO_MANY();
+  }
+  if (
+    !(await withinDailyCaps(
+      env.MEDIA,
+      emailKey,
+      registration.instance_id.toLowerCase(),
+      Date.now(),
+    ))
+  ) {
     return TOO_MANY();
   }
 
