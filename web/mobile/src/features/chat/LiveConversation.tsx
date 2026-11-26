@@ -1090,10 +1090,6 @@ export const LiveConversation = ({
                                         {t("chat.mobileLive.tryAgain")}
                                     </Button>
                                 </div>
-                            ) : conversation.historyUnavailable ? (
-                                <p className="text-muted-foreground mt-3 text-center text-meta">
-                                    {t("chat.mobileLive.noMessagesSaved")}
-                                </p>
                             ) : null}
                         </div>
                     ) : null}
