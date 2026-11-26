@@ -38,8 +38,13 @@ export interface RateLimiter {
 
 /** The part of an R2 bucket the daily caps use. */
 export interface CapBucket {
-  get(key: string): Promise<{ text(): Promise<string> } | null>;
-  put(key: string, value: string): Promise<unknown>;
+  get(key: string): Promise<{ etag: string; text(): Promise<string> } | null>;
+  // R2 answers null when `onlyIf` does not hold.
+  put(
+    key: string,
+    value: string,
+    options?: { onlyIf: { etagMatches?: string; etagDoesNotMatch?: string } },
+  ): Promise<unknown>;
 }
 
 export interface RegistrationEnv {
@@ -448,17 +453,52 @@ async function sha256Hex(text: string): Promise<string> {
 }
 
 /** The send times in the last 24 hours, stored under the hash of the value. */
+async function readSends(
+  bucket: CapBucket,
+  key: string,
+  now: number,
+): Promise<{ etag: string | null; times: number[] }> {
+  const object = await bucket.get(key);
+  if (!object) return { etag: null, times: [] };
+  const times: unknown = JSON.parse(await object.text());
+  return {
+    etag: object.etag,
+    times: Array.isArray(times)
+      ? times.filter((time) => typeof time === "number" && now - time < DAY_MS)
+      : [],
+  };
+}
+
 async function recentSends(
   bucket: CapBucket,
   key: string,
   now: number,
 ): Promise<number[]> {
-  const object = await bucket.get(key);
-  if (!object) return [];
-  const times: unknown = JSON.parse(await object.text());
-  return Array.isArray(times)
-    ? times.filter((time) => typeof time === "number" && now - time < DAY_MS)
-    : [];
+  return (await readSends(bucket, key, now)).times;
+}
+
+// Conditional writes: a count written by another send in between makes the write
+// fail, and the update reads again. R2 also refuses a second write to one key within
+// a second; that try waits a second. Not unbounded, so a stuck object cannot hang
+// the request.
+const COUNT_ATTEMPTS = 5;
+const COUNT_RETRY_MS = 1000;
+
+async function addSend(bucket: CapBucket, key: string, time: number) {
+  for (let attempt = 0; attempt < COUNT_ATTEMPTS; attempt++) {
+    const { etag, times } = await readSends(bucket, key, Date.now());
+    let written: unknown;
+    try {
+      written = await bucket.put(key, JSON.stringify([...times, time]), {
+        onlyIf: etag ? { etagMatches: etag } : { etagDoesNotMatch: "*" },
+      });
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, COUNT_RETRY_MS));
+      continue;
+    }
+    if (written !== null) return;
+  }
+  throw new Error("the cap count could not be written");
 }
 
 /** Null when the email or the instance already got its daily number of key emails.
@@ -485,12 +525,10 @@ async function dailyCaps(
     caps.map(({ key }) => recentSends(bucket, key, now)),
   );
   if (caps.some(({ cap }, index) => sends[index].length >= cap)) return null;
+  // Counted on the current stored list: other sends may have been counted while
+  // this email was on its way.
   return async () => {
-    await Promise.all(
-      caps.map(({ key }, index) =>
-        bucket.put(key, JSON.stringify([...sends[index], now])),
-      ),
-    );
+    await Promise.all(caps.map(({ key }) => addSend(bucket, key, now)));
   };
 }
 
