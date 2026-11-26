@@ -3,7 +3,6 @@ import {
     useContext,
     useEffect,
     useRef,
-    useState,
     type MutableRefObject,
     type ReactNode,
 } from "react"
@@ -32,7 +31,6 @@ import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import type {FileUIPart} from "ai"
 import {AnimatePresence, motion} from "motion/react"
-import dynamic from "next/dynamic"
 
 import {ContentRail} from "@/components/ContentRail"
 import {useMotionPresets} from "@/lib/motion/presets"
@@ -46,12 +44,7 @@ import {ComposerModelPanel} from "./ComposerModelPanel"
 import {useConversationRole} from "./conversationRole"
 import {sendRefusalRejections} from "./sessionReadOnly"
 import {useComposerPrefill} from "./useComposerPrefill"
-
-// Loaded on the first "Manage model providers": the provider list is not part of the chat's load.
-const ProvidersDrawer = dynamic(
-    () => import("./RunErrorProviderDrawer").then((m) => m.RunErrorProviderDrawer),
-    {ssr: false},
-)
+import {useOpenModelSetup} from "./useOpenModelSetup"
 
 /**
  * The mobile composer shell — the SAME `ChatComposer` the desktop dock renders (lazy rich
@@ -217,12 +210,12 @@ export const Composer = ({
         closePicker()
         richInputRef.current?.insertText("/")
     }, [closePicker, richInputRef])
-    // "Manage model providers" under the model list opens the providers drawer.
-    const [providersOpen, setProvidersOpen] = useState(false)
+    // "Manage model providers" under the model list opens the pane's Model view, not a drawer.
+    const openModelSetup = useOpenModelSetup()
     const openProviders = useCallback(() => {
         closePicker()
-        setProvidersOpen(true)
-    }, [closePicker])
+        openModelSetup()
+    }, [closePicker, openModelSetup])
     // No button while the model needs setup, or with no model or no list to pick from.
     const modelButtonModel =
         !modelButtonHidden && slash.modelGroups.length > 0 ? slash.currentModel : null
@@ -548,9 +541,6 @@ export const Composer = ({
                     </AnimatePresence>
                 </div>
             </ContentRail>
-            {providersOpen ? (
-                <ProvidersDrawer open onClose={() => setProvidersOpen(false)} />
-            ) : null}
         </div>
     )
 }
