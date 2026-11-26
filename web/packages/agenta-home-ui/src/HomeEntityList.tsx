@@ -53,7 +53,7 @@ export interface HomeEntityListProps {
 const FOCUS_RING = "focus-visible:border-ring focus-ring"
 
 const TAB_BASE =
-    "box-border cursor-pointer appearance-none border-0 border-b-2 border-solid bg-transparent px-0.5 pb-2 font-[inherit] text-label outline-none transition-colors " +
+    "box-border cursor-pointer appearance-none whitespace-nowrap border-0 border-b-2 border-solid bg-transparent px-0.5 pb-2 font-[inherit] text-label outline-none transition-colors " +
     FOCUS_RING
 const TAB_ON = "border-b-foreground text-foreground"
 const TAB_OFF = "border-b-transparent text-muted-foreground hover:text-foreground"
@@ -191,7 +191,7 @@ export const HomeEntityList = ({
             {/* `colorSplit`, the divider step — the active tab's underline is the mark that
                 matters here, and a rule at full border weight competed with it. */}
             {/* `mx-3` gives back the wrapper's bleed: the rule stays on the column's edge. */}
-            <div className="mx-3 mb-1 flex items-center gap-5 border-0 border-b border-solid border-b-border-muted">
+            <div className="mx-3 mb-1 flex items-center gap-5 border-0 border-b border-solid border-b-border-muted max-sm:gap-3">
                 {hasAgentsTab ? (
                     <button
                         type="button"
@@ -208,8 +208,8 @@ export const HomeEntityList = ({
                 >
                     {t("home.entityList.templatesTab")}
                 </button>
-                <span className="flex-1" />
-                {newAction ? <span className="pb-2">{newAction}</span> : null}
+                {/* ml-auto, not a spacer: a spacer adds two more gaps, which overflow a 320px phone. */}
+                {newAction ? <span className="ml-auto pb-2">{newAction}</span> : null}
             </div>
 
             <div
