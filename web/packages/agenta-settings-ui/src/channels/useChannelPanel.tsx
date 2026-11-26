@@ -7,6 +7,7 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner} 
 import {Broadcast, ChatCircleText, Code} from "@phosphor-icons/react"
 
 import {ChannelAgentPicker} from "./ChannelAgentPicker"
+import {ChannelConnectSkeleton} from "./ChannelConnectSkeleton"
 import {ChannelConnectionList} from "./ChannelConnectionList"
 import {ChannelsHubView} from "./ChannelsHubView"
 import {
@@ -45,11 +46,15 @@ const managePanel = lazyPanel(() =>
     import("./ChannelManagePanel").then((m) => m.ChannelManagePanel),
 )
 
-const PanelLoading = () => (
-    <div className="flex justify-center py-10">
-        <Spinner />
-    </div>
-)
+/** A lazy view's place while its code loads: the connect flow's shape, else a spinner. */
+const PanelLoading = ({route}: {route: ChannelsRoute}) =>
+    route.view === "connect" ? (
+        <ChannelConnectSkeleton />
+    ) : (
+        <div className="flex justify-center py-10">
+            <Spinner />
+        </div>
+    )
 
 export interface ChannelsPanelRenderProps {
     open: boolean
@@ -567,7 +572,9 @@ export const useChannelPanel = ({
                       <ViewTransition viewKey={routeKey(top, stack.length)} direction={direction}>
                           <PanelLoadBoundary>
                               {() => (
-                                  <Suspense fallback={<PanelLoading />}>{renderView(top)}</Suspense>
+                                  <Suspense fallback={<PanelLoading route={top} />}>
+                                      {renderView(top)}
+                                  </Suspense>
                               )}
                           </PanelLoadBoundary>
                       </ViewTransition>

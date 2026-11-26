@@ -286,6 +286,12 @@ export const ChannelConnectFlow = ({
     const [discordInviteUrl, setDiscordInviteUrl] = useState<string | null>(null)
     const [discordInviteError, setDiscordInviteError] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
+    // Changes with the method and with what connecting it showed.
+    const methodKey = [mode, created ? "created" : "", discordConnectionId ? "invite" : ""].join()
+    // The method's content fades in on a change, not on the flow's first paint.
+    const [firstMethodKey] = useState(methodKey)
+    const [methodSwitched, setMethodSwitched] = useState(false)
+    if (!methodSwitched && methodKey !== firstMethodKey) setMethodSwitched(true)
 
     // --- custom app/bot: the declared setup ---------------------------------- //
     const [setup, setSetup] = useState<ChannelSetupInfo | null>(null)
@@ -1014,12 +1020,11 @@ export const ChannelConnectFlow = ({
         }
     }
 
-    // Changes with the method and with what connecting it showed.
-    const methodKey = [mode, created ? "created" : "", discordConnectionId ? "invite" : ""].join()
-
     return (
         <ViewTransition viewKey={screen} direction={screenDirection.current}>
-            <div className="flex min-h-full flex-1 flex-col gap-6">
+            <div
+                className={`flex min-h-full flex-1 flex-col gap-6 ${methodSwitched ? "" : "[&>.ag-view-enter]:animate-none"}`}
+            >
                 {errorAlert}
 
                 {customOnly ? null : (
