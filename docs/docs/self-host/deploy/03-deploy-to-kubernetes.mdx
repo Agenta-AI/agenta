@@ -766,10 +766,14 @@ To upgrade to a newer version:
 ```bash
 helm upgrade agenta hosting/kubernetes/helm \
   --namespace agenta \
+  --timeout 75m \
   -f hosting/kubernetes/oss/.values.oss.yaml
 ```
 
-The Alembic migration job runs automatically as a post-upgrade hook. Check its status:
+The Alembic migration job runs automatically as a post-upgrade hook. Helm waits for it under
+`--timeout`, which is 5 minutes by default. A migration on a large database can take longer, so
+set `--timeout` above `alembic.activeDeadlineSeconds` (3600 seconds by default). Otherwise Helm
+marks the upgrade as failed while the job still runs. Check its status:
 
 ```bash
 kubectl -n agenta get jobs -l app.kubernetes.io/component=alembic
