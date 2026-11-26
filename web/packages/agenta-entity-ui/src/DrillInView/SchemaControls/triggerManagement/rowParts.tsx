@@ -77,16 +77,32 @@ export function RowStatusDot({active}: {active: boolean}) {
 const FLAT_ROW =
     "flex w-full items-center gap-2 rounded-md border border-solid border-transparent bg-transparent py-1.5 pl-2 pr-1"
 
-/** A loading row with the loaded row's shape: the Mark, the name, its line, the state (STATE-02). */
+/** A loading row with the loaded row's shape: the Mark, the name, its line, the state, the menu (STATE-02). */
 export function RowSkeleton() {
     return (
-        <div aria-hidden className={FLAT_ROW}>
-            <SkeletonBlock active className="size-7 shrink-0 rounded-md" />
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-                <SkeletonBlock active className="h-3.5 w-36 max-w-full" />
-                <SkeletonBlock active className="h-3 w-48 max-w-full" />
+        <div aria-hidden className={cn(FLAT_ROW, "gap-2.5")}>
+            <div className={cn("flex min-w-0 flex-1 items-center", ROW_LEAD_GAP)}>
+                <SkeletonBlock active className="size-7 shrink-0 rounded-md" />
+                <div className="flex min-w-0 flex-1 flex-col">
+                    <div className="flex h-4.5 items-center">
+                        <SkeletonBlock active className="h-3.5 w-36 max-w-full" />
+                    </div>
+                    <div className="flex h-4 items-center">
+                        <SkeletonBlock active className="h-3 w-48 max-w-full" />
+                    </div>
+                </div>
             </div>
-            <SkeletonBlock active className="mr-1 h-3 w-12 shrink-0" />
+            <div className="flex shrink-0 items-center gap-1">
+                <span className="flex items-center">
+                    <SkeletonBlock active className="mx-1 size-2 shrink-0 rounded-round" />
+                    <span className="pr-1">
+                        <SkeletonBlock active className="h-3 w-9" />
+                    </span>
+                </span>
+                <span className="flex size-6 items-center justify-center">
+                    <SkeletonBlock active className="size-3.5" />
+                </span>
+            </div>
         </div>
     )
 }
