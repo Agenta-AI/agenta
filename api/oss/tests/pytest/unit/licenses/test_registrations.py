@@ -253,6 +253,10 @@ async def test_the_oss_license_reports_whether_the_offer_was_dismissed(
 ):
     monkeypatch.setattr(licenses_router, "is_ee", lambda: False)
     monkeypatch.setattr(licenses_router, "count_users", AsyncMock(return_value=1))
+    monkeypatch.setattr(licenses_router, "project_usage", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        licenses_router, "organization_usage", AsyncMock(return_value=None)
+    )
     monkeypatch.setattr(
         licenses_router,
         "is_registration_offer_dismissed",

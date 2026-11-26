@@ -70,7 +70,7 @@ Or point the runner at a smaller target:
 uv run --no-sync python run-tests.py oss/tests/pytest/acceptance/workflows/
 ```
 
-The runner wraps pytest. It picks the OSS or EE test tree based on `AGENTA_LICENSE` and passes any extra flags straight to pytest.
+The runner wraps pytest. It runs the tests in both the `oss` and `ee` test trees and passes any extra flags straight to pytest.
 
 ## SDK Tests
 

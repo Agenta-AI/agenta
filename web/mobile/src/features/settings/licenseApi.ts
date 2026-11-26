@@ -24,12 +24,8 @@ export interface InstanceLicense {
     plan: string
     source: "environment" | "database" | null
     license: InstanceLicenseKey | null
-    /** Projects and organizations come only from an API that counts them against limits. */
-    usage: {
-        users: number
-        projects?: InstanceLimitUsage | null
-        organizations?: InstanceLimitUsage | null
-    }
+    /** Projects and organizations: read them from `fetchLicenseUsage`, the one source. */
+    usage: {users: number}
     /** The admin skipped the one-time registration offer on this instance. */
     registration_offer_dismissed?: boolean
 }
@@ -65,6 +61,25 @@ export const activateInstanceLicense = async (
     )
     return data
 }
+
+/** `GET /instance/license/usage`: the counts against the plan limits, for any signed-in person. */
+export interface LicenseUsage {
+    /** The projects of this project's organization, not of the instance. */
+    projects: InstanceLimitUsage | null
+    /** The organizations on the instance. */
+    organizations: InstanceLimitUsage | null
+}
+
+export const fetchLicenseUsage = async (projectId: string): Promise<LicenseUsage> => {
+    const {data} = await axios.get(`${getAgentaApiUrl()}/instance/license/usage`, {
+        params: {project_id: projectId},
+    })
+    return data
+}
+
+/** At or above its limit; an unlimited usage never is. */
+export const isAtLimit = (usage: InstanceLimitUsage | null | undefined): boolean =>
+    Boolean(usage && usage.limit !== null && usage.count >= usage.limit)
 
 /** Agenta's registration service did not send the key (unreachable, or it refused). */
 export const isRegistrationNotSent = (error: unknown) => status(error) === 502

@@ -5,6 +5,8 @@ With the default catalog: owners and admins create and rename; only owners delet
 
 import pytest
 
+from oss.src.utils.common import is_ee
+
 from oss.tests.pytest.utils.membership_accounts import (
     PERMISSION_DENIED,
     Team,
@@ -57,10 +59,15 @@ def test_viewer_cannot_create_a_project(admin_api, team):
 
 
 def test_admin_can_create_and_rename_a_project(admin_api, team):
+    # The admin passes the permission check; a stack without a license key then refuses
+    # a second project.
     resp = _create(admin_api, team, "admin", "admin-project")
-    assert resp.status_code == 201, resp.text
-    project_id = resp.json()["project_id"]
-    assert resp.json()["user_role"] == "admin"
+    if is_ee():
+        assert resp.status_code == 403, resp.text
+        assert resp.json()["detail"]["code"] == "project_limit_reached"
+    else:
+        assert resp.status_code == 201, resp.text
+    project_id = team.add_project("admin-project")
 
     # An API key stays in its own project (M2): rename with the admin's key of the
     # new project. The admin's key of the first project is refused there.
@@ -97,9 +104,7 @@ def test_editor_cannot_rename_a_project(admin_api, team):
 
 
 def test_admin_cannot_delete_a_project(admin_api, team):
-    resp = _create(admin_api, team, "owner", "to-keep")
-    assert resp.status_code == 201, resp.text
-    project_id = resp.json()["project_id"]
+    project_id = team.add_project("to-keep")
 
     # The admin's key of that project, so the refusal is the role's, not the key's.
     resp = admin_api(
@@ -111,9 +116,7 @@ def test_admin_cannot_delete_a_project(admin_api, team):
 
 
 def test_owner_can_delete_a_project(admin_api, team):
-    resp = _create(admin_api, team, "owner", "to-delete")
-    assert resp.status_code == 201, resp.text
-    project_id = resp.json()["project_id"]
+    project_id = team.add_project("to-delete")
 
     resp = admin_api(
         "DELETE",

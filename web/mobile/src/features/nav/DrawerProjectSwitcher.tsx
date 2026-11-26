@@ -14,12 +14,18 @@ import {
 import {message} from "@agenta/ui/app-message"
 import {KeyboardShortcutsSheet} from "@agenta/ui/shortcuts"
 import {themeIcon, useThemeMode, useThemeOptions} from "@agenta/ui/theme"
-import {useMutation} from "@tanstack/react-query"
+import {useMutation, useQueryClient} from "@tanstack/react-query"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {useLogout} from "../auth/useLogout"
+import {readLimitRefusal} from "../limits/limitRefusal"
+import {LimitRefusalNotice} from "../limits/LimitRefusalNotice"
+import {ProjectLimitNotice} from "../limits/ProjectLimitNotice"
+import {useLimitRefusal} from "../limits/useLimitRefusal"
+import {isAtLimit} from "../settings/licenseApi"
 import {switchSettingsContext} from "../settings/switchContext"
+import {invalidateLicenseUsage, useLicenseUsage} from "../settings/useLicenseUsage"
 import {LiveChatNavButton} from "../support/LiveChatNavButton"
 import {useLiveChatEnabled} from "../support/useLiveChatEnabled"
 
@@ -92,7 +98,12 @@ export const DrawerProjectSwitcher = ({
         [groups, currentGroup?.key],
     )
 
+    const queryClient = useQueryClient()
     const [createOpen, setCreateOpen] = useState(false)
+    // The limit shows when the sheet opens, before the reader types a name.
+    const usage = useLicenseUsage(projectId, createOpen)
+    const projectsAtLimit = isAtLimit(usage.data?.projects)
+    const {refusal, refuse, clear: clearRefusal} = useLimitRefusal(usage, usage.data?.projects)
     // Same shared mutation the desktop rail calls; the row it feeds is already in the shared
     // view, gated on `onCreateProject`, and was invisible here only because nothing passed it.
     const createProject = useMutation({
@@ -103,12 +114,19 @@ export const DrawerProjectSwitcher = ({
         // Creating a project is a switch into it, exactly like picking one from the list.
         onSuccess: async (created) => {
             setCreateOpen(false)
+            void invalidateLicenseUsage(queryClient)
             // Refetch first: the destination reads this same query for its title.
             await query.refetch()
             goTo(created.organization_id ?? created.workspace_id ?? workspaceId, created.project_id)
         },
-        // The API's refusal is written for people (e.g. the plan's project limit).
+        // The plan's project limit stays in the sheet with its next step; any other refusal is
+        // written for people.
         onError: (error) => {
+            const limitRefusal = readLimitRefusal(error)
+            if (limitRefusal) {
+                refuse(limitRefusal)
+                return
+            }
             const detail = (error as {response?: {data?: {detail?: unknown}}})?.response?.data
                 ?.detail
             message.error(typeof detail === "string" ? detail : t("shell.createProject.failed"))
@@ -169,9 +187,28 @@ export const DrawerProjectSwitcher = ({
             <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
             <CreateProjectSheet
                 open={createOpen}
-                onOpenChange={setCreateOpen}
-                onSubmit={(name) => createProject.mutate(name)}
+                onOpenChange={(open) => {
+                    setCreateOpen(open)
+                    clearRefusal()
+                }}
+                onSubmit={(name) => {
+                    clearRefusal()
+                    createProject.mutate(name)
+                }}
                 isPending={createProject.isPending}
+                submitDisabled={projectsAtLimit || Boolean(refusal)}
+                notice={
+                    projectsAtLimit && usage.data?.projects ? (
+                        <ProjectLimitNotice usage={usage.data.projects} projectId={projectId} />
+                    ) : refusal ? (
+                        <LimitRefusalNotice
+                            refusal={refusal}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            onNavigate={() => setCreateOpen(false)}
+                        />
+                    ) : null
+                }
             />
         </div>
     )
