@@ -332,6 +332,9 @@ async def world(redis_commands, monkeypatch) -> World:
                 entitlements_module, name, getattr(entitlements_module, name)
             )
         entitlements_module.bootstrap_entitlements_services()
+        # The seeded plan is a cloud plan. Outside cloud the instance license plan
+        # replaces it, and this CI stack has no license key.
+        monkeypatch.setattr(entitlements_module, "is_cloud", lambda: True)
     access_service = bootstrap_access()
     if is_ee():
         from ee.src.core.access.rbac import PlanRbacEntitlement

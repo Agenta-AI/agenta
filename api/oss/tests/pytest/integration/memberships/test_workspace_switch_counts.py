@@ -503,11 +503,17 @@ _STEP1_ENTITLEMENTS = {
 _STEP2_ENTITLEMENTS = dict(_STEP1_ENTITLEMENTS)
 
 
-async def test_entitlements_check_counts_ee(redis_required):
+async def test_entitlements_check_counts_ee(redis_required, monkeypatch):
     from oss.src.utils.common import is_ee
 
     if not is_ee():
         pytest.skip("EE only")
+    import ee.src.core.access.entitlements.service as entitlements_module
+
+    # The pinned counts are the cloud path, where the seeded subscription plan is the
+    # plan. Outside cloud the instance license plan replaces it, and this CI stack has
+    # no license key.
+    monkeypatch.setattr(entitlements_module, "is_cloud", lambda: True)
     await redis_required()
     seeded = await seed_organization(members={"m": "editor"}, workspaces=1)
     try:
