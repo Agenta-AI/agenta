@@ -1,10 +1,12 @@
 {
+    "addMembers": "Mitglieder hinzufügen",
     "error": "Projektmitglieder konnten nicht geladen werden.",
     "footer": "Sie können nur Mitglieder dieses Projekts hinzufügen.",
     "hasAccess": "Hat Zugriff",
     "heading": "Mitglieder dieses Projekts",
     "noMatch": "Kein Mitglied dieses Projekts passt zu „{{text}}“.",
-    "noMembers": "Noch ist niemand sonst in diesem Projekt. Fügen Sie Personen in den Einstellungen hinzu und teilen Sie dann mit ihnen.",
+    "noMembersDescription": "Fügen Sie zuerst Personen zum Projekt hinzu.",
+    "noMembersTitle": "Niemand sonst in diesem Projekt",
     "placeholder": "Personen per Name oder E-Mail hinzufügen",
     "remove": "{{name}} entfernen"
 }

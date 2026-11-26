@@ -18,8 +18,8 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
+    ChoiceSwitch,
     LoadingButton,
-    Segmented,
     Select,
     SelectContent,
     SelectItem,
@@ -62,6 +62,8 @@ export interface SessionShareDialogProps {
     onOnlyMe: () => Promise<SharingWriteResult>
     /** Copies the link; answer `false` when the copy failed (the host says so, not the toast). */
     onCopyLink?: () => void | boolean | Promise<void | boolean>
+    /** Opens the project's members page, from the member list's empty state. */
+    onAddMembers?: () => void
     /** Shows a toast. */
     onNotify?: (message: string) => void
     /** Refetches the sharing state after a 409. */
@@ -98,6 +100,7 @@ export const SessionShareDialog = ({
     onSetVisibility,
     onOnlyMe,
     onCopyLink,
+    onAddMembers,
     onNotify,
     onReload,
     usesPersonalAccounts = false,
@@ -309,6 +312,7 @@ export const SessionShareDialog = ({
                                         loading={membersLoading}
                                         error={membersError}
                                         disabled={saving === "invite"}
+                                        onAddMembers={onAddMembers}
                                     />
                                     <Select
                                         value={inviteRole}
@@ -385,15 +389,7 @@ export const SessionShareDialog = ({
                                     </span>
                                 </div>
                             ) : null}
-                            {grants.length === 0 ? (
-                                // General access below already says only you can open it.
-                                nobodyAdded ? null : (
-                                    <p className="m-0 py-1 pl-9 text-meta text-muted-foreground">
-                                        {copy.emptyGrants}
-                                    </p>
-                                )
-                            ) : (
-                                grants.map((grant) => {
+                            {grants.map((grant) => {
                                     const person = byId.get(grant.user_id) ?? {
                                         user_id: grant.user_id,
                                         email: "",
@@ -463,8 +459,7 @@ export const SessionShareDialog = ({
                                             </span>
                                         </div>
                                     )
-                                })
-                            )}
+                                })}
                         </section>
 
                         <section className="flex flex-col gap-2">
@@ -472,32 +467,25 @@ export const SessionShareDialog = ({
                                 {copy.generalSection}
                             </span>
                             {isOwner ? (
-                                // Two choices, both in view: a segment, not a menu.
-                                <div className="flex flex-col items-start gap-1.5">
-                                    <Segmented
-                                        aria-label={copy.generalSection}
-                                        value={visibility}
-                                        disabled={saving === "visibility"}
-                                        onChange={(value) => changeVisibility(value as Visibility)}
-                                        options={[
-                                            {
-                                                value: "private",
-                                                label: copy.generalPrivate,
-                                                icon: <LockSimpleIcon aria-hidden />,
-                                            },
-                                            {
-                                                value: "project",
-                                                label: copy.generalProject,
-                                                icon: <UsersIcon aria-hidden />,
-                                            },
-                                        ]}
-                                    />
-                                    <p className="m-0 text-meta text-muted-foreground">
-                                        {visibility === "private"
-                                            ? copy.generalPrivateDescription
-                                            : copy.generalProjectDescription(projectName)}
-                                    </p>
-                                </div>
+                                // Both choices in view, each with what it means.
+                                <ChoiceSwitch
+                                    aria-label={copy.generalSection}
+                                    value={visibility}
+                                    disabled={saving === "visibility"}
+                                    onChange={(value) => changeVisibility(value as Visibility)}
+                                    choices={[
+                                        {
+                                            value: "private",
+                                            label: copy.generalPrivate,
+                                            note: copy.generalPrivateDescription,
+                                        },
+                                        {
+                                            value: "project",
+                                            label: copy.generalProject,
+                                            note: copy.generalProjectDescription(projectName),
+                                        },
+                                    ]}
+                                />
                             ) : (
                                 <div className="flex items-center gap-2.5">
                                     <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted">

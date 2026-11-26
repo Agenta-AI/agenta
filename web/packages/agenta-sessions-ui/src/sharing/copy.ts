@@ -114,9 +114,6 @@ export const sessionSharingCopy = {
     get ownerRole() {
         return t("sessions.sharing.ownerRole")
     },
-    get emptyGrants() {
-        return t("sessions.sharing.emptyGrants")
-    },
     get removeAccess() {
         return t("sessions.sharing.removeAccess")
     },
@@ -188,8 +185,14 @@ export const memberPickerCopy = {
         return t("sessions.memberPicker.footer")
     },
     noMatch: (text: string) => t("sessions.memberPicker.noMatch", {text}),
-    get noMembers() {
-        return t("sessions.memberPicker.noMembers")
+    get noMembersTitle() {
+        return t("sessions.memberPicker.noMembersTitle")
+    },
+    get noMembersDescription() {
+        return t("sessions.memberPicker.noMembersDescription")
+    },
+    get addMembers() {
+        return t("sessions.memberPicker.addMembers")
     },
     get error() {
         return t("sessions.memberPicker.error")

@@ -1,8 +1,21 @@
 import {useId, useMemo, useRef, useState, type KeyboardEvent} from "react"
 
 import type {ProjectMemberProfile} from "@agenta/entities/sharing"
-import {Popover, PopoverAnchor, PopoverContent, SkeletonBlock, cn} from "@agenta/ui/ui"
-import {MagnifyingGlassIcon, XIcon} from "@phosphor-icons/react"
+import {
+    Button,
+    Empty,
+    EmptyContent,
+    EmptyDescription,
+    EmptyHeader,
+    EmptyMedia,
+    EmptyTitle,
+    Popover,
+    PopoverAnchor,
+    PopoverContent,
+    SkeletonBlock,
+    cn,
+} from "@agenta/ui/ui"
+import {MagnifyingGlassIcon, UsersIcon, XIcon} from "@phosphor-icons/react"
 
 import {memberPickerCopy} from "./copy"
 import {PersonAvatar, personName, type SharingPerson} from "./people"
@@ -26,6 +39,8 @@ export interface MemberPickerProps {
     invalidUserIds?: readonly string[]
     loading?: boolean
     error?: boolean
+    /** Opens the project's members page; the empty list offers it. */
+    onAddMembers?: () => void
     disabled?: boolean
     className?: string
 }
@@ -43,6 +58,7 @@ export const MemberPicker = ({
     invalidUserIds = [],
     loading = false,
     error = false,
+    onAddMembers,
     disabled = false,
     className,
 }: MemberPickerProps) => {
@@ -96,6 +112,8 @@ export const MemberPicker = ({
     }
 
     const query = search.trim()
+
+    const noMembers = !loading && !error && options.length === 0 && !query
 
     return (
         <Popover open={open && !disabled} onOpenChange={setOpen} modal={false}>
@@ -179,9 +197,11 @@ export const MemberPicker = ({
                     if (fieldRef.current?.contains(event.target as Node)) event.preventDefault()
                 }}
             >
-                <span className="px-2.5 pb-1 pt-1.5 text-meta text-muted-foreground">
-                    {memberPickerCopy.heading()}
-                </span>
+                {noMembers ? null : (
+                    <span className="px-2.5 pb-1 pt-1.5 text-meta text-muted-foreground">
+                        {memberPickerCopy.heading()}
+                    </span>
+                )}
                 <div id={listId} role="listbox" aria-label={memberPickerCopy.heading()}>
                     {loading ? (
                         <div className="flex flex-col gap-2 px-2.5 py-1.5" aria-busy>
@@ -197,10 +217,25 @@ export const MemberPicker = ({
                         <span className="block px-2.5 py-1.5 text-label text-muted-foreground">
                             {memberPickerCopy.noMatch(query)}
                         </span>
-                    ) : options.length === 0 ? (
-                        <span className="block px-2.5 py-1.5 text-label text-muted-foreground">
-                            {memberPickerCopy.noMembers}
-                        </span>
+                    ) : noMembers ? (
+                        <Empty className="gap-3 p-4">
+                            <EmptyHeader>
+                                <EmptyMedia variant="icon">
+                                    <UsersIcon />
+                                </EmptyMedia>
+                                <EmptyTitle>{memberPickerCopy.noMembersTitle}</EmptyTitle>
+                                <EmptyDescription>
+                                    {memberPickerCopy.noMembersDescription}
+                                </EmptyDescription>
+                            </EmptyHeader>
+                            {onAddMembers ? (
+                                <EmptyContent>
+                                    <Button variant="outline" size="sm" onClick={onAddMembers}>
+                                        {memberPickerCopy.addMembers}
+                                    </Button>
+                                </EmptyContent>
+                            ) : null}
+                        </Empty>
                     ) : (
                         options.map((member, index) => {
                             const enabled = pickable(member)
@@ -241,7 +276,7 @@ export const MemberPicker = ({
                     )}
                 </div>
                 {/* The empty state already says who can be added. */}
-                {!loading && !error && options.length === 0 && !query ? null : (
+                {noMembers ? null : (
                     <>
                         <div className="my-1 h-px bg-border" />
                         <span className="px-2.5 pb-1.5 pt-1 text-meta text-muted-foreground">
