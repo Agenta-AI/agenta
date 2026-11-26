@@ -403,3 +403,10 @@ export const dangerColors = {
     /** Danger hover state */
     hover: "hover:text-destructive",
 } as const
+
+/** "smooth", or "auto" under reduced motion (MOTION-02): for `scrollIntoView` and `scrollTo`. */
+export const scrollBehavior = (): ScrollBehavior =>
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth"

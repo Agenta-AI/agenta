@@ -46,9 +46,6 @@ vi.mock("@agenta/ui/ui", () => {
 vi.mock("../../src/channels/icons", () => ({AgentaMark: () => null, platformLogo: () => null}))
 vi.mock("../../src/channels/qr", () => ({QrCode: () => null}))
 vi.mock("../../src/channels/AgentMark", () => ({AgentMark: () => null}))
-vi.mock("../../src/channels/ViewTransition", () => ({
-    ViewTransition: ({children}: {children: React.ReactNode}) => <>{children}</>,
-}))
 vi.mock("../../src/channels/ChannelManagePanel", () => ({
     ChannelManagePanel: ({connection}: {connection: {connectionId?: string}}) => (
         <div data-testid={`manage-${connection.connectionId}`} />

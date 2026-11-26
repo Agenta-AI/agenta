@@ -21,7 +21,7 @@ import {
     Button,
     Spinner,
 } from "@agenta/ui/ui"
-import {useViewForm, useViewTitle} from "@agenta/ui/view-stack"
+import {useViewForm, useViewTitle, ViewStep} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
 import {SkillCandidateList} from "./SkillCandidateList"
@@ -239,7 +239,14 @@ export function AgentSkillCreateBody({onCreated, onDone}: NewSkillBodyProps) {
             tabIndex={-1}
             className={cn("flex min-h-0 flex-1 flex-col outline-none", !writing && "px-4 py-4")}
         >
-            {body}
+            {/* Each step swaps in with the view motion; back to the choice comes from the left. */}
+            <ViewStep
+                step={step}
+                index={step === "choose" ? 0 : 1}
+                className="flex min-h-0 flex-1 flex-col"
+            >
+                {body}
+            </ViewStep>
             {/* Asks before a step back drops a skill that is not created yet. */}
             <AlertDialog
                 open={asking !== null}

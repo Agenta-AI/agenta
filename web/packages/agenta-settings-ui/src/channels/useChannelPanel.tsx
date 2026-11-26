@@ -4,6 +4,7 @@ import {useT, type CatalogKey} from "@agenta/i18n"
 import channelsPanelCatalog from "@agenta/i18n/catalogs/channels.panel"
 import {message} from "@agenta/ui/app-message"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner} from "@agenta/ui/ui"
+import {ViewStep} from "@agenta/ui/view-stack"
 import {Broadcast, ChatCircleText, Code} from "@phosphor-icons/react"
 
 import {ChannelAgentPicker} from "./ChannelAgentPicker"
@@ -28,7 +29,6 @@ import type {
     ChannelsActions,
     ChannelsPanelAgent,
 } from "./types"
-import {ViewTransition} from "./ViewTransition"
 
 /** The title of the connect flow when the agent already has a connection on the platform. */
 const ADD_ANOTHER_TITLES: Record<ChannelPlatform, CatalogKey<typeof channelsPanelCatalog>> = {
@@ -569,7 +569,11 @@ export const useChannelPanel = ({
                   onBack: stack.length > 1 ? back : undefined,
                   onClose: close,
                   children: (
-                      <ViewTransition viewKey={routeKey(top, stack.length)} direction={direction}>
+                      <ViewStep
+                          step={routeKey(top, stack.length)}
+                          direction={direction < 0 ? "back" : "forward"}
+                          className="flex min-h-full flex-1 flex-col"
+                      >
                           <PanelLoadBoundary>
                               {() => (
                                   <Suspense fallback={<PanelLoading route={top} />}>
@@ -577,7 +581,7 @@ export const useChannelPanel = ({
                                   </Suspense>
                               )}
                           </PanelLoadBoundary>
-                      </ViewTransition>
+                      </ViewStep>
                   ),
               })
             : null

@@ -3,7 +3,7 @@ import {useRef, useState} from "react"
 
 import {formatList, useT} from "@agenta/i18n"
 import providerConnectionCatalog from "@agenta/i18n/catalogs/entityUi.providerConnection"
-import {cn} from "@agenta/ui/styles"
+import {cn, scrollBehavior} from "@agenta/ui/styles"
 import {
     Button,
     Checkbox,
@@ -60,7 +60,14 @@ const HarnessesSection = ({
             <Button
                 type="button"
                 variant="ghost"
-                onClick={() => setExpanded((value) => !value)}
+                onClick={() => {
+                    setExpanded(!expanded)
+                    // Under reduced motion nothing transitions, so it scrolls at once (MOTION-02).
+                    if (!expanded && scrollBehavior() === "auto")
+                        requestAnimationFrame(() =>
+                            sectionRef.current?.scrollIntoView({block: "nearest"}),
+                        )
+                }}
                 className="-mx-2 w-fit justify-start gap-1.5 px-2"
                 aria-expanded={expanded}
             >
@@ -97,7 +104,7 @@ const HarnessesSection = ({
                 <CaretRight
                     size={12}
                     className={cn(
-                        "text-muted-foreground transition-transform duration-[var(--duration-fast)]",
+                        "text-muted-foreground transition-transform duration-[var(--duration-fast)] motion-reduce:transition-none",
                         expanded && "rotate-90",
                     )}
                 />
@@ -112,7 +119,7 @@ const HarnessesSection = ({
                     sectionRef.current?.scrollIntoView({behavior: "smooth", block: "nearest"})
                 }}
                 className={cn(
-                    "grid transition-[grid-template-rows,opacity] duration-[var(--duration-base)] ease-[var(--ease-out)]",
+                    "grid transition-[grid-template-rows,opacity] duration-[var(--duration-base)] ease-[var(--ease-out)] motion-reduce:transition-none",
                     expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
                 )}
             >

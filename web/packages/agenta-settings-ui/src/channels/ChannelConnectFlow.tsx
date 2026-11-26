@@ -4,6 +4,7 @@ import {richText, useT, createT} from "@agenta/i18n"
 import channelsConnectCatalog from "@agenta/i18n/catalogs/channels.connect"
 import channelsTeamsCatalog from "@agenta/i18n/catalogs/channels.teams"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import {scrollBehavior} from "@agenta/ui/styles"
 import {
     Alert,
     Button,
@@ -15,7 +16,7 @@ import {
     Spinner,
     Textarea,
 } from "@agenta/ui/ui"
-import {PaneFooter} from "@agenta/ui/view-stack"
+import {PaneFooter, ViewStep} from "@agenta/ui/view-stack"
 import {
     ArrowLeft,
     ArrowSquareOut,
@@ -62,7 +63,6 @@ import type {
     ChannelsActions,
     HostedTelegramLink,
 } from "./types"
-import {ViewTransition} from "./ViewTransition"
 import {WhatsAppWebhook, copyText} from "./WhatsAppWebhook"
 
 const tNow = createT(channelsConnectCatalog, commonCatalog)
@@ -288,10 +288,6 @@ export const ChannelConnectFlow = ({
     const [error, setError] = useState<string | null>(null)
     // Changes with the method and with what connecting it showed.
     const methodKey = [mode, created ? "created" : "", discordConnectionId ? "invite" : ""].join()
-    // The method's content fades in on a change, not on the flow's first paint.
-    const [firstMethodKey] = useState(methodKey)
-    const [methodSwitched, setMethodSwitched] = useState(false)
-    if (!methodSwitched && methodKey !== firstMethodKey) setMethodSwitched(true)
 
     // --- custom app/bot: the declared setup ---------------------------------- //
     const [setup, setSetup] = useState<ChannelSetupInfo | null>(null)
@@ -342,7 +338,8 @@ export const ChannelConnectFlow = ({
     // its bottom: bring the error into view, or it goes unseen.
     const errorRef = useRef<HTMLDivElement>(null)
     useEffect(() => {
-        if (error) errorRef.current?.scrollIntoView?.({block: "nearest", behavior: "smooth"})
+        if (error)
+            errorRef.current?.scrollIntoView?.({block: "nearest", behavior: scrollBehavior()})
     }, [error])
     const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
     const feedbackTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -350,8 +347,6 @@ export const ChannelConnectFlow = ({
     const onConnectedRef = useRef(onConnected)
     onConnectedRef.current = onConnected
     const knownRef = useRef(knownConnectionIds)
-    const lastScreen = useRef<SlackCustomStep>("choose")
-    const screenDirection = useRef(1)
     useEffect(() => {
         alive.current = true
         return () => {
@@ -695,14 +690,9 @@ export const ChannelConnectFlow = ({
         </div>
     ) : null
 
-    // Which screen shows, and which way the user moved, for the side-by-side swap.
+    // Which screen shows; its place in SCREEN_ORDER says which way the user moved.
     const screen: SlackCustomStep =
         isSlack && mode === "custom" && slackStep !== "choose" ? slackStep : "choose"
-    if (lastScreen.current !== screen) {
-        screenDirection.current =
-            SCREEN_ORDER.indexOf(screen) >= SCREEN_ORDER.indexOf(lastScreen.current) ? 1 : -1
-        lastScreen.current = screen
-    }
 
     // --- Slack custom app: the steps after the method choice ---------------------- //
     if (screen !== "choose") {
@@ -718,7 +708,11 @@ export const ChannelConnectFlow = ({
             else setSlackStep("choose")
         }
         return (
-            <ViewTransition viewKey={screen} direction={screenDirection.current}>
+            <ViewStep
+                step={screen}
+                index={SCREEN_ORDER.indexOf(screen)}
+                className="flex min-h-full flex-1 flex-col"
+            >
                 <div className="flex min-h-full flex-1 flex-col gap-6">
                     {steps ? <StepsBar steps={steps} current={current} /> : null}
                     {errorAlert}
@@ -887,7 +881,7 @@ export const ChannelConnectFlow = ({
                         </div>
                     </PaneFooter>
                 </div>
-            </ViewTransition>
+            </ViewStep>
         )
     }
 
@@ -1021,10 +1015,12 @@ export const ChannelConnectFlow = ({
     }
 
     return (
-        <ViewTransition viewKey={screen} direction={screenDirection.current}>
-            <div
-                className={`flex min-h-full flex-1 flex-col gap-6 ${methodSwitched ? "" : "[&>.ag-view-enter]:animate-none"}`}
-            >
+        <ViewStep
+            step={screen}
+            index={SCREEN_ORDER.indexOf(screen)}
+            className="flex min-h-full flex-1 flex-col"
+        >
+            <div className="flex min-h-full flex-1 flex-col gap-6">
                 {errorAlert}
 
                 {customOnly ? null : (
@@ -1046,7 +1042,7 @@ export const ChannelConnectFlow = ({
                 )}
 
                 {/* The method's content enters when the method changes (MOTION-01). */}
-                <div key={methodKey} className="ag-view-enter flex flex-col gap-6">
+                <ViewStep step={methodKey} className="flex flex-col gap-6">
                     {/* SLACK · hosted */}
                     {isSlack && mode === "hosted" ? (
                         <div className="flex flex-col gap-2">
@@ -1648,11 +1644,11 @@ export const ChannelConnectFlow = ({
                             <WhatsAppWebhook connection={created} />
                         </div>
                     ) : null}
-                </div>
+                </ViewStep>
 
                 {cta ? <PaneFooter>{cta}</PaneFooter> : null}
             </div>
-        </ViewTransition>
+        </ViewStep>
     )
 }
 
