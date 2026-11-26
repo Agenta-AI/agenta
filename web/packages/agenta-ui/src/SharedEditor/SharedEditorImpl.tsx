@@ -398,7 +398,9 @@ const SharedEditor = ({
             clsx(
                 "agenta-shared-editor",
                 "w-auto flex flex-col items-start relative group/item border border-solid rounded-lg",
-                {"transition-all duration-300 ease-in-out": !disableContainerTransition},
+                // Theme duration and easing (MOTION-01); the collapse height below overrides the property.
+                {"transition-colors": !disableContainerTransition},
+                "motion-reduce:!transition-none",
                 "[&_.agenta-rich-text-editor]:w-full",
                 "[&_.agenta-editor-wrapper]:w-full",
                 // This container is the single source of truth for the border (incl. its
@@ -483,8 +485,8 @@ const SharedEditor = ({
                         : {
                               interpolateSize: "allow-keywords",
                               transitionProperty: "height",
-                              transitionDuration: "300ms",
-                              transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
+                              transitionDuration: "var(--duration-base)",
+                              transitionTimingFunction: "var(--ease-in-out)",
                           }),
                 } as React.CSSProperties
             }

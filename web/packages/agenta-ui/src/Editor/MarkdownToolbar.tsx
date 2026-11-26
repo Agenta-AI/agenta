@@ -10,6 +10,7 @@ import {
 } from "react"
 
 import {useT} from "@agenta/i18n"
+import {shortcutFaces} from "@agenta/shared/utils"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
 import {$createCodeNode, $isCodeNode} from "@lexical/code"
@@ -69,6 +70,7 @@ import {Input} from "../components/ui/input"
 import {Popover, PopoverContent, PopoverTrigger} from "../components/ui/popover"
 import {SimpleTooltip} from "../components/ui/tooltip-composed"
 import {useScrollFadeEdges} from "../hooks/useScrollFadeEdges"
+import {useIsMacPlatform} from "../shortcuts/ShortcutKeys"
 import {cn} from "../utils/styles"
 
 const BLOCK_TYPES = [
@@ -126,8 +128,8 @@ function TableSizePicker({onPick}: {onPick: (rows: number, cols: number) => void
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => onPick(r, c)}
                             className={[
-                                "h-4 w-4 rounded-[2px] border border-solid transition-colors",
-                                on ? "border-primary bg-primary" : "border-border bg-muted",
+                                "h-4 w-4 rounded-sm border border-solid transition-colors",
+                                on ? "border-border-strong bg-selected" : "border-border bg-muted",
                             ].join(" ")}
                         />
                     )
@@ -165,6 +167,9 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
     const scrollRef = useRef<HTMLDivElement | null>(null)
     useScrollFadeEdges(scrollRef, {axis: "x"})
     const iconSize = layout === "default" ? "icon-xs" : "icon-compact"
+    const mac = useIsMacPlatform()
+    // Lexical's own bindings for bold and italic.
+    const modKey = (key: string) => shortcutFaces({modifiers: ["mod"], key}, mac)
 
     useEffect(() => {
         return editor.registerUpdateListener(({editorState}) => {
@@ -305,8 +310,9 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
         icon: ReactNode,
         onClick: () => void,
         isActive = false,
+        shortcut?: string[],
     ) => (
-        <SimpleTooltip key={key} title={label}>
+        <SimpleTooltip key={key} title={label} shortcut={shortcut}>
             <Button
                 type="button"
                 variant="ghost"
@@ -354,7 +360,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
         <div
             ref={scrollRef}
             className={cn(
-                "ag-scroll-fade-x flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+                "ag-scroll-fade-x flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
                 layout === "inline" ? "flex-nowrap" : "sm:flex-wrap sm:overflow-x-visible",
             )}
         >
@@ -374,10 +380,10 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                             aria-label={t("ui.editor.textStyle")}
                             disabled={disabled}
                             onMouseDown={keepEditorSelection}
-                            className="min-w-28 justify-between gap-1 px-1.5 text-meta font-normal"
+                            className="min-w-28 justify-between"
                         >
                             <span className="truncate">{blockLabel}</span>
-                            <CaretDownIcon size={12} className="shrink-0 text-muted-foreground" />
+                            <CaretDownIcon className="ag-caret shrink-0 text-muted-foreground" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
@@ -402,6 +408,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                 <TextBIcon size={14} />,
                 () => formatText("bold"),
                 active.bold,
+                modKey("B"),
             )}
             {button(
                 "i",
@@ -409,6 +416,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                 <TextItalicIcon size={14} />,
                 () => formatText("italic"),
                 active.italic,
+                modKey("I"),
             )}
             {button(
                 "s",

@@ -7,7 +7,7 @@ import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls
 import {Button} from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 
-import {MarkdownEditorSkeleton} from "../../DrawerSkeletons"
+import {MarkdownBodySkeleton} from "../../DrawerSkeletons"
 import {MarkdownEditor} from "../../MarkdownEditor"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 
@@ -52,13 +52,13 @@ const InstructionsViewBody = ({params, target}: ViewProps<InstructionsViewParams
     return (
         <div className="md-prose-panel flex min-h-0 flex-1 flex-col">
             {showToolbar ? (
-                <div className="flex shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted bg-muted px-2.5 py-1.5">
+                // Tone alone sets the band apart (SURF-01); the left edge and the text sit at 16px.
+                <div className="flex shrink-0 items-center gap-1 bg-muted py-1.5 pl-4 pr-2">
                     <div ref={setToolbarHost} className="min-w-0 flex-1" />
                     <Button
                         variant="ghost"
                         size="xs"
                         onClick={() => setView((v) => (v === "source" ? "rendered" : "source"))}
-                        // A quiet toggle beside the toolbar (KIT-02).
                         className="shrink-0 text-muted-foreground hover:text-foreground"
                     >
                         {view === "source"
@@ -79,7 +79,7 @@ const InstructionsViewBody = ({params, target}: ViewProps<InstructionsViewParams
                 hideHeader
                 bordered={false}
                 grow
-                loadingSkeleton={<MarkdownEditorSkeleton />}
+                loadingSkeleton={<MarkdownBodySkeleton />}
                 placeholder={t("entityUi.instructionsView.placeholder")}
             />
         </div>

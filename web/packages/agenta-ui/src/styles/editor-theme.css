@@ -890,12 +890,15 @@ pre::-webkit-scrollbar-thumb {
     margin-left: 2px;
     padding-left: 14px;
 }
+/* Inline code: text-code-sm on a translucent fill (KIT-07, TYPE-01). */
 .md-prose .editor-text-code {
     background-color: var(--secondary);
-    border: 0.5px solid var(--border-muted);
-    border-radius: 4px;
-    padding: 1px 5px;
-    font-size: 86%;
+    border: 0;
+    border-radius: var(--radius-sm);
+    padding: 1px 4px;
+    font-family: var(--font-mono);
+    font-size: var(--text-code-sm);
+    font-weight: var(--text-code-sm--font-weight);
 }
 /* The shared `.editor-inner:not(.code-editor) .editor-code` rule (specificity 0-3-0) sets an 8px
    padding + light fill and would beat a plain `.md-prose .editor-code` (0-2-0). Scope this to the
@@ -910,14 +913,14 @@ pre::-webkit-scrollbar-thumb {
     display: block;
     position: relative;
     background-color: var(--muted);
-    border: 0.5px solid var(--border-muted);
-    border-radius: 8px;
+    border: 1px solid var(--border-muted);
+    border-radius: var(--radius-lg);
     /* Extra top padding leaves room for the floating language picker pinned to the block's top. */
-    padding: 40px 14px 12px;
-    margin: 10px 0;
-    font-family: Menlo, Consolas, Monaco, monospace;
-    font-size: 12px;
-    line-height: 1.6;
+    padding: 40px 12px 12px;
+    margin: 8px 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-code);
+    line-height: var(--text-code--line-height);
     white-space: pre-wrap;
     tab-size: 2;
     overflow-x: auto;
@@ -938,46 +941,59 @@ pre::-webkit-scrollbar-thumb {
 }
 
 /* ------------------------------------------------------------------------- *
- * Panel scale (canvas F01 f3, F07): 13/20 body text, text-style headings, 16 px
- * padding. Opt in with a `md-prose-panel` ancestor, so other Markdown
- * editors (the Drive file view) keep the comfortable prose above.
- *
- * The import keeps a blank source line as an empty paragraph. So blocks get
- * no margins here: that empty 20 px line is the only gap, as in the canvas.
- * With margins it doubled the gap.
+ * Panel scale (canvas F01 f3, F07): text-body-sm body, text-style headings, 16px inset
+ * (15px padding + the 1px editor border). Opt in with a `md-prose-panel` ancestor.
+ * A blank source line is an empty 8px paragraph; headings carry their own margins.
  * ------------------------------------------------------------------------- */
 .md-prose-panel .md-prose .agenta-shared-editor {
     padding: 15px;
 }
 .md-prose-panel .md-prose .editor-container {
     color: var(--foreground);
-    font-size: 13px;
-    line-height: 20px;
+    font-size: var(--text-body-sm);
+    line-height: var(--text-body-sm--line-height);
 }
 .md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-paragraph {
     margin: 0;
-    line-height: 20px;
+    line-height: var(--text-body-sm--line-height);
 }
+/* Rank by weight first: H1 text-title, H2-H3 text-body at 600, H4-H6 the body line at 600 (as md-doc). */
 .md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h1,
 .md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h2,
-.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h3 {
-    color: var(--foreground);
-    /* text-title: no 15px step and no 700 (TYPE-04). */
-    font-size: var(--text-title, 16px);
-    font-weight: var(--text-title--font-weight, 600);
-    letter-spacing: var(--text-title--letter-spacing, -0.01em);
-    line-height: var(--text-title--line-height, 22px);
-    margin: 0;
-}
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h3,
 .md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h4,
 .md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h5,
 .md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h6 {
     color: var(--foreground);
-    /* text-subtitle's weight on the body line. */
-    font-size: 13px;
-    font-weight: var(--text-subtitle--font-weight, 600);
-    line-height: 20px;
-    margin: 0;
+    font-size: var(--text-body-sm);
+    font-weight: var(--text-subtitle--font-weight);
+    line-height: var(--text-body-sm--line-height);
+    margin: 16px 0 4px;
+}
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h1 {
+    font-size: var(--text-title);
+    letter-spacing: var(--text-title--letter-spacing);
+    line-height: var(--text-title--line-height);
+}
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h2,
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) .editor-heading-h3 {
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+}
+.md-prose-panel .md-prose .editor-input:not(.markdown-view) > :is(h1, h2, h3, h4, h5, h6):first-child {
+    margin-top: 0;
+}
+/* A blank line next to a heading adds no gap: the heading's own margins set it (SPACE-01). */
+.md-prose-panel
+    .md-prose
+    .editor-input:not(.markdown-view)
+    > :is(h1, h2, h3, h4, h5, h6)
+    + .editor-paragraph:has(> br:only-child),
+.md-prose-panel
+    .md-prose
+    .editor-input:not(.markdown-view)
+    > .editor-paragraph:has(> br:only-child):has(+ :is(h1, h2, h3, h4, h5, h6)) {
+    line-height: 0;
 }
 /* Bold leads in the panel stop at 600, the heaviest weight the text styles use. */
 .md-prose-panel .md-prose .editor-text-bold {
@@ -997,8 +1013,8 @@ pre::-webkit-scrollbar-thumb {
 /* The placeholder keeps its line breaks ("# My skill", a blank line, then the steps; F07 f13). */
 .md-prose-panel .md-prose .editor-placeholder {
     white-space: pre-wrap;
-    font-size: 13px;
-    line-height: 20px;
+    font-size: var(--text-body-sm);
+    line-height: var(--text-body-sm--line-height);
     color: var(--muted-foreground);
 }
 
