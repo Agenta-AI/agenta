@@ -332,15 +332,19 @@ export function SubagentList({
             {entries.map(({item, index}, position) => (
                 <ItemRow
                     key={keys[position]}
-                    descriptor={markNonAgent(
-                        describeSubagent(
+                    // A one-line row: the name alone, no description under it.
+                    descriptor={{
+                        ...markNonAgent(
+                            describeSubagent(
+                                item,
+                                chromeBySlug?.get(toolReferenceSlug(item) ?? ""),
+                                nameBySlug?.get(toolReferenceSlug(item) ?? ""),
+                            ),
                             item,
-                            chromeBySlug?.get(toolReferenceSlug(item) ?? ""),
-                            nameBySlug?.get(toolReferenceSlug(item) ?? ""),
+                            nonAgentSlugs,
                         ),
-                        item,
-                        nonAgentSlugs,
-                    )}
+                        description: undefined,
+                    }}
                     onEdit={() => openEdit("tool", index, item)}
                     onRemove={() => {
                         removeItem("tool", index)
