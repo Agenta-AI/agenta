@@ -72,12 +72,17 @@ AGENTA_WEB_URL=http://localhost:90
 
 Updating your local Agenta installation to the latest version, requires pulling the latest version with `--pull always` and running migrations if any.
 
-1. Pull the latest version:
+1. In the folder where you cloned Agenta, get the newest compose files. A release can change them:
+```bash
+git pull
+```
+
+2. Pull the latest version:
 ```bash
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh  --profile with-web --profile with-traefik up -d --pull always
 ```
 
-2. Run migrations if needed:
+3. Run migrations if needed:
 ```bash
 docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/core agenta-oss-gh-api-1 alembic -c alembic.ini upgrade head
 ```

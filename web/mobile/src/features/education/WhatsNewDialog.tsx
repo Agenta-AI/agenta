@@ -8,13 +8,14 @@ import {
     ALL_RELEASES_LINK,
     isWhatsNewOptedOut,
     markAllReleasesSeen,
-    RELEASES,
+    notInstalledReleasesAtom,
+    releaseListAtom,
     setWhatsNewOptedOut,
     type Release,
 } from "@agenta/navigation"
 import {Button, Checkbox, Dialog, DialogClose, DialogContent, DialogTitle} from "@agenta/ui/ui"
 import {ArrowUpRight, Sparkle, Wrench, X} from "@phosphor-icons/react"
-import {useAtom} from "jotai"
+import {useAtom, useAtomValue} from "jotai"
 
 import {cn} from "@/lib/utils"
 
@@ -24,6 +25,7 @@ import {FadingScrollBody} from "./FadingScrollBody"
 import {ReleaseCover} from "./ReleaseCover"
 import {ReleaseFeatureVideo} from "./ReleaseFeatureVideo"
 import {ReleaseItemsSection} from "./ReleaseItemsSection"
+import {UpgradeBox} from "./UpgradeBox"
 import {whatsNewAtom} from "./whatsNewAtom"
 
 /** The rail lists this many releases, newest first; the rest are one link away. */
@@ -39,8 +41,6 @@ const formatReleaseDate = (release: Release): string => {
     })
 }
 
-const RAIL_RELEASES = RELEASES.slice(0, RAIL_COUNT)
-
 /** Release timeline rail beside the picked release; closing it in any way marks everything seen. */
 export const WhatsNewDialog = () => {
     const t = useT(whatsNewCatalog, commonCatalog)
@@ -51,10 +51,15 @@ export const WhatsNewDialog = () => {
     const [optOutDraft, setOptOutDraft] = useState<boolean | null>(null)
     const optOut = optOutDraft ?? isWhatsNewOptedOut()
     const optOutId = useId()
+    // The bundled list plus newer releases from the feed, which this instance does not run yet.
+    const releases = useAtomValue(releaseListAtom)
+    const notInstalledReleases = useAtomValue(notInstalledReleasesAtom)
+    const notInstalled = new Set(notInstalledReleases.map((r) => r.id))
+    const railReleases = releases.slice(0, RAIL_COUNT)
 
     const selected =
-        RELEASES.find((release) => release.id === (selectedId ?? state?.releaseId)) ??
-        RAIL_RELEASES[0]
+        releases.find((release) => release.id === (selectedId ?? state?.releaseId)) ??
+        railReleases[0]
     if (!selected) return null
 
     const close = () => {
@@ -89,7 +94,7 @@ export const WhatsNewDialog = () => {
 
                     <div className="flex flex-col">
                         <div className="flex flex-col gap-2">
-                            {RAIL_RELEASES.map((release, index) => {
+                            {railReleases.map((release, index) => {
                                 const active = release.id === selected.id
                                 return (
                                     <button
@@ -104,7 +109,7 @@ export const WhatsNewDialog = () => {
                                                 className={cn(
                                                     "absolute left-1/2 w-px -translate-x-1/2 bg-border",
                                                     index === 0 ? "top-[17px]" : "top-0",
-                                                    index === RAIL_RELEASES.length - 1
+                                                    index === railReleases.length - 1
                                                         ? "h-[17px]"
                                                         : "-bottom-2",
                                                 )}
@@ -126,16 +131,34 @@ export const WhatsNewDialog = () => {
                                                     : "group-hover:bg-background/60",
                                             )}
                                         >
-                                            <span className="flex items-center justify-between gap-2 text-[11.5px] text-colorTextTertiary">
-                                                <span className="flex items-center gap-1.5">
+                                            <span className="flex items-start justify-between gap-2 text-[11.5px] text-colorTextTertiary">
+                                                {/* Wraps when a release carries both tags; the date stays on the first line. */}
+                                                <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
                                                     {release.id}
-                                                    {index === 0 ? (
-                                                        <span className="rounded bg-colorSuccessBg px-1.5 text-[10.5px] font-medium leading-4 text-colorSuccessText">
+                                                    {notInstalled.has(release.id) ? (
+                                                        <>
+                                                            {release.securityFix ? (
+                                                                <span className="rounded bg-colorErrorBg px-1.5 whitespace-nowrap text-[10.5px] font-medium leading-4 text-colorErrorText">
+                                                                    {t(
+                                                                        "education.whatsNew.securityFix",
+                                                                    )}
+                                                                </span>
+                                                            ) : null}
+                                                            <span className="rounded bg-colorWarningBg px-1.5 whitespace-nowrap text-[10.5px] font-medium leading-4 text-colorWarning">
+                                                                {t(
+                                                                    "education.whatsNew.notInstalled",
+                                                                )}
+                                                            </span>
+                                                        </>
+                                                    ) : index === 0 ? (
+                                                        <span className="rounded bg-colorSuccessBg px-1.5 whitespace-nowrap text-[10.5px] font-medium leading-4 text-colorSuccessText">
                                                             {t("education.whatsNew.latest")}
                                                         </span>
                                                     ) : null}
                                                 </span>
-                                                <span>{formatReleaseDate(release)}</span>
+                                                <span className="shrink-0 whitespace-nowrap">
+                                                    {formatReleaseDate(release)}
+                                                </span>
                                             </span>
                                             <span className="truncate text-[13.5px] leading-5 text-foreground">
                                                 {release.features[0]?.title}
@@ -175,6 +198,8 @@ export const WhatsNewDialog = () => {
                         key={selected.id}
                         className="flex flex-col gap-8 px-4 pb-6 pt-12 md:min-h-0 md:flex-1 md:overflow-y-auto md:px-6 md:pt-6"
                     >
+                        {/* Only when behind: what the reader runs, what is missing, and how to get it. */}
+                        <UpgradeBox />
                         {selected.features.map((feature) => (
                             <section key={feature.id} className="flex flex-col gap-3">
                                 {feature.streamVideoId ? (
@@ -194,6 +219,7 @@ export const WhatsNewDialog = () => {
                                     baseClassName={proseClassName}
                                     content={feature.body}
                                     icons={markdownIcons}
+                                    httpsOnly
                                 />
                             </section>
                         ))}

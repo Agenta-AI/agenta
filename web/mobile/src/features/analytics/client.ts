@@ -1,12 +1,14 @@
 import {
     CLOUD_CONFIG,
-    SELF_HOSTED_CONFIG,
     POSTHOG_CONFIG,
+    SELF_HOSTED_CONFIG,
     captureFirstAgentIntent,
-    generateOrRetrieveDistinctId,
+    isCloudTelemetry,
+    parseInstanceTelemetry,
     type FirstAgentIntentPayload,
+    type InstanceTelemetry,
 } from "@agenta/shared/analytics"
-import {isCloud} from "@agenta/shared/api/env"
+import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {atom, getDefaultStore} from "jotai"
 import type {PostHog} from "posthog-js"
 
@@ -20,7 +22,14 @@ export const isAnalyticsAuthRoute = (path: string) => {
     return route.startsWith("/auth") && !route.startsWith("/auth/callback")
 }
 
-export function loadPostHog(): Promise<PostHog | null> {
+export {isCloudTelemetry, type InstanceTelemetry}
+
+export async function fetchInstanceTelemetry(): Promise<InstanceTelemetry> {
+    const {data} = await axios.get(`${getAgentaApiUrl()}/instance/telemetry`)
+    return parseInstanceTelemetry(data)
+}
+
+export function loadPostHog(cloud: boolean): Promise<PostHog | null> {
     if (!getEnv("NEXT_PUBLIC_POSTHOG_API_KEY")) return Promise.resolve(null)
     if (loading) return loading
     loading = (async () => {
@@ -32,13 +41,20 @@ export function loadPostHog(): Promise<PostHog | null> {
                 return await new Promise<PostHog>((resolve) => {
                     posthog.init(key, {
                         ...POSTHOG_CONFIG,
-                        ...(isCloud() ? CLOUD_CONFIG : SELF_HOSTED_CONFIG),
+                        ...(cloud ? CLOUD_CONFIG : SELF_HOSTED_CONFIG),
                         loaded: (client) => {
                             if (process.env.NODE_ENV === "development") client.debug()
+                            // Analytics identifies the browser with the API's id once it loads.
+                            // Loaded only when the API says telemetry is on. An opt-out
+                            // stored while it was off would otherwise keep this browser
+                            // silent for good.
                             try {
-                                client.identify(generateOrRetrieveDistinctId())
+                                const full = client as PostHog
+                                if (full.has_opted_out_capturing()) {
+                                    full.opt_in_capturing({captureEventName: false})
+                                }
                             } catch {
-                                // Identification must not prevent initialization from settling.
+                                // Blocked storage must not prevent initialization from settling.
                             }
                             resolve(client as PostHog)
                         },

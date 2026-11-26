@@ -4134,6 +4134,30 @@ const sidebar: SidebarsConfig = {
     },
     {
       type: "category",
+      label: "Approval Choices",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/create-approval-choice",
+          label: "Create Approval Choice",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/query-approval-choices",
+          label: "Query Approval Choices",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/delete-approval-choice",
+          label: "Delete Approval Choice",
+          className: "api-method delete",
+        },
+      ],
+    },
+    {
+      type: "category",
       label: "Gateway",
       items: [
         {

@@ -1,28 +1,36 @@
 // @vitest-environment jsdom
 import {act, StrictMode} from "react"
 
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 const state = vi.hoisted(() => ({
     key: "test-project-key",
-    cloud: true,
-    user: null as {email: string; username: string} | null,
+    telemetry: null as Record<string, unknown> | null,
+    user: null as {id: string; email: string; username: string} | null,
     path: "/w/ws/p/project/sessions/one",
     listeners: new Set<() => void>(),
     reporter: null as ((payload: Record<string, unknown>) => void) | null,
     distinctId: "anonymous",
+    userState: "anonymous" as "anonymous" | "identified",
     capture: vi.fn(),
     alias: vi.fn(),
     identify: vi.fn(),
+    group: vi.fn(),
+    register: vi.fn(),
     optOut: vi.fn(),
+    get: vi.fn(),
     reset: vi.fn(),
     init: vi.fn(),
 }))
 
 vi.mock("@/lib/env", () => ({getEnv: () => state.key}))
-vi.mock("@agenta/shared/api/env", () => ({isCloud: () => state.cloud}))
+vi.mock("@agenta/shared/api", () => ({
+    axios: {get: state.get},
+    getAgentaApiUrl: () => "https://agenta.example.test/api",
+}))
 vi.mock("@agenta/entities/profile", () => ({useProfile: () => ({user: state.user})}))
 vi.mock("@agenta/entities/workflow/agentCreationTelemetry", () => ({
     setAgentCreationFailureReporter: (reporter: typeof state.reporter) => {
@@ -42,7 +50,10 @@ vi.mock("posthog-js", () => ({
         capture: state.capture,
         alias: state.alias,
         identify: state.identify,
+        group: state.group,
+        register: state.register,
         get_distinct_id: () => state.distinctId,
+        get_property: (name: string) => (name === "$user_state" ? state.userState : undefined),
         opt_out_capturing: state.optOut,
         reset: state.reset,
     },
@@ -53,26 +64,54 @@ import {captureIntent, posthogAtom, resetAnalytics} from "@/features/analytics/c
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 let root: Root
+let queryClient: QueryClient
+
+const CLOUD_USER = {id: "user-1", email: "person@example.test", username: "Person"}
+const CLOUD_PROPERTIES = {cloud_region: "US", cloud_url: "https://us.cloud.agenta.ai"}
+const cloudTelemetry = () => ({
+    enabled: true,
+    distinct_id: CLOUD_USER.id,
+    groups: null,
+    properties: CLOUD_PROPERTIES,
+})
 
 const render = async () => {
     await act(async () =>
         root.render(
-            <StrictMode>
-                <Analytics />
-            </StrictMode>,
+            <QueryClientProvider client={queryClient}>
+                <StrictMode>
+                    <Analytics />
+                </StrictMode>
+            </QueryClientProvider>,
         ),
     )
+    // Let the telemetry request settle and the effects that follow it run.
+    for (let tick = 0; tick < 3; tick++) {
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+    }
 }
 
 beforeEach(async () => {
     vi.clearAllMocks()
+    state.identify.mockImplementation((id: string) => {
+        state.distinctId = id
+        state.userState = "identified"
+    })
+    state.reset.mockImplementation(() => {
+        state.distinctId = "anonymous-after-reset"
+        state.userState = "anonymous"
+    })
     state.key = "test-project-key"
-    state.cloud = true
-    state.user = null
+    state.user = CLOUD_USER
+    state.telemetry = cloudTelemetry()
+    state.get.mockImplementation(async () => ({data: state.telemetry}))
+    queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
     state.distinctId = "anonymous"
+    state.userState = "anonymous"
     state.path = "/w/ws/p/project/sessions/one"
     state.listeners.clear()
     localStorage.clear()
+    // A device id from before this change; it must never be sent again.
     localStorage.setItem("posthog_distinct_id", "desktop-visitor")
     window.history.replaceState({}, "", `/m${state.path}`)
     vi.stubGlobal(
@@ -84,7 +123,10 @@ beforeEach(async () => {
             capture: state.capture,
             alias: state.alias,
             identify: state.identify,
+            group: state.group,
+            register: state.register,
             get_distinct_id: () => state.distinctId,
+            get_property: (name: string) => (name === "$user_state" ? state.userState : undefined),
             opt_out_capturing: state.optOut,
             reset: state.reset,
         })
@@ -114,7 +156,12 @@ describe("mobile PostHog parity", () => {
                 },
             }),
         )
-        expect(state.identify).toHaveBeenCalledWith("desktop-visitor", undefined)
+        // Cloud keeps feature flags (the maintenance notice reads them).
+        expect(state.init.mock.calls[0][1]).not.toHaveProperty("advanced_disable_flags")
+        expect(state.identify).not.toHaveBeenCalledWith("desktop-visitor")
+        expect(state.identify.mock.invocationCallOrder[0]).toBeLessThan(
+            state.capture.mock.invocationCallOrder[0],
+        )
         expect(state.capture.mock.calls.filter(([event]) => event === "$pageview")).toEqual([
             ["$pageview", {$current_url: window.location.href}],
         ])
@@ -124,27 +171,60 @@ describe("mobile PostHog parity", () => {
         expect(state.listeners.size).toBe(1)
     })
 
-    it("identifies a hydrated cloud profile and reuses desktop identity and properties", async () => {
+    it("waits for a signed-in user before it loads", async () => {
+        state.user = null
         await render()
-        state.user = {email: "person@example.test", username: "Person"}
-        await render()
-        expect(state.alias).toHaveBeenCalledWith("person@example.test", "desktop-visitor")
-        expect(state.identify).toHaveBeenLastCalledWith("person@example.test", state.user)
-        const count = state.identify.mock.calls.length
-        await render()
-        expect(state.identify).toHaveBeenCalledTimes(count)
-        state.user = {...state.user, username: "Renamed"}
-        await render()
-        expect(state.alias).toHaveBeenCalledTimes(1)
-        expect(state.identify).toHaveBeenLastCalledWith("person@example.test", state.user)
+        expect(state.get).not.toHaveBeenCalled()
+        expect(state.init).not.toHaveBeenCalled()
     })
 
-    it("keeps the desktop visitor ID for self-hosted users", async () => {
-        state.cloud = false
-        state.user = {email: "person@example.test", username: "Person"}
+    it("identifies a cloud profile by user id, with email and username as properties", async () => {
         await render()
-        expect(state.identify).toHaveBeenCalledWith("desktop-visitor", state.user)
+        expect(state.get).toHaveBeenCalledWith("https://agenta.example.test/api/instance/telemetry")
+        expect(state.identify.mock.calls).toEqual([
+            ["user-1", {email: CLOUD_USER.email, username: CLOUD_USER.username}],
+        ])
         expect(state.alias).not.toHaveBeenCalled()
+        expect(state.group).not.toHaveBeenCalled()
+        await render()
+        expect(state.identify).toHaveBeenCalledTimes(1)
+        state.user = {...CLOUD_USER, username: "Renamed"}
+        await render()
+        expect(state.alias).not.toHaveBeenCalled()
+        expect(state.identify).toHaveBeenLastCalledWith("user-1", {
+            email: CLOUD_USER.email,
+            username: "Renamed",
+        })
+        // The browser was anonymous, then held the user id: it never starts over.
+        expect(state.reset).not.toHaveBeenCalled()
+    })
+
+    it("starts over a browser identified under another id before it identifies the user", async () => {
+        state.distinctId = "old-device-id"
+        state.userState = "identified"
+        await render()
+        expect(state.reset).toHaveBeenCalledTimes(1)
+        expect(state.reset.mock.invocationCallOrder[0]).toBeLessThan(
+            state.identify.mock.invocationCallOrder[0],
+        )
+        expect(state.identify.mock.calls).toEqual([
+            ["user-1", {email: CLOUD_USER.email, username: CLOUD_USER.username}],
+        ])
+    })
+
+    it("tags every cloud browser event with the region and the deployment", async () => {
+        await render()
+        expect(state.register).toHaveBeenCalledWith(CLOUD_PROPERTIES)
+        expect(state.register.mock.invocationCallOrder[0]).toBeLessThan(
+            state.capture.mock.invocationCallOrder[0],
+        )
+    })
+
+    it("loads nothing and sends nothing when the instance turned telemetry off", async () => {
+        state.telemetry = {enabled: false, distinct_id: null, groups: null}
+        await render()
+        expect(state.init).not.toHaveBeenCalled()
+        expect(state.capture).not.toHaveBeenCalled()
     })
 
     it("captures client navigation, but never the sign-in page, and removes listeners", async () => {
@@ -203,8 +283,9 @@ describe("mobile PostHog parity", () => {
             source: "composer",
             $set: {first_agent_intent_v1: "research"},
         })
+        const resets = state.reset.mock.calls.length
         await resetAnalytics()
-        expect(state.reset).toHaveBeenCalledTimes(1)
+        expect(state.reset).toHaveBeenCalledTimes(resets + 1)
     })
 
     it("does not mark the device theme captured when tracking is disabled", async () => {

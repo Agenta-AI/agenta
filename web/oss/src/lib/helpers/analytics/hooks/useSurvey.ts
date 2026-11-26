@@ -1,9 +1,11 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
+import {useAtomValue} from "jotai"
 import {Survey} from "posthog-js"
 import useSWR from "swr"
 
 import {getEnv} from "../../dynamicEnv"
+import {instanceTelemetryAtom} from "../store/atoms"
 
 import {usePostHogAg} from "./usePostHogAg"
 
@@ -39,7 +41,10 @@ const isSurveyRunning = (survey: Survey): boolean => {
 
 export const useSurvey = (surveyName: string) => {
     const posthog = usePostHogAg()
-    const trackingConfigured = getEnv("NEXT_PUBLIC_POSTHOG_API_KEY") !== ""
+    const telemetry = useAtomValue(instanceTelemetryAtom)
+    // Telemetry off: PostHog never loads, so there is no survey to wait for.
+    const trackingConfigured =
+        getEnv("NEXT_PUBLIC_POSTHOG_API_KEY") !== "" && telemetry?.enabled !== false
     const [manualError, setManualError] = useState<SurveyError | null>(null)
     const timeoutRef = useRef<number | null>(null)
 

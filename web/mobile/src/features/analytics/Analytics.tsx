@@ -2,60 +2,56 @@ import {useEffect, useRef} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
 import {setAgentCreationFailureReporter} from "@agenta/entities/workflow/agentCreationTelemetry"
-import {analyticsIdentity, generateOrRetrieveDistinctId} from "@agenta/shared/analytics"
-import {isCloud} from "@agenta/shared/api/env"
+import {adoptInstanceIdentity, analyticsPersonProperties} from "@agenta/shared/analytics"
 import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {getEnv} from "@/lib/env"
 
-import {capture, isAnalyticsAuthRoute, loadPostHog, posthogAtom} from "./client"
+import {capture, isAnalyticsAuthRoute, isCloudTelemetry, loadPostHog, posthogAtom} from "./client"
+import {useInstanceTelemetry} from "./useInstanceTelemetry"
 
 export const Analytics = () => {
     const router = useRouter()
     const {user} = useProfile()
     const [client, setClient] = useAtom(posthogAtom)
     const identityRef = useRef<string | null>(null)
-    const aliasedIdRef = useRef<string | null>(null)
     const initialPageviewRef = useRef(false)
     const authRoute = isAnalyticsAuthRoute(router.asPath || router.pathname || "")
-    const enabled = Boolean(getEnv("NEXT_PUBLIC_POSTHOG_API_KEY"))
+    // The API decides whether this instance sends events, and under which id.
+    const telemetry = useInstanceTelemetry(user?.id)
+    const keyed = Boolean(getEnv("NEXT_PUBLIC_POSTHOG_API_KEY"))
+    const enabled = keyed && telemetry?.enabled === true
+    // Signed out, the answer is unknown, not "off": opting out would outlive the next sign-in.
+    const optedOut = !keyed || telemetry?.enabled === false
+    const cloud = telemetry ? isCloudTelemetry(telemetry) : false
+    const distinctId = telemetry?.distinct_id ?? null
 
     useEffect(() => {
         if (!enabled || authRoute) return
         let cancelled = false
-        void loadPostHog().then((loaded) => {
+        void loadPostHog(cloud).then((loaded) => {
             if (!cancelled && loaded) setClient(loaded)
         })
         return () => {
             cancelled = true
         }
-    }, [enabled, authRoute, setClient])
+    }, [enabled, cloud, authRoute, setClient])
 
     useEffect(() => {
-        if (!client || !enabled || authRoute) return
-        if (!user?.email) aliasedIdRef.current = null
-        const baseId = generateOrRetrieveDistinctId()
-        const {id, properties} = analyticsIdentity(user, isCloud(), baseId)
-        const key = JSON.stringify([id, properties])
+        if (!client || !enabled || authRoute || !distinctId) return
+        // Cloud and self-hosted both identify with the id the API gives, so every device
+        // of a user is one person. Cloud adds the email and username as person properties.
+        const properties = analyticsPersonProperties(user, cloud)
+        const key = JSON.stringify([telemetry, properties])
         if (identityRef.current === key) return
         try {
-            if (
-                isCloud() &&
-                user?.email &&
-                baseId !== id &&
-                aliasedIdRef.current !== id &&
-                client.get_distinct_id() !== id
-            ) {
-                client.alias(id, baseId)
-                aliasedIdRef.current = id
-            }
-            client.identify(id, properties)
+            adoptInstanceIdentity(client, telemetry, properties)
             identityRef.current = key
         } catch {
             // A blocked analytics client must not affect profile hydration.
         }
-    }, [client, enabled, authRoute, user])
+    }, [client, enabled, cloud, authRoute, user, distinctId, telemetry])
 
     useEffect(() => {
         if (!client || !enabled) return
@@ -93,12 +89,9 @@ export const Analytics = () => {
     }, [client, enabled, authRoute])
 
     useEffect(() => {
-        if (authRoute) {
-            identityRef.current = null
-            aliasedIdRef.current = null
-        }
-        if (!enabled) client?.opt_out_capturing()
-    }, [authRoute, client, enabled])
+        if (authRoute) identityRef.current = null
+        if (optedOut) client?.opt_out_capturing()
+    }, [authRoute, client, optedOut])
 
     return null
 }
