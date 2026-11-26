@@ -49,8 +49,8 @@ const presets: PermissionPresetOption[] = [
     ),
     preset(
         "deny_all",
-        "entityUi.buildKit.presetDeactivate",
-        "entityUi.buildKit.presetDeactivateAgentaHelp",
+        "entityUi.buildKit.presetOff",
+        "entityUi.buildKit.presetOffAgentaHelp",
     ),
     preset("custom", "entityUi.buildKit.presetCustom", "entityUi.buildKit.presetCustomHelp", {
         disabled: true,
@@ -58,7 +58,7 @@ const presets: PermissionPresetOption[] = [
     }),
 ]
 
-/** What each preset sets a tool to. Deactivate leaves an empty map, never removes the entry. */
+/** What each preset sets a tool to. Off leaves an empty map, never removes the entry. */
 function presetValue(preset: Preset, readOnly: boolean): "allow" | "ask" | undefined {
     if (preset === "allow_all") return "allow"
     if (preset === "always_ask") return "ask"
@@ -103,7 +103,7 @@ export function AgentaToolsSection({tools, onChange, access, readOnly}: AgentaTo
     return (
         <PermissionDrawerBody
             catalogKey="agenta-tools"
-            // "Deactivate" turns a tool off; it is not a refusal, so it is not red (L8-22).
+            // "Off" turns a tool off; it is not a refusal, so it is not red (L8-22).
             plainDeny
             catalog={{status: "ready", complete: true, tools: rows}}
             emptyLabel={t("entityUi.buildKit.noAgentaTools")}

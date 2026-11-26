@@ -282,7 +282,7 @@ describe("Attach a secret: the list and the owner chips", () => {
         fx.own = []
         await openIn(secretAttachView, {}, AGENT)
         await findByText("Name", "label")
-        expect(saveButton("Save & attach")).toBeTruthy()
+        expect(saveButton("Save and attach")).toBeTruthy()
     })
 })
 
@@ -404,7 +404,7 @@ describe("Attach a secret: the attach", () => {
     })
 })
 
-describe("Attach a secret: Save & attach", () => {
+describe("Attach a secret: Save and attach", () => {
     const fillNew = async () => {
         await openIn(secretAttachView, {}, AGENT)
         await findByText("here:Attach a secret")
@@ -427,7 +427,7 @@ describe("Attach a secret: Save & attach", () => {
         await fillNew()
         await click(byText("Project"))
         expect(envField().value).toBe("CRM_TOKEN")
-        await click(saveButton("Save & attach"))
+        await click(saveButton("Save and attach"))
         await waitFor(() => expect(fx.commits).toHaveLength(1))
         expect(fx.order).toEqual(["vault", "commit"])
         expect(fx.saved[0]).toMatchObject({name: "CRM_TOKEN", content: "crm-value"})
@@ -439,7 +439,7 @@ describe("Attach a secret: Save & attach", () => {
 
     it("a new secret for me is the person's own, and the agent takes each person's value", async () => {
         await fillNew()
-        await click(saveButton("Save & attach"))
+        await click(saveButton("Save and attach"))
         await waitFor(() => expect(fx.commits).toHaveLength(1))
         expect(fx.saved[0]!.ownerKind).toBe("user")
         expect(fx.order).toEqual(["vault", "choice", "commit"])
@@ -453,7 +453,7 @@ describe("Attach a secret: Save & attach", () => {
         fx.commitError = "boom"
         await fillNew()
         await click(byText("Project"))
-        await click(saveButton("Save & attach"))
+        await click(saveButton("Save and attach"))
         await findByText("Saved in vault; not attached. boom")
         fx.commitError = null
         await waitFor(() => expect(saveButton("Attach")?.disabled).toBe(false))
@@ -698,9 +698,9 @@ describe("Advanced", () => {
         await findByText("here:Agenta tools")
         expect(document.querySelector('[role="combobox"]')).toBeNull()
         expect(document.querySelector('[aria-label="Default permission"]')).toBeNull()
-        // The default ("Deactivate") and the two tools ("Deactivate" each).
+        // The default ("Off") and the two tools ("Off" each).
         expect(
-            [...document.querySelectorAll("span")].filter((s) => s.textContent === "Deactivate"),
+            [...document.querySelectorAll("span")].filter((s) => s.textContent === "Off"),
         ).toHaveLength(3)
         expect(document.body.textContent).not.toContain("switches the default to Custom")
     })

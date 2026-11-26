@@ -92,7 +92,7 @@ describe("Agenta tools section", () => {
         expect(host.textContent).not.toContain("In the playground")
     })
 
-    it("adds a tool on Allow or Ask and removes it on Deactivate", async () => {
+    it("adds a tool on Allow or Ask and removes it on Off", async () => {
         await act(async () => root.render(<Harness initial={defaults} />))
         await choose(row("create_schedule"), "ask")
         expect(saved).toEqual({...defaults, create_schedule: "ask"})
@@ -101,7 +101,7 @@ describe("Agenta tools section", () => {
         expect(row("rename_session").value).toBe("deny")
     })
 
-    it("applies the presets, and Deactivate leaves an empty map", async () => {
+    it("applies the presets, and Off leaves an empty map", async () => {
         await act(async () => root.render(<Harness initial={defaults} />))
         await choose(preset(), "ask_writes")
         expect(saved).toEqual({

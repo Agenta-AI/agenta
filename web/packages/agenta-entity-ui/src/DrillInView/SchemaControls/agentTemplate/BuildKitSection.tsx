@@ -57,8 +57,8 @@ const presets: PermissionPresetOption[] = [
     ),
     preset(
         "deny_all",
-        "entityUi.buildKit.presetDeactivate",
-        "entityUi.buildKit.presetDeactivateKitHelp",
+        "entityUi.buildKit.presetOff",
+        "entityUi.buildKit.presetOffKitHelp",
     ),
     preset("custom", "entityUi.buildKit.presetCustom", "entityUi.buildKit.presetCustomHelp", {
         disabled: true,
@@ -85,7 +85,7 @@ const toolOption = (
 export const buildKitToolOptions: PermissionPolicyOption[] = [
     toolOption("allow", "entityUi.buildKit.toolAllow", "entityUi.buildKit.toolAllowHelp"),
     toolOption("ask", "entityUi.buildKit.toolAsk", "entityUi.buildKit.toolAskHelp"),
-    toolOption("deny", "entityUi.buildKit.toolDeactivate", "entityUi.buildKit.toolDeactivateHelp"),
+    toolOption("deny", "entityUi.buildKit.toolOff", "entityUi.buildKit.toolOffHelp"),
 ]
 
 export function BuildKitSection({
@@ -127,7 +127,7 @@ export function BuildKitSection({
     return (
         <PermissionDrawerBody
             catalogKey="playground-build-kit"
-            // "Deactivate" turns a tool off; it is not a refusal, so it is not red (L8-22).
+            // "Off" turns a tool off; it is not a refusal, so it is not red (L8-22).
             plainDeny
             catalog={{
                 status: "ready",
@@ -181,7 +181,7 @@ export function BuildKitSection({
             }}
             disabled={disabled}
             valuesAsText={readOnly}
-            lockedTool={() => (state.enabled ? null : t("entityUi.buildKit.buildKitDeactivated"))}
+            lockedTool={() => (state.enabled ? null : t("entityUi.buildKit.buildKitIsOff"))}
             toolOptions={buildKitToolOptions}
             writeLabel={t("entityUi.buildKit.writeGroup")}
             readOnlyLabel={t("entityUi.buildKit.readOnlyGroup")}

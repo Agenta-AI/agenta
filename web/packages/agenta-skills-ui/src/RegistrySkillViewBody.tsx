@@ -376,7 +376,8 @@ const RegistrySkillEditor = ({
             onLeave={onLeave}
             onAskLeave={nav.back}
         />
-    ) : (
+    ) : inAgent ? null : (
+        // This agent's unsaved draft may use the skill, so the agent view does not say "not used".
         <span>{t("skills.page.notUsed")}</span>
     )
     const editedAt = head?.createdAt ? new Date(head.createdAt).getTime() : NaN
