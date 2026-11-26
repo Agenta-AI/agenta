@@ -43,12 +43,9 @@
     "lastChanged": "Last changed",
     "authAccount": "Account login",
     "authKey": "API key",
-    "agentsCanDo_one": "{{count}} thing agents can do",
-    "agentsCanDo_other": "{{count}} things agents can do",
-    "show": "Show",
-    "hide": "Hide",
     "moreCount": "+{{count}} more",
     "openApp": "Open {{name}}",
     "testConnection": "Test connection",
-    "needsSignInAgain": "Needs to sign in again"
+    "needsSignInAgain": "Needs to sign in again",
+    "whatAgentsCanDo": "What agents can do"
 }

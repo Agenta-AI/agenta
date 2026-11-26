@@ -44,12 +44,9 @@
     "lastChanged": "Última alteração",
     "authAccount": "Login da conta",
     "authKey": "Chave de API",
-    "agentsCanDo_one": "{{count}} ação que os agentes podem fazer",
-    "agentsCanDo_other": "{{count}} ações que os agentes podem fazer",
-    "show": "Mostrar",
-    "hide": "Ocultar",
     "moreCount": "+{{count}} a mais",
     "openApp": "Abrir {{name}}",
     "testConnection": "Testar conexão",
-    "needsSignInAgain": "Precisa entrar de novo"
+    "needsSignInAgain": "Precisa entrar de novo",
+    "whatAgentsCanDo": "O que os agentes podem fazer"
 }

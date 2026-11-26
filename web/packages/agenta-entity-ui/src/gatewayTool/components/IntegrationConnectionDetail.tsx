@@ -12,7 +12,6 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import {timeAgo} from "@agenta/shared/utils"
-import {HeightCollapse} from "@agenta/ui"
 import {BottomSheet, PHONE_BUTTON_CLASS, useIsPhone} from "@agenta/ui/phone"
 import {
     Button,
@@ -22,7 +21,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@agenta/ui/ui"
-import {ArrowSquareOut, CaretDown, Lightning} from "@phosphor-icons/react"
+import {ArrowSquareOut, Lightning} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import Image from "next/image"
 
@@ -41,7 +40,7 @@ export interface IntegrationConnectionDetailProps {
     onClosed: () => void
 }
 
-const ACTION_PREVIEW = 10
+const ACTION_PREVIEW = 8
 
 const stamp = (value?: string | null) => (value ? timeAgo(Date.parse(value)) : "")
 
@@ -57,7 +56,6 @@ export const IntegrationConnectionDetail = ({
     const t = useT(commonCatalog, integrationDrawerCatalog)
     const phone = useIsPhone()
     const [open, setOpen] = useState(true)
-    const [showActions, setShowActions] = useState(false)
     const close = () => setOpen(false)
 
     const integration = useAtomValue(toolIntegrationDetailQueryFamily(connection.integration_key))
@@ -119,50 +117,33 @@ export const IntegrationConnectionDetail = ({
                 </div>
             ) : null}
             {actionTotal ? (
-                <div className="flex flex-col">
-                    <Button
-                        variant="ghost"
-                        className="-mx-2 justify-between px-2"
-                        aria-expanded={showActions}
-                        onClick={() => setShowActions((value) => !value)}
-                    >
-                        <span className="flex items-center gap-2">
-                            <Lightning size={14} className="text-muted-foreground" />
-                            {t("entityUi.integrationDrawer.agentsCanDo", {count: actionTotal})}
+                <section className="flex flex-col gap-2">
+                    <span className="flex items-baseline gap-1.5 text-label">
+                        <span className="font-medium text-foreground">
+                            {t("entityUi.integrationDrawer.whatAgentsCanDo")}
                         </span>
-                        <span className="flex items-center gap-1 text-meta text-muted-foreground">
-                            {showActions
-                                ? t("entityUi.integrationDrawer.hide")
-                                : t("entityUi.integrationDrawer.show")}
-                            <CaretDown
-                                size={12}
-                                className={`transition-transform duration-[var(--duration-fast)] ${
-                                    showActions ? "rotate-180" : ""
-                                }`}
-                            />
+                        <span className="text-muted-foreground">{actionTotal}</span>
+                    </span>
+                    <ul className="m-0 grid list-none grid-cols-1 gap-x-4 gap-y-1.5 p-0 sm:grid-cols-2">
+                        {actions.map((action) => (
+                            <li
+                                key={action.key}
+                                title={action.description ?? undefined}
+                                className="flex min-w-0 items-center gap-2 text-label text-foreground"
+                            >
+                                <Lightning size={12} aria-hidden className="shrink-0 text-muted-foreground" />
+                                <span className="truncate">{action.name}</span>
+                            </li>
+                        ))}
+                    </ul>
+                    {actionTotal > actions.length ? (
+                        <span className="text-meta text-muted-foreground">
+                            {t("entityUi.integrationDrawer.moreCount", {
+                                count: actionTotal - actions.length,
+                            })}
                         </span>
-                    </Button>
-                    <HeightCollapse open={showActions}>
-                        <div className="flex flex-wrap gap-1.5 pt-2">
-                            {actions.map((action) => (
-                                <span
-                                    key={action.key}
-                                    title={action.description ?? undefined}
-                                    className="rounded-md bg-muted px-2 py-0.5 text-meta text-foreground"
-                                >
-                                    {action.name}
-                                </span>
-                            ))}
-                            {actionTotal > actions.length ? (
-                                <span className="px-1 py-0.5 text-meta text-muted-foreground">
-                                    {t("entityUi.integrationDrawer.moreCount", {
-                                        count: actionTotal - actions.length,
-                                    })}
-                                </span>
-                            ) : null}
-                        </div>
-                    </HeightCollapse>
-                </div>
+                    ) : null}
+                </section>
             ) : null}
         </div>
     )

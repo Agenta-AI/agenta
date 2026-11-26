@@ -3411,14 +3411,11 @@
         "lastChanged": "d8c5670ad98e",
         "authAccount": "50dfc76409a6",
         "authKey": "16f0ee47f993",
-        "agentsCanDo_one": "f9e6a95ba8ab",
-        "agentsCanDo_other": "474c79f3dbc5",
-        "show": "0df6f1cad36c",
-        "hide": "ac20a57bfde0",
         "moreCount": "48380badf7a4",
         "openApp": "e0f8c156c3df",
         "testConnection": "5bcf311b19d8",
-        "needsSignInAgain": "3a7c211ddcf0"
+        "needsSignInAgain": "3a7c211ddcf0",
+        "whatAgentsCanDo": "b0e5bc245907"
     },
     "entityUi.itemDescriptors": {
         "subagent": "d6cb4188b8fa",

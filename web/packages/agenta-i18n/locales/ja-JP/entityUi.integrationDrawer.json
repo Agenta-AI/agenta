@@ -42,12 +42,9 @@
     "lastChanged": "最終変更",
     "authAccount": "アカウントでログイン",
     "authKey": "API キー",
-    "agentsCanDo_one": "エージェントができること {{count}} 件",
-    "agentsCanDo_other": "エージェントができること {{count}} 件",
-    "show": "表示",
-    "hide": "非表示",
     "moreCount": "ほか {{count}} 件",
     "openApp": "{{name}} を開く",
     "testConnection": "接続をテスト",
-    "needsSignInAgain": "再サインインが必要"
+    "needsSignInAgain": "再サインインが必要",
+    "whatAgentsCanDo": "エージェントができること"
 }
