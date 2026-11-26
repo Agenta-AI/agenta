@@ -7,8 +7,6 @@ caller gets 404. These tests call with an API key, so they check the 404 paths.
 
 from uuid import uuid4
 
-from oss.tests.pytest.utils.mounts import skip_if_mount_storage_unavailable
-
 
 def _create_workflow(authed_api):
     response = authed_api(
@@ -26,16 +24,6 @@ def _query_agent_mount(authed_api, artifact_id, *, name="default"):
         "/mounts/agents/query",
         json={"artifact_id": artifact_id, "name": name},
     )
-
-
-def _sign_agent_mount(authed_api, artifact_id, *, name="default"):
-    response = authed_api(
-        "POST",
-        "/mounts/agents/sign",
-        params={"artifact_id": artifact_id, "name": name},
-    )
-    skip_if_mount_storage_unavailable(response)
-    return response
 
 
 class TestAgentMountReads:
@@ -78,8 +66,13 @@ class TestAgentMountSign:
     ):
         # Only an agent run may sign its own agent's drive. An API key is not a run
         # credential, so an existing agent still answers 404 and gets no drive.
+        # The 404 comes before any storage call, so this check needs no store.
         artifact_id = _create_workflow(authed_api)
-        signed = _sign_agent_mount(authed_api, artifact_id)
+        signed = authed_api(
+            "POST",
+            "/mounts/agents/sign",
+            params={"artifact_id": artifact_id, "name": "default"},
+        )
         assert signed.status_code == 404, signed.text
 
         queried = _query_agent_mount(authed_api, artifact_id)
