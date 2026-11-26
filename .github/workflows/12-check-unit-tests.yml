@@ -643,6 +643,13 @@ jobs:
       POSTGRES_URI_CORE: postgresql+asyncpg://username:password@localhost:5432/agenta_oss_core
       POSTGRES_URI_TRACING: postgresql+asyncpg://username:password@localhost:5432/agenta_oss_tracing
       REDIS_URI: redis://localhost:6379/0
+      # Send this stack's telemetry to the "Agenta Test Traffic" PostHog project, not to the
+      # built-in self-hosted project. The token is a public ingestion key. The off switch
+      # takes effect once the API reads AGENTA_TELEMETRY_ENABLED. The instance kind marks
+      # every event, update check and registration from this stack as test traffic.
+      POSTHOG_API_KEY: phc_rCKHKJj7ea3r5t7frogShC8MUsuFzSD6FFTJe7YniDV9
+      AGENTA_TELEMETRY_ENABLED: "false"
+      AGENTA_TELEMETRY_INSTANCE_KIND: test
     steps:
       - uses: actions/checkout@v6
         with:
