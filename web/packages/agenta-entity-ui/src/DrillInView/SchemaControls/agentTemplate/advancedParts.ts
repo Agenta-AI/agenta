@@ -18,7 +18,7 @@ export const useAdvancedParts = (
     const agentaTools = useAgentaToolsData(config, revisionId)
     const {hasBuildKitOverlay} = useBuildKit({revisionId})
     const execution = sandbox.hasExecutionGroup
-    const tools = agentaTools.status !== "none"
+    const tools = agentaTools.status === "ready" || agentaTools.status === "error"
     return {
         sandbox,
         agentaTools,

@@ -4,12 +4,15 @@ import modelHarnessCatalog from "@agenta/i18n/catalogs/entityUi.modelHarness"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
-import {RailField} from "../../../../drawers/shared/RailField"
-import {EnumSelectControl} from "../../EnumSelectControl"
+import {ScrollFadeArea} from "../../../../shared/ScrollFadeArea"
+import {FieldHeading} from "../accounts/FieldHeading"
+import {PermissionPolicySelect} from "../PermissionPolicySelect"
 import {RevertGroupButton} from "../RevertGroupButton"
 import {useSandboxChoice} from "../sandboxChoice"
+import {ADVANCED_PART_ICONS} from "../sections/AdvancedPartRows"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 
+import {AdvancedPartHeader, PART_BODY_CLASS} from "./AdvancedPartHeader"
 import type {AdvancedViewParams} from "./advancedViews"
 
 /** The sandbox of the saved version, which Revert puts back. */
@@ -21,7 +24,7 @@ const committedSandboxKindOf = (parameters: unknown): string | null => {
 const ExecutionViewBody = ({target}: ViewProps<AdvancedViewParams>) => {
     const t = useT(modelHarnessCatalog)
     const writer = useAgentConfigWriter(target.kind === "agent_draft" ? target.revisionId : "")
-    const {sandboxProps, sandboxKind, shownSandboxKind, sandboxOptions} = useSandboxChoice(
+    const {shownSandboxKind, sandboxKind, sandboxOptions} = useSandboxChoice(
         writer.schema,
         writer.agent,
     )
@@ -35,37 +38,44 @@ const ExecutionViewBody = ({target}: ViewProps<AdvancedViewParams>) => {
             sandbox: {...((agent.sandbox as Record<string, unknown>) ?? {}), kind},
         }))
     const changed = committedKind !== null && committedKind !== sandboxKind
+    const options = sandboxOptions.map((option) => ({value: option.value, title: option.label}))
+    const sandboxLabel = t("entityUi.modelHarness.sandbox")
 
     return (
-        <div className="flex flex-col gap-4 px-4 py-3">
-            <div className="flex items-start gap-2">
-                <span className="min-w-0 flex-1 text-meta leading-snug text-muted-foreground">
-                    {t("entityUi.modelHarness.executionCaption")}
-                </span>
-                {changed && !writer.readOnly ? (
-                    <RevertGroupButton onConfirm={() => setKind(committedKind)} />
-                ) : null}
-            </div>
-            <RailField
-                label={t("entityUi.modelHarness.sandbox")}
-                align="center"
-                path="sandbox.kind"
-            >
+        <div className="flex min-h-0 flex-1 flex-col">
+            <AdvancedPartHeader
+                icon={ADVANCED_PART_ICONS.execution}
+                title={t("entityUi.modelHarness.execution")}
+                description={t("entityUi.modelHarness.executionCaptionShort")}
+            />
+            <ScrollFadeArea className={`flex min-h-0 flex-1 flex-col gap-2 ${PART_BODY_CLASS}`}>
+                <div className="flex h-5 items-center justify-between gap-2">
+                    <FieldHeading
+                        label={sandboxLabel}
+                        note={t("entityUi.modelHarness.executionCaption")}
+                    />
+                    {changed && !writer.readOnly ? (
+                        <RevertGroupButton onConfirm={() => setKind(committedKind)} />
+                    ) : null}
+                </div>
                 {/* Read only (a phone): the value as text, no control. */}
                 {writer.readOnly ? (
                     <span className="text-label text-foreground">
-                        {sandboxOptions.find((o) => o.value === shownSandboxKind)?.label ??
+                        {options.find((o) => o.value === shownSandboxKind)?.title ??
                             shownSandboxKind}
                     </span>
                 ) : (
-                    <EnumSelectControl
-                        schema={sandboxProps.kind}
-                        options={sandboxOptions}
-                        value={shownSandboxKind}
-                        onChange={(value) => setKind(value as string | null)}
+                    <PermissionPolicySelect
+                        value={shownSandboxKind ?? ""}
+                        onChange={(value) => setKind(value)}
+                        options={options}
+                        aria-label={sandboxLabel}
+                        // The kit compact field, as the Default permission select of the other parts.
+                        compact
+                        triggerClassName="w-full gap-2"
                     />
                 )}
-            </RailField>
+            </ScrollFadeArea>
         </div>
     )
 }

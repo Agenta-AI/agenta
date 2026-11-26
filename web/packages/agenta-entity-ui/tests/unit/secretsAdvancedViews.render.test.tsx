@@ -610,10 +610,10 @@ describe("Advanced", () => {
         expect(tools.textContent).toContain("Agenta tools")
         expect(tools.textContent).toContain("· 2 tools")
         expect(document.querySelector('[data-testid="advanced-part-build-kit"]')).toBeNull()
-        // One bordered card (F04 f9), each row with the triangle caret.
+        // The Agent tab's section cards: a muted card with a Mark per part.
         expect(execution.parentElement).toBe(tools.parentElement)
-        expect(execution.parentElement?.className).toContain("border-border-muted")
-        expect(execution.querySelector('[data-slot="collapse-caret"]')).not.toBeNull()
+        expect(execution.querySelector("[data-section-card]")?.className).toContain("bg-muted")
+        expect(execution.querySelector('[data-slot="icon-tile"]')).not.toBeNull()
     })
 
     it("the Configuration page's Advanced card shows the same rows as the view", async () => {

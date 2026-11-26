@@ -58,54 +58,6 @@ const presets: PermissionPresetOption[] = [
     }),
 ]
 
-/** Copy for the Agenta tools the build kit table does not name. */
-const AGENTA_TOOL_COPY: Record<string, {name: BuildKitKey; description: BuildKitKey}> = {
-    get_current_session: {
-        name: "entityUi.buildKit.getCurrentSessionName",
-        description: "entityUi.buildKit.getCurrentSessionDescription",
-    },
-    list_subscriptions: {
-        name: "entityUi.buildKit.listSubscriptionsName",
-        description: "entityUi.buildKit.listSubscriptionsDescription",
-    },
-    check_skill_updates: {
-        name: "entityUi.buildKit.checkSkillUpdatesName",
-        description: "entityUi.buildKit.checkSkillUpdatesDescription",
-    },
-    apply_skill_update: {
-        name: "entityUi.buildKit.applySkillUpdateName",
-        description: "entityUi.buildKit.applySkillUpdateDescription",
-    },
-    start_session: {
-        name: "entityUi.buildKit.startSessionName",
-        description: "entityUi.buildKit.startSessionDescription",
-    },
-    send_session_message: {
-        name: "entityUi.buildKit.sendSessionMessageName",
-        description: "entityUi.buildKit.sendSessionMessageDescription",
-    },
-    wait_for_sessions: {
-        name: "entityUi.buildKit.waitForSessionsName",
-        description: "entityUi.buildKit.waitForSessionsDescription",
-    },
-    cancel_session: {
-        name: "entityUi.buildKit.cancelSessionName",
-        description: "entityUi.buildKit.cancelSessionDescription",
-    },
-    list_sessions: {
-        name: "entityUi.buildKit.listSessionsName",
-        description: "entityUi.buildKit.listSessionsDescription",
-    },
-    read_session: {
-        name: "entityUi.buildKit.readSessionName",
-        description: "entityUi.buildKit.readSessionDescription",
-    },
-    read_session_spans: {
-        name: "entityUi.buildKit.readSessionSpansName",
-        description: "entityUi.buildKit.readSessionSpansDescription",
-    },
-}
-
 /** What each preset sets a tool to. Deactivate leaves an empty map, never removes the entry. */
 function presetValue(preset: Preset, readOnly: boolean): "allow" | "ask" | undefined {
     if (preset === "allow_all") return "allow"
@@ -136,92 +88,63 @@ export interface AgentaToolsSectionProps {
     onChange: (next: AgentaToolsMap) => void
     /** Every Agenta tool, marked "read" or "write". */
     access: Record<string, "read" | "write">
-    /** The tools the playground build kit adds to runs right now. */
-    buildKitOps: Set<string>
     /** A read-only view (a phone): the permissions show as text. */
     readOnly?: boolean
 }
 
-export function AgentaToolsSection({
-    tools,
-    onChange,
-    access,
-    buildKitOps,
-    readOnly,
-}: AgentaToolsSectionProps) {
+export function AgentaToolsSection({tools, onChange, access, readOnly}: AgentaToolsSectionProps) {
     const t = useT(buildKitCatalog)
     const rows = Object.entries(access).map(([op, kind]) => {
-        const copy = AGENTA_TOOL_COPY[op]
-        const {name, description} = copy
-            ? {name: t(copy.name), description: t(copy.description)}
-            : describeBuildKitPlatformTool(op)
-        return {
-            key: op,
-            name,
-            // One line per tool, the name and its select (canvas F04 f10). Only a tool the build
-            // kit overrides keeps a second line, because it says the setting does not apply now.
-            description: buildKitOps.has(op)
-                ? t("entityUi.buildKit.buildKitSettingApplies", {description: description ?? ""})
-                : undefined,
-            readOnly: kind === "read",
-        }
+        const {name, description} = describeBuildKitPlatformTool(op)
+        // Every row keeps its own description, so every row is two lines (ROW-01).
+        return {key: op, name, description, readOnly: kind === "read"}
     })
     const preset = agentaToolsPreset(tools, access)
     return (
-        // The list keeps its own gutter (a quiet 6 px bar, 16 px on both sides, canvas F04 f10), so
-        // this body undoes the view's 16 px sides and its bottom padding, and pads the hint itself.
-        <div className="-mx-4 -mb-3.5 flex min-h-0 flex-col">
-            {/* The view's breadcrumb names the part, so the body starts at its description (F04 f10). */}
-            <span className="px-4 text-label leading-5 text-muted-foreground">
-                {t("entityUi.buildKit.agentaToolsHint")}
-            </span>
-            <PermissionDrawerBody
-                catalogKey="agenta-tools"
-                // "Deactivate" turns a tool off; it is not a refusal, so it is not red (L8-22).
-                plainDeny
-                catalog={{status: "ready", complete: true, tools: rows}}
-                emptyLabel={t("entityUi.buildKit.noAgentaTools")}
-                permissions={{
-                    default: "deny",
-                    tools: Object.fromEntries(
-                        rows.map((row) => [row.key, tools[row.key] ?? "deny"]),
-                    ),
-                }}
-                onChangePermissions={() => undefined}
-                onChangeToolPermission={(op, permission) => {
-                    if (permission === "inherit" || permission === "allow_reads") return
-                    const next = {...tools}
-                    delete next[op]
-                    if (permission !== "deny") next[op] = permission
+        <PermissionDrawerBody
+            catalogKey="agenta-tools"
+            // "Deactivate" turns a tool off; it is not a refusal, so it is not red (L8-22).
+            plainDeny
+            catalog={{status: "ready", complete: true, tools: rows}}
+            emptyLabel={t("entityUi.buildKit.noAgentaTools")}
+            permissions={{
+                default: "deny",
+                tools: Object.fromEntries(rows.map((row) => [row.key, tools[row.key] ?? "deny"])),
+            }}
+            onChangePermissions={() => undefined}
+            onChangeToolPermission={(op, permission) => {
+                if (permission === "inherit" || permission === "allow_reads") return
+                const next = {...tools}
+                delete next[op]
+                if (permission !== "deny") next[op] = permission
+                onChange(next)
+            }}
+            presets={{
+                options: presets,
+                value: preset,
+                overrideCount: 0,
+                onPick: (value) => {
+                    if (value === "custom" || value === "follow_agent") return
+                    const next: AgentaToolsMap = {}
+                    for (const row of rows) {
+                        const permission = presetValue(value as Preset, row.readOnly)
+                        if (permission) next[row.key] = permission
+                    }
                     onChange(next)
-                }}
-                presets={{
-                    options: presets,
-                    value: preset,
-                    overrideCount: 0,
-                    onPick: (value) => {
-                        if (value === "custom" || value === "follow_agent") return
-                        const next: AgentaToolsMap = {}
-                        for (const row of rows) {
-                            const permission = presetValue(value as Preset, row.readOnly)
-                            if (permission) next[row.key] = permission
-                        }
-                        onChange(next)
-                    },
-                }}
-                valuesAsText={readOnly}
-                toolOptions={buildKitToolOptions}
-                writeLabel={t("entityUi.buildKit.writeGroup")}
-                readOnlyLabel={t("entityUi.buildKit.readOnlyGroup")}
-            />
-        </div>
+                },
+            }}
+            valuesAsText={readOnly}
+            toolOptions={buildKitToolOptions}
+            writeLabel={t("entityUi.buildKit.writeGroup")}
+            readOnlyLabel={t("entityUi.buildKit.readOnlyGroup")}
+        />
     )
 }
 
 /**
  * The Agenta tools of the agent in `config`: which tools exist (`access`), the agent's entry
  * (`tools`), and the ones the playground build kit overrides. `status` is "none" when the
- * deployment offers no Agenta tool.
+ * deployment offers no Agenta tool, "loading" while the list is on its way.
  */
 export function useAgentaToolsData(config: Record<string, unknown>, revisionId: string | null) {
     const accessQuery = useAtomValue(agentaToolsAccessAtom)
@@ -244,16 +167,18 @@ export function useAgentaToolsData(config: Record<string, unknown>, revisionId: 
         [overlay, buildKit],
     )
     const access = accessQuery.data
-    const status: "error" | "none" | "ready" = accessQuery.isError
+    const status: "loading" | "error" | "none" | "ready" = accessQuery.isError
         ? "error"
-        : !access || Object.keys(access).length === 0
-          ? "none"
-          : "ready"
+        : accessQuery.isPending && accessQuery.fetchStatus === "fetching"
+          ? "loading"
+          : !access || Object.keys(access).length === 0
+            ? "none"
+            : "ready"
     const tools = useMemo(
         () => readAgentaTools(Array.isArray(config.tools) ? config.tools : []) ?? {},
         [config.tools],
     )
-    return {status, access: access ?? {}, tools, buildKitOps}
+    return {status, access: access ?? {}, tools, buildKitOps, retry: accessQuery.refetch}
 }
 
 /** The agent's `agenta_tools` entry with `next` written into its tool list. */

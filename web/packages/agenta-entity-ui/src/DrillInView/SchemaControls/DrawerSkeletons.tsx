@@ -141,29 +141,35 @@ export function ToolGroupsSkeleton({rows = ROW_NAMES.length}: {rows?: number}) {
     )
 }
 
-/** The permission body: account (a switch, or a shared sign-in's line), permission, search, tools. */
-export function ToolPermissionsSkeleton({account = "switch"}: {account?: "switch" | "line"}) {
+/** The permission body: account (a switch, a shared sign-in's line, or none), permission, search, tools. */
+export function ToolPermissionsSkeleton({
+    account = "switch",
+}: {
+    account?: "switch" | "line" | "none"
+}) {
     return (
         <div
             aria-busy
             // The body's quiet scrollbar keeps its 6 px gutter, so the column has the same width.
             className="ag-scroll-quiet flex min-h-0 flex-1 flex-col gap-4 overflow-hidden py-4 pl-4 pr-2.5 max-md:pr-4"
         >
-            <div className="flex flex-col gap-2">
-                <FieldHeadingSkeleton width={account === "switch" ? "w-14" : "w-24"} />
-                {account === "switch" ? (
-                    <div className="flex gap-0.5 rounded-lg bg-secondary p-0.5">
-                        <ChoiceSkeleton lines={2} />
-                        <ChoiceSkeleton lines={1} />
-                    </div>
-                ) : (
-                    // The zero-width space gives the line its label height.
-                    <div className="flex items-center text-label">
-                        {"\u200b"}
-                        <SkeletonBlock className="h-3.5 w-32" />
-                    </div>
-                )}
-            </div>
+            {account === "none" ? null : (
+                <div className="flex flex-col gap-2">
+                    <FieldHeadingSkeleton width={account === "switch" ? "w-14" : "w-24"} />
+                    {account === "switch" ? (
+                        <div className="flex gap-0.5 rounded-lg bg-secondary p-0.5">
+                            <ChoiceSkeleton lines={2} />
+                            <ChoiceSkeleton lines={1} />
+                        </div>
+                    ) : (
+                        // The zero-width space gives the line its label height.
+                        <div className="flex items-center text-label">
+                            {"\u200b"}
+                            <SkeletonBlock className="h-3.5 w-32" />
+                        </div>
+                    )}
+                </div>
+            )}
             <div className="flex flex-col gap-2">
                 <FieldHeadingSkeleton width="w-28" />
                 {/* The select's own pending bar, as the body draws it. */}

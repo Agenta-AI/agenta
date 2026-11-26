@@ -49,7 +49,6 @@ function Harness({initial}: {initial: AgentaToolsMap}) {
             tools={tools}
             onChange={setTools}
             access={access}
-            buildKitOps={new Set(["create_schedule"])}
         />
     )
 }
@@ -80,7 +79,6 @@ describe("Agenta tools section", () => {
         await act(async () => root.render(<Harness initial={defaults} />))
         expect(host.textContent).toContain("Get the link to this chat")
         expect(host.textContent).toContain("Rename this chat")
-        expect(host.textContent).toContain("wherever it runs")
         expect(row("get_current_session").value).toBe("allow")
         expect(row("rename_session").value).toBe("allow")
         expect(row("create_schedule").value).toBe("deny")
@@ -94,15 +92,10 @@ describe("Agenta tools section", () => {
         expect(row("create_schedule").className).not.toContain("colorError")
     })
 
-    it("starts at the description, without repeating the view title", async () => {
+    it("gives every tool its own description, with no per-row playground note (ROW-01)", async () => {
         await act(async () => root.render(<Harness initial={defaults} />))
-        expect(host.textContent).not.toContain("Agenta tools")
-        expect(host.textContent?.startsWith("Tools your agent can use")).toBe(true)
-    })
-
-    it("marks the tools the build kit also carries", async () => {
-        await act(async () => root.render(<Harness initial={defaults} />))
-        expect(host.textContent).toContain("In the playground, the Build kit setting applies.")
+        expect(host.textContent).toContain("Gets this chat's name and a link to open it in Agenta.")
+        expect(host.textContent).not.toContain("In the playground")
     })
 
     it("adds a tool on Allow or Ask and removes it on Deactivate", async () => {
@@ -156,7 +149,6 @@ describe("Agenta tools section", () => {
                     tools={{}}
                     onChange={() => undefined}
                     access={Object.fromEntries(ops.map((op) => [op, "write" as const]))}
-                    buildKitOps={new Set()}
                 />,
             ),
         )

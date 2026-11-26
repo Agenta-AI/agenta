@@ -1,5 +1,6 @@
 import {defineView} from "@agenta/ui/view-stack"
 
+import {AdvancedListSkeleton, AdvancedPartSkeleton} from "./AdvancedPartHeader"
 import {lazyView} from "./lazyView"
 
 export type AdvancedViewParams = Record<string, never>
@@ -13,7 +14,7 @@ export const advancedView = defineView<AdvancedViewParams>({
     // A list of parts with no Done (F04 f9): a row opens the part, the crumb goes back.
     actionRow: false,
     readOnlyOnPhone: true,
-    Component: lazyView(() => import("./AdvancedViewBody")),
+    Component: lazyView(() => import("./AdvancedViewBody"), <AdvancedListSkeleton />),
 })
 
 /** "Execution": the Sandbox select and Revert. A pick changes the configuration at once. */
@@ -21,7 +22,10 @@ export const executionView = defineView<AdvancedViewParams>({
     id: "agent.advanced.execution",
     apply: "immediate",
     readOnlyOnPhone: true,
-    Component: lazyView(() => import("./ExecutionViewBody")),
+    Component: lazyView(
+        () => import("./ExecutionViewBody"),
+        <AdvancedPartSkeleton body="field" />,
+    ),
 })
 
 /** "Agenta tools" (F04 f10): today's body, with Cancel and Save. */
@@ -29,7 +33,10 @@ export const agentaToolsView = defineView<AdvancedViewParams>({
     id: "agent.advanced.agentaTools",
     apply: "on_save",
     readOnlyOnPhone: true,
-    Component: lazyView(() => import("./AgentaToolsViewBody")),
+    Component: lazyView(
+        () => import("./AgentaToolsViewBody"),
+        <AdvancedPartSkeleton body="permissions" />,
+    ),
 })
 
 /** "Build kit": today's body (playground only). It changes the playground state at once. */
@@ -37,5 +44,8 @@ export const buildKitView = defineView<AdvancedViewParams>({
     id: "agent.advanced.buildKit",
     apply: "immediate",
     readOnlyOnPhone: true,
-    Component: lazyView(() => import("./BuildKitViewBody")),
+    Component: lazyView(
+        () => import("./BuildKitViewBody"),
+        <AdvancedPartSkeleton body="permissions" />,
+    ),
 })
