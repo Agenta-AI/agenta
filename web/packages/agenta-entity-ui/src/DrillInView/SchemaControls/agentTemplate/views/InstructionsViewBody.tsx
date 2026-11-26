@@ -4,6 +4,7 @@ import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import instructionsViewCatalog from "@agenta/i18n/catalogs/entityUi.instructionsView"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
+import {Button} from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 
 import {MarkdownEditorSkeleton} from "../../DrawerSkeletons"
@@ -53,15 +54,17 @@ const InstructionsViewBody = ({params, target}: ViewProps<InstructionsViewParams
             {showToolbar ? (
                 <div className="flex shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted bg-muted px-2.5 py-1.5">
                     <div ref={setToolbarHost} className="min-w-0 flex-1" />
-                    <button
-                        type="button"
+                    <Button
+                        variant="ghost"
+                        size="xs"
                         onClick={() => setView((v) => (v === "source" ? "rendered" : "source"))}
-                        className="shrink-0 cursor-pointer rounded-md border-0 bg-transparent px-1.5 py-0.5 font-[inherit] text-meta font-medium text-foreground underline underline-offset-2 hover:bg-accent"
+                        // A quiet toggle beside the toolbar (KIT-02).
+                        className="shrink-0 text-muted-foreground hover:text-foreground"
                     >
                         {view === "source"
                             ? t("entityUi.schemaControls.richText")
                             : t("entityUi.schemaControls.source")}
-                    </button>
+                    </Button>
                 </div>
             ) : null}
             <MarkdownEditor
