@@ -1,4 +1,4 @@
-import {useEffect} from "react"
+import {createContext, useContext, useEffect} from "react"
 
 import {useT} from "@agenta/i18n"
 import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
@@ -8,15 +8,27 @@ import {BackLink, Button, SimpleTooltip} from "@agenta/ui/ui"
 import {PhoneViewHeader, ViewFormActions, type ViewChromeProps} from "@agenta/ui/view-stack"
 import {ArrowsOutSimple} from "@phosphor-icons/react"
 
-import {useAgentPanel} from "./agentPanelContext"
 import {PanelCloseButton} from "./PanelCloseButton"
 
+/** What the container around the views offers their chrome. */
+export interface PanelChromeControls {
+    phone: boolean
+    /** The container can grow for a wide view; without it there is no widen button. */
+    widen?: {wide: boolean; setWide: (wide: boolean) => void}
+    /** Closes the container; without it the header has no Close. */
+    onClose?: () => void
+}
+
+export const PanelChromeContext = createContext<PanelChromeControls>({phone: false})
+
+const noWiden = () => undefined
+
 /**
- * The right panel's chrome around an open view: a back link to the parent in place of the tabs, "Widen the
- * panel" (unless the view sets `widenButton: false`, F02-05), Close, and the view's action row at
- * the bottom. On a phone the view covers the screen with the phone header (back arrow and title)
- * and 44 px buttons. The view keeps its place in the tree in both, so a resize across the phone
- * width keeps its edits.
+ * The agent pane's chrome around an open view: a back link to the parent in place of the tabs,
+ * "Widen the panel" (unless the view sets `widenButton: false`, F02-05), Close, and the view's
+ * action row at the bottom. The container sets which controls it has (`PanelChromeContext`). On a
+ * phone the view covers the screen with the phone header (back arrow and title) and 44 px buttons.
+ * The view keeps its place in the tree in both, so a resize across the phone width keeps its edits.
  */
 export const PanelViewChrome = ({
     crumbs,
@@ -32,8 +44,8 @@ export const PanelViewChrome = ({
     children,
 }: ViewChromeProps) => {
     const t = useT(agentLayoutPanelCatalog, commonCatalog)
-    const panel = useAgentPanel()
-    const {setWide, phone} = panel
+    const {phone, widen, onClose} = useContext(PanelChromeContext)
+    const setWide = widen?.setWide ?? noWiden
     // The widen lasts while the views are open: closing them restores the stored width.
     useEffect(() => () => setWide(false), [setWide])
     // A step inside the view goes back to the step before; else up to the view it opened from.
@@ -68,20 +80,20 @@ export const PanelViewChrome = ({
                             </BackLink>
                         ) : null}
                     </div>
-                    {showWiden ? (
+                    {showWiden && widen ? (
                         <SimpleTooltip title={t("agentLayout.panel.widen")}>
                             <Button
                                 variant="ghost"
                                 size="icon-compact"
                                 aria-label={t("agentLayout.panel.widen")}
-                                aria-pressed={panel.wide}
-                                onClick={() => setWide(!panel.wide)}
+                                aria-pressed={widen.wide}
+                                onClick={() => setWide(!widen.wide)}
                             >
                                 <ArrowsOutSimple size={16} />
                             </Button>
                         </SimpleTooltip>
                     ) : null}
-                    <PanelCloseButton />
+                    {onClose ? <PanelCloseButton onClose={onClose} /> : null}
                 </div>
             )}
             {/* Edge to edge: each view pads itself. */}

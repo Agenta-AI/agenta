@@ -1,9 +1,7 @@
 import {useEffect, useMemo, useRef, useState, type MutableRefObject} from "react"
 
 import {
-    AgentEditorContext,
     SectionMarksContext,
-    type AgentEditor,
     type MarkableSectionKey,
     type SectionMarks,
 } from "@agenta/entity-ui/drill-in"
@@ -18,21 +16,18 @@ import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
-import {DrawerViewChrome, useViewStack, ViewStackHost} from "@agenta/ui/view-stack"
 import {useSetAtom} from "jotai"
 
 import {cn} from "@/lib/utils"
 
 import {AccessTab} from "../agent-layout/AccessTab"
+import {AgentConfigHost} from "../agent-layout/AgentConfigHost"
 import {AutomationsTab} from "../agent-layout/AutomationsTab"
 import {ChannelsTab} from "../agent-layout/ChannelsTab"
-import {PageViewStackGuard, type PageViewStackGuardApi} from "../agent-pages/PageViewStackGuard"
+import type {PageViewStackGuardApi} from "../agent-pages/PageViewStackGuard"
 import {useConfigurationRevision} from "../agent-pages/useConfigurationRevision"
 import {ConfigPane} from "../chat/ConfigPane"
-import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
 import {useTriggerTestRun} from "../chat/useTriggerTestRun"
-import {viewFormDirtyAtom} from "../chat/viewFormDirty"
-import {useProjectPermissionState} from "../context/useProjectPermission"
 
 import {followAction} from "./followBuilder"
 import {PaneSessionBar} from "./PaneSessionBar"
@@ -85,12 +80,6 @@ export const AgentPane = ({
     const tControls = useT(schemaControlsCatalog)
     const [tab, setTab] = useState<PaneTab>("agent")
     const {revisionId, pin, failed, retry} = useConfigurationRevision(agentId)
-    const editAccess = useProjectPermissionState(projectId, "edit_workflows")
-    const readOnly = !editAccess.pending && !editAccess.allowed
-    const editor = useMemo<AgentEditor | null>(
-        () => (revisionId ? {revisionId, readOnly} : null),
-        [readOnly, revisionId],
-    )
     const sessionPick = usePaneSessionPick(projectId, agentId)
     const sessions = sessionPick.query
     const sessionCount = sessions.data?.total ?? sessions.data?.sessions?.length ?? 0
@@ -207,73 +196,68 @@ export const AgentPane = ({
 
     return (
         <div
-            className="flex h-full min-h-0 flex-col"
+            className="h-full min-h-0"
             data-testid="builder-agent-pane"
             onPointerDownCapture={() => {
                 lastPointerDown.current = Date.now()
             }}
         >
-            {/* The tab row holds only the tabs (B07, B08); they scroll in a narrow pane. */}
-            <div
-                role="tablist"
-                className="ag-scroll-quiet flex h-12 shrink-0 items-center gap-4 overflow-x-auto border-0 border-b border-solid border-border-muted px-4 max-md:gap-2 max-md:px-3"
+            <AgentConfigHost
+                agentId={agentId}
+                revisionId={revisionId}
+                projectId={projectId}
+                readChannels={tab === "agent"}
+                rootTitle={label(tab)}
+                onWorkflowRevisionCommitted={pin}
+                guardRef={guardRef}
             >
-                {PANE_TABS.map((key) => (
-                    <button
-                        key={key}
-                        type="button"
-                        role="tab"
-                        aria-selected={tab === key}
-                        onClick={() => void openTab(key)}
-                        className={cn(
-                            "flex h-12 shrink-0 cursor-pointer items-center gap-1 border-0 border-b-2 border-solid bg-transparent px-0 text-label focus-ring",
-                            tab === key
-                                ? "border-foreground text-foreground"
-                                : "border-transparent text-muted-foreground hover:text-foreground",
-                        )}
-                    >
-                        {label(key)}
-                        {key === "agent" && agentDot ? (
-                            <span
-                                data-testid="pane-tab-dot"
-                                role="img"
-                                aria-label={t("builder.page.changedByBuilder")}
-                                className="size-1.5 shrink-0 bg-primary"
-                            />
-                        ) : null}
-                        {key === "sessions" && sessionCount > 0 ? (
-                            <span className="text-meta tabular-nums text-muted-foreground">
-                                {formatNumber(sessionCount)}
-                            </span>
-                        ) : null}
-                    </button>
-                ))}
-            </div>
-            {tab === "sessions" ? <PaneSessionBar pick={sessionPick} /> : null}
-            <div role="tabpanel" className="min-h-0 flex-1">
-                <DrillInBridgeProvider projectId={projectId} onWorkflowRevisionCommitted={pin}>
-                    <AgentEditorContext.Provider value={editor}>
-                        <ViewStackHost key={tab} chrome={DrawerViewChrome} rootTitle={label(tab)}>
-                            <PageViewStackGuard guardRef={guardRef} />
-                            <PublishFormDirty />
+                {() => (
+                    <div className="flex h-full min-h-0 flex-col">
+                        {/* The tab row holds only the tabs (B07, B08); they scroll in a narrow pane. */}
+                        <div
+                            role="tablist"
+                            className="ag-scroll-quiet flex h-12 shrink-0 items-center gap-4 overflow-x-auto border-0 border-b border-solid border-border-muted px-4 max-md:gap-2 max-md:px-3"
+                        >
+                            {PANE_TABS.map((key) => (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={tab === key}
+                                    onClick={() => void openTab(key)}
+                                    className={cn(
+                                        "flex h-12 shrink-0 cursor-pointer items-center gap-1 border-0 border-b-2 border-solid bg-transparent px-0 text-label focus-ring",
+                                        tab === key
+                                            ? "border-foreground text-foreground"
+                                            : "border-transparent text-muted-foreground hover:text-foreground",
+                                    )}
+                                >
+                                    {label(key)}
+                                    {key === "agent" && agentDot ? (
+                                        <span
+                                            data-testid="pane-tab-dot"
+                                            role="img"
+                                            aria-label={t("builder.page.changedByBuilder")}
+                                            className="size-1.5 shrink-0 bg-primary"
+                                        />
+                                    ) : null}
+                                    {key === "sessions" && sessionCount > 0 ? (
+                                        <span className="text-meta tabular-nums text-muted-foreground">
+                                            {formatNumber(sessionCount)}
+                                        </span>
+                                    ) : null}
+                                </button>
+                            ))}
+                        </div>
+                        {tab === "sessions" ? <PaneSessionBar pick={sessionPick} /> : null}
+                        <div role="tabpanel" className="min-h-0 flex-1">
                             {body}
-                        </ViewStackHost>
-                    </AgentEditorContext.Provider>
-                </DrillInBridgeProvider>
-            </div>
+                        </div>
+                    </div>
+                )}
+            </AgentConfigHost>
         </div>
     )
-}
-
-/** Tells the builder chat that a pane form has edits (`has_unsaved_draft` in its context line). */
-const PublishFormDirty = () => {
-    const stack = useViewStack()
-    const setViewFormDirty = useSetAtom(viewFormDirtyAtom)
-    useEffect(() => {
-        setViewFormDirty(stack.dirty)
-    }, [stack.dirty, setViewFormDirty])
-    useEffect(() => () => setViewFormDirty(false), [setViewFormDirty])
-    return null
 }
 
 /**

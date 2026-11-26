@@ -11,21 +11,18 @@ import {
 import {cleanup, fireEvent, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {AgentPanelContext, type AgentPanelApi} from "@/features/agent-layout/agentPanelContext"
-import {PanelViewChrome} from "@/features/agent-layout/PanelViewChrome"
+import {
+    PanelChromeContext,
+    PanelViewChrome,
+    type PanelChromeControls,
+} from "@/features/agent-layout/PanelViewChrome"
 
 afterEach(cleanup)
 
-const panel = (phone: boolean): AgentPanelApi => ({
-    content: "configuration",
-    toggle: vi.fn(async () => true),
-    close: vi.fn(async () => true),
-    configTab: "agent",
-    setConfigTab: vi.fn(),
-    wide: false,
-    setWide: vi.fn(),
+const controls = (phone: boolean): PanelChromeControls => ({
     phone,
-    available: {files: true, configuration: true, builder: false},
+    widen: {wide: false, setWide: vi.fn()},
+    onClose: vi.fn(),
 })
 
 const Body = () => {
@@ -58,7 +55,7 @@ const OpenOnMount = ({def}: {def: ViewDef<object>}) => {
 }
 
 const tree = (phone: boolean, def: ViewDef<object> = view) => (
-    <AgentPanelContext.Provider value={panel(phone)}>
+    <PanelChromeContext.Provider value={controls(phone)}>
         <ViewStackHost
             chrome={PanelViewChrome}
             rootTitle={phone ? "Configuration" : "Agent"}
@@ -66,7 +63,7 @@ const tree = (phone: boolean, def: ViewDef<object> = view) => (
         >
             <OpenOnMount def={def} />
         </ViewStackHost>
-    </AgentPanelContext.Provider>
+    </PanelChromeContext.Provider>
 )
 
 const renderChrome = (phone: boolean) => render(tree(phone))

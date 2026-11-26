@@ -143,13 +143,13 @@ export const ConfigurationRoot = ({
                             <span className="truncate">{paneBack.title}</span>
                         </BackLink>
                     </div>
-                    <PanelCloseButton />
+                    <PanelCloseButton onClose={() => void panel.close()} />
                 </div>
             ) : (
                 // The pane header: the session bar's 48 px, the tab text on the pane's 24 px line.
                 tabRow(
                     "box-border h-12 shrink-0 flex-row items-center justify-between gap-2 border-0 border-b border-solid border-border-muted pl-3.5 pr-3",
-                    <PanelCloseButton />,
+                    <PanelCloseButton onClose={() => void panel.close()} />,
                 )
             )}
             <PaneBackContext.Provider value={setPaneBack}>
