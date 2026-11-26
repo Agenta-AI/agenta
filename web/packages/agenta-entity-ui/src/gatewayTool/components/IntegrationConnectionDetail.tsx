@@ -76,11 +76,12 @@ export const IntegrationConnectionDetail = ({
     const url = integration?.url ?? null
 
     const owner = connection.user_id ? "user" : "project"
-    const facts = [
+    const allFacts: ({label: string; value: ReactNode} | null)[] = [
         {label: t("entityUi.accounts.owner"), value: <OwnerChip owner={owner} />},
         signsIn ? {label: t("entityUi.integrationDrawer.signsInWith"), value: signsIn} : null,
         kind ? {label: t("entityUi.integrationDrawer.kindOfApp"), value: kind} : null,
-    ].filter((fact): fact is {label: string; value: ReactNode} => Boolean(fact))
+    ]
+    const facts = allFacts.filter((fact): fact is {label: string; value: ReactNode} => Boolean(fact))
 
     const statusLine = (
         <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-meta">

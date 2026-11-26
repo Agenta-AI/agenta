@@ -335,7 +335,7 @@ export const ProvidersPanel = ({
         // The deployment's own models: no owner, shown with the project's rows.
         const builtin: SettingsCatalogItem[] =
             builtinModels.length && ownerGroups.some((group) => group.key === projectGroup?.key)
-                ? [
+                ? ([
                       {
                           key: "builtin:agenta",
                           logo: <ProviderLogo kind="agenta" />,
@@ -345,7 +345,7 @@ export const ProvidersPanel = ({
                           statusLabel: t("common.connected"),
                           onOpen: () => setSheet({id: Date.now(), view: "builtin"}),
                       },
-                  ].filter(matches)
+                  ] satisfies SettingsCatalogItem[]).filter(matches)
                 : []
         const footers = owned.flatMap((group) =>
             group.footer ? [<Fragment key={`${group.key}:failure`}>{group.footer}</Fragment>] : [],

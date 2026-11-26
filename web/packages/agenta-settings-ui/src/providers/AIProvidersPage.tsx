@@ -2,7 +2,6 @@ import {type ReactNode, useCallback, useMemo, useState} from "react"
 
 import {
     activeModelsSummary,
-    credentialSummary,
     isSubscriptionConnection,
     deleteSecretAtom,
     SecretManagementPolicy,
@@ -13,6 +12,7 @@ import {
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {useConnectionsHeading} from "@agenta/entity-ui/secret"
 import {
+    credentialSummaryText,
     subscriptionStatusLine,
     type OrganizationProjectChoice,
     type ProviderOwnerChoice,
@@ -94,7 +94,7 @@ const useProjectProvidersSource = (): ProvidersSource => {
                     connection.title !== connection.name
                         ? providerTitle(connection.kind, connection.title, t)
                         : null,
-                    credentialSummary(connection),
+                    credentialSummaryText(connection),
                     activeModelsSummary(connection, capabilities, {
                         // No saved list: the row says nothing about models.
                         defaults: "",

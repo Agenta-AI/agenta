@@ -54,7 +54,7 @@ export interface SecretFormProps {
     nameHelp?: string
 }
 
-type SecretFormT = ReturnType<typeof useT<[typeof secretFormCatalog]>>
+type SecretFormT = ReturnType<typeof useT<[typeof secretFormCatalog, typeof commonCatalog]>>
 
 const formatOptions = (t: SecretFormT) => [
     {label: t("entityUi.secretForm.formatText"), value: CustomSecretFormat.Text},
