@@ -45,8 +45,8 @@ class RuntimeFacts(BaseModel):
 
 
 class InstanceStarted(RuntimeFacts):
-    """Every property of `instance_started` but `$groups`, `$process_person_profile`
-    and what the PostHog library adds. The telemetry docs page lists these fields."""
+    """Every property of `instance_started` but `$groups` and what the PostHog
+    library adds. The telemetry docs page lists these fields."""
 
     instance_id: str
 

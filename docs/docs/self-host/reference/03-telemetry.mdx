@@ -61,11 +61,10 @@ All settings are listed in [Configuration](/self-host/configuration#telemetry).
 
 ## Install ping
 
-Event name: `instance_installed`. The distinct id is the instance id. The event has these properties and no others. The API removes the properties the PostHog library adds on its own.
+Event name: `instance_installed`. The distinct id is the instance id. PostHog keeps one person for each instance, with the instance id as its id, so the startup event and the heartbeat link to the `instance` group. The API sends no person properties. The event has these properties and no others. The API removes the properties the PostHog library adds on its own.
 
 | Property | Value |
 |---|---|
-| `$process_person_profile` | `false`. PostHog makes no person for the instance. |
 | `instance_kind` | The same value as on the startup event |
 | `$geoip_disable` | `true`. PostHog does not look up a location. |
 | `$ip` | Empty. The event itself carries no IP address. |
@@ -87,7 +86,6 @@ Event name: `instance_started`. The API sends it each time it starts, when telem
 | `memory_limit_mb` | The memory limit of the API container, in MiB, or empty when there is none |
 | `postgres_version` | The Postgres server version, such as `16.4` |
 | `$groups` | The instance, as a PostHog group of type `instance` |
-| `$process_person_profile` | `false`. PostHog makes no person for the instance. |
 | `$geoip_disable` | `true`. PostHog does not look up a location. |
 | `$lib` | The name of the PostHog library |
 | `$lib_version` | The version of the PostHog library |
@@ -152,7 +150,6 @@ Event name: `instance_heartbeat`. An hourly job asks the API for it, and the API
 | `window_testcases` | Test cases created in the window |
 | `user_domains` | The 100 most common email domains of your users, with the number of users of each. Never a full address. |
 | `$groups` | The instance, as a PostHog group of type `instance` |
-| `$process_person_profile` | `false`. PostHog makes no person for the instance. |
 | `$geoip_disable` | `true`. PostHog does not look up a location. |
 | `$lib` | The name of the PostHog library |
 | `$lib_version` | The version of the PostHog library |
