@@ -171,7 +171,16 @@ export const SettingsCatalogSection = ({
             action={group.action}
         />
         {group.collapsed ? null : group.items.length || group.pendingRows ? (
-            <div className={group.list ? "flex flex-col gap-0.5" : ROW_GRID}>
+            <div
+                // ROW-04: two-line rows 8 px apart, one-line rows 4 px.
+                className={
+                    group.list
+                        ? group.items.some((item) => item.description)
+                            ? "flex flex-col gap-2"
+                            : "flex flex-col gap-1"
+                        : ROW_GRID
+                }
+            >
                 {group.items.map((item) => (
                     <CatalogRow key={item.key} item={item} />
                 ))}
