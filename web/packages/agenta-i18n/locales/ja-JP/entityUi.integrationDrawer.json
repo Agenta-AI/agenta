@@ -39,7 +39,6 @@
     "connectedWhen": "{{when}}に接続",
     "signsInWith": "サインイン方法",
     "kindOfApp": "アプリの種類",
-    "lastChanged": "最終変更",
     "authAccount": "アカウントでログイン",
     "authKey": "API キー",
     "moreCount": "ほか {{count}} 件",

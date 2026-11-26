@@ -41,7 +41,6 @@
     "connectedWhen": "Connecté {{when}}",
     "signsInWith": "Se connecte avec",
     "kindOfApp": "Type d'app",
-    "lastChanged": "Dernière modification",
     "authAccount": "Connexion au compte",
     "authKey": "Clé API",
     "moreCount": "+{{count}} de plus",

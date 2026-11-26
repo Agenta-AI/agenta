@@ -1,4 +1,4 @@
-import {useState} from "react"
+import {useState, type ReactNode} from "react"
 
 import {
     isConnectionActive,
@@ -10,6 +10,7 @@ import {
 import {useUserDisplayName} from "@agenta/entities/shared"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import accountsCatalog from "@agenta/i18n/catalogs/entityUi.accounts"
 import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import {timeAgo} from "@agenta/shared/utils"
 import {BottomSheet, PHONE_BUTTON_CLASS, useIsPhone} from "@agenta/ui/phone"
@@ -53,7 +54,7 @@ export const IntegrationConnectionDetail = ({
     onReconnect,
     onClosed,
 }: IntegrationConnectionDetailProps) => {
-    const t = useT(commonCatalog, integrationDrawerCatalog)
+    const t = useT(commonCatalog, accountsCatalog, integrationDrawerCatalog)
     const phone = useIsPhone()
     const [open, setOpen] = useState(true)
     const close = () => setOpen(false)
@@ -75,14 +76,14 @@ export const IntegrationConnectionDetail = ({
           ? t("entityUi.integrationDrawer.authKey")
           : null
     const kind = integration?.categories?.[0] ?? null
-    const lastChanged = stamp(connection.updated_at ?? connection.created_at)
     const url = integration?.url ?? null
 
+    const owner = connection.user_id ? "user" : "project"
     const facts = [
+        {label: t("entityUi.accounts.owner"), value: <OwnerChip owner={owner} />},
         signsIn ? {label: t("entityUi.integrationDrawer.signsInWith"), value: signsIn} : null,
         kind ? {label: t("entityUi.integrationDrawer.kindOfApp"), value: kind} : null,
-        lastChanged ? {label: t("entityUi.integrationDrawer.lastChanged"), value: lastChanged} : null,
-    ].filter((fact): fact is {label: string; value: string} => Boolean(fact))
+    ].filter((fact): fact is {label: string; value: ReactNode} => Boolean(fact))
 
     const statusLine = (
         <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-meta">
@@ -111,7 +112,9 @@ export const IntegrationConnectionDetail = ({
                     {facts.map((fact) => (
                         <div key={fact.label} className="flex flex-col gap-0.5 rounded-lg bg-muted px-3 py-2">
                             <span className="text-meta text-muted-foreground">{fact.label}</span>
-                            <span className="truncate text-label text-foreground">{fact.value}</span>
+                            <span className="flex min-w-0 truncate text-label text-foreground">
+                                {fact.value}
+                            </span>
                         </div>
                     ))}
                 </div>
@@ -198,8 +201,6 @@ export const IntegrationConnectionDetail = ({
             )}
         </span>
     )
-    const owner = connection.user_id ? "user" : "project"
-
     if (phone) {
         return (
             <BottomSheet
@@ -210,10 +211,7 @@ export const IntegrationConnectionDetail = ({
                 onCloseAutoFocus={onClosed}
             >
                 <div className="flex flex-col gap-4 px-4 pb-4">
-                    <div className="flex items-center gap-2">
-                        <OwnerChip owner={owner} />
-                        {statusLine}
-                    </div>
+                    {statusLine}
                     {body}
                     {primary}
                     {url ? <div className="flex justify-center">{appLink}</div> : null}
@@ -228,10 +226,7 @@ export const IntegrationConnectionDetail = ({
                     <span className="flex min-w-0 items-center gap-3">
                         {mark}
                         <span className="flex min-w-0 flex-col gap-0.5">
-                            <span className="flex min-w-0 items-center gap-2">
-                                <DialogTitle className="truncate">{name}</DialogTitle>
-                                <OwnerChip owner={owner} />
-                            </span>
+                            <DialogTitle className="truncate">{name}</DialogTitle>
                             {statusLine}
                         </span>
                     </span>

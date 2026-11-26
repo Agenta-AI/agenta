@@ -39,7 +39,6 @@
     "connectedWhen": "{{when}}连接",
     "signsInWith": "登录方式",
     "kindOfApp": "应用类型",
-    "lastChanged": "最近修改",
     "authAccount": "账号登录",
     "authKey": "API 密钥",
     "moreCount": "另外 {{count}} 项",

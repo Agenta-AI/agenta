@@ -40,7 +40,6 @@
     "connectedWhen": "Connected {{when}}",
     "signsInWith": "Signs in with",
     "kindOfApp": "Kind of app",
-    "lastChanged": "Last changed",
     "authAccount": "Account login",
     "authKey": "API key",
     "moreCount": "+{{count}} more",
