@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useRef, useState, type MutableRefObject} from "react"
 
 import {
+    AgentConfigSkeleton,
     SectionMarksContext,
     type MarkableSectionKey,
     type SectionMarks,
@@ -15,15 +16,18 @@ import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {SkeletonBlock} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
-
-import {cn} from "@/lib/utils"
 
 import {AccessTab} from "../agent-layout/AccessTab"
 import {AgentConfigHost} from "../agent-layout/AgentConfigHost"
+import {
+    AGENT_CONFIG_TABPANEL_ID,
+    AgentConfigTabs,
+    agentConfigTabId,
+} from "../agent-layout/AgentConfigTabs"
 import {AutomationsTab} from "../agent-layout/AutomationsTab"
 import {ChannelsTab} from "../agent-layout/ChannelsTab"
+import {PaneBackContext, type PaneBack} from "../agent-layout/paneBack"
 import type {PageViewStackGuardApi} from "../agent-pages/PageViewStackGuard"
 import {useConfigurationRevision} from "../agent-pages/useConfigurationRevision"
 import {ConfigPane} from "../chat/ConfigPane"
@@ -87,6 +91,8 @@ export const AgentPane = ({
     useTriggerTestRun({entityId: revisionId, agentId, base: `/w/${workspaceId}/p/${projectId}`})
     // The Agent pane tab's dot: the builder saved a change the pane did not move to show.
     const [agentDot, setAgentDot] = useState(false)
+    // A view open inside a tab (a channel's manage view) puts its back link in the header.
+    const [paneBack, setPaneBack] = useState<PaneBack | null>(null)
     // The open pane tab's views: an open form with edits asks before a switch.
     const openTab = async (next: PaneTab) => {
         if (next === tab) return
@@ -146,9 +152,11 @@ export const AgentPane = ({
         )
     else if (needsRevision && !revisionId)
         body = (
-            <div className="flex flex-col gap-3 p-4" aria-busy>
-                <SkeletonBlock active className="h-12 w-full" />
-                <SkeletonBlock active className="h-24 w-full" />
+            // The skeleton cards hang 10 px out: this puts them on the loaded cards' 20 px line.
+            <div className="h-full px-1">
+                <div className="mx-auto w-full max-w-content-md px-6.5">
+                    <AgentConfigSkeleton />
+                </div>
             </div>
         )
     else if (tab === "agent" && revisionId)
@@ -166,9 +174,24 @@ export const AgentPane = ({
             />
         )
     else if (tab === "channels")
-        body = <ChannelsTab agentId={agentId} workspaceId={workspaceId} projectId={projectId} />
+        body = (
+            <ChannelsTab
+                agentId={agentId}
+                workspaceId={workspaceId}
+                projectId={projectId}
+                // The pane's own 24 px margins; the footer band bleeds by the same.
+                className="px-6 [--panel-bleed-x:--spacing(6)]"
+            />
+        )
     else if (tab === "access")
-        body = <AccessTab agentId={agentId} workspaceId={workspaceId} projectId={projectId} />
+        body = (
+            <AccessTab
+                agentId={agentId}
+                workspaceId={workspaceId}
+                projectId={projectId}
+                className="px-6"
+            />
+        )
     else if (tab === "drives")
         body = (
             <PaneDrives
@@ -212,47 +235,40 @@ export const AgentPane = ({
                 guardRef={guardRef}
             >
                 {() => (
-                    <div className="flex h-full min-h-0 flex-col">
-                        {/* The tab row holds only the tabs (B07, B08); they scroll in a narrow pane. */}
-                        <div
-                            role="tablist"
-                            className="ag-scroll-quiet flex h-12 shrink-0 items-center gap-4 overflow-x-auto border-0 border-b border-solid border-border-muted px-4 max-md:gap-2 max-md:px-3"
-                        >
-                            {PANE_TABS.map((key) => (
-                                <button
-                                    key={key}
-                                    type="button"
-                                    role="tab"
-                                    aria-selected={tab === key}
-                                    onClick={() => void openTab(key)}
-                                    className={cn(
-                                        "flex h-12 shrink-0 cursor-pointer items-center gap-1 border-0 border-b-2 border-solid bg-transparent px-0 text-label focus-ring",
-                                        tab === key
-                                            ? "border-foreground text-foreground"
-                                            : "border-transparent text-muted-foreground hover:text-foreground",
-                                    )}
-                                >
-                                    {label(key)}
-                                    {key === "agent" && agentDot ? (
+                    <div className="ag-panel-raised flex h-full min-h-0 flex-col">
+                        <AgentConfigTabs
+                            tabs={PANE_TABS.map((key) => ({
+                                key,
+                                label: label(key),
+                                adornment:
+                                    key === "agent" && agentDot ? (
                                         <span
                                             data-testid="pane-tab-dot"
                                             role="img"
                                             aria-label={t("builder.page.changedByBuilder")}
                                             className="size-1.5 shrink-0 bg-primary"
                                         />
-                                    ) : null}
-                                    {key === "sessions" && sessionCount > 0 ? (
+                                    ) : key === "sessions" && sessionCount > 0 ? (
                                         <span className="text-meta tabular-nums text-muted-foreground">
                                             {formatNumber(sessionCount)}
                                         </span>
-                                    ) : null}
-                                </button>
-                            ))}
-                        </div>
+                                    ) : null,
+                            }))}
+                            value={tab}
+                            onSelect={(key) => void openTab(key)}
+                            back={paneBack}
+                        />
                         {tab === "sessions" ? <PaneSessionBar pick={sessionPick} /> : null}
-                        <div role="tabpanel" className="min-h-0 flex-1">
-                            {body}
-                        </div>
+                        <PaneBackContext.Provider value={setPaneBack}>
+                            <div
+                                id={AGENT_CONFIG_TABPANEL_ID}
+                                role="tabpanel"
+                                aria-labelledby={agentConfigTabId(tab)}
+                                className="min-h-0 flex-1"
+                            >
+                                {body}
+                            </div>
+                        </PaneBackContext.Provider>
                     </div>
                 )}
             </AgentConfigHost>
