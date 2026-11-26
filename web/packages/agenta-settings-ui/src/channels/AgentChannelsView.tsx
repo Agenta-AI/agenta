@@ -214,6 +214,7 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                             label: t("agentPages.channels.connected"),
                             items: connectedItems,
                             list: true,
+                            count: null,
                         }}
                     />
                 ) : null}
@@ -223,6 +224,7 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                             label: t("agentPages.channels.addChannel"),
                             items: addItems,
                             list: true,
+                            count: null,
                         }}
                     />
                 ) : null}
