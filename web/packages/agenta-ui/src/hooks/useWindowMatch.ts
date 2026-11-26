@@ -25,3 +25,11 @@ export const useWindowMatch = (query: string): boolean =>
 
 /** True on an expanded window (1024px and up). */
 export const useIsExpandedWindow = (): boolean => useWindowMatch(EXPANDED_WINDOW_QUERY)
+
+/** Touch: a coarse pointer (DESIGN.md). It is not a window size: a tablet is touch on a medium window. */
+export const TOUCH_QUERY = "(pointer: coarse)"
+/** A compact window on touch, where touch.css opens menus, selects and the combobox as bottom sheets. */
+export const TOUCH_SHEET_QUERY = "(max-width: 639px) and (pointer: coarse)"
+
+/** True on touch (a coarse pointer). */
+export const useIsTouch = (): boolean => useWindowMatch(TOUCH_QUERY)

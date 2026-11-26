@@ -30,6 +30,9 @@ function SheetClose(props: React.ComponentProps<typeof SheetPrimitive.Close>) {
     return <SheetPrimitive.Close data-slot="sheet-close" {...props} />
 }
 
+// Reduced motion: collapse the duration, not `animation: none` (Radix waits for `animationend`).
+const SHEET_REDUCED_MOTION = "motion-reduce:[animation-duration:1ms]!"
+
 function SheetOverlay({className, ...props}: React.ComponentProps<typeof SheetPrimitive.Overlay>) {
     return (
         <SheetPrimitive.Overlay
@@ -38,6 +41,7 @@ function SheetOverlay({className, ...props}: React.ComponentProps<typeof SheetPr
                 // The one scrim behind dialogs and sheets (`overlay`).
                 "fixed inset-0 isolate z-40 bg-overlay",
                 "data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out",
+                SHEET_REDUCED_MOTION,
                 className,
             )}
             {...props}
@@ -58,6 +62,7 @@ const sheetVariants = cva(
         // The container surface (antd Drawer's), not popover: a shade darker in dark mode.
         "bg-background text-body text-foreground shadow-modal",
         "border-0 border-solid border-border",
+        SHEET_REDUCED_MOTION,
     ],
     {
         variants: {

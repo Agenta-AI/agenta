@@ -58,7 +58,8 @@ export const BottomSheet = ({
             <SheetContent
                 side="bottom"
                 data-testid={testId}
-                className="max-h-[85vh] gap-0 rounded-t-2xl pb-6 pt-2"
+                // The one sheet shape, shared with touch.css; svh and the safe area (COMPACT-05).
+                className="max-h-[85svh] gap-0 rounded-t-xl pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-2"
                 // The content names itself; there is no description to point at.
                 aria-describedby={undefined}
                 onOpenAutoFocus={keepKeyboardClosed ? (event) => event.preventDefault() : undefined}

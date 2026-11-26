@@ -5,6 +5,8 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {CaretDownIcon, CircleNotchIcon, X} from "@phosphor-icons/react"
 
+import {TOUCH_SHEET_QUERY, useWindowMatch} from "../../hooks/useWindowMatch"
+
 import {MENU_ITEM} from "./menu-item"
 import {Popover, PopoverAnchor, PopoverContent} from "./popover"
 import {selectTriggerVariants, type SelectTriggerProps} from "./select"
@@ -28,6 +30,8 @@ import {cn} from "./utils"
  * children carrying stable ids + `aria-selected` / `aria-disabled`. Keyboard: Up/Down (skip
  * disabled, wrap), Home/End, Enter, Escape, Backspace-to-clear. Provide `aria-label` /
  * `aria-labelledby` (or wrap with a `<label htmlFor={id}>`) so it has an accessible name.
+ *
+ * Compact window on touch (COMPACT-04): a bottom sheet (touch.css) with a read-only input, so no keyboard.
  *
  * antd → this:
  *   value → value · onChange → onChange · placeholder → placeholder
@@ -121,6 +125,8 @@ export function Combobox({
     const [query, setQuery] = React.useState("")
     const [activeIndex, setActiveIndex] = React.useState(0)
     const inputRef = React.useRef<HTMLInputElement>(null)
+    // A compact window on touch: pick from the sheet, no typing (the keyboard would cover it).
+    const sheet = useWindowMatch(TOUCH_SHEET_QUERY)
     const listRef = React.useRef<HTMLDivElement>(null)
 
     // Stable ids so the input's aria-controls/aria-activedescendant can point at the listbox
@@ -190,7 +196,7 @@ export function Combobox({
     const openMenu = () => {
         if (disabled || loading) return
         setOpen(true)
-        inputRef.current?.focus()
+        if (!sheet) inputRef.current?.focus()
     }
     const closeMenu = () => {
         setOpen(false)
@@ -294,6 +300,8 @@ export function Combobox({
                             aria-activedescendant={activeDescendant}
                             value={query}
                             disabled={disabled}
+                            readOnly={sheet}
+                            inputMode={sheet ? "none" : undefined}
                             onChange={(e) => {
                                 setQuery(e.target.value)
                                 if (!open) setOpen(true)
@@ -350,6 +358,8 @@ export function Combobox({
                 aria-label={ariaLabel ?? t("ui.listControls.suggestions")}
                 onOpenAutoFocus={(e) => e.preventDefault()}
                 onCloseAutoFocus={(e) => e.preventDefault()}
+                // touch.css makes this slot a bottom sheet on a compact window on touch.
+                data-slot="combobox-content"
                 className={cn(
                     "w-[var(--radix-popover-trigger-width)] p-1 font-portal",
                     contentClassName,
