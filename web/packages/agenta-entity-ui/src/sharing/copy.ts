@@ -68,6 +68,9 @@ export const agentSharingCopy = {
     get transferButton() {
         return t("entityUi.sharing.transferButton")
     },
+    get transferShort() {
+        return t("entityUi.sharing.transferShort")
+    },
     get done() {
         return t("entityUi.sharing.done")
     },

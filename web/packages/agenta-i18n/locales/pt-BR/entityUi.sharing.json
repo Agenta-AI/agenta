@@ -17,6 +17,7 @@
     "ownerRole": "Proprietário",
     "youSuffix": "(você)",
     "transferButton": "Transferir a propriedade",
+    "transferShort": "Transferir",
     "done": "Concluído",
     "cancel": "Cancelar",
     "makePrivateTitle": "Tornar {{agent}} privado?",

@@ -9,7 +9,7 @@ import {
     type SharingPerson,
     type SharingWriteResult,
 } from "@agenta/sessions-ui/sharing"
-import {Alert, Button, LoadingButton} from "@agenta/ui/ui"
+import {Alert, LoadingButton} from "@agenta/ui/ui"
 
 import {agentSharingCopy as copy} from "./copy"
 
@@ -22,7 +22,6 @@ export interface AgentTransferFormProps {
     membersLoading?: boolean
     membersError?: boolean
     onTransfer: (userId: string) => Promise<SharingWriteResult>
-    onCancel: () => void
     /** Called after a transfer landed, with the new owner. */
     onTransferred?: (owner: SharingPerson) => void
     /** Called with a result that is neither ok nor `invalid_grantee`. */
@@ -39,7 +38,6 @@ export const AgentTransferForm = ({
     membersLoading,
     membersError,
     onTransfer,
-    onCancel,
     onTransferred,
     onFailed,
 }: AgentTransferFormProps) => {
@@ -71,27 +69,37 @@ export const AgentTransferForm = ({
 
     return (
         <div ref={rootRef} className="ag-view-enter flex flex-col gap-2">
-            <MemberPicker
-                mode="single"
-                members={members}
-                search={membersSearch}
-                onSearch={onMembersSearch}
-                selected={target ? [target] : []}
-                onPick={(member) => {
-                    setTarget(member)
-                    setInvalid(false)
-                }}
-                onRemove={() => {
-                    setTarget(null)
-                    setInvalid(false)
-                }}
-                excludeUserIds={ownerUserId ? [ownerUserId] : []}
-                invalidUserIds={invalid && target ? [target.user_id] : []}
-                loading={membersLoading}
-                error={membersError}
-                disabled={saving}
-            />
-            <p className="m-0 text-meta text-muted-foreground">{copy.transferHelp}</p>
+            {/* The Share dialog's invite row: the picker, then its one action. */}
+            <div className="flex items-start gap-2">
+                <MemberPicker
+                    mode="single"
+                    members={members}
+                    search={membersSearch}
+                    onSearch={onMembersSearch}
+                    selected={target ? [target] : []}
+                    onPick={(member) => {
+                        setTarget(member)
+                        setInvalid(false)
+                    }}
+                    onRemove={() => {
+                        setTarget(null)
+                        setInvalid(false)
+                    }}
+                    excludeUserIds={ownerUserId ? [ownerUserId] : []}
+                    invalidUserIds={invalid && target ? [target.user_id] : []}
+                    loading={membersLoading}
+                    error={membersError}
+                    disabled={saving}
+                />
+                <LoadingButton
+                    variant={isPrivate ? "destructive" : "default"}
+                    loading={saving}
+                    disabled={!target || invalid}
+                    onClick={() => void transfer()}
+                >
+                    {copy.transferShort}
+                </LoadingButton>
+            </div>
             {invalid && target ? (
                 <p className="m-0 text-meta text-destructive">{copy.transferInvalid(name)}</p>
             ) : null}
@@ -106,19 +114,6 @@ export const AgentTransferForm = ({
                     description={isPrivate ? copy.transferPrivateChats : undefined}
                 />
             ) : null}
-            <div className="flex justify-end gap-2">
-                <Button variant="outline" disabled={saving} onClick={onCancel}>
-                    {copy.cancel}
-                </Button>
-                <LoadingButton
-                    variant={isPrivate ? "destructive" : "default"}
-                    loading={saving}
-                    disabled={!target || invalid}
-                    onClick={() => void transfer()}
-                >
-                    {target ? copy.transferTo(name) : copy.transferButton}
-                </LoadingButton>
-            </div>
         </div>
     )
 }

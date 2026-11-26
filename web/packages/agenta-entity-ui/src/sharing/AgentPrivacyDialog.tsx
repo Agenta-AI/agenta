@@ -295,15 +295,14 @@ export const AgentPrivacyPanel = ({
                             owner={owner}
                             you
                             action={
-                                transferOpen ? null : (
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => setTransferOpen(true)}
-                                    >
-                                        {copy.transferButton}
-                                    </Button>
-                                )
+                                // The same place opens and closes the transfer step.
+                                <Button
+                                    size="sm"
+                                    variant={transferOpen ? "ghost" : "outline"}
+                                    onClick={() => setTransferOpen((open) => !open)}
+                                >
+                                    {transferOpen ? copy.cancel : copy.transferButton}
+                                </Button>
                             }
                         />
                     ) : null}
@@ -317,7 +316,6 @@ export const AgentPrivacyPanel = ({
                             membersLoading={props.membersLoading}
                             membersError={props.membersError}
                             onTransfer={props.onTransfer}
-                            onCancel={() => setTransferOpen(false)}
                             onTransferred={(next) => {
                                 setTransferOpen(false)
                                 writes.transferred(next)

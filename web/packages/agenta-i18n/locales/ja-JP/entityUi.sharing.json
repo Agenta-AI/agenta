@@ -17,6 +17,7 @@
     "ownerRole": "オーナー",
     "youSuffix": "（あなた）",
     "transferButton": "所有権を移転",
+    "transferShort": "移譲",
     "done": "完了",
     "cancel": "キャンセル",
     "makePrivateTitle": "{{agent}} を非公開にしますか？",

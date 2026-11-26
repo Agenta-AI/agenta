@@ -17,6 +17,7 @@
     "ownerRole": "所有者",
     "youSuffix": "（你）",
     "transferButton": "转移所有权",
+    "transferShort": "转让",
     "done": "完成",
     "cancel": "取消",
     "makePrivateTitle": "将 {{agent}} 设为私有？",
