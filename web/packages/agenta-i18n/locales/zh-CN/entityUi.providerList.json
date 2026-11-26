@@ -3,7 +3,6 @@
     "agenta": "Agenta",
     "apiKeys": "API 密钥",
     "builtIn": "内置",
-    "formLeaveDescription": "保存对此连接的更改，还是放弃更改？",
     "loadFailed": "Agenta 无法加载模型供应商。",
     "providedByAgenta": "由 Agenta 提供",
     "saveConnection": "保存连接",

@@ -62,7 +62,6 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
     useViewForm({
         dirty: entry !== null && draft !== original,
         valid: entry !== null && !writer.readOnly,
-        leaveDescription: t("entityUi.configItems.saveOrDiscardDraft"),
         save: async () => {
             writer.update((agent) => ({
                 ...agent,

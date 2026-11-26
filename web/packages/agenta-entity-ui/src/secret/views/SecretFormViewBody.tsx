@@ -16,7 +16,6 @@ const SecretFormViewBody = ({params}: ViewProps<SecretFormViewParams>) => {
         dirty: setup.dirty,
         valid: setup.valid,
         save: setup.save,
-        leaveDescription: t("entityUi.secretViews.formLeaveDescription"),
         saveLabel: setup.saveLabel,
     })
 

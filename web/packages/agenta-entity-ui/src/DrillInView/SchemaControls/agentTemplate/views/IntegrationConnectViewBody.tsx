@@ -53,7 +53,6 @@ const ConnectFormSkeleton = ({askOwner}: {askOwner: boolean}) => {
     useViewForm({
         dirty: false,
         valid: false,
-        leaveDescription: t("entityUi.integrationViews.connectLeaveDescription"),
         saveLabel: t("entityUi.connectForm.connect"),
         save: async () => false,
     })
@@ -116,7 +115,6 @@ const ConnectForm = ({
         // leaving asks while the name field has text.
         dirty: form.valid,
         valid: form.valid,
-        leaveDescription: t("entityUi.integrationViews.connectLeaveDescription"),
         saveLabel: t("entityUi.connectForm.connect"),
         save: form.submit,
     })

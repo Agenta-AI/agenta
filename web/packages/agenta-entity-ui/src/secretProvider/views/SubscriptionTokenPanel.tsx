@@ -89,7 +89,6 @@ export const SubscriptionTokenPanel = ({
     useForm({
         dirty: typed || draft.changed,
         valid,
-        leaveDescription: t("entityUi.providerList.formLeaveDescription"),
         saveLabel,
         savingLabel: typed ? t("entityUi.subscriptionSignIn.checking") : undefined,
         save,

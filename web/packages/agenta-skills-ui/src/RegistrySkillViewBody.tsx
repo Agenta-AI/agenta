@@ -227,7 +227,6 @@ const RegistrySkillEditor = ({
             valid,
             // Read only (archived, built-in, a phone): nothing to save, so no Cancel and Save row.
             ...(readOnly ? {actionRow: false as const} : {}),
-            leaveDescription: t("entityUi.skillView.registryLeaveDescription"),
             save: async () => {
                 // The stored name is the typed name's slug, as the skill page saves it.
                 const parsed = skillContentSchema.safeParse(toSkillContent(toSkillDraft(value)))

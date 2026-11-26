@@ -107,12 +107,9 @@ export interface ViewForm {
      * Resolve "stay" for a step of a form with several steps: the step worked and the view stays
      * open, with no failure text. Resolve "stay" too when the form refuses a save for its own field
      * errors: they say what is wrong, so the stack adds no failure line next to them. A view that leaves by itself later (the last step ends outside
-     * the Save press) calls `nav.cancel()`. From the unsaved-changes dialog, "stay" keeps the
-     * person on the view, as "Keep editing" does.
+     * the Save press) calls `nav.cancel()`.
      */
     save: () => Promise<ViewSaveResult>
-    /** Text of the unsaved-changes dialog for this view (it names what Save writes). */
-    leaveDescription?: string
     /** Why Save is disabled while the form is invalid ("Add a client ID"), as Save's tooltip. */
     invalidReason?: string
     /** The Save button's label when the view names its action (for example "Connect"). */
@@ -133,10 +130,6 @@ export interface ViewForm {
     back?: () => void
     /** The name of the step that `back` returns to, for the phone's back label. */
     backTitle?: string
-    /** The unsaved-changes dialog's title, in place of the generic one. */
-    leaveTitle?: string
-    /** `false`: the unsaved-changes dialog offers only Keep editing and Discard. */
-    leaveCanSave?: false
     /** Save stays enabled while the form is clean (a "Done" that only closes). */
     saveWhenClean?: true
 }

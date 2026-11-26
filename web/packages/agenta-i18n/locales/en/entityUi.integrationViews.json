@@ -3,7 +3,6 @@
     "appLoadError": "Couldn't load this app.",
     "back": "Back",
     "cancel": "Cancel",
-    "connectLeaveDescription": "Save your changes to connect the app in this project, or discard them?",
     "connectionStays": "The connection stays in the project.",
     "remove": "Remove",
     "removeFromAgent": "Remove from agent",

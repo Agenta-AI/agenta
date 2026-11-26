@@ -1,11 +1,7 @@
 {
     "cancel": "Annuler",
     "close": "Fermer",
-    "discard": "Abandonner",
-    "keepEditing": "Continuer la modification",
     "save": "Enregistrer",
-    "saveChanges": "Enregistrer les modifications",
     "saveFailed": "Impossible d’enregistrer la modification. Réessayez.",
-    "saving": "Enregistrement…",
-    "unsavedChanges": "Vous avez des modifications non enregistrées"
+    "saving": "Enregistrement…"
 }

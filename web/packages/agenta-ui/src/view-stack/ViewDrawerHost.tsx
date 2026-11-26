@@ -79,7 +79,6 @@ export const ViewDrawerHost = <P,>({
                         <ViewStackHost
                             chrome={phone && !sheet ? PhoneViewChrome : DrawerViewChrome}
                             phone={phone}
-                            confirmLeave={presentation !== "dialog"}
                         >
                             <OpenOnMount
                                 request={request as ViewRequest}

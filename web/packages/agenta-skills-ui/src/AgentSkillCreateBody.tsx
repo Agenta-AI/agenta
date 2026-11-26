@@ -100,9 +100,6 @@ export function AgentSkillCreateBody({onCreated, onDone}: NewSkillBodyProps) {
                 ? t("skills.agent.addSkills", {count: flow.picked.size})
                 : t("skills.agent.createAndAdd"),
         savingLabel: t("skills.agent.creating"),
-        leaveTitle: t("skills.page.discardTitle"),
-        leaveDescription: t("skills.page.discardNewBody"),
-        leaveCanSave: false,
         ...(step === "upload" ? {saveWhenClean: true as const} : {}),
         // The choice and the GitHub import carry their own controls.
         ...(step === "choose" || step === "import" ? {actionRow: false as const} : {}),

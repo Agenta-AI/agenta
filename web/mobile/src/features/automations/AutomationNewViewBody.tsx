@@ -35,7 +35,6 @@ const AutomationNewViewBody = ({params}: ViewProps<AutomationNewViewParams>) => 
             const created = await state.create()
             return created ? true : blocked ? "stay" : false
         },
-        leaveDescription: t("automations.screens.leaveMessage"),
         saveLabel: t("automations.screens.createAutomation"),
     })
     return (

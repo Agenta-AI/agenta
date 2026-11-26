@@ -47,7 +47,6 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
         dirty: editor.dirty,
         valid: true,
         save: editor.save,
-        leaveDescription: t("automations.screens.leaveMessage"),
     })
 
     const openRuns = useCallback(
