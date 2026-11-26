@@ -426,7 +426,7 @@ fi
 # Optional license keys for local stacks, from a file outside the repo (never commit a
 # key). An env file can then set, for example, AGENTA_LICENSE_KEY=${AGENTA_LICENSE_KEY_EE_DEV}:
 # Compose fills it from these exported variables. Nothing happens when the file is absent.
-AGENTA_DEV_LICENSES_FILE="${AGENTA_DEV_LICENSES_FILE:-$HOME/.agenta-dev-licenses.env}"
+AGENTA_DEV_LICENSES_FILE="${AGENTA_DEV_LICENSES_FILE:-${HOME:+$HOME/.agenta-dev-licenses.env}}"
 if [[ -f "$AGENTA_DEV_LICENSES_FILE" ]]; then
     set -a
     . "$AGENTA_DEV_LICENSES_FILE"
