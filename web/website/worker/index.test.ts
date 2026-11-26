@@ -53,6 +53,7 @@ const MEDIA = {
           controller.close();
         },
       }),
+      etag: "abc123",
       httpEtag: '"abc123"',
       size: bytes.length,
       text: async () => "media",

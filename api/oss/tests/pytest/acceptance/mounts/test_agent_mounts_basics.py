@@ -1,14 +1,11 @@
 """Acceptance tests for artifact-scoped agent mounts.
 
-Query-only tests run without an object store. Credential-signing tests fail when
-the environment requires mount storage and skip otherwise. Sign verifies the
-artifact exists in the project (404 otherwise), so signing tests create a real
-workflow first.
+Query-only tests run without an object store. `POST /mounts/agents/sign` signs a
+drive only for the agent run that presents its own run credential; every other
+caller gets 404. These tests call with an API key, so they check the 404 paths.
 """
 
 from uuid import uuid4
-
-from oss.tests.pytest.utils.mounts import skip_if_mount_storage_unavailable
 
 
 def _create_workflow(authed_api):
@@ -27,16 +24,6 @@ def _query_agent_mount(authed_api, artifact_id, *, name="default"):
         "/mounts/agents/query",
         json={"artifact_id": artifact_id, "name": name},
     )
-
-
-def _sign_agent_mount(authed_api, artifact_id, *, name="default"):
-    response = authed_api(
-        "POST",
-        "/mounts/agents/sign",
-        params={"artifact_id": artifact_id, "name": name},
-    )
-    skip_if_mount_storage_unavailable(response)
-    return response
 
 
 class TestAgentMountReads:
@@ -74,22 +61,20 @@ class TestAgentMountSign:
         assert queried.status_code == 200, queried.text
         assert queried.json()["count"] == 0
 
-    def test_sign_then_query_returns_same_mount(self, authed_api):
+    def test_sign_without_a_run_credential_returns_404_and_creates_nothing(
+        self, authed_api
+    ):
+        # Only an agent run may sign its own agent's drive. An API key is not a run
+        # credential, so an existing agent still answers 404 and gets no drive.
+        # The 404 comes before any storage call, so this check needs no store.
         artifact_id = _create_workflow(authed_api)
-        signed = _sign_agent_mount(authed_api, artifact_id)
-        assert signed.status_code == 200, signed.text
-        mount_id = signed.json()["mount"]["id"]
+        signed = authed_api(
+            "POST",
+            "/mounts/agents/sign",
+            params={"artifact_id": artifact_id, "name": "default"},
+        )
+        assert signed.status_code == 404, signed.text
 
         queried = _query_agent_mount(authed_api, artifact_id)
         assert queried.status_code == 200, queried.text
-        assert queried.json()["count"] == 1
-        assert queried.json()["mounts"][0]["id"] == mount_id
-
-    def test_sign_twice_returns_same_mount(self, authed_api):
-        artifact_id = _create_workflow(authed_api)
-        first = _sign_agent_mount(authed_api, artifact_id)
-        assert first.status_code == 200, first.text
-
-        second = _sign_agent_mount(authed_api, artifact_id)
-        assert second.status_code == 200, second.text
-        assert second.json()["mount"]["id"] == first.json()["mount"]["id"]
+        assert queried.json()["count"] == 0
