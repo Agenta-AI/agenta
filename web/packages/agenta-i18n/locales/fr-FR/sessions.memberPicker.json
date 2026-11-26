@@ -2,8 +2,9 @@
     "error": "Impossible de charger les membres du projet.",
     "footer": "Vous ne pouvez ajouter que des membres de ce projet.",
     "hasAccess": "A accès",
-    "heading": "Membres de {{project}}",
+    "heading": "Membres de ce projet",
     "noMatch": "Aucun membre de ce projet ne correspond à « {{text}} ».",
+    "noMembers": "Personne d’autre n’est encore dans ce projet. Ajoutez des personnes dans les Paramètres, puis partagez avec elles.",
     "placeholder": "Ajoutez des personnes par nom ou e-mail",
     "remove": "Retirer {{name}}"
 }

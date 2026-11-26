@@ -143,10 +143,6 @@ export const sessionSharingCopy = {
     get linkCopied() {
         return t("sessions.sharing.linkCopied")
     },
-    /** Draft: the chat is private with nobody added, so the copied link opens for nobody else. */
-    get linkNobodyYet() {
-        return t("sessions.sharing.linkNobodyYet")
-    },
     /** Draft: the toast after a copy while nobody else has access. */
     get linkCopiedNobodyYet() {
         return t("sessions.sharing.linkCopiedNobodyYet")
@@ -184,7 +180,7 @@ export const memberPickerCopy = {
     get placeholder() {
         return t("sessions.memberPicker.placeholder")
     },
-    heading: (project: string) => t("sessions.memberPicker.heading", {project}),
+    heading: () => t("sessions.memberPicker.heading"),
     get hasAccess() {
         return t("sessions.memberPicker.hasAccess")
     },
@@ -192,6 +188,9 @@ export const memberPickerCopy = {
         return t("sessions.memberPicker.footer")
     },
     noMatch: (text: string) => t("sessions.memberPicker.noMatch", {text}),
+    get noMembers() {
+        return t("sessions.memberPicker.noMembers")
+    },
     get error() {
         return t("sessions.memberPicker.error")
     },

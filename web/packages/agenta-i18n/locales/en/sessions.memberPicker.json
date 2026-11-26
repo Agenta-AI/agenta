@@ -2,8 +2,9 @@
     "error": "Couldn't load project members.",
     "footer": "You can only add members of this project.",
     "hasAccess": "Has access",
-    "heading": "Members of {{project}}",
+    "heading": "Members of this project",
     "noMatch": "No members of this project match \"{{text}}\".",
+    "noMembers": "No one else is in this project yet. Add people in Settings, then share with them.",
     "placeholder": "Add people by name or email",
     "remove": "Remove {{name}}"
 }

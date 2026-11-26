@@ -2,8 +2,9 @@
     "error": "No se pudieron cargar los miembros del proyecto.",
     "footer": "Solo puedes añadir miembros de este proyecto.",
     "hasAccess": "Tiene acceso",
-    "heading": "Miembros de {{project}}",
+    "heading": "Miembros de este proyecto",
     "noMatch": "Ningún miembro de este proyecto coincide con «{{text}}».",
+    "noMembers": "Todavía no hay nadie más en este proyecto. Añade personas en Configuración y luego comparte con ellas.",
     "placeholder": "Añade personas por nombre o correo",
     "remove": "Quitar a {{name}}"
 }

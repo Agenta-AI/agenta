@@ -19,6 +19,7 @@ import {
     AlertDialogTitle,
     Button,
     LoadingButton,
+    Segmented,
     Select,
     SelectContent,
     SelectItem,
@@ -225,17 +226,16 @@ export const SessionShareDialog = ({
         <>
             {isOwner && !nobodyAdded ? (
                 <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive sm:mr-auto"
+                    variant="destructive-ghost"
+                    className="sm:mr-auto"
                     onClick={() => setStopOpen(true)}
                 >
                     {copy.stopSharing}
                 </Button>
             ) : null}
             {onCopyLink ? (
-                <Button variant="ghost" size="sm" onClick={() => void copyLink()}>
-                    <LinkIcon size={13} aria-hidden />
+                <Button variant="ghost" onClick={() => void copyLink()}>
+                    <LinkIcon aria-hidden />
                     {copy.copyLink}
                 </Button>
             ) : null}
@@ -288,7 +288,6 @@ export const SessionShareDialog = ({
                             <div className="flex flex-col gap-2">
                                 <div className="flex items-start gap-2">
                                     <MemberPicker
-                                        projectName={projectName}
                                         members={members}
                                         search={membersSearch}
                                         onSearch={onMembersSearch}
@@ -357,7 +356,7 @@ export const SessionShareDialog = ({
                             </div>
                         ) : null}
 
-                        <section className="flex flex-col gap-1">
+                        <section className="flex flex-col gap-2">
                             <span className="text-label text-muted-foreground">
                                 {copy.peopleSection}
                             </span>
@@ -387,8 +386,8 @@ export const SessionShareDialog = ({
                                 </div>
                             ) : null}
                             {grants.length === 0 ? (
-                                // The link note below already says nobody else can open it.
-                                onCopyLink && nobodyAdded ? null : (
+                                // General access below already says only you can open it.
+                                nobodyAdded ? null : (
                                     <p className="m-0 py-1 pl-9 text-meta text-muted-foreground">
                                         {copy.emptyGrants}
                                     </p>
@@ -472,61 +471,57 @@ export const SessionShareDialog = ({
                             <span className="text-label text-muted-foreground">
                                 {copy.generalSection}
                             </span>
-                            <div className="flex items-center gap-2.5">
-                                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted">
-                                    {visibility === "private" ? (
-                                        <LockSimpleIcon size={14} aria-hidden />
-                                    ) : (
-                                        <UsersIcon size={14} aria-hidden />
-                                    )}
-                                </span>
-                                <div className="flex min-w-0 flex-1 flex-col items-start">
-                                    {isOwner ? (
-                                        <Select
-                                            value={visibility}
-                                            disabled={saving === "visibility"}
-                                            onValueChange={(value) =>
-                                                changeVisibility(value as Visibility)
-                                            }
-                                        >
-                                            <SelectTrigger
-                                                variant="ghost"
-                                                className="-ml-2 w-auto font-medium"
-                                                aria-label={copy.generalSection}
-                                            >
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="private">
-                                                    {copy.generalPrivate}
-                                                </SelectItem>
-                                                <SelectItem value="project">
-                                                    {copy.generalProject}
-                                                </SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    ) : (
-                                        <span className="text-label">
-                                            {visibility === "private"
-                                                ? copy.generalPrivate
-                                                : copy.generalProject}
-                                        </span>
-                                    )}
+                            {isOwner ? (
+                                // Two choices, both in view: a segment, not a menu.
+                                <div className="flex flex-col items-start gap-1.5">
+                                    <Segmented
+                                        aria-label={copy.generalSection}
+                                        value={visibility}
+                                        disabled={saving === "visibility"}
+                                        onChange={(value) => changeVisibility(value as Visibility)}
+                                        options={[
+                                            {
+                                                value: "private",
+                                                label: copy.generalPrivate,
+                                                icon: <LockSimpleIcon aria-hidden />,
+                                            },
+                                            {
+                                                value: "project",
+                                                label: copy.generalProject,
+                                                icon: <UsersIcon aria-hidden />,
+                                            },
+                                        ]}
+                                    />
                                     <p className="m-0 text-meta text-muted-foreground">
                                         {visibility === "private"
                                             ? copy.generalPrivateDescription
                                             : copy.generalProjectDescription(projectName)}
                                     </p>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="flex items-center gap-2.5">
+                                    <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted">
+                                        {visibility === "private" ? (
+                                            <LockSimpleIcon size={14} aria-hidden />
+                                        ) : (
+                                            <UsersIcon size={14} aria-hidden />
+                                        )}
+                                    </span>
+                                    <div className="flex min-w-0 flex-1 flex-col items-start">
+                                        <span className="text-label">
+                                            {visibility === "private"
+                                                ? copy.generalPrivate
+                                                : copy.generalProject}
+                                        </span>
+                                        <p className="m-0 text-meta text-muted-foreground">
+                                            {visibility === "private"
+                                                ? copy.generalPrivateDescription
+                                                : copy.generalProjectDescription(projectName)}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </section>
-
-                        {onCopyLink && nobodyAdded ? (
-                            <p className="m-0 flex items-start gap-1.5 text-meta text-muted-foreground">
-                                <LinkIcon size={13} className="mt-px shrink-0" aria-hidden />
-                                {copy.linkNobodyYet}
-                            </p>
-                        ) : null}
 
                         {notice === "failed" ? (
                             <Alert type="error" showIcon message={copy.saveFailed} />

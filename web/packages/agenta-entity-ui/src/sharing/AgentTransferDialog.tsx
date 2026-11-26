@@ -18,7 +18,6 @@ export interface AgentTransferDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     agentName: string
-    projectName: string
     isPrivate: boolean
     ownerUserId?: string | null
     members: readonly ProjectMemberProfile[]
@@ -37,7 +36,6 @@ export const AgentTransferDialog = ({
     open,
     onOpenChange,
     agentName,
-    projectName,
     isPrivate,
     ownerUserId,
     members,
@@ -113,7 +111,6 @@ export const AgentTransferDialog = ({
                 </span>
                 <MemberPicker
                     mode="single"
-                    projectName={projectName}
                     members={members}
                     search={membersSearch}
                     onSearch={onMembersSearch}

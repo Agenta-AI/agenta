@@ -377,7 +377,6 @@ export const AgentPrivacyPanel = ({
                 open={writable && transferOpen}
                 onOpenChange={setTransferOpen}
                 agentName={agentName}
-                projectName={projectName}
                 isPrivate={visibility === "private"}
                 ownerUserId={ownerId}
                 members={props.members}

@@ -10,7 +10,6 @@ import {PersonAvatar, personName, type SharingPerson} from "./people"
 export interface MemberPickerProps {
     /** "multiple": chips for several people; "single": one person (the transfer picker). */
     mode?: "multiple" | "single"
-    projectName: string
     /** Project members for the current search (the members route, never workspace members). */
     members: readonly ProjectMemberProfile[]
     search: string
@@ -33,7 +32,6 @@ export interface MemberPickerProps {
 
 export const MemberPicker = ({
     mode = "multiple",
-    projectName,
     members,
     search,
     onSearch,
@@ -105,7 +103,7 @@ export const MemberPicker = ({
                 <div
                     ref={fieldRef}
                     className={cn(
-                        "box-border flex min-h-9 flex-1 flex-wrap items-center gap-1 rounded-control border border-solid border-border bg-background px-2 py-1",
+                        "focus-ring-field box-border flex min-h-control flex-1 flex-wrap items-center gap-1 rounded-control border border-solid border-border bg-background px-2 py-0.5",
                         invalidUserIds.some((id) => selectedIds.has(id)) && "border-error",
                         disabled && "opacity-50",
                         className,
@@ -168,7 +166,7 @@ export const MemberPicker = ({
                             // A click, typing or the arrow key opens it.
                             onClick={() => setOpen(true)}
                             onKeyDown={onKeyDown}
-                            className="min-w-20 flex-1 border-0 bg-transparent p-0 text-label text-foreground outline-none [font-family:inherit] placeholder:text-muted-foreground"
+                            className="min-w-20 flex-1 border-0 bg-transparent p-0 text-field-md text-foreground outline-none [font-family:inherit] placeholder:text-muted-foreground"
                         />
                     ) : null}
                 </div>
@@ -182,9 +180,9 @@ export const MemberPicker = ({
                 }}
             >
                 <span className="px-2.5 pb-1 pt-1.5 text-meta text-muted-foreground">
-                    {memberPickerCopy.heading(projectName)}
+                    {memberPickerCopy.heading()}
                 </span>
-                <div id={listId} role="listbox" aria-label={memberPickerCopy.heading(projectName)}>
+                <div id={listId} role="listbox" aria-label={memberPickerCopy.heading()}>
                     {loading ? (
                         <div className="flex flex-col gap-2 px-2.5 py-1.5" aria-busy>
                             <SkeletonBlock className="h-7 w-full" />
@@ -198,6 +196,10 @@ export const MemberPicker = ({
                     ) : options.length === 0 && query ? (
                         <span className="block px-2.5 py-1.5 text-label text-muted-foreground">
                             {memberPickerCopy.noMatch(query)}
+                        </span>
+                    ) : options.length === 0 ? (
+                        <span className="block px-2.5 py-1.5 text-label text-muted-foreground">
+                            {memberPickerCopy.noMembers}
                         </span>
                     ) : (
                         options.map((member, index) => {
@@ -238,10 +240,15 @@ export const MemberPicker = ({
                         })
                     )}
                 </div>
-                <div className="my-1 h-px bg-border" />
-                <span className="px-2.5 pb-1.5 pt-1 text-meta text-muted-foreground">
-                    {memberPickerCopy.footer}
-                </span>
+                {/* The empty state already says who can be added. */}
+                {!loading && !error && options.length === 0 && !query ? null : (
+                    <>
+                        <div className="my-1 h-px bg-border" />
+                        <span className="px-2.5 pb-1.5 pt-1 text-meta text-muted-foreground">
+                            {memberPickerCopy.footer}
+                        </span>
+                    </>
+                )}
             </PopoverContent>
         </Popover>
     )
