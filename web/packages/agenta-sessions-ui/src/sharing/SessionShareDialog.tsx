@@ -375,6 +375,7 @@ export const SessionShareDialog = ({
                             {owner || ownerId ? (
                                 <div className="flex h-row-double items-center gap-2">
                                     <PersonAvatar
+                                        size="default"
                                         person={owner ?? {user_id: ownerId ?? "", email: ""}}
                                     />
                                     <div className="flex min-w-0 flex-1 flex-col">
@@ -410,7 +411,7 @@ export const SessionShareDialog = ({
                                             data-testid="session-grant-row"
                                             className="flex h-row-double items-center gap-2"
                                         >
-                                            <PersonAvatar person={person} />
+                                            <PersonAvatar person={person} size="default" />
                                             <div className="flex min-w-0 flex-1 flex-col">
                                                 <span className="truncate text-label">
                                                     {nameOf(grant.user_id)}

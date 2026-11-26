@@ -1,5 +1,5 @@
 import type {ProjectMemberProfile} from "@agenta/entities/sharing"
-import {Avatar, AvatarFallback} from "@agenta/ui/ui"
+import {Avatar, AvatarFallback, cn} from "@agenta/ui/ui"
 
 /** The fields a person row shows; a member profile fits. */
 export type SharingPerson = Pick<ProjectMemberProfile, "user_id" | "email" | "name"> & {
@@ -20,9 +20,21 @@ const initials = (person: SharingPerson): string => {
         .join("")
 }
 
-export const PersonAvatar = ({person}: {person: SharingPerson}) => (
-    <Avatar size="small" aria-hidden className="shrink-0">
-        <AvatarFallback className="bg-muted text-caption font-medium text-muted-foreground">
+/** `default` (28px) in the people list's two-line rows; `small` (24px) in chips and pickers. */
+export const PersonAvatar = ({
+    person,
+    size = "small",
+}: {
+    person: SharingPerson
+    size?: "small" | "default"
+}) => (
+    <Avatar size={size} aria-hidden className="shrink-0">
+        <AvatarFallback
+            className={cn(
+                "bg-muted font-medium text-muted-foreground",
+                size === "small" ? "text-caption" : "text-label",
+            )}
+        >
             {initials(person)}
         </AvatarFallback>
     </Avatar>
