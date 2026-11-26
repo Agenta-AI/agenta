@@ -402,6 +402,8 @@ export function ConfigAccordionSection({
                         !locked &&
                         "transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)] hover:bg-accent",
                     highlight && "bg-info/10",
+                    // An open section keeps the row hover fill (the pane's Agent tab).
+                    iconTile && isOpen && "bg-accent",
                     locked && "cursor-not-allowed opacity-60",
                     headerActs && "cursor-pointer",
                     // Header fill: bled to the section edges and layered over the section's body fill so
