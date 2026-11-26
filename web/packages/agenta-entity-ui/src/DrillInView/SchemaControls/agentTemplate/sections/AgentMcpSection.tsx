@@ -60,6 +60,10 @@ export const agentMcpSection = ({
                     onClick={openAddMcpServer}
                 />
             ) : undefined,
+        emptyAction:
+            !disabled && openAddMcpServer
+                ? {label: t("entityUi.agentTemplate.addMcpServer"), onClick: openAddMcpServer}
+                : undefined,
         pageAction:
             !disabled && openAddMcpServer ? (
                 <SectionPageAction action="add" onClick={openAddMcpServer} />

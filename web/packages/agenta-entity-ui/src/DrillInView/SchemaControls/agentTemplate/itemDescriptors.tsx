@@ -413,8 +413,8 @@ export function describeSkill(skill: unknown): ItemDescriptor {
     }
 }
 
-/** Strip Markdown syntax to a short single-line preview for an instructions file row. */
-export function mdPreview(md: string): string {
+/** Strip Markdown syntax to a short plain-text preview for an instructions file row. */
+export function mdPreview(md: string, maxLength = 140): string {
     return (md ?? "")
         .replace(/```[\s\S]*?```/g, " ") // fenced code blocks
         .replace(/^#{1,6}\s+/gm, "") // heading markers
@@ -424,7 +424,7 @@ export function mdPreview(md: string): string {
         .replace(/[*_`>#]/g, "") // inline emphasis / quote chars
         .replace(/\s+/g, " ") // collapse newlines + runs of whitespace
         .trim()
-        .slice(0, 140)
+        .slice(0, maxLength)
 }
 
 /** Row descriptor for an instructions markdown file (e.g. AGENTS.md). */

@@ -1,9 +1,10 @@
 import type {AgentRequirementItem} from "@agenta/entities/workflow"
 import {createT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
+import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {Cpu} from "@phosphor-icons/react"
 
-import {modelIdFromConfig} from "../../connectionUtils"
+import {connectionFromConfig, modelIdFromConfig} from "../../connectionUtils"
 import {needsSetupLabel} from "../needsSetupText"
 import {SectionPageAction} from "../SectionPageAction"
 import {SectionPageRow} from "../SectionPageRow"
@@ -41,10 +42,19 @@ export const modelSection = ({
             <SectionTitleBadge label={needsSetupLabel()} tone="warning" />
         ) : null
 
+    // A model that is set up shows its provider's logo; with no model, or setup still needed,
+    // the row keeps the chip.
+    const modelId = modelIdFromConfig(config.llm)
+    const provider =
+        connectionFromConfig(config.llm).provider ??
+        (modelId?.includes("/") ? modelId.split("/")[0] : null)
+    const ProviderIcon =
+        modelId && provider && !modelHarnessBadge ? getProviderIcon(provider) : null
+
     return (
         mh.hasModelOrHarness && {
             key: "model-harness",
-            icon: <Cpu size={14} />,
+            icon: ProviderIcon ? <ProviderIcon /> : <Cpu size={14} />,
             title: t("entityUi.agentTemplate.model"),
             // While setup is needed, the badge stands at the end of the row in place of the model.
             summary: modelHarnessBadge ?? mh.modelSummary,

@@ -24,6 +24,7 @@ import {PhonePrimaryAction} from "@agenta/ui/phone"
 import {CaretRight} from "@phosphor-icons/react"
 
 import {usePhoneSections, type PhoneSectionsApi} from "./phoneSections"
+import {SectionEmptyActionContext, type SectionEmptyAction} from "./SectionEmpty"
 import {useSectionListLayout} from "./sectionListLayout"
 import {SectionPageRow} from "./SectionPageRow"
 
@@ -40,6 +41,8 @@ export interface AgentTemplateSectionDescriptor {
      * phone and the builder pane keep the "None" summary (M07, B03).
      */
     empty?: boolean
+    /** In the panel, the header summary of a section that holds items, in place of `summary`. */
+    panelSummary?: ReactNode
     /**
      * On a phone, the row's summary line in place of `summary`, where the phone canvas (M07) says
      * more than the desktop header ("AGENTS.md · 33 words", the skill names).
@@ -66,6 +69,13 @@ export interface AgentTemplateSectionDescriptor {
      * section that opens a view draws): the Advanced parts, the Permissions policy row.
      */
     pageContent?: ReactNode
+    /**
+     * In the panel, the section is one card that opens a view, with a preview under its title
+     * (Instructions). The phone, the page and the builder pane keep `content`.
+     */
+    panelCard?: {onOpen: () => void; summary?: ReactNode; badge?: ReactNode; preview: ReactNode}
+    /** In the panel, the first action an empty section offers on its empty line (STATE-01). */
+    emptyAction?: SectionEmptyAction
     /** On a phone the section screen shows no `extra` (its add control): the add view is read only there. */
     hideExtraOnPhone?: boolean
     /** When set, the header opens a drawer instead of expanding inline. */
@@ -128,6 +138,7 @@ export const AgentTemplateSectionList = ({
         <div className={pane ? "-mx-4 flex flex-col" : "flex flex-col gap-2 pt-3"}>
             {sections.map((s) => {
                 const controlled = Boolean(controlledKeys?.has(s.key))
+                const card = pane ? undefined : s.panelCard
                 return (
                     // An anchor per section, so a host can list the sections and scroll to one.
                     <div
@@ -140,11 +151,18 @@ export const AgentTemplateSectionList = ({
                         <ConfigAccordionSection
                             icon={s.icon}
                             title={s.title}
-                            titleBadge={s.titleBadge}
-                            summary={!pane && s.empty ? undefined : s.summary}
+                            titleBadge={card?.badge ?? s.titleBadge}
+                            summary={
+                                card
+                                    ? card.summary
+                                    : !pane && s.empty
+                                      ? undefined
+                                      : ((!pane && s.panelSummary) || s.summary)
+                            }
+                            preview={card?.preview}
                             extra={s.extra}
                             indicator={s.indicator}
-                            onOpen={s.onOpen}
+                            onOpen={card?.onOpen ?? s.onOpen}
                             drawerAffordance={s.drawerAffordance}
                             highlight={s.highlight}
                             bodyClassName={
@@ -158,7 +176,7 @@ export const AgentTemplateSectionList = ({
                             // Canvas F01: rows inset in the panel's `px-4`; the builder pane keeps
                             // its full-width dividers (B03).
                             canvas={pane ? "pane" : "panel"}
-                            // The panel's filled header rows separate its sections (8 px apart).
+                            // The panel's section cards sit 8 px apart, with no dividers.
                             noDivider={!pane}
                             // The section icon sits on the same Mark as its item rows.
                             iconTile={!pane}
@@ -169,7 +187,11 @@ export const AgentTemplateSectionList = ({
                                   }
                                 : {defaultOpen: s.defaultOpen, animateInitialOpen: true})}
                         >
-                            {s.content}
+                            <SectionEmptyActionContext.Provider
+                                value={pane ? null : (s.emptyAction ?? null)}
+                            >
+                                {s.content}
+                            </SectionEmptyActionContext.Provider>
                         </ConfigAccordionSection>
                     </div>
                 )
@@ -179,9 +201,9 @@ export const AgentTemplateSectionList = ({
 }
 
 /** The body of an open panel section (canvas F01, with the list's gap). */
-const PANEL_BODY = "flex flex-col gap-1 pb-3 pt-2.5"
+const PANEL_BODY = "flex flex-col gap-1 py-0.5"
 /** A body that is one row under the title (see `insetBody`); its Mark stays on the line (ALIGN-01). */
-const PANEL_INSET_BODY = "flex flex-col pb-3 pt-2.5"
+const PANEL_INSET_BODY = "flex flex-col py-0.5"
 
 /** The phone row's summary line. */
 const summaryOf = (s: AgentTemplateSectionDescriptor) => s.phoneSummary ?? s.summary

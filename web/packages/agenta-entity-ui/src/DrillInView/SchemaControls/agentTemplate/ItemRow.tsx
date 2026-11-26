@@ -30,6 +30,9 @@ import {useSectionListLayout} from "./sectionListLayout"
  */
 const PAGE_ROW = "gap-3 border-0 border-t border-solid border-border-muted px-3.5 py-3"
 
+/** A panel row's Mark: 28 px with a 16 px glyph, also for an item that draws its own Mark. */
+const PANE_MARK = "size-7 [&_svg]:size-4 [&_[data-slot=icon-tile]]:size-7"
+
 /**
  * Draft/validation status for a config-item row: tints the row border and shows a tag.
  * `"new"`/`"edited"` mark uncommitted changes; `"invalid"`/`"incomplete"` mark a blocking gap.
@@ -232,16 +235,16 @@ export function ItemRow({
                 }
                 className={cn(
                     "flex min-w-0 flex-1 items-center transition-opacity",
-                    // SPACE-04: 12 px to a 32 px Mark, 8 px to a 24 px one.
-                    page || twoLine ? "gap-3" : "gap-2",
+                    // 8 px to the panel's 28 px Mark; SPACE-04 for the page and the phone.
+                    page || (twoLine && phone) ? "gap-3" : "gap-2",
                     inactive && "opacity-50",
                 )}
             >
                 <ItemAvatar
                     descriptor={descriptor}
-                    size={twoLine && !page ? 32 : 24}
-                    // A one-line pane row's Mark is 28 px, the size of its section's tile.
-                    className={!page && !twoLine ? "size-7 [&_svg]:size-4" : undefined}
+                    size={twoLine && phone ? 32 : 24}
+                    // A panel row's Mark is 28 px, the size of its section's tile.
+                    className={!page && !(twoLine && phone) ? PANE_MARK : undefined}
                 />
                 <div className="min-w-0 flex-1">
                     <div
@@ -438,12 +441,18 @@ export function InstructionsFileRow({
             }}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             className={cn(
-                // A plain row-double row with the hover fill, not a card (SURF-01/02): 12 px to
-                // its 32 px Mark (SPACE-04). The clear border only shows a status tint.
-                "group box-border flex min-h-row-double cursor-pointer items-center gap-3 rounded-md border border-solid border-transparent px-2 py-1.5 transition-colors hover:bg-accent",
-)}
+                // A plain row-double row with the hover fill, not a card (SURF-01/02). The clear
+                // border only shows a status tint.
+                "group box-border flex min-h-row-double cursor-pointer items-center rounded-md border border-solid border-transparent px-2 py-1.5 transition-colors hover:bg-accent",
+                // 8 px to the panel's 28 px Mark; 12 px to the phone's 32 px one (SPACE-04).
+                phone ? "gap-3" : "gap-2",
+            )}
         >
-            <ItemAvatar descriptor={descriptor} size={32} />
+            <ItemAvatar
+                descriptor={descriptor}
+                size={phone ? 32 : 24}
+                className={phone ? undefined : PANE_MARK}
+            />
             <div className="flex min-w-0 flex-1 flex-col">
                 <div className="flex items-center gap-2">
                     <span className="truncate font-mono text-label leading-5">{filename}</span>

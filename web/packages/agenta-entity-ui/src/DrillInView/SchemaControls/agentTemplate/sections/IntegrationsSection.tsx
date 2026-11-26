@@ -9,6 +9,7 @@ import {AppWindow, Plus, Wrench} from "@phosphor-icons/react"
 import type {IntegrationRow} from "../../toolUtils"
 import {countSummary} from "../agentTemplateUtils"
 import {CreateWithAIAddMenu} from "../CreateWithAIAddMenu"
+import {IntegrationLogoStack} from "../IntegrationLogoStack"
 import {SectionPageAction} from "../SectionPageAction"
 import {ToolManagementList, type ToolManagementListProps} from "../ToolManagementList"
 
@@ -56,6 +57,13 @@ export const integrationsSection = ({
         // "None" when empty, as the canvas draws the phone (M07) and the builder pane (B03).
         summary: countSummary(integrationCount, "integration") || tNow("common.none"),
         empty: integrationCount === 0,
+        // The connected apps' logos stand in for the count.
+        panelSummary: integrationRows.length ? (
+            <IntegrationLogoStack
+                rows={integrationRows}
+                label={countSummary(integrationCount, "integration")}
+            />
+        ) : undefined,
         // The phone row names the integrations (M07: "Zendesk").
         phoneSummary: integrationRows.length ? (
             <IntegrationNames rows={integrationRows} />
@@ -75,6 +83,10 @@ export const integrationsSection = ({
                     manualIcon={<AppWindow size={14} />}
                 />
             ) : undefined,
+        emptyAction:
+            !disabled && openAddIntegration
+                ? {label: t("entityUi.agentTemplate.addIntegration"), onClick: openAddIntegration}
+                : undefined,
         pageAction:
             !disabled && openAddIntegration ? (
                 <SectionPageAction action="add" onClick={openAddIntegration} />

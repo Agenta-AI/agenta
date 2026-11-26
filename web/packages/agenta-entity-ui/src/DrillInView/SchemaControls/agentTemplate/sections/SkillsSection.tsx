@@ -83,6 +83,9 @@ export const skillsSection = ({
         extra: !disabled ? (
             <SkillsHeaderActions t={t} onManage={handleAddSkill} onNew={handleNewSkill} />
         ) : undefined,
+        emptyAction: !disabled
+            ? {label: t("entityUi.agentTemplate.addSkill"), onClick: handleNewSkill}
+            : undefined,
         pageAction: !disabled ? (
             <SkillsHeaderActions page t={t} onManage={handleAddSkill} onNew={handleNewSkill} />
         ) : undefined,

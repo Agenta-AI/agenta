@@ -87,6 +87,10 @@ export const subagentsSection = ({
                     onClick={openAddSubagents}
                 />
             ) : undefined,
+        emptyAction:
+            !disabled && openAddSubagents
+                ? {label: t("entityUi.agentTemplate.addSubagent"), onClick: openAddSubagents}
+                : undefined,
         pageAction:
             !disabled && openAddSubagents ? (
                 <SectionPageAction action="add" onClick={openAddSubagents} />

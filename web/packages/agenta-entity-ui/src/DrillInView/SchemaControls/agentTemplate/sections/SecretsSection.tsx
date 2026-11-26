@@ -94,6 +94,12 @@ export const secretsSection = ({
                 onAdd={() => openAttach()}
             />
         ) : undefined,
+        emptyAction: !disabled
+            ? {
+                  label: tNow("entityUi.secretAttachment.attachTitle"),
+                  onClick: () => openAttach(),
+              }
+            : undefined,
         pageAction: !disabled ? (
             <SecretsPageAction
                 revisionId={revisionId ?? ""}
@@ -244,6 +250,10 @@ export const SecretsSectionBody = ({
 
     return (
         <div className="flex flex-col gap-2">
+            {/* In the panel's section card, on the title's text line. */}
+            <span className="hidden pl-11.25 pr-2.5 text-meta text-muted-foreground in-data-section-card:block">
+                {t("entityUi.agentSecrets.aboutSecrets")}
+            </span>
             {notice ? (
                 <div
                     className={cn(
@@ -259,7 +269,9 @@ export const SecretsSectionBody = ({
                     <Spinner size="small" /> {t("entityUi.agentSecrets.loadingSecrets")}
                 </div>
             ) : bindings.length === 0 ? (
-                <SectionEmpty>{t("entityUi.agentSecrets.noSecretsAttached")}</SectionEmpty>
+                <SectionEmpty actionDisabled={!canChange}>
+                    {t("entityUi.agentSecrets.noSecretsAttached")}
+                </SectionEmpty>
             ) : (
                 bindings.map((binding) => {
                     const envVar = binding.binding.name

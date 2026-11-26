@@ -198,6 +198,11 @@ export interface ConfigAccordionSectionProps {
     highlight?: boolean
     /** Draw the icon on a 24 px {@link IconTile}, the same Mark the section's item rows use. */
     iconTile?: boolean
+    /**
+     * With `onOpen`: content under the title, inside the row's card. The whole card then opens
+     * the view, with one hover fill (the panel's Instructions card).
+     */
+    preview?: ReactNode
     /** Section body. */
     children?: ReactNode
 }
@@ -234,6 +239,7 @@ export function ConfigAccordionSection({
     drawerAffordance = "chevron",
     highlight = false,
     iconTile = false,
+    preview,
     children,
 }: ConfigAccordionSectionProps) {
     const divider = "border-border-muted"
@@ -291,6 +297,8 @@ export function ConfigAccordionSection({
         !opensDrawer && !locked && (collapsible ? (isControlled ? open : internalOpen) : true)
     const canToggle = !opensDrawer && collapsible && !locked
     const headerActs = canToggle || opensDrawer
+    // One card that opens a view: the card is the click target, not its title row.
+    const previewCard = opensDrawer && preview != null
     // Whether the expanded-header band (fill + bottom divider) is currently shown. `isOpen` is already
     // false when the section opens a drawer or is locked.
     const banded = isOpen && !!headerBand
@@ -331,7 +339,9 @@ export function ConfigAccordionSection({
                 transitions instead of the dot popping in and out. */}
             <span
                 className={cn(
-                    "absolute -right-1 -top-0.5 size-2 rounded-full ring-2 ring-background",
+                    "absolute -right-1 -top-0.5 size-2 rounded-full ring-2",
+                    // The ring takes the tone of the ground the dot sits on.
+                    iconTile ? "ring-muted" : "ring-background",
                     // The dot fades in and out; it never scales (MOTION-02).
                     "motion-safe:transition-[opacity,background-color] motion-safe:duration-[var(--duration-base)] motion-safe:ease-[var(--ease-out)]",
                     indicator ? "opacity-100" : "opacity-0",
@@ -355,8 +365,13 @@ export function ConfigAccordionSection({
 
     const sectionInner = (
         <div
+            data-section-card={iconTile || undefined}
+            onClick={previewCard ? activate : undefined}
             className={cn(
                 "flex flex-col",
+                // The hover fill sits under the card's content, so the white Mark stays white.
+                previewCard &&
+                    "relative isolate cursor-pointer before:absolute before:inset-0 before:-z-10 before:rounded-lg before:transition-colors before:duration-[var(--duration-fast)] before:ease-[var(--ease-out)] before:content-[''] hover:before:bg-accent",
                 // Expanded-section band (opt-in via `headerBand`): the whole expanded section shares a
                 // subtle bleeding fill so it reads as one grouped, active region set apart from the flat
                 // collapsed headers, using fill rather than a border. This `bg` is the BODY/content
@@ -377,13 +392,15 @@ export function ConfigAccordionSection({
                               : cn("bg-transparent", noDivider ? "border-transparent" : divider),
                       )
                     : !noDivider && cn("border-0 border-b border-solid", divider),
+                // A tiled section is one grouped block, open or closed: a muted card (SURF-01).
+                iconTile && "-mx-2.5 rounded-lg bg-muted",
                 className,
             )}
         >
             {/* Row stays clickable but is not the role=button node — it holds `extra`'s controls
                 (nested-interactive). The button role lives on the title group below. */}
             <div
-                onClick={headerActs ? activate : undefined}
+                onClick={headerActs && !previewCard ? activate : undefined}
                 className={cn(
                     "flex items-center justify-between gap-2 select-none",
                     // The panel row is a one-line row (ROW-01) that hangs its hover fill 8 px out,
@@ -394,16 +411,17 @@ export function ConfigAccordionSection({
                         : canvas
                           ? iconTile
                               ? // The tiled panel row: 40 px tall, a 10 px inset each side.
-                                "-mx-2.5 h-10 rounded-lg px-2.5"
+                                "h-10 rounded-lg px-2.5"
                               : "-mx-2 h-row-single rounded-md px-2"
                           : "py-3",
                     canvas === "panel" &&
                         headerActs &&
+                        !previewCard &&
                         !locked &&
                         "transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)] hover:bg-accent",
                     highlight && "bg-info/10",
-                    // An open section keeps the row hover fill (the pane's Agent tab).
-                    iconTile && isOpen && "bg-accent",
+                    // The header's Mark is white on the card; the item Marks keep their quiet fill.
+                    iconTile && "[&_[data-slot=icon-tile]]:bg-background",
                     locked && "cursor-not-allowed opacity-60",
                     headerActs && "cursor-pointer",
                     // Header fill: bled to the section edges and layered over the section's body fill so
@@ -511,9 +529,19 @@ export function ConfigAccordionSection({
                 </ConfigRowTrailing>
             </div>
 
-            {opensDrawer ? null : (
+            {opensDrawer ? (
+                previewCard ? (
+                    // On the title's text line: 10 px inset, the 28 px Mark, the 8 px gap.
+                    <div className="-mt-0.5 pb-2.5 pl-11.5 pr-2.5">{preview}</div>
+                ) : null
+            ) : (
                 // The 4px bleed keeps a focused control's 3px ring inside the collapse's clip.
-                <HeightCollapse open={isOpen} className="-mx-1" contentClassName="px-1">
+                <HeightCollapse
+                    open={isOpen}
+                    // In the tiled card the rows' 1 px border puts their Marks on the header's line.
+                    className={iconTile ? "-mx-0.75" : "-mx-1"}
+                    contentClassName="px-1"
+                >
                     {/* Top padding gives the body room below the header band (which carries the
                         fill + bottom divider), so it reads as content, not a header continuation. */}
                     <div className={bodyClassName}>
