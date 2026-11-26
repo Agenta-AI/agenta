@@ -46,12 +46,17 @@ interface Env extends RegistrationEnv {
   ASSETS: { fetch(request: Request): Promise<Response> };
   MEDIA: {
     head(key: string): Promise<{ size: number } | null>;
-    put(key: string, value: string): Promise<unknown>;
+    put(
+      key: string,
+      value: string,
+      options?: { onlyIf: { etagMatches?: string; etagDoesNotMatch?: string } },
+    ): Promise<unknown>;
     get(
       key: string,
       options?: { range: { offset: number; length: number } },
     ): Promise<{
       body: ReadableStream;
+      etag: string;
       httpEtag: string;
       size: number;
       text(): Promise<string>;
