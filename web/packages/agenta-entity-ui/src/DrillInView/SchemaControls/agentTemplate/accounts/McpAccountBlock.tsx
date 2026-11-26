@@ -155,7 +155,6 @@ export function YourSignInLine({endpoint, name}: {endpoint: MCPEndpoint; name: s
                 submitLabel={t("entityUi.accounts.saveToken")}
             >
                 {(start, pending) => (
-                    // Canvas F03 f7: a dashed box with the dark sign-in button.
                     <EmptyAccountBox
                         text={
                             own
@@ -164,7 +163,12 @@ export function YourSignInLine({endpoint, name}: {endpoint: MCPEndpoint; name: s
                         }
                     >
                         {start ? (
-                            <Button size="compact" className="" disabled={pending} onClick={start}>
+                            <Button
+                                size="compact"
+                                variant="outline"
+                                disabled={pending}
+                                onClick={start}
+                            >
                                 {t("entityUi.mcpAccount.signInTo", {name})}
                             </Button>
                         ) : null}

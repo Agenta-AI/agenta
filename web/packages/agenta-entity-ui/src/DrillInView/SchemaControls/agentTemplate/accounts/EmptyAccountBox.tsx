@@ -1,13 +1,20 @@
-/** "No account yet" or "Not signed in yet" in a dashed box, with the action at the right (canvas F10 f3, F03 f7). */
+/** "No account yet" or "Not signed in yet": a filled row with a person tile and the action at the right. */
 import type {ReactNode} from "react"
+
+import {IconTile} from "@agenta/ui/ui"
+import {UserCircle} from "@phosphor-icons/react"
 
 export function EmptyAccountBox({text, children}: {text: string; children?: ReactNode}) {
     return (
         <div
             data-testid="empty-account-box"
-            className="flex min-h-[46px] items-center justify-between gap-3 rounded-lg border border-dashed border-border px-3 py-2"
+            // Tone, not a dashed line (SURF-01): the same fill as the choice track above it.
+            className="flex min-h-row-double items-center gap-3 rounded-lg bg-muted px-3 py-2"
         >
-            <span className="min-w-0 text-label leading-5 text-muted-foreground">{text}</span>
+            <IconTile size={32} className="bg-background" aria-hidden>
+                <UserCircle />
+            </IconTile>
+            <span className="min-w-0 flex-1 text-label leading-5 text-muted-foreground">{text}</span>
             {children}
         </div>
     )

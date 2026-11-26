@@ -203,7 +203,7 @@ function YourAccount({
         // Canvas F10 f3: a dashed box with the dark connect button.
         body = (
             <EmptyAccountBox text={t("entityUi.accountSwitch.noAccountYet")}>
-                <Button size="compact" className="" onClick={onConnect}>
+                <Button size="compact" variant="outline" onClick={onConnect}>
                     {t("entityUi.accountSwitch.connectApp", {name})}
                 </Button>
             </EmptyAccountBox>
