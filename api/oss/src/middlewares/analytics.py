@@ -7,6 +7,7 @@ from uuid import UUID
 from fastapi import Request
 from oss.src.core.memberships.service import get_memberships_service
 from oss.src.core.telemetry.service import (
+    cloud_event_properties,
     distinct_id_for,
     instance_groups,
     role_label,
@@ -83,7 +84,9 @@ async def _set_activation_property(
         return
 
     # Check if we've already set this property for this user
-    cache_key = {"property": property_name}
+    # Keyed by the distinct id too: a mark cached under an earlier identity (the email
+    # on cloud) must not stop the mark on the person the events go to now.
+    cache_key = {"property": property_name, "distinct_id": distinct_id}
 
     already_set = await get_cache(
         project_id=project_id,
@@ -107,6 +110,7 @@ async def _set_activation_property(
                 "$set_once": {
                     property_name: True,
                 },
+                **cloud_event_properties(),
             },
         )
 
@@ -189,6 +193,8 @@ async def analytics_middleware(request: Request, call_next: Callable):
             ):
                 properties["organization_name"] = request.state.organization_name
 
+            properties.update(cloud_event_properties())
+
             # Check daily limits if the event is one of those to be limited per auth method
             _project_id = getattr(request.state, "project_id", None)
             _user_id = getattr(request.state, "user_id", None)
@@ -237,7 +243,7 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 posthog = await _load_posthog()
                 if posthog is not None:
                     if env.stripe.enabled:
-                        properties["$set"] = {"email": distinct_id}
+                        properties["$set"] = {"email": request.state.user_email}
                     else:
                         properties["$groups"] = await instance_groups()
                         role = await _request_role(request)
@@ -278,17 +284,13 @@ async def analytics_middleware(request: Request, call_next: Callable):
 
 
 async def _request_distinct_id(request: Request) -> Optional[str]:
-    """Cloud: the email. Self-hosted: `<instance_id>:<user_id>`, never the email."""
+    """Cloud: the user id. Self-hosted: `<instance_id>:<user_id>`, never the email."""
 
     email = getattr(request.state, "user_email", None)
-    if not email:
-        return None
-    if env.stripe.enabled:
-        return email
     user_id = getattr(request.state, "user_id", None)
-    if not user_id:
+    if not email or not user_id:
         return None
-    return await distinct_id_for(UUID(str(user_id)), email)
+    return await distinct_id_for(UUID(str(user_id)))
 
 
 def _client_sdk(request: Request) -> Dict[str, str]:
