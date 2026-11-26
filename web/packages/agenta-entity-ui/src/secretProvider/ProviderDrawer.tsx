@@ -120,7 +120,7 @@ type DrawerView =
 /** The provider's logo in the 28px tile the catalog rows use. */
 const ProviderTile = ({kind}: {kind: string}) => {
     return (
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-solid border-border bg-background">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted">
             {createElement(providerIconFor(kind), {className: "size-4"})}
         </span>
     )
