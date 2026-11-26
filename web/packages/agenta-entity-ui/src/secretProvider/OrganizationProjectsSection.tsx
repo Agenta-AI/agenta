@@ -12,6 +12,7 @@ import {useT} from "@agenta/i18n"
 import organizationProjectsCatalog from "@agenta/i18n/catalogs/entityUi.organizationProjects"
 import {
     Button,
+    ChoiceSwitch,
     Command,
     CommandEmpty,
     CommandGroup,
@@ -31,8 +32,6 @@ import {
     WarningCircle,
     X,
 } from "@phosphor-icons/react"
-
-import {AccountSwitch} from "../accounts/AccountSwitch"
 
 /**
  * What the admin may do about projects in this deployment. `pending` is EE while the plan's
@@ -193,7 +192,7 @@ const OrganizationProjectsSection = ({
     return (
         <section className="flex shrink-0 flex-col gap-2">
             <Field label={t("entityUi.organizationProjects.projectsThatCanUse")}>
-                <AccountSwitch
+                <ChoiceSwitch
                     value={value.availability}
                     choices={[
                         {

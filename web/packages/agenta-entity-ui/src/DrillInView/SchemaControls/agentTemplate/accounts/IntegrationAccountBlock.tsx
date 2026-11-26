@@ -12,11 +12,10 @@ import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {useT} from "@agenta/i18n"
 import accountsCatalog from "@agenta/i18n/catalogs/entityUi.accounts"
 import accountSwitchCatalog from "@agenta/i18n/catalogs/entityUi.accountSwitch"
-import {Button} from "@agenta/ui/ui"
+import {Button, ChoiceSwitch} from "@agenta/ui/ui"
 import {AppWindow, Users, Warning} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
-import {AccountSwitch} from "../../../../accounts/AccountSwitch"
 import {personalConnectionsFor} from "../../../../accounts/personalAccounts"
 import {useAccountChoice} from "../../../../accounts/useAccountChoice"
 import {
@@ -96,7 +95,7 @@ export function IntegrationAccountBlock({
                     note={t("entityUi.accountSwitch.chooseWhose", {name})}
                 />
                 {showAccountSwitch(access, entry) ? (
-                    <AccountSwitch
+                    <ChoiceSwitch
                         value={eachPerson ? USER_ACCOUNT_SOURCE : "agent"}
                         choices={[
                             {

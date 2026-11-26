@@ -1,9 +1,6 @@
-import {useState} from "react"
-
+import {ChoiceSwitch} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-
-// Imported from source: the package barrel does not export the accounts parts.
-import {AccountSwitch} from "../../../../packages/agenta-entity-ui/src/accounts/AccountSwitch"
+import {useState} from "react"
 
 const choices = [
     {value: "user", label: "Each person's own", note: "Everyone uses their own Zendesk account."},
@@ -14,7 +11,7 @@ const Demo = ({initial, disabled}: {initial: string; disabled?: boolean}) => {
     const [value, setValue] = useState(initial)
     return (
         <div data-testid="account-switch" className="w-[408px] bg-colorBgContainer p-4">
-            <AccountSwitch
+            <ChoiceSwitch
                 value={value}
                 choices={choices}
                 onChange={setValue}
@@ -26,7 +23,7 @@ const Demo = ({initial, disabled}: {initial: string; disabled?: boolean}) => {
 }
 
 const meta: Meta<typeof Demo> = {
-    title: "BuilderLayout/integrations/Account switch",
+    title: "BuilderLayout/integrations/Choice switch",
     component: Demo,
 }
 export default meta

@@ -199,6 +199,7 @@ export {
     type SegmentedProps,
     type SegmentedValue,
 } from "./segmented"
+export {ChoiceSwitch, type ChoiceSwitchOption, type ChoiceSwitchProps} from "./choice-switch"
 export {
     Avatar,
     AvatarImage,

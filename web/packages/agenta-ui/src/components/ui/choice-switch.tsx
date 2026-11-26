@@ -1,9 +1,9 @@
-/** Two or more choices side by side, each a label and a short note; the caller passes all text. */
+/** Two or more choices side by side, each a label and a short note: a Segmented whose choices need a word of explanation. */
 import {useLayoutEffect, useRef, useState, type KeyboardEvent} from "react"
 
-import {cn} from "@agenta/ui"
+import {cn} from "./utils"
 
-export interface AccountSwitchChoice<Value extends string> {
+export interface ChoiceSwitchOption<Value extends string> {
     value: Value
     label: string
     /** One short sentence under the label. */
@@ -12,9 +12,9 @@ export interface AccountSwitchChoice<Value extends string> {
     disabled?: boolean
 }
 
-export interface AccountSwitchProps<Value extends string> {
+export interface ChoiceSwitchProps<Value extends string> {
     value: Value
-    choices: AccountSwitchChoice<Value>[]
+    choices: ChoiceSwitchOption<Value>[]
     onChange: (next: Value) => void
     /** Names the group for assistive tech. */
     "aria-label": string
@@ -22,14 +22,14 @@ export interface AccountSwitchProps<Value extends string> {
     className?: string
 }
 
-export function AccountSwitch<Value extends string>({
+export function ChoiceSwitch<Value extends string>({
     value,
     choices,
     onChange,
     "aria-label": ariaLabel,
     disabled,
     className,
-}: AccountSwitchProps<Value>) {
+}: ChoiceSwitchProps<Value>) {
     const refs = useRef<(HTMLButtonElement | null)[]>([])
     const trackRef = useRef<HTMLDivElement>(null)
     const selectedIndex = Math.max(
@@ -101,7 +101,7 @@ export function AccountSwitch<Value extends string>({
                 <div
                     aria-hidden
                     className={cn(
-                        "pointer-events-none absolute left-0 rounded-md border border-solid border-border bg-background",
+                        "pointer-events-none absolute left-0 rounded-md bg-background",
                         ready &&
                             "transition-[transform,width,height] duration-[var(--duration-base)] ease-[var(--ease-in-out)]",
                     )}
@@ -130,11 +130,11 @@ export function AccountSwitch<Value extends string>({
                             if (!selected) onChange(choice.value)
                         }}
                         className={cn(
-                            "flex min-w-0 flex-1 cursor-pointer flex-col items-start gap-0.5 rounded-md border border-solid px-2.5 py-2 text-left font-[inherit] outline-none transition-colors duration-[var(--duration-fast)]",
+                            "flex min-w-0 flex-1 cursor-pointer flex-col items-start gap-0.5 rounded-md border-0 px-2.5 py-2 text-left font-[inherit] outline-none transition-colors duration-[var(--duration-fast)]",
                             "focus-ring",
                             "disabled:cursor-not-allowed disabled:opacity-60",
-                            // The thumb draws the selected box; the choice stays clear above it.
-                            "relative border-transparent bg-transparent",
+                            // The thumb draws the selected box by tone, as in Segmented; the choice stays clear above it.
+                            "relative bg-transparent",
                             !selected && "enabled:hover:bg-accent",
                         )}
                     >
@@ -151,8 +151,7 @@ export function AccountSwitch<Value extends string>({
                             <span
                                 className={cn(
                                     // 12/16: `text-xs` is 13 px in /m.
-                                    "text-meta",
-                                    selected ? "text-muted-foreground" : "text-muted-foreground",
+                                    "text-meta text-muted-foreground",
                                 )}
                             >
                                 {choice.note}

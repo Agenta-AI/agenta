@@ -3,10 +3,8 @@ import {useCallback, type ComponentType} from "react"
 import {useT} from "@agenta/i18n"
 import accountsCatalog from "@agenta/i18n/catalogs/entityUi.accounts"
 import type {OwnerKind} from "@agenta/shared/types"
-import {Field} from "@agenta/ui/ui"
+import {ChoiceSwitch, Field} from "@agenta/ui/ui"
 import {Buildings, User, UsersThree, type IconProps} from "@phosphor-icons/react"
-
-import {AccountSwitch} from "./AccountSwitch"
 
 /** Who owns a connection, narrow to wide: the person, the project, the organization. */
 export const OWNER_ORDER: readonly OwnerKind[] = ["user", "project", "organization"]
@@ -78,7 +76,7 @@ export function OwnerField<Owner extends OwnerKind>({
 
     return (
         <Field label={t("entityUi.accounts.owner")}>
-            <AccountSwitch
+            <ChoiceSwitch
                 value={value}
                 choices={shown.map((owner) => ({
                     value: owner,

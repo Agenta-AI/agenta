@@ -14,12 +14,11 @@ import {useT} from "@agenta/i18n"
 import accountsCatalog from "@agenta/i18n/catalogs/entityUi.accounts"
 import accountSwitchCatalog from "@agenta/i18n/catalogs/entityUi.accountSwitch"
 import mcpAccountCatalog from "@agenta/i18n/catalogs/entityUi.mcpAccount"
-import {Button} from "@agenta/ui/ui"
+import {Button, ChoiceSwitch} from "@agenta/ui/ui"
 import {Warning} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {AccountLine, AccountLineAction} from "../../../../accounts/AccountLine"
-import {AccountSwitch} from "../../../../accounts/AccountSwitch"
 import {McpSignIn} from "../../../../accounts/McpSignIn"
 import {useItemWorkflowId, type ItemAccountContext} from "../../../../accounts/useItemAccount"
 
@@ -69,7 +68,7 @@ export function McpAccountBlock({
                         label={t("entityUi.accounts.label")}
                         note={t("entityUi.mcpAccount.chooseWhose", {name})}
                     />
-                    <AccountSwitch
+                    <ChoiceSwitch
                         value={source}
                         choices={[
                             {
