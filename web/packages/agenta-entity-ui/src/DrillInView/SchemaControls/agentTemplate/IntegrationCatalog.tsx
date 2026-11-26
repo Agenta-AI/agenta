@@ -51,7 +51,7 @@ import {
     SearchInput,
     SimpleTooltip,
 } from "@agenta/ui/ui"
-import {CaretRight, Check, MagnifyingGlass, Plus, Star} from "@phosphor-icons/react"
+import {ArrowsLeftRight, CaretRight, Check, MagnifyingGlass, Plus, Star} from "@phosphor-icons/react"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -388,30 +388,24 @@ function ConnectedRow({
                         </span>
                     ) : null}
                     {switchable ? (
-                        <Button
-                            variant={canvas ? "outline" : "ghost"}
-                            size={canvas ? "compact" : "sm"}
-                            className={canvas ? "font-normal" : undefined}
-                            onClick={() => onAdd?.(slug)}
-                        >
-                            {t("entityUi.integrationDrawer.use")}
-                        </Button>
+                        // An icon beside the row menu, the same size, with its word as the tooltip.
+                        <SimpleTooltip title={t("entityUi.integrationDrawer.use")}>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={t("entityUi.integrationDrawer.use")}
+                                className="text-muted-foreground hover:text-foreground"
+                                onClick={() => onAdd?.(slug)}
+                            >
+                                <ArrowsLeftRight />
+                            </Button>
+                        </SimpleTooltip>
                     ) : null}
                     {canvas && attention === "pending" ? (
                         <CaretRight size={12} className="shrink-0 text-muted-foreground" />
                     ) : null}
-                    {/* In the panel the menu takes no room until the row is hovered or focused;
-                        touch shows it always. */}
-                    <span
-                        className={
-                            canvas
-                                ? // Zero width, not hidden, so Tab still reaches the menu button;
-                                  // -ml-2 takes back the row's gap while it is closed. Touch
-                                  // does not clip, so the button keeps its 44px tap area.
-                                  "-ml-2 flex max-w-0 overflow-hidden group-focus-within/row:ml-0 group-focus-within/row:max-w-none group-hover/row:ml-0 group-hover/row:max-w-none has-[[data-state=open]]:ml-0 has-[[data-state=open]]:max-w-none [@media(hover:none)]:ml-0 [@media(hover:none)]:max-w-none [@media(hover:none)]:overflow-visible"
-                                : "contents"
-                        }
-                    >
+                    {/* Always shown, so nothing shifts when the row is hovered. */}
+                    <span className="contents">
                         <ConnectionRowMenu
                             items={menuItems(connection, verbs)}
                             onRefresh={() => handlers.onRefresh(connection)}

@@ -44,10 +44,10 @@ export function ConnectionRowMenu({
                         size="icon-sm"
                         variant="ghost"
                         aria-label={t("entityUi.integrationDrawer.connectionActions")}
-                        // Shown on row hover, always on touch.
-                        className={`hover:bg-accent focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[state=open]:opacity-100 [@media(hover:hover)]:opacity-0`}
+                        // Always shown and quiet, so nothing changes or shifts on hover.
+                        className="text-muted-foreground hover:bg-accent hover:text-foreground"
                     >
-                        <DotsThreeVertical aria-hidden weight="bold" />
+                        <DotsThreeVertical aria-hidden />
                     </Button>
                 </DropdownMenuTrigger>
             </SimpleTooltip>
