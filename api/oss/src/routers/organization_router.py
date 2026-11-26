@@ -54,6 +54,9 @@ if is_ee():
         update_organization as update_organization_ee,
     )
     from ee.src.core.organizations.exceptions import OrganizationSlugConflictError
+    from ee.src.core.access.entitlements.types import (
+        InstanceOrganizationLimitReachedError,
+    )
 
 router = APIRouter()
 
@@ -399,7 +402,12 @@ async def create_organization(
             detail=e.message,
         ) from e
 
-    except Exception:
+    except Exception as e:
+        if is_ee() and isinstance(e, InstanceOrganizationLimitReachedError):
+            raise HTTPException(
+                status_code=403,
+                detail={"code": e.code, "message": e.message, "limit": e.limit},
+            ) from e
         log.error(
             "Unexpected error while creating organization",
             exc_info=True,

@@ -231,8 +231,11 @@ async function recordUpdateCheck(
       properties: {
         agenta_version: version?.slice(0, MAX_PARAM_LENGTH) ?? null,
         instance_kind: kind && INSTANCE_KINDS.has(kind) ? kind : null,
-        $process_person_profile: false,
-        ...(id ? { $groups: { instance: id } } : {}),
+        // With an instance id, PostHog keeps one person per instance, so the
+        // event links to the instance group. Without one, it makes no person.
+        ...(id
+          ? { $groups: { instance: id } }
+          : { $process_person_profile: false }),
       },
     }),
     signal: AbortSignal.timeout(POSTHOG_TIMEOUT_MS),

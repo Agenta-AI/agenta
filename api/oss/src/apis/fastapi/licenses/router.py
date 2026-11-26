@@ -5,6 +5,9 @@ the community plan and `PUT` is not registered. A deployment with Stripe (cloud)
 its plans from Stripe and has no instance license.
 """
 
+from typing import Optional
+from uuid import UUID
+
 from fastapi import APIRouter, HTTPException, Request, status
 
 from oss.src.apis.fastapi.licenses.models import (
@@ -14,6 +17,7 @@ from oss.src.apis.fastapi.licenses.models import (
     InstanceLicenseUsage,
     InstanceRegistrationRequest,
     InstanceRegistrationResponse,
+    LicenseUsageResponse,
 )
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.dtos import PrincipalKind, RequestCredentialKind
@@ -24,19 +28,11 @@ from oss.src.core.licenses.offers import (
 )
 from oss.src.core.licenses.registrations import create_registration
 from oss.src.core.licenses.types import RegistrationFailed
-from oss.src.utils.common import is_ee
+from oss.src.core.licenses.usage import organization_usage, project_usage
+from oss.src.utils.common import is_cloud, is_ee
 from oss.src.utils.exceptions import intercept_exceptions
 
 COMMUNITY_PLAN = "self_hosted_community"
-
-
-def _is_cloud() -> bool:
-    """Cloud has no instance license; only the EE image can be cloud."""
-    if not is_ee():
-        return False
-    from ee.src.core.licenses.cloud import is_cloud  # noqa: PLC0415
-
-    return is_cloud()
 
 
 def _not_available() -> HTTPException:
@@ -83,6 +79,15 @@ class LicensesRouter:
         )
 
         self.router.add_api_route(
+            "/license/usage",
+            self.fetch_license_usage,
+            methods=["GET"],
+            operation_id="fetch_license_usage",
+            status_code=status.HTTP_200_OK,
+            response_model=LicenseUsageResponse,
+        )
+
+        self.router.add_api_route(
             "/license/registrations",
             self.create_instance_registration,
             methods=["POST"],
@@ -111,14 +116,14 @@ class LicensesRouter:
 
     @intercept_exceptions()
     async def fetch_instance_license(self, request: Request) -> InstanceLicenseResponse:
-        if _is_cloud():
+        if is_cloud():
             raise _not_available()
         await require_instance_admin()
 
         if not is_ee():
             return InstanceLicenseResponse(
                 plan=COMMUNITY_PLAN,
-                usage=InstanceLicenseUsage(users=await count_users()),
+                usage=await _usage(request),
                 registration_offer_dismissed=await is_registration_offer_dismissed(),
             )
 
@@ -126,7 +131,7 @@ class LicensesRouter:
             get_licenses_service,
         )
 
-        return await _response(await get_licenses_service().read_state())
+        return await _response(await get_licenses_service().read_state(), request)
 
     @intercept_exceptions()
     async def activate_instance_license(
@@ -135,7 +140,7 @@ class LicensesRouter:
         *,
         body: InstanceLicenseActivateRequest,
     ) -> InstanceLicenseResponse:
-        if _is_cloud():
+        if is_cloud():
             raise _not_available()
         await require_instance_admin()
 
@@ -172,7 +177,34 @@ class LicensesRouter:
                 detail="The license key is set in the environment",
             ) from None
 
-        return await _response(state)
+        return await _response(state, request)
+
+    @intercept_exceptions()
+    async def fetch_license_usage(self, request: Request) -> LicenseUsageResponse:
+        """The counts behind the create dialogs, for any person signed in to the app:
+        a member also sees the limit before they try to create. `projects` counts the
+        request's organization; `organizations` counts the instance."""
+        # The usage is for self-hosted installs only. On the ee cloud this route is
+        # not available, so the ee cloud check runs first.
+        if is_ee():
+            from ee.src.core.licenses.cloud import is_cloud  # noqa: PLC0415
+
+            if is_cloud():
+                raise _not_available()
+        access = get_request_access()
+        if (
+            access is None
+            or access.credential_kind != RequestCredentialKind.BEARER_SESSION
+            or access.principal.kind != PrincipalKind.HUMAN
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only a person signed in to the app can read the usage.",
+            )
+        return LicenseUsageResponse(
+            projects=await project_usage(_organization_id(request)),
+            organizations=await organization_usage(),
+        )
 
     @intercept_exceptions()
     async def create_instance_registration(
@@ -181,7 +213,7 @@ class LicensesRouter:
         *,
         body: InstanceRegistrationRequest,
     ) -> InstanceRegistrationResponse:
-        if _is_cloud():
+        if is_cloud():
             raise _not_available()
         await require_instance_admin()
 
@@ -204,14 +236,27 @@ class LicensesRouter:
 
     @intercept_exceptions()
     async def dismiss_instance_registration_offer(self, request: Request) -> None:
-        if _is_cloud():
+        if is_cloud():
             raise _not_available()
         await require_instance_admin()
 
         await dismiss_registration_offer()
 
 
-async def _response(state) -> InstanceLicenseResponse:
+def _organization_id(request: Request) -> Optional[UUID]:
+    raw = getattr(request.state, "organization_id", None) if request else None
+    return UUID(str(raw)) if raw else None
+
+
+async def _usage(request: Request) -> InstanceLicenseUsage:
+    return InstanceLicenseUsage(
+        users=await count_users(),
+        projects=await project_usage(_organization_id(request)),
+        organizations=await organization_usage(),
+    )
+
+
+async def _response(state, request: Request) -> InstanceLicenseResponse:
     return InstanceLicenseResponse(
         plan=state.plan,
         source=state.source,
@@ -220,6 +265,6 @@ async def _response(state) -> InstanceLicenseResponse:
             if state.license
             else None
         ),
-        usage=InstanceLicenseUsage(users=await count_users()),
+        usage=await _usage(request),
         registration_offer_dismissed=await is_registration_offer_dismissed(),
     )

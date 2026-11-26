@@ -65,7 +65,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     GUNICORN_CMD_ARGS="--config python:entrypoints.gunicorn_conf" \
     PATH="/opt/venv/bin:${PATH}"
 
-# Hardcode trixie codename to avoid pulling in lsb-release (+ perl ~56MB)
+# Hardcode trixie codename to avoid pulling in lsb-release (+ perl ~56MB).
+# IMPORTANT: This codename must match the Debian release used in the base image (python:3.13-slim-trixie).
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl gnupg2 && \
     echo "deb http://apt.postgresql.org/pub/repos/apt trixie-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
@@ -130,8 +131,8 @@ RUN set -eux; \
 
 USER 10001
 
-LABEL org.opencontainers.image.title="agenta-api-ee" \
-    org.opencontainers.image.description="Agenta API EE GH runtime image" \
+LABEL org.opencontainers.image.title="agenta-api" \
+    org.opencontainers.image.description="Agenta API GH runtime image" \
     org.opencontainers.image.version="${VERSION}" \
     org.opencontainers.image.revision="${VCS_REF}" \
     org.opencontainers.image.created="${BUILD_DATE}"

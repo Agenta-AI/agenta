@@ -1,0 +1,13 @@
+{
+    "organizationLimitInfo": "A second organization needs an Enterprise license. To work with the people already here, ask the owner of an existing organization to invite you.",
+    "projectLimitAskAdmin": "Ask your instance admin to register this instance for more projects.",
+    "projectLimitCloud": "The Hobby plan includes 1 project. Upgrade to Starter for unlimited projects.",
+    "projectLimitRegister": "Register this instance for free to create more projects.",
+    "projectsUsage": "This organization uses {{count}} of {{limit}} projects. Register this instance for free to create more.",
+    "projectsUsageOverLimit_one": "This organization uses {{count}} project, limit {{limit}}. Register this instance for free to create more.",
+    "projectsUsageOverLimit_other": "This organization uses {{count}} projects, limit {{limit}}. Register this instance for free to create more.",
+    "register": "Register",
+    "registerInstance": "Register this instance",
+    "registerTitle": "Register to create more projects",
+    "upgradePlan": "Upgrade plan"
+}

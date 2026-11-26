@@ -8,9 +8,8 @@ import {capture} from "@/features/analytics/client"
 export type UpgradeFeature = "access" | "audit" | "domains" | "sso"
 /** The settings tab that shows the locked section. */
 export type UpgradeScreen = "organization" | "auditLog"
-export type UpgradeAction = "add_license_key" | "upgrade_docs" | "talk_to_us"
+export type UpgradeAction = "add_license_key" | "talk_to_us"
 
-export const UPGRADE_DOCS_URL = "https://docs.agenta.ai/self-host/upgrades/oss-to-ee-switch"
 export const CONTACT_URL = "https://agenta.ai/contact"
 export const PRICING_URL = "https://agenta.ai/pricing"
 export const FREE_KEY_DOCS_URL =
@@ -18,10 +17,7 @@ export const FREE_KEY_DOCS_URL =
 export const contactUrl = (feature: UpgradeFeature) => `${CONTACT_URL}?feature=${feature}`
 
 /** The actions a locked section offers on a self-hosted instance, in display order. */
-export const availableUpgradeActions = (enterprise: boolean): UpgradeAction[] => [
-    "talk_to_us",
-    enterprise ? "add_license_key" : "upgrade_docs",
-]
+export const availableUpgradeActions = (): UpgradeAction[] => ["talk_to_us", "add_license_key"]
 
 /**
  * One `upgrade_prompt_viewed` event per locked feature each time the box mounts.

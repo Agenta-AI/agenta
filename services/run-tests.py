@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 
 
 TYPES = {
-    "license": ["ee", "oss"],
     "layer": ["unit", "integration", "acceptance"],
     "coverage": ["smoke", "full"],
     "lens": ["functional", "performance", "security"],
@@ -25,7 +24,7 @@ TYPES = {
 #
 # A value is not a test target. `--basetemp /tmp/x` and `--ignore some/dir` both end in a
 # token containing a slash, and the target check below saw one and concluded the caller had
-# named what to run: the resolved license and layer directories were dropped, pytest fell
+# named what to run: the resolved test directories were dropped, pytest fell
 # back to the `testpaths` in its own config, and the run silently covered something else
 # (P11, P12).
 #
@@ -129,10 +128,6 @@ def _has_pytest_option(pytest_args: Optional[tuple], option: str) -> bool:
     return any(arg == option or arg.startswith(f"{option}=") for arg in pytest_args)
 
 
-def _resolve_license() -> str:
-    return "ee" if os.getenv("AGENTA_LICENSE") == "ee" else "oss"
-
-
 def _has_test_files(path: str) -> bool:
     if not os.path.isdir(path):
         return False
@@ -150,12 +145,12 @@ def _has_test_files(path: str) -> bool:
     return False
 
 
-def _resolve_test_dirs(license: str, layer: Optional[str]) -> list[str]:
-    licenses = ["oss", "ee"] if license == "ee" else [license]
+# Every image runs the ee code path, so the oss and the ee tests both always run.
+def _resolve_test_dirs(layer: Optional[str]) -> list[str]:
     test_dirs = []
 
-    for license_name in licenses:
-        path = os.path.join(license_name, "tests", "pytest")
+    for tree in ("oss", "ee"):
+        path = os.path.join(tree, "tests", "pytest")
         if layer:
             path = os.path.join(path, layer)
         if _has_test_files(path):
@@ -331,9 +326,7 @@ def run_tests(
         message = f"AGENTA_AUTH_KEY={auth_key[:2]}" + "." * (L - 4) + f"{auth_key[-2:]}"
         click.echo(message)
 
-    license = _resolve_license()
-    click.echo(f"AGENTA_LICENSE={license}")
-    results_dir = os.path.join(license, "tests", "results")
+    results_dir = os.path.join("ee", "tests", "results")
 
     for name, value in [
         ("COVERAGE", coverage),
@@ -361,12 +354,10 @@ def run_tests(
     has_test_target = any(
         _looks_like_a_test_target(arg) for arg in _positional_arguments(forwarded_args)
     )
-    test_dirs = _resolve_test_dirs(license, layer)
+    test_dirs = _resolve_test_dirs(layer)
     if not has_test_target and not test_dirs:
         layer_label = f" {layer}" if layer else ""
-        click.echo(
-            f"No{layer_label} tests found for AGENTA_LICENSE={license}; skipping."
-        )
+        click.echo(f"No{layer_label} tests found; skipping.")
         _write_empty_results(results_dir)
         return
 

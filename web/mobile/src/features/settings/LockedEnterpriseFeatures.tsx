@@ -1,7 +1,6 @@
 import {richText, useT, type CatalogKey} from "@agenta/i18n"
 import settingsAccessCatalog from "@agenta/i18n/catalogs/settings.access"
 import settingsLicenseCatalog from "@agenta/i18n/catalogs/settings.license"
-import {isEE} from "@agenta/shared/api"
 import {Badge} from "@agenta/ui/ui"
 import {Check} from "@phosphor-icons/react"
 
@@ -79,7 +78,7 @@ export const LockedEnterpriseFeatures = ({
                 <UpgradeActions
                     feature={present[0]}
                     screen={screen}
-                    actions={availableUpgradeActions(isEE())}
+                    actions={availableUpgradeActions()}
                 />
             </section>
             {rows.map((row) => (

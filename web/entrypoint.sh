@@ -62,7 +62,7 @@ fi
 # web that shows billing screens next to an API that is not cloud does not run. The web's
 # own STRIPE_API_KEY does not decide this any more.
 AGENTA_BILLING_ENABLED="false"
-if [ "$AGENTA_LICENSE" = "ee" ] && [ -n "$AGENTA_LICENSE_KEY" ]; then
+if [ -n "$AGENTA_LICENSE_KEY" ]; then
   AGENTA_BILLING_ENABLED="$(node -e '
     try {
       const payload = (process.argv[1] || "").trim().split(".")[1] || ""
@@ -216,7 +216,7 @@ if [ "${EFFECTIVE_AUTHN_EMAIL}" = "password" ] || [ "${EFFECTIVE_AUTHN_EMAIL}" =
 fi
 
 EFFECTIVE_TURNSTILE_SITE_KEY=""
-if [ "${AGENTA_LICENSE}" = "ee" ] && [ -n "${CLOUDFLARE_TURNSTILE_SITE_KEY}" ] && [ -n "${CLOUDFLARE_TURNSTILE_SECRET_KEY}" ]; then
+if [ -n "${CLOUDFLARE_TURNSTILE_SITE_KEY}" ] && [ -n "${CLOUDFLARE_TURNSTILE_SECRET_KEY}" ]; then
   EFFECTIVE_TURNSTILE_SITE_KEY="${CLOUDFLARE_TURNSTILE_SITE_KEY}"
 fi
 

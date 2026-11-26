@@ -12,8 +12,13 @@ from ee.src.core.licenses.service import instance_plan
 from ee.src.core.licenses.cloud import is_cloud
 from oss.src.services import db_manager
 from ee.src.core.access.entitlements.types import (
+    ORGANIZATION_LIMITS,
     PROJECT_LIMIT_MESSAGE,
     PROJECT_LIMITS,
+    SELF_HOSTED_PROJECT_LIMIT_MESSAGE,
+    InstanceOrganizationLimitReachedError,
+    LimitUsage,
+    ProjectLimitReachedError,
     Tracker,
     Flag,
     Counter,
@@ -314,21 +319,60 @@ async def plan_for(organization_id) -> Optional[str]:
         return None
 
 
-async def project_limit_refusal(organization_id: UUID) -> Optional[str]:
-    """The refusal to show when the organization's plan allows no more projects, else
-    None. Counts existing projects, so an organization above the limit keeps them. Fails
-    open like `check_entitlements`: a failed plan read never blocks a creation."""
+async def project_limit_usage(organization_id: UUID) -> Optional[LimitUsage]:
+    """The organization's projects against its plan's limit. None when the plan read
+    fails: the limit check then fails open, like `check_entitlements`."""
     try:
         plan = await plan_for(organization_id)
     except Exception:  # pylint: disable=broad-exception-caught
         log.warning("[entitlements] plan read failed; failing open", exc_info=True)
         return None
-    limit = PROJECT_LIMITS.get(plan) if plan else None
-    if limit is None:
+    return LimitUsage(
+        count=await db_manager.count_organization_projects(str(organization_id)),
+        limit=PROJECT_LIMITS.get(plan) if plan else None,
+    )
+
+
+async def instance_organization_limit_usage() -> Optional[LimitUsage]:
+    """The organizations on an instance that is not cloud, against its plan's limit.
+    None on cloud, which has no organization limit, and when the plan read fails (the
+    limit check then fails open)."""
+    if is_cloud():
         return None
-    if await db_manager.count_organization_projects(str(organization_id)) < limit:
+    try:
+        plan = await instance_plan()
+    except Exception:  # pylint: disable=broad-exception-caught
+        log.warning("[entitlements] plan read failed; failing open", exc_info=True)
         return None
-    return PROJECT_LIMIT_MESSAGE
+    return LimitUsage(
+        count=await db_manager.count_organizations(),
+        limit=ORGANIZATION_LIMITS.get(plan),
+    )
+
+
+async def check_project_limit(organization_id: UUID) -> None:
+    """Raises `ProjectLimitReachedError` when the organization's plan allows no more
+    projects. Counts existing projects, so an organization above the limit keeps them."""
+    usage = await project_limit_usage(organization_id)
+    if usage is None or not usage.reached:
+        return
+    raise ProjectLimitReachedError(
+        limit=usage.limit,
+        message=(
+            PROJECT_LIMIT_MESSAGE
+            if is_cloud()
+            else SELF_HOSTED_PROJECT_LIMIT_MESSAGE.format(limit=usage.limit)
+        ),
+    )
+
+
+async def check_instance_organization_limit() -> None:
+    """Raises `InstanceOrganizationLimitReachedError` when an instance that is not cloud
+    holds as many organizations as its plan allows."""
+    usage = await instance_organization_limit_usage()
+    if usage is None or not usage.reached:
+        return
+    raise InstanceOrganizationLimitReachedError(limit=usage.limit)
 
 
 async def check_entitlements(

@@ -778,8 +778,37 @@ class AuthService:
                 OrganizationDB.id == organization_id
             )
             result = await session.execute(stmt)
-            flags = result.scalar()
-            return flags or {}
+            flags = result.scalar() or {}
+
+        if flags and not await self._access_entitled(organization_id):
+            # Without the access entitlement the owner cannot change the sign-in
+            # flags, so every email and social method of the deployment is allowed.
+            # SSO keeps its stored flag: SSO set up before a license expired still
+            # signs in.
+            flags = {
+                **flags,
+                "allow_email": env.auth.email_enabled,
+                "allow_social": env.auth.oidc_enabled,
+            }
+        return flags
+
+    async def _access_entitled(self, organization_id: UUID) -> bool:
+        from ee.src.core.access.entitlements.service import (  # noqa: PLC0415
+            EntitlementsException,
+            Flag,
+            check_entitlements,
+            scope_from,
+        )
+
+        try:
+            check, _, _ = await check_entitlements(
+                key=Flag.ACCESS,
+                scope=scope_from(organization_id=organization_id),
+            )
+        except EntitlementsException:
+            # No subscription or no plan: keep the stored flags.
+            return True
+        return check
 
     async def _own_sso_identities(self, organization_id: UUID) -> set:
         """`sso:{org_slug}:{provider_slug}` for each active and valid provider of the org."""

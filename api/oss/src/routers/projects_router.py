@@ -23,7 +23,8 @@ from oss.src.core.access.permissions.types import Permission, RequiredRole
 from oss.src.utils.logging import get_module_logger
 
 if is_ee():
-    from ee.src.core.access.entitlements.service import project_limit_refusal
+    from ee.src.core.access.entitlements.service import check_project_limit
+    from ee.src.core.access.entitlements.types import ProjectLimitReachedError
 
 log = get_module_logger(__name__)
 
@@ -168,9 +169,10 @@ async def get_projects(
     except Exception as exc:  # pylint: disable=bare-except
         log.error(exc)
 
+        # Not 404: /m reads a 404 as "no project", which would hide a failed read.
         return JSONResponse(
-            status_code=404,
-            content={"message": "No projects found."},
+            status_code=500,
+            content={"message": "Could not list projects."},
         )
 
 
@@ -241,9 +243,13 @@ async def create_project(
         raise HTTPException(status_code=400, detail="Project name cannot be empty")
 
     if is_ee():
-        refusal = await project_limit_refusal(UUID(str(organization_id)))
-        if refusal:
-            raise HTTPException(status_code=403, detail=refusal)
+        try:
+            await check_project_limit(UUID(str(organization_id)))
+        except ProjectLimitReachedError as e:
+            raise HTTPException(
+                status_code=403,
+                detail={"code": e.code, "message": e.message, "limit": e.limit},
+            ) from e
 
     scope = await get_memberships_service().create_project(
         organization_id=UUID(str(organization_id)),

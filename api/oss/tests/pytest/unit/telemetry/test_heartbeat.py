@@ -251,7 +251,7 @@ async def test_payload_has_exactly_the_contract_fields(dao, posthog):
     properties = call["properties"]
     assert call["event"] == "instance_heartbeat"
     assert call["distinct_id"] == str(INSTANCE_ID)
-    assert set(properties) == CONTRACT_FIELDS | {"$groups", "$process_person_profile"}
+    assert set(properties) == CONTRACT_FIELDS | {"$groups"}
     assert set(heartbeat.InstanceHeartbeat.model_fields) == CONTRACT_FIELDS
     assert properties["$groups"] == {"instance": str(INSTANCE_ID)}
     assert properties == {
@@ -306,7 +306,6 @@ async def test_payload_has_exactly_the_contract_fields(dao, posthog):
             {"domain": "navy.example.org", "users": 1},
         ],
         "$groups": {"instance": str(INSTANCE_ID)},
-        "$process_person_profile": False,
     }
     assert call["uuid"] == uuid5(INSTANCE_ID, "2026-11-01T08:00:00+00:00")
 

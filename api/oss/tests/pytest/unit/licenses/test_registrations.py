@@ -52,7 +52,7 @@ def admin(monkeypatch):
     monkeypatch.setattr(licenses_router, "get_request_access", lambda: access)
     is_admin = AsyncMock(return_value=True)
     monkeypatch.setattr(licenses_router, "is_instance_admin", is_admin)
-    monkeypatch.setattr(licenses_router, "_is_cloud", lambda: False)
+    monkeypatch.setattr(licenses_router, "is_cloud", lambda: False)
     monkeypatch.setattr(env.agenta, "web_url", "https://agenta.example.com")
     is_admin.user_id = user_id
     return is_admin
@@ -160,7 +160,7 @@ async def test_registration_by_a_user_who_is_not_the_instance_admin_gets_403(
 
 @pytest.mark.asyncio
 async def test_registration_on_cloud_answers_404(admin, agenta, monkeypatch):
-    monkeypatch.setattr(licenses_router, "_is_cloud", lambda: True)
+    monkeypatch.setattr(licenses_router, "is_cloud", lambda: True)
 
     with pytest.raises(HTTPException) as error:
         await _register()
@@ -236,7 +236,7 @@ async def test_a_member_cannot_dismiss_the_registration_offer(admin, dismiss_off
 async def test_the_registration_offer_is_not_on_cloud(
     admin, dismiss_offer, monkeypatch
 ):
-    monkeypatch.setattr(licenses_router, "_is_cloud", lambda: True)
+    monkeypatch.setattr(licenses_router, "is_cloud", lambda: True)
 
     with pytest.raises(HTTPException) as error:
         await licenses_router.LicensesRouter().dismiss_instance_registration_offer(
@@ -253,6 +253,10 @@ async def test_the_oss_license_reports_whether_the_offer_was_dismissed(
 ):
     monkeypatch.setattr(licenses_router, "is_ee", lambda: False)
     monkeypatch.setattr(licenses_router, "count_users", AsyncMock(return_value=1))
+    monkeypatch.setattr(licenses_router, "project_usage", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        licenses_router, "organization_usage", AsyncMock(return_value=None)
+    )
     monkeypatch.setattr(
         licenses_router,
         "is_registration_offer_dismissed",

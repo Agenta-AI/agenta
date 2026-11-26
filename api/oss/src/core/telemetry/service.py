@@ -27,8 +27,6 @@ INSTANCE_INSTALLED_EVENT = "instance_installed"
 # The docs page lists it.
 INSTANCE_INSTALLED_PROPERTIES = {"$geoip_disable": True, "$ip": ""}
 INSTALL_PING_TIMEOUT_SECONDS = 5
-# Set to false on events that are not about a person, so PostHog creates no person.
-NO_PERSON_PROFILE = "$process_person_profile"
 
 # The free key from registration. It does not turn telemetry on.
 REGISTERED_PLAN = "self_hosted_registered"
@@ -224,15 +222,16 @@ async def capture(
 
     For instance events only (install ping, startup event, telemetry heartbeat).
     Per-user events use the queued client from `_load_posthog()`. A fixed `uuid`
-    lets PostHog drop a copy. An instance is not a person, so PostHog makes no
-    person profile for these events.
+    lets PostHog drop a copy. The distinct id is the instance id, so PostHog keeps
+    one person per instance. PostHog links an event to its `$groups` only when the
+    event has a person.
     """
 
     sent = await asyncio.to_thread(
         _sync_client(timeout).capture,
         event,
         distinct_id=distinct_id,
-        properties={**properties, NO_PERSON_PROFILE: False},
+        properties=properties,
         uuid=uuid,
     )
     # The client catches its own send errors and returns None instead of the event uuid.
@@ -321,7 +320,6 @@ async def send_startup_event() -> None:
             {
                 **started.model_dump(mode="json"),
                 "$groups": {"instance": instance_id},
-                "$process_person_profile": False,
             },
             timeout=STARTUP_EVENT_TIMEOUT_SECONDS,
         )
