@@ -167,7 +167,7 @@ Installs older than v0.104.0 are checked by a static review of the runner's revi
 - The admin of an upgraded install, who never sees onboarding, gets the same step once as a prompt. Skipping it calls `POST /instance/license/registration-offer/dismiss`; the skip is stored on the server, and `GET /instance/license` reports it, so the prompt does not come back on another browser.
 - Other places to register: a card on the License tab, the project limit dialog (in place), and Settings > Projects.
 - The box "Send me security and product updates (about once a month)" starts ticked and is optional. Unticked still gets the key. Security notices go to every registrant.
-- The setup answers (role, team size, how they found Agenta; option labels only, never typed text) go with every registration, with no box. One line under the button says so.
+- The setup answers (role, team size, how they found Agenta; option labels only, never typed text) go with the registration whenever the admin answered the setup survey, with no box. One line under the button says so. The admin of an upgraded install never sees the survey, so the one-time prompt sends no answers; it does not ask them again.
 - The promise "You keep what your key unlocks." is shown; free keys never expire.
 
 ### Decision 11: The free key is tied to one instance (decided 2026-11-25, option 1)
