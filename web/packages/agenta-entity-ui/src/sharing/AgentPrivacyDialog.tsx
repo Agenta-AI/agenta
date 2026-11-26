@@ -33,7 +33,7 @@ import {
 } from "@agenta/ui/ui"
 import {UsersIcon} from "@phosphor-icons/react"
 
-import {AgentTransferDialog} from "./AgentTransferDialog"
+import {AgentTransferForm} from "./AgentTransferForm"
 import {agentSharingCopy as copy} from "./copy"
 import {useAgentSharingWrites, type AgentSharingNotice} from "./useAgentSharingWrites"
 
@@ -295,14 +295,34 @@ export const AgentPrivacyPanel = ({
                             owner={owner}
                             you
                             action={
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setTransferOpen(true)}
-                                >
-                                    {copy.transferButton}
-                                </Button>
+                                transferOpen ? null : (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setTransferOpen(true)}
+                                    >
+                                        {copy.transferButton}
+                                    </Button>
+                                )
                             }
+                        />
+                    ) : null}
+                    {writable && transferOpen ? (
+                        <AgentTransferForm
+                            isPrivate={visibility === "private"}
+                            ownerUserId={ownerId}
+                            members={props.members}
+                            membersSearch={props.membersSearch}
+                            onMembersSearch={props.onMembersSearch}
+                            membersLoading={props.membersLoading}
+                            membersError={props.membersError}
+                            onTransfer={props.onTransfer}
+                            onCancel={() => setTransferOpen(false)}
+                            onTransferred={(next) => {
+                                setTransferOpen(false)
+                                writes.transferred(next)
+                            }}
+                            onFailed={(result) => writes.settle(result)}
                         />
                     ) : null}
                 </section>
@@ -363,21 +383,6 @@ export const AgentPrivacyPanel = ({
                 confirming={writes.saving === "visibility"}
             />
 
-            <AgentTransferDialog
-                open={writable && transferOpen}
-                onOpenChange={setTransferOpen}
-                agentName={agentName}
-                isPrivate={visibility === "private"}
-                ownerUserId={ownerId}
-                members={props.members}
-                membersSearch={props.membersSearch}
-                onMembersSearch={props.onMembersSearch}
-                membersLoading={props.membersLoading}
-                membersError={props.membersError}
-                onTransfer={props.onTransfer}
-                onTransferred={writes.transferred}
-                onFailed={(result) => writes.settle(result)}
-            />
         </>
     )
 }

@@ -12,7 +12,7 @@ export {
     type AgentPrivacyProps,
     type AgentSharingWrites,
 } from "./AgentPrivacyDialog"
-export {AgentTransferDialog, type AgentTransferDialogProps} from "./AgentTransferDialog"
+export {AgentTransferForm, type AgentTransferFormProps} from "./AgentTransferForm"
 export {useAgentSharingWrites, type AgentSharingNotice} from "./useAgentSharingWrites"
 export {agentSharingCopy, joinNames, memberPickerCopy, shareDisclosureCopy} from "./copy"
 export {
