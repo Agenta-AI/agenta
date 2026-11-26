@@ -48,28 +48,33 @@ export const ListTableSelectMark = ({
                 aria-label={label}
                 className="peer absolute inset-0 z-10 m-0 cursor-pointer appearance-none rounded-md opacity-0"
             />
-            <span
-                aria-hidden
-                className={cn(
-                    "pointer-events-none absolute inset-0 flex items-center justify-center rounded-md",
-                    "transition-opacity duration-[var(--duration-fast)] ease-out motion-reduce:transition-none",
-                    // The `focus-ring` look (FORM-02), drawn here because the focused input is invisible.
-                    "peer-focus-visible:opacity-100 peer-focus-visible:outline-2 peer-focus-visible:outline-solid peer-focus-visible:outline-offset-0 peer-focus-visible:outline-[var(--ring)] peer-focus-visible:shadow-[inset_0_0_0_1px_var(--foreground)]",
-                    checked
-                        ? "bg-foreground text-background opacity-100"
-                        : cn(
-                              "bg-selected pointer-fine:peer-hover:opacity-100",
-                              shown ? "opacity-100" : "opacity-0",
-                          ),
-                )}
-            >
-                {/* Unchecked, a quiet check icon says "click to select"; checked, it fills. */}
-                <CheckIcon
-                    size={16}
-                    weight={checked ? "bold" : "regular"}
-                    className={checked ? undefined : "text-muted-foreground"}
-                />
-            </span>
+            <SelectMarkCheck checked={checked} shown={shown} />
         </span>
     )
 }
+
+/** The check over a Mark; it follows the invisible `peer` control placed just before it. */
+export const SelectMarkCheck = ({checked, shown = false}: {checked: boolean; shown?: boolean}) => (
+    <span
+        aria-hidden
+        className={cn(
+            "pointer-events-none absolute inset-0 flex items-center justify-center rounded-md",
+            "transition-opacity duration-[var(--duration-fast)] ease-out motion-reduce:transition-none",
+            // The `focus-ring` look (FORM-02), drawn here because the focused control is invisible.
+            "peer-focus-visible:opacity-100 peer-focus-visible:outline-2 peer-focus-visible:outline-solid peer-focus-visible:outline-offset-0 peer-focus-visible:outline-[var(--ring)] peer-focus-visible:shadow-[inset_0_0_0_1px_var(--foreground)]",
+            checked
+                ? "bg-foreground text-background opacity-100"
+                : cn(
+                      "bg-selected pointer-fine:peer-hover:opacity-100",
+                      shown ? "opacity-100" : "opacity-0",
+                  ),
+        )}
+    >
+        {/* Unchecked, a quiet check icon says "click to select"; checked, it fills. */}
+        <CheckIcon
+            size={16}
+            weight={checked ? "bold" : "regular"}
+            className={checked ? undefined : "text-muted-foreground"}
+        />
+    </span>
+)

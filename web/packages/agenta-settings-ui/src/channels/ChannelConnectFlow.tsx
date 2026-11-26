@@ -25,8 +25,12 @@ import {
     Clock,
     DownloadSimple,
     Eye,
+    FileText,
+    Lightning,
     Link,
+    Plug,
     QrCode as QrCodeIcon,
+    Wrench,
 } from "@phosphor-icons/react"
 
 import {ChoiceCards, type ChoiceCardOption} from "./ChoiceCards"
@@ -619,12 +623,14 @@ export const ChannelConnectFlow = ({
                   value: "hosted",
                   title: t("channels.connect.agentaApp"),
                   desc: t("channels.connect.agentaAppDesc", {handle: hostedHandle}),
+                  icon: <Lightning />,
                   recommended: true,
               },
               {
                   value: "custom",
                   title: t("channels.connect.ownApp"),
                   desc: t("channels.connect.ownAppDesc"),
+                  icon: <Wrench />,
               },
           ]
         : [
@@ -634,6 +640,7 @@ export const ChannelConnectFlow = ({
                   desc: hostedConnectedHere
                       ? t("channels.connect.agentaBotConnected", {handle: hostedHandle})
                       : t("channels.connect.agentaBotDesc"),
+                  icon: <Lightning />,
                   recommended: !hostedConnectedHere,
                   disabled: hostedConnectedHere,
               },
@@ -641,6 +648,7 @@ export const ChannelConnectFlow = ({
                   value: "custom",
                   title: t("channels.connect.ownBot"),
                   desc: t("channels.connect.ownBotDesc"),
+                  icon: <Wrench />,
               },
           ]
 
@@ -1125,11 +1133,13 @@ export const ChannelConnectFlow = ({
                                         desc: t("channels.connect.newAppDesc", {
                                             agent: agentName,
                                         }),
+                                        icon: <FileText />,
                                     },
                                     {
                                         value: "existing" as const,
                                         title: t("channels.connect.existingApp"),
                                         desc: t("channels.connect.existingAppDesc"),
+                                        icon: <Plug />,
                                     },
                                 ]}
                                 value={slackApp}

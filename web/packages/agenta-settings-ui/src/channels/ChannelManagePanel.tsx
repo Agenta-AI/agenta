@@ -24,6 +24,7 @@ import {
     Plus,
     UsersThree,
     Warning,
+    Wrench,
 } from "@phosphor-icons/react"
 
 import {chatTypeOf, nameSpacesFrom} from "./actions"
@@ -704,6 +705,7 @@ export const ChannelManagePanel = ({
                             options={[
                                 {
                                     value: "move" as const,
+                                    icon: <ArrowsLeftRight />,
                                     title: unassigned
                                         ? t("channels.manage.connectItHere")
                                         : t("channels.manage.moveItHere"),
@@ -719,6 +721,7 @@ export const ChannelManagePanel = ({
                                 },
                                 {
                                     value: "own" as const,
+                                    icon: <Wrench />,
                                     title: isSlack
                                         ? t("channels.manage.useOwnApp")
                                         : isWhatsApp
