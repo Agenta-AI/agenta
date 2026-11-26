@@ -93,16 +93,31 @@ function limiter(limit = Infinity) {
   return { binding, keys };
 }
 
-/** An in-memory stand-in for the R2 bucket that holds the daily caps. */
-function capBucket() {
+/** An in-memory stand-in for the R2 bucket that holds the daily caps, with R2's
+ * conditional writes. `beforePut` lets a test hold a write. */
+function capBucket(beforePut: () => Promise<void> = async () => {}) {
   const objects = new Map<string, string>();
+  const etags = new Map<string, string>();
+  let version = 0;
   const bucket: CapBucket = {
     async get(key) {
       const value = objects.get(key);
-      return value === undefined ? null : { text: async () => value };
+      return value === undefined
+        ? null
+        : { etag: etags.get(key)!, text: async () => value };
     },
-    async put(key, value) {
+    async put(key, value, options) {
+      await beforePut();
+      const current = etags.get(key);
+      const onlyIf = options?.onlyIf;
+      if (onlyIf?.etagMatches !== undefined && onlyIf.etagMatches !== current) {
+        return null;
+      }
+      if (onlyIf?.etagDoesNotMatch === "*" && current !== undefined)
+        return null;
       objects.set(key, value);
+      etags.set(key, String(++version));
+      return {};
     },
   };
   return { bucket, objects };
@@ -839,6 +854,55 @@ describe("daily caps", () => {
     }
     expect((await send(DAILY_INSTANCE_CAP)).status).toBe(429);
     expect(sent).toHaveLength(DAILY_INSTANCE_CAP);
+  });
+
+  it("counts two sends whose count updates overlap", async () => {
+    // All four count writes (email and instance, for both sends) wait until every
+    // one has read the stored lists.
+    let pendingWrites = 0;
+    let allWaiting = () => {};
+    const gate = new Promise<void>((resolve) => (allWaiting = resolve));
+    const { bucket, objects } = capBucket(async () => {
+      if (++pendingWrites === 4) allWaiting();
+      await gate;
+    });
+    const env = withLimits({ LICENSE_SIGNING_KEY: privatePem, MEDIA: bucket });
+    const { sender } = fakeSender();
+    const send = (email: string) =>
+      handleRegistration(post({ ...VALID, email }), env, sender, undefined, {
+        record: async () => {},
+      });
+
+    await Promise.all([send("one@example.com"), send("two@example.com")]);
+
+    const instanceKey = [...objects.keys()].find((key) =>
+      key.includes("/instance/"),
+    )!;
+    expect(JSON.parse(objects.get(instanceKey)!)).toHaveLength(2);
+  });
+
+  it("counts a send whose first count write R2 refused", async () => {
+    let refused = false;
+    const { bucket, objects } = capBucket(async () => {
+      if (!refused) {
+        refused = true;
+        throw new Error("too many writes to this object");
+      }
+    });
+    const { sender } = fakeSender();
+
+    const response = handleRegistration(
+      post(VALID),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem, MEDIA: bucket }),
+      sender,
+      undefined,
+      { record: async () => {} },
+    );
+    expect((await response).status).toBe(202);
+    for (const times of objects.values()) {
+      expect(JSON.parse(times)).toHaveLength(1);
+    }
+    expect(objects.size).toBe(2);
   });
 
   it("does not count a send that failed", async () => {
