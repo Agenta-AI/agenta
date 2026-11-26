@@ -11,8 +11,8 @@ import {SkeletonBlock} from "../components/ui/skeleton"
 import {cn} from "../components/ui/utils"
 import {COMPACT_WINDOW_QUERY, useWindowMatch} from "../hooks/useWindowMatch"
 
-import {ListTableRowSelectContext} from "./ListTableSelectMark"
 import {ListTableSelectionBar} from "./ListTableSelectionBar"
+import {ListTableRowSelectContext} from "./ListTableSelectMark"
 import type {ListTableColumn, ListTableProps} from "./types"
 import {useRowFlash} from "./useRowFlash"
 

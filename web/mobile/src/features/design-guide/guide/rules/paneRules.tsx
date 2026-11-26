@@ -61,6 +61,45 @@ export const paneRules: RuleExample[] = [
         },
     },
     {
+        id: "LAYOUT-07",
+        do: {
+            example: (
+                <div className={compactFrame}>
+                    <div className="flex flex-col gap-0.5 px-3 pt-3">
+                        <div className="text-label">Settings</div>
+                        <div className="text-meta text-muted-foreground">Your workspace</div>
+                    </div>
+                    <div className={body}>
+                        <div className="rounded-md bg-muted p-2">
+                            <div className={bar} style={{width: "60%"}} />
+                        </div>
+                        <div className="rounded-md bg-muted p-2">
+                            <div className={bar} style={{width: "40%"}} />
+                        </div>
+                    </div>
+                </div>
+            ),
+            caption: "PageLayout gives the title, and the body is only cards.",
+        },
+        avoid: {
+            example: (
+                <div className={compactFrame}>
+                    <div className="px-3 pt-3 text-label">Settings</div>
+                    <div className={body}>
+                        <div className="rounded-md border border-border px-2 py-1 text-meta text-muted-foreground">
+                            Search
+                        </div>
+                        <div className="flex gap-1">
+                            <div className="h-5 flex-1 rounded-md bg-muted" />
+                            <div className="h-5 flex-1 rounded-md bg-muted" />
+                        </div>
+                    </div>
+                </div>
+            ),
+            caption: "The page draws its own search row and an empty filter bar.",
+        },
+    },
+    {
         id: "KIT-10",
         do: {
             example: (

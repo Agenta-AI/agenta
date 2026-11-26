@@ -184,7 +184,7 @@ export const SkillListScreen = ({
     )
     const onUpload = useCallback(
         (scan: Promise<SkillUploadScan>) => {
-            setPendingUpload(scan)
+            setPendingUpload({scan})
             void router.push(skillCreateHref(base, "upload"))
         },
         [base, router, setPendingUpload],

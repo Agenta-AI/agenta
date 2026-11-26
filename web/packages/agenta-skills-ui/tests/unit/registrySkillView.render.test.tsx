@@ -54,6 +54,7 @@ vi.mock("@agenta/entity-ui/drill-in", () => ({
     SkillFormSkeleton: () => null,
     firstBadFile: () => undefined,
     skillFilesOf: () => [],
+    slugifySkillName: (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
     useSkillDownloadAction: () => [],
     // The form with no upload step open is the view's own form.
     useSkillViewForm: (form: ViewForm) => {

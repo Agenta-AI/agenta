@@ -91,10 +91,15 @@ const bridge: Partial<SkillsBridge> = {
             ),
             createElement("button", {onClick: onNewSkill}, "new"),
         ),
-    NewSkillBody: ({onCreated}) =>
+    NewSkillBody: ({onCreated, onDone}) =>
         createElement(
             "button",
-            {onClick: () => onCreated([embed("weekly-digest-5e3f", "weekly-digest")])},
+            {
+                onClick: () => {
+                    onCreated([embed("weekly-digest-5e3f", "weekly-digest")])
+                    onDone?.()
+                },
+            },
             "create weekly-digest",
         ),
 }
@@ -169,11 +174,14 @@ describe("Add skills", () => {
         expect(slugs()).toBe("refund-check")
     })
 
-    it("New skill opens at depth 2, and a created skill is added to the agent", async () => {
+    it("New skill opens at depth 2, and a created skill is added on Done", async () => {
         await open()
         await click(byText("new"))
         await findByText("create weekly-digest")
         await click(byText("create weekly-digest"))
+        expect(slugs()).toBe("ticket-triage,ticket-labels")
+        await findByText("Done")
+        await click(byText("Done", "button"))
         expect(slugs()).toBe("ticket-triage,ticket-labels,weekly-digest")
     })
 })
@@ -235,7 +243,7 @@ describe("Skills section remove", () => {
         await click(document.querySelector<HTMLElement>('button[aria-label="New skill"]')!)
         expect(handleNewSkill).toHaveBeenCalledTimes(1)
     })
-    const bins = () => [...document.querySelectorAll<HTMLElement>('button[aria-label="Remove"]')]
+    const bins = () => [...document.querySelectorAll<HTMLElement>('button[aria-label^="Remove "]')]
 
     it("asks first, then removes the skill; the registry text says the skill stays", async () => {
         const removeItem = vi.fn()

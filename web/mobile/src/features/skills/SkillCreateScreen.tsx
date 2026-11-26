@@ -75,7 +75,7 @@ export const SkillCreateScreen = ({
         if (start === "write") write()
         else if (start === "import") setStep("import")
         else if (start === "upload" && pendingUpload) {
-            upload(pendingUpload)
+            upload(pendingUpload.scan)
             setPendingUpload(null)
         } else if (start === "upload") {
             // The picked files do not survive a reload: drop the stale `start`.
