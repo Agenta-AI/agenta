@@ -460,8 +460,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             comfortable
                                 ? "px-4 pb-3 pt-1.5"
                                 : canvas
-                                  ? // The kit button sizes on every window (SIZE-02).
-                                    "pb-2.5 pl-2.5 pr-3 pt-3 max-md:pb-1.5 max-md:pl-1.5 max-md:pr-3 max-md:pt-1.5"
+                                  ? // The kit button sizes on every window (SIZE-02); 8px on both sides and the
+                                    // bottom, so the first icon lines up under the text.
+                                    "px-2 pb-2 pt-3 max-md:px-1.5 max-md:pb-1.5 max-md:pt-1.5"
                                   : "px-2 py-1.5",
                         )}
                     >

@@ -262,7 +262,7 @@ const ModelPickerList = ({
                     size="compact-search"
                     // The canvas field (`.find`): a quiet border and no focus ring, even with the
                     // caret in it on open. A phone keeps the 32px field it had.
-                    className="border-border-muted focus-within:border-border-muted focus-within:ring-0"
+                    className="border-border-muted"
                     placeholder={searchPlaceholder}
                     value={search}
                     allowClear

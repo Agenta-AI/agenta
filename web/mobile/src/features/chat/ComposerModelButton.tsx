@@ -56,7 +56,7 @@ export const ComposerModelButton = ({
                 </span>
             ) : null}
             <span className="min-w-0 flex-1 truncate">{label}</span>
-            <CaretDown size={12} className="text-muted-foreground shrink-0" aria-hidden />
+            <CaretDown className="ag-caret size-3.5 shrink-0 text-muted-foreground" aria-hidden />
         </button>
     )
 }
