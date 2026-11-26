@@ -200,14 +200,14 @@ export type ConnectFormState = ReturnType<typeof useConnectForm>
 /** The app mark (canvas F02 f5): its logo at 32 px with no tile, or its first letter. */
 export function ConnectAppMark({name, logo}: {name: string; logo?: string | null}) {
     return (
-        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden">
+        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
             {logo ? (
                 <Image
                     src={logo}
                     alt={name}
-                    width={32}
-                    height={32}
-                    className="size-8 object-contain"
+                    width={20}
+                    height={20}
+                    className="size-5 object-contain"
                     unoptimized
                 />
             ) : (

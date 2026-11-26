@@ -205,7 +205,7 @@ function ActionRowsSkeleton({rows = 6}: {rows?: number}) {
 /** The integration's logo in a bordered tile; its initial when it has none. */
 function LogoTile({logo, name}: {logo?: string; name: string}) {
     return (
-        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-solid border-border bg-background">
+        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
             {logo ? (
                 <Image
                     src={logo}

@@ -54,7 +54,7 @@ export const FinishConnectionDialog = ({
                 contained={!!container}
             >
                 <DialogHeader className="gap-3 text-left">
-                    <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-background [&_img]:size-4 [&_img]:object-contain">
+                    <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted [&_img]:size-5 [&_img]:object-contain">
                         {logo}
                     </span>
                     <div className="flex flex-col gap-1">

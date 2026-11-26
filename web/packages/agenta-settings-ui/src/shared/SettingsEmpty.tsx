@@ -97,7 +97,7 @@ export const SettingsEmpty = ({
             {icon && plain ? (
                 <EmptyMedia
                     variant="icon"
-                    className="border border-solid border-border bg-background"
+                    className="bg-muted"
                 >
                     {icon}
                 </EmptyMedia>
