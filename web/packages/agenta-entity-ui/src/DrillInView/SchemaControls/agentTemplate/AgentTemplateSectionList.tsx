@@ -36,10 +36,7 @@ export interface AgentTemplateSectionDescriptor {
     /** Short status pill after the title (see SectionTitleBadge). */
     titleBadge?: ReactNode
     summary?: ReactNode
-    /**
-     * The section holds nothing. The panel row then shows no summary (canvas F01, F02); the
-     * phone and the builder pane keep the "None" summary (M07, B03).
-     */
+    /** The section holds nothing: the panel row shows no summary (F01, F02); the phone keeps "None". */
     empty?: boolean
     /** In the panel, the header summary of a section that holds items, in place of `summary`. */
     panelSummary?: ReactNode
@@ -71,7 +68,7 @@ export interface AgentTemplateSectionDescriptor {
     pageContent?: ReactNode
     /**
      * In the panel, the section is one card that opens a view, with a preview under its title
-     * (Instructions). The phone, the page and the builder pane keep `content`.
+     * (Instructions). The phone and the page keep `content`.
      */
     panelCard?: {onOpen: () => void; summary?: ReactNode; badge?: ReactNode; preview: ReactNode}
     /** In the panel, the first action an empty section offers on its empty line (STATE-01). */
@@ -131,14 +128,12 @@ export const AgentTemplateSectionList = ({
     if (phoneSections) return <PhoneSectionList sections={sections} phoneSections={phoneSections} />
     if (layout === "page") return <PageSectionList sections={sections} />
 
-    const pane = layout === "pane"
     return (
-        // Canvas F01 for the panel, B03 for the pane: there the rows run full width, so `-mx-4`
-        // undoes the host's inset and the rows carry it.
-        <div className={pane ? "-mx-4 flex flex-col" : "flex flex-col gap-2 pt-3"}>
+        // Canvas F01.
+        <div className="flex flex-col gap-2 pt-3">
             {sections.map((s) => {
                 const controlled = Boolean(controlledKeys?.has(s.key))
-                const card = pane ? undefined : s.panelCard
+                const card = s.panelCard
                 return (
                     // An anchor per section, so a host can list the sections and scroll to one.
                     <div
@@ -155,9 +150,9 @@ export const AgentTemplateSectionList = ({
                             summary={
                                 card
                                     ? card.summary
-                                    : !pane && s.empty
+                                    : s.empty
                                       ? undefined
-                                      : (!pane && s.panelSummary) || s.summary
+                                      : s.panelSummary || s.summary
                             }
                             preview={card?.preview}
                             extra={s.extra}
@@ -166,20 +161,14 @@ export const AgentTemplateSectionList = ({
                             drawerAffordance={s.drawerAffordance}
                             highlight={s.highlight}
                             bodyClassName={
-                                s.bodyClassName ??
-                                (pane
-                                    ? "flex flex-col gap-2 px-4 pb-4 pt-3"
-                                    : s.insetBody
-                                      ? PANEL_INSET_BODY
-                                      : PANEL_BODY)
+                                s.bodyClassName ?? (s.insetBody ? PANEL_INSET_BODY : PANEL_BODY)
                             }
-                            // Canvas F01: rows inset in the panel's `px-4`; the builder pane keeps
-                            // its full-width dividers (B03).
-                            canvas={pane ? "pane" : "panel"}
+                            // Canvas F01: rows inset in the panel's `px-4`.
+                            canvas="panel"
                             // The panel's section cards sit 8 px apart, with no dividers.
-                            noDivider={!pane}
+                            noDivider
                             // The section icon sits on the same Mark as its item rows.
-                            iconTile={!pane}
+                            iconTile
                             {...(controlled
                                 ? {
                                       open: openByKey?.[s.key] ?? s.defaultOpen ?? false,
@@ -187,9 +176,7 @@ export const AgentTemplateSectionList = ({
                                   }
                                 : {defaultOpen: s.defaultOpen, animateInitialOpen: true})}
                         >
-                            <SectionEmptyActionContext.Provider
-                                value={pane ? null : (s.emptyAction ?? null)}
-                            >
+                            <SectionEmptyActionContext.Provider value={s.emptyAction ?? null}>
                                 {s.content}
                             </SectionEmptyActionContext.Provider>
                         </ConfigAccordionSection>

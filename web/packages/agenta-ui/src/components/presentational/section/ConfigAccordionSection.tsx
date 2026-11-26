@@ -185,10 +185,9 @@ export interface ConfigAccordionSectionProps {
     /**
      * Draw the row at a canvas scale. `"panel"`: the agent Configuration panel (canvas F01), a
      * 40 px row with a 4 px inset, 13 px title, 12 px summary, a light divider and triangle carets.
-     * `"pane"`: the builder page pane (canvas B03), a 45 px full-width row with a 16 px inset,
-     * 14 px title and 13 px summary. Off keeps today's rows.
+     * Off keeps today's rows.
      */
-    canvas?: "panel" | "pane"
+    canvas?: "panel"
     /**
      * A row that opens a view (`onOpen`) ends with a chevron; `"triangle"` gives it the canvas
      * caret of the rows around it (the Advanced row, canvas F01).
@@ -246,11 +245,9 @@ export function ConfigAccordionSection({
     const titleSize =
         size === "compact"
             ? "text-label"
-            : canvas === "pane"
-              ? "text-body leading-5"
-              : canvas
-                ? "text-label leading-5"
-                : "text-body"
+            : canvas
+              ? "text-label leading-5"
+              : "text-body"
     // Height (0→auto via the grid `0fr`→`1fr` trick) + opacity reveal on mount (opt-in). `revealed`
     // flips one tick after mount (staggered by `revealDelayMs`) to play the transition; `done` fires
     // after it settles and drops the grid/overflow wrapper so nothing (e.g. an indicator dot) can clip.
@@ -400,16 +397,13 @@ export function ConfigAccordionSection({
                 className={cn(
                     "flex items-center justify-between gap-2 select-none",
                     // The panel row is a one-line row (ROW-01) that hangs its hover fill 8 px out,
-                    // so its icon stays on the content line (ALIGN-01); the pane's row is 45 px
-                    // plus the divider (B03).
-                    canvas === "pane"
-                        ? "h-[45px] px-4"
-                        : canvas
-                          ? iconTile
-                              ? // The tiled panel row: 40 px tall, a 10 px inset each side.
-                                "h-10 rounded-lg px-2.5"
-                              : "-mx-2 h-row-single rounded-md px-2"
-                          : "py-3",
+                    // so its icon stays on the content line (ALIGN-01).
+                    canvas
+                        ? iconTile
+                            ? // The tiled panel row: 40 px tall, a 10 px inset each side.
+                              "h-10 rounded-lg px-2.5"
+                            : "-mx-2 h-row-single rounded-md px-2"
+                        : "py-3",
                     canvas === "panel" &&
                         headerActs &&
                         !previewCard &&
@@ -498,11 +492,7 @@ export function ConfigAccordionSection({
                         <span
                             className={cn(
                                 "text-right",
-                                canvas === "pane"
-                                    ? "text-label leading-5 text-muted-foreground"
-                                    : canvas
-                                      ? "text-meta text-muted-foreground"
-                                      : "text-meta text-muted-foreground",
+                                "text-meta text-muted-foreground",
                                 preserveTitle ? "min-w-0 truncate" : "shrink-0 whitespace-nowrap",
                             )}
                         >

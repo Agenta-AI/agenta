@@ -54,7 +54,7 @@ export const integrationsSection = ({
         key: "tools",
         icon: <Wrench size={14} />,
         title: t("entityUi.agentTemplate.integrations"),
-        // "None" when empty, as the canvas draws the phone (M07) and the builder pane (B03).
+        // "None" when empty, as the canvas draws the phone (M07).
         summary: countSummary(integrationCount, "integration") || tNow("common.none"),
         empty: integrationCount === 0,
         // The connected apps' logos stand in for the count.
