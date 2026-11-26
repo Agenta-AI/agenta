@@ -48,6 +48,7 @@ export function InputAffix({
     value,
     defaultValue,
     ref,
+    onKeyDown,
     ...rest
 }: InputAffixProps) {
     const t = useT(uiControlsCatalog)
@@ -80,6 +81,16 @@ export function InputAffix({
         el?.focus()
     }
 
+    // Escape clears a filled clearable input first; the next Escape reaches the container.
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        onKeyDown?.(event)
+        if (event.key !== "Escape" || !showClear || event.defaultPrevented) return
+        if (event.isPropagationStopped()) return
+        event.preventDefault()
+        event.stopPropagation()
+        handleClear()
+    }
+
     return (
         <span
             data-slot="input-affix"
@@ -101,6 +112,7 @@ export function InputAffix({
                 disabled={disabled}
                 {...(isControlled ? {value} : {defaultValue})}
                 onChange={handleChange}
+                onKeyDown={handleKeyDown}
                 className={cn(
                     "min-w-0 flex-1 border-0 bg-transparent p-0 font-[inherit] text-field-md text-foreground outline-none placeholder:text-muted-foreground",
                 )}

@@ -1,4 +1,4 @@
-import {useMemo, useState, type MutableRefObject, type ReactNode} from "react"
+import {useEffect, useMemo, useState, type MutableRefObject, type ReactNode} from "react"
 
 import {
     AgentEditorContext,
@@ -77,6 +77,11 @@ export const AgentConfigHost = ({
     // On a phone the Agent tab is a list of rows, and a row opens its section as a screen.
     const sectionScreen = usePhoneSectionScreen(phone)
     useSystemBack(shown && sectionScreen.shown ? 1 : 0, "section", sectionScreen.close)
+    // A hidden pane drops its section screen, so it opens again at its root.
+    const closeSection = sectionScreen.close
+    useEffect(() => {
+        if (!shown) closeSection()
+    }, [shown, closeSection])
     const chrome = useMemo<PanelChromeControls>(
         () => ({phone, widen, onClose}),
         [phone, widen, onClose],
@@ -97,6 +102,8 @@ export const AgentConfigHost = ({
                             chrome={PanelViewChrome}
                             rootTitle={(phone && sectionScreen.shown?.title) || rootTitle}
                             phone={phone}
+                            // On a section screen Escape is its back arrow, not a close.
+                            onEscapeAtRoot={sectionScreen.shown ? closeSection : undefined}
                         >
                             <StackGuards />
                             {guardRef ? <PageViewStackGuard guardRef={guardRef} /> : null}

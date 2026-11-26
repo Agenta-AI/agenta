@@ -64,6 +64,15 @@ export const AutomationTitle = ({
         start()
     }, [autoEdit, start])
 
+    // A rename ended from the keyboard puts focus on the title, so it stays in the view.
+    const titleRef = useRef<HTMLButtonElement>(null)
+    const refocusTitle = useRef(false)
+    useEffect(() => {
+        if (rename.renaming || !refocusTitle.current) return
+        refocusTitle.current = false
+        titleRef.current?.focus()
+    }, [rename.renaming])
+
     return (
         <div className="flex min-w-0 flex-col">
             {rename.renaming ? (
@@ -75,8 +84,13 @@ export const AutomationTitle = ({
                     onChange={(event) => rename.setDraft(event.target.value)}
                     onBlur={() => void rename.commit()}
                     onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== "Escape") return
+                        // The key ends the rename only; the view or form around it must not act on it.
+                        event.preventDefault()
+                        event.stopPropagation()
+                        refocusTitle.current = true
                         if (event.key === "Enter") void rename.commit()
-                        if (event.key === "Escape") rename.cancel()
+                        else rename.cancel()
                     }}
                     // A notch under the heading while editing, and a medium placeholder: a bold
                     // hint reads as a name already typed.
@@ -88,6 +102,7 @@ export const AutomationTitle = ({
                 />
             ) : (
                 <button
+                    ref={titleRef}
                     type="button"
                     onClick={rename.start}
                     title={t("automations.editor.rename")}
