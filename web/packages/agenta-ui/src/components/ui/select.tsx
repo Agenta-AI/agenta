@@ -32,7 +32,9 @@ const selectTriggerVariants = cva(
         "box-border border-solid font-[inherit]",
         // text-left: preflight is off, so the UA's `button { text-align: center }` would centre
         // the selected label on the button-based triggers (Select, and every consumer of this variant).
-        "flex w-full items-center justify-between gap-1 border text-left text-foreground outline-none transition-colors",
+        "flex w-full items-center justify-between gap-1 border text-left text-foreground outline-none",
+        // Border, fill and text change on the theme timing (MOTION-01).
+        "transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)]",
         // Radix's Value span doesn't take a className, so shrink it from here — without this a
         // long selected label overflows the trigger and pushes the chevron out. Scoped to the value
         // slot: a bare `[&>span]` also stretched the trailing adornment span (Combobox/Cascader wrap
@@ -137,6 +139,10 @@ function SelectContent({
                     // (else the panel renders 8px wider than the trigger / antd dropdown).
                     "relative z-50 box-border max-h-96 min-w-[8rem] overflow-hidden bg-popover text-popover-foreground shadow-overlay font-portal",
                     "rounded-lg p-1",
+                    // Opens from the trigger: a fade, a 6 px settle and a soft focus (MOTION-01). Above
+                    // the trigger it settles downward.
+                    "origin-[var(--radix-select-content-transform-origin)] data-[state=open]:animate-popover-in",
+                    "data-[side=top]:[--ag-popover-from:6px]",
                     // Pin the panel to the trigger width (antd matches dropdown to trigger). With
                     // box-border the border-box equals the trigger width; the p-1 padding stays inside.
                     position === "popper" &&

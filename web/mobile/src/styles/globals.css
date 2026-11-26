@@ -170,6 +170,7 @@
     --animate-overlay-out: overlay-out var(--duration-base) var(--ease-in-out);
     --animate-dialog-in: dialog-in var(--duration-slow) var(--ease-out);
     --animate-dialog-out: dialog-out var(--duration-base) var(--ease-in-out);
+    --animate-popover-in: popover-in var(--duration-base) var(--ease-out);
     --animate-sheet-in-right: sheet-in-right var(--duration-slow) var(--ease-out);
     --animate-sheet-out-right: sheet-out-right var(--duration-base) var(--ease-in-out);
     --animate-sheet-in-left: sheet-in-left var(--duration-slow) var(--ease-out);
@@ -380,6 +381,29 @@
     to {
         opacity: 0;
         transform: scale(0.9);
+    }
+}
+/* A list that opens from its trigger: it fades, settles from 6 px toward the trigger and sharpens.
+   `transform` composes with the side offset (`translate`), so the 4 px gap stays. */
+@keyframes popover-in {
+    from {
+        opacity: 0;
+        transform: translateY(var(--ag-popover-from, -6px)) scale(0.98);
+        filter: blur(2px);
+    }
+    60% {
+        opacity: 1;
+        filter: blur(0);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+        filter: none;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .animate-popover-in {
+        animation: none;
     }
 }
 /* The extra 1rem clears the kit Sheet's floating inset (lg:right-2 / lg:left-2). */
