@@ -2,7 +2,7 @@ import type {ReactNode} from "react"
 
 import type {ReleaseCover as ReleaseCoverKind} from "@agenta/navigation"
 import {DiscordLogo, TeamsLogo} from "@agenta/settings-ui/channel-icons"
-import {Anthropic, Gemini, Mistral, OpenAi} from "@agenta/ui/llm-icons"
+import {Claude, Gemini, Mistral, OpenAi} from "@agenta/ui/llm-icons"
 import dynamic from "next/dynamic"
 
 import {cn} from "@/lib/utils"
@@ -80,7 +80,7 @@ export const ReleaseCover = ({cover}: {cover: ReleaseCoverKind}) => (
                     <Gemini />
                 </Tile>
                 <Tile>
-                    <Anthropic />
+                    <Claude />
                 </Tile>
                 <Tile>
                     <OpenAi />
