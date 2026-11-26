@@ -10,7 +10,7 @@ import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {BottomSheet, PHONE_BUTTON_CLASS} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
 import {Button, MENU_ITEM, Popover, PopoverContent, PopoverTrigger, Spinner} from "@agenta/ui/ui"
-import {CaretUpDown, ListBullets, MagnifyingGlass, Plus} from "@phosphor-icons/react"
+import {CaretDown, ListBullets, MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -68,17 +68,12 @@ export const SessionMenu = ({
         if (vm.id !== sessionId) void router.push(`${base}/sessions/${vm.id}`)
     }
     const running = useAtomValue(sessionStatusAtomFamily(sessionId)) === "running"
-    // The session's status: a ring, filled while a run is active.
-    const statusDot = (
-        <span
-            aria-hidden
-            data-testid="session-status-dot"
-            className={cn(
-                "mx-0.5 box-border size-2 shrink-0 rounded-round border border-solid",
-                running ? "border-foreground bg-foreground" : "border-muted-foreground",
-            )}
-        />
-    )
+    // Shown only while a run is live (MOTION-02); an idle session has no mark.
+    const runningMark = running ? (
+        <span aria-hidden data-testid="session-status-running" className="flex shrink-0 text-muted-foreground">
+            <Spinner className="size-3" />
+        </span>
+    ) : null
     // One list for both widths: the rail's compact rows in the popover, the taller card rows
     // in the phone sheet. The row menu (rename, pin, archive) is the same on both; on a touch
     // screen the pin lives in that menu.
@@ -126,18 +121,12 @@ export const SessionMenu = ({
                             title={title}
                             className="box-border flex h-control-sm min-w-0 max-w-full cursor-pointer items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 font-[inherit] text-label text-foreground focus-ring active:bg-secondary"
                         >
-                            {running ? (
-                                <span aria-hidden className="flex shrink-0 text-muted-foreground">
-                                    <Spinner className="size-3" />
-                                </span>
-                            ) : (
-                                statusDot
-                            )}
+                            {runningMark}
                             <span className="truncate">{title}</span>
-                            <CaretUpDown
+                            <CaretDown
                                 size={14}
                                 aria-hidden
-                                className="shrink-0 text-muted-foreground"
+                                className="ag-caret shrink-0 text-muted-foreground"
                             />
                         </button>
                     }
@@ -181,15 +170,16 @@ export const SessionMenu = ({
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
+                {/* The agent trigger's twin: ghost, 6px gaps, one caret; the session reads quieter. */}
                 <Button
-                    variant="outline"
-                    size="compact"
-                    className="min-w-22 max-w-60 shrink gap-2 pl-2.5 pr-2 font-medium"
+                    variant="ghost"
+                    size="sm"
+                    className="min-w-36 max-w-60 shrink gap-1.5 px-2 font-normal text-muted-foreground hover:text-foreground aria-expanded:text-foreground"
                     title={title}
                 >
-                    {statusDot}
+                    {runningMark}
                     <span className="truncate">{title}</span>
-                    <CaretUpDown aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+                    <CaretDown aria-hidden className="ag-caret size-3.5 shrink-0" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="flex w-80 flex-col gap-1 p-1">

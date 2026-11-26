@@ -12,6 +12,7 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
+    SimpleTooltip,
 } from "@agenta/ui/ui"
 import {
     Archive,
@@ -172,19 +173,22 @@ export const AgentMenu = ({
             {/* The icon (it opens the icon picker), then the name and the arrow as one button. */}
             <AgentKindBadge workflowId={agentId} />
             <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="min-w-0 shrink gap-2 px-2 text-foreground"
-                    >
-                        <span className="truncate">{name}</span>
-                        <CaretDown
-                            aria-hidden
-                            className="ag-caret size-3.5 shrink-0 text-muted-foreground"
-                        />
-                    </Button>
-                </DropdownMenuTrigger>
+                {/* The full name on hover: a narrow column cuts it first. */}
+                <SimpleTooltip title={name}>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="min-w-0 shrink gap-1.5 px-2 text-foreground"
+                        >
+                            <span className="truncate">{name}</span>
+                            <CaretDown
+                                aria-hidden
+                                className="ag-caret size-3.5 shrink-0 text-muted-foreground"
+                            />
+                        </Button>
+                    </DropdownMenuTrigger>
+                </SimpleTooltip>
                 <DropdownMenuContent align="start" className="w-52">
                     {entries.map((entry) => (
                         <DropdownMenuItem

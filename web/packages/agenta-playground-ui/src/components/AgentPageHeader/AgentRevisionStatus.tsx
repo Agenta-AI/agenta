@@ -235,6 +235,7 @@ export const AgentRevisionStatus = ({
     // two chips they competed. A failed save is the exception — there the status IS the retry
     // control, so it stays separate rather than sharing a button that opens history.
     const merged = version !== null && !!historyWorkflowId && !failed
+    const atRest = !failed && !saving && !isDirty
 
     const statusBody = (
         <>
@@ -338,7 +339,10 @@ export const AgentRevisionStatus = ({
                             status: dot.label,
                         })}
                         onClick={() => openHistory(historyWorkflowId)}
-                        className={cn("gap-1.5", phone && "whitespace-nowrap")}
+                        className={cn(
+                            "gap-1.5",
+                            phone ? "whitespace-nowrap" : "text-muted-foreground hover:text-foreground",
+                        )}
                     >
                         {/* One chip: the save state is a fact about this version. */}
                         <span className="flex items-center gap-1.5">
@@ -350,11 +354,12 @@ export const AgentRevisionStatus = ({
                             ) : (
                                 <span className="relative flex shrink-0">
                                     <ClockCounterClockwise size={12} className="size-3" />
-                                    {/* Save state as a badge on the icon, so it never trails the
-                                        text. */}
-                                    <span
-                                        className={`absolute -right-[2px] -top-[2px] size-1.5 rounded-round ring-1 ring-muted ${dot.tone}`}
-                                    />
+                                    {/* A saved version is the resting state: no mark (LOUD-04). */}
+                                    {atRest ? null : (
+                                        <span
+                                            className={`absolute -right-[2px] -top-[2px] size-1.5 rounded-round ring-1 ring-muted ${dot.tone}`}
+                                        />
+                                    )}
                                 </span>
                             )}
                             {phone

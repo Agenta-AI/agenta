@@ -144,7 +144,6 @@ export const SessionHeader = ({
             onSelect: () => void panel.toggle(content),
         })
         const moreEntries: AgentMenuEntry[] = [
-            panelEntry("files", t("agentLayout.header.files"), <FolderSimple />),
             ...(showAgentActions && panel.available.configuration
                 ? [
                       panelEntry(
@@ -154,6 +153,7 @@ export const SessionHeader = ({
                       ),
                   ]
                 : []),
+            panelEntry("files", t("agentLayout.header.files"), <FolderSimple />),
             ...(showAgentActions && panel.available.builder
                 ? [panelEntry("builder", t("agentLayout.header.builder"), <BuilderIcon />)]
                 : []),
@@ -241,7 +241,8 @@ export const SessionHeader = ({
                     {sharingCopy.privateAgent}
                 </span>
             ) : agentId ? (
-                <div className="flex min-w-24 items-center gap-2 overflow-hidden">
+                // shrink-[4]: the agent name gives way first; no gap, the name button's 8px padding spaces it from the tile.
+                <div className="flex min-w-24 shrink-[4] items-center overflow-hidden">
                     <AgentMenu
                         agentId={agentId}
                         name={name}
@@ -254,9 +255,12 @@ export const SessionHeader = ({
             ) : (
                 <span className="truncate text-label">{name}</span>
             )}
-            {/* A narrow column (a wide panel) shrinks the name and the session button down to a
-                few letters and "…", so the version, its retry and the icons stay in the row. */}
-            {revisionStatus ? <span className="flex shrink-0">{revisionStatus}</span> : null}
+            {/* Mounted for session follow; shown only on a failed save (history is in the agent menu). */}
+            {revisionStatus ? (
+                <span className={cn("shrink-0", saveFailed ? "flex" : "hidden")}>
+                    {revisionStatus}
+                </span>
+            ) : null}
             <div className="flex-1" />
             {agentId ? (
                 <SessionMenu
@@ -268,11 +272,10 @@ export const SessionHeader = ({
                     onRetry={sessionOrder.retry}
                 />
             ) : null}
-            {/* Share and the panel icons are one group: 4 px apart (SPACE-02), set off from the
-                session button by the header's wider gap, not by a line (SPACE-01). */}
-            <div className="ml-1 flex shrink-0 items-center gap-1">
+            {/* A 1px line sets the session picker off from Share and the panel icons. */}
+            <span aria-hidden className="h-4 w-px shrink-0 bg-border" />
+            <div className="flex shrink-0 items-center gap-1">
                 {sharing}
-                {icon("files", t("agentLayout.header.files"), <FolderSimple className="size-4" />)}
                 {showAgentActions && panel.available.configuration
                     ? icon(
                           "configuration",
@@ -280,6 +283,7 @@ export const SessionHeader = ({
                           <SlidersHorizontal className="size-4" />,
                       )
                     : null}
+                {icon("files", t("agentLayout.header.files"), <FolderSimple className="size-4" />)}
                 {showAgentActions && panel.available.builder
                     ? icon(
                           "builder",
