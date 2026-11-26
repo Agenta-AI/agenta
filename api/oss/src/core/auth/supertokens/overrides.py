@@ -58,6 +58,15 @@ from oss.src.core.auth.helper import (
     parse_auth_info,
 )
 from oss.src.core.auth.service import AuthService
+from oss.src.core.telemetry.service import (
+    cloud_event_properties,
+    cloud_region,
+    deployment_url,
+    distinct_id_for,
+    instance_groups,
+    self_hosted_event_properties,
+)
+from oss.src.utils.version import get_agenta_version
 from oss.src.core.webhooks.utils import resolve_validated_webhook_ip
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
 from oss.src.core.users.types import UserIdentityCreate
@@ -91,35 +100,6 @@ else:
 
 # Auth service for domain policy enforcement
 auth_service = AuthService()
-
-
-def _get_signup_cloud_url() -> str:
-    return env.agenta.web_url or env.agenta.api_url
-
-
-def _get_signup_cloud_region(cloud_url: str) -> str:
-    try:
-        parsed = urlparse(cloud_url if "://" in cloud_url else f"https://{cloud_url}")
-        hostname = (parsed.hostname or "").lower()
-    except Exception:
-        hostname = ""
-
-    if (
-        hostname == "cloud.agenta.ai"
-        or hostname == "eu.cloud.agenta.ai"
-        or hostname.endswith(".eu.cloud.agenta.ai")
-        or hostname == "staging.preview.agenta.dev"
-    ):
-        return "EU"
-
-    if (
-        hostname == "us.cloud.agenta.ai"
-        or hostname.endswith(".us.cloud.agenta.ai")
-        or hostname == "testing.preview.agenta.dev"
-    ):
-        return "US"
-
-    return "Other"
 
 
 def _get_email_domain(email: Optional[str]) -> Optional[str]:
@@ -198,21 +178,28 @@ async def _create_account(email: str, uid: str) -> bool:
     # Both editions: create_accounts creates the user and, when the
     # allowlist permits, a personal organization. Users not allowed to
     # create an organization sign in org-less and join via invitation.
-    await create_accounts(payload)
+    user = await create_accounts(payload)
 
-    posthog = _load_posthog()
+    posthog = await _load_posthog()
     if posthog is not None:
         try:
+            properties = {
+                "source": "auth",
+                "is_ee": is_ee(),
+                "cloud_region": cloud_region(deployment_url()),
+                "agenta_version": get_agenta_version(),
+                **self_hosted_event_properties(),
+            }
+            # Self-hosted events carry no email and no instance URL.
+            if env.stripe.enabled:
+                properties.update(cloud_event_properties())
+                properties["$set"] = {"email": auth_info.email}
+            else:
+                properties["$groups"] = await instance_groups()
             posthog.capture(
-                distinct_id=auth_info.email,
+                distinct_id=await distinct_id_for(user.id),
                 event="user_signed_up_v1",
-                properties={
-                    "source": "auth",
-                    "is_ee": is_ee(),
-                    "cloud_region": _get_signup_cloud_region(_get_signup_cloud_url()),
-                    "cloud_url": _get_signup_cloud_url(),
-                    "$set": {"email": auth_info.email},
-                },
+                properties=properties,
             )
         except Exception as exc:
             log.warning(

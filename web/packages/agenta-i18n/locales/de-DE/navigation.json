@@ -29,6 +29,7 @@
     "items.keyboardShortcuts": "Tastenkürzel",
     "items.newAgentOrOpen": "Neuen Agent erstellen oder einen Agent öffnen",
     "items.newSessionWith": "Neue Sitzung mit {{agent}}",
+    "items.notInstalled": "Nicht installiert",
     "items.observability": "Observability",
     "items.overview": "Übersicht",
     "items.playground": "Playground",
@@ -46,6 +47,7 @@
     "items.testSets": "Testsets",
     "items.untitledPrompt": "Unbenannter Prompt",
     "items.untitledSession": "Unbenannte Sitzung",
+    "items.updateAvailable": "Update verfügbar",
     "items.viewAllReleases": "Alle Releases ansehen",
     "items.whatsNew": "Was ist neu?",
     "projectMenu.createOrganization": "Organisation erstellen",
@@ -82,5 +84,11 @@
     "settings.tools": "Werkzeuge",
     "settings.watchWalkthrough": "Einführung ansehen",
     "settings.webhooks": "Webhooks",
-    "settings.workspace": "Mitglieder"
+    "settings.workspace": "Mitglieder",
+    "items.newMinorVersion": "Neue Minor-Version: {{version}}",
+    "items.newPatchVersion": "Neue Patch-Version: {{version}}",
+    "items.securityUpdate": "Sicherheitsupdate: {{version}}",
+    "items.releasesBehind_one": "{{count}} Release zurück",
+    "items.releasesBehind_other": "{{count}} Releases zurück",
+    "items.securityFix": "Sicherheitskorrektur"
 }

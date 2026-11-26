@@ -1584,6 +1584,31 @@ The Helm chart has no values for these. Set them through each component's `extra
 | `REDIS_URI_DURABLE` | `redis.uri_durable` | `redis.uriDurable` |
 | `REDIS_URI_VOLATILE` | `redis.uri_volatile` | `redis.uriVolatile` |
 
+## releases
+
+What users see, and who sees it, is on the [update notices page](/self-host/update-notices).
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_UPDATE_CHECK_ENABLED` | `releases.update_check_enabled` | `releases.updateCheckEnabled` |
+| `AGENTA_RELEASE_FEED_URL` | `releases.feed_url` | Not mapped; set it in the API's environment |
+
+The update check is on by default. The API downloads the public release feed at
+`https://agenta.ai/releases.json` when someone uses Agenta, and keeps it for 12 hours (each API
+process keeps its own copy). The request sends the version the API runs and the kind of
+instance (`?version=v0.131.0&kind=production`) and no other data about your instance. The kind
+is `production` unless `AGENTA_TELEMETRY_INSTANCE_KIND` sets `development`, `ci` or `test`. Agenta uses the feed to
+show newer releases in "What's new", an "Update available" mark in the help menu, and a
+warning to organization owners and admins when a newer release fixes a security issue.
+
+Set `AGENTA_UPDATE_CHECK_ENABLED=false` to stop the download. Agenta then shows only the
+releases that shipped with the version you run. This setting does not follow
+`AGENTA_TELEMETRY_ENABLED`.
+
+`AGENTA_RELEASE_FEED_URL` is the address of the release feed. The default is
+`https://agenta.ai/releases.json`. An empty value uses the default. Change it only to test a
+different feed.
+
 ## smtp
 
 SMTP is preferred for email delivery. It is enabled only when host, port, and
@@ -1638,6 +1663,27 @@ cloud license key.
 | `SUPERTOKENS_PASSWORD_REGEX` | `supertokens.password_regex` | `supertokens.passwordRegex` |
 | `SUPERTOKENS_TENANT` | `supertokens.tenant` | `supertokens.tenant` |
 | `SUPERTOKENS_URI_CORE` | `supertokens.uri_core` | `supertokens.uriCore` |
+
+## telemetry
+
+What a self-hosted instance sends to Agenta, and what each setting stops, is on the
+[telemetry page](/self-host/telemetry).
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_TELEMETRY_ENABLED` | `telemetry.enabled` | `telemetry.enabled` |
+| `AGENTA_DEPLOYMENT_METHOD` | `telemetry.deployment_method` | _(set to `helm` by the chart)_ |
+| `AGENTA_TELEMETRY_INSTANCE_KIND` | `telemetry.instance_kind` | `telemetry.instanceKind` |
+
+`AGENTA_TELEMETRY_ENABLED` defaults to `true`. Set it to `false` to stop every event
+except the one-time install ping. `AGENTA_DEPLOYMENT_METHOD` is `compose`, `helm`,
+`railway`, `kubernetes` or `docker`. The Helm chart, the compose files and the Railway
+template set it for you. When it is unset, the API reports `kubernetes` if
+`KUBERNETES_SERVICE_HOST` is set, `docker` if `/.dockerenv` exists, and nothing otherwise.
+`AGENTA_TELEMETRY_INSTANCE_KIND` is `production`, `development`, `ci` or `test`. When it
+is unset, the API reports `ci` if `CI` is set, `development` if the web URL is
+`localhost` or a private address, and `production` otherwise. The install ping, the
+startup event, the heartbeat and every product event carry it as `instance_kind`.
 
 ## Deprecated environment variables
 

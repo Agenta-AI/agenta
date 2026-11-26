@@ -1,14 +1,23 @@
 import re
 import traceback
 from datetime import datetime
-from typing import Callable, Optional
+from typing import Callable, Dict, Optional
+from uuid import UUID
 
 from fastapi import Request
+from oss.src.core.memberships.service import get_memberships_service
+from oss.src.core.telemetry.service import (
+    cloud_event_properties,
+    distinct_id_for,
+    instance_groups,
+    role_label,
+    self_hosted_event_properties,
+)
 from oss.src.utils.caching import get_cache, set_cache
-from oss.src.utils.common import is_oss
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.lazy import _load_posthog
+from oss.src.utils.version import get_agenta_version
 
 log = get_module_logger(__name__)
 
@@ -23,6 +32,13 @@ _EXCLUDED_PATHS = [
 _BEARER_TOKEN_PREFIX = "Bearer "
 _APIKEY_TOKEN_PREFIX = "ApiKey "
 _SECRET_TOKEN_PREFIX = "Secret "
+
+# The first product token of a User-Agent, such as `python-httpx/0.28.1`.
+_USER_AGENT_PRODUCT = re.compile(r"^([A-Za-z][\w.\-]{0,63})/([\w.\-+]{1,32})(?:\s|$)")
+# The caller sets these headers, so only a plain product name and version pass; text
+# such as an email address is dropped.
+_SDK_NAME = re.compile(r"[A-Za-z][\w.\-]{0,63}")
+_SDK_VERSION = re.compile(r"[\w.\-+]{1,32}")
 
 # Events subject to per-auth-method daily limits
 LIMITED_EVENTS_PER_AUTH = {
@@ -57,7 +73,7 @@ async def _set_activation_property(
     if not distinct_id:
         return
 
-    posthog = _load_posthog()
+    posthog = await _load_posthog()
     if posthog is None:
         return
 
@@ -68,7 +84,9 @@ async def _set_activation_property(
         return
 
     # Check if we've already set this property for this user
-    cache_key = {"property": property_name}
+    # Keyed by the distinct id too: a mark cached under an earlier identity (the email
+    # on cloud) must not stop the mark on the person the events go to now.
+    cache_key = {"property": property_name, "distinct_id": distinct_id}
 
     already_set = await get_cache(
         project_id=project_id,
@@ -88,9 +106,11 @@ async def _set_activation_property(
             distinct_id=distinct_id,
             event="$identify",
             properties={
+                **self_hosted_event_properties(),
                 "$set_once": {
                     property_name: True,
-                }
+                },
+                **cloud_event_properties(),
             },
         )
 
@@ -106,33 +126,6 @@ async def _set_activation_property(
 
     except Exception as e:
         log.error(f"Error setting activation property '{property_name}': {e}")
-
-
-def capture_oss_deployment_created(user_email: str, organization_id: str):
-    """
-    Captures the 'oss_deployment_created' event in PostHog.
-    This event is triggered when the first user signs up in an OSS instance.
-    No-op if PostHog is not configured.
-    """
-
-    if is_oss():
-        posthog = _load_posthog()
-        if posthog is None:
-            return
-
-        try:
-            posthog.capture(
-                distinct_id=user_email,
-                event="oss_deployment_created",
-                properties={
-                    "organization_id": organization_id,
-                    "deployment_type": "oss",
-                    "$set": {"email": user_email},
-                },
-            )
-            log.info(f"Captured 'oss_deployment_created' event for {user_email}")
-        except Exception as e:
-            log.error(f"Error capturing 'oss_deployment_created' event: {e}")
 
 
 async def analytics_middleware(request: Request, call_next: Callable):
@@ -176,6 +169,9 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 "method": request.method,
                 "status_code": response.status_code,
                 "auth_method": auth_method,
+                "agenta_version": get_agenta_version(),
+                **_client_sdk(request),
+                **self_hosted_event_properties(),
             }
 
             if hasattr(request.state, "project_id") and request.state.project_id:
@@ -191,10 +187,13 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 properties["organization_id"] = request.state.organization_id
 
             if (
-                hasattr(request.state, "organization_name")
+                env.stripe.enabled
+                and hasattr(request.state, "organization_name")
                 and request.state.organization_name
             ):
                 properties["organization_name"] = request.state.organization_name
+
+            properties.update(cloud_event_properties())
 
             # Check daily limits if the event is one of those to be limited per auth method
             _project_id = getattr(request.state, "project_id", None)
@@ -238,17 +237,18 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 )
                 # --------------------------------------------------------------
 
-            distinct_id = None
-
-            try:
-                distinct_id = request.state.user_email
-            except Exception:  # pylint: disable=bare-except
-                pass
+            distinct_id = await _request_distinct_id(request)
 
             if distinct_id:
-                posthog = _load_posthog()
+                posthog = await _load_posthog()
                 if posthog is not None:
-                    properties["$set"] = {"email": distinct_id}
+                    if env.stripe.enabled:
+                        properties["$set"] = {"email": request.state.user_email}
+                    else:
+                        properties["$groups"] = await instance_groups()
+                        role = await _request_role(request)
+                        if role:
+                            properties["$set"] = {"role": role}
 
                     posthog.capture(
                         distinct_id=distinct_id,
@@ -281,6 +281,59 @@ async def analytics_middleware(request: Request, call_next: Callable):
     except Exception:
         log.error("Analytics middleware error: %s", traceback.format_exc())
         return response
+
+
+async def _request_distinct_id(request: Request) -> Optional[str]:
+    """Cloud: the user id. Self-hosted: `<instance_id>:<user_id>`, never the email."""
+
+    email = getattr(request.state, "user_email", None)
+    user_id = getattr(request.state, "user_id", None)
+    if not email or not user_id:
+        return None
+    return await distinct_id_for(UUID(str(user_id)))
+
+
+def _client_sdk(request: Request) -> Dict[str, str]:
+    """The client that called: the Fern SDK headers when sent, else the first product
+    token of the User-Agent. A browser sends nothing here."""
+
+    headers = request.headers
+    name = headers.get("x-fern-sdk-name")
+    if name:
+        if not _SDK_NAME.fullmatch(name):
+            return {}
+        sdk = {"sdk_name": name}
+        version = headers.get("x-fern-sdk-version") or ""
+        if _SDK_VERSION.fullmatch(version):
+            sdk["sdk_version"] = version
+        return sdk
+
+    match = _USER_AGENT_PRODUCT.match(headers.get("user-agent") or "")
+    if match is None or match.group(1).lower() == "mozilla":
+        return {}
+    return {"sdk_name": match.group(1), "sdk_version": match.group(2)}
+
+
+async def _request_role(request: Request) -> Optional[str]:
+    """The user's role in the project of the request. The auth middleware already
+    resolved the membership, so this reads its cache entry."""
+
+    user_id = getattr(request.state, "user_id", None)
+    project_id = getattr(request.state, "project_id", None)
+    if not user_id or not project_id:
+        return None
+    try:
+        membership = await get_memberships_service().resolve(
+            user_id=UUID(str(user_id)),
+            project_id=UUID(str(project_id)),
+        )
+    except Exception:  # noqa: BLE001
+        return None
+    if membership is None:
+        return None
+    if membership.is_organization_owner:
+        return "owner"
+    return role_label(membership.role) if membership.role else None
 
 
 def _get_event_name_from_path(
