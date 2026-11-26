@@ -3,15 +3,8 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsAccessCatalog from "@agenta/i18n/catalogs/settings.access"
-import {
-    Spinner,
-    Switch,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@agenta/ui/ui"
-import {CheckCircle, Info, Lock} from "@phosphor-icons/react"
+import {FieldHelp, Spinner, Switch} from "@agenta/ui/ui"
+import {CheckCircle, Lock} from "@phosphor-icons/react"
 
 export interface SettingToggleRowProps {
     title: string
@@ -46,26 +39,10 @@ export const SettingToggleRow = ({
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                     <span className="font-medium text-foreground">{title}</span>
-                    {/* Its own provider, like every other tooltip in this package: a host without
-                    a global one (the mobile app) would otherwise throw on render. */}
                     {tooltip ? (
-                        <TooltipProvider>
-                            <Tooltip>
-                                {/* A button, not a span: the tooltip carries the only explanation of
-                                what the toggle does, and a span cannot be reached by keyboard, so
-                                that explanation was mouse-only. */}
-                                <TooltipTrigger asChild>
-                                    <button
-                                        type="button"
-                                        aria-label={t("settings.access.aboutSetting", {title})}
-                                        className="flex cursor-help items-center border-0 bg-transparent p-0 text-muted-foreground outline-none focus-ring"
-                                    >
-                                        <Info size={16} />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent>{tooltip}</TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                        <FieldHelp label={t("settings.access.aboutSetting", {title})}>
+                            {tooltip}
+                        </FieldHelp>
                     ) : null}
                     {showSuccess ? (
                         <span className="inline-flex items-center gap-1 text-meta text-success">

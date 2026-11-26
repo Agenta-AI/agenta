@@ -2,11 +2,10 @@ import * as React from "react"
 
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
-import {Info} from "@phosphor-icons/react"
 import {cva, type VariantProps} from "class-variance-authority"
 
+import {FieldHelp} from "./field-help"
 import {Label} from "./label"
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "./tooltip"
 import {cn} from "./utils"
 
 /**
@@ -15,7 +14,7 @@ import {cn} from "./utils"
  * hand-rolled wrappers this package shipped: `LabeledField` (label + info-tooltip + layout),
  * `LabelInput` (label + required asterisk), and the label side of form rows.
  *
- * Composition, not props-soup: it renders the package's own `Label` + `Tooltip`. A label sits
+ * Composition, not props-soup: it renders the package's own `Label` + `FieldHelp`. A label sits
  * above (vertical) or beside (horizontal) a control SLOT (`children`), with an optional
  * required asterisk, an info tooltip, a description under the label, and an error/help line
  * under the control.
@@ -58,7 +57,7 @@ export interface FieldProps extends VariantProps<typeof fieldLabelVariants> {
     required?: boolean
     /** Appends a muted "Optional" after the label, for an optional field among required ones. */
     optional?: boolean
-    /** Info tooltip shown on a small icon beside the label (was LabeledField's `description`). */
+    /** Field help beside the label (`FieldHelp`: a tooltip, a tap popover on touch). */
     tooltip?: React.ReactNode
     /** Side the tooltip opens on. Mirrors LabeledField's `tooltipPlacement`. Defaults to `right`. */
     tooltipPlacement?: "top" | "right" | "bottom" | "left"
@@ -114,8 +113,6 @@ function Field({
 }: FieldProps) {
     const t = useT(uiControlsCatalog)
     const autoId = React.useId()
-    // Controlled so a tap toggles the help: touch has no hover (TOUCH-02).
-    const [helpOpen, setHelpOpen] = React.useState(false)
     const child = React.isValidElement<{
         id?: string
         "aria-describedby"?: string
@@ -190,22 +187,9 @@ function Field({
                         </span>
                     </Label>
                     {tooltip != null && (
-                        <TooltipProvider>
-                            <Tooltip open={helpOpen} onOpenChange={setHelpOpen}>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        type="button"
-                                        onClick={() => setHelpOpen((open) => !open)}
-                                        data-slot="field-tooltip-trigger"
-                                        aria-label={t("ui.controls.moreInformation")}
-                                        className="box-border inline-flex cursor-help border-0 bg-transparent p-0 font-[inherit] text-muted-foreground"
-                                    >
-                                        <Info className="size-3" aria-hidden="true" />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent side={tooltipPlacement}>{tooltip}</TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                        <FieldHelp label={t("ui.controls.moreInformation")} side={tooltipPlacement}>
+                            {tooltip}
+                        </FieldHelp>
                     )}
                     {labelEnd != null && <div className="ml-auto flex min-w-0">{labelEnd}</div>}
                 </div>

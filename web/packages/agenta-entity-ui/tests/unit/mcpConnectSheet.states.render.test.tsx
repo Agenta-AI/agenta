@@ -226,7 +226,7 @@ describe("C1, the address", () => {
         expect(text()).toContain("Connect MCP server")
         // The help sits behind the info button beside the label.
         await act(async () =>
-            document.querySelector<HTMLElement>("[data-slot=field-tooltip-trigger]")?.click(),
+            document.querySelector<HTMLElement>("[data-slot=field-help]")?.click(),
         )
         expect(text()).toContain(
             "The server's HTTP endpoint. Agenta checks it and detects whether it needs OAuth, an API key, or nothing.",
