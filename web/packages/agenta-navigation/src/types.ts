@@ -30,6 +30,8 @@ export interface SidebarConfig {
     tag?: string
     /** Right-aligned content (e.g. a version label); hidden when the rail is collapsed. */
     suffix?: ReactNode
+    /** A second, smaller line under the title. Drawn by flyout menus (the help menu) only. */
+    subtitle?: string
     isCloudFeature?: boolean
     cloudFeatureTooltip?: string
     divider?: boolean

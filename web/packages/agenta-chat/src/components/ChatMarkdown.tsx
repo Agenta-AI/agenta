@@ -381,6 +381,54 @@ export const chatMarkdownComponents: Components = {
 /** Streamdown's own list, plus one plugin BEFORE its harden gate; the prop replaces the defaults. */
 export const MD_REHYPE_PLUGINS = withExplicitRelativeLinks(defaultRehypePlugins)
 
+const isHttpsUrl = (value: unknown): boolean => {
+    if (typeof value !== "string") return false
+    try {
+        return new URL(value).protocol === "https:"
+    } catch {
+        return false
+    }
+}
+
+interface HttpsOnlyNode {
+    type: string
+    tagName?: string
+    value?: string
+    properties?: Record<string, unknown> | null
+    children?: HttpsOnlyNode[] | null
+}
+
+/** Refuse every link and image that is not an absolute https URL, in the shape harden leaves.
+ * Runs AFTER harden, on the targets the browser will get, so no spelling in the source matters. */
+const rehypeHttpsOnly = () => (tree: HttpsOnlyNode) => {
+    const walk = (node: HttpsOnlyNode) => {
+        const target =
+            node.tagName === "a"
+                ? node.properties?.href
+                : node.tagName === "img"
+                  ? node.properties?.src
+                  : null
+        if (node.type === "element" && target !== null && !isHttpsUrl(target)) {
+            const label =
+                node.tagName === "img"
+                    ? [{type: "text", value: String(node.properties?.alt || "image")}]
+                    : (node.children ?? [])
+            node.tagName = "span"
+            node.properties = {
+                title: `Blocked URL: ${String(target ?? "")}`,
+                className: ["text-gray-500"],
+            }
+            node.children = [...label, {type: "text", value: " [blocked]"}]
+            // A blocked link keeps its children, and one of them may be an image.
+        }
+        for (const child of node.children ?? []) walk(child)
+    }
+    walk(tree)
+    return tree
+}
+
+const MD_REHYPE_PLUGINS_HTTPS_ONLY = [...MD_REHYPE_PLUGINS, rehypeHttpsOnly]
+
 /** Light/dark pair — Shiki dual themes track the app theme. */
 const SHIKI_THEMES: [ThemeInput, ThemeInput] = ["one-light", "one-dark-pro"]
 
@@ -435,6 +483,8 @@ export interface ChatMarkdownProps {
     useLinkResolver?: UseChatMarkdownLinkResolver
     /** Streamdown's control glyphs (the fence's copy / copied pair); keep at module scope on the host. */
     icons?: Partial<IconMap>
+    /** For remote content: a link or image that is not an absolute https URL renders blocked. */
+    httpsOnly?: boolean
 }
 
 /**
@@ -454,6 +504,7 @@ const ChatMarkdown = ({
     streaming = false,
     useLinkResolver,
     icons,
+    httpsOnly = false,
 }: ChatMarkdownProps) => {
     const [claims] = useState(() => new FollowUpClaims())
     const needs = detectMarkdownPlugins(content)
@@ -468,7 +519,7 @@ const ChatMarkdown = ({
                         .filter(Boolean)
                         .join(" ")}
                     components={chatMarkdownComponents}
-                    rehypePlugins={MD_REHYPE_PLUGINS}
+                    rehypePlugins={httpsOnly ? MD_REHYPE_PLUGINS_HTTPS_ONLY : MD_REHYPE_PLUGINS}
                     plugins={plugins}
                     // Finished blocks are memoized on their text, so a plugin that lands after
                     // them only takes effect on a new tree.

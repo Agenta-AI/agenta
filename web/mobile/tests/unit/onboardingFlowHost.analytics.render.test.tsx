@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
     captureIntent: vi.fn(),
     pending: true,
     invited: false,
+    telemetry: null as {enabled: boolean; groups: {instance: string} | null} | null,
     replace: vi.fn(),
     endOnboarding: vi.fn(),
     flow: null as Record<string, (...args: never[]) => unknown> | null,
@@ -26,6 +27,11 @@ const state = vi.hoisted(() => ({
 vi.mock("@/features/analytics/client", () => ({
     capture: state.capture,
     captureIntent: state.captureIntent,
+    isCloudTelemetry: (telemetry: {enabled: boolean; groups: unknown}) =>
+        telemetry.enabled && telemetry.groups === null,
+}))
+vi.mock("@/features/analytics/useInstanceTelemetry", () => ({
+    useInstanceTelemetry: () => state.telemetry,
 }))
 vi.mock("@/features/onboarding/OnboardingFlow", () => ({
     OnboardingFlow: (props: Record<string, (...args: never[]) => unknown>) => {
@@ -151,6 +157,7 @@ const surveyEvents = () => state.capture.mock.calls.filter(([event]) => event ==
 beforeEach(() => {
     state.pending = true
     state.invited = false
+    state.telemetry = {enabled: true, groups: null}
     state.replace.mockClear()
     state.endOnboarding.mockClear()
     state.capture.mockClear()
@@ -182,25 +189,26 @@ describe("the onboarding's PostHog events", () => {
         expect(surveyEvents()).toHaveLength(1)
     })
 
-    it("never sends the email with the self-hosted survey event", () => {
+    it("sends the self-hosted survey without the email answer", () => {
+        state.telemetry = {enabled: true, groups: {instance: "instance-1"}}
         mount()
         flow().onStepCompleted("source", draft)
-
-        const properties = surveyEvents()[0][1] as Record<string, unknown>
-        expect(properties).not.toHaveProperty(
+        expect(surveyEvents()).toHaveLength(1)
+        expect(JSON.stringify(surveyEvents())).not.toContain("person@example.com")
+        expect(surveyEvents()[0][1]).not.toHaveProperty(
             "$survey_response_d6c2d8aa-d624-4736-a71b-25fe0b74d0e9",
         )
-        expect(JSON.stringify(properties)).not.toContain("person@example.com")
     })
 
-    it("sends the email with the survey event on cloud", () => {
-        state.billing = true
+    it("sends a self-hosted write-in with the typed line", () => {
+        state.telemetry = {enabled: true, groups: {instance: "instance-1"}}
         mount()
-        flow().onStepCompleted("source", draft)
-
+        const typed = {...draft, answers: {...draft.answers, persona: "Other: Ada at Example Corp"}}
+        flow().onStepCompleted("source", typed)
         expect(surveyEvents()[0][1]).toMatchObject({
-            "$survey_response_d6c2d8aa-d624-4736-a71b-25fe0b74d0e9": "person@example.com",
+            "$survey_response_d71aec24-7e9b-4d89-9cd7-c8f366693367": "Ada at Example Corp",
         })
+        expect(JSON.stringify(surveyEvents())).not.toContain("person@example.com")
     })
 
     it("asks an invited person the questions only, then opens the project", () => {
