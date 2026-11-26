@@ -69,11 +69,23 @@ const intlCompactNumber = new Intl.NumberFormat("en-US", {
     compactDisplay: "short",
     maximumFractionDigits: 1,
 })
-const intlCurrency = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 6,
-})
+const intlCurrencyByDigits = new Map<number, Intl.NumberFormat>()
+/** Cents from a dollar up; below it, two digits past the leading zeros, at most six decimals. */
+const formatUsd = (value: number): string => {
+    const size = Math.abs(value)
+    const digits =
+        size >= 1 || size === 0 ? 2 : Math.min(6, Math.max(2, Math.ceil(-Math.log10(size)) + 2))
+    let intl = intlCurrencyByDigits.get(digits)
+    if (!intl) {
+        intl = new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+            maximumFractionDigits: digits,
+        })
+        intlCurrencyByDigits.set(digits, intl)
+    }
+    return intl.format(value)
+}
 
 /**
  * Safely handles null, undefined, and NaN values
@@ -173,11 +185,12 @@ export const formatCompact = (value: number | undefined | null): string => {
  * @example
  * ```typescript
  * formatCurrency(1234.56)   // "$1,234.56"
- * formatCurrency(0.00123)   // "$0.001230"
+ * formatCurrency(0.00123)   // "$0.00123"
+ * formatCurrency(0.150026)  // "$0.15"
  * ```
  */
 export const formatCurrency = (value: number | undefined | null): string => {
-    return withFallback(value, intlCurrency.format)
+    return withFallback(value, formatUsd)
 }
 
 /**

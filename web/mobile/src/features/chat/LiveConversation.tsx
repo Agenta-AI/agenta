@@ -1269,15 +1269,17 @@ export const LiveConversation = ({
                         {/* Docked with the other strips, directly above the composer it disables —
                         the same place the desktop banner sits. */}
                         {hideComposer ? null : (
-                            <ContentRail>
-                                <ConnectModelStrip gateActive={modelBlocked} />
-                                {modelBlocked ? null : (
-                                    <ModelSetupBanner
-                                        revisionId={entityId}
-                                        onSetUp={openModelSetup}
-                                    />
-                                )}
-                            </ContentRail>
+                            <div className="shrink-0 px-4">
+                                <ContentRail>
+                                    <ConnectModelStrip gateActive={modelBlocked} />
+                                    {modelBlocked ? null : (
+                                        <ModelSetupBanner
+                                            revisionId={entityId}
+                                            onSetUp={openModelSetup}
+                                        />
+                                    )}
+                                </ContentRail>
+                            </div>
                         )}
                         {readOnly || hideComposer ? null : (
                             <div className="bg-background shrink-0 px-4">

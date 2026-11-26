@@ -112,7 +112,9 @@ export const AgentLayoutBody = ({
     // A content the screen cannot show (no configuration, no builder) stays closed.
     // Files keeps its production open state (deep links, a file card, a staged drop open it) and
     // its own close. The panel shows Files exactly while that state is open.
-    const stored = state.content
+    // On a phone the panel covers the session: a reload opens the conversation, not the stored panel.
+    const openedHere = useRef(false)
+    const stored = phone && !openedHere.current ? null : state.content
     const content: PanelContent | null = files.open
         ? "files"
         : stored === "configuration" && canConfigure
@@ -164,7 +166,8 @@ export const AgentLayoutBody = ({
         if (restoredScope.current === restoreKey) return
         restoredScope.current = restoreKey
         filesWasOpen.current = files.open
-        if (stored === "files" && !files.open) files.openPane()
+        const onPhone = !window.matchMedia(`(min-width: ${PHONE_BELOW}px)`).matches
+        if (stored === "files" && !files.open && !onPhone) files.openPane()
     }, [panelKey, filesScope, stored, files])
 
     // Files opened or closed from anywhere moves the panel with it, at the stored width.
@@ -183,6 +186,7 @@ export const AgentLayoutBody = ({
 
     const setContent = useCallback(
         (next: PanelContent | null) => {
+            openedHere.current = true
             if (next === "files") {
                 if (!files.open) files.openPane()
             } else if (files.open) {
