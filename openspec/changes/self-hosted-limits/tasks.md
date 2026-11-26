@@ -23,7 +23,7 @@ Shared files: M1 and M2 both touch `api/oss/src/services/commoners.py` (limit ch
 - [x] R.1 Registration as a full onboarding step after the survey, with "Send me a free key" and "Skip".
 - [x] R.2 One-time prompt for the instance admin of an upgraded install; `POST /instance/license/registration-offer/dismiss` stores the skip, and `GET /instance/license` reports it.
 - [x] R.3 The updates box starts ticked and is optional in the UI, the API and the worker; security notices go to every registrant.
-- [x] R.4 The setup answers (option labels only) go with every registration, with the notice line under the button.
+- [x] R.4 The setup answers (option labels only) go with every registration after the setup survey, with the notice line under the button.
 - [x] R.5 The API forwards the updates choice, the setup answers and the signed-in user id.
 - [x] R.6 Worker: Loops contact with `source`, `userGroup` and the `agenta*` fields, `agentaProductUpdates` instead of a list, key email `LOOPS_TRANSACTIONAL_ID`.
 - [x] R.7 Worker: PostHog `instance_registered`, `$groupidentify` with `registered_email`, and `$set: {email}` on the registering admin's person.
