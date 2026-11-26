@@ -918,7 +918,12 @@ export const LiveConversation = ({
         [conversation.turns],
     )
     // Keyed by session: a remount (a move to an agent page and back) puts the position back.
-    const autoScroll = useTranscriptAutoScroll(visibleTurns, sessionId)
+    // A run read without a composer opens at its answer, not at the end of it.
+    const autoScroll = useTranscriptAutoScroll(
+        visibleTurns,
+        sessionId,
+        hideComposer ? "answer" : "latest",
+    )
 
     // Parked connect interactions → the dock above the composer owns their actions, so a paused
     // run can't scroll out of reach. Gated the same way desktop gates it.
