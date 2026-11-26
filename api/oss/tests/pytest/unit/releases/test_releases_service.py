@@ -204,6 +204,19 @@ async def test_missing_instance_id_still_checks_without_it(
     assert result.releases == FEED["releases"]
 
 
+async def test_slow_instance_id_still_checks_without_it(cache, requests, monkeypatch):
+    async def slow():
+        await asyncio.sleep(10)
+
+    monkeypatch.setattr(releases_service, "get_instance_id", slow)
+    monkeypatch.setattr(releases_service, "INSTANCE_ID_TIMEOUT_SECONDS", 0.05)
+
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert "instance_id" not in requests[0].url.params
+    assert result.releases == FEED["releases"]
+
+
 @pytest.mark.parametrize(
     ("value", "expected"),
     [("test", "test"), (" TEST ", "test"), ("", None), ("staging", None)],
@@ -357,7 +370,7 @@ async def test_too_large_feed_gives_an_empty_result(cache, requests):
 
 
 async def test_whole_download_has_a_deadline(cache, requests, monkeypatch):
-    async def never_ends():
+    async def never_ends(params):
         await asyncio.sleep(10)
 
     monkeypatch.setattr(releases_service, "_read_feed_body", never_ends)

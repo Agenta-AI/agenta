@@ -18,6 +18,7 @@ CACHE_NAMESPACE = "releases:feed"
 FEED_TTL_SECONDS = 12 * 60 * 60
 FAILED_FEED_TTL_SECONDS = 60 * 60
 FETCH_TIMEOUT_SECONDS = 5.0
+INSTANCE_ID_TIMEOUT_SECONDS = 2.0
 # The published feed is about 10 KB; anything far larger is not the feed.
 MAX_FEED_BYTES = 1024 * 1024
 
@@ -42,15 +43,18 @@ async def _feed_params() -> dict[str, str]:
     # AGENTA_UPDATE_CHECK_ENABLED=false stops the request.
     params = {"version": get_agenta_version(), "kind": get_instance_kind()}
     try:
-        params["instance_id"] = str(await get_instance_id())
+        # A slow database must not use up the time of the feed request.
+        instance_id = await asyncio.wait_for(
+            get_instance_id(), INSTANCE_ID_TIMEOUT_SECONDS
+        )
+        params["instance_id"] = str(instance_id)
     except Exception as e:  # pylint: disable=broad-exception-caught
         # Without the id, the check still runs and agenta.ai records it as anonymous.
         log.warning("[releases] instance id is unavailable", error=str(e) or repr(e))
     return params
 
 
-async def _read_feed_body() -> bytes:
-    params = await _feed_params()
+async def _read_feed_body(params: dict[str, str]) -> bytes:
     body = bytearray()
     async with httpx.AsyncClient(timeout=FETCH_TIMEOUT_SECONDS) as client:
         async with client.stream(
@@ -67,9 +71,10 @@ async def _read_feed_body() -> bytes:
 
 
 async def _download_feed() -> Optional[ReleaseFeed]:
+    params = await _feed_params()
     try:
         # The client timeout applies per read; this one bounds the whole download.
-        body = await asyncio.wait_for(_read_feed_body(), FETCH_TIMEOUT_SECONDS)
+        body = await asyncio.wait_for(_read_feed_body(params), FETCH_TIMEOUT_SECONDS)
         feed = _parse_feed(json.loads(body))
     except Exception as e:  # pylint: disable=broad-exception-caught
         log.warning("[releases] release feed fetch failed", error=str(e) or repr(e))
