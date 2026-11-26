@@ -15,8 +15,6 @@
     "chatgpt": "Suscripción de ChatGPT",
     "chatgptHint": "Ejecuta agentes con tu plan Plus o Pro.",
     "chatgptReadyHint": "Los agentes pueden ejecutarse con tu plan de ChatGPT.",
-    "chatgptDialogTitle": "Conectar ChatGPT",
-    "chatgptDialogBody": "Inicia sesión con tu suscripción de ChatGPT. Tu agente se ejecuta con ella a través del harness de Codex.",
     "chatgptConnected": "ChatGPT conectado. Tu agente se ejecutará con él.",
     "claude": "Suscripción de Claude",
     "claudeHint": "Ejecuta agentes con tu plan Pro o Max.",

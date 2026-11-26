@@ -241,7 +241,7 @@ Agenta가 도움이 되었다면 저장소에 스타를 눌러 주시고, 무엇
 ## 기여자 ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-105-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-106-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 멋진 기여자 여러분께 감사드립니다([이모지 안내](https://allcontributors.org/docs/en/emoji-key)):
@@ -385,6 +385,9 @@ Agenta가 도움이 되었다면 저장소에 스타를 눌러 주시고, 무엇
       <td align="center" valign="top" width="14.28%"><a href="https://wahidsaeed.github.io"><img src="https://avatars.githubusercontent.com/u/26499932?v=4&size=100" width="100px" height="100px" alt="Abdul Wahid"/><br /><sub><b>Abdul Wahid</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=WahidSaeed" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/TPSJASPER"><img src="https://avatars.githubusercontent.com/u/204532137?v=4&size=100" width="100px" height="100px" alt="Jasper"/><br /><sub><b>Jasper</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=TPSJASPER" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/abrahamguo"><img src="https://avatars.githubusercontent.com/u/7842684?v=4&size=100" width="100px" height="100px" alt="Abraham Guo"/><br /><sub><b>Abraham Guo</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=abrahamguo" title="Code">💻</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/TbhVishal"><img src="https://avatars.githubusercontent.com/u/146272351?v=4&size=100" width="100px" height="100px" alt="Vishal Sharma"/><br /><sub><b>Vishal Sharma</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=TbhVishal" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>

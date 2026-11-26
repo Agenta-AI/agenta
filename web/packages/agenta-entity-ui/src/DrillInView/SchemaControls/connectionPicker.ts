@@ -16,7 +16,6 @@ import {
     mountedSubscriptionDisplayName,
     resolveAgentModelSelection,
     SecretKind,
-    SUBSCRIPTION_SIGN_IN_HINT,
     subscriptionAvailability,
     subscriptionPlanName,
     savedConnectionNamespace,
@@ -25,6 +24,8 @@ import {
     type AgentModelSelection,
     type ProviderConnection,
 } from "@agenta/entities/secret"
+
+import {subscriptionSignInHint} from "../../secretProvider/subscriptionText"
 
 import {modelDisplayName, type ConnectionMode, type HarnessCapabilitiesMap} from "./connectionUtils"
 import {harnessMetaFor} from "./harnessMeta"
@@ -174,7 +175,7 @@ const disabledSubscriptionRow = (connection: ProviderConnection): PickerConnecti
     iconKey: connection.kind,
     kind: "subscription",
     disabled: true,
-    hint: SUBSCRIPTION_SIGN_IN_HINT,
+    hint: subscriptionSignInHint(),
     ...(connection.scope === "organization" ? {organization: true} : {}),
     models: [],
 })

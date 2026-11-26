@@ -424,7 +424,7 @@ describe("The editable revision drawer", {timeout: 60_000}, () => {
         expect(shown()).toEqual(["rev-2"])
         expect(store.get(playgroundInitializedAtom)).toBe(true)
     })
-    it("Titles an unsaved app from a template New App, and an unsaved evaluator New Evaluator", async () => {
+    it("Titles an unsaved prompt from a template New prompt, and an unsaved evaluator New evaluator", async () => {
         const seed = (id: string, isEvaluator: boolean) =>
             store.set(workflowLocalServerDataAtomFamily(id), {
                 id,
@@ -439,7 +439,7 @@ describe("The editable revision drawer", {timeout: 60_000}, () => {
         seed("local-app-1", false)
         router.query = {...router.query, revisionId: "local-app-1"}
         act(() => render())
-        await until(() => title().includes("New App"))
+        await until(() => title().includes("New prompt"))
         expect(title()).not.toContain("Revision")
         act(() => root.unmount())
         root = createRoot(host)
@@ -448,7 +448,7 @@ describe("The editable revision drawer", {timeout: 60_000}, () => {
         kind = "evaluator"
         router.query = {...router.query, revisionId: "local-eval-1"}
         act(() => render())
-        await until(() => title().includes("New Evaluator"))
+        await until(() => title().includes("New evaluator"))
         expect(title()).toContain("Exact match")
     })
 })

@@ -2,10 +2,12 @@ import {describe, expect, it} from "vitest"
 
 import {filterApps} from "@/features/evaluations/new/appTypeFilter"
 import {
+    concurrencyError,
     createInitialDraft,
     draftHasInput,
     expectedInputVariables,
     newEvaluationReducer,
+    runNameFor,
     validateDraft,
     type DraftApp,
     type DraftEvaluator,
@@ -187,28 +189,49 @@ describe("new evaluation draft", () => {
 
     it("Validation reports the name first, then the test set revision, then the revision, then the evaluators", () => {
         let draft = run(start(), {type: "pickApp", app})
-        expect(validateDraft(draft)).toMatchObject({message: "Please enter evaluation name"})
+        expect(validateDraft(draft)).toMatchObject({message: "Enter an evaluation name"})
 
         draft = run(draft, {type: "setName", name: "Run"})
         expect(validateDraft(draft)).toEqual({
             section: "testset",
-            message: "Please select a test set revision",
+            message: "Select a test set",
         })
 
         draft = run(draft, {type: "pickTestset", testset})
         expect(validateDraft(draft)).toEqual({
             section: "revision",
-            message: "Please select a revision",
+            message: "Select a revision",
         })
 
         draft = run(draft, {type: "pickRevision", revision: revisionA})
         expect(validateDraft(draft)).toEqual({
             section: "evaluators",
-            message: "Please select evaluator configuration",
+            message: "Select at least one evaluator",
         })
 
         draft = run(draft, {type: "pickEvaluator", evaluator})
         expect(validateDraft(draft)).toBeNull()
+    })
+
+    it("Several revisions get one run name each: the auto name per revision, or the typed name with the variant and version", () => {
+        const auto = run(
+            start(),
+            {type: "pickApp", app},
+            {type: "pickRevision", revision: revisionA},
+            {type: "pickRevision", revision: revisionB},
+            {type: "pickTestset", testset},
+        )
+        expect(auto.revisions.map((revision) => runNameFor(auto, revision))).toEqual([
+            `default-v3-${testset.name}-${auto.suffix}`,
+            `concise-v1-${testset.name}-${auto.suffix}`,
+        ])
+        const typed = run(auto, {type: "setName", name: " Weekly "})
+        expect(typed.revisions.map((revision) => runNameFor(typed, revision))).toEqual([
+            "Weekly-default-v3",
+            "Weekly-concise-v1",
+        ])
+        const single = run(typed, {type: "removeRevision", revisionId: revisionB.id})
+        expect(runNameFor(single, revisionA)).toBe("Weekly")
     })
 
     it("An empty concurrency field fails validation", () => {
@@ -222,9 +245,32 @@ describe("new evaluation draft", () => {
         )
         expect(validateDraft(draft)).toEqual({
             section: "settings",
-            message: "This field is required",
+            message: "Fix the advanced settings",
         })
         expect(validateDraft(run(draft, {type: "resetConcurrency"}))).toBeNull()
+    })
+
+    it("A batch size below 1 fails validation; zero retries and zero delay are fine", () => {
+        const draft = run(
+            start(),
+            {type: "pickApp", app},
+            {type: "pickRevision", revision: revisionA},
+            {type: "pickTestset", testset},
+            {type: "pickEvaluator", evaluator},
+            {type: "setConcurrency", field: "max_retries", value: 0},
+            {type: "setConcurrency", field: "retry_delay", value: 0},
+        )
+        expect(validateDraft(draft)).toBeNull()
+        const zeroBatch = run(draft, {type: "setConcurrency", field: "batch_size", value: 0})
+        expect(validateDraft(zeroBatch)).toEqual({
+            section: "settings",
+            message: "Fix the advanced settings",
+        })
+        expect(concurrencyError("batch_size", 0)).toBe("Must be at least 1")
+        expect(concurrencyError("batch_size", -5)).toBe("Must be at least 1")
+        expect(concurrencyError("batch_size", null)).toBe("This field is required")
+        expect(concurrencyError("max_retries", 0)).toBeNull()
+        expect(concurrencyError("retry_delay", -1)).toBe("Must be at least 0")
     })
 
     it("Expected input variables also read plain prompt messages", () => {

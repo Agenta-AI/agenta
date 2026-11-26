@@ -46,5 +46,9 @@
     "callId": "ID de la llamada",
     "promptRefined": "Prompt refinado correctamente.",
     "leaveWarning": "Tienes revisiones en borrador locales o cambios sin guardar que se perderán si sales. ¿Seguro que quieres continuar?",
-    "rerunning": "Volviendo a ejecutar..."
+    "rerunning": "Volviendo a ejecutar...",
+    "averageTokens": "Tokens promedio",
+    "newAgent": "Nuevo agente",
+    "newPrompt": "Nuevo prompt",
+    "revisionOpen": "Abierta"
 }

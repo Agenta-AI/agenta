@@ -1,6 +1,8 @@
-import {memo, useCallback, useEffect, useMemo, useRef} from "react"
+import {memo, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode} from "react"
 
 import {
+    type ChildUpdate,
+    getMessageChildUpdate,
     getMessageTraceId,
     getMessageUsage,
     isMessageRunErrorTransport,
@@ -12,6 +14,7 @@ import {
     ActivityTimeline,
     AttachmentStrip,
     type AttachmentStripFile,
+    ChildUpdateNotice,
     CollapsibleMessageBody,
     McpServerNoticeCard,
     TurnFooter,
@@ -23,11 +26,13 @@ import {canViewSpansAtom} from "@agenta/entities/access"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {useDriveHomeSlug} from "@agenta/entity-ui/drive"
 import {useT} from "@agenta/i18n"
+import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import chatMobileTurnCatalog from "@agenta/i18n/catalogs/chat.mobileTurn"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground/agent-chat"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
+import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {
     ChatBubble,
     turnToolbarClass,
@@ -41,6 +46,8 @@ import {cn} from "@/lib/utils"
 
 import {AnswerReveal} from "./AnswerReveal"
 import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
+import {useIsBuilderChat} from "./builderChat"
+import {ChangeResults} from "./ChangeResults"
 import {isLiveTextItem} from "./markdownStream"
 import {quotedMessageParts} from "./quotedMessageParts"
 import {describeRunFailure, type RunFailureView} from "./RunErrorMessage"
@@ -50,8 +57,15 @@ import {turnFiles} from "./turnFileList"
 import {TurnFiles} from "./TurnFiles"
 import {mobileTurnRowClass} from "./turnRowClass"
 import {TurnRunFailure} from "./TurnRunFailure"
+import {UserMessageAccessoryContext} from "./userMessageAccessory"
 import {UserQuoteBlock} from "./UserQuoteBlock"
 import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
+
+/**
+ * An assistant turn clips its overflow. On a phone the clip starts 6px above the text, so the
+ * turn's first control ("Worked for") keeps its 44px tap area. Nothing moves.
+ */
+const ASSISTANT_CLIP_ROOM = "max-md:-mt-1.5 max-md:pt-1.5"
 
 /** The byte size the transcript replay records on an attachment part, when it has one. */
 const attachmentSize = (metadata: unknown): number | undefined => {
@@ -75,6 +89,7 @@ const TurnRowInner = ({
     resuming = false,
     runId,
     runStartedAt,
+    renderChildSession,
 }: {
     turn: TurnViewModel
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
@@ -95,8 +110,11 @@ const TurnRowInner = ({
     runId?: string
     /** When the server saved the user message that started this run: the clock counts from it. */
     runStartedAt?: number
+    /** Names and links the child session of a child update row. */
+    renderChildSession?: (update: ChildUpdate) => ReactNode
 }) => {
-    const t = useT(chatMobileTurnCatalog)
+    const t = useT(chatMobileTurnCatalog, builderPageCatalog)
+    const builderChat = useIsBuilderChat()
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     // A reader whose role has no trace access gets no trace action and no trace read.
     const canViewSpans = useAtomValue(canViewSpansAtom)
@@ -308,8 +326,17 @@ const TurnRowInner = ({
                         : undefined
                 }
             />
+            {/* What each answered change call came to; outside the fold, which starts closed. */}
+            <ChangeResults parts={turn.message.parts} finished={!runOpen} latest={turn.isLast} />
             {answered ? (
                 <div {...quoteProps} className="flex min-w-0 flex-col gap-3">
+                    {/* The builder signs its answers (S03, M05): 12 px, secondary, above the text. */}
+                    {builderChat ? (
+                        <div className="-mb-2 flex items-center gap-1.5 text-[12px] leading-4 text-colorTextSecondary">
+                            <BuilderIcon size={12} aria-hidden />
+                            {t("builder.page.builder")}
+                        </div>
+                    ) : null}
                     {activity.messages.map((message, at) => (
                         <AnswerReveal
                             key={message.index}
@@ -362,9 +389,18 @@ const TurnRowInner = ({
             ),
         [turn.items],
     )
-    const header = files.length ? (
+    const readAccessory = useContext(UserMessageAccessoryContext)
+    const accessory = turn.isUser && readAccessory ? readAccessory(turn.message.id) : null
+    const attachmentStrip = files.length ? (
         <AttachmentStrip files={files} align={turn.isUser ? "end" : "start"} />
     ) : null
+    const header =
+        accessory || attachmentStrip ? (
+            <>
+                {accessory}
+                {attachmentStrip}
+            </>
+        ) : null
     // Attachments with no words paint no bubble; an assistant turn always paints its fold line.
     const hasBubbleContent =
         !turn.isUser ||
@@ -405,6 +441,17 @@ const TurnRowInner = ({
 
     if (turn.hidden) return null
 
+    // A turn a child update started: a notice, not the person's message. Only the server part on
+    // the stored record makes it one; its text is for the model and never shows here.
+    const childUpdate = turn.isUser ? getMessageChildUpdate(turn.message) : null
+    if (childUpdate) {
+        return (
+            <div className={`${mobileTurnRowClass} justify-start`} {...rowMarkers}>
+                <ChildUpdateNotice update={childUpdate} renderChildSession={renderChildSession} />
+            </div>
+        )
+    }
+
     return (
         <div
             className={`${mobileTurnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}
@@ -413,18 +460,27 @@ const TurnRowInner = ({
             <ChatBubble
                 placement={turn.isUser ? "end" : "start"}
                 variant={turn.isUser && hasBubbleContent ? "filled" : "borderless"}
-                // No avatar column; the 85% inset is what reads as a user bubble.
+                // No avatar column; the 85% inset is what reads as a user bubble. The builder's
+                // answers take the whole column (S03, B03).
                 className={
-                    turn.isUser ? "min-w-0 max-w-[85%]" : "min-w-0 max-w-full sm:max-w-[85%]"
+                    turn.isUser
+                        ? "min-w-0 max-w-[85%]"
+                        : builderChat
+                          ? "min-w-0 max-w-full"
+                          : "min-w-0 max-w-full sm:max-w-[85%]"
                 }
                 classNames={{
                     content: turn.isUser
                         ? cn(
                               userBubbleContentClass,
-                              "rounded-xl rounded-br-sm bg-muted text-xs sm:px-3.5 sm:py-2.5",
+                              // The canvas bubble: radius 12 with a 2 px corner, 10 / 14 padding (M01, X-8).
+                              "rounded-[12px] rounded-br-[2px] bg-muted px-3.5 py-2.5 text-xs",
                           )
-                        : "min-w-0 max-w-full overflow-hidden text-xs",
-                    body: "min-w-0 max-w-full overflow-hidden",
+                        : cn("min-w-0 max-w-full overflow-hidden text-xs", ASSISTANT_CLIP_ROOM),
+                    body: cn(
+                        "min-w-0 max-w-full overflow-hidden",
+                        !turn.isUser && ASSISTANT_CLIP_ROOM,
+                    ),
                 }}
                 // A refused file-only send has no words to paint, but its failure still has to be
                 // said, or the cards sit there looking like an upload that worked.

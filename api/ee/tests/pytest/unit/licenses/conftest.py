@@ -1,6 +1,7 @@
 import base64
 import json
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -42,6 +43,16 @@ def sign_key(private_key: Ed25519PrivateKey, **fields) -> str:
     body = _b64url(json.dumps(payload).encode("utf-8"))
     signature = _b64url(private_key.sign(body.encode("ascii")))
     return f"agenta_license_v1.{body}.{signature}"
+
+
+def fake_replace() -> AsyncMock:
+    """A `LicensesDAO.replace` that runs `before_commit` as the real one does."""
+
+    async def replace(*, before_commit=None, **_):
+        if before_commit is not None:
+            await before_commit()
+
+    return AsyncMock(side_effect=replace)
 
 
 def public_key_line(private_key: Ed25519PrivateKey) -> str:
@@ -119,13 +130,12 @@ def shared_cache(monkeypatch) -> dict:
     async def get_cache(*, namespace, key, **_):
         return store.get((namespace, key))
 
-    async def set_cache(*, namespace, key, value, **_):
+    async def set_cache(*, namespace, key, value, nx=False, **_):
+        if nx and (namespace, key) in store:
+            return False
         store[(namespace, key)] = value
-
-    async def invalidate_cache(*, namespace, key, **_):
-        store.pop((namespace, key), None)
+        return True
 
     monkeypatch.setattr(licenses_service_module, "get_cache", get_cache)
     monkeypatch.setattr(licenses_service_module, "set_cache", set_cache)
-    monkeypatch.setattr(licenses_service_module, "invalidate_cache", invalidate_cache)
     return store

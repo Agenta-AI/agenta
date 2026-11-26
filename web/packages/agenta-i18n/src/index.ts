@@ -52,6 +52,16 @@ export const formatRelativeTime = (
 ): string => new Intl.RelativeTimeFormat(formatLocale(), options).format(value, unit)
 
 /**
+ * A list in the chosen language. The default is a plain enumeration: "a, b, c" in English,
+ * "a、b、c" in Japanese and Chinese. `{type: "conjunction", style: "long"}` gives "a, b and c".
+ * English uses en-GB rules, so a long list has no serial comma.
+ */
+export const formatList = (
+    items: readonly string[],
+    options: Intl.ListFormatOptions = {type: "conjunction", style: "narrow"},
+): string => new Intl.ListFormat(formatLocale() ?? "en-GB", options).format(items)
+
+/**
  * Renders `<name>text</name>` tags in translated text as elements, so a sentence with a link
  * stays one key: `richText(t("settings.x"), {link: (text) => <a href={url}>{text}</a>})`.
  */

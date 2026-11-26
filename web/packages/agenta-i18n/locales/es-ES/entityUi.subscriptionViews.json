@@ -1,0 +1,4 @@
+{
+    "waitingToConfirm": "Esperando la confirmación de {{name}}",
+    "waitingToConfirmBody": "Después de introducir el código en {{name}}, el inicio de sesión llega aquí unos segundos más tarde. No tienes que hacer nada en esta página. Esta página vuelve sola a la lista cuando llega el inicio de sesión."
+}

@@ -1,0 +1,11 @@
+{
+    "scheduledTriggers": "定时触发器",
+    "appTriggers": "应用触发器",
+    "deleteFailed": "无法删除这个自动化。请重试。",
+    "runs": "运行",
+    "settings": "设置",
+    "history": "历史",
+    "seeAllRuns": "查看所有运行",
+    "lastRun": "上次运行",
+    "didNotFinish": "未完成"
+}

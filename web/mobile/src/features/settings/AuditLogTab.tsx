@@ -3,6 +3,7 @@ import {AuditLogPage, useEntitlements} from "@agenta/settings-ui"
 import {isBillingEnabled} from "@agenta/shared/api"
 
 import {LockedEnterpriseFeatures} from "./LockedEnterpriseFeatures"
+import {SeePlansButton} from "./SeePlansButton"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {useMobileSettingsAccess} from "./settingsTabs"
 import {useSettingsOrg} from "./useSettingsOrg"
@@ -25,6 +26,7 @@ export const AuditLogTab = ({workspaceId, projectId}: SettingsTabProps) => {
             }
             members={org.data?.default_workspace?.members}
             currentUserId={user?.id}
+            upgradeAction={<SeePlansButton workspaceId={workspaceId} projectId={projectId} />}
         />
     )
 }

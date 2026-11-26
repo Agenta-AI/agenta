@@ -9,7 +9,8 @@ const SIDEBAR_WIDTH_STORAGE_KEY = "agenta:sidebar:width"
 const LEGACY_SIDEBAR_COLLAPSED_STORAGE_KEY = "sidebarCollapsed"
 
 export const SIDEBAR_COLLAPSED_WIDTH = 48
-export const SIDEBAR_DEFAULT_WIDTH = 255
+// 235 + the 1px seam = the 236px rail the design draws.
+export const SIDEBAR_DEFAULT_WIDTH = 235
 export const SIDEBAR_MIN_WIDTH = 200
 export const SIDEBAR_MAX_WIDTH = 340
 

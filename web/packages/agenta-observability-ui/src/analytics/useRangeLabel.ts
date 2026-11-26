@@ -1,10 +1,6 @@
 import {useT} from "@agenta/i18n"
 import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
-import {
-    analyticsCustomRangeAtom,
-    analyticsRangeAtom,
-    analyticsRangeLabelAtom,
-} from "@agenta/observability/analytics"
+import {useAnalyticsViewAtoms} from "@agenta/observability/analytics"
 import {useAtomValue} from "jotai"
 
 /**
@@ -13,9 +9,10 @@ import {useAtomValue} from "jotai"
  */
 export const useRangeLabel = () => {
     const t = useT(analyticsCatalog)
-    const range = useAtomValue(analyticsRangeAtom)
-    const custom = useAtomValue(analyticsCustomRangeAtom)
-    const customLabel = useAtomValue(analyticsRangeLabelAtom)
+    const view = useAnalyticsViewAtoms()
+    const range = useAtomValue(view.range)
+    const custom = useAtomValue(view.custom)
+    const customLabel = useAtomValue(view.rangeLabel)
     if (custom) return {label: customLabel, inline: customLabel.toLowerCase()}
     switch (range) {
         case "24h":

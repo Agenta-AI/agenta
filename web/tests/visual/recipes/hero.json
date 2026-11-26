@@ -1,0 +1,82 @@
+[
+    {
+        "id": "hero-idle-light",
+        "story": "builderlayout-hero-builder-hero--idle",
+        "width": 400,
+        "height": 400,
+        "theme": "light",
+        "selector": "[data-testid=\"builder-hero\"]"
+    },
+    {
+        "id": "hero-idle-dark",
+        "story": "builderlayout-hero-builder-hero--idle",
+        "width": 400,
+        "height": 400,
+        "theme": "dark",
+        "selector": "[data-testid=\"builder-hero\"]"
+    },
+    {
+        "id": "hero-typing-light",
+        "story": "builderlayout-hero-builder-hero--typing",
+        "width": 400,
+        "height": 400,
+        "theme": "light",
+        "selector": "[data-testid=\"builder-hero\"]"
+    },
+    {
+        "id": "hero-typing-dark",
+        "story": "builderlayout-hero-builder-hero--typing",
+        "width": 400,
+        "height": 400,
+        "theme": "dark",
+        "selector": "[data-testid=\"builder-hero\"]"
+    },
+    {
+        "id": "hero-thinking-light",
+        "story": "builderlayout-hero-builder-hero--thinking",
+        "width": 400,
+        "height": 400,
+        "theme": "light",
+        "selector": "[data-testid=\"builder-hero\"]"
+    },
+    {
+        "id": "hero-thinking-dark",
+        "story": "builderlayout-hero-builder-hero--thinking",
+        "width": 400,
+        "height": 400,
+        "theme": "dark",
+        "selector": "[data-testid=\"builder-hero\"]"
+    },
+    {
+        "id": "hero-done-light",
+        "story": "builderlayout-hero-builder-hero--done",
+        "width": 400,
+        "height": 400,
+        "theme": "light",
+        "selector": "[data-testid=\"builder-hero\"]"
+    },
+    {
+        "id": "hero-done-dark",
+        "story": "builderlayout-hero-builder-hero--done",
+        "width": 400,
+        "height": 400,
+        "theme": "dark",
+        "selector": "[data-testid=\"builder-hero\"]"
+    },
+    {
+        "id": "hero-fallback-light",
+        "story": "builderlayout-hero-builder-hero--fallback",
+        "width": 400,
+        "height": 400,
+        "theme": "light",
+        "selector": "[data-testid=\"builder-hero\"]"
+    },
+    {
+        "id": "hero-fallback-dark",
+        "story": "builderlayout-hero-builder-hero--fallback",
+        "width": 400,
+        "height": 400,
+        "theme": "dark",
+        "selector": "[data-testid=\"builder-hero\"]"
+    }
+]

@@ -74,11 +74,12 @@ PI_SUBSCRIPTION_MODELS: Dict[str, List[str]] = {
     # harness's ``openai-codex/<id>`` model. This is the ``openai-codex`` model set Pi's
     # vendored catalog exposes (``@earendil-works/pi-ai`` ``models.generated`` ->
     # ``openai-codex``, served via ``chatgpt.com/backend-api``), minus the ids a ChatGPT account
-    # refuses ("not supported when using Codex with a ChatGPT account"): ``gpt-5.5`` and
-    # ``gpt-5.3-codex-spark``. Keep it in sync when the pinned Pi version changes its codex model
+    # refuses ("not supported when using Codex with a ChatGPT account"); Pi 1.5.2 no longer lists
+    # the two it refused (``gpt-5.5`` and ``gpt-5.3-codex-spark``). Keep it in sync when the pinned Pi version changes its codex model
     # list, and run one turn per new id on a ChatGPT login before you add it.
     "openai-codex": [
         "gpt-6.1-sol",
+        "gpt-6.1-terra",
         "gpt-6-sol",
         "gpt-6-astra",
         "gpt-6-luna",
@@ -89,29 +90,32 @@ PI_SUBSCRIPTION_MODELS: Dict[str, List[str]] = {
 }
 PI_SUBSCRIPTION_PROVIDERS: List[str] = list(PI_SUBSCRIPTION_MODELS)
 
-# Claude Code selects a model by alias, not a ``provider/id`` string. These are stable request
-# values for the picker. A live Claude session can expose a context-hinted variant such as
-# ``claude-fable-5-1[1m]`` (subscription accounts) where an API-key session exposes the bare
-# ``claude-fable-5-1``. The runner safely widens a bare request to the hinted option when that is
-# the only available variant, so the catalog must keep the stable bare value. The pinned Claude
-# Code build no longer offers ``claude-fable-5`` at all, so it is not listed. They
-# live under the ``anthropic`` provider in the ``models`` map (Claude reaches anthropic only).
-# Revisit if the model family changes (see the ``sync-model-catalog`` skill and
-# ``docs/design/agent-workflows/projects/model-config/``).
+# Claude Code selects a model by alias, not a ``provider/id`` string. These are the stable request
+# values for the picker: the tier aliases claude-agent-acp 0.109.0 (Claude Code 2.1.328) lists for
+# both an API key and a subscription login. ``fable`` resolves to Claude Fable 5.2 and ``haiku`` to
+# Claude Haiku 5.5; neither session lists ``claude-fable-5-2`` or ``claude-haiku-5-5`` as a value.
+# The runner widens a bare alias to a ``[1m]`` option when that is the only variant on offer, and
+# runs a concrete id the build does not list on its tier alias. They live under the ``anthropic``
+# provider in the ``models`` map (Claude reaches anthropic only). Revisit on every adapter bump
+# (see the ``sync-model-catalog`` skill and ``docs/design/agent-workflows/projects/model-config/``).
 CLAUDE_MODEL_ALIASES: List[str] = [
     "default",
     "sonnet",
     "haiku",
-    "opus[1m]",
-    "claude-fable-5-1",
+    "opus",
+    "fable",
 ]
 
 # The curated Codex model set the harness advertises under the ``openai`` family: the models the
-# pinned Codex CLI (0.156.1, via codex-acp 1.13.1) lists for both an API key and a ChatGPT login.
+# pinned Codex CLI (0.170.0, via codex-acp 2.8.0) lists, in its order (newest first).
 # The ChatGPT backend hides GPT-6 models from older Codex clients, so a new model can need a Codex
 # bump, not just an entry here. Keep this in sync with ``data/codex_models.curated.json`` and the
 # ``sync-model-catalog`` skill. See decision D-006.
 CODEX_MODELS: List[str] = [
+    "gpt-6.2-sol",
+    "gpt-6.2-astra",
+    "gpt-6.1-terra",
+    "gpt-6.1-sol",
     "gpt-6-astra",
     "gpt-6-sol",
     "gpt-6-luna",
@@ -152,11 +156,16 @@ PROVIDER_ENV_VARS: Dict[str, str] = {
 # ids are the shared catalog spelling (``provider/id``); each harness republishes them below in
 # the spelling it accepts. A saved list on a connection — including an empty one — always wins.
 PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
+    # OpenAI's flagship order first (6.2 Astra, 6.2 Sol, 6.1 Terra, 6 Luna). The two 6.2 models
+    # postdate pi-ai 1.5.2, so their facts ride the curated ``additions`` list.
     "openai": [
+        "openai/gpt-6.2-astra",
+        "openai/gpt-6.2-sol",
+        "openai/gpt-6.1-terra",
+        "openai/gpt-6-luna",
         "openai/gpt-6-astra",
         "openai/gpt-6.1-sol",
         "openai/gpt-6-sol",
-        "openai/gpt-6-luna",
         "openai/gpt-5.6-luna",
         "openai/gpt-5.6-terra",
         "openai/gpt-5.6-sol",
@@ -164,7 +173,7 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
     "anthropic": [
         "anthropic/claude-opus-5-5",
         "anthropic/claude-opus-5",
-        "anthropic/claude-fable-5-1",
+        "anthropic/claude-fable-5-2",
         "anthropic/claude-sonnet-5-5",
         "anthropic/claude-sonnet-5",
         "anthropic/claude-haiku-5-5",
@@ -196,18 +205,16 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
         "together_ai/zai-org/GLM-5.2",
     ],
     "openrouter": [
-        "openrouter/tencent/hy4-preview",
-        "openrouter/openai/gpt-6-sol",
-        "openrouter/openai/gpt-6-luna",
-        "openrouter/openai/gpt-5.6-luna",
-        "openrouter/deepseek/deepseek-v4-flash-0731",
+        "openrouter/tencent/hy4-flash",
+        "openrouter/deepseek/deepseek-v4.1-flash-1017",
+        "openrouter/deepseek/deepseek-v4.1-flash",
+        "openrouter/tencent/hy4",
         "openrouter/z-ai/glm-5.3-flash",
-        "openrouter/deepseek/deepseek-v4-flash",
-        "openrouter/xiaomi/mimo-v2.5",
-        "openrouter/tencent/hy3",
-        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
-        "openrouter/z-ai/glm-5.3",
-        "openrouter/google/gemini-3.8-flash",
+        "openrouter/openai/gpt-6-luna",
+        "openrouter/anthropic/claude-opus-5.5",
+        "openrouter/stepfun/step-5-preview",
+        "openrouter/xiaomi/mimo-v2.6-flash",
+        "openrouter/minimax/minimax-m3.1-flash",
     ],
     # 4.6 and 4.5 come from the generated catalog. Grok 4.7 alone postdates the pinned pi-ai
     # release, so its facts ride the curated ``additions`` list until a bump carries it.
@@ -221,17 +228,14 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
 
 # A harness that selects by alias (Claude) names a TIER, not a model id, so a curated id has to
 # be translated before it can be matched. Keyed by prefix because the alias tracks the tier
-# across versions (``claude-sonnet-5`` and its successor both answer to ``sonnet``). Only ids a
-# harness could otherwise not name belong here. Fable maps to the current ``claude-fable-5-1``
-# request value (Claude Code itself migrates a saved ``claude-fable-5`` to Fable 5.1). Opus maps
-# to the bracketed ``opus[1m]`` rather than a bare ``opus`` because that bracketed spelling is the exact value Claude Code publishes for the Opus tier in its accepted
-# alias set (see :data:`CLAUDE_MODEL_ALIASES`), and a harness only advertises defaults it can
-# actually select, so any other spelling would be dropped instead of offered.
+# across versions (``claude-sonnet-5`` and its successor both answer to ``sonnet``). Each value is
+# a request value in :data:`CLAUDE_MODEL_ALIASES`, because a harness only advertises defaults it
+# can actually select.
 MODEL_ID_ALIASES: Dict[str, str] = {
-    "anthropic/claude-fable-5": "claude-fable-5-1",
+    "anthropic/claude-fable-": "fable",
     "anthropic/claude-sonnet-": "sonnet",
     "anthropic/claude-haiku-": "haiku",
-    "anthropic/claude-opus-": "opus[1m]",
+    "anthropic/claude-opus-": "opus",
 }
 
 

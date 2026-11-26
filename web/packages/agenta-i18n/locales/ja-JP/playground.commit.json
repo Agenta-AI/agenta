@@ -13,5 +13,7 @@
     "failedToCreateWorkflow": "ワークフローを作成できませんでした",
     "variantNameRequired": "バリアント名は必須です",
     "failedToCreateVariant": "新しいバリアントを作成できませんでした",
-    "failedToCommit": "リビジョンをコミットできませんでした"
+    "failedToCommit": "リビジョンをコミットできませんでした",
+    "agentName": "エージェント名",
+    "promptName": "プロンプト名"
 }
