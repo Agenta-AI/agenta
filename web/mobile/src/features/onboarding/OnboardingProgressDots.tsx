@@ -27,7 +27,7 @@ export const OnboardingProgressDots = ({
     const questionText = useQuestionText()
     const dotLabel = (step: OnboardingStep) =>
         questionText.dot(step) ??
-        (step === "credits" ? t("onboarding.flow.dotCredits") : t("onboarding.flow.dotTemplates"))
+        (step === "credits" ? t("onboarding.flow.dotRegister") : t("onboarding.flow.dotTemplates"))
     return (
         <nav
             aria-label={t("onboarding.flow.stepCounter", {
