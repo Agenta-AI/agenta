@@ -78,7 +78,7 @@ export function CatalogListRow({
             // -mx/px hangs the hover fill outside the alignment line; always 48 px tall (ROW-01).
             className={`group/row -mx-2 flex min-h-row-double flex-col justify-center rounded-md px-2 py-1.5 outline-none transition-colors focus-ring ${
                 highlighted ? "bg-secondary" : ""
-            } ${onClick ? "cursor-pointer" : ""} hover:bg-accent ${className ?? ""}`}
+            } ${onClick ? "cursor-pointer hover:bg-accent" : ""} ${className ?? ""}`}
         >
             {/* 12 px from the 32 px Mark to its text (SPACE-04). */}
             <div className={`flex gap-3 ${align === "start" ? "items-start" : "items-center"}`}>

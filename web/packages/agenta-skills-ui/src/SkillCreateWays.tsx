@@ -17,7 +17,6 @@ const WAY =
 
 function Way({
     icon,
-    tint,
     title,
     hint,
     onClick,
@@ -27,8 +26,6 @@ function Way({
     ...drop
 }: {
     icon: ReactNode
-    /** The Mark's colour, so the three ways tell apart at a glance. */
-    tint: string
     title: string
     hint: string
     onClick: () => void
@@ -45,9 +42,7 @@ function Way({
             className={cn(WAY, className)}
             {...drop}
         >
-            <IconTile size={32} className={cn("shrink-0", tint)}>
-                {icon}
-            </IconTile>
+            <IconTile size={32}>{icon}</IconTile>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="text-label font-medium text-foreground">{title}</span>
                 <span className="text-meta text-muted-foreground">{hint}</span>
@@ -87,7 +82,6 @@ export function SkillCreateWays({
         >
             <Way
                 icon={<PencilSimple size={16} />}
-                tint="bg-data-1/10 text-data-1"
                 title={t("skills.agent.writeTitle")}
                 hint={t("skills.agent.writeHint")}
                 onClick={onWrite}
@@ -95,7 +89,6 @@ export function SkillCreateWays({
             />
             <Way
                 icon={<UploadSimple size={16} />}
-                tint="bg-data-2/10 text-data-2"
                 title={t("skills.agent.uploadTitle")}
                 hint={t("skills.agent.uploadHint")}
                 // The picker must open inside this click, or the browser blocks it.
@@ -121,7 +114,6 @@ export function SkillCreateWays({
             />
             <Way
                 icon={<GithubLogo size={16} />}
-                tint="bg-foreground/10 text-foreground"
                 title={t("skills.agent.importTitle")}
                 hint={t("skills.agent.importHint")}
                 onClick={onImport}

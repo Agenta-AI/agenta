@@ -3,7 +3,7 @@ import type {ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import channelsConnectCatalog from "@agenta/i18n/catalogs/channels.connect"
 import {SelectMarkCheck} from "@agenta/ui/list-table"
-import {RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
+import {Badge, IconTile, RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
 
 export interface ChoiceCardOption<T extends string> {
     value: T
@@ -52,9 +52,7 @@ export const ChoiceCards = <T extends string>({
                         } ${selected ? "bg-selected" : ""}`}
                     >
                         <span className="relative inline-flex shrink-0">
-                            <span className="flex size-8 items-center justify-center rounded-md bg-secondary text-muted-foreground [&_svg]:size-4">
-                                {option.icon}
-                            </span>
+                            <IconTile size={32}>{option.icon}</IconTile>
                             <RadioGroupItem
                                 value={option.value}
                                 disabled={option.disabled}
@@ -68,9 +66,9 @@ export const ChoiceCards = <T extends string>({
                             <span className="flex items-center gap-2 text-label font-medium text-foreground">
                                 {option.title}
                                 {option.recommended ? (
-                                    <span className="rounded-sm bg-success/10 px-1.5 text-caption font-normal leading-5 text-success">
+                                    <Badge className="font-normal">
                                         {t("channels.connect.recommended")}
-                                    </span>
+                                    </Badge>
                                 ) : null}
                             </span>
                             <span className="text-label text-muted-foreground">{option.desc}</span>

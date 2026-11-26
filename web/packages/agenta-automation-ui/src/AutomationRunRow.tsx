@@ -4,7 +4,6 @@ import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 
 import {deliveryOutcome} from "./automationModel"
-import {FOCUS_RING} from "./lib/interactive"
 import {cn} from "./lib/utils"
 import {runDotClass, runLabel, runOutcomeLabel, runTimeOfDay} from "./runModel"
 
@@ -15,8 +14,7 @@ import {runDotClass, runLabel, runOutcomeLabel, runTimeOfDay} from "./runModel"
  * row would draw a second grid on top of that one. Selection and hover are a fill instead.
  *
  * A button rather than a link — selecting a run swaps the pane beside the list, it does not
- * navigate. The dot is the only thing carrying the outcome visually, so the outcome is also in
- * the row's accessible name; colour alone never states it.
+ * navigate. The outcome shows as the dot and a word, and is also in the row's accessible name.
  */
 export const AutomationRunRow = ({
     delivery,
@@ -51,7 +49,7 @@ export const AutomationRunRow = ({
                 "box-border flex min-h-row-dense w-full items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-1 text-left",
                 "cursor-pointer transition-colors",
                 selected ? "bg-selected" : "hover:bg-accent active:bg-accent",
-                FOCUS_RING,
+                "focus-ring-inset",
             )}
         >
             <span
@@ -64,6 +62,10 @@ export const AutomationRunRow = ({
                     <span className="truncate text-meta text-muted-foreground">{outcome}</span>
                 ) : null}
             </span>
+            {/* The dot's meaning as a word (COLOR-03); a skipped run says it on its own line. */}
+            {skipped ? null : (
+                <span className="shrink-0 text-meta text-muted-foreground">{outcome}</span>
+            )}
             {time ? (
                 <span className="shrink-0 text-meta tabular-nums text-muted-foreground">
                     {time}
