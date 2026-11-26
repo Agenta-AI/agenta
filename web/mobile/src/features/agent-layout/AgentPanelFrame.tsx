@@ -12,6 +12,7 @@ import {
 import {useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {cn} from "@agenta/ui/styles"
+import {DialogScope} from "@agenta/ui/ui"
 
 /**
  * push = beside the page; overlay = over the page's right side (under 1100 px or widened);
@@ -69,6 +70,8 @@ export const AgentPanelFrame = ({
     // drawn width, so the edge moves with the pointer; the width the person lets go at is the one
     // stored.
     const frameRef = useRef<HTMLDivElement>(null)
+    // Dialogs and alerts opened in the panel cover the panel, not the page.
+    const [frameEl, setFrameEl] = useState<HTMLDivElement | null>(null)
     const [drawn, setDrawn] = useState<number | null>(null)
     useEffect(() => {
         const frame = frameRef.current
@@ -153,7 +156,10 @@ export const AgentPanelFrame = ({
                 />
             ) : null}
             <div
-                ref={frameRef}
+                ref={(node) => {
+                    frameRef.current = node
+                    setFrameEl(node)
+                }}
                 className={cn(
                     "ag-panel-motion min-h-0",
                     !present && "hidden",
@@ -221,7 +227,7 @@ export const AgentPanelFrame = ({
                     data-testid="agent-panel"
                     className="ag-panel-raised flex h-full min-h-0 w-full flex-col outline-none"
                 >
-                    {children}
+                    <DialogScope container={frameEl}>{children}</DialogScope>
                 </div>
             </div>
         </>

@@ -6,6 +6,7 @@ import {XIcon} from "@phosphor-icons/react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 
 import {Button} from "./button"
+import {useDialogScope} from "./dialog-scope"
 import {cn} from "./utils"
 
 /**
@@ -89,7 +90,7 @@ function DialogOverlay({
 function DialogContent({
     className,
     children,
-    container,
+    container: containerProp,
     contained = false,
     onInteractOutside,
     onEscapeKeyDown,
@@ -110,10 +111,14 @@ function DialogContent({
     overlayClassName?: string
 }) {
     const t = useT(commonCatalog)
+    // Opened inside a DialogScope (a side pane), it covers that region, not the window.
+    const scope = useDialogScope()
+    const container = containerProp ?? scope
+    const scoped = !containerProp && Boolean(scope)
     useCloseWithContainer(container, contained)
     return (
         <DialogPortal container={container}>
-            <DialogOverlay className={overlayClassName} />
+            <DialogOverlay className={cn(scoped && "absolute", overlayClassName)} />
             {/* Flex-centred, not transform-centred: the zoom keyframes would overwrite a translate. */}
             <div
                 data-slot="dialog-positioner"
@@ -122,6 +127,7 @@ function DialogContent({
                     "fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none",
                     // Contained: follow the container's corners, so the mask never squares them.
                     contained && "absolute rounded-[inherit]",
+                    scoped && "absolute",
                 )}
             >
                 {/* A non-modal Root renders no Radix overlay, so the contained mask is a plain layer. */}

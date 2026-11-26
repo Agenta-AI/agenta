@@ -6,6 +6,7 @@ import {XIcon} from "@phosphor-icons/react"
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 
 import {Button, ButtonSizeContext, buttonVariants} from "./button"
+import {useDialogScope} from "./dialog-scope"
 import {cn} from "./utils"
 
 /**
@@ -46,7 +47,7 @@ function AlertDialogOverlay({
 
 function AlertDialogContent({
     className,
-    container,
+    container: containerProp,
     children,
     showCloseButton = false,
     ...props
@@ -58,6 +59,9 @@ function AlertDialogContent({
     showCloseButton?: boolean
 }) {
     const t = useT(commonCatalog)
+    // Opened inside a DialogScope (a side pane), it covers that region, not the window.
+    const scope = useDialogScope()
+    const container = containerProp ?? scope
     return (
         <AlertDialogPortal container={container}>
             <AlertDialogOverlay className={container ? "absolute" : undefined} />

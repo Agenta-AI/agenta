@@ -144,6 +144,7 @@ export {
     DialogTitle,
     DialogDescription,
 } from "./dialog"
+export {DialogScope, useDialogScope} from "./dialog-scope"
 export {
     Command,
     CommandDialog,
