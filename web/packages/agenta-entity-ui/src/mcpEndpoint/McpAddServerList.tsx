@@ -58,6 +58,10 @@ export interface McpAddServerListProps {
     onAdd: (option: McpConnectionOption) => void | Promise<void>
     /** Runs the auth step alone for an expired login. */
     onReconnect: (option: McpConnectionOption) => void
+    /** Re-reads the servers, from a connected row's menu. */
+    onRefresh?: () => void
+    /** Deletes the connection from the project; the host confirms first. */
+    onDelete?: (option: McpConnectionOption) => void
 }
 
 export function McpAddServerList({
@@ -68,6 +72,8 @@ export function McpAddServerList({
     onConnectServer,
     onAdd,
     onReconnect,
+    onRefresh,
+    onDelete,
 }: McpAddServerListProps) {
     const t = useT(mcpConnectCatalog, commonCatalog)
     const [search, setSearch] = useState("")
@@ -85,6 +91,24 @@ export function McpAddServerList({
                 option.host.toLowerCase().includes(query),
         )
     }, [options, query])
+
+    // Connected first, as the integration catalog groups its rows.
+    const groups = useMemo(
+        () =>
+            [
+                {
+                    key: "connected",
+                    label: t("common.connected"),
+                    rows: visible.filter((o) => o.status === "connected"),
+                },
+                {
+                    key: "notConnected",
+                    label: t("common.notConnected"),
+                    rows: visible.filter((o) => o.status !== "connected"),
+                },
+            ].filter((group) => group.rows.length > 0),
+        [visible, t],
+    )
 
     const handleAdd = async (option: McpConnectionOption) => {
         if (busy) return
@@ -138,9 +162,11 @@ export function McpAddServerList({
                 </Button>
             </div>
 
-            <ScrollFadeArea className="flex min-h-0 flex-1 flex-col px-4 pb-3 pt-2">
+            <ScrollFadeArea className="flex min-h-0 flex-1 flex-col px-4 pb-3">
                 {loading ? (
-                    <CatalogRowSkeleton count={3} />
+                    <div className="pt-2">
+                        <CatalogRowSkeleton count={3} />
+                    </div>
                 ) : error ? (
                     <Alert
                         type="warning"
@@ -181,18 +207,28 @@ export function McpAddServerList({
                     </Empty>
                 ) : (
                     <div className="flex flex-col gap-2">
-                        {visible.map((option) => (
-                            <ConnectionListRow
-                                key={option.slug}
-                                name={option.name}
-                                host={option.host}
-                                status={option.status}
-                                added={option.added}
-                                toolCount={option.toolCount}
-                                busy={busy}
-                                onAdd={() => void handleAdd(option)}
-                                onReconnect={() => onReconnect(option)}
-                            />
+                        {groups.map((group) => (
+                            // The integration catalog's group: a heading, 8px, then the rows.
+                            <section key={group.key} className="flex flex-col gap-2">
+                                <div className="flex items-center pt-3 text-subtitle text-foreground">
+                                    {group.label}
+                                </div>
+                                {group.rows.map((option) => (
+                                    <ConnectionListRow
+                                        key={option.slug}
+                                        name={option.name}
+                                        host={option.host}
+                                        status={option.status}
+                                        added={option.added}
+                                        toolCount={option.toolCount}
+                                        busy={busy}
+                                        onAdd={() => void handleAdd(option)}
+                                        onReconnect={() => onReconnect(option)}
+                                        onRefresh={onRefresh}
+                                        onDelete={onDelete ? () => onDelete(option) : undefined}
+                                    />
+                                ))}
+                            </section>
                         ))}
                     </div>
                 )}
