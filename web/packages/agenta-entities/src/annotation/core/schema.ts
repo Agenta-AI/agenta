@@ -54,7 +54,13 @@ export const annotationLinkSchema = z.object({
  * A reference to another entity (evaluator, testset, testcase, etc.).
  */
 export const annotationReferenceSchema = z.object({
-    id: z.string().optional(),
+    // The API reference (`Reference`) may carry only a slug, so `id` may be absent or null.
+    // A null id reads as absent, so consumers keep one "no id" value.
+    id: z
+        .string()
+        .nullish()
+        .transform((id) => id ?? undefined)
+        .optional(),
     slug: z.string().optional(),
     version: z.coerce.number().optional(),
     attributes: z.record(z.string(), z.unknown()).optional(),
@@ -86,7 +92,9 @@ export const annotationReferencesSchema = z.object({
 export const annotationMetaSchema = z.object({
     name: z.string().optional(),
     description: z.string().optional(),
-    tags: z.array(z.string()).optional(),
+    // `meta` is free-form on the API. The app writes `tags` as a list of output keys, but a
+    // client may write another shape, which must not drop the annotation.
+    tags: z.array(z.string()).optional().catch(undefined),
 })
 
 /**
