@@ -18,6 +18,8 @@ import {HeightCollapse} from "@agenta/ui"
 import {useIsPhone} from "@agenta/ui/phone"
 import {
     Badge,
+    Button,
+    CollapseCaret,
     Empty,
     EmptyHeader,
     EmptyMedia,
@@ -25,7 +27,7 @@ import {
     SearchInput,
     SkeletonRows,
 } from "@agenta/ui/ui"
-import {CaretDown, CaretRight, Wrench} from "@phosphor-icons/react"
+import {Wrench} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -276,15 +278,12 @@ const ToolRow = memo(function ToolRow({
     plainDeny?: boolean
 }) {
     const t = useT(permissionDrawerCatalog)
-    // Only the row's tint depends on this; the clamp and the toggle live in ExpandableDescription.
+    // Only the row's alignment uses this; the clamp and toggle live in ExpandableDescription.
     const [expanded, setExpanded] = useState(false)
 
     return (
-        <div
-            className={`flex flex-col border-0 border-t border-solid border-border-muted px-3 transition-colors first:border-t-0 ${phone ? "py-3" : "py-2.5"} ${
-                expanded ? "bg-secondary" : "hover:bg-accent"
-            }`}
-        >
+        // A two-line row (ROW-01): no line and no hover fill, as the Share dialog's people list.
+        <div className={`flex flex-col ${phone ? "py-1" : "min-h-row-double justify-center py-1"}`}>
             {/* Centred while collapsed; open, the select stays on the name line as the row grows. */}
             <div
                 className={
@@ -293,7 +292,7 @@ const ToolRow = memo(function ToolRow({
                         : `flex gap-3 ${expanded ? "items-start" : "items-center"}`
                 }
             >
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <div className="flex min-w-0 flex-1 flex-col">
                     <div className="flex min-w-0 items-center gap-1.5">
                         <span
                             className={`${phone ? "min-w-0 break-words text-body" : "truncate text-label"} font-medium leading-5`}
@@ -301,10 +300,7 @@ const ToolRow = memo(function ToolRow({
                             {tool.name || humanizeActionKey(tool.key)}
                         </span>
                         {tool.stale ? (
-                            <Badge
-                                variant="default"
-                                className="m-0 px-1.5 text-caption font-normal"
-                            >
+                            <Badge variant="default" className="shrink-0">
                                 {staleLabel}
                             </Badge>
                         ) : null}
@@ -333,19 +329,16 @@ const ToolRow = memo(function ToolRow({
                         onChange={(value) => onChange(tool.key, value as GatewayPermission)}
                         options={options}
                         disabled={disabled || Boolean(lockedReason)}
-                        size="sm"
-                        canvas="chip"
+                        compact
+                        // A fill, not a border: a long list reads as rows, not a column of fields.
+                        variant="filled"
                         aria-label={t("entityUi.permissionDrawer.permissionFor", {tool: tool.key})}
-                        // A compact 28px chip (radius 6, canvas F02 f6), so a long list reads as
-                        // rows, not a column of fields. On a phone a full-width field on its own
-                        // line (M09).
+                        // On a phone a full-width field on its own line (M09).
                         triggerClassName={`${
-                            phone
-                                ? "w-full gap-2"
-                                : "w-auto min-w-[96px] shrink-0 gap-2 !h-7 !rounded-md !px-2 !text-label sm:min-w-[116px]"
+                            phone ? "w-full gap-2" : "w-auto min-w-28 shrink-0 gap-2"
                         } ${
                             permission === "deny" && !plainDeny
-                                ? "border-destructive/40 bg-destructive/10 text-destructive"
+                                ? "bg-destructive/10 text-destructive"
                                 : ""
                         }`}
                         // The panel is pinned to the trigger; a compact chip wraps every option label.
@@ -416,39 +409,25 @@ function ToolGroup({
     const remaining = matching.length - visible.length
 
     return (
-        <div className="overflow-hidden rounded-lg border border-solid border-border-muted">
-            <div
+        <div className="flex flex-col gap-1">
+            {/* A quiet heading, not a band: spacing, not a box, sets the groups apart. */}
+            <button
+                type="button"
                 onClick={setOpen}
-                role="button"
-                tabIndex={0}
                 aria-expanded={open}
-                onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault()
-                        setOpen()
-                    }
-                }}
-                className={`flex cursor-pointer items-center gap-2 bg-secondary px-3 py-2 transition-colors hover:bg-accent ${""}`}
+                className="flex h-row-dense cursor-pointer items-center gap-1.5 rounded-sm border-0 bg-transparent p-0 text-left text-meta text-muted-foreground transition-colors duration-[var(--duration-fast)] ease-[var(--ease-out)] font-[inherit] hover:text-foreground focus-ring"
             >
-                {open ? (
-                    <CaretDown size={12} className="shrink-0 text-muted-foreground" />
-                ) : (
-                    <CaretRight size={12} className="shrink-0 text-muted-foreground" />
-                )}
-                {/* Sentence case, not the board's uppercase: the house style wins over the spec's
-                    typography, and "Read-only · 22" is how every other count reads in the app. */}
-                <span className="flex-1 text-meta font-medium leading-5 text-muted-foreground">
+                <CollapseCaret open={open} />
+                {/* Sentence case: "Read-only · 22" is how every other count reads in the app. */}
+                <span className="flex-1 font-medium">
                     {label} · {tools.length}
                 </span>
-                {/* Plain 12 px text for every rollup (canvas F02 f6, M09). */}
-                <span className="shrink-0 text-meta text-muted-foreground">
-                    {rollupLabel(rollup)}
-                </span>
-            </div>
+                <span className="shrink-0">{rollupLabel(rollup)}</span>
+            </button>
             <HeightCollapse open={open}>
-                <div className="flex flex-col">
+                <div className="flex flex-col gap-2">
                     {search && matching.length === 0 ? (
-                        <span className="px-3 py-2 text-meta text-muted-foreground">
+                        <span className="py-2 text-meta text-muted-foreground">
                             {t("entityUi.permissionDrawer.noMatchesInGroup")}
                         </span>
                     ) : null}
@@ -474,13 +453,14 @@ function ToolGroup({
                         )
                     })}
                     {remaining > 0 ? (
-                        <button
-                            type="button"
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="-ml-2 self-start"
                             onClick={() => setShown((value) => value + GROUP_PAGE_SIZE)}
-                            className={`cursor-pointer border-0 border-t border-solid border-border-muted bg-transparent px-3 py-2 text-left text-meta text-info ${""}`}
                         >
                             {t("entityUi.permissionDrawer.showMore", {count: remaining})}
-                        </button>
+                        </Button>
                     ) : null}
                 </div>
             </HeightCollapse>
@@ -589,7 +569,7 @@ export function PermissionDrawerBody({
     return (
         // Stable gutter: expanding a row must not summon a scrollbar that shifts every control left.
         <ScrollFadeArea
-            className={`flex min-h-0 flex-1 flex-col gap-3.5 ${
+            className={`flex min-h-0 flex-1 flex-col gap-4 ${
                 // -mx/px: the field rings keep 4px clear of the scroll clip.
                 flush
                     ? "-mx-1 px-1 pb-1 pt-4 [scrollbar-gutter:stable]"
@@ -604,7 +584,7 @@ export function PermissionDrawerBody({
             {/* One wrapper, so "everything under the banner is inert" reads as one block rather
                 than as a dozen separately greyed controls. */}
             <div
-                className={`flex min-h-0 flex-1 flex-col gap-3.5 ${
+                className={`flex min-h-0 flex-1 flex-col gap-4 ${
                     controlsDisabled ? "opacity-45" : ""
                 }`}
             >
@@ -618,9 +598,8 @@ export function PermissionDrawerBody({
                             note={t("entityUi.permissionDrawer.defaultPermissionNote")}
                         />
                         {presets?.pending ? (
-                            // One bar at the select's own height, so the row keeps its shape while
-                            // the answer is on the way. Decorative, like the list's rows.
-                            <SkeletonRows count={1} rowClassName="h-9" />
+                            // One bar at the select's own height while the answer is on the way.
+                            <SkeletonRows count={1} rowClassName="h-control" />
                         ) : valuesAsText ? (
                             <span className="text-label text-foreground">
                                 {presetOptions.find((option) => option.value === preset)?.title ??
@@ -642,10 +621,9 @@ export function PermissionDrawerBody({
                                 options={presetOptions}
                                 disabled={inert}
                                 aria-label={t("entityUi.permissionDrawer.defaultPermission")}
-                                // Two lines, the value and its help (canvas F02 f6, F10 f3): 44 px,
-                                // radius 6, 13 px.
-                                canvas="field"
-                                triggerClassName="w-full gap-2 !h-11 !rounded-md !px-3 !text-label"
+                                // The account select's shape; each preset's help is in the menu.
+                                compact
+                                triggerClassName="w-full gap-2"
                             />
                         )}
                     </div>
@@ -662,23 +640,16 @@ export function PermissionDrawerBody({
                         value={query}
                         onValueChange={setQuery}
                         disabled={inert}
+                        // The kit compact field, as the selects above it.
+                        size="compact"
                         // shrink-0: the column is a flex column that shrinks its children when the list overflows.
-                        // Canvas F02 f6: 30 px, radius 6, the secondary border, 13 px.
-                        className={
-                            phone
-                                ? "shrink-0"
-                                : "h-control shrink-0 rounded-md border-border-muted [&_input]:text-label"
-                        }
+                        className="shrink-0"
                     />
                 ) : null}
 
                 {catalog.status === "loading" ? (
-                    // Three rows at a tool row's own height, so the list area keeps its shape
-                    // while the answer is on the way (decision 25).
-                    <SkeletonRows
-                        className="rounded border border-solid border-border-muted p-3"
-                        rowClassName="h-9"
-                    />
+                    // Rows at a tool row's own height (row-double), so the list keeps its shape.
+                    <SkeletonRows />
                 ) : catalog.status === "error" ? (
                     // The saved policy is still editable through the preset above; only the
                     // per-tool list needs the catalog, so say what is missing rather than showing
@@ -703,7 +674,7 @@ export function PermissionDrawerBody({
                         {t("entityUi.permissionDrawer.noToolMatches")}
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-4">
                         <ToolGroup
                             label={readOnlyLabel ?? t("entityUi.permissionDrawer.readOnlyGroup")}
                             groupKey="read_only"
@@ -858,28 +829,24 @@ export function IntegrationTitle({
     const displayName = integration?.name || target.integration
     // A healthy connection shows no tag.
     const healthy = connection && isConnectionActive(connection) && isConnectionValid(connection)
-    // Canvas F10 f3: a bordered 12 px tag.
-    const tag = "m-0 shrink-0 px-1.5 text-meta font-normal"
 
     return (
         // w-full + min-w-0: the title slot will not shrink alone, pushing the badge past the edge.
-        <div className="flex w-full min-w-0 items-center gap-2.5">
-            <ProviderLogo logo={integration?.logo ?? null} size={22} />
+        // A mark-md logo, 8px to the name, as the MCP server title (CONS-01, SPACE-04).
+        <div className="flex w-full min-w-0 items-center gap-2">
+            <ProviderLogo logo={integration?.logo ?? null} size={24} />
             {/* The name alone: the key and the connection slug are internal ids. */}
             <div className="flex min-w-0 flex-1 items-baseline">
                 <span className="truncate text-label font-semibold leading-5">{displayName}</span>
             </div>
             {notConnected || missing ? (
-                // Canvas F10 f3: a square white tag with a light border.
-                <Badge
-                    variant="default"
-                    className={`${tag} h-5 rounded-sm border-border-muted bg-background px-2 text-muted-foreground`}
-                >
+                // The kit's neutral tone, no restyle (KIT-01).
+                <Badge variant="default" className="shrink-0">
                     {tCommon("common.notConnected")}
                 </Badge>
             ) : attention !== undefined ? (
                 attention ? (
-                    <Badge variant="warning" className={tag}>
+                    <Badge variant="warning" className="shrink-0">
                         {attention}
                     </Badge>
                 ) : null

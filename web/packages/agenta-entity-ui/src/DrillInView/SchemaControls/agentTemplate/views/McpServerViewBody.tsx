@@ -88,7 +88,7 @@ const ServerTitle = ({
     const host = endpoint ? hostnameLabel(endpoint.data.route.base_url ?? "") : ""
     return (
         // Canvas F03 f7: the name 13/20/600 with the host under it, 12/16 mono; 15/20 on a phone.
-        <div className="flex min-w-0 items-center gap-3 px-4 pb-1 pt-3.5">
+        <div className="flex min-w-0 items-center gap-2 px-4 pt-4">
             <McpServerMark size={24} name={name} />
             <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-label font-semibold leading-5">{name}</span>
@@ -100,11 +100,11 @@ const ServerTitle = ({
             </div>
             {status && status !== "connected" ? (
                 <>
-                    <Badge variant="warning" className="m-0 shrink-0 px-1.5 text-meta font-normal">
+                    <Badge variant="warning" className="shrink-0">
                         {getMcpConnectionStatusLabel(status)}
                     </Badge>
                     {onReconnect ? (
-                        <Button variant="outline" size="compact" className="" onClick={onReconnect}>
+                        <Button variant="outline" size="compact" onClick={onReconnect}>
                             <ArrowClockwise data-icon="inline-start" />
                             {t("entityUi.mcpPermissions.reconnect")}
                         </Button>

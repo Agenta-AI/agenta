@@ -61,7 +61,7 @@ export function McpAccountBlock({
     if (!showSwitch && !eachPerson && endpoint?.auth_mode === "none") return null
 
     return (
-        <div className="flex flex-col gap-3.5">
+        <div className="flex flex-col gap-4">
             {showSwitch ? (
                 <div className="flex flex-col gap-2">
                     <FieldHeading

@@ -64,19 +64,15 @@ export function SkillFormSkeleton() {
 /** Account, default permission, search, then tool rows: the shape of a tool's permissions. */
 export function ToolPermissionsSkeleton() {
     return (
-        <div aria-busy className="flex flex-col gap-3.5 p-4">
+        <div aria-busy className="flex flex-col gap-4 p-4">
             {[0, 1].map((i) => (
-                <div key={i} className="flex flex-col gap-1.5">
+                <div key={i} className="flex flex-col gap-2">
                     <SkeletonBlock className="h-3 w-28" />
-                    <SkeletonBlock className="h-9" />
+                    <SkeletonBlock className="h-control" />
                 </div>
             ))}
-            <SkeletonBlock className="h-9" />
-            <SkeletonRows
-                count={6}
-                className="rounded border border-solid border-border-muted p-3"
-                rowClassName="h-9"
-            />
+            <SkeletonBlock className="h-control" />
+            <SkeletonRows count={6} />
         </div>
     )
 }

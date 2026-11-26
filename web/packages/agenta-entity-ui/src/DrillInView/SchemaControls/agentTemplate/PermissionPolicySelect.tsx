@@ -17,7 +17,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
-import {CaretUpDown} from "@phosphor-icons/react"
 
 export interface PermissionPolicyOption {
     value: string
@@ -49,15 +48,12 @@ export interface PermissionPolicySelectProps {
     triggerClassName?: string
     /** Menu width override. The panel is pinned to the trigger, which wraps a compact chip's rows. */
     contentClassName?: string
-    size?: "sm" | "default"
     /** Which trigger edge the menu lines up with. A row's trailing chip opens leftward ("end"). */
     align?: "start" | "end"
-    /**
-     * The canvas trigger (F02 f6, F03 f7): no leading glyph and an up-down icon. "field" also
-     * shows the selected option's help line under its title (a 44 px field); "chip" is the 28 px
-     * per-tool control. Absent, the trigger is unchanged.
-     */
-    canvas?: "field" | "chip"
+    /** The kit compact field (32 px, up-down icon) with no leading glyph, as the account select. */
+    compact?: boolean
+    /** "filled": a muted fill and no border, for a control that repeats down a list. */
+    variant?: "default" | "filled"
 }
 
 export function PermissionPolicySelect({
@@ -71,9 +67,9 @@ export function PermissionPolicySelect({
     container,
     triggerClassName = "w-full",
     contentClassName,
-    size,
     align,
-    canvas,
+    compact,
+    variant,
 }: PermissionPolicySelectProps) {
     const t = useT(permissionDrawerCatalog)
     const selected = options.find((option) => option.value === value)
@@ -87,34 +83,15 @@ export function PermissionPolicySelect({
         >
             <SelectTrigger
                 className={triggerClassName}
-                size={size}
-                icon={
-                    canvas ? (
-                        <CaretUpDown
-                            aria-hidden
-                            size={canvas === "field" ? 14 : 12}
-                            className="ml-auto shrink-0 text-muted-foreground"
-                        />
-                    ) : undefined
-                }
+                size={compact ? "compact" : undefined}
+                variant={variant}
                 aria-label={ariaLabel ?? t("entityUi.permissionDrawer.permissionPolicy")}
             >
                 <SelectValue>
-                    {canvas === "field" ? (
-                        <span className="flex min-w-0 flex-col items-start text-left">
-                            <span className="max-w-full truncate leading-5">{selected?.title}</span>
-                            {selected?.help ? (
-                                <span className="max-w-full truncate text-meta text-muted-foreground">
-                                    {selected.help}
-                                </span>
-                            ) : null}
-                        </span>
-                    ) : (
-                        <span className="flex min-w-0 items-center gap-2">
-                            {canvas ? null : selected?.icon}
-                            <span className="truncate">{selected?.title}</span>
-                        </span>
-                    )}
+                    <span className="flex min-w-0 items-center gap-2">
+                        {compact ? null : selected?.icon}
+                        <span className="truncate">{selected?.title}</span>
+                    </span>
                 </SelectValue>
             </SelectTrigger>
             <SelectContent container={container} className={contentClassName} align={align}>
