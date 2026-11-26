@@ -155,24 +155,9 @@ export const ConfigurationRoot = ({
                 className={cn("min-h-0 flex-1", tabSwitched && "ag-view-enter-children")}
             >
                 {configTab === "agent" ? (
+                    // Save status and History live in the session header's version pill.
                     <div className="flex h-full min-h-0 flex-col">
-                        <div className="min-h-0 flex-1">
-                            <ConfigPane entityId={revisionId} inset={!panel.phone} />
-                        </div>
-                        {panel.phone ? null : (
-                            // Save status and version in the footer (S02, configuration-draft).
-                            <div className="flex shrink-0 justify-end border-0 border-t border-solid border-border-muted px-6 py-3">
-                                <AgentRevisionStatus
-                                    revisionId={revisionId}
-                                    historyWorkflowId={agentId}
-                                    // The newest status draws the history drawer: keep its
-                                    // "Update to vN", as the header's status passes it.
-                                    onUpdate={pinRevision}
-                                    checkKey={sessionId}
-                                    footer
-                                />
-                            </div>
-                        )}
+                        <ConfigPane entityId={revisionId} inset={!panel.phone} />
                     </div>
                 ) : configTab === "automations" ? (
                     <AutomationsTab

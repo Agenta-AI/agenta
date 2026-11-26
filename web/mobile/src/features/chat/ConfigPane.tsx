@@ -1,11 +1,9 @@
 import {useContext} from "react"
 
-import {ModelSetupBanner} from "@agenta/chat/components"
 import {AgentEditorContext, SectionListLayoutContext} from "@agenta/entity-ui/drill-in"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
 import {cn} from "@agenta/ui/styles"
 
-import {useOpenModelSetup} from "./useOpenModelSetup"
 
 /**
  * The Agent tab of the panel: the SHARED config panel, the same sections the desktop playground
@@ -34,7 +32,6 @@ export const ConfigPane = ({
      */
     column?: boolean
 }) => {
-    const openModelSetup = useOpenModelSetup()
     // The edit right comes from the container (ConfigurationContent), which its open views share.
     const readOnly = useContext(AgentEditorContext)?.readOnly ?? false
 
@@ -46,17 +43,6 @@ export const ConfigPane = ({
             // Automations and files have their own places in the panel.
             operations={false}
             stickyHeaderTop={0}
-            banner={
-                // The alert keeps a gap under the tabs; it collapses with the banner. In the
-                // side pane it sits on the pane's 24 px line, as the sections do.
-                <div className={cn(inset ? "px-5" : "px-4", "[&_[data-slot=alert]]:mt-3")}>
-                    <ModelSetupBanner
-                        revisionId={entityId}
-                        layout="alert"
-                        onSetUp={openModelSetup}
-                    />
-                </div>
-            }
             // The operational sections (and their drawers) live in the Automations tab.
             automationDrawer={null}
         />

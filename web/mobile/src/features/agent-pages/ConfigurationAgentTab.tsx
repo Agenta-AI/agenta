@@ -1,10 +1,8 @@
 import {useRef} from "react"
 
-import {ModelSetupBanner} from "@agenta/chat/components"
 import {SectionListLayoutContext} from "@agenta/entity-ui/drill-in"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
 
-import {useOpenModelSetup} from "../chat/useOpenModelSetup"
 
 import {ConfigurationSectionNav} from "./ConfigurationSectionNav"
 import {CONFIGURATION_PAGE_COLUMN} from "./configurationTabs"
@@ -22,7 +20,6 @@ export const ConfigurationAgentTab = ({
     revisionId: string
     readOnly: boolean
 }) => {
-    const openModelSetup = useOpenModelSetup()
     const scrollRef = useRef<HTMLDivElement>(null)
     return (
         <div
@@ -51,16 +48,6 @@ export const ConfigurationAgentTab = ({
                             // Automations have their own tab on this page.
                             operations={false}
                             automationDrawer={null}
-                            banner={
-                                // The alert keeps a gap above the rows; it collapses with the banner.
-                                <div className="px-4 [&_[data-slot=alert]]:mt-3">
-                                    <ModelSetupBanner
-                                        revisionId={revisionId}
-                                        layout="alert"
-                                        onSetUp={openModelSetup}
-                                    />
-                                </div>
-                            }
                         />
                     </SectionListLayoutContext.Provider>
                 </div>

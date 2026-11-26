@@ -1,7 +1,7 @@
 import {agentNeedsSetupTitle, modelNeedsSetupMessage} from "@agenta/entity-ui/needs-setup"
 import {useT} from "@agenta/i18n"
 import chatModelSetupBannerCatalog from "@agenta/i18n/catalogs/chat.modelSetupBanner"
-import {Alert, Button} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {WarningIcon} from "@phosphor-icons/react"
 
 import {useAgentModelSetup} from "../hooks/useAgentModelSetup"
@@ -11,8 +11,6 @@ import RevealCollapse from "./RevealCollapse"
 export interface ModelSetupBannerProps {
     /** The saved agent revision the server checked. */
     revisionId: string
-    /** `strip` sits above the composer; `alert` sits at the top of the config pane. */
-    layout?: "strip" | "alert"
     /** Opens the model picker. Omitted, or a viewer who cannot fix it, shows no button. */
     onSetUp?: () => void
 }
@@ -23,7 +21,6 @@ export interface ModelSetupBannerProps {
  */
 export const ModelSetupBanner = ({
     revisionId,
-    layout = "strip",
     onSetUp,
 }: ModelSetupBannerProps) => {
     const t = useT(chatModelSetupBannerCatalog)
@@ -34,21 +31,6 @@ export const ModelSetupBanner = ({
                 {t("chat.modelSetupBanner.setUp")}
             </Button>
         ) : null
-
-    if (layout === "alert") {
-        return (
-            <RevealCollapse open={blocked}>
-                <Alert
-                    className="mb-3"
-                    type="warning"
-                    showIcon
-                    message={agentNeedsSetupTitle()}
-                    description={modelNeedsSetupMessage()}
-                    action={action}
-                />
-            </RevealCollapse>
-        )
-    }
 
     // Same strip as the connect-model gate above the composer, so the two read as one family.
     return (

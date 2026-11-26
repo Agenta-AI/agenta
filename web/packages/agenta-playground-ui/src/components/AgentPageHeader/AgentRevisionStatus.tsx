@@ -86,11 +86,6 @@ export interface AgentRevisionStatusProps {
     /** On a phone, the name of the screen the history's back arrow returns to. */
     backTitle?: string
     /**
-     * Lay out for a footer (the Configuration panel, canvas S02): a "History" button and the
-     * status as a bordered "Saved as vN". Needs `historyWorkflowId`.
-     */
-    footer?: boolean
-    /**
      * Lay out for the Configuration page header (canvas A04): the version and when it was saved
      * as a history button ("v4 · Today 09:12"), then the status as a bordered "Saved as vN".
      * Needs `historyWorkflowId`.
@@ -117,7 +112,6 @@ export const AgentRevisionStatus = ({
     checkKey,
     phone = false,
     backTitle,
-    footer = false,
     page = false,
     className,
 }: AgentRevisionStatusProps) => {
@@ -282,10 +276,10 @@ export const AgentRevisionStatus = ({
             </button>
         ) : null
 
-    // The bordered "Saved as vN" of the footer and the page header. A status, not an action:
-    // enabled only as the retry of a failed save.
+    // The bordered "Saved as vN" of the page header. A status, not an action: enabled only as
+    // the retry of a failed save.
     const savedAsButton =
-        (footer || page) && version !== null ? (
+        page && version !== null ? (
             <StatusWrap tip={failed ? dot.tip : null}>
                 <Button
                     variant="outline"
@@ -302,24 +296,6 @@ export const AgentRevisionStatus = ({
                 </Button>
             </StatusWrap>
         ) : null
-
-    if (footer) {
-        return (
-            <div className={cn("flex items-center gap-2", className)}>
-                {historyWorkflowId ? (
-                    <Button
-                        variant="ghost"
-                        size="compact"
-                        onClick={() => openHistory(historyWorkflowId)}
-                    >
-                        {t("playground.revisionStatus.history")}
-                    </Button>
-                ) : null}
-                {savedAsButton}
-                {historyDrawer}
-            </div>
-        )
-    }
 
     if (page) {
         return (
