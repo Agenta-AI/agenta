@@ -379,7 +379,7 @@ def test_a_pinned_organization_credential_never_substitutes(org, gateway_on):
         org.call("DELETE", f"/secrets/{own['id']}", as_="editor", project=org.marketing)
 
 
-def test_ee_limit_to_sales(org, admin_api):
+def test_ee_limit_to_sales(org, admin_api, gateway_on):
     if not is_ee():
         pytest.skip("EE limit")
     skip_unless_plan_offers(admin_api, plan=RBAC_PLAN, flags=("rbac",))

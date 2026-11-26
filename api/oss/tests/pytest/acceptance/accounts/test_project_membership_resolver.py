@@ -3,6 +3,8 @@
 import pytest
 
 from oss.src.utils.common import is_ee
+from oss.tests.pytest.utils.membership_accounts import RBAC_PLAN
+from oss.tests.pytest.utils.plans import project_limit
 from oss.tests.pytest.utils.membership_accounts import (
     PERMISSION_DENIED,
     Team,
@@ -99,7 +101,7 @@ def test_role_change_takes_effect_at_once(admin_api, team):
     resp = admin_api(
         "POST", "/projects/", headers=team.headers("viewer"), json={"name": "R2"}
     )
-    if is_ee():
+    if is_ee() and project_limit(admin_api, plan=RBAC_PLAN) == 1:
         assert resp.status_code == 403, resp.text
         assert resp.json()["detail"]["code"] == "project_limit_reached"
     else:

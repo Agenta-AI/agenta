@@ -13,6 +13,7 @@ from uuid import uuid4
 import pytest
 
 from oss.src.utils.common import is_ee
+from oss.tests.pytest.utils.plans import organization_limit
 
 
 def _create_org(authed_api, admin_api, name):
@@ -89,9 +90,13 @@ class TestOrganizationLifecycle:
     @pytest.mark.skipif(
         not is_ee(), reason="the organization limit runs on the enterprise path"
     )
-    def test_create_organization_is_refused_at_the_instance_limit(self, authed_api):
-        # A test stack has no license key: the instance already holds its one
-        # organization, so the public route refuses another one.
+    def test_create_organization_is_refused_at_the_instance_limit(
+        self, authed_api, admin_api
+    ):
+        # A test stack without a license key, or with a free one, holds one organization,
+        # so the public route refuses another one. A paid key has no limit.
+        if organization_limit(admin_api) != 1:
+            pytest.skip("the instance plan has no organization limit of 1")
         response = authed_api(
             "POST", "/organizations/", json={"name": f"org-{uuid4().hex[:8]}"}
         )

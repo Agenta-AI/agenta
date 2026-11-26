@@ -9,37 +9,35 @@ A test that needs a flag to be absent asks the other way and skips on a licensed
 instance, where every organization gets the flags of the key.
 """
 
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 from uuid import uuid4
 
 import pytest
 
 # Pinned plan -> (the plan the deployment applies, that plan's flags). One lookup per
 # pinned plan and process.
-_EFFECTIVE: Dict[str, Tuple[str, Dict[str, bool]]] = {}
+_EFFECTIVE: Dict[Optional[str], Tuple[Optional[str], Dict[str, bool]]] = {}
 
 
-def _effective_plan(admin_api, *, plan: str) -> Tuple[str, Dict[str, bool]]:
+def _effective_plan(
+    admin_api, *, plan: Optional[str]
+) -> Tuple[Optional[str], Dict[str, bool]]:
     if plan in _EFFECTIVE:
         return _EFFECTIVE[plan]
 
     email = f"plan-probe-{uuid4().hex[:12]}@test.agenta.ai"
-    created = admin_api(
-        "POST",
-        "/admin/simple/accounts/",
-        json={
-            "accounts": {
-                "u": {
-                    "user": {"email": email},
-                    "options": {
-                        "create_api_keys": True,
-                        "return_api_keys": True,
-                        "seed_defaults": True,
-                    },
-                    "subscription": {"plan": plan},
-                }
-            }
+    account = {
+        "user": {"email": email},
+        "options": {
+            "create_api_keys": True,
+            "return_api_keys": True,
+            "seed_defaults": True,
         },
+    }
+    if plan is not None:
+        account["subscription"] = {"plan": plan}
+    created = admin_api(
+        "POST", "/admin/simple/accounts/", json={"accounts": {"u": account}}
     )
     assert created.status_code == 200, created.text
     headers = {
@@ -97,3 +95,22 @@ def skip_if_plan_offers(admin_api, *, plan: str, flag: str) -> None:
             f"the deployment applies plan {applied}, which offers {flag}; this test "
             f"needs an organization without it"
         )
+
+
+def project_limit(admin_api, *, plan: Optional[str]) -> Optional[int]:
+    """The most projects an organization pinned to `plan` can create on this deployment,
+    or None when it has no limit."""
+    from ee.src.core.access.entitlements.types import PROJECT_LIMITS  # noqa: PLC0415
+
+    applied, _ = _effective_plan(admin_api, plan=plan)
+    return PROJECT_LIMITS.get(applied)
+
+
+def organization_limit(admin_api) -> Optional[int]:
+    """The most organizations this instance can hold, or None when it has no limit."""
+    from ee.src.core.access.entitlements.types import (  # noqa: PLC0415
+        ORGANIZATION_LIMITS,
+    )
+
+    applied, _ = _effective_plan(admin_api, plan=None)
+    return ORGANIZATION_LIMITS.get(applied)
