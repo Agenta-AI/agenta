@@ -3,18 +3,19 @@ import chatMobileConfigCatalog from "@agenta/i18n/catalogs/chat.mobileConfig"
 import {CONFIG_REGION_BAR} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
-/** Title and summary widths of the Model, Instructions, Tools, MCP, Skills and Advanced rows. */
-const ROWS = [
-    [128, 130],
-    [112, 48],
-    [60, 56],
-    [122, 44],
-    [56, 44],
-    [100, 110],
+/** Title and summary widths of the panel's cards, as `AgentConfigSkeleton` draws them. */
+const CARDS = [
+    [44, 84],
+    [84, 64],
+    [88, 72],
+    [76, 72],
+    [88, 60],
+    [40, 52],
+    [68, 0],
 ] as const
 
 /**
- * The config pane while its chunk loads: the real "Configuration" bar over section rows on the
+ * The config pane while its chunk loads: the real "Configuration" bar over section cards on the
  * geometry of `AgentConfigSkeleton`, which ships inside that chunk and so cannot cover this gap.
  */
 export const ConfigPaneLoading = () => {
@@ -32,25 +33,24 @@ export const ConfigPaneLoading = () => {
                 </span>
                 <SkeletonBlock active className="h-7 w-7" />
             </div>
-            <div className="flex flex-col px-4 pb-3 pt-1">
-                {ROWS.map(([title, value], i) => (
+            <div className="flex flex-col gap-2 px-4 pb-3 pt-3">
+                {CARDS.map(([title, value], i) => (
                     <div
                         key={i}
-                        className={
-                            "flex min-h-11 items-center gap-2 py-3" +
-                            (i < ROWS.length - 1
-                                ? " border-0 border-b border-solid border-border"
-                                : "")
-                        }
+                        className="-mx-2.5 flex h-10 items-center gap-2 rounded-lg bg-muted px-2.5"
                     >
-                        <SkeletonBlock active shape="square" className="h-4 w-4" />
-                        <SkeletonBlock active style={{width: title, height: 16}} />
-                        <SkeletonBlock
-                            active
-                            className="ml-auto"
-                            style={{width: value, height: 14}}
-                        />
-                        <SkeletonBlock active shape="mark" className="h-3.5 w-3.5" />
+                        <span className="size-7 shrink-0 rounded-md bg-background" />
+                        <SkeletonBlock active style={{width: title, height: 14}} />
+                        {value ? (
+                            <SkeletonBlock
+                                active
+                                className="ml-auto"
+                                style={{width: value, height: 12}}
+                            />
+                        ) : (
+                            <span className="ml-auto" />
+                        )}
+                        <SkeletonBlock active className="size-3.5" />
                     </div>
                 ))}
             </div>
