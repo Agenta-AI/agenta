@@ -13,8 +13,9 @@ import {AgentChip} from "@agenta/entity-ui/agent"
 import {
     firstBadFile,
     SKILL_ACTION_ROW,
-    SkillFormSkeleton,
+    SkillBodySkeleton,
     SkillViewHeader,
+    SkillViewSkeleton,
     useSkillViewForm,
     skillFilesOf,
     useSkillDownloadAction,
@@ -55,6 +56,7 @@ import {
     Popover,
     PopoverAnchor,
     PopoverContent,
+    SkeletonBlock,
     Spinner,
 } from "@agenta/ui/ui"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
@@ -118,9 +120,7 @@ const RegistrySkillViewBody = ({params, target, nav, readOnly}: ViewProps<Regist
 
     if (!item) {
         return query.isPending ? (
-            <div className="flex min-h-0 flex-1 flex-col p-4">
-                <SkillFormSkeleton />
-            </div>
+            <SkillViewSkeleton />
         ) : (
             <LoadFailed onRetry={() => void query.refetch()} />
         )
@@ -363,7 +363,12 @@ const RegistrySkillEditor = ({
         t("skills.gallery.archived")
     ) : null
 
-    const usage = !usageQuery.data ? null : usedBy.length ? (
+    // While the usage loads its line keeps its place, so the fields do not move when it lands.
+    const usage = !usageQuery.data ? (
+        usageQuery.isLoading ? (
+            <SkeletonBlock className="h-3 w-28" />
+        ) : null
+    ) : usedBy.length ? (
         <UsedBy
             container={editorRoot}
             usedBy={usedBy}
@@ -380,7 +385,7 @@ const RegistrySkillEditor = ({
     // "Used by · Edited" under the name, as on the Skills page.
     const meta =
         !isBuiltin && (usage || edited) ? (
-            <div className="flex shrink-0 flex-wrap items-center gap-x-1.5 px-4 pb-2 text-meta text-muted-foreground">
+            <div className="flex min-h-6 shrink-0 flex-wrap items-center gap-x-1.5 px-4 pb-2 text-meta text-muted-foreground">
                 {usage}
                 {usage && edited ? <span aria-hidden>·</span> : null}
                 {edited ? <span>{t("skills.page.edited", {age: edited})}</span> : null}
@@ -450,9 +455,7 @@ const RegistrySkillEditor = ({
                         </span>
                     </div>
                 ) : revisionsQuery.isPending ? (
-                    <div className="flex min-h-0 flex-1 flex-col px-4">
-                        <SkillFormSkeleton />
-                    </div>
+                    <SkillBodySkeleton />
                 ) : revisionsQuery.isError || !head ? (
                     <LoadFailed onRetry={() => void revisionsQuery.refetch()} />
                 ) : (

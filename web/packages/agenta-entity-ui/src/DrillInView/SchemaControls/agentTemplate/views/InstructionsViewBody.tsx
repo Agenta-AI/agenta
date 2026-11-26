@@ -7,7 +7,7 @@ import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls
 import {Button} from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 
-import {MarkdownBodySkeleton} from "../../DrawerSkeletons"
+import {MarkdownBodySkeleton, MarkdownToolbarSkeleton} from "../../DrawerSkeletons"
 import {MarkdownEditor} from "../../MarkdownEditor"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 
@@ -53,7 +53,13 @@ const InstructionsViewBody = ({params, target}: ViewProps<InstructionsViewParams
             {showToolbar ? (
                 // Tone alone sets the band apart (SURF-01); the left edge and the text sit at 16px.
                 <div className="flex shrink-0 items-center gap-1 bg-muted py-1.5 pl-4 pr-2">
-                    <div ref={setToolbarHost} className="min-w-0 flex-1" />
+                    <div className="relative min-w-0 flex-1">
+                        <div ref={setToolbarHost} className="peer min-w-0" />
+                        {/* The tools' shape holds the band until the editor puts them in. */}
+                        <MarkdownToolbarSkeleton
+                            className="absolute inset-y-0 left-0 hidden peer-empty:flex"
+                        />
+                    </div>
                     <Button
                         variant="ghost"
                         size="xs"

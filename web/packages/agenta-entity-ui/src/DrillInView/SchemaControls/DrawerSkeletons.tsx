@@ -16,25 +16,57 @@ export function FormDrawerSkeleton() {
     )
 }
 
+/** The tools as `MarkdownToolbar` draws them: the block menu or H1 to H3, then icon groups. */
+export function MarkdownToolbarSkeleton({
+    layout = "default",
+    className,
+}: {
+    layout?: "default" | "inline"
+    className?: string
+}) {
+    const inline = layout === "inline"
+    const groups = inline ? [3, 4, 3, 2] : [4, 2]
+    return (
+        <div aria-hidden className={cn("flex items-center gap-1", className)}>
+            {inline ? null : <SkeletonBlock className="h-6 w-28 rounded-control" />}
+            {groups.map((count, group) => (
+                <span key={group} className="flex items-center gap-1">
+                    {group > 0 || !inline ? (
+                        <span
+                            className={cn("h-4 w-px bg-border-muted", inline ? "mx-0.5" : "mx-1")}
+                        />
+                    ) : null}
+                    {Array.from({length: count}).map((_, i) => (
+                        <SkeletonBlock
+                            key={i}
+                            className={cn("rounded-control", inline ? "size-7" : "size-6")}
+                        />
+                    ))}
+                </span>
+            ))}
+        </div>
+    )
+}
+
 /** A formatting toolbar over a few lines of text: the shape of the Markdown editor. */
 export function MarkdownEditorSkeleton({framed = true}: {framed?: boolean}) {
+    if (!framed)
+        return (
+            // The Instructions view: its muted band (tools, then Source) over the text lines.
+            <div aria-busy className="flex h-full min-h-0 flex-col overflow-hidden">
+                <div className="flex shrink-0 items-center gap-1 bg-muted py-1.5 pl-4 pr-2">
+                    <MarkdownToolbarSkeleton className="min-w-0 flex-1" />
+                    <SkeletonBlock className="h-6 w-15 shrink-0 rounded-control" />
+                </div>
+                <MarkdownBodySkeleton />
+            </div>
+        )
     return (
         <div
             aria-busy
-            className={cn(
-                "flex h-full min-h-0 flex-col overflow-hidden",
-                framed && "rounded-md border border-solid border-border",
-            )}
+            className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-solid border-border"
         >
-            {/* Unframed: the edge-to-edge band of a pane editor (Instructions). */}
-            <div
-                className={cn(
-                    "flex items-center gap-2 py-2",
-                    framed
-                        ? "border-0 border-b border-solid border-border-muted px-3"
-                        : "bg-muted pl-4 pr-2",
-                )}
-            >
+            <div className="flex items-center gap-2 border-0 border-b border-solid border-border-muted px-3 py-2">
                 <SkeletonBlock className="h-5 w-24" />
                 <SkeletonBlock className="h-5 w-5" />
                 <SkeletonBlock className="h-5 w-5" />
@@ -56,6 +88,48 @@ export function MarkdownBodySkeleton() {
             <SkeletonBlock className="mt-3 h-4 w-1/3" />
             <SkeletonBlock className="h-3" />
             <SkeletonBlock className="h-3 w-4/5" />
+        </div>
+    )
+}
+
+/** The skill view's fields: Description, then Instructions with its tools over the editor box. */
+export function SkillBodySkeleton() {
+    return (
+        <div aria-busy className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-4 pt-3">
+            <div className="flex flex-col gap-1">
+                <div className="flex h-4.5 items-center">
+                    <SkeletonBlock className="h-3.5 w-20" />
+                </div>
+                <SkeletonBlock className="h-19.5 rounded-control" />
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col gap-1">
+                <div className="flex h-7 items-center justify-between gap-2">
+                    <SkeletonBlock className="h-3.5 w-20" />
+                    <MarkdownToolbarSkeleton layout="inline" />
+                </div>
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-control border border-solid border-input">
+                    <MarkdownBodySkeleton />
+                </div>
+            </div>
+        </div>
+    )
+}
+
+/** The registry skill view: the name with its two actions, the usage line, then the fields. */
+export function SkillViewSkeleton() {
+    return (
+        <div aria-busy className="flex min-h-0 flex-1 flex-col">
+            <div className="flex shrink-0 items-center gap-1 px-4 py-2">
+                <div className="flex h-8 min-w-0 flex-1 items-center">
+                    <SkeletonBlock className="h-5 w-40" />
+                </div>
+                <SkeletonBlock className="size-7 shrink-0 rounded-control" />
+                <SkeletonBlock className="size-7 shrink-0 rounded-control" />
+            </div>
+            <div className="mb-2 flex h-4 shrink-0 items-center px-4">
+                <SkeletonBlock className="h-3 w-48" />
+            </div>
+            <SkillBodySkeleton />
         </div>
     )
 }

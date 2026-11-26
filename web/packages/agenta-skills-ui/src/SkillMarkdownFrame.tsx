@@ -1,4 +1,4 @@
-import {MarkdownEditor} from "@agenta/entity-ui/drill-in"
+import {MarkdownBodySkeleton, MarkdownEditor} from "@agenta/entity-ui/drill-in"
 import {MarkdownPreview} from "@agenta/ui"
 import {cn} from "@agenta/ui/styles"
 
@@ -56,6 +56,8 @@ export function SkillMarkdownFrame({
                         defaultView="rendered"
                         hideHeader
                         grow={fill}
+                        // The lines the view's skeleton drew, so the box keeps one loading shape.
+                        loadingSkeleton={<MarkdownBodySkeleton />}
                     />
                 </div>
             ) : value.trim() ? (

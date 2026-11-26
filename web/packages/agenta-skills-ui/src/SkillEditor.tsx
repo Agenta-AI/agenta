@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 import {createPortal} from "react-dom"
 
+import {MarkdownToolbarSkeleton} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
@@ -34,7 +35,16 @@ const TOOLS_SLOT = "flex min-w-0 items-center"
 
 /** A label-row slot for the formatting tools; it shrinks so the toolbar can scroll. */
 function ToolsSlot({onSlot}: {onSlot: (slot: HTMLDivElement | null) => void}) {
-    return <div ref={onSlot} className={TOOLS_SLOT} />
+    return (
+        <div className="relative flex min-h-7 min-w-0 items-center">
+            <div ref={onSlot} className={cn(TOOLS_SLOT, "peer")} />
+            {/* The tools' shape holds the row until the editor puts them in. */}
+            <MarkdownToolbarSkeleton
+                layout="inline"
+                className="absolute right-0 hidden peer-empty:flex"
+            />
+        </div>
+    )
 }
 
 /** The skill editor the skill page and the create page share: fields, a file, the Files pane. */
@@ -99,6 +109,9 @@ export function SkillEditor({
     )
 
     const current = draft.files.find((file) => file.path === openPath) ?? null
+    // The fields fade in when a file gives them back their place, not on the view's first paint.
+    const [fileShown, setFileShown] = useState(false)
+    if (current && !fileShown) setFileShown(true)
     const tooLong = descriptionTooLong(draft)
     const missingDescription = showMissing && !draft.description.trim()
     // The editor reports text after a short delay; typing clears the error at once.
@@ -208,7 +221,13 @@ export function SkillEditor({
     ) : null
 
     const skillView = (
-        <div className={cn("ag-view-enter flex flex-col gap-4", inline && "min-h-0 flex-1")}>
+        <div
+            className={cn(
+                "flex flex-col gap-4",
+                fileShown && "ag-view-enter",
+                inline && "min-h-0 flex-1",
+            )}
+        >
             <div className="flex flex-col gap-1">
                 <Field
                     label={t("skills.editor.description")}

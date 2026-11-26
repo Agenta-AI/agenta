@@ -49,11 +49,13 @@ import {
 } from "@phosphor-icons/react"
 import {
     $createParagraphNode,
+    $getRoot,
     $getSelection,
     $isRangeSelection,
     $setSelection,
     type BaseSelection,
     type ElementNode,
+    type LexicalNode,
     FORMAT_TEXT_COMMAND,
     type TextFormatType,
 } from "lexical"
@@ -142,6 +144,24 @@ function TableSizePicker({onPick}: {onPick: (rows: number, cols: number) => void
     )
 }
 
+/** The block-type menu's key for a top-level block. */
+const blockTypeOf = (block: LexicalNode | null): string =>
+    block && $isHeadingNode(block)
+        ? block.getTag()
+        : block && $isQuoteNode(block)
+          ? "quote"
+          : block && $isCodeNode(block)
+            ? "code"
+            : "paragraph"
+
+/** The block under the caret, or the first block before the editor has a caret. */
+const $currentBlockType = (): string => {
+    const selection = $getSelection()
+    if ($isRangeSelection(selection))
+        return blockTypeOf(selection.anchor.getNode().getTopLevelElement())
+    return blockTypeOf($getRoot().getFirstChild())
+}
+
 export function MarkdownToolbar({disabled = false, layout = "default"}: MarkdownToolbarProps) {
     const t = useT(uiEditorCatalog, commonCatalog)
     const [editor] = useLexicalComposerContext()
@@ -156,7 +176,10 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
         insideTable: false,
     })
     // The current block type (paragraph / h1-h3 / quote / code), shown in the block-type menu.
-    const [blockType, setBlockType] = useState<string>("paragraph")
+    // Read at mount, so the menu does not flip from "Normal text" when the caret lands.
+    const [blockType, setBlockType] = useState<string>(() =>
+        editor.getEditorState().read($currentBlockType),
+    )
     // The URL under the caret (empty when not on a link), seeded into the link popover.
     const [linkUrl, setLinkUrl] = useState("")
     const [linkOpen, setLinkOpen] = useState(false)
@@ -187,15 +210,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                       ? parent
                       : null
                 setLinkUrl(linkNode ? linkNode.getURL() : "")
-                setBlockType(
-                    block && $isHeadingNode(block)
-                        ? block.getTag()
-                        : block && $isQuoteNode(block)
-                          ? "quote"
-                          : block && $isCodeNode(block)
-                            ? "code"
-                            : "paragraph",
-                )
+                setBlockType(blockTypeOf(block))
                 setActive({
                     bold: selection.hasFormat("bold"),
                     italic: selection.hasFormat("italic"),

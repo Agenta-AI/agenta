@@ -456,7 +456,13 @@ export type {McpServerFormViewProps} from "./SchemaControls/McpServerFormView"
 export {SkillFormView} from "./SchemaControls/SkillFormView"
 export {useSkillViewForm} from "./SchemaControls/SkillUploadStep"
 export type {SkillUploadControl} from "./SchemaControls/SkillUploadStep"
-export {SkillFormSkeleton} from "./SchemaControls/DrawerSkeletons"
+export {
+    MarkdownBodySkeleton,
+    MarkdownToolbarSkeleton,
+    SkillBodySkeleton,
+    SkillFormSkeleton,
+    SkillViewSkeleton,
+} from "./SchemaControls/DrawerSkeletons"
 export type {SkillFormViewProps} from "./SchemaControls/SkillFormView"
 export {scanSkillFromDataTransfer, scanSkillFromFileList} from "./SchemaControls/skillUpload"
 export type {ParsedSkill, SkillScanCandidate, SkillUploadScan} from "./SchemaControls/skillUpload"
