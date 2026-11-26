@@ -44,3 +44,48 @@ def test_older_database_stops_before_any_step(monkeypatch, capsys, revisions):
     assert "Upgrade to v0.129.x first" in error
     for revision in revisions:
         assert revision in error
+
+
+@pytest.mark.asyncio
+async def test_before_the_split_the_legacy_core_name_is_read(monkeypatch):
+    """An older database not yet split still has its legacy name, such as `agenta_oss`.
+    The check reads that name, so the refusal also covers it."""
+    from sqlalchemy.engine import make_url
+
+    from ee.databases.postgres.migrations import utils
+
+    core = make_url(utils.env.postgres.uri_core).database
+    legacy = next(old for old, new in utils.RENAME_MAP.items() if new == core)
+    read_uris = []
+
+    async def fetch_scalar(uri, query, params=None):
+        if params is not None:
+            return 1 if params["name"] == legacy else None
+        return "alembic_version"
+
+    class _Conn:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return False
+
+        async def execute(self, _query):
+            return [("4f5a6b7c8d9e",)]
+
+    class _Engine:
+        def connect(self):
+            return _Conn()
+
+        async def dispose(self):
+            return None
+
+    def engine(uri):
+        read_uris.append(uri)
+        return _Engine()
+
+    monkeypatch.setattr(utils, "_fetch_scalar", fetch_scalar)
+    monkeypatch.setattr(utils, "create_async_engine", engine)
+
+    assert await utils.read_legacy_core_revisions() == ["4f5a6b7c8d9e"]
+    assert read_uris == [utils._database_uri(legacy)]
