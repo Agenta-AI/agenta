@@ -61,6 +61,9 @@ concurrency:
 
 env:
   RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+  # preview-clone-create.sh points the clone's telemetry at the "Agenta Test Traffic"
+  # PostHog project with this public ingestion token.
+  POSTHOG_API_KEY: phc_rCKHKJj7ea3r5t7frogShC8MUsuFzSD6FFTJe7YniDV9
 
 jobs:
   clone-cycles:
