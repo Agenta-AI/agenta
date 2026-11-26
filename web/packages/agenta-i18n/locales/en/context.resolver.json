@@ -1,5 +1,9 @@
 {
+    "checkAgain": "Check again",
+    "noOrganizationBody": "This instance has one organization. Ask its admin to invite you. The invitation opens here when it arrives.",
+    "noOrganizationTitle": "You are not in an organization yet",
     "noProjects": "No projects found.",
     "retry": "Retry",
+    "signedInAs": "Signed in as {{email}}",
     "somethingWrong": "Something went wrong."
 }

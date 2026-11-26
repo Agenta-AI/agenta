@@ -1,4 +1,4 @@
-import {useEffect, useLayoutEffect, useReducer, useRef, useState} from "react"
+import {useEffect, useLayoutEffect, useReducer, useRef, useState, type ReactNode} from "react"
 
 import type {useComposerAttachments} from "@agenta/chat/hooks"
 import {motion} from "motion/react"
@@ -34,6 +34,7 @@ import {
     nextStep,
     onboardingHeadingId,
     onboardingRoutePath,
+    REGISTRATION_HEADING_ID,
     stepIndex,
     stepRoute,
     type GalleryFocus,
@@ -67,6 +68,13 @@ export interface OnboardingFlowProps {
     onCreate: (input: FirstAgentInput) => Promise<boolean>
     /** Leaves onboarding without an agent; offered on the first-agent step. */
     onSkip: () => void
+    /**
+     * A step shown in place of the current one, in the question layout, until the host drops
+     * it: the registration offer after the survey. The URL keeps the next step.
+     */
+    interstitial?: ReactNode
+    /** The registration offer shows, or will show, at the credits step: its dot says Register. */
+    registrationStep?: boolean
 }
 
 const QUESTION_WIDTH = "max-w-[680px]"
@@ -94,6 +102,8 @@ export const OnboardingFlow = ({
     onQuestionsDone,
     onCreate,
     onSkip,
+    interstitial,
+    registrationStep = false,
 }: OnboardingFlowProps) => {
     const [draft, dispatch] = useReducer(onboardingReducer, draftKey, readOnboardingDraft)
     const flushDraft = useDraftSave(draftKey, draft)
@@ -133,6 +143,16 @@ export const OnboardingFlow = ({
             .querySelector<HTMLElement>(`#${onboardingHeadingId(shown.step)}`)
             ?.focus({preventScroll: true})
     }, [shown])
+    const hasInterstitial = Boolean(interstitial)
+    useLayoutEffect(() => {
+        if (!hasInterstitial) return
+        const scroller = scrollerRef.current
+        if (!scroller) return
+        scroller.scrollTop = 0
+        scroller
+            .querySelector<HTMLElement>(`#${REGISTRATION_HEADING_ID}`)
+            ?.focus({preventScroll: true})
+    }, [hasInterstitial])
 
     // Mirrors `draft.completed` synchronously, so a double click reports a step once.
     const completedRef = useRef(new Set(draft.completed))
@@ -238,39 +258,62 @@ export const OnboardingFlow = ({
             data-onboarding-scroller
             className="bg-background text-foreground flex h-dvh flex-col overflow-y-auto overflow-x-hidden"
         >
-            <OnboardingHeader onSkip={step === "templates" && !creating ? onSkip : undefined} />
+            <OnboardingHeader
+                onSkip={step === "templates" && !creating && !interstitial ? onSkip : undefined}
+            />
             <main
                 className={cn(
                     "box-border flex min-w-0 flex-1 items-center justify-center px-4 pb-6 pt-6 sm:px-6",
                     // The gallery is pinned to the top and fills the height, so its title, chips
                     // and Use template never move with a longer list or a longer template.
                     // Below this the whole page scrolls instead of squeezing the panel under the dots.
-                    step === "templates" && "md:min-h-[520px] md:items-stretch md:pb-0",
+                    step === "templates" &&
+                        !interstitial &&
+                        "md:min-h-[520px] md:items-stretch md:pb-0",
                 )}
             >
-                <motion.section
-                    key={step}
-                    custom={shown.direction}
-                    variants={presets.stepSlide}
-                    initial="initial"
-                    animate="animate"
-                    // `min-w-0`: otherwise the widest row sets the floor and overflows a phone.
-                    className={cn(
-                        "w-full min-w-0",
-                        isFixedStep(step) ? WIDTH[step] : QUESTION_WIDTH,
-                        step === "templates" && "md:flex md:min-h-0 md:flex-col",
-                    )}
-                >
-                    {isFixedStep(step) ? body[step]() : question(step)}
-                </motion.section>
+                {interstitial ? (
+                    <motion.section
+                        key="registration"
+                        custom={1}
+                        variants={presets.stepSlide}
+                        initial="initial"
+                        animate="animate"
+                        className={cn("w-full min-w-0", QUESTION_WIDTH)}
+                    >
+                        {interstitial}
+                    </motion.section>
+                ) : (
+                    <motion.section
+                        key={step}
+                        custom={shown.direction}
+                        variants={presets.stepSlide}
+                        initial="initial"
+                        animate="animate"
+                        // `min-w-0`: otherwise the widest row sets the floor and overflows a phone.
+                        className={cn(
+                            "w-full min-w-0",
+                            isFixedStep(step) ? WIDTH[step] : QUESTION_WIDTH,
+                            step === "templates" && "md:flex md:min-h-0 md:flex-col",
+                        )}
+                    >
+                        {isFixedStep(step) ? body[step]() : question(step)}
+                    </motion.section>
+                )}
             </main>
             <OnboardingProgressDots
                 steps={steps}
                 current={steps.indexOf(step)}
+                // The registration offer is not a route, so a dot would change the step
+                // behind it and leave the offer on screen.
                 reached={(target) =>
-                    !creating && target !== step && isStepOpen(target, draft, steps)
+                    !creating &&
+                    !interstitial &&
+                    target !== step &&
+                    isStepOpen(target, draft, steps)
                 }
                 onGo={(target) => go(stepRoute(target))}
+                registrationStep={registrationStep}
             />
         </div>
     )

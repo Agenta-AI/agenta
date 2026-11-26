@@ -46,3 +46,25 @@ describe("parseEntry cover", () => {
         expect(parsed?.feature).not.toHaveProperty("cover")
     })
 })
+
+describe("parseEntry upgrade_notes", () => {
+    it("makes a docs path absolute", () => {
+        const parsed = parseEntry(entry("upgrade_notes: /self-host/upgrading#steps"), "a.mdx")
+        expect(parsed?.upgradeNotesLink).toBe("https://agenta.ai/docs/self-host/upgrading#steps")
+    })
+
+    it("keeps an https link", () => {
+        const parsed = parseEntry(entry("upgrade_notes: https://example.com/steps"), "a.mdx")
+        expect(parsed?.upgradeNotesLink).toBe("https://example.com/steps")
+    })
+
+    it("leaves the field out when the entry has none", () => {
+        expect(parseEntry(entry(""), "a.mdx")).not.toHaveProperty("upgradeNotesLink")
+    })
+
+    it("fails on a link that is not https", () => {
+        expect(() => parseEntry(entry("upgrade_notes: http://example.com"), "a.mdx")).toThrow(
+            /upgrade_notes/,
+        )
+    })
+})

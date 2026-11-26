@@ -19,6 +19,7 @@ import {
     SsoProvidersSection,
     useEntitlements,
 } from "@agenta/settings-ui"
+import {isBillingEnabled} from "@agenta/shared/api"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {Button} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
@@ -29,10 +30,10 @@ import {plainAccessError} from "./accessErrors"
 import {AddDomainDialog} from "./AddDomainDialog"
 import {ConfirmModal} from "./ConfirmModal"
 import {DomainDnsInstructions} from "./DomainDnsInstructions"
+import {LockedEnterpriseFeatures} from "./LockedEnterpriseFeatures"
 import {OrganizationSlugField} from "./OrganizationSlugField"
 import {SeePlansButton} from "./SeePlansButton"
 import type {SettingsTabProps} from "./settingsTabProps"
-import {useMobileSettingsAccess} from "./settingsTabs"
 import {SsoProviderDialog, type SsoProviderFormValues} from "./SsoProviderDialog"
 import {OrganizationLoading, OrganizationNoFlags} from "./states/OrganizationStates"
 import {useSettingsOrg} from "./useSettingsOrg"
@@ -40,19 +41,19 @@ import {useSettingsOrg} from "./useSettingsOrg"
 /** Settings > Access & Security: sign-in policy, verified domains and SSO, each gated by plan. */
 export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const t = useT(commonCatalog, settingsAccessSecurityTabCatalog)
-    const access = useMobileSettingsAccess()
     const {organizationId, org, loading, failed, retry} = useSettingsOrg(workspaceId)
+    const entitlements = useEntitlements({projectId})
+    // A locked section never calls the routes it stands in for.
     const domains = useQuery({
         queryKey: ["organization-domains", organizationId, projectId],
         queryFn: () => organizationAccessApi.fetchOrganizationDomains(projectId),
-        enabled: Boolean(organizationId && projectId),
+        enabled: Boolean(organizationId && projectId) && entitlements.hasDomains,
     })
     const providers = useQuery({
         queryKey: ["organization-providers", organizationId, projectId],
         queryFn: () => organizationAccessApi.fetchOrganizationProviders(projectId),
-        enabled: Boolean(organizationId && projectId),
+        enabled: Boolean(organizationId && projectId) && entitlements.hasSSO,
     })
-    const entitlements = useEntitlements({projectId, enabled: access.isEE})
     const canEdit = useProjectPermission(projectId, "edit_workspace")
 
     const [savingFlag, setSavingFlag] = useState<AuthFlagKey | null>(null)
@@ -206,7 +207,24 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
     }
 
     // Entitlements gate every section; rendering before they land flashes the locked state.
-    if (loading || entitlements.isLoading) return <OrganizationLoading />
+    if (entitlements.isLoading) return <OrganizationLoading />
+    const locked = [
+        !entitlements.hasAccessControl && "access",
+        !entitlements.hasDomains && "domains",
+        !entitlements.hasSSO && "sso",
+    ].filter(Boolean) as AccessFeature[]
+    // Self-hosted shows one box with the upgrade actions; demand is still measured per feature.
+    const lockedNotices = isBillingEnabled() ? (
+        <AccessUpgradeNotice
+            locked={locked}
+            action={<SeePlansButton workspaceId={workspaceId} projectId={projectId} />}
+        />
+    ) : (
+        <LockedEnterpriseFeatures features={locked} screen="organization" />
+    )
+    // With nothing included there is no organization setting to read.
+    if (locked.length === 3) return <div className="flex flex-col gap-8">{lockedNotices}</div>
+    if (loading) return <OrganizationLoading />
     if (failed)
         return <LoadError title={t("settings.accessSecurityTab.loadError")} onRetry={retry} />
     const flags = org.data?.flags as OrganizationFlags | undefined
@@ -215,11 +233,6 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
     const domainList = domains.data ?? []
     const providerList = providers.data ?? []
     const orgSlug = org.data?.slug
-    const locked = [
-        !entitlements.hasAccessControl && "access",
-        !entitlements.hasDomains && "domains",
-        !entitlements.hasSSO && "sso",
-    ].filter(Boolean) as AccessFeature[]
 
     return (
         <div className="flex flex-col gap-8">
@@ -357,10 +370,7 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
                 </div>
             ) : null}
 
-            <AccessUpgradeNotice
-                locked={locked}
-                action={<SeePlansButton workspaceId={workspaceId} projectId={projectId} />}
-            />
+            {lockedNotices}
 
             <AddDomainDialog
                 open={addDomainOpen}

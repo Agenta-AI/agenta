@@ -9,6 +9,8 @@ Asserts:
 
 from uuid import uuid4
 
+from utils.plans import skip_unless_plan_offers
+
 
 def _create_account(admin_api, *, email, plan=None):
     account = {
@@ -107,6 +109,9 @@ def _provider_payload(slug):
 
 class TestOrganizationAccessAdmin:
     def test_viewer_denied_owner_allowed(self, admin_api):
+        skip_unless_plan_offers(
+            admin_api, plan="cloud_v0_business", flags=("domains", "sso")
+        )
         uid = uuid4().hex[:12]
         # Provider slugs allow only lowercase letters and hyphens.
         slug = "".join(chr(ord("a") + int(c, 16)) for c in uid)

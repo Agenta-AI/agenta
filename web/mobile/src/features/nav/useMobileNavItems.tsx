@@ -18,9 +18,10 @@ import {
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
     loadMoreSidebarSessionsAtomFamily,
+    notInstalledReleasesAtom,
+    releaseListAtom,
     sidebarSessionPageCountAtomFamily,
     sidebarSessionsNeedNextPageAtomFamily,
-    RELEASES,
     SIDEBAR_UNBOUNDED,
     sidebarSessionsListAtomFamily,
     setSidebarSessionFilterDefaults,
@@ -28,8 +29,15 @@ import {
     type SessionSidebarRef,
     type SidebarConfig,
     type SidebarEntityRef,
+    type UpdateSize,
+    updateSizeAtom,
 } from "@agenta/navigation"
-import {buildReleaseNavItems, SessionFilterMenu, SessionSearchButton} from "@agenta/navigation-ui"
+import {
+    buildReleaseNavItems,
+    SessionFilterMenu,
+    SessionSearchButton,
+    UPDATE_SIZE_COLOR,
+} from "@agenta/navigation-ui"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {
     SessionRowActions,
@@ -72,6 +80,7 @@ import {shareDialogRequestAtom} from "@/features/chat/shareDialogState"
 import {useLeaveSession} from "@/features/chat/useLeaveSession"
 import {startBlankSession} from "@/features/chat/useStartBlankSession"
 import {useEnabledDeveloperViews} from "@/features/developer/developerViewAccess"
+import {useReleaseNotices} from "@/features/education/useReleaseNotices"
 import {whatsNewAtom} from "@/features/education/whatsNewAtom"
 
 import {useProjectPermission} from "../context/useProjectPermission"
@@ -498,6 +507,13 @@ export const useMobileBottomNavItems = (
     )
 }
 
+/** The update row names the size of the newest missing update, as its marks' color does. */
+const UPDATE_LABEL = {
+    security: "navigation.items.securityUpdate",
+    minor: "navigation.items.newMinorVersion",
+    patch: "navigation.items.newPatchVersion",
+} as const satisfies Record<UpdateSize, string>
+
 /**
  * Help & Docs as an item the rail renders as an icon button beside the project switcher, the
  * same place the desktop rail puts it. It is a menu you reach for, not a place in the product,
@@ -509,11 +525,30 @@ export const useMobileHelpItem = ({
     const t = useT(navigationCatalog)
     const version = useMobileVersion()
     const openWhatsNew = useSetAtom(whatsNewAtom)
+    const releases = useAtomValue(releaseListAtom)
+    const notInstalled = useAtomValue(notInstalledReleasesAtom)
+    const size = useAtomValue(updateSizeAtom)
+    const {notices, dismiss: dismissReleaseNotice} = useReleaseNotices()
 
     return useMemo(() => {
+        const newest = notInstalled[0]
         const help = buildHelpDocsNavItem({
             icons: {
-                help: createElement(QuestionIcon, {size: 16}),
+                help:
+                    newest && size
+                        ? createElement(
+                              "span",
+                              {
+                                  className: "relative flex",
+                                  "aria-label": t("navigation.items.updateAvailable"),
+                              },
+                              createElement(QuestionIcon, {size: 16}),
+                              createElement("span", {
+                                  "data-update-size": size,
+                                  className: `absolute -right-0.5 -top-0.5 size-1.5 rounded-full ${UPDATE_SIZE_COLOR[size].bg}`,
+                              }),
+                          )
+                        : createElement(QuestionIcon, {size: 16}),
                 docs: createElement(ScrollIcon, {size: 14}),
                 github: createElement(GithubLogoIcon, {size: 14}),
                 slack: createElement(SlackLogoIcon, {size: 14}),
@@ -528,12 +563,34 @@ export const useMobileHelpItem = ({
                     // The rule between the destinations and the release list.
                     divider: true,
                 },
-                // Release rows reopen the what's-new dialog; "View all releases" links out.
-                ...buildReleaseNavItems(version, {
-                    whatsNew: t("navigation.items.whatsNew"),
-                    viewAll: t("navigation.items.viewAllReleases"),
-                }).map((item) =>
-                    RELEASES.some((release) => release.id === item.key)
+                // Release rows reopen the what's-new dialog; a notice opens its link and
+                // stays closed after; "View all releases" links out.
+                ...buildReleaseNavItems(
+                    version,
+                    {
+                        whatsNew: t("navigation.items.whatsNew"),
+                        viewAll: t("navigation.items.viewAllReleases"),
+                        update: newest && size ? t(UPDATE_LABEL[size], {version: newest.id}) : "",
+                        releasesBehind: t("navigation.items.releasesBehind", {
+                            count: notInstalled.length,
+                        }),
+                        notInstalled: t("navigation.items.notInstalled"),
+                        securityFix: t("navigation.items.securityFix"),
+                    },
+                    {
+                        releases,
+                        notInstalled,
+                        notices,
+                        updateSize: size,
+                        // The dialog shows what the update brings, then how to install it.
+                        onOpenUpdate: (release) => openWhatsNew({releaseId: release.id}),
+                        onOpenNotice: (notice) => {
+                            window.open(notice.link, "_blank", "noopener,noreferrer")
+                            dismissReleaseNotice(notice.id)
+                        },
+                    },
+                ).map((item) =>
+                    releases.some((release) => release.id === item.key)
                         ? {
                               ...item,
                               link: undefined,
@@ -556,5 +613,15 @@ export const useMobileHelpItem = ({
                 titles[item.key] ? {...item, title: titles[item.key]} : item,
             ),
         }
-    }, [onOpenShortcuts, openWhatsNew, t, version])
+    }, [
+        dismissReleaseNotice,
+        notInstalled,
+        notices,
+        onOpenShortcuts,
+        openWhatsNew,
+        releases,
+        size,
+        t,
+        version,
+    ])
 }

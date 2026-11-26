@@ -29,6 +29,7 @@
     "items.keyboardShortcuts": "Atalhos de teclado",
     "items.newAgentOrOpen": "Novo agente ou abrir um agente",
     "items.newSessionWith": "Nova sessão com {{agent}}",
+    "items.notInstalled": "Não instalada",
     "items.observability": "Observabilidade",
     "items.overview": "Visão geral",
     "items.playground": "Playground",
@@ -46,6 +47,7 @@
     "items.testSets": "Conjuntos de testes",
     "items.untitledPrompt": "Prompt sem título",
     "items.untitledSession": "Sessão sem título",
+    "items.updateAvailable": "Atualização disponível",
     "items.viewAllReleases": "Ver todas as versões",
     "items.whatsNew": "O que há de novo?",
     "projectMenu.createOrganization": "Criar organização",
@@ -67,6 +69,7 @@
     "settings.channels": "Canais",
     "settings.credits": "Créditos",
     "settings.integrationsLabel": "Integrações",
+    "settings.license": "Licença",
     "settings.llms": "Provedores de IA",
     "settings.mcpEndpoints": "MCPs",
     "settings.organization": "Acesso e segurança",
@@ -81,5 +84,12 @@
     "settings.tools": "Ferramentas",
     "settings.watchWalkthrough": "Assistir ao tour",
     "settings.webhooks": "Webhooks",
-    "settings.workspace": "Membros"
+    "settings.workspace": "Membros",
+    "items.newMinorVersion": "Nova versão secundária: {{version}}",
+    "items.newPatchVersion": "Nova versão de correção: {{version}}",
+    "items.securityUpdate": "Atualização de segurança: {{version}}",
+    "items.releasesBehind_one": "{{count}} versão atrás",
+    "items.releasesBehind_many": "{{count}} versões atrás",
+    "items.releasesBehind_other": "{{count}} versões atrás",
+    "items.securityFix": "Correção de segurança"
 }

@@ -29,6 +29,7 @@
     "items.keyboardShortcuts": "键盘快捷键",
     "items.newAgentOrOpen": "新建或打开 Agent",
     "items.newSessionWith": "与 {{agent}} 开始新会话",
+    "items.notInstalled": "未安装",
     "items.observability": "可观测性",
     "items.overview": "概览",
     "items.playground": "调试台",
@@ -46,6 +47,7 @@
     "items.testSets": "测试集",
     "items.untitledPrompt": "未命名提示词",
     "items.untitledSession": "未命名会话",
+    "items.updateAvailable": "有可用的更新",
     "items.viewAllReleases": "查看所有版本",
     "items.whatsNew": "最新动态",
     "projectMenu.createOrganization": "创建组织",
@@ -67,6 +69,7 @@
     "settings.channels": "渠道",
     "settings.credits": "额度",
     "settings.integrationsLabel": "集成",
+    "settings.license": "许可证",
     "settings.llms": "AI 供应商",
     "settings.mcpEndpoints": "MCP",
     "settings.organization": "访问与安全",
@@ -81,5 +84,10 @@
     "settings.tools": "工具",
     "settings.watchWalkthrough": "观看演示",
     "settings.webhooks": "Webhook",
-    "settings.workspace": "成员"
+    "settings.workspace": "成员",
+    "items.newMinorVersion": "新的次要版本：{{version}}",
+    "items.newPatchVersion": "新的补丁版本：{{version}}",
+    "items.securityUpdate": "安全更新：{{version}}",
+    "items.releasesBehind_other": "落后 {{count}} 个版本",
+    "items.securityFix": "安全修复"
 }

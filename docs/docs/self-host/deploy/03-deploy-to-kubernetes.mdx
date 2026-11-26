@@ -96,7 +96,7 @@ postgres:
   password: "<openssl rand -hex 16>"
 ```
 
-For Enterprise Edition, keep `agenta.license: ee`, configure `global.imagePullSecrets`, and review `hosting/kubernetes/helm/LICENSE.ee`.
+For Enterprise Edition, keep `agenta.license: ee` and review `hosting/kubernetes/helm/LICENSE.ee`. A [license key](/self-host/license-keys) decides the plan, on either value.
 
 ### 3. Install
 
@@ -108,19 +108,17 @@ helm install agenta hosting/kubernetes/helm \
   -f hosting/kubernetes/oss/.values.oss.yaml
 ```
 
-For EE, the chart pulls images from a private GHCR repository (`ghcr.io/agenta-ai/internal-ee-*`). Kubernetes needs credentials to pull them, so create a `docker-registry` Secret in the target namespace before installing. The example EE values reference it by name in `global.imagePullSecrets`:
-
-```yaml
-global:
-  imagePullSecrets:
-    - name: ghcr-pull-secret
-```
-
-Create the namespace and the Secret with your EE GHCR username and personal access token (PAT with `read:packages`):
+For EE, every image is the same public image as OSS. Install with the EE values:
 
 ```bash
-kubectl create namespace agenta
+helm install agenta hosting/kubernetes/helm \
+  --namespace agenta --create-namespace \
+  -f hosting/kubernetes/ee/.values.ee.yaml
+```
 
+The classic web app (the `web` component) only forwards to the main app. To run the private Enterprise build of it instead, set `web.image.repository` to `ghcr.io/agenta-ai/internal-ee-agenta-web`. Kubernetes then needs credentials to pull it. Create a `docker-registry` Secret with your EE GHCR username and personal access token (PAT with `read:packages`), and reference it in `global.imagePullSecrets`:
+
+```bash
 kubectl create secret docker-registry ghcr-pull-secret \
   --docker-server=ghcr.io \
   --docker-username=<your-github-username> \
@@ -128,15 +126,14 @@ kubectl create secret docker-registry ghcr-pull-secret \
   --namespace agenta
 ```
 
-Then install:
-
-```bash
-helm install agenta hosting/kubernetes/helm \
-  --namespace agenta \
-  -f hosting/kubernetes/ee/.values.ee.yaml
+```yaml
+global:
+  imagePullSecrets:
+    - name: ghcr-pull-secret
+web:
+  image:
+    repository: ghcr.io/agenta-ai/internal-ee-agenta-web
 ```
-
-If you change the Secret name, update `global.imagePullSecrets[0].name` in your values file to match.
 
 :::info
 The chart automatically wires `postgres.password` to both the application pods and the Bitnami PostgreSQL subchart (via a shared Kubernetes Secret). You only need to set it once.
@@ -200,7 +197,7 @@ Configuration is done through Helm values. Defaults live in `hosting/kubernetes/
 
 | Value | Purpose | Default |
 |-------|---------|---------|
-| `agenta.license` | Edition to deploy (`oss` or `ee`) | `oss` |
+| `agenta.license` | Picks the bundled database names (`agenta_<license>_*`) and the classic web app build (`oss` or `ee`). Do not change it on an install that has data | `oss` |
 | `agenta.webUrl` | Public web URL | derived from `ingress.host` |
 | `agenta.apiUrl` | Public API URL | derived from `ingress.host`, plus `/api` |
 | `agenta.servicesUrl` | Public services URL | derived from `ingress.host`, plus `/services` |
@@ -254,7 +251,7 @@ When `supertokens.apiKey` is empty, the SuperTokens instance runs without authen
 You can restrict who can sign up and create organizations.
 
 :::info
-Access control settings are available only in Enterprise Edition.
+These settings work on every plan. See [Restrict sign-ups and organization creation](/self-host/guides/restrict-organization-creation).
 :::
 
 | Value | Purpose | Default |
@@ -285,11 +282,11 @@ To enable transactional emails (invitations and password resets), configure Send
 
 | Value | Purpose | Default |
 |-------|---------|---------|
-| `api.image.repository` | API image | Derived from `agenta.license` |
+| `api.image.repository` | API image | `ghcr.io/agenta-ai/agenta-api` |
 | `api.image.tag` | API image tag | `.Chart.AppVersion` |
-| `web.image.repository` | Web image | Derived from `agenta.license` |
+| `web.image.repository` | Classic web app image | `ghcr.io/agenta-ai/agenta-web` |
 | `web.image.tag` | Web image tag | `.Chart.AppVersion` |
-| `services.image.repository` | Services image | Derived from `agenta.license` |
+| `services.image.repository` | Services image | `ghcr.io/agenta-ai/agenta-services` |
 | `services.image.tag` | Services image tag | `.Chart.AppVersion` |
 
 Workers, cron, and Alembic jobs reuse the API image.
@@ -299,7 +296,7 @@ If you build your own images or mirror them to another registry, set the image r
 ```yaml
 api:
   image:
-    repository: registry.example.com/agenta-api-ee
+    repository: registry.example.com/agenta-api
     tag: v0.95.1
 
 web:
@@ -309,11 +306,11 @@ web:
 
 services:
   image:
-    repository: registry.example.com/agenta-services-ee
+    repository: registry.example.com/agenta-services
     tag: v0.95.1
 ```
 
-When these values are set, they override the edition-based defaults.
+When these values are set, they override the defaults.
 
 ### Component Toggles and Replicas
 
@@ -389,7 +386,7 @@ The chart includes Bitnami PostgreSQL as a subchart. It is enabled by default an
 - EE: `agenta_ee_core`, `agenta_ee_tracing`, `agenta_ee_supertokens`
 
 :::caution
-The bundled PostgreSQL init scripts run only when the database volume is first created. If you change `agenta.license` later, the chart will not rename or recreate the databases automatically. For that case, create the new databases yourself or do a fresh install with a new PostgreSQL volume.
+The bundled PostgreSQL init scripts run only when the database volume is first created. If you change `agenta.license` later, the install points at other database names, which are empty. The chart does not rename or copy the databases. To move to a paid plan, add a [license key](/self-host/license-keys) and keep `agenta.license` as it is.
 :::
 
 | Value | Purpose | Default |
@@ -455,7 +452,7 @@ Migrations run as a Kubernetes Job with `post-install,post-upgrade` hooks. Post-
 |-------|---------|---------|
 | `alembic.enabled` | Enable migration job | `true` |
 | `alembic.hookPhase` | `post` or `pre` | `post` |
-| `alembic.activeDeadlineSeconds` | Job timeout | `600` |
+| `alembic.activeDeadlineSeconds` | Seconds the Job may run before Kubernetes stops it and the install or upgrade fails | `3600` |
 | `alembic.backoffLimit` | Retry count | `3` |
 | `alembic.ttlSecondsAfterFinished` | Cleanup delay | `300` |
 
@@ -614,7 +611,7 @@ You can disable any bundled infrastructure component and point to an external in
 
 ### External PostgreSQL
 
-If you deploy Enterprise Edition, replace `agenta_oss_*` in the examples below with `agenta_ee_*`.
+If `agenta.license` is `ee`, replace `agenta_oss_*` in the examples below with `agenta_ee_*`.
 
 ```yaml
 postgresql:
@@ -766,10 +763,14 @@ To upgrade to a newer version:
 ```bash
 helm upgrade agenta hosting/kubernetes/helm \
   --namespace agenta \
+  --timeout 75m \
   -f hosting/kubernetes/oss/.values.oss.yaml
 ```
 
-The Alembic migration job runs automatically as a post-upgrade hook. Check its status:
+The Alembic migration job runs automatically as a post-upgrade hook. Helm waits for it under
+`--timeout`, which is 5 minutes by default. A migration on a large database can take longer, so
+set `--timeout` above `alembic.activeDeadlineSeconds` (3600 seconds by default). Otherwise Helm
+marks the upgrade as failed while the job still runs. Check its status:
 
 ```bash
 kubectl -n agenta get jobs -l app.kubernetes.io/component=alembic

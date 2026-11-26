@@ -35,20 +35,30 @@ import {useRouter} from "next/router"
 import {fetchProjects} from "@/lib/context"
 
 import {groupByOrganization} from "../context/workspaceGroups"
+import {readLimitRefusal} from "../limits/limitRefusal"
+import {LimitRefusalNotice} from "../limits/LimitRefusalNotice"
+import {OrganizationLimitNotice} from "../limits/OrganizationLimitNotice"
+import {useLimitRefusal} from "../limits/useLimitRefusal"
 
 import {ConfirmModal} from "./ConfirmModal"
+import {isAtLimit} from "./licenseApi"
 import {NameDialog} from "./NameDialog"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {switchSettingsContext} from "./switchContext"
+import {invalidateLicenseUsage, useLicenseUsage} from "./useLicenseUsage"
 import {useSettingsOrg} from "./useSettingsOrg"
 
 const errorText = (error: unknown, fallback: string): string => {
-    const axiosLike = error as {response?: {data?: {detail?: string}}; message?: string}
-    return axiosLike?.response?.data?.detail || axiosLike?.message || fallback
+    const axiosLike = error as {
+        response?: {data?: {detail?: string | {message?: string}}}
+        message?: string
+    }
+    const detail = axiosLike?.response?.data?.detail
+    return (typeof detail === "object" ? detail?.message : detail) || axiosLike?.message || fallback
 }
 
 /** Mobile binding: create, rename in place, transfer ownership and delete for organizations. */
-export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
+export const OrganizationsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const t = useT(commonCatalog, settingsOrganizationsTabCatalog)
     const router = useRouter()
     const queryClient = useQueryClient()
@@ -63,8 +73,14 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
         void org.refetch()
         // The nav switcher and org switching read org names and projects from this list.
         void queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})
+        // A new or deleted organization changes the count against the instance limit.
+        void invalidateLicenseUsage(queryClient)
     }
     const [creating, setCreating] = useState(false)
+    // The limit shows when the dialog opens, before the reader types a name.
+    const usage = useLicenseUsage(projectId, creating)
+    const organizationsAtLimit = isAtLimit(usage.data?.organizations)
+    const {refusal, refuse, clear: clearRefusal} = useLimitRefusal(usage, usage.data?.organizations)
     const [transferring, setTransferring] = useState<Org | null>(null)
     const [deleting, setDeleting] = useState<Org | null>(null)
     const [pending, setPending] = useState(false)
@@ -73,12 +89,15 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
     const run = async (action: () => Promise<unknown>, fallback: string) => {
         setPending(true)
         setError(null)
+        clearRefusal()
         try {
             await action()
             onChanged()
             return true
         } catch (cause) {
-            setError(errorText(cause, fallback))
+            const limitRefusal = readLimitRefusal(cause)
+            if (limitRefusal) refuse(limitRefusal)
+            else setError(errorText(cause, fallback))
             return false
         } finally {
             setPending(false)
@@ -117,6 +136,7 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
             }}
             onCreate={() => {
                 setError(null)
+                clearRefusal()
                 setCreating(true)
             }}
             onRename={async (org, name) => {
@@ -144,6 +164,24 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
                 submitLabel={t("common.create")}
                 pending={pending}
                 error={error}
+                submitDisabled={organizationsAtLimit || Boolean(refusal)}
+                notice={
+                    organizationsAtLimit && usage.data?.organizations ? (
+                        <OrganizationLimitNotice
+                            usage={usage.data.organizations}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            onNavigate={() => setCreating(false)}
+                        />
+                    ) : refusal ? (
+                        <LimitRefusalNotice
+                            refusal={refusal}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            onNavigate={() => setCreating(false)}
+                        />
+                    ) : null
+                }
                 onClose={() => setCreating(false)}
                 onSubmit={async (name) => {
                     if (

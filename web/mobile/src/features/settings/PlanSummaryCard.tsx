@@ -11,10 +11,17 @@ import {creditsLine} from "./planCatalog"
 
 const tNow = createT(billingPlanSummaryCardCatalog)
 
-/** The trial's state, else when the plan renews; nothing for a plan that never renews. */
-const renewal = (subscription: BillingSubscription | null | undefined, isOnFreePlan: boolean) => {
+/**
+ * The trial's state, else when the plan renews; nothing for a plan that never renews. A
+ * self-hosted plan does not renew: a paid key's expiry is on the License tab.
+ */
+const renewal = (
+    subscription: BillingSubscription | null | undefined,
+    isOnFreePlan: boolean,
+    selfHosted: boolean,
+) => {
     const end = periodEnd(subscription)
-    if (!end || isOnFreePlan) return null
+    if (!end || isOnFreePlan || selfHosted) return null
     if (subscription?.free_trial)
         return end > new Date()
             ? tNow("billing.planSummaryCard.trialEnds", {date: formatDate(end.toISOString())})
@@ -34,6 +41,7 @@ export const PlanSummaryCard = ({
     monthlyCreditsMusd,
     isOnFreePlan,
     isCustomPlan,
+    selfHosted = false,
     onChangePlan,
     onCancel,
 }: {
@@ -44,12 +52,14 @@ export const PlanSummaryCard = ({
     monthlyCreditsMusd: number | null
     isOnFreePlan: boolean
     isCustomPlan: boolean
+    /** The install is self-hosted: its plan comes from the license key, not from billing. */
+    selfHosted?: boolean
     onChangePlan?: () => void
     onCancel?: () => void
 }) => {
     const t = useT(billingPlanSummaryCardCatalog)
     const name = plan?.title ?? planName(subscription?.plan) ?? "—"
-    const renews = renewal(subscription, isOnFreePlan)
+    const renews = renewal(subscription, isOnFreePlan, selfHosted)
 
     const price = planPrice(plan)
     // The wallet's live grant wins; the catalog's line covers plans the wallet does not grant.

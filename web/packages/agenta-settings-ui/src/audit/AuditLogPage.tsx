@@ -39,6 +39,8 @@ export interface AuditLogPageProps {
     renderDateRange?: AuditLogFiltersProps["renderDateRange"]
     /** The upgrade link on the locked state — routing and billing availability are the host's. */
     upgradeAction?: ReactNode
+    /** The host's own locked state; it replaces the upgrade notice when set. */
+    upgradeNotice?: ReactNode
     /** The roster that names each event's user. */
     members?: WorkspaceMember[]
     /** Marks your own events "(you)". */
@@ -56,6 +58,7 @@ export const AuditLogPage = ({
     entitlementsLoading = false,
     renderDateRange,
     upgradeAction,
+    upgradeNotice,
     members,
     currentUserId,
 }: AuditLogPageProps) => {
@@ -84,6 +87,7 @@ export const AuditLogPage = ({
     }
 
     if (!hasAudit) {
+        if (upgradeNotice) return <>{upgradeNotice}</>
         return (
             <UpgradeNotice
                 icon={getSettingsSidebarIcon("auditLog")}

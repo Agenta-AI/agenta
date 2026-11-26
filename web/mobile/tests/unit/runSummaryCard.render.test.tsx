@@ -98,7 +98,7 @@ function serveRun(overrides: Record<string, unknown> = {}) {
         status: "evaluation_finished",
         version: "2025.07.14",
         flags: {is_live: false, is_active: false, is_closed: false, has_testsets: true},
-        tags: ["geography"],
+        tags: {topic: "geography"},
         meta: {owner: "team"},
         data: storedData,
         created_at: "2026-10-01T09:30:00Z",
@@ -177,7 +177,7 @@ describe("run summary card", () => {
         expect(host.textContent).toContain("Evaluation Finished")
         expect(host.textContent).toContain("Capitals check")
         expect(host.textContent).toContain("Checks capitals")
-        expect(host.textContent).toContain("geography")
+        expect(host.textContent).toContain("topic: geography")
         expect(host.textContent).toContain(id)
         expect(host.querySelector('[aria-label="Copy run ID"]')).not.toBeNull()
     })

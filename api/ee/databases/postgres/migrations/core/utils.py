@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import traceback
+from pathlib import Path
 
 import click
 import asyncpg
@@ -18,13 +19,14 @@ from oss.src.utils.env import env
 # Initializer logger
 logger = logging.getLogger("alembic.env")
 
-# Initialize alembic config
-alembic_cfg = Config(env.alembic.cfg_path_core)
+# The runner picks this chain itself, so ALEMBIC_CFG_PATH_CORE cannot point it
+# at the open source legacy chain.
+_HERE = Path(__file__).parent
+alembic_cfg = Config(str(_HERE / "alembic.ini"))
+alembic_cfg.set_main_option("script_location", str(_HERE))
 script = ScriptDirectory.from_config(alembic_cfg)
 
-logger.info("license: ee")
 logger.info("migrations: entities")
-logger.info("ALEMBIC_CFG_PATH_CORE: %s", env.alembic.cfg_path_core)
 logger.info("alembic_cfg: %s", alembic_cfg)
 logger.info("script: %s", script)
 

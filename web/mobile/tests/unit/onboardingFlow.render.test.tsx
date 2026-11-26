@@ -687,6 +687,35 @@ describe("first agent onboarding", () => {
         expect(personProperties(draft.answers)).toMatchObject({agent_goals_v1: ["Coding"]})
     })
 
+    it("keeps the step dots closed while the registration offer shows", () => {
+        const props = baseProps()
+        render(props)
+        answer(/^Engineering/)
+        const openDots = () =>
+            [...host!.querySelectorAll<HTMLButtonElement>("nav button")].filter(
+                (dot) => !dot.disabled,
+            )
+        expect(openDots()).not.toHaveLength(0)
+
+        act(() => root!.render(<OnboardingFlow {...props} interstitial={<p>Offer</p>} />))
+        expect(openDots()).toHaveLength(0)
+    })
+
+    it("names the credits dot Register only while the registration offer takes that step", () => {
+        const creditsDot = () =>
+            [...host!.querySelectorAll<HTMLButtonElement>("nav button")][
+                onboardingSteps().indexOf("credits")
+            ].getAttribute("aria-label")
+
+        // Cloud, and a self-hosted instance with a key: the step sets up credits and models.
+        render(baseProps())
+        expect(creditsDot()).toBe("Credits")
+
+        // A self-hosted instance with no key: the registration offer shows there.
+        render(baseProps({registrationStep: true}))
+        expect(creditsDot()).toBe("Register")
+    })
+
     it("offers Skip only on the first-agent step", () => {
         const onSkip = vi.fn()
         render(baseProps({onSkip}))

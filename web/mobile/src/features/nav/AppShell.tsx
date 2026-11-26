@@ -4,6 +4,7 @@ import type {SidebarScope} from "@agenta/navigation"
 
 import {useAgentSidebarSync} from "../agent-sidebar/useAgentSidebarSync"
 import {useCanonicalProjectRoute} from "../context/useCanonicalProjectRoute"
+import {RegistrationOfferGate} from "../onboarding/RegistrationOfferGate"
 
 import {useTrackLastNonSettingsPath} from "./lastNonSettingsPath"
 import {MobileCommandPalette} from "./MobileCommandPalette"
@@ -39,6 +40,7 @@ export const AppShell = ({
             <NavRail workspaceId={workspaceId} projectId={projectId} scope={scope} />
             <main className="min-w-0 flex-1">{children}</main>
             <MobileCommandPalette projectURL={`/w/${workspaceId}/p/${projectId}`} />
+            <RegistrationOfferGate projectId={projectId} />
         </div>
     )
 }

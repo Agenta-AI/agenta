@@ -6,7 +6,7 @@ RELEASE="agenta"
 NAMESPACE="agenta"
 CHART="./hosting/kubernetes/helm"
 WAIT=false
-TIMEOUT="10m"
+TIMEOUT="75m"
 DRY_RUN=false
 NUKE=false
 VALUES_FILES=()
@@ -26,7 +26,7 @@ show_usage() {
     echo "  -f, --values <path>     Values file; can be repeated"
     echo "  --set <key=value>       Additional Helm --set value; can be repeated"
     echo "  --wait                  Wait for resources to become ready"
-    echo "  --timeout <duration>    Helm timeout when --wait is used (default: 10m)"
+    echo "  --timeout <duration>    Helm timeout, also for the migration hook Job (default: 75m)"
     echo "  --dry-run               Render manifests without contacting the cluster"
     echo "  --nuke                  Uninstall the release and delete its PVCs and kept Secrets before install"
     echo ""
@@ -184,8 +184,13 @@ if ((${#EXTRA_SET_ARGS[@]})); then
     HELM_CMD+=("${EXTRA_SET_ARGS[@]}")
 fi
 
-if [[ "$WAIT" == "true" && "$DRY_RUN" == "false" ]]; then
-    HELM_CMD+=(--wait --timeout "$TIMEOUT")
+if [[ "$DRY_RUN" == "false" ]]; then
+    # Helm waits for the migration hook Job under --timeout even without --wait.
+    # Keep it above alembic.activeDeadlineSeconds (3600 s by default).
+    HELM_CMD+=(--timeout "$TIMEOUT")
+    if [[ "$WAIT" == "true" ]]; then
+        HELM_CMD+=(--wait)
+    fi
 fi
 
 echo "Running: ${HELM_CMD[*]}"

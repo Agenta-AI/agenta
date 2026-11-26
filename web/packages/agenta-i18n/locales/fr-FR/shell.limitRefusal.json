@@ -1,0 +1,14 @@
+{
+    "organizationLimitInfo": "Une deuxième organisation nécessite une licence Enterprise. Pour travailler avec les personnes déjà présentes, demandez au propriétaire d’une organisation existante de vous inviter.",
+    "projectLimitAskAdmin": "Demandez à l’administrateur de votre instance d’enregistrer cette instance pour obtenir davantage de projets.",
+    "projectLimitCloud": "L’offre Hobby inclut 1 projet. Passez à Starter pour des projets illimités.",
+    "projectLimitRegister": "Enregistrez cette instance gratuitement pour créer davantage de projets.",
+    "projectsUsage": "Cette organisation utilise {{count}} projets sur {{limit}}. Enregistrez cette instance gratuitement pour en créer d’autres.",
+    "projectsUsageOverLimit_one": "Cette organisation utilise {{count}} projet, limite {{limit}}. Enregistrez cette instance gratuitement pour en créer d’autres.",
+    "projectsUsageOverLimit_many": "Cette organisation utilise {{count}} projets, limite {{limit}}. Enregistrez cette instance gratuitement pour en créer d’autres.",
+    "projectsUsageOverLimit_other": "Cette organisation utilise {{count}} projets, limite {{limit}}. Enregistrez cette instance gratuitement pour en créer d’autres.",
+    "register": "Enregistrer",
+    "registerInstance": "Enregistrer cette instance",
+    "registerTitle": "Enregistrez-vous pour créer d’autres projets",
+    "upgradePlan": "Améliorer l’offre"
+}

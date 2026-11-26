@@ -29,6 +29,7 @@
     "items.keyboardShortcuts": "キーボードショートカット",
     "items.newAgentOrOpen": "新しいエージェントを作成、または開く",
     "items.newSessionWith": "{{agent}} との新しいセッション",
+    "items.notInstalled": "未インストール",
     "items.observability": "オブザーバビリティ",
     "items.overview": "概要",
     "items.playground": "プレイグラウンド",
@@ -46,6 +47,7 @@
     "items.testSets": "テストセット",
     "items.untitledPrompt": "無題のプロンプト",
     "items.untitledSession": "無題のセッション",
+    "items.updateAvailable": "更新があります",
     "items.viewAllReleases": "すべてのリリースを表示",
     "items.whatsNew": "新機能",
     "projectMenu.createOrganization": "組織を作成",
@@ -67,6 +69,7 @@
     "settings.channels": "チャネル",
     "settings.credits": "クレジット",
     "settings.integrationsLabel": "インテグレーション",
+    "settings.license": "ライセンス",
     "settings.llms": "AI プロバイダー",
     "settings.mcpEndpoints": "MCP",
     "settings.organization": "アクセスとセキュリティ",
@@ -81,5 +84,10 @@
     "settings.tools": "ツール",
     "settings.watchWalkthrough": "ウォークスルーを見る",
     "settings.webhooks": "Webhook",
-    "settings.workspace": "メンバー"
+    "settings.workspace": "メンバー",
+    "items.newMinorVersion": "新しいマイナーバージョン: {{version}}",
+    "items.newPatchVersion": "新しいパッチバージョン: {{version}}",
+    "items.securityUpdate": "セキュリティ更新: {{version}}",
+    "items.releasesBehind_other": "{{count}} リリース遅れ",
+    "items.securityFix": "セキュリティ修正"
 }

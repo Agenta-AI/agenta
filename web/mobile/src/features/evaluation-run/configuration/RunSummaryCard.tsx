@@ -1,4 +1,8 @@
-import {evaluationRunQueryAtomFamily, type RunHeader} from "@agenta/entities/evaluationRun"
+import {
+    evaluationRunQueryAtomFamily,
+    runTagLabels,
+    type RunHeader,
+} from "@agenta/entities/evaluationRun"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {Badge, Button} from "@agenta/ui/ui"
@@ -35,7 +39,7 @@ export const RunSummaryCard = ({
 }) => {
     const run = useAtomValue(evaluationRunQueryAtomFamily(runId)).data
     const name = run?.name?.trim() ?? ""
-    const tags = run?.tags ?? []
+    const tags = runTagLabels(run?.tags)
 
     return (
         <section

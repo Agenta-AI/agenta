@@ -666,6 +666,20 @@ async def count_organizations_by_owner(owner_id: str) -> int:
         return result.scalar() or 0
 
 
+async def count_organizations() -> int:
+    """Count the organizations on the instance that are not deleted."""
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(func.count(OrganizationDB.id)).where(
+                OrganizationDB.deleted_at.is_(None)
+            )
+        )
+        return result.scalar() or 0
+
+
 async def count_organization_projects(organization_id: str) -> int:
     engine = get_transactions_engine()
 
