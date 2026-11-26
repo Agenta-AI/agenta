@@ -25,7 +25,6 @@ import {
     loadAgentModelCandidates,
 } from "@agenta/entities/workflow"
 import {textVersionAtom, useT} from "@agenta/i18n"
-import commonCatalog from "@agenta/i18n/catalogs/common"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
@@ -44,7 +43,6 @@ import {ProviderCatalogBody} from "../../../secretProvider/views/ProviderCatalog
 import {ProviderAddBar} from "../../../secretProvider/views/ProviderListBody"
 import {providerSaveFollowUpAtom} from "../../../secretProvider/views/providerSaveFollowUp"
 import {providerAddView, providerListView} from "../../../secretProvider/views/providerViews"
-import {subscriptionViewOf} from "../../../secretProvider/views/subscriptionViews"
 import {
     buildConnectionPickerRows,
     displayedModelRow,
@@ -105,7 +103,7 @@ const ModelPickerControl = ({
     onSelect,
     fallback,
 }: ModelPickerControlProps) => {
-    const t = useT(configItemsCatalog, providerListCatalog, commonCatalog)
+    const t = useT(configItemsCatalog, providerListCatalog)
     const layout = useContext(ModelPickerLayoutContext)
     // The row text is built in the active language, so the rows are built again when it changes.
     const textVersion = useAtomValue(textVersionAtom)
@@ -298,12 +296,6 @@ const ModelPickerControl = ({
         onSelect(pickerSelectionFrom(value, metadata))
 
     if (layout === "list") {
-        const reSignIn = (key: string | undefined) => {
-            const connection = connections.find((candidate) => candidate.id === key)
-            if (!connection) return openModelProviders()
-            const {view, params} = subscriptionViewOf(connection)
-            openInModelView(view, params)
-        }
         return (
             <>
                 {modelView?.notice ? gutter(modelView.notice) : null}
@@ -314,11 +306,6 @@ const ModelPickerControl = ({
                     onChange={(value, option) => onPick(value, option.metadata)}
                     searchPlaceholder={t("entityUi.configItems.searchModels")}
                     disabled={disabled}
-                    disabledGroupAction={{
-                        label: t("common.signIn"),
-                        onClick: (group) =>
-                            modelView ? reSignIn(group.key) : openModelProviders(),
-                    }}
                     onManageProviders={openModelProviders}
                     footer={
                         modelView ? (

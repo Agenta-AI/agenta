@@ -3,9 +3,9 @@
  * Model view and the chat composer's model list. It takes the same groups as
  * `SelectLLMProviderBase`, whose popover stays for the inline controls.
  *
- * Each group shows its logo, name and tag, then its models under their harness line
- * ("via Claude Code"). A row shows the readable name with the raw id after it. A disabled group
- * (a subscription that needs a new sign-in) shows its caption and one action instead of models.
+ * Each group shows its logo, name, tag and harness ("via Claude Code") on one row, then its
+ * models. A row shows the readable name with the raw id after it. A disabled group (a
+ * subscription that needs a new sign-in) is left out: Model providers fixes it.
  */
 import {useLayoutEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
@@ -15,7 +15,6 @@ import uiLlmProviderCatalog from "@agenta/i18n/catalogs/ui.llmProvider"
 import {Check} from "@phosphor-icons/react"
 import clsx from "clsx"
 
-import {Button} from "../components/ui/button"
 import {SearchInput} from "../components/ui/input-composed"
 import {MENU_ITEM} from "../components/ui/menu-item"
 
@@ -40,8 +39,6 @@ export interface ModelPickerListProps {
     onChange: (value: string, option: ProviderOption) => void
     searchPlaceholder?: string
     disabled?: boolean
-    /** The action of a disabled group, for example "Sign in". */
-    disabledGroupAction?: {label: string; onClick: (group: ProviderGroup) => void}
     /** Shows "Manage model providers" fixed under the list. */
     onManageProviders?: () => void
     /** Fixed under the list in place of "Manage model providers" (the Model view's add action). */
@@ -96,7 +93,6 @@ const ModelPickerList = ({
     onChange,
     searchPlaceholder,
     disabled,
-    disabledGroupAction,
     onManageProviders,
     footer,
     searchSuffix,
@@ -106,7 +102,15 @@ const ModelPickerList = ({
     const t = useT(uiLlmProviderCatalog, uiControlsCatalog)
     const [search, setSearch] = useState("")
     const term = search.trim().toLowerCase()
-    const groups = useMemo(() => filterGroups(options, term), [options, term])
+    // Only groups with models to pick: a signed-out subscription is fixed in Model providers.
+    const groups = useMemo(
+        () =>
+            filterGroups(
+                options.filter((group) => !group.disabled),
+                term,
+            ),
+        [options, term],
+    )
     const listRef = useRef<HTMLDivElement | null>(null)
     const popover = layout === "popover"
     const isSelected = (option: ProviderOption) =>
@@ -200,10 +204,10 @@ const ModelPickerList = ({
     const renderGroup = (group: ProviderGroup) => {
         const sections = group.sections ?? [{key: "", label: "", options: group.options}]
         const single = sections.length === 1
-        // The popover names a lone harness at the right of the group head.
-        const headHarness =
-            popover && single && sections[0].label && !group.disabled ? sections[0] : null
-        const Icon = popover ? getProviderIcon(group.iconKey ?? group.label ?? "") : null
+        // A lone harness ("via Claude Code") sits at the right of the group head, on its row.
+        const headHarness = single && sections[0].label ? sections[0] : null
+        // The provider's logo before its name, in the popover and the list.
+        const Icon = getProviderIcon(group.iconKey ?? group.label ?? "")
         return (
             <section
                 key={group.key ?? group.label ?? ""}
@@ -217,12 +221,19 @@ const ModelPickerList = ({
                             : "pb-0.5 pt-2.5 leading-5 text-muted-foreground",
                     )}
                 >
-                    {Icon ? <Icon className="size-3.5 shrink-0 text-foreground" /> : null}
+                    {Icon ? (
+                        <Icon
+                            className={clsx(
+                                "size-3.5 shrink-0 text-foreground",
+                                !popover && "mr-1.5",
+                            )}
+                        />
+                    ) : null}
                     <span className={clsx("truncate", popover && "font-medium text-foreground")}>
                         {group.label}
                     </span>
                     {renderTag(group)}
-                    {group.caption && !group.disabled ? (
+                    {group.caption ? (
                         <span className="ml-1.5 min-w-0 truncate font-normal text-muted-foreground">
                             {group.caption}
                         </span>
@@ -233,25 +244,7 @@ const ModelPickerList = ({
                         </span>
                     ) : null}
                 </div>
-                {group.disabled ? (
-                    <div className="flex items-center justify-between gap-2 px-2 py-1">
-                        <span className="text-meta text-warning">{group.caption}</span>
-                        {disabledGroupAction ? (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={disabled}
-                                onClick={() => disabledGroupAction.onClick(group)}
-                            >
-                                {disabledGroupAction.label}
-                            </Button>
-                        ) : null}
-                    </div>
-                ) : (
-                    sections.map((section) =>
-                        renderSection(section, single, section === headHarness),
-                    )
-                )}
+                {sections.map((section) => renderSection(section, single, section === headHarness))}
             </section>
         )
     }
@@ -262,7 +255,7 @@ const ModelPickerList = ({
             <div
                 className={clsx(
                     "shrink-0",
-                    popover ? "mx-0.5 mb-1 mt-0.5" : "px-4 pb-1.5 max-md:pt-1.5",
+                    popover ? "mx-0.5 mb-1 mt-0.5" : "px-4 pb-1.5 pt-1 max-md:pt-1.5",
                 )}
             >
                 <SearchInput
