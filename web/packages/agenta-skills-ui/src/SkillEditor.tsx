@@ -5,7 +5,7 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import type {SkillFile} from "@agenta/skills"
-import {COMPACT_WINDOW_QUERY, useIsExpandedWindow, useWindowMatch} from "@agenta/ui/hooks"
+import {useIsExpandedWindow} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
 import {Button, Field, IconTile, Input, RightPane, SimpleTooltip, Textarea} from "@agenta/ui/ui"
 import {ArrowLeft, CaretRight, Files} from "@phosphor-icons/react"
@@ -64,9 +64,8 @@ export function SkillEditor({
     const tCommon = useT(commonCatalog)
     const inline = filesPlacement === "inline"
     const expanded = useIsExpandedWindow() && !inline
-    // From a medium window up, the page header's toggle opens Files; a phone keeps the Files row.
-    const compact = useWindowMatch(COMPACT_WINDOW_QUERY)
-    const headerToggle = filesToggleSlot !== undefined && (inline || !compact)
+    // With a header slot, the header's toggle opens Files at every width.
+    const headerToggle = filesToggleSlot !== undefined
     const [filesOpen, setFilesOpen] = useState(expanded)
     // Docked beside the editor on a wide window; a drill-in a tap away on a narrow one.
     useEffect(() => setFilesOpen(expanded), [expanded])
