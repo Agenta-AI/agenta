@@ -39,5 +39,7 @@
     "moreCount": "另外 {{count}} 项",
     "openApp": "打开 {{name}}",
     "needsSignInAgain": "需要重新登录",
-    "whatAgentsCanDo": "智能体可以执行的操作"
+    "whatAgentsCanDo": "智能体可以执行的操作",
+    "appsUnavailable": "无法加载应用列表",
+    "appsUnavailableDetail": "服务器没有响应，因此“所有应用”为空。已连接的应用仍可使用。"
 }

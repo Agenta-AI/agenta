@@ -26,10 +26,7 @@ export interface CatalogListRowProps {
      * for a row whose text can grow (an expandable description) so they do not drift with it.
      */
     align?: "center" | "start"
-    /**
-     * `canvas`: the agent panel's row (canvas F02 f4): the title 13/20/500
-     * with no control-height line. Absent, the Settings page row.
-     */
+    /** `canvas`: the agent panel's row (canvas F02 f4). Absent, the Settings page row. */
     variant?: "default" | "canvas"
 }
 
@@ -78,10 +75,8 @@ export function CatalogListRow({
                       }
                     : undefined
             }
-            // Borderless; the -mx/px pair keeps the logo on the search field's edge while the
-            // hover fill reaches past it.
-            // One hover fill (SURF-05) and the control radius (SHAPE-01).
-            className={`group/row -mx-2 rounded-md px-2 py-2 outline-none transition-colors duration-[var(--duration-fast)] focus-ring ${
+            // -mx/px hangs the hover fill outside the alignment line; always 48 px tall (ROW-01).
+            className={`group/row -mx-2 flex min-h-row-double flex-col justify-center rounded-md px-2 py-1.5 outline-none transition-colors focus-ring ${
                 highlighted ? "bg-secondary" : ""
             } ${onClick ? "cursor-pointer" : ""} hover:bg-accent ${className ?? ""}`}
         >
@@ -94,13 +89,8 @@ export function CatalogListRow({
                     </span>
                 ) : null}
                 <div className="flex min-w-0 flex-1 flex-col">
-                    {/* min-h matches a small Button, so the title line stays level with the action. */}
-                    <div className={`flex items-center ${canvas ? "gap-1" : "min-h-6 gap-1.5"}`}>
-                        <span
-                            className={`truncate text-label font-medium ${canvas ? "leading-5" : ""}`}
-                        >
-                            {title}
-                        </span>
+                    <div className={`flex items-center ${canvas ? "gap-1" : "gap-1.5"}`}>
+                        <span className="truncate text-label text-foreground">{title}</span>
                         {titleSuffix}
                     </div>
                     {children}

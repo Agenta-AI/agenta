@@ -68,5 +68,8 @@
     "noServersYetBody": "URL で MCP サーバーを接続します。サインインまたはキーの追加は一度だけで、プロジェクトのすべてのエージェントが使用できます。",
     "searchServers": "サーバーを検索",
     "noServersMatch": "一致するサーバーはありません",
-    "serverResponse": "サーバーの応答"
+    "serverResponse": "サーバーの応答",
+    "tryAnotherNameOrHost": "別の名前またはホストを試してください。",
+    "serversUnavailable": "プロジェクトのサーバーを読み込めませんでした",
+    "serversUnavailableDetail": "サーバーが応答しなかったため、一覧は空です。エージェントに追加済みのサーバーは引き続き使えます。"
 }

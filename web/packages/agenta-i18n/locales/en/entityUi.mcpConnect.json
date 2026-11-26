@@ -70,5 +70,8 @@
     "noServersYetBody": "Connect an MCP server by URL. You'll sign in or add a key once, and every agent in the project can use it.",
     "searchServers": "Search servers",
     "noServersMatch": "No servers match",
-    "serverResponse": "Server response"
+    "serverResponse": "Server response",
+    "tryAnotherNameOrHost": "Try another name or host.",
+    "serversUnavailable": "Couldn't load the project's servers",
+    "serversUnavailableDetail": "The server did not answer, so the list is empty. Servers already on the agent still work."
 }

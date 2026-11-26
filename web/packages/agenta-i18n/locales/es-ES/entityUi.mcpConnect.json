@@ -72,5 +72,8 @@
     "noServersYetBody": "Conecta un servidor MCP mediante su URL. Inicias sesión o añades una clave una vez, y todos los agentes del proyecto podrán usarlo.",
     "searchServers": "Buscar servidores",
     "noServersMatch": "Ningún servidor coincide",
-    "serverResponse": "Respuesta del servidor"
+    "serverResponse": "Respuesta del servidor",
+    "tryAnotherNameOrHost": "Prueba con otro nombre o host.",
+    "serversUnavailable": "No se pudieron cargar los servidores del proyecto",
+    "serversUnavailableDetail": "El servidor no respondió, así que la lista está vacía. Los servidores que ya tiene el agente siguen funcionando."
 }

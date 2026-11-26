@@ -39,5 +39,7 @@
     "moreCount": "ほか {{count}} 件",
     "openApp": "{{name}} を開く",
     "needsSignInAgain": "再サインインが必要",
-    "whatAgentsCanDo": "エージェントができること"
+    "whatAgentsCanDo": "エージェントができること",
+    "appsUnavailable": "アプリ一覧を読み込めませんでした",
+    "appsUnavailableDetail": "サーバーが応答しなかったため、すべてのアプリは空です。接続済みのアプリは引き続き使えます。"
 }

@@ -44,15 +44,14 @@ export function ConnectionRowMenu({
                         size="icon-sm"
                         variant="ghost"
                         aria-label={t("entityUi.integrationDrawer.connectionActions")}
-                        // Always shown and quiet, so nothing changes or shifts on hover. `secondary` stacks on
-                        // the row's hover fill, where `accent` would vanish into it (SURF-06).
+                        // Always shown; `secondary` stacks on the row's hover fill (SURF-06).
                         className="text-muted-foreground hover:bg-secondary hover:text-foreground aria-expanded:bg-secondary"
                     >
                         <DotsThreeVertical aria-hidden />
                     </Button>
                 </DropdownMenuTrigger>
             </SimpleTooltip>
-            <DropdownMenuContent align="end" className="min-w-[160px]">
+            <DropdownMenuContent align="end">
                 {items.map((item) => (
                     <DropdownMenuItem key={item.key} onSelect={item.onSelect}>
                         {item.icon}
@@ -60,12 +59,12 @@ export function ConnectionRowMenu({
                     </DropdownMenuItem>
                 ))}
                 <DropdownMenuItem onSelect={onRefresh}>
-                    <ArrowClockwise size={14} />
+                    <ArrowClockwise />
                     {t("entityUi.integrationDrawer.refresh")}
                 </DropdownMenuItem>
                 {onRevoke ? (
                     <DropdownMenuItem onSelect={onRevoke}>
-                        <XCircle size={14} />
+                        <XCircle />
                         {t("entityUi.integrationDrawer.revoke")}
                     </DropdownMenuItem>
                 ) : null}
@@ -73,7 +72,7 @@ export function ConnectionRowMenu({
                     <>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onSelect={onDelete}>
-                            <Trash size={14} />
+                            <Trash />
                             {t("entityUi.integrationDrawer.delete")}
                         </DropdownMenuItem>
                     </>

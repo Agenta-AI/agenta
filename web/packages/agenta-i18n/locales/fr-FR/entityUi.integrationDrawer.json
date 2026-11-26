@@ -40,5 +40,7 @@
     "moreCount": "+{{count}} de plus",
     "openApp": "Ouvrir {{name}}",
     "needsSignInAgain": "Reconnexion nécessaire",
-    "whatAgentsCanDo": "Ce que les agents peuvent faire"
+    "whatAgentsCanDo": "Ce que les agents peuvent faire",
+    "appsUnavailable": "Impossible de charger la liste des applications",
+    "appsUnavailableDetail": "Le serveur n'a pas répondu, donc Toutes les applications est vide. Vos applications connectées fonctionnent toujours."
 }

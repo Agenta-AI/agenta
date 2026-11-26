@@ -131,10 +131,13 @@ const McpAddViewBody = ({target, nav}: ViewProps<McpAddViewParams>) => {
     )
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col">
+        // pt-3: the search sits where the integration catalog's does.
+        <div className="flex min-h-0 flex-1 flex-col pt-3">
             <McpAddServerList
                 options={options}
                 loading={endpointsQuery.isPending}
+                error={endpointsQuery.isError && !endpointsQuery.data}
+                onRetry={() => void endpointsQuery.refetch()}
                 onConnectServer={connect}
                 onAdd={add}
                 onReconnect={reconnect}

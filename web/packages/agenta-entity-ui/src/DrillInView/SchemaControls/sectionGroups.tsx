@@ -11,7 +11,8 @@
  */
 import type {ReactNode} from "react"
 
-import {CaretRight, Plugs} from "@phosphor-icons/react"
+import {CollapseCaret} from "@agenta/ui/ui"
+import {Plugs} from "@phosphor-icons/react"
 import Image from "next/image"
 
 /** A connected-app logo square; a plug glyph when no logo is known (catalog not loaded yet). */
@@ -69,17 +70,10 @@ export function SubSectionHeader({
                     type="button"
                     onClick={onToggle}
                     aria-expanded={!collapsed}
-                    className={`-mx-1 flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1 py-0.5 text-inherit [font:inherit] hover:text-foreground`}
+                    className="-mx-1 flex cursor-pointer items-center gap-1.5 rounded-sm border-0 bg-transparent px-1 py-0.5 text-inherit outline-none [font:inherit] focus-ring hover:text-foreground"
                 >
                     {text}
-                    {/* A caret that turns shows where the rows went. */}
-                    <CaretRight
-                        size={11}
-                        weight="bold"
-                        className={`shrink-0 transition-transform duration-200 ease-out ${
-                            collapsed ? "" : "rotate-90"
-                        }`}
-                    />
+                    <CollapseCaret open={!collapsed} className="text-current" />
                 </button>
             ) : (
                 text

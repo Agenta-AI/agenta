@@ -1,5 +1,7 @@
-import {SkeletonRows} from "@agenta/ui/ui"
+import {SkeletonBlock} from "@agenta/ui/ui"
 import {defineView} from "@agenta/ui/view-stack"
+
+import {CatalogRowSkeleton} from "../CatalogRowSkeleton"
 
 import {lazyView} from "./lazyView"
 
@@ -17,8 +19,10 @@ export const mcpAddView = defineView<McpAddViewParams>({
     actionRow: false,
     Component: lazyView(
         () => import("./McpAddViewBody"),
-        <div className="px-4 py-3">
-            <SkeletonRows rowClassName="h-[58px]" />
+        // The loaded layout: the search row, then the catalog rows (STATE-02).
+        <div className="flex flex-col gap-4 px-4 pt-4">
+            <SkeletonBlock active className="h-control" />
+            <CatalogRowSkeleton count={3} />
         </div>,
     ),
 })

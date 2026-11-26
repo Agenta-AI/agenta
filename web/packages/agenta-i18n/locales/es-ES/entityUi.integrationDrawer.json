@@ -40,5 +40,7 @@
     "moreCount": "+{{count}} más",
     "openApp": "Abrir {{name}}",
     "needsSignInAgain": "Debe iniciar sesión de nuevo",
-    "whatAgentsCanDo": "Lo que pueden hacer los agentes"
+    "whatAgentsCanDo": "Lo que pueden hacer los agentes",
+    "appsUnavailable": "No se pudo cargar la lista de aplicaciones",
+    "appsUnavailableDetail": "El servidor no respondió, así que Todas las aplicaciones está vacío. Tus aplicaciones conectadas siguen funcionando."
 }

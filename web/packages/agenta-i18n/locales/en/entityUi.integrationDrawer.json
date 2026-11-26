@@ -1,5 +1,5 @@
 {
-    "apiKeyScheme": "API Key",
+    "apiKeyScheme": "API key",
     "inactive": "Inactive",
     "pending": "Pending",
     "alreadyAddedOldFormat": "Already added, in the old format",
@@ -39,5 +39,7 @@
     "moreCount": "+{{count}} more",
     "openApp": "Open {{name}}",
     "needsSignInAgain": "Needs to sign in again",
-    "whatAgentsCanDo": "What agents can do"
+    "whatAgentsCanDo": "What agents can do",
+    "appsUnavailable": "Couldn't load the app list",
+    "appsUnavailableDetail": "The server did not answer, so All apps is empty. Your connected apps still work."
 }

@@ -40,6 +40,8 @@ import {connectionDisplayName} from "@agenta/shared/utils"
 import {HeightCollapse, ScrollSentinel} from "@agenta/ui"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {
+    Alert,
+    Badge,
     Button,
     cn,
     Empty,
@@ -48,6 +50,7 @@ import {
     EmptyHeader,
     EmptyMedia,
     EmptyTitle,
+    IconTile,
     SearchInput,
     SimpleTooltip,
 } from "@agenta/ui/ui"
@@ -209,12 +212,12 @@ const attentionOf = (connection: ToolConnection | undefined): Attention | null =
     return null
 }
 
-/** The app logo in a two-line row's 32 px Mark (`mark-lg`): the neutral tile, no border. */
+/** The app logo in a two-line row's 32 px Mark; a brand logo sits on the white logo ground. */
 function LogoTile({logo}: {logo: string | null}) {
     return (
-        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-secondary [&_img]:size-5 [&_img]:object-contain">
-            <ProviderLogo logo={logo} size={20} />
-        </span>
+        <IconTile size={32} className={logo ? "overflow-hidden bg-logo-ground" : undefined}>
+            <ProviderLogo logo={logo} size={16} />
+        </IconTile>
     )
 }
 
@@ -243,7 +246,7 @@ const menuItems = (connection: ToolConnection, verbs: RowVerbs): ConnectionMenuI
               {
                   key: "make-default",
                   label: verbs.makeDefault.label,
-                  icon: <Star size={14} />,
+                  icon: <Star />,
                   onSelect: () => verbs.makeDefault?.onMakeDefault(connection),
               },
           ]
@@ -329,15 +332,15 @@ function ConnectedRow({
 
     const statusSuffix = canvas ? (
         attentionTag ? (
-            <span className="inline-flex h-5 shrink-0 items-center rounded-sm px-2 text-caption text-warning bg-warning/10">
+            <Badge variant="warning" className="shrink-0">
                 {attentionTag}
-            </span>
+            </Badge>
         ) : (
             defaultMark
         )
     ) : inUse ? (
         <span className="flex shrink-0 items-center gap-1 text-meta font-normal text-success">
-            <Check size={11} weight="bold" />
+            <Check size={12} />
             {t("entityUi.integrationDrawer.added")}
         </span>
     ) : attentionTag ? (
@@ -378,7 +381,7 @@ function ConnectedRow({
                 )
             }
             action={
-                <span className={`flex items-center ${canvas ? "gap-2" : "gap-0.5"}`}>
+                <span className="flex items-center gap-1">
                     {/* "Added" only on a working connection; a pending or inactive one shows its
                         tag instead (canvas F02 f4). */}
                     {canvas && inUse && !attention ? (
@@ -456,15 +459,15 @@ function CatalogRow({
                 <SimpleTooltip title={t("entityUi.integrationDrawer.connect")}>
                     <Button
                         variant="ghost"
-                        size={canvas ? "icon-compact" : "icon-sm"}
-                        // Shown on row hover, always on touch.
-                        className="hover:bg-secondary focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 [@media(hover:hover)]:opacity-0"
+                        size="icon-sm"
+                        // The row menu's size and tone; shown on row hover and focus, always on touch.
+                        className="text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 [@media(hover:hover)]:opacity-0"
                         aria-label={t("entityUi.integrationDrawer.connectName", {
                             name: integration.name,
                         })}
                         onClick={onConnect}
                     >
-                        {canvas ? <Plus className="size-3.5" /> : <Plus size={16} />}
+                        <Plus />
                     </Button>
                 </SimpleTooltip>
             }
@@ -482,10 +485,10 @@ function CatalogRow({
     )
 }
 
-/** The agent panel's group header (canvas F02 f4): 13/600, space above, no line (SURF-01). */
+/** The agent panel's group header (canvas F02 f4): `text-subtitle`, space above, no line (SURF-01). */
 function CanvasGroupHeader({label}: {label: ReactNode}) {
     return (
-        <div className="flex items-center pb-0.5 pt-3 text-label font-semibold leading-5 text-foreground">
+        <div className="flex items-center pt-3 text-subtitle text-foreground">
             {label}
         </div>
     )
@@ -623,6 +626,8 @@ export function IntegrationCatalog({
         hasNextPage,
         isFetchingNextPage,
         isLoading,
+        error: catalogError,
+        refetch: refetchCatalog,
         requestMore,
         setCategory,
     } = useToolCatalogIntegrations()
@@ -776,8 +781,11 @@ export function IntegrationCatalog({
     )
 
     const catalogLoading = isLoading && integrations.length === 0
+    // A failed read says so and offers Retry, never "no apps match" (STATE-03).
+    const catalogFailed = Boolean(catalogError) && integrations.length === 0
     const nothingFound =
         !catalogLoading &&
+        !catalogFailed &&
         connectedEntries.length === 0 &&
         yoursEntries.length === 0 &&
         catalogRows.length === 0 &&
@@ -799,11 +807,8 @@ export function IntegrationCatalog({
 
     const search = (
         <SearchInput
-            className={cn(
-                "min-w-0 flex-1",
-                // Canvas F02 f4: 30 px, radius 6, 13 px; 44 px on a phone.
-                !page && "h-control rounded-md border-border-muted [&_input]:text-label",
-            )}
+            // The kit owns height, radius and text (SIZE-01, TOUCH-01).
+            className={cn("min-w-0 flex-1", !page && "border-border-muted")}
             placeholder={searchPlaceholder ?? t("entityUi.integrationDrawer.searchApps")}
             value={query}
             onValueChange={setQuery}
@@ -958,6 +963,27 @@ export function IntegrationCatalog({
                             ) : null}
                         </>
                     )}
+
+                    {catalogFailed ? (
+                        <Alert
+                            type="warning"
+                            showIcon
+                            message={t("entityUi.integrationDrawer.appsUnavailable")}
+                            description={
+                                <div className="flex items-start justify-between gap-4">
+                                    <span>{t("entityUi.integrationDrawer.appsUnavailableDetail")}</span>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="shrink-0"
+                                        onClick={() => void refetchCatalog()}
+                                    >
+                                        {t("common.retry")}
+                                    </Button>
+                                </div>
+                            }
+                        />
+                    ) : null}
 
                     {nothingFound ? (
                         <Empty className="py-10">

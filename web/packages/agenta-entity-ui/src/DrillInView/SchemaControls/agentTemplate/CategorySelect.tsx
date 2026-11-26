@@ -5,7 +5,6 @@ import {useToolCatalogCategories} from "@agenta/entities/gatewayTool"
 import {createT, useT} from "@agenta/i18n"
 import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import {Combobox, type ComboboxOption} from "@agenta/ui/ui"
-import {CaretUpDown} from "@phosphor-icons/react"
 
 import {categoryLabel, type CategorySelection} from "./integrationCatalogFilters"
 
@@ -49,11 +48,8 @@ export function CategorySelect({
     return (
         <Combobox
             aria-label={t("entityUi.integrationDrawer.category")}
-            // Narrower on a phone so the search keeps room for its placeholder; 120 px on the
-            // desktop. Height comes from the kit (TOUCH-01); radius 6, 12 px, an up-down icon.
-            // "All categories" clears instead of a clear button.
-            className="w-36 shrink-0 rounded-md pl-2 text-meta sm:w-48 md:w-[120px]"
-            icon={<CaretUpDown aria-hidden size={14} className="text-muted-foreground" />}
+            // Width only: the kit owns height, radius, text and the turning caret (MICRO-01).
+            className="w-36 shrink-0"
             // The list may be wider than its field, so names stay on one line on a phone.
             contentClassName="w-56"
             options={options}

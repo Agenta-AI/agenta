@@ -39,5 +39,7 @@
     "moreCount": "+{{count}} weitere",
     "openApp": "{{name}} öffnen",
     "needsSignInAgain": "Erneute Anmeldung nötig",
-    "whatAgentsCanDo": "Was Agenten tun können"
+    "whatAgentsCanDo": "Was Agenten tun können",
+    "appsUnavailable": "Die App-Liste konnte nicht geladen werden",
+    "appsUnavailableDetail": "Der Server hat nicht geantwortet, daher ist „Alle Apps“ leer. Ihre verbundenen Apps funktionieren weiterhin."
 }

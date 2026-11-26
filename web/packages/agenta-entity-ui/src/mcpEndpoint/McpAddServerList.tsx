@@ -10,11 +10,24 @@ import {useMemo, useState} from "react"
 
 import type {McpConnectionStatus} from "@agenta/entities/mcpEndpoint"
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import {McpServerMark} from "@agenta/ui/agent-icon"
-import {Button, EmptyState, SearchInput, SkeletonRows} from "@agenta/ui/ui"
-import {Plus} from "@phosphor-icons/react"
+import {
+    Alert,
+    Button,
+    Empty,
+    EmptyContent,
+    EmptyDescription,
+    EmptyHeader,
+    EmptyMedia,
+    EmptyState,
+    EmptyTitle,
+    SearchInput,
+} from "@agenta/ui/ui"
+import {MagnifyingGlass, Plus} from "@phosphor-icons/react"
 
+import {CatalogRowSkeleton} from "../DrillInView/SchemaControls/agentTemplate/CatalogRowSkeleton"
 import {ScrollFadeArea} from "../shared/ScrollFadeArea"
 
 import {ConnectionListRow} from "./components/ConnectionListRow"
@@ -36,6 +49,9 @@ export interface McpAddServerListProps {
     /** The project registry, sorted by name. Added rows keep their place. */
     options: McpConnectionOption[]
     loading?: boolean
+    /** The registry read failed; the list says so and offers Retry. */
+    error?: boolean
+    onRetry?: () => void
     /** Opens the connect sheet. The one hero action, and the empty state's only action. */
     onConnectServer: () => void
     /** Adds the connection to the agent. May be async; actions are disabled until it settles. */
@@ -47,11 +63,13 @@ export interface McpAddServerListProps {
 export function McpAddServerList({
     options,
     loading,
+    error,
+    onRetry,
     onConnectServer,
     onAdd,
     onReconnect,
 }: McpAddServerListProps) {
-    const t = useT(mcpConnectCatalog)
+    const t = useT(mcpConnectCatalog, commonCatalog)
     const [search, setSearch] = useState("")
     // One write in flight at a time: two overlapping adds both start from the same array.
     const [busy, setBusy] = useState(false)
@@ -81,19 +99,19 @@ export function McpAddServerList({
     // The empty project, which is a different screen from an empty search: it carries the
     // only call to action and the header button goes away, where a fruitless search keeps
     // the header button and says so inline.
-    const emptyProject = !loading && options.length === 0
+    const emptyProject = !loading && !error && options.length === 0
 
     if (emptyProject) {
         return (
             <div className="flex flex-1 items-center justify-center p-6">
                 <EmptyState
-                    className="max-w-[320px] text-center"
+                    className="max-w-popover-md text-center"
                     image={<McpServerMark size={40} />}
                     title={t("entityUi.mcpConnect.noServersYet")}
                     description={t("entityUi.mcpConnect.noServersYetBody")}
                 >
                     <Button onClick={onConnectServer}>
-                        <Plus size={14} />
+                        <Plus />
                         {t("entityUi.mcpConnect.connectServer")}
                     </Button>
                 </EmptyState>
@@ -101,11 +119,12 @@ export function McpAddServerList({
         )
     }
 
+    // The integration catalog's layout: a fixed search row above one scroll (CONS-02).
     return (
-        <ScrollFadeArea className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-3">
-            <div className="flex items-center gap-2">
+        <div className="flex min-h-0 flex-1 flex-col">
+            {/* pt-1 keeps the focus ring inside the body's clip. */}
+            <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-1">
                 <SearchInput
-                    size="compact-search"
                     className="min-w-0 flex-1 border-border-muted"
                     placeholder={t("entityUi.mcpConnect.searchServers")}
                     aria-label={t("entityUi.mcpConnect.searchServers")}
@@ -113,35 +132,71 @@ export function McpAddServerList({
                     onValueChange={setSearch}
                 />
                 {/* Secondary: adding a connected server is this list's main job. */}
-                <Button variant="outline" size="compact" onClick={onConnectServer}>
-                    <Plus className="size-3.5" />
+                <Button variant="outline" onClick={onConnectServer}>
+                    <Plus />
                     {t("entityUi.mcpConnect.connectServer")}
                 </Button>
             </div>
 
-            {loading ? (
-                <SkeletonRows rowClassName="h-[58px]" />
-            ) : visible.length === 0 ? (
-                <span className="text-meta text-muted-foreground">
-                    {t("entityUi.mcpConnect.noServersMatch")}
-                </span>
-            ) : (
-                <div className="flex flex-col gap-2">
-                    {visible.map((option) => (
-                        <ConnectionListRow
-                            key={option.slug}
-                            name={option.name}
-                            host={option.host}
-                            status={option.status}
-                            added={option.added}
-                            toolCount={option.toolCount}
-                            busy={busy}
-                            onAdd={() => void handleAdd(option)}
-                            onReconnect={() => onReconnect(option)}
-                        />
-                    ))}
-                </div>
-            )}
-        </ScrollFadeArea>
+            <ScrollFadeArea className="flex min-h-0 flex-1 flex-col px-4 pb-3 pt-2">
+                {loading ? (
+                    <CatalogRowSkeleton count={3} />
+                ) : error ? (
+                    <Alert
+                        type="warning"
+                        showIcon
+                        message={t("entityUi.mcpConnect.serversUnavailable")}
+                        description={
+                            <div className="flex items-start justify-between gap-4">
+                                <span>{t("entityUi.mcpConnect.serversUnavailableDetail")}</span>
+                                {onRetry ? (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="shrink-0"
+                                        onClick={onRetry}
+                                    >
+                                        {t("common.retry")}
+                                    </Button>
+                                ) : null}
+                            </div>
+                        }
+                    />
+                ) : visible.length === 0 ? (
+                    <Empty className="py-10">
+                        <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                                <MagnifyingGlass />
+                            </EmptyMedia>
+                            <EmptyTitle>{t("entityUi.mcpConnect.noServersMatch")}</EmptyTitle>
+                            <EmptyDescription>
+                                {t("entityUi.mcpConnect.tryAnotherNameOrHost")}
+                            </EmptyDescription>
+                        </EmptyHeader>
+                        <EmptyContent>
+                            <Button variant="outline" onClick={() => setSearch("")}>
+                                {t("common.clearSearch")}
+                            </Button>
+                        </EmptyContent>
+                    </Empty>
+                ) : (
+                    <div className="flex flex-col gap-2">
+                        {visible.map((option) => (
+                            <ConnectionListRow
+                                key={option.slug}
+                                name={option.name}
+                                host={option.host}
+                                status={option.status}
+                                added={option.added}
+                                toolCount={option.toolCount}
+                                busy={busy}
+                                onAdd={() => void handleAdd(option)}
+                                onReconnect={() => onReconnect(option)}
+                            />
+                        ))}
+                    </div>
+                )}
+            </ScrollFadeArea>
+        </div>
     )
 }
