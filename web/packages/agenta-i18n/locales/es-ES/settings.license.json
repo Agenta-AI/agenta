@@ -1,7 +1,6 @@
 {
     "actionAddLicenseKey": "Añadir una clave de licencia",
     "actionTalkToUs": "Hablar con nosotros",
-    "actionUpgradeDocs": "Cómo actualizar",
     "addFailed": "No pudimos añadir la clave. Inténtalo de nuevo.",
     "addKey": "Añadir clave",
     "adding": "Añadiendo…",
@@ -40,7 +39,6 @@
     "lockedSso": "<strong>Proveedores SSO.</strong> Los miembros inician sesión con el proveedor de identidad de tu empresa.",
     "lockedSsoRow": "Sin proveedores.",
     "lockedTitle": "Disponible en el plan Enterprise",
-    "needsEnterpriseImage": "Las claves de licencia necesitan la imagen Enterprise. <link>Cómo actualizar</link>",
     "never": "Nunca",
     "noticeExpired": "Esta licencia caducó el {{date}}. La instancia está en el plan Community.",
     "noticeExpires": "Esta licencia caduca el {{date}}.",

@@ -5,7 +5,7 @@ import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsLlmProvidersTabCatalog from "@agenta/i18n/catalogs/settings.llmProvidersTab"
 import {AIProvidersPage, useEntitlements, type AIProvidersOrganization} from "@agenta/settings-ui"
-import {isEE} from "@agenta/shared/api"
+import {isBillingEnabled} from "@agenta/shared/api"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -28,28 +28,28 @@ const useProvidersOrganization = (
         workspaceId,
         projectId,
     )
-    const enterprise = isEE()
     const {basePath} = useRouter()
     const manage = useAtomValue(organizationConnectionsAccessAtom) === "manage"
     // Only an owner or admin chooses projects, so only they read the plan.
-    const entitlements = useEntitlements({projectId, enabled: enterprise && manage})
+    const entitlements = useEntitlements({projectId, enabled: manage})
 
     return useMemo(() => {
         if (!group?.organizationId || !current) return null
         return {
             projectName: current.project_name,
             name: group.organizationName,
-            projectChoice: !enterprise
-                ? "all"
-                : entitlements.hasRBAC
-                  ? "choose"
-                  : entitlements.isLoading || !manage
-                    ? "pending"
-                    : "plan",
-            // A plain link, so it carries this app's base path itself.
-            plansHref: `${basePath}/w/${workspaceId}/p/${projectId}/settings?tab=billing`,
+            projectChoice: entitlements.hasRBAC
+                ? "choose"
+                : entitlements.isLoading || !manage
+                  ? "pending"
+                  : "plan",
+            // A plain link, so it carries this app's base path itself. Self-hosted, the plan
+            // comes from a license key, so the link opens the License tab.
+            plansHref: `${basePath}/w/${workspaceId}/p/${projectId}/settings?tab=${
+                isBillingEnabled() ? "billing" : "license"
+            }`,
         }
-    }, [group, current, workspaceId, projectId, enterprise, entitlements, manage, basePath])
+    }, [group, current, workspaceId, projectId, entitlements, manage, basePath])
 }
 
 /**

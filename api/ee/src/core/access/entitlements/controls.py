@@ -315,11 +315,13 @@ def _apply_default_plan_overlay(
     return plans, descriptions
 
 
-def _resolve_default_plan_slug(plans: Dict[str, Dict[Tracker, Any]]) -> str:
-    """Resolve the default plan slug for overlay targeting.
+def _resolve_overlay_target_plan_slug(plans: Dict[str, Dict[Tracker, Any]]) -> str:
+    """The plan `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` patches.
 
-    Mirrors `subscriptions.types.get_default_plan()` without importing it (to
-    avoid pulling subscription/Stripe code into the access-controls layer).
+    `AGENTA_ACCESS_DEFAULT_PLAN` when set; else `cloud_v0_hobby` on cloud and
+    `self_hosted_enterprise` (the plan of a paid key) outside cloud. Outside cloud this is
+    not the plan stored for new subscriptions (`get_default_plan()`), which is
+    `self_hosted_community`.
     """
     raw = env.agenta.access.default_plan
     if raw:
@@ -355,7 +357,7 @@ def build_plan_controls() -> tuple[Dict[str, Dict[Tracker, Any]], Dict[str, str]
     plan_overlay_source = "none"
     if plan_overlay_payload is not None:
         plan_overlay = _parse_default_plan_overlay(plan_overlay_payload)
-        default_plan_slug = _resolve_default_plan_slug(plans)
+        default_plan_slug = _resolve_overlay_target_plan_slug(plans)
         plans, descriptions = _apply_default_plan_overlay(
             plans, descriptions, plan_overlay, default_plan_slug
         )

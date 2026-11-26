@@ -3,7 +3,6 @@ import {useMemo} from "react"
 import type {SettingsAccess, SettingsTabKey} from "@agenta/settings"
 import {
     isBillingEnabled,
-    isEE,
     isMcpGatewayEnabled,
     isToolsEnabled,
     isWalletsEnabled,
@@ -69,10 +68,8 @@ const useRoleReach = (): RoleReach => {
  * opens a page whose every request the API would refuse; the rest are optimistic view flags.
  */
 const useSettingsAccess = ({projectId, analytics, owner}: RoleReach): SettingsAccess => {
-    // Edition and feature gates come from the shared helpers the desktop uses, so a tab cannot
-    // be visible here and hidden there. `isEE()` also accepts the `cloud*` tiers, which a bare
-    // `=== "ee"` misses.
-    const enterprise = isEE()
+    // Feature gates come from the shared helpers the desktop uses, so a tab cannot be visible
+    // here and hidden there.
     const billingEnabled = isBillingEnabled()
     const toolsEnabled = isToolsEnabled()
     const mcpGatewayEnabled = isMcpGatewayEnabled()
@@ -89,7 +86,8 @@ const useSettingsAccess = ({projectId, analytics, owner}: RoleReach): SettingsAc
             canShowTools: toolsEnabled,
             canViewApiKeys: true,
             canViewEvents: true,
-            isEE: enterprise,
+            // The API always runs the enterprise code path; the plan decides the features.
+            isEE: true,
             // Analytics reads trace content, which a role without `view_spans` cannot read.
             canViewAnalytics: analytics.allowed,
             // Every role reads the plan and its limits; the controls on that page gate themselves.
@@ -103,7 +101,6 @@ const useSettingsAccess = ({projectId, analytics, owner}: RoleReach): SettingsAc
         }),
         [
             analytics.allowed,
-            enterprise,
             billingEnabled,
             owner.isOwner,
             toolsEnabled,
@@ -144,7 +141,6 @@ export const useActiveSettingsTab = (): SettingsTabKey => {
     if (!AVAILABLE_SETTINGS_TABS.includes(requested as SettingsTabKey))
         return DEFAULT_MOBILE_SETTINGS_TAB
     if (requested === "tools" && !access.canShowTools) return DEFAULT_MOBILE_SETTINGS_TAB
-    if (requested === "billing" && !access.isEE) return DEFAULT_MOBILE_SETTINGS_TAB
     // Analytics reads trace content: a role without it would see an empty page of refusals. The
     // tab holds while the check is in flight, so a reader who may open it is never bounced.
     if (requested === "analytics" && !access.canViewAnalytics && !reach.analytics.pending)
@@ -152,9 +148,7 @@ export const useActiveSettingsTab = (): SettingsTabKey => {
     // Access & Security belongs to the organization owner; it holds while ownership is unknown.
     if (requested === "organization" && !access.isOwner && !reach.owner.pending)
         return DEFAULT_MOBILE_SETTINGS_TAB
-    // The wallet routes are EE-only, whatever the mirrored wallet flag says.
-    if (requested === "credits" && !(access.isEE && access.walletsEnabled))
-        return DEFAULT_MOBILE_SETTINGS_TAB
+    if (requested === "credits" && !access.walletsEnabled) return DEFAULT_MOBILE_SETTINGS_TAB
     // A deployment serving no MCP gateway refuses every route behind this tab, so a deep
     // link to it would render a surface whose every action fails.
     if (requested === "mcpEndpoints" && !access.canShowMcpEndpoints)

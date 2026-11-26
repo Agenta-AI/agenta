@@ -1,10 +1,9 @@
+from importlib.util import find_spec
 from typing import Any, Callable
 from uuid import UUID, RFC_4122
 
 from fastapi.types import DecoratedCallable
 from fastapi import APIRouter as FastAPIRouter
-
-from oss.src.utils.env import env
 
 
 class APIRouter(FastAPIRouter):
@@ -48,12 +47,29 @@ class APIRouter(FastAPIRouter):
         return decorator
 
 
-def is_ee():
-    return env.agenta.license == "ee"
+_EE_CODE_PRESENT = find_spec("ee") is not None
 
 
-def is_oss():
-    return env.agenta.license == "oss"
+def is_ee() -> bool:
+    """True when the `ee` code is present in this image, which every shipped API image
+    has. It does not mean the install has an enterprise plan: the license key decides
+    the plan. `AGENTA_LICENSE` does not change it."""
+    return _EE_CODE_PRESENT
+
+
+def is_oss() -> bool:
+    """True when the `ee` code is absent. The opposite of `is_ee()`."""
+    return not _EE_CODE_PRESENT
+
+
+def is_cloud() -> bool:
+    """True on Agenta cloud only (a cloud license key). Every other install is
+    self-hosted, whatever its plan."""
+    if not is_ee():
+        return False
+    from ee.src.core.licenses.cloud import is_cloud as _is_cloud  # noqa: PLC0415
+
+    return _is_cloud()
 
 
 def is_uuid7(s: str, *, require_canonical: bool = False) -> bool:
