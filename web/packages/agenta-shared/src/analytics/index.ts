@@ -19,10 +19,11 @@ const isInstanceUrlProperty = (key: string) =>
 
 // Typed text, such as a survey answer, can hold an email address or a link with a
 // token in it. An internal address can have a domain with no dot, and a link can have
-// no scheme, such as `example.com/invite?token=...`.
+// no scheme, such as `example.com/invite?token=...`, `10.0.0.5:8443/...` or
+// `localhost:3000/...`.
 const EMAIL_ADDRESS = /[^\s@]+@[^\s@]+/g
 const LINK = /\b[a-z][a-z0-9+.-]*:\/\/\S+/gi
-const LINK_WITHOUT_SCHEME = /\b(?:[a-z0-9-]+\.)+[a-z]{2,}[/?#]\S*/gi
+const LINK_WITHOUT_SCHEME = /\b(?:localhost|(?:[a-z0-9-]+\.)+[a-z0-9-]+)(?::\d+)?[/?#]\S*/gi
 
 const withoutEmails = (value: unknown): unknown => {
     if (typeof value === "string") {

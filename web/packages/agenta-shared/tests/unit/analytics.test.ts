@@ -118,6 +118,17 @@ describe("shared desktop and mobile analytics", () => {
         expect(sent?.properties.heard_from_other).toBe("see [link] or docs.agenta.ai")
     })
 
+    it("removes links without a scheme that have a port or an IP address", () => {
+        const sent = stripInstanceUrl({
+            properties: {
+                heard_from_other:
+                    "a agenta.internal:8443/invite?token=S1 b 10.0.0.5/x?token=S2 c localhost:3000/x?t=S3",
+            },
+        })
+        expect(JSON.stringify(sent)).not.toMatch(/S[123]/)
+        expect(sent?.properties.heard_from_other).toBe("a [link] b [link] c [link]")
+    })
+
     it("answers cloud only when telemetry is on and names no instance group", () => {
         expect(
             isCloudTelemetry(
