@@ -82,6 +82,7 @@ export const AutomationsTab = ({
                     onOpenAutomation={openAutomation}
                     onAddAutomation={addAutomation}
                     phone={phone}
+                    flat={!phone}
                 />
                 {/* "Connect another app" in the automation forms opens the integration catalog
                     by atom; the tab root stays mounted under its views, so it hosts it. */}

@@ -50,6 +50,7 @@ import {
 import {
     ArrowsClockwise,
     ClockCounterClockwise,
+    Lightning,
     Pause,
     PencilSimpleLine,
     Play,
@@ -60,7 +61,13 @@ import {useSetAtom} from "jotai"
 
 import {SectionLoadError} from "../../agent/SectionLoadError"
 
+import {
+    AddTriggerDropdown,
+    useAddAutomation,
+    type OnAddAutomation,
+} from "./triggerManagement/AddTriggerDropdown"
 import {AppTriggerProviderGroups} from "./triggerManagement/AppTriggerProviderGroups"
+import {EmptyListRow, RowSkeleton} from "./triggerManagement/rowParts"
 import {ScheduleTriggerRow} from "./triggerManagement/ScheduleTriggerRow"
 import {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
 import {useAutomationDelete} from "./triggerManagement/useAutomationDelete"
@@ -103,6 +110,13 @@ export interface TriggerManagementSectionProps {
      * can edit. The host decides it (`useIsPhone`).
      */
     phone?: boolean
+    /**
+     * The panel's list shape: one "Automations" heading with one "Add", then every automation
+     * as a flat row. Not on a phone.
+     */
+    flat?: boolean
+    /** With `flat`: where "Add" opens the new-automation form; absent, the drawer. */
+    onAdd?: OnAddAutomation
 }
 
 export function TriggerManagementSection({
@@ -112,7 +126,10 @@ export function TriggerManagementSection({
     onOpenAutomation,
     automationDrawer,
     phone,
+    flat = false,
+    onAdd,
 }: TriggerManagementSectionProps) {
+    const addAutomation = useAddAutomation(entityId, onAdd)
     const t = useT(triggersCatalog, automationsPanelCatalog, automationsScreensCatalog)
     const {scopedSubscriptions, scopedSchedules} = useAgentTriggers(entityId)
     // The same cached lists `useAgentTriggers` reads: a failed or pending read must not show
@@ -372,61 +389,96 @@ export function TriggerManagementSection({
     const switches = phone && !disabled
     const groupClass = `flex flex-col ${phone ? "" : "gap-2.5"}`
 
-    return (
-        <div className={`flex flex-col ${phone ? "" : "gap-2.5 pb-3 pt-2.5"}`}>
-            {/* Two groups, "Scheduled triggers" first; a group with no automation does not
-                show (F05 f1). App triggers stay grouped by the app they arrive from. */}
-            {scopedSchedules.length > 0 ? (
-                <section className={groupClass}>
-                    {groupHeading(t("automations.panel.scheduledTriggers"))}
-                    {scopedSchedules.map((record) => (
-                        <ScheduleTriggerRow
-                            key={`schedule-${record.id}`}
-                            record={record}
-                            disabled={disabled}
-                            onOpen={() => record.id && openSchedule(record.id)}
-                            menu={scheduleMenu(record)}
-                            phone={phone}
-                            onToggle={
-                                switches && record.id
-                                    ? (next) =>
-                                          void toggleAutomation(
-                                              setScheduleActive,
-                                              record.id as string,
-                                              next,
-                                          )
-                                    : undefined
-                            }
-                        />
-                    ))}
-                </section>
-            ) : null}
+    const scheduleRows = scopedSchedules.map((record) => (
+        <ScheduleTriggerRow
+            key={`schedule-${record.id}`}
+            record={record}
+            disabled={disabled}
+            onOpen={() => record.id && openSchedule(record.id)}
+            menu={scheduleMenu(record)}
+            phone={phone}
+            onToggle={
+                switches && record.id
+                    ? (next) => void toggleAutomation(setScheduleActive, record.id as string, next)
+                    : undefined
+            }
+        />
+    ))
+    const appGroups = (
+        <AppTriggerProviderGroups
+            scopedSubscriptions={scopedSubscriptions}
+            entityId={entityId}
+            disabled={disabled}
+            subscriptionMenu={subscriptionMenu}
+            onOpenSubscription={openSubscription}
+            phone={phone}
+            onToggleSubscription={
+                switches
+                    ? (record, next) => {
+                          if (record.id)
+                              void toggleAutomation(setSubscriptionActive, record.id, next)
+                      }
+                    : undefined
+            }
+        />
+    )
+    const flatList = flat && !phone
+    const count = scopedSchedules.length + scopedSubscriptions.length
 
-            {scopedSubscriptions.length > 0 ? (
-                <section className={groupClass}>
-                    {groupHeading(t("automations.panel.appTriggers"))}
-                    <AppTriggerProviderGroups
-                        scopedSubscriptions={scopedSubscriptions}
-                        entityId={entityId}
-                        disabled={disabled}
-                        subscriptionMenu={subscriptionMenu}
-                        onOpenSubscription={openSubscription}
-                        phone={phone}
-                        onToggleSubscription={
-                            switches
-                                ? (record, next) => {
-                                      if (record.id)
-                                          void toggleAutomation(
-                                              setSubscriptionActive,
-                                              record.id,
-                                              next,
-                                          )
-                                  }
-                                : undefined
-                        }
-                    />
+    return (
+        <div
+            className={`flex flex-col ${phone ? "" : flatList ? "pb-3 pt-3" : "gap-2.5 pb-3 pt-2.5"}`}
+        >
+            {flatList ? (
+                // One list (the panel): the heading with one "Add", then every automation as a
+                // flat row. The row's Mark tells the kind: a clock, or the app's logo.
+                <section className="flex flex-col gap-1" aria-busy={loading || undefined}>
+                    <div className="flex h-8 items-center justify-between gap-2">
+                        <h3 className="m-0 truncate text-subtitle text-foreground">
+                            {t("automations.panel.automations")}
+                        </h3>
+                        {disabled ? null : (
+                            <AddTriggerDropdown entityId={entityId} onAdd={onAdd} quiet />
+                        )}
+                    </div>
+                    {/* The rows hang their hover fill 9 px out, so their Marks sit on the
+                        heading's line (ALIGN-01). */}
+                    <div data-flat-rows className="-mx-2.25 flex flex-col gap-2">
+                        {scheduleRows}
+                        {scopedSubscriptions.length > 0 ? appGroups : null}
+                        {count > 0 ? null : loading ? (
+                            <>
+                                <RowSkeleton />
+                                <RowSkeleton />
+                            </>
+                        ) : loadFailed ? null : (
+                            <EmptyListRow
+                                icon={<Lightning />}
+                                title={t("entityUi.triggers.noAutomations")}
+                                line={t("automations.panel.automationsHint")}
+                                onAdd={disabled ? undefined : addAutomation}
+                            />
+                        )}
+                    </div>
                 </section>
-            ) : null}
+            ) : (
+                <>
+                    {/* Two groups, "Scheduled triggers" first; a group with no automation does
+                        not show (F05 f1). App triggers stay grouped by their app. */}
+                    {scopedSchedules.length > 0 ? (
+                        <section className={groupClass}>
+                            {groupHeading(t("automations.panel.scheduledTriggers"))}
+                            {scheduleRows}
+                        </section>
+                    ) : null}
+                    {scopedSubscriptions.length > 0 ? (
+                        <section className={groupClass}>
+                            {groupHeading(t("automations.panel.appTriggers"))}
+                            {appGroups}
+                        </section>
+                    ) : null}
+                </>
+            )}
 
             {loadFailed ? (
                 // A list that did not load is not an empty list; one that half loaded says so
@@ -437,7 +489,7 @@ export function TriggerManagementSection({
                         onRetry={retryLoad}
                     />
                 </div>
-            ) : !loading && scopedSubscriptions.length === 0 && scopedSchedules.length === 0 ? (
+            ) : !flatList && !loading && count === 0 ? (
                 // One quiet line; the header's "Add automation" is the way to add one.
                 <span className="text-meta text-muted-foreground">
                     {t("entityUi.triggers.noAutomations")}

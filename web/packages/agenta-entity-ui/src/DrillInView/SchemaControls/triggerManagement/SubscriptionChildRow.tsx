@@ -10,7 +10,7 @@ import {EventSourcePicker} from "../../../gatewayTrigger/drawers/shared/EventSou
 import {ProviderLogo} from "../sectionGroups"
 
 import {PHONE_LINE_CLASS, PHONE_NAME_CLASS, PHONE_ROW_CLASS, PhoneRowSwitch} from "./phoneRow"
-import {LINE_CLASS, NAME_CLASS, ROW_CLASS, RowStatusDot, RowTile} from "./rowParts"
+import {LINE_CLASS, NAME_CLASS, ROW_CLASS, ROW_LEAD_GAP, RowStatusDot, RowTile} from "./rowParts"
 import {TriggerActionsMenu} from "./TriggerActionsMenu"
 import {useSubscriptionRun} from "./useSubscriptionRun"
 
@@ -114,7 +114,7 @@ export function SubscriptionChildRow({
                             open()
                         }
                     }}
-                    className={`flex min-w-0 flex-1 items-center ${phone ? "gap-3 self-stretch" : "gap-2.5"}`}
+                    className={`flex min-w-0 flex-1 items-center ${phone ? "gap-3 self-stretch" : ROW_LEAD_GAP}`}
                 >
                     {/* The app's logo when the catalog has one; else a dark tile with a white
                         lightning glyph, as the canvas draws an app trigger. */}

@@ -106,6 +106,7 @@ export function AgentOperationsSections({
     onAddAutomation,
     showFiles = true,
     phone = false,
+    flat = false,
 }: {
     /** The open agent's revision id (the playground's variantId). */
     revisionId: string | null
@@ -139,6 +140,8 @@ export function AgentOperationsSections({
      * column, so the button sits at the bottom of the screen.
      */
     phone?: boolean
+    /** The panel's flat list of automations; see {@link TriggerManagementSection}. */
+    flat?: boolean
 }) {
     const t = useT(agentOperationsCatalog)
 
@@ -155,10 +158,13 @@ export function AgentOperationsSections({
                         onOpenRunHistory={onOpenRunHistory}
                         onOpenAutomation={onOpenAutomation}
                         phone={phone}
+                        flat={flat}
+                        onAdd={onAddAutomation}
                     />
                 </div>
                 {/* "Add automation" follows the list, as on a phone (M10). */}
-                {phone || disabled ? null : (
+                {/* The flat list has its "Add" on the heading. */}
+                {phone || disabled || flat ? null : (
                     <div className={`${sectionsBodyClass} flex pb-3.5`}>
                         <AddTriggerDropdown entityId={revisionId} onAdd={onAddAutomation} />
                     </div>

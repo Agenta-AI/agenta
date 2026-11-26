@@ -1,6 +1,8 @@
 {
     "scheduledTriggers": "スケジュールトリガー",
     "appTriggers": "アプリトリガー",
+    "automations": "自動化",
+    "automationsHint": "このエージェントをスケジュールに沿って、またはアプリで何かが起きたときに実行します。",
     "deleteFailed": "この自動化を削除できませんでした。もう一度お試しください。",
     "runs": "実行",
     "settings": "設定",

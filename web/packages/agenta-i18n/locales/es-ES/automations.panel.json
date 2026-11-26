@@ -1,6 +1,8 @@
 {
     "scheduledTriggers": "Disparadores programados",
     "appTriggers": "Disparadores de aplicación",
+    "automations": "Automatizaciones",
+    "automationsHint": "Ejecuta este agente según una programación o cuando ocurra algo en una aplicación.",
     "deleteFailed": "No se pudo eliminar esta automatización. Inténtalo de nuevo.",
     "runs": "Ejecuciones",
     "settings": "Configuración",

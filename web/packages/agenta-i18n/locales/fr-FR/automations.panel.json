@@ -1,6 +1,8 @@
 {
     "scheduledTriggers": "Déclencheurs planifiés",
     "appTriggers": "Déclencheurs d’application",
+    "automations": "Automatisations",
+    "automationsHint": "Exécutez cet agent selon une planification ou lorsqu’un événement se produit dans une application.",
     "deleteFailed": "Impossible de supprimer cette automatisation. Réessayez.",
     "runs": "Exécutions",
     "settings": "Paramètres",

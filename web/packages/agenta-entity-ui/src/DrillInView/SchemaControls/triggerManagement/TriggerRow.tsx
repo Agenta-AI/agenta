@@ -4,7 +4,7 @@ import {type ReactNode} from "react"
 import {TooltipProvider} from "@agenta/ui/ui"
 
 import {PHONE_LINE_CLASS, PHONE_NAME_CLASS, PHONE_ROW_CLASS, PhoneRowSwitch} from "./phoneRow"
-import {LINE_CLASS, NAME_CLASS, ROW_CLASS, RowStatusDot} from "./rowParts"
+import {LINE_CLASS, NAME_CLASS, ROW_CLASS, ROW_LEAD_GAP, RowStatusDot} from "./rowParts"
 import {TriggerActionsMenu} from "./TriggerActionsMenu"
 
 /** A trigger row: the tile, name, line, the status dot (or a phone's switch) and the "⋯" menu. */
@@ -66,7 +66,7 @@ export function TriggerRow({
                             open()
                         }
                     }}
-                    className={`flex min-w-0 flex-1 items-center ${phone ? "gap-3 self-stretch" : "gap-2.5"}`}
+                    className={`flex min-w-0 flex-1 items-center ${phone ? "gap-3 self-stretch" : ROW_LEAD_GAP}`}
                 >
                     {tile}
                     <div className="min-w-0 flex-1">
