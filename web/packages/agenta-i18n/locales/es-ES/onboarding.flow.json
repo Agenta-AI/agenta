@@ -4,7 +4,7 @@
     "mintError": "No se ha podido configurar tu agente.",
     "stepCounter": "Paso {{current}} de {{total}}",
     "skip": "Omitir por ahora",
-    "dotCredits": "Créditos",
+    "dotRegister": "Registrarse",
     "dotTemplates": "Primer agente",
     "keyHint": "Pulsa {{key}}",
     "continue": "Continuar",
