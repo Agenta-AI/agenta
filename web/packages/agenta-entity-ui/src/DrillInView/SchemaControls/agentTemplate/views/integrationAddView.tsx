@@ -1,6 +1,6 @@
 import {defineView} from "@agenta/ui/view-stack"
 
-import {CatalogRowSkeleton} from "../CatalogRowSkeleton"
+import {CatalogListSkeleton} from "../CatalogRowSkeleton"
 
 import {lazyView} from "./lazyView"
 
@@ -12,8 +12,7 @@ export const integrationAddView = defineView<IntegrationAddViewParams>({
     apply: "immediate",
     Component: lazyView(
         () => import("./IntegrationAddViewBody"),
-        <div className="px-4 py-3">
-            <CatalogRowSkeleton />
-        </div>,
+        // Connected, then All apps, beside the 144 px category select.
+        <CatalogListSkeleton action="w-36" groups={[3, 6]} />,
     ),
 })

@@ -76,7 +76,7 @@ import type {GatewayConnectionTarget, IntegrationRow} from "../toolUtils"
 
 import {CanvasGroupHeader} from "./CanvasGroupHeader"
 import {CatalogListRow} from "./CatalogListRow"
-import {CatalogRowSkeleton} from "./CatalogRowSkeleton"
+import {CatalogGroupSkeleton, CatalogRowSkeleton} from "./CatalogRowSkeleton"
 import {CategoryChips} from "./CategoryChips"
 import {CategorySelect} from "./CategorySelect"
 import {ConnectionActionConfirm, type ConnectionAction} from "./ConnectionActionConfirm"
@@ -959,6 +959,9 @@ export function IntegrationCatalog({
                                 >
                                     {renderRows(connectedEntries, projectVerbs)}
                                 </RowGroup>
+                            ) : !page && !filtering && connectionsLoading ? (
+                                // Connected keeps its place while it loads; All apps does not move.
+                                <CatalogGroupSkeleton rows={3} />
                             ) : null}
                         </>
                     )}

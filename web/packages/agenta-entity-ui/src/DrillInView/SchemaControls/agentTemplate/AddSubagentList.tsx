@@ -19,14 +19,13 @@ import {
     EmptyState,
     SearchInput,
     SimpleTooltip,
-    SkeletonBlock,
 } from "@agenta/ui/ui"
 import {Check, DotsThreeVertical, Plus, Robot, Trash} from "@phosphor-icons/react"
 
 import {ScrollFadeArea} from "../../../shared/ScrollFadeArea"
 
 import {CatalogListRow} from "./CatalogListRow"
-import {CatalogRowSkeleton} from "./CatalogRowSkeleton"
+import {CatalogGroupSkeleton} from "./CatalogRowSkeleton"
 
 /** One selectable agent. */
 export interface SubagentOption {
@@ -202,16 +201,12 @@ function RowGroup({label, children}: {label: ReactNode; children: ReactNode}) {
     )
 }
 
-/** The loaded list's shape: a group heading over catalog rows (STATE-02). */
+/** The loaded list's shape: Added and All agents (STATE-02). */
 function ListSkeleton() {
     return (
-        <div aria-hidden className="flex flex-col">
-            <div className="mt-3 flex h-4.5 items-center">
-                <SkeletonBlock active className="h-3.5 w-24" />
-            </div>
-            <div className="pt-2">
-                <CatalogRowSkeleton count={4} />
-            </div>
+        <div aria-hidden className="flex flex-col gap-2">
+            <CatalogGroupSkeleton rows={3} />
+            <CatalogGroupSkeleton rows={3} />
         </div>
     )
 }

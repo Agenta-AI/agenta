@@ -27,7 +27,7 @@ import {
 } from "@agenta/ui/ui"
 import {MagnifyingGlass, Plus} from "@phosphor-icons/react"
 
-import {McpServerRowsSkeleton} from "../DrillInView/SchemaControls/agentTemplate/McpServerListSkeleton"
+import {CatalogGroupSkeleton} from "../DrillInView/SchemaControls/agentTemplate/CatalogRowSkeleton"
 import {ScrollFadeArea} from "../shared/ScrollFadeArea"
 
 import {ConnectionListRow} from "./components/ConnectionListRow"
@@ -164,7 +164,7 @@ export function McpAddServerList({
 
             <ScrollFadeArea className="flex min-h-0 flex-1 flex-col px-4 pb-3">
                 {loading ? (
-                    <McpServerRowsSkeleton />
+                    <CatalogGroupSkeleton rows={3} />
                 ) : error ? (
                     <Alert
                         type="warning"

@@ -1,6 +1,6 @@
 import {defineView} from "@agenta/ui/view-stack"
 
-import {McpServerListSkeleton} from "../McpServerListSkeleton"
+import {CatalogListSkeleton} from "../CatalogRowSkeleton"
 
 import {lazyView} from "./lazyView"
 
@@ -16,5 +16,8 @@ export const mcpAddView = defineView<McpAddViewParams>({
     apply: "immediate",
     readOnlyOnPhone: true,
     actionRow: false,
-    Component: lazyView(() => import("./McpAddViewBody"), <McpServerListSkeleton />),
+    Component: lazyView(
+        () => import("./McpAddViewBody"),
+        <CatalogListSkeleton action="w-35" groups={[3]} />,
+    ),
 })

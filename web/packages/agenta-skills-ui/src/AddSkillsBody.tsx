@@ -1,7 +1,7 @@
 /** The registry list of the agent's "Add skills" view: the agent's skills, then all the others. */
 import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
-import {CatalogListRow, CatalogRowSkeleton} from "@agenta/entity-ui/drill-in"
+import {CatalogGroupSkeleton, CatalogListRow} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
@@ -28,7 +28,6 @@ import {
     EmptyTitle,
     SearchInput,
     SimpleTooltip,
-    SkeletonBlock,
 } from "@agenta/ui/ui"
 import {Check, DotsThreeVertical, MagnifyingGlass, Plus, Trash} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -153,16 +152,12 @@ function RowGroup({label, children}: {label: ReactNode; children: ReactNode}) {
     )
 }
 
-/** The loading list: a group heading over catalog rows. */
+/** The loading list: Added, then All skills. */
 function AddSkillsListSkeleton() {
     return (
-        <div aria-hidden className="flex flex-col">
-            <div className="mt-3 flex h-4.5 items-center">
-                <SkeletonBlock active className="h-3.5 w-24" />
-            </div>
-            <div className="pt-2">
-                <CatalogRowSkeleton count={5} />
-            </div>
+        <div aria-hidden className="flex flex-col gap-2">
+            <CatalogGroupSkeleton rows={3} />
+            <CatalogGroupSkeleton rows={3} />
         </div>
     )
 }
