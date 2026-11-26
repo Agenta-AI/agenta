@@ -5,6 +5,8 @@ whatever plan a test pins on its account. An instance with no key is on the
 community plan, which has no plan flags. A test that needs a flag asks here and
 skips on such an instance, with a reason that names the plan and the flag. On cloud,
 and on an instance with a paid key, the pinned plan has the flag and the test runs.
+A test that needs a flag to be absent asks the other way and skips on a licensed
+instance, where every organization gets the flags of the key.
 """
 
 from typing import Dict, Tuple
@@ -45,8 +47,14 @@ def _effective_plan(admin_api, *, plan: str) -> Tuple[str, Dict[str, bool]]:
     }
     try:
         subscription = admin_api("GET", "/billing/subscription", headers=headers)
-        assert subscription.status_code == 200, subscription.text
-        applied = subscription.json()["plan"]
+        if subscription.status_code == 404:
+            # Cloud with Stripe: the admin endpoint stores the pinned plan with no
+            # Stripe subscription, so this read has no status to return. On cloud
+            # the pinned plan is the plan applied.
+            applied = plan
+        else:
+            assert subscription.status_code == 200, subscription.text
+            applied = subscription.json()["plan"]
 
         plans = admin_api("GET", "/access/plans", headers=headers)
         assert plans.status_code == 200, plans.text
@@ -77,4 +85,15 @@ def skip_unless_plan_offers(admin_api, *, plan: str, flags: Tuple[str, ...]) -> 
             f"the deployment applies plan {applied}, which does not offer "
             f"{', '.join(missing)}; an instance license key with "
             f"{'these flags' if len(missing) > 1 else 'this flag'} runs this test"
+        )
+
+
+def skip_if_plan_offers(admin_api, *, plan: str, flag: str) -> None:
+    """Skip the calling test when an account pinned to `plan` gets `flag` anyway, as on
+    an instance whose license key has it."""
+    applied, offered = _effective_plan(admin_api, plan=plan)
+    if offered.get(flag):
+        pytest.skip(
+            f"the deployment applies plan {applied}, which offers {flag}; this test "
+            f"needs an organization without it"
         )

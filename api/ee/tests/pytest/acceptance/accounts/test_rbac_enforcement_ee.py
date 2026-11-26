@@ -14,7 +14,7 @@ oss/tests/pytest/acceptance/accounts/test_member_role.py.
 
 from uuid import uuid4
 
-from utils.plans import skip_unless_plan_offers
+from utils.plans import skip_if_plan_offers, skip_unless_plan_offers
 
 
 def _create_account(admin_api, *, email, plan=None):
@@ -176,6 +176,7 @@ class TestRbacEnforcementEe:
 
 class TestRbacWithoutEntitlementEe:
     def test_pro_viewer_denied_and_short_role_list(self, admin_api):
+        skip_if_plan_offers(admin_api, plan="cloud_v0_pro", flag="rbac")
         uid = uuid4().hex[:12]
         owner_email = f"rbac-pro-owner-{uid}@test.agenta.ai"
         viewer_email = f"rbac-pro-viewer-{uid}@test.agenta.ai"

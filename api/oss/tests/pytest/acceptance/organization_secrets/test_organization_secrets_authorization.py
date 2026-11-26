@@ -2,8 +2,9 @@
 
 import pytest
 from oss.src.utils.common import is_ee
-from oss.tests.pytest.utils.plans import plan_offers
+from oss.tests.pytest.utils.plans import plan_offers, skip_if_plan_offers
 from oss.tests.pytest.acceptance.organization_secrets.conftest import (
+    HOBBY_PLAN,
     RBAC_PLAN,
     custom_provider,
     organization_scope,
@@ -259,6 +260,7 @@ def test_projects_route_limits(org):
 
 
 def test_hobby_owner_cannot_limit(hobby_org):
+    skip_if_plan_offers(hobby_org.admin_api, plan=HOBBY_PLAN, flag="rbac")
     created = hobby_org.call(
         "POST",
         "/secrets/",
