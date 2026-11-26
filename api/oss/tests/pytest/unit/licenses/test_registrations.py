@@ -12,7 +12,7 @@ import oss.src.apis.fastapi.licenses.router as licenses_router
 import oss.src.core.licenses.registrations as registrations
 from oss.src.apis.fastapi.licenses.models import InstanceRegistrationRequest
 from oss.src.core.access.dtos import PrincipalKind, RequestCredentialKind
-from oss.src.utils.env import env
+from oss.src.utils.env import LicenseConfig, env
 
 INSTANCE_ID = uuid4()
 
@@ -79,7 +79,7 @@ async def test_registration_sends_the_instance_details_to_agenta(admin, agenta):
     assert response.model_dump() == {"email": "ada@example.com"}
     assert len(agenta.calls) == 1
     call = agenta.calls[0]
-    assert str(call.url) == registrations.REGISTRATION_URL
+    assert str(call.url) == "https://agenta.ai/api/license-registrations"
     assert json.loads(call.content) == {
         "email": "ada@example.com",
         "instance_id": str(INSTANCE_ID),
@@ -90,6 +90,36 @@ async def test_registration_sends_the_instance_details_to_agenta(admin, agenta):
         "product_updates": True,
         "survey": SURVEY,
     }
+
+
+@pytest.mark.parametrize("value", ["", None])
+def test_registration_url_defaults_to_agenta_ai(monkeypatch, value):
+    if value is None:
+        monkeypatch.delenv("AGENTA_LICENSE_REGISTRATION_URL", raising=False)
+    else:
+        monkeypatch.setenv("AGENTA_LICENSE_REGISTRATION_URL", value)
+
+    assert (
+        LicenseConfig().registration_url
+        == "https://agenta.ai/api/license-registrations"
+    )
+
+
+def test_registration_url_reads_the_setting(monkeypatch):
+    preview = "https://preview.example.com/api/license-registrations"
+    monkeypatch.setenv("AGENTA_LICENSE_REGISTRATION_URL", preview)
+
+    assert LicenseConfig().registration_url == preview
+
+
+@pytest.mark.asyncio
+async def test_registration_uses_the_configured_url(admin, agenta, monkeypatch):
+    preview = "https://preview.example.com/api/license-registrations"
+    monkeypatch.setattr(env.license, "registration_url", preview)
+
+    await _register()
+
+    assert [str(call.url) for call in agenta.calls] == [preview]
 
 
 @pytest.mark.asyncio

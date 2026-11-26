@@ -1444,6 +1444,7 @@ How to add a key, and what an instance gets without one, is on the
 | Env var | env.py path | values.yaml path |
 |---|---|---|
 | `AGENTA_LICENSE_KEY` | `license.key` | n/a |
+| `AGENTA_LICENSE_REGISTRATION_URL` | `license.registration_url` | Not mapped; set it in the API's environment |
 
 A license key turns on the plan it names for every organization on a self-hosted instance. The
 key looks like `agenta_license_v1.<payload>.<signature>`. The instance checks it offline, with no
@@ -1464,6 +1465,10 @@ Do not confuse it with [`AGENTA_LICENSE`](#agenta-core), which picks the default
 
 The Helm chart has no value for it. Set it on the `api`, `worker-queues` and `worker-streams`
 containers with `api.extraEnv`, `workerQueues.extraEnv` and `workerStreams.extraEnv`.
+
+`AGENTA_LICENSE_REGISTRATION_URL` is the address where the API sends a request for a free key. The
+default is `https://agenta.ai/api/license-registrations`. An empty value uses the default. Change
+it only to test a different address.
 
 ## llm (provider API keys)
 

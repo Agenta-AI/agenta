@@ -15,8 +15,6 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
-REGISTRATION_URL = "https://agenta.ai/api/license-registrations"
-
 
 async def _instance_id() -> UUID:
     # #8237 adds `get_instance_id`; hoist this import when it lands.
@@ -68,7 +66,7 @@ async def create_registration(
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(REGISTRATION_URL, json=payload)
+            response = await client.post(env.license.registration_url, json=payload)
         response.raise_for_status()
     except httpx.HTTPError as error:
         log.warning(

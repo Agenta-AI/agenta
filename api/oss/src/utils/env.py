@@ -1629,6 +1629,14 @@ class LicenseConfig(BaseModel):
     """License key set by the operator. It takes priority over a key added in the app."""
 
     key: str | None = (os.getenv("AGENTA_LICENSE_KEY") or "").strip() or None
+    # Where the free key request goes. Change it only to test a different address,
+    # such as a website preview. An empty value uses the default.
+    registration_url: str = Field(
+        default_factory=lambda: (
+            os.getenv("AGENTA_LICENSE_REGISTRATION_URL")
+            or "https://agenta.ai/api/license-registrations"
+        )
+    )
 
     model_config = ConfigDict(extra="ignore")
 
