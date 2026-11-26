@@ -1,0 +1,47 @@
+[
+    {
+        "id": "foundation-a2-instructions-light",
+        "story": "builderlayout-foundation-a2-config-slice--instructions",
+        "width": 900,
+        "height": 800,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=AGENTS.md"
+    },
+    {
+        "id": "foundation-a2-model-light",
+        "story": "builderlayout-foundation-a2-config-slice--model",
+        "width": 600,
+        "height": 800,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Done"
+    },
+    {
+        "id": "foundation-a2-add-integration-light",
+        "story": "builderlayout-foundation-a2-config-slice--add-integration",
+        "width": 600,
+        "height": 800,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Add integration"
+    },
+    {
+        "id": "foundation-a2-integration-light",
+        "story": "builderlayout-foundation-a2-config-slice--integration",
+        "width": 600,
+        "height": 800,
+        "theme": "light",
+        "selector": "[data-testid=\"agent-panel\"]",
+        "ready": "text=Remove from agent"
+    },
+    {
+        "id": "foundation-a2-connect-settings-light",
+        "story": "builderlayout-foundation-a2-config-slice--connect-in-settings",
+        "width": 900,
+        "height": 800,
+        "theme": "light",
+        "selector": "[role=\"dialog\"]",
+        "ready": "text=Connect GitHub"
+    }
+]

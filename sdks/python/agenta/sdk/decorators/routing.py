@@ -2,7 +2,8 @@
 
 import warnings
 import httpx
-from typing import Any, Callable, Optional, AsyncGenerator, Union
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Tuple, Union
+from hashlib import sha256
 from json import dumps
 from uuid import UUID
 from traceback import format_exception
@@ -37,7 +38,7 @@ from agenta.sdk.agents.adapters.vercel.messages import (
 from agenta.sdk.agents.adapters.vercel.stream import (
     agent_stream_to_vercel_stream,
 )
-from agenta.sdk.middlewares.routing.otel import baggage_value
+from agenta.sdk.middlewares.routing.otel import header_session_id
 from agenta.sdk.agents.adapters.vercel.sse import (
     VERCEL_UI_MESSAGE_STREAM_HEADERS as _VERCEL_UI_MESSAGE_STREAM_HEADERS,
     vercel_sse_stream as _vercel_sse_stream,
@@ -223,12 +224,7 @@ def apply_invoke_prelude(req: Request, request: WorkflowInvokeRequest) -> None:
     request.flags = _flags
 
     if request.session_id is None:
-        _otel = getattr(req.state, "otel", None) or {}
-        _bag = _otel.get("baggage") or {}
-        _bag_sid = _bag.get("ag.session.id") or baggage_value(
-            req.headers.get("baggage"), "ag.session.id"
-        )
-        request.session_id = req.headers.get("x-ag-session-id") or _bag_sid
+        request.session_id = header_session_id(req)
 
     if _wants_vercel_format(req) and request.data and request.data.inputs:
         _msgs = request.data.inputs.get("messages")
@@ -248,6 +244,224 @@ def apply_invoke_prelude(req: Request, request: WorkflowInvokeRequest) -> None:
             }
 
 
+#: The most approval answers one request records: the newest ones. A turn that pauses on more
+#: gates than this shows the older cards again.
+MAX_INBAND_APPROVAL_ANSWERS = 32
+
+
+def _inband_approval_answers(
+    messages: Any,
+) -> List[Tuple[str, bool, str]]:
+    """The approval answers this turn carries in its messages, as ``(token, approved,
+    tool_call_id)``.
+
+    An answer is a ``tool_result`` block with a ``toolCallId`` whose output is
+    ``{approved, interactionToken}``: what the Vercel adapter makes of a
+    ``tool-approval-response`` part or an answered tool part. Only the current turn counts
+    (from the last ``user`` message on, or the whole list when it has no ``user`` message):
+    earlier answers are history whose rows are already settled. An answer with no
+    ``interactionToken`` names no row.
+
+    The scan reads only the fields it needs, so it accepts any message shape that a
+    workflow takes (a chat message with ``content: null``, for example) and never raises.
+    """
+    if not isinstance(messages, list):
+        return []
+    turn = [message for message in messages if isinstance(message, dict)]
+    start = 0
+    for index in range(len(turn) - 1, -1, -1):
+        if turn[index].get("role") == "user":
+            start = index
+            break
+    answers: List[Tuple[str, bool, str]] = []
+    seen = set()
+    for message in turn[start:]:
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict) or block.get("type") != "tool_result":
+                continue
+            output = block.get("output")
+            if not isinstance(output, dict):
+                continue
+            approved = output.get("approved")
+            token = output.get("interactionToken")
+            tool_call_id = block.get("toolCallId") or block.get("tool_call_id")
+            if not isinstance(approved, bool):
+                continue
+            if not isinstance(token, str) or not token or token in seen:
+                continue
+            if not isinstance(tool_call_id, str) or not tool_call_id:
+                continue
+            seen.add(token)
+            answers.append((token, approved, tool_call_id))
+    # The newest answers come last. A client that resends the turn keeps its settled
+    # answers in front, so the newest ones must not fall outside the bound.
+    return answers[-MAX_INBAND_APPROVAL_ANSWERS:]
+
+
+async def record_inband_approval_answers(
+    req: Request,
+    request: WorkflowInvokeRequest,
+) -> bool:
+    """Record a person's in-band approval answer on its interaction row before the run,
+    and run this request as the continuation of the paused turn.
+
+    The runner takes an approval decision only from a ``responded`` row, never from message
+    text. A caller that answers a card inside the messages (the Vercel
+    ``tool-approval-response`` input) has no row written for it, so this sends the answers
+    to the respond route first, the route that the app uses, with the credential the caller
+    presented to this service, not the exchanged one. The API decides whether that
+    credential may answer. It stores the answers and a continuation of the paused
+    execution, as for an answer in the app, but leaves the continuation to this request
+    (``delivery: caller``): the request then runs under the continuation's execution id,
+    command id and session turn id, so the resumed run belongs to the turn that paused.
+
+    A refusal leaves the rows as they were, and the run starts anyway as a new turn (the
+    card then shows again). Never raises.
+
+    Returns True when the API accepted an answer. The request then answers the paused
+    turn and is not new input, so the caller skips input admission (`on_busy`) for it.
+
+    A delivery the API made itself (a continuation or a promoted input) is skipped: the API
+    already stored the answer before it dispatched the run.
+    """
+    if request.session_id is None or request.data is None:
+        return False
+    meta = request.meta if isinstance(request.meta, dict) else {}
+    if meta.get("control_command_id") or meta.get("promoted_input_id"):
+        return False
+    answers = _inband_approval_answers((request.data.inputs or {}).get("messages"))
+    if not answers:
+        return False
+
+    headers: Dict[str, str] = {"Content-Type": "application/json"}
+    authorization = req.headers.get("authorization")
+    if authorization:
+        headers["Authorization"] = authorization
+    access_token = req.cookies.get("sAccessToken")
+    cookies = {"sAccessToken": access_token} if access_token else None
+    if not authorization and not cookies:
+        return False
+    otel = getattr(req.state, "otel", None) or {}
+    project_id = (otel.get("baggage") or {}).get("project_id") or req.query_params.get(
+        "project_id"
+    )
+    params = {"project_id": project_id} if project_id else None
+
+    connection = PlatformConnection()
+    api_base = connection.base_url()
+    if not api_base:
+        return False
+    accepted = False
+    try:
+        async with httpx.AsyncClient(
+            timeout=connection.timeout, cookies=cookies
+        ) as client:
+            response = await client.post(
+                f"{api_base}/sessions/interactions/query",
+                headers=headers,
+                params=params,
+                json={
+                    "query": {
+                        "session_id": request.session_id,
+                        "kind": "user_approval",
+                    }
+                },
+            )
+            if response.status_code >= 400:
+                log.info(
+                    "[HITL] in-band approval answer not recorded",
+                    session_id=request.session_id,
+                    status_code=response.status_code,
+                )
+                return False
+            rows = {
+                row.get("token"): row
+                for row in (response.json().get("interactions") or [])
+                if isinstance(row, dict) and row.get("token")
+            }
+            # One respond call per paused execution: the route continues one execution.
+            by_execution: Dict[str, List[Dict[str, Any]]] = {}
+            for token, approved, tool_call_id in answers:
+                row = rows.get(token)
+                if not row or not row.get("id") or not row.get("turn_id"):
+                    continue
+                by_execution.setdefault(row["turn_id"], []).append(
+                    {
+                        "interaction_id": row["id"],
+                        "answer": {"approved": approved, "tool_call_id": tool_call_id},
+                    }
+                )
+            for execution_id, items in by_execution.items():
+                digest = sha256(
+                    dumps(items, sort_keys=True, separators=(",", ":")).encode()
+                ).hexdigest()
+                response = await client.post(
+                    f"{api_base}/sessions/interactions/{items[0]['interaction_id']}"
+                    "/respond",
+                    headers={
+                        **headers,
+                        "Idempotency-Key": f"inband-approval:{execution_id}:{digest}",
+                    },
+                    params=params,
+                    json={
+                        "answers": items,
+                        "expected_execution_id": execution_id,
+                        "delivery": "caller",
+                    },
+                )
+                if response.status_code >= 400:
+                    log.info(
+                        "[HITL] in-band approval answer not recorded",
+                        session_id=request.session_id,
+                        execution_id=execution_id,
+                        status_code=response.status_code,
+                    )
+                    # The API asks this service to slow down: stop, and the remaining
+                    # cards show again.
+                    if response.status_code == 429:
+                        break
+                    continue
+                accepted = True
+                _run_as_continuation(request, response.json())
+    except (httpx.HTTPError, ValueError) as error:
+        log.warning(
+            "[HITL] in-band approval answer not recorded",
+            session_id=request.session_id,
+            error=type(error).__name__,
+        )
+    return accepted
+
+
+def _run_as_continuation(request: WorkflowInvokeRequest, admission: Any) -> None:
+    """Make this request the continuation that the respond route stored for its answers.
+
+    A `pending` continuation is this request's to run. A continuation in any other state
+    is a replay of answers that already ran (or run now): the request still carries its
+    command id, so the runner's exactly-once admission refuses a second run instead of
+    starting the same conversation as a new turn. Without a continuation (another gate of
+    the turn still waits) the request runs as before."""
+    if not isinstance(admission, dict) or (request.meta or {}).get(
+        "control_command_id"
+    ):
+        return
+    command = admission.get("command") or {}
+    execution = admission.get("execution") or {}
+    if not command.get("id"):
+        return
+    if not execution.get("id"):
+        return
+    continuation = {
+        "run_id": execution["id"],
+        "control_command_id": command["id"],
+    }
+    if execution.get("session_turn_id"):
+        continuation["session_turn_id"] = execution["session_turn_id"]
+    request.meta = {**(request.meta or {}), **continuation}
+
+
 async def admit_session_input(
     req: Request,
     request: WorkflowInvokeRequest,
@@ -255,7 +469,10 @@ async def admit_session_input(
 ) -> Optional[Response]:
     if request.on_busy is None or request.session_id is None:
         return None
-    if isinstance(request.meta, dict) and request.meta.get("promoted_input_id"):
+    if isinstance(request.meta, dict) and (
+        request.meta.get("promoted_input_id") or request.meta.get("control_command_id")
+    ):
+        # Already admitted: a promoted input, or the continuation of a paused turn.
         return None
 
     connection = PlatformConnection(authorization=credentials)
@@ -750,11 +967,12 @@ class route:
             apply_invoke_prelude(req, request)
 
             try:
-                admission_response = await admit_session_input(
-                    req, request, credentials
-                )
-                if admission_response is not None:
-                    return admission_response
+                if not await record_inband_approval_answers(req, request):
+                    admission_response = await admit_session_input(
+                        req, request, credentials
+                    )
+                    if admission_response is not None:
+                        return admission_response
                 with tracing_context_manager(_get_request_tracing_context(req)):
                     response = await wf.invoke(
                         request=request,

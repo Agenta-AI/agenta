@@ -1,5 +1,9 @@
-import type {TriggerDelivery} from "@agenta/entities/gatewayTrigger"
+import {
+    RECENT_TRIGGER_DELIVERIES_LIMIT,
+    type TriggerDelivery,
+} from "@agenta/entities/gatewayTrigger"
 import {createT, formatLocale} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 
 import {deliveryOutcome, type Automation} from "./automationModel"
@@ -13,6 +17,7 @@ import {deliveryOutcome, type Automation} from "./automationModel"
  */
 
 const tNow = createT(automationsModelCatalog)
+const tEditor = createT(automationsEditorCatalog)
 
 /** The window the run-history caption counts over, and the only one this screen claims. */
 export const RUN_WINDOW_DAYS = 30
@@ -31,9 +36,14 @@ export function countRecentRuns(deliveries: TriggerDelivery[], now = Date.now())
     }).length
 }
 
-/** "12 runs in the last 30 days" — the caption under both the card and the heading. */
+/**
+ * "12 runs in 30 days": the caption under the card, the heading and the list row. Counted from
+ * the capped recent read, so above the cap it says "100+ runs in 30 days".
+ */
 export function runCountCaption(count: number): string {
-    return tNow("automations.model.runCount", {count, days: RUN_WINDOW_DAYS})
+    return count > RECENT_TRIGGER_DELIVERIES_LIMIT
+        ? tEditor("automations.editor.runsIn30DaysOver", {limit: RECENT_TRIGGER_DELIVERIES_LIMIT})
+        : tEditor("automations.editor.runsIn30Days", {count})
 }
 
 /** One run of rows under one heading — a day by default, whatever the view groups by otherwise. */
@@ -47,18 +57,20 @@ export interface RunDayGroup {
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-/** Local midnight — runs group by calendar day, not by rolling 24h buckets. */
+/**
+ * UTC midnight — runs group by calendar day, not by rolling 24h buckets.
+ *
+ * Every run time here is UTC, as the schedule is: "Next run … 09:00 UTC" and the run it starts
+ * then read the same "09:00", in whatever zone the reader's browser is in.
+ */
 function startOfDay(ms: number): number {
     const date = new Date(ms)
-    date.setHours(0, 0, 0, 0)
+    date.setUTCHours(0, 0, 0, 0)
     return date.getTime()
 }
 
 function dayKey(ms: number): string {
-    const date = new Date(ms)
-    const month = String(date.getMonth() + 1).padStart(2, "0")
-    const day = String(date.getDate()).padStart(2, "0")
-    return `${date.getFullYear()}-${month}-${day}`
+    return new Date(ms).toISOString().slice(0, 10)
 }
 
 /**
@@ -73,14 +85,15 @@ function dayLabel(ms: number, now: number): string {
     if (days === 1) return tNow("automations.model.dayYesterday")
     const date = new Date(ms)
     const locale = formatLocale()
-    if (days < 7) return date.toLocaleDateString(locale, {weekday: "short"})
+    if (days < 7) return date.toLocaleDateString(locale, {weekday: "short", timeZone: "UTC"})
     // English keeps its day-first form; another language writes the date its own way.
-    if (locale) return date.toLocaleDateString(locale, {day: "numeric", month: "short"})
-    return `${date.getDate()} ${date.toLocaleDateString(undefined, {month: "short"})}`
+    if (locale)
+        return date.toLocaleDateString(locale, {day: "numeric", month: "short", timeZone: "UTC"})
+    return `${date.getUTCDate()} ${date.toLocaleDateString(undefined, {month: "short", timeZone: "UTC"})}`
 }
 
 /**
- * "08:00" — the stamp a row carries.
+ * "08:00" (UTC) — the stamp a row carries.
  *
  * Not a relative age: the day heading above the row has already said which day, so repeating
  * "12d ago" on every row would restate the heading and lose the only fact it was missing.
@@ -93,6 +106,7 @@ export function runTimeOfDay(delivery: TriggerDelivery): string {
         hour: "2-digit",
         minute: "2-digit",
         hourCycle: "h23",
+        timeZone: "UTC",
     })
 }
 
@@ -195,14 +209,16 @@ export function runOutcomeLabel(delivery: TriggerDelivery): string {
  * How long a run took.
  *
  * DERIVED, not reported: a delivery carries no duration field, so this is the distance between
- * the row being written (`created_at`) and last touched (`updated_at`) — which is the dispatch
- * settling, and the closest thing to a run length the payload has. A row never updated after
- * insert has the two equal, and "took 0s" would be a measurement rather than the absence of
- * one, so that case returns null and the caller drops the clause.
+ * the row being written (`created_at`) and the time of its status, which the API sets to when
+ * the run ended. A run that has not ended has no length yet. A zero distance would be a
+ * measurement rather than the absence of one, so that case returns null too and the caller drops
+ * the clause.
  */
 export function runDuration(delivery: TriggerDelivery): string | null {
+    const outcome = deliveryOutcome(delivery)
+    if (outcome !== "ok" && outcome !== "bad") return null
     const started = Date.parse(delivery.created_at ?? "")
-    const ended = Date.parse(delivery.updated_at ?? "")
+    const ended = Date.parse(delivery.status?.timestamp ?? "")
     if (!Number.isFinite(started) || !Number.isFinite(ended)) return null
     const ms = ended - started
     if (ms <= 0) return null

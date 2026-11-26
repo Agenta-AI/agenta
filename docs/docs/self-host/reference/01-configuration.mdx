@@ -106,6 +106,7 @@ for how they behave. The plan and role variables are Enterprise-only; see
 | `AGENTA_ACCESS_DEFAULT_PLAN` | `agenta.access.default_plan` | `agenta.access.defaultPlan` |
 | `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` | `agenta.access.default_plan_overlay` | `agenta.access.defaultPlanOverlay` |
 | `AGENTA_ACCESS_EMAIL_DISABLED` | `agenta.access.email_disabled` | `agenta.access.emailDisabled` |
+| `AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` | `agenta.access.personal_accounts_enabled` | `agenta.access.personalAccountsEnabled` |
 | `AGENTA_ACCESS_PLANS` | `agenta.access.plans` | `agenta.access.plans` |
 | `AGENTA_ACCESS_ROLES` | `agenta.access.roles` | `agenta.access.roles` |
 | `AGENTA_ACCESS_ROLES_OVERLAY` | `agenta.access.roles_overlay` | `agenta.access.rolesOverlay` |
@@ -117,6 +118,13 @@ client adds itself. The bundled Traefik and nginx setups need `1`. When it is un
 uses the first `X-Forwarded-For` entry, which a client can set. The API reads `CF-Connecting-IP`
 only when `AGENTA_ACCESS_TRUST_CLOUDFLARE_IP` is `true`. Turn it on only when Cloudflare proxies
 every request to the API.
+
+`AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED` defaults to `true`. People can then store their own
+accounts (custom secrets, Composio connections, MCP sign-ins), and an agent's `user` items use
+them. Set it to `false` to turn this off. While it is `false`, the API refuses person-owned
+writes and account choices, and a run leaves every `user` item out. During an upgrade, set it to
+`false` until every API pod, services pod and runner runs a release that supports personal accounts.
+On Kubernetes, set `agenta.access.personalAccountsEnabled`. The chart default is `true`, and the chart renders it into the API, worker, cron, services and alembic pods. To keep the old behavior during an upgrade, set it to `false`, and set it back to `true` once every pod runs the release.
 
 ## Agenta AI services
 
@@ -456,14 +464,14 @@ Read by the `runner` service. Required only when `daytona` is enabled.
 | `AGENTA_RUNNER_DAYTONA_API_KEY` | Provisioning credential | Unset | yes | `agentRunner.providers.daytona.apiKeySecretRef` |
 | `AGENTA_RUNNER_DAYTONA_API_URL` | Daytona API locator | Unset | no | `...daytona.apiUrl` |
 | `AGENTA_RUNNER_DAYTONA_TARGET` | Region or target | Unset | no | `...daytona.target` |
-| `AGENTA_RUNNER_DAYTONA_SNAPSHOT` | Snapshot to start from | Runner's pinned `agenta-agent-sandbox-v4` | no | `...daytona.snapshot` |
+| `AGENTA_RUNNER_DAYTONA_SNAPSHOT` | Snapshot to start from | Runner's pinned `agenta-agent-sandbox-v8` | no | `...daytona.snapshot` |
 | `AGENTA_RUNNER_DAYTONA_IMAGE` | Image to start from | Unset | no | `...daytona.image` |
 | `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES` | Idle minutes before stop | `15` | no | `...daytona.autostopMinutes` |
 | `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES` | Idle minutes before delete | `30` | no | `...daytona.autodeleteMinutes` |
 | `AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS` | Set to `off` to stop hiding API keys from the sandbox | Unset (hiding is on) | no | `...daytona.opaqueSecrets` |
 
 When neither `AGENTA_RUNNER_DAYTONA_SNAPSHOT` nor `AGENTA_RUNNER_DAYTONA_IMAGE` is set, the runner
-starts from its pinned default snapshot `agenta-agent-sandbox-v4`. The two variables are mutually
+starts from its pinned default snapshot `agenta-agent-sandbox-v8`. The two variables are mutually
 exclusive. The autostop and autodelete values must be positive integers. See
 [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) for the setup flow,
 and [Customize the agent runtime](/self-host/agent-execution/customize-the-agent-runtime) for the
@@ -777,15 +785,15 @@ logged.
 
 ```text
 runner providers enabled=[local,daytona,inprocess] default=local
-runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v4
-runner inprocess sandbox_start=on-first-tool-call artifact=snapshot:agenta-agent-sandbox-v4 max_running_sandboxes=40 max_sessions=200
+runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v8
+runner inprocess sandbox_start=on-first-tool-call artifact=snapshot:agenta-agent-sandbox-v8 max_running_sandboxes=40 max_sessions=200
 ```
 
 The first line always prints and shows the effective list: `local,daytona` in the variable prints as
 `local,daytona,inprocess`. The second line appears only when `daytona` is enabled. The third
 line appears only when `inprocess` is enabled. `target`
 reads `default` when `AGENTA_RUNNER_DAYTONA_TARGET` is unset, and `artifact` reads
-`snapshot:agenta-agent-sandbox-v4` (the pinned default), `snapshot:<name>`, or `image:<name>`
+`snapshot:agenta-agent-sandbox-v8` (the pinned default), `snapshot:<name>`, or `image:<name>`
 depending on what is set.
 
 ### Troubleshooting
@@ -1026,6 +1034,41 @@ A turn that carries more than `AGENTA_ATTACHMENTS_MAX_PER_TURN` attachments fail
 run starts. The runner also refuses any single attachment body over 16 MB. That ceiling is
 fixed in code, so raising a per-file cap above it stores files the runner cannot fetch.
 
+## Agenta sessions
+
+Bounds what an agent can do with the session tools: starting child sessions, sending them
+messages, and turns that no person sent. A child session is a session that another session
+started with `start_session`. The session that a person started is level 0, its child is
+level 1, and the child of that child is level 2.
+
+The chart has no dedicated values keys for these. Set them through `api.env.<NAME>`.
+
+Read by the `api` service:
+
+| Env var | env.py path | What it bounds | Default |
+|---|---|---|---|
+| `AGENTA_SESSIONS_TURNS_WITHOUT_PERSON_LIMIT` | `agenta.sessions.turns_without_person_limit` | Turns in a row in one session that no person sent. At this count, a new message that no person sent waits in the queue and runs after the next turn that a person sends. | `20` |
+| `AGENTA_SESSIONS_CHILD_SESSIONS_LIMIT` | `agenta.sessions.child_sessions_limit` | Running child sessions of one session. At this count, `start_session` is refused, and so is a send that would start a turn in an idle child. | `5` |
+| `AGENTA_SESSIONS_CHILD_SESSION_DEPTH_LIMIT` | `agenta.sessions.child_session_depth_limit` | Deepest level of a child session. `start_session` is refused when the new child would be deeper. | `3` |
+| `AGENTA_SESSIONS_CHILD_QUEUED_MESSAGES_LIMIT` | `agenta.sessions.child_queued_messages_limit` | Queued messages from one session in one child session. A send that would queue one more is refused. | `3` |
+| `AGENTA_SESSIONS_STILL_RUNNING_UPDATE_MINUTES` | `agenta.sessions.still_running_update_minutes` | Minutes after a start or a send before the calling session gets a "still running" update, when the agent gives no `update_after_minutes`. Values above `360` are treated as `360`. | `30` |
+
+Each value must be a whole number greater than `0`. The API does not start with `0` or a
+negative value.
+
+## Agenta triggers
+
+The chart has no dedicated values key for this. Set it through `api.env.<NAME>`.
+
+Read by the `api` service:
+
+| Env var | env.py path | What it bounds | Default |
+|---|---|---|---|
+| `AGENTA_TRIGGERS_ONE_TIME_SCHEDULES_MAX_PER_TICK` | `triggers.one_time_schedules_max_per_tick` | One-time schedules that one schedule tick fires, over all projects. The earliest are fired first; the rest fire in the next tick. | `2000` |
+
+The value must be a whole number greater than `0`. The API does not start with `0` or a
+negative value.
+
 ## Agenta egress
 
 | Env var | env.py path | values.yaml path |
@@ -1124,7 +1167,8 @@ show the MCP settings tab, so set these in the file every container loads and re
 The LLM gateway can serve models from a Google Cloud Vertex AI account that your deployment
 owns, instead of from a key in the project's vault. An agent then picks them from the
 **Built-in: agenta** group in the model picker, and the call is made with your account's
-credential. Today these are Gemini 3.7 Flash, Gemini 3.8 Flash, and Gemini 4 Argon.
+credential. Today these are Gemini 3.7 Flash, Gemini 3.8 Flash, Gemini 4 Hydrogen, Gemini 4 Argon,
+Gemini 4 Carbon, and Gemini 4 Neon.
 
 To turn this on, set both of these on the API container:
 
@@ -1394,12 +1438,6 @@ An instance admin can also add a key in the app, under **Settings > License**. A
 is a user whose email is in `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS`, or, when that list is unset, the
 owner of the oldest organization. A key in `AGENTA_LICENSE_KEY` takes priority over a key added in
 the app, and the License page then shows the key but does not let you change it.
-
-With no key, the License page also offers a free registration key. The instance admin enters an
-email, and the instance sends that email, the instance id, the Agenta version and `AGENTA_WEB_URL`
-to Agenta. Agenta emails back a key on the `self_hosted_registered` plan and a link that adds it.
-Agenta uses `AGENTA_WEB_URL` only to build that link. The registered plan has the same features as
-`self_hosted_community` today.
 
 On a self-hosted instance, the plan of every organization comes from the key. With no valid key, or after the
 key expires, the instance runs on `self_hosted_community`, which has no enterprise features. No data

@@ -1,5 +1,6 @@
 {
     "alwaysAutoApprove": "Aprobar siempre automáticamente",
+    "anAgent": "un agente",
     "answerSavedRetry": "Respuesta guardada, hace falta reintentar",
     "answerSavedRetryHint": "La respuesta está guardada. Envía tu siguiente mensaje para reintentar la continuación.",
     "answerSavedWaiting": "La respuesta está guardada. Esperando la siguiente actualización del agente…",
@@ -15,6 +16,9 @@
     "redirect": "Redirigir",
     "seeWhatChanges": "Ver qué cambia ({{count}})",
     "seeWhatRuns": "Ver qué se ejecuta ({{count}})",
+    "startSession": "Iniciar una sesión de {{agent}}. La nueva sesión se ejecuta por su cuenta.",
+    "startSessionMessage": "Primer mensaje",
+    "startSessionName": "Nombre de la sesión",
     "steerHint": "Deniega este paso y dile al agente qué hacer en su lugar. Tu nota se ejecuta como el siguiente mensaje.",
     "steerPlaceholder": "p. ej. escribe en staging, no en producción, o pídele algo totalmente distinto"
 }

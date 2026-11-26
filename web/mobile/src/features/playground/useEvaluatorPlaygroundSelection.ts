@@ -114,13 +114,30 @@ export const useEvaluatorPlaygroundSelection = (): EvaluatorPlaygroundSelection 
                 .catch(() => undefined)
         }
         let timer: ReturnType<typeof setTimeout> | undefined
+        // A write while the user leaves the page would replace the route and cancel the leave.
+        let leaving = false
         const schedule = () => {
             clearTimeout(timer)
-            timer = setTimeout(write, ADDRESS_WRITE_DELAY_MS)
+            if (!leaving) timer = setTimeout(write, ADDRESS_WRITE_DELAY_MS)
         }
+        const onLeaveStart = (_url: string, {shallow}: {shallow: boolean}) => {
+            if (shallow) return
+            leaving = true
+            clearTimeout(timer)
+        }
+        const onLeaveEnd = () => {
+            leaving = false
+        }
+        const events = routerRef.current.events
+        events?.on("routeChangeStart", onLeaveStart)
+        events?.on("routeChangeError", onLeaveEnd)
+        events?.on("routeChangeComplete", onLeaveEnd)
         const unsubscribe = store.sub(snapshotTriggerAtom, schedule)
         return () => {
             unsubscribe()
+            events?.off("routeChangeStart", onLeaveStart)
+            events?.off("routeChangeError", onLeaveEnd)
+            events?.off("routeChangeComplete", onLeaveEnd)
             clearTimeout(timer)
         }
     }, [router.isReady, store])

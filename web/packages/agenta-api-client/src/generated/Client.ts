@@ -4,6 +4,7 @@ import { AccessClient } from "./api/resources/access/client/Client.js";
 import { AccountChoicesClient } from "./api/resources/accountChoices/client/Client.js";
 import { AnnotationsClient } from "./api/resources/annotations/client/Client.js";
 import { ApplicationsClient } from "./api/resources/applications/client/Client.js";
+import { ApprovalChoicesClient } from "./api/resources/approvalChoices/client/Client.js";
 import { BillingClient } from "./api/resources/billing/client/Client.js";
 import { ChannelsClient } from "./api/resources/channels/client/Client.js";
 import { EnvironmentsClient } from "./api/resources/environments/client/Client.js";
@@ -69,6 +70,7 @@ export class AgentaApiClient {
     protected _environments: EnvironmentsClient | undefined;
     protected _tools: ToolsClient | undefined;
     protected _accountChoices: AccountChoicesClient | undefined;
+    protected _approvalChoices: ApprovalChoicesClient | undefined;
     protected _triggers: TriggersClient | undefined;
     protected _channels: ChannelsClient | undefined;
     protected _gateway: GatewayClient | undefined;
@@ -173,6 +175,10 @@ export class AgentaApiClient {
 
     public get accountChoices(): AccountChoicesClient {
         return (this._accountChoices ??= new AccountChoicesClient(this._options));
+    }
+
+    public get approvalChoices(): ApprovalChoicesClient {
+        return (this._approvalChoices ??= new ApprovalChoicesClient(this._options));
     }
 
     public get triggers(): TriggersClient {

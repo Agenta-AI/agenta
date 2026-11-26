@@ -301,8 +301,13 @@ export const OnboardingFlow = ({
             <OnboardingProgressDots
                 steps={steps}
                 current={steps.indexOf(step)}
+                // The registration offer is not a route, so a dot would change the step
+                // behind it and leave the offer on screen.
                 reached={(target) =>
-                    !creating && target !== step && isStepOpen(target, draft, steps)
+                    !creating &&
+                    !interstitial &&
+                    target !== step &&
+                    isStepOpen(target, draft, steps)
                 }
                 onGo={(target) => go(stepRoute(target))}
             />

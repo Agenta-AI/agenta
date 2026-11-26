@@ -954,7 +954,7 @@ class ChannelsDAOInterface(ABC):
         (project_id, connection) pairs. Cross-project on purpose: the Discord
         socket loop holds one socket per connection in every project, as the
         schedule tick reads every project's active schedules
-        (`fetch_active_schedules_with_project` in triggers). Credentials are
+        (`fetch_active_recurring_schedules_with_project` in triggers). Credentials are
         not resolved here."""
         ...
 

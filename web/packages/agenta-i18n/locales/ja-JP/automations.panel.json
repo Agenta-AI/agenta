@@ -1,0 +1,11 @@
+{
+    "scheduledTriggers": "スケジュールトリガー",
+    "appTriggers": "アプリトリガー",
+    "deleteFailed": "この自動化を削除できませんでした。もう一度お試しください。",
+    "runs": "実行",
+    "settings": "設定",
+    "history": "履歴",
+    "seeAllRuns": "すべての実行を表示",
+    "lastRun": "前回の実行",
+    "didNotFinish": "完了しませんでした"
+}

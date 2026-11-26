@@ -3,6 +3,7 @@
     "attachFiles": "Joindre des fichiers",
     "attachUpTo": "Jusqu’à {{count}} fichiers",
     "listening": "Écoute en cours…",
+    "placeholderAgent": "Message à {{agent}}",
     "placeholderFirst": "Sur quoi allons-nous travailler ?",
     "placeholderKeyboard": "Demandez à l’agent… (Entrée pour envoyer, ⌘/Ctrl+Entrée pour un retour à la ligne)",
     "placeholderQuoted": "Que faut-il changer dans le passage cité ?",

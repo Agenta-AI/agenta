@@ -43,7 +43,8 @@ export const ToolbarSearch = () => {
             value={searchQuery}
             onValueChange={onValueChange}
             onKeyDown={onKeyDown}
-            className="w-[320px] shrink-0"
+            // Grows to 320px but starts small, so on a phone the filter button stays on its row.
+            className="min-w-0 max-w-[320px] flex-[1_1_160px]"
         />
     )
 }

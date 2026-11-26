@@ -19,7 +19,9 @@ import {AppSection} from "./AppSection"
 import {EvaluatorsSection} from "./EvaluatorsSection"
 import {
     CONCURRENCY_FIELDS,
+    concurrencyError,
     draftHasInput,
+    validateDraft,
     type DraftRevision,
     type NewEvaluationDraft,
     type NewEvaluationKind,
@@ -28,13 +30,15 @@ import {
 import {RevisionSection} from "./RevisionSection"
 import {SectionHint} from "./SectionHint"
 import {StepItem, type Step} from "./StepItem"
+import {TestsetColumnsWarning} from "./TestsetColumnsWarning"
 import {TestsetSection} from "./TestsetSection"
+import {useMissingInputColumns} from "./useMissingInputColumns"
 import {useNewEvaluationDraft} from "./useNewEvaluationDraft"
 import type {StartEvaluationResult} from "./useStartEvaluation"
 
 const TITLES: Record<NewEvaluationKind, string> = {
-    auto: "New Auto Evaluation",
-    human: "New Human Evaluation",
+    auto: "New auto evaluation",
+    human: "New human evaluation",
 }
 
 const NEEDS_APP = "Select an application first to load this section."
@@ -104,11 +108,19 @@ export const NewEvaluationForm = ({
 
     const app = draft.app
     const open = (section: NewEvaluationSection) => dispatch({type: "openSection", section})
+    const missingColumns = useMissingInputColumns(projectId, draft.revisions, draft.testset)
+    // After a blocked start the problem shows inline, and goes away once it is fixed.
+    const [attempted, setAttempted] = useState(false)
+    const problem = attempted ? validateDraft(draft) : null
+    const nameError = problem && !draft.name.trim() ? problem.message : undefined
 
     const handleSubmit = async (event: FormEvent) => {
         event.preventDefault()
         const result = await start(draft)
-        if (result.status === "invalid") open(result.section)
+        if (result.status === "invalid") {
+            setAttempted(true)
+            open(result.section)
+        }
         if (result.status === "started") {
             onStarted(result.kind)
             onClose()
@@ -119,6 +131,9 @@ export const NewEvaluationForm = ({
         const value = draft.concurrency[field]
         return value === null ? [] : [{id: field, label: `${field}: ${value}`}]
     })
+    const settingsValid = CONCURRENCY_FIELDS.every(
+        ({field}) => concurrencyError(field, draft.concurrency[field]) === null,
+    )
     const steps: Step[] = [
         {
             section: "application",
@@ -148,6 +163,7 @@ export const NewEvaluationForm = ({
             section: "testset",
             title: "Test set",
             complete: draft.testset !== null,
+            warning: missingColumns.length > 0,
             chips: draft.testset
                 ? [
                       {
@@ -173,14 +189,19 @@ export const NewEvaluationForm = ({
             ? [
                   {
                       section: "settings" as const,
-                      title: "Advanced Settings",
-                      complete: settingsChips.length === CONCURRENCY_FIELDS.length,
+                      title: "Advanced settings",
+                      complete: settingsValid,
                       chips: settingsChips,
                   },
               ]
             : []),
     ]
     const active = steps.find((step) => step.section === draft.section) ?? steps[0]
+    // The name and the settings fields show their own errors.
+    const sectionError =
+        problem && !nameError && problem.section === active.section && active.section !== "settings"
+            ? problem.message
+            : null
 
     const content = (() => {
         switch (active.section) {
@@ -261,7 +282,7 @@ export const NewEvaluationForm = ({
                 </SheetDescription>
             </SheetHeader>
             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 pb-4 md:overflow-hidden">
-                <Field label="Evaluation name" required>
+                <Field label="Evaluation name" required error={nameError}>
                     <Input
                         autoFocus
                         value={draft.name}
@@ -292,16 +313,27 @@ export const NewEvaluationForm = ({
                         aria-label={active.title}
                         className="min-w-0 md:flex-1 md:overflow-y-auto md:pl-6"
                     >
+                        {sectionError ? (
+                            <p role="alert" className="m-0 mb-3 text-sm text-destructive">
+                                {sectionError}
+                            </p>
+                        ) : null}
                         {content}
                     </section>
                 </div>
             </div>
+            {/* Every step shows it: picking a test set moves on to the next step. */}
+            {draft.testset ? (
+                <div className="px-5 pb-3 empty:hidden">
+                    <TestsetColumnsWarning testset={draft.testset} missing={missingColumns} />
+                </div>
+            ) : null}
             <SheetFooter className="flex-row justify-end">
                 <Button type="button" variant="outline" disabled={isStarting} onClick={onCancel}>
                     Cancel
                 </Button>
                 <LoadingButton type="submit" loading={isStarting} disabled={isStarting}>
-                    Start Evaluation
+                    Start evaluation
                 </LoadingButton>
             </SheetFooter>
         </form>

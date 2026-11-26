@@ -1,31 +1,9 @@
 /**
- * The connection card's copy rules.
- *
- * Every string the card composes from live data lives here rather than in the component: the
- * counts, the pluralisation, and the punctuation the API's own message does not carry. Pure
- * functions, so the wording is pinned by tests instead of by reading JSX.
+ * The connection card's model list rules. The card's text is in `@agenta/entity-ui`
+ * (`providerCardText.ts`), in the active language.
  *
  * Design: docs/design/provider-connections-models/experience.md ("Provider connection card").
  */
-
-import {secretKindForProviderKind} from "./providerCatalog"
-import {SecretKind} from "./types"
-
-/**
- * The green-dot status line: the provider's own verdict, then what the same call fetched.
- *
- * The API ends its verdict with a full stop ("OpenAI accepted this key."), which the middle dot
- * would then read past. Strip it and let the separator do the work.
- */
-export const credentialStatusLine = (message: string, modelCount: number | null): string => {
-    const verdict = message.trim().replace(/\.$/, "")
-    if (modelCount === null) return verdict
-    return `${verdict} · ${modelCount} ${modelCount === 1 ? "model" : "models"} fetched`
-}
-
-/** The header's live count — checked against fetched, never a claim about defaults. */
-export const activeModelsCount = (checked: number, total: number): string =>
-    `${checked} of ${total}`
 
 /**
  * How many model rows mount before the list collapses behind "Show all N".
@@ -53,36 +31,4 @@ export const modelListView = ({
 }): {truncated: boolean; visibleCount: number} => {
     const truncated = !showAll && total > MODEL_LIST_RENDER_CAP
     return {truncated, visibleCount: truncated ? MODEL_LIST_RENDER_CAP : total}
-}
-
-/**
- * The one line under the credential field.
- *
- * A standard provider is tested by its key; a credential-set connection is tested by reaching the
- * address it names, which is what "the key" would misdescribe for Bedrock, Vertex, and an
- * OpenAI-compatible endpoint alike.
- */
-export const secretNoteForKind = (kind: string, title: string): string =>
-    secretKindForProviderKind(kind) === SecretKind.ProviderKey
-        ? `Test checks the key with ${title} and fetches its model list. Nothing is saved until Done.`
-        : "Test pings the endpoint and fetches its model list. Nothing is saved until Done."
-
-/** What a manual model id is being added against — the API's list, or one endpoint's. */
-export const manualModelPlaceholderForKind = (kind: string): string =>
-    secretKindForProviderKind(kind) === SecretKind.ProviderKey
-        ? "Add a model ID the API doesn't list"
-        : "Add a model ID the endpoint doesn't list"
-
-/** "just now" / "3 min ago" / "2 h ago" — enough to judge whether the fetched list is stale. */
-export const relativeFetchTime = (iso: string): string => {
-    const elapsed = Date.now() - new Date(iso).getTime()
-    if (!Number.isFinite(elapsed) || elapsed < 0) return "just now"
-
-    const minutes = Math.floor(elapsed / 60_000)
-    if (minutes < 1) return "just now"
-    if (minutes < 60) return `${minutes} min ago`
-
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `${hours} h ago`
-    return `${Math.floor(hours / 24)} d ago`
 }

@@ -32,6 +32,7 @@ const buildScheduleText = (t: ScheduleT, locale: string | undefined): ScheduleTe
     const intlLocale = locale ?? "en-US"
     const relative = new Intl.RelativeTimeFormat(intlLocale, {numeric: "always"})
     const list = new Intl.ListFormat(locale ?? "en-GB", {type: "conjunction"})
+    const plainList = new Intl.ListFormat(locale ?? "en-GB", {type: "conjunction", style: "narrow"})
     return {
         everyHours: (hours, minute) => t("entityUi.scheduleText.everyHours", {hours, minute}),
         daily: t("entityUi.scheduleText.daily"),
@@ -44,6 +45,7 @@ const buildScheduleText = (t: ScheduleT, locale: string | undefined): ScheduleTe
         dayShort: (day) => weekday(day, intlLocale, "short"),
         dayLong: (day) => weekday(day, intlLocale, "long"),
         join: (items) => list.format(items),
+        enumerate: (items) => plainList.format(items),
         atTimesUtc: (cadence, times) => t("entityUi.scheduleText.atTimesUtc", {cadence, times}),
         utc: (cadence) => t("entityUi.scheduleText.utc", {cadence}),
         nextRun: (date, time, relativeText) =>

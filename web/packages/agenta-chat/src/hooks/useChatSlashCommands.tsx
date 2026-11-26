@@ -3,7 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {agentModelCandidatesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {
     buildConnectionPickerRows,
-    buildPickerGroupsWithSections,
+    listPickerGroups,
     pickerSelectionFrom,
     selectedModelRowKey,
     describeMcp,
@@ -35,6 +35,7 @@ import {
 import {parseGatewayTool} from "@agenta/entity-ui/tool-utils"
 import {createT, useT} from "@agenta/i18n"
 import chatSlashCommandsCatalog from "@agenta/i18n/catalogs/chat.slashCommands"
+import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
 import {skillDisplayName} from "@agenta/shared/utils"
@@ -46,14 +47,17 @@ import {useAtomValue, useSetAtom} from "jotai"
 /** Which picker the palette drilled into, or null when the palette is just a list. */
 export type SlashPicker = "model" | "permissions" | null
 
+/** What opened the picker: its `/` command, or a control outside the palette (the model button). */
+export type SlashPickerOrigin = "command" | "direct"
+
 /**
  * The `/` palette for the agent chat composer.
  *
- * `/model` drills into a picker whose apply writes the DRAFT agent config through
- * `updateConfiguration` — the same write-through `useAlwaysAllowTool` uses, so the change takes
- * effect on the next send with no commit. Tools and skills insert their name as plain text: the
- * request carries text and file parts only, so an inserted name is a hint the agent usually
- * follows, never a dispatch. Nothing in the UI may claim otherwise.
+ * `/model` (and the composer's model button) drills into a picker whose apply writes the agent
+ * config through `updateConfiguration`, the draft write the Configuration Model section makes too.
+ * Auto-save (`agentAutoCommit`) commits that write as a new version. Tools and skills insert
+ * their name as plain text: the request carries text and file parts only, so an inserted name is
+ * a hint the agent usually follows, never a dispatch. Nothing in the UI may claim otherwise.
  */
 const tNow = createT(chatSlashCommandsCatalog)
 
@@ -75,6 +79,10 @@ export function useChatSlashCommands({
     onNewSession?: () => void
 }) {
     const t = useT(chatSlashCommandsCatalog)
+    const tProviders = useT(providerListCatalog)
+    // Strings, not `t`: a language change makes new ones, and the groups follow.
+    const builtinLabel = tProviders("entityUi.providerList.agenta")
+    const builtinTag = tProviders("entityUi.providerList.builtIn")
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
@@ -87,6 +95,7 @@ export function useChatSlashCommands({
     const raiseDraftSignal = useSetAtom(draftConfigChangeSignalAtom)
 
     const [picker, setPicker] = useState<SlashPicker>(null)
+    const [pickerOrigin, setPickerOrigin] = useState<SlashPickerOrigin>("command")
 
     /**
      * Clear the command, then open the picker a frame later. Clearing schedules a Lexical
@@ -94,9 +103,12 @@ export function useChatSlashCommands({
      * autofocused itself, reads that as focus leaving, and dismisses immediately.
      */
     const openPicker = useCallback(
-        (which: Exclude<SlashPicker, null>) => {
+        (which: Exclude<SlashPicker, null>, origin: SlashPickerOrigin = "command") => {
             onPickerOpen?.()
-            requestAnimationFrame(() => setPicker(which))
+            requestAnimationFrame(() => {
+                setPickerOrigin(origin)
+                setPicker(which)
+            })
         },
         [onPickerOpen],
     )
@@ -152,7 +164,9 @@ export function useChatSlashCommands({
             mode: currentConnectionMode,
             harness: currentHarness,
         })
-        return {modelGroups: buildPickerGroupsWithSections(rows), currentModelKey}
+        // The same grouped list as the Model view: built-in models first, named "Agenta".
+        const modelGroups = listPickerGroups(rows, {label: builtinLabel, tag: builtinTag})
+        return {modelGroups, currentModelKey}
     }, [
         candidateState,
         capabilities,
@@ -161,6 +175,8 @@ export function useChatSlashCommands({
         currentConnectionSlug,
         currentConnectionNamespace,
         currentConnectionMode,
+        builtinLabel,
+        builtinTag,
     ])
     // With neither source the drawer falls back to a schema-driven picker, which this palette does
     // not host — so offer no `/model` at all rather than a command that opens an empty panel.
@@ -409,8 +425,9 @@ export function useChatSlashCommands({
     return {
         sections,
         picker,
+        pickerOrigin,
         closePicker: useCallback(() => setPicker(null), []),
-        openModelPicker: useCallback(() => openPicker("model"), [openPicker]),
+        openModelPicker: useCallback(() => openPicker("model", "direct"), [openPicker]),
         modelGroups,
         currentModel,
         currentModelKey,

@@ -2,7 +2,6 @@
     "removeAsSubagent": "将 {{name}} 从子 Agent 中移除",
     "addAsSubagent": "将 {{name}} 添加为子 Agent",
     "noDescription": "无描述",
-    "appsConnectedTo": "已连接到 {{name}} 的应用",
     "add": "添加",
     "addSubagents": "添加子 Agent",
     "pickAgents": "· 选择此 Agent 可以调用的 Agent。",

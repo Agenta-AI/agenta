@@ -1,6 +1,8 @@
 import {INVOCATION_METRICS} from "@agenta/entities/evaluationRun"
 import type {RunColumnGroup} from "@agenta/entities/evaluationRun/etl"
 
+import {metricDisplayLabel} from "../metricLabel"
+
 /**
  * One column of the scenarios table after the first ones (number, status, actions):
  * - `group`: a test set or an app, its values stacked in one cell;
@@ -42,14 +44,20 @@ export function scenarioColumnOptions(
     labels: Record<string, string>,
 ): ScenarioColumnOption[] {
     return [
-        ...tableGroups(groups).map(({group, columns}) => ({
-            key: group.key,
-            label: labels[group.key] ?? group.label,
-            columns: columns.map((column) => ({
-                key: valueColumnKey(group.key, column.name),
-                label: column.name,
-            })),
-        })),
+        ...tableGroups(groups).map(({group, columns}) => {
+            const label = labels[group.key] ?? group.label
+            return {
+                key: group.key,
+                label,
+                columns: columns.map((column) => ({
+                    key: valueColumnKey(group.key, column.name),
+                    label:
+                        group.kind === "evaluator"
+                            ? metricDisplayLabel(column.name, label)
+                            : column.name,
+                })),
+            }
+        }),
         {
             key: METRICS_OPTION_KEY,
             label: "Metrics",

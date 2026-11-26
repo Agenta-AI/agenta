@@ -86,7 +86,21 @@
     "applySkillUpdateDescription": "Actualiza uno de los skills de este agente a su versión más reciente.",
     "buildKitSettingApplies": "{{description}} En el playground se aplica el ajuste del kit de construcción.",
     "agentaTools": "Herramientas de Agenta",
-    "agentaToolsHint": "Herramientas que tu agente puede usar dondequiera que se ejecute: el playground, la API, Slack, Telegram, WhatsApp y las automatizaciones. Se guardan con el agente.",
+    "agentaToolsHint": "Herramientas que tu agente puede usar dondequiera que se ejecute. Se guardan con el agente.",
     "noAgentaTools": "No hay herramientas de Agenta disponibles.",
-    "couldNotLoadAgentaTools": "No se pudieron cargar las herramientas de Agenta. Recarga la página para volver a intentarlo."
+    "couldNotLoadAgentaTools": "No se pudieron cargar las herramientas de Agenta. Recarga la página para volver a intentarlo.",
+    "startSessionName": "Iniciar una sesión de un agente",
+    "startSessionDescription": "Inicia una nueva sesión de un agente con un primer mensaje. La nueva sesión se ejecuta por su cuenta.",
+    "sendSessionMessageName": "Enviar un mensaje a una sesión",
+    "sendSessionMessageDescription": "Envía un mensaje a una sesión que este agente inició.",
+    "waitForSessionsName": "Esperar sesiones",
+    "waitForSessionsDescription": "Espera hasta que las sesiones que este agente inició terminen su turno.",
+    "cancelSessionName": "Cancelar el turno de una sesión",
+    "cancelSessionDescription": "Detiene el turno en curso de una sesión que este agente inició.",
+    "listSessionsName": "Listar sesiones",
+    "listSessionsDescription": "Lista las sesiones de este proyecto que la persona puede abrir.",
+    "readSessionName": "Leer una sesión",
+    "readSessionDescription": "Lee los mensajes y el estado de una sesión.",
+    "readSessionSpansName": "Leer los pasos de una sesión",
+    "readSessionSpansDescription": "Lee las llamadas al modelo y las llamadas a herramientas de un turno de una sesión."
 }

@@ -1,5 +1,8 @@
 import {useEffect} from "react"
 
+import {useT} from "@agenta/i18n"
+import evaluationScreensCatalog from "@agenta/i18n/catalogs/evaluations.screens"
+import annotateCatalog from "@agenta/i18n/catalogs/observability.annotate"
 import {Alert, Button} from "@agenta/ui/ui"
 
 import {ChartSkeleton} from "../states/ChartSkeleton"
@@ -19,6 +22,7 @@ export const MetricCardsSection = ({
     runId,
     runName,
     online,
+    human = false,
     metrics,
     hasEvaluators,
     pending,
@@ -28,12 +32,15 @@ export const MetricCardsSection = ({
     runId: string
     runName: string
     online: boolean
+    /** A human run's scores come from annotations, so its empty state asks for them. */
+    human?: boolean
     metrics: readonly OverviewMetric[]
     hasEvaluators: boolean
     pending: boolean
     error: Error | null
     onRetry?: () => void
 }) => {
+    const t = useT(evaluationScreensCatalog, annotateCatalog)
     const cards = metrics.filter((metric) => metric.kind === "evaluator")
 
     useEffect(() => {
@@ -71,6 +78,14 @@ export const MetricCardsSection = ({
                 <OverviewEmpty
                     title="Temporal evaluator metrics"
                     description="We will chart evaluator scores here as soon as this online run collects trace results for the selected evaluators."
+                />
+            )
+        }
+        if (human && hasEvaluators) {
+            return (
+                <OverviewEmpty
+                    title={t("observability.annotate.noAnnotations")}
+                    description={t("evaluations.screens.annotateToSeeScores")}
                 />
             )
         }
