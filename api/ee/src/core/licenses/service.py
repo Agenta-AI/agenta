@@ -116,17 +116,23 @@ class LicensesService:
             raise InvalidLicenseKey("expired")
         await check_instance(license_key)
 
+        state = LicenseState(source="database", license=license_key)
+
+        async def publish() -> None:
+            # Inside the replace transaction: two activations write the cache in the
+            # order they commit, so the cache never keeps the older key.
+            await set_cache(
+                namespace=CACHE_NAMESPACE,
+                key=CACHE_KEY,
+                value=state.model_dump(mode="json"),
+                ttl=CACHE_TTL,
+            )
+
         await self.licenses_dao.replace(
             key_id=license_key.key_id,
             key=key.strip(),
             created_by_id=user_id,
-        )
-        state = LicenseState(source="database", license=license_key)
-        await set_cache(
-            namespace=CACHE_NAMESPACE,
-            key=CACHE_KEY,
-            value=state.model_dump(mode="json"),
-            ttl=CACHE_TTL,
+            before_commit=publish,
         )
 
         log.info("[licenses] license key %s added", license_key.key_id)

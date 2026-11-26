@@ -1,6 +1,7 @@
 import base64
 import json
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -42,6 +43,16 @@ def sign_key(private_key: Ed25519PrivateKey, **fields) -> str:
     body = _b64url(json.dumps(payload).encode("utf-8"))
     signature = _b64url(private_key.sign(body.encode("ascii")))
     return f"agenta_license_v1.{body}.{signature}"
+
+
+def fake_replace() -> AsyncMock:
+    """A `LicensesDAO.replace` that runs `before_commit` as the real one does."""
+
+    async def replace(*, before_commit=None, **_):
+        if before_commit is not None:
+            await before_commit()
+
+    return AsyncMock(side_effect=replace)
 
 
 def public_key_line(private_key: Ed25519PrivateKey) -> str:

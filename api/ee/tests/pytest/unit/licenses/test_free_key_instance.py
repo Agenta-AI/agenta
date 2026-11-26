@@ -17,7 +17,7 @@ from oss.src.utils.env import env
 from ee.src.core.licenses.service import LicensesService
 from ee.src.core.licenses.types import InvalidLicenseKey
 
-from .conftest import REGISTRATION, sign_key
+from .conftest import REGISTRATION, fake_replace, sign_key
 
 THIS_INSTANCE = uuid4()
 
@@ -48,7 +48,7 @@ def _service(stored_key=None) -> LicensesService:
             read=AsyncMock(
                 return_value=SimpleNamespace(key=stored_key) if stored_key else None
             ),
-            replace=AsyncMock(),
+            replace=fake_replace(),
         )
     )
 
