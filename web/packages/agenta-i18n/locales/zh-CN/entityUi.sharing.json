@@ -7,6 +7,7 @@
     "panelTitle": "谁可以查看此 Agent",
     "linePrivate": "只有你可以在 Agenta 中查看和使用它。",
     "lineProject": "{{project}} 中的所有人都可以查看和使用它。与它的对话保持私有：请通过每个对话自己的“分享”按钮分享。",
+    "noteProject": "{{project}} 中的所有人都可以查看和使用它。",
     "panelOwnerYou": "{{name}}（你），所有者",
     "change": "更改",
     "whoSection": "谁可以查看此 Agent",

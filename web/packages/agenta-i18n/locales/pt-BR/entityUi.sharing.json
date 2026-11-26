@@ -7,6 +7,7 @@
     "panelTitle": "Quem pode ver este agente",
     "linePrivate": "Só você pode vê-lo e usá-lo no Agenta.",
     "lineProject": "Todos em {{project}} podem vê-lo e usá-lo. Os chats com ele continuam privados: compartilhe cada chat pelo próprio botão Compartilhar.",
+    "noteProject": "Todos em {{project}} podem vê-lo e usá-lo.",
     "panelOwnerYou": "{{name}} (você), proprietário",
     "change": "Alterar",
     "whoSection": "Quem pode ver este agente",

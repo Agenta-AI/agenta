@@ -7,6 +7,7 @@
     "panelTitle": "Qui peut voir cet agent",
     "linePrivate": "Vous seul pouvez le voir et l’utiliser dans Agenta.",
     "lineProject": "Tout le monde dans {{project}} peut le voir et l’utiliser. Les chats avec lui restent privés : partagez chaque chat avec son propre bouton Partager.",
+    "noteProject": "Tout le monde dans {{project}} peut le voir et l’utiliser.",
     "panelOwnerYou": "{{name}} (vous), propriétaire",
     "change": "Modifier",
     "whoSection": "Qui peut voir cet agent",

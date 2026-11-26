@@ -41,6 +41,7 @@ export const agentSharingCopy = {
     },
     /** The second sentence is a draft: sharing the agent does not share its chats. */
     lineProject: (project: string) => t("entityUi.sharing.lineProject", {project}),
+    noteProject: (project: string) => t("entityUi.sharing.noteProject", {project}),
     panelOwnerYou: (name: string) => t("entityUi.sharing.panelOwnerYou", {name}),
     get change() {
         return t("entityUi.sharing.change")
