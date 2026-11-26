@@ -30,6 +30,7 @@ export const AutomationRunPane = ({
     renderConversation,
     sessionHref,
     onBack,
+    phone = false,
 }: {
     delivery: TriggerDelivery
     /** The run's transcript, given its session — the host's chat surface. */
@@ -38,7 +39,7 @@ export const AutomationRunPane = ({
     sessionHref?: (sessionId: string) => string
     /** Narrow layout with no host back (the page) — the pane owns the way back to the list. */
     onBack?: () => void
-    /** Unused: the kit sizes the icon buttons on a phone. */
+    /** Phone: when and how long go on the line under the name, so the name keeps its room. */
     phone?: boolean
 }) => {
     const t = useT(automationsEditorCatalog, automationsModelCatalog, automationsRunHistoryCatalog)
@@ -68,10 +69,11 @@ export const AutomationRunPane = ({
                     </IconTile>
                 }
                 title={label}
+                description={phone && meta ? meta : undefined}
                 status={
                     <>
                         <AutomationRunStatusBadge delivery={delivery} />
-                        {meta ? (
+                        {meta && !phone ? (
                             <span className="min-w-0 shrink truncate text-meta tabular-nums text-muted-foreground">
                                 {meta}
                             </span>

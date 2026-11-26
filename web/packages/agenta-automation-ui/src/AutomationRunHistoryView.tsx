@@ -20,6 +20,7 @@ import {
     isRunListFiltered,
     type RunListView,
 } from "./runListView"
+import {runLabel} from "./runModel"
 import {useAutomationRunPages, useRecentAutomationRuns} from "./useAutomationRuns"
 
 /** From this width of the VIEW (not the window) the list and the open run sit side by side. */
@@ -75,8 +76,8 @@ export const AutomationRunHistoryView = ({
      * the split width on a phone, so it already shows the list or one run, never both.
      */
     phone?: boolean
-    /** Given, the host's header owns Back while one run fills the view; null when none does. */
-    onRunBackChange?: (back: (() => void) | null) => void
+    /** Given, the host's header owns Back while one run fills the view (null when none does), and gets that run's name. */
+    onRunBackChange?: (back: (() => void) | null, runTitle?: string) => void
 }) => {
     const t = useT(automationsEditorCatalog, automationsRunHistoryCatalog)
     // The count line reads the capped recent query (shared with the card); the list pages.
@@ -133,9 +134,10 @@ export const AutomationRunHistoryView = ({
     const showPane = Boolean(selected)
     const showList = !showPane || canSplit
     const runBack = showPane && !canSplit ? onBack : null
+    const runTitle = runBack && selected ? runLabel(selected) : undefined
     useEffect(() => {
-        onRunBackChange?.(runBack)
-    }, [onRunBackChange, runBack])
+        onRunBackChange?.(runBack, runTitle)
+    }, [onRunBackChange, runBack, runTitle])
     useEffect(() => () => onRunBackChange?.(null), [onRunBackChange])
 
     return (
