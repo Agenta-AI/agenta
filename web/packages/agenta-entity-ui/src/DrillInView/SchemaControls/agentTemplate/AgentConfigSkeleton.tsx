@@ -1,5 +1,9 @@
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
+import {
+    AgentSectionCardsSkeleton,
+    AgentSectionRowsSkeleton,
+} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
 import {usePhoneSections} from "./phoneSections"
@@ -7,7 +11,7 @@ import {useSectionListLayout} from "./sectionListLayout"
 
 /**
  * Loading placeholder for the agent's sections, in the shape of each layout: the panel's cards,
- * the page's titled cards, and divided rows for the phone. Shown while the revision/schema is still loading so the panel holds
+ * the page's titled cards, and two-line rows for the phone. Shown while the revision/schema is still loading so the panel holds
  * its real shape instead of the generic prompt-config pulse boxes. Triggers/Mounts are NOT
  * config sections — their loading shape is `AgentOperationsSkeleton` (sibling regions).
  */
@@ -75,45 +79,6 @@ const PageSkeleton = () => (
     </div>
 )
 
-// The panel's cards (canvas F01) in their order; `add` marks a section with a "+" in its header.
-const CARDS: {title: number; value?: number; add?: boolean; preview?: boolean}[] = [
-    {title: 44, value: 84}, // Model
-    {title: 84, value: 64, preview: true}, // Instructions
-    {title: 88, value: 72, add: true}, // Integrations
-    {title: 76, value: 72, add: true}, // Subagents
-    {title: 88, value: 60, add: true}, // MCP servers
-    {title: 40, value: 52, add: true}, // Skills
-    {title: 68}, // Advanced
-]
-
-/** The panel: one muted card per section, a 40 px header with a white 28 px Mark (STATE-02). */
-const PanelSkeleton = () => (
-    <div className="flex flex-col gap-2 pt-3">
-        {CARDS.map((card, i) => (
-            <div key={i} className="-mx-2.5 flex flex-col rounded-lg bg-muted">
-                <div className="flex h-10 items-center gap-2 px-2.5">
-                    <span className="size-7 shrink-0 rounded-md bg-background" />
-                    <SkeletonBlock active style={{width: card.title, height: 14}} />
-                    <div className="ml-auto flex items-center gap-2">
-                        {card.value ? (
-                            <SkeletonBlock active style={{width: card.value, height: 12}} />
-                        ) : null}
-                        {card.add ? <SkeletonBlock active className="size-3.5" /> : null}
-                        <SkeletonBlock active className="size-3.5" />
-                    </div>
-                </div>
-                {card.preview ? (
-                    <div className="-mt-0.5 flex flex-col gap-1.5 pb-2.5 pl-11.5 pr-2.5">
-                        <SkeletonBlock active className="h-3 w-full" />
-                        <SkeletonBlock active className="h-3 w-full" />
-                        <SkeletonBlock active className="h-3 w-2/3" />
-                    </div>
-                ) : null}
-            </div>
-        ))}
-    </div>
-)
-
 const AgentConfigSkeleton = () => {
     const t = useT(configItemsCatalog)
     const layout = useSectionListLayout()
@@ -131,17 +96,9 @@ const AgentConfigSkeleton = () => {
             {layout === "page" ? (
                 <PageSkeleton />
             ) : phone ? (
-                ROWS.map((row, i) => (
-                    <SkeletonSectionRow
-                        key={i}
-                        title={row.title}
-                        value={row.value}
-                        withAdd={row.withAdd}
-                        divider={i < ROWS.length - 1}
-                    />
-                ))
+                <AgentSectionRowsSkeleton />
             ) : (
-                <PanelSkeleton />
+                <AgentSectionCardsSkeleton />
             )}
         </div>
     )

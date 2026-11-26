@@ -156,11 +156,9 @@ export const AgentPane = ({
         )
     else if (needsRevision && !revisionId)
         body = (
-            // The skeleton cards hang 10 px out: this puts them on the loaded cards' 20 px line.
-            <div className="h-full px-1">
-                <div className="mx-auto w-full max-w-content-md px-6.5">
-                    <AgentConfigSkeleton />
-                </div>
+            // The loaded tab's 16 px line; the cards hang 10 px out of it, as loaded.
+            <div className="h-full px-4">
+                <AgentConfigSkeleton />
             </div>
         )
     else if (tab === "agent" && revisionId)

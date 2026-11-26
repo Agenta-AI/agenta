@@ -1,58 +1,36 @@
 import {useT} from "@agenta/i18n"
 import chatMobileConfigCatalog from "@agenta/i18n/catalogs/chat.mobileConfig"
-import {CONFIG_REGION_BAR} from "@agenta/ui/components/presentational"
-import {SkeletonBlock} from "@agenta/ui/ui"
+import {
+    AgentSectionCardsSkeleton,
+    AgentSectionRowsSkeleton,
+} from "@agenta/ui/components/presentational"
 
-/** Title and summary widths of the panel's cards, as `AgentConfigSkeleton` draws them. */
-const CARDS = [
-    [44, 84],
-    [84, 64],
-    [88, 72],
-    [76, 72],
-    [88, 60],
-    [40, 52],
-    [68, 0],
-] as const
+import {useAgentPanel} from "../../agent-layout/agentPanelContext"
+import {ConfigurationHeader} from "../../agent-layout/ConfigurationHeader"
+import {shownConfigTab} from "../../agent-layout/shownConfigTab"
 
 /**
- * The config pane while its chunk loads: the real "Configuration" bar over section cards on the
- * geometry of `AgentConfigSkeleton`, which ships inside that chunk and so cannot cover this gap.
+ * The Configuration content while its chunk loads: its real header (the tab row, or the phone's
+ * back arrow over the tabs), then the Agent tab's cards or phone rows, as loaded.
  */
 export const ConfigPaneLoading = () => {
     const t = useT(chatMobileConfigCatalog)
+    const panel = useAgentPanel()
+    const configTab = shownConfigTab(panel)
     return (
-        <div
-            className="ag-panel-raised flex h-full min-h-0 w-full flex-col"
-            role="status"
-            aria-busy
-            aria-label={t("chat.mobileConfig.loadingConfiguration")}
-        >
-            <div className={CONFIG_REGION_BAR}>
-                <span className="text-label font-semibold text-foreground">
-                    {t("chat.mobileConfig.configuration")}
-                </span>
-                <SkeletonBlock active className="h-7 w-7" />
-            </div>
-            <div className="flex flex-col gap-2 px-4 pb-3 pt-3">
-                {CARDS.map(([title, value], i) => (
-                    <div
-                        key={i}
-                        className="-mx-2.5 flex h-10 items-center gap-2 rounded-lg bg-muted px-2.5"
-                    >
-                        <span className="size-7 shrink-0 rounded-md bg-background" />
-                        <SkeletonBlock active style={{width: title, height: 14}} />
-                        {value ? (
-                            <SkeletonBlock
-                                active
-                                className="ml-auto"
-                                style={{width: value, height: 12}}
-                            />
-                        ) : (
-                            <span className="ml-auto" />
-                        )}
-                        <SkeletonBlock active className="size-3.5" />
-                    </div>
-                ))}
+        <div className="ag-panel-raised flex h-full min-h-0 w-full flex-col">
+            <ConfigurationHeader configTab={configTab} onSelectTab={panel.setConfigTab} />
+            <div
+                role="status"
+                aria-busy
+                aria-label={t("chat.mobileConfig.loadingConfiguration")}
+                className="min-h-0 flex-1 overflow-hidden px-4"
+            >
+                {configTab !== "agent" ? null : panel.phone ? (
+                    <AgentSectionRowsSkeleton />
+                ) : (
+                    <AgentSectionCardsSkeleton />
+                )}
             </div>
         </div>
     )

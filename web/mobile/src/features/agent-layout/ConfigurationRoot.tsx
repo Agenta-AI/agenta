@@ -1,37 +1,20 @@
-import {useState, type ReactNode} from "react"
+import {useState} from "react"
 
 import type {PhoneSection} from "@agenta/entity-ui/drill-in"
-import {useT} from "@agenta/i18n"
-import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
-import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
-import agentPagesPhoneCatalog from "@agenta/i18n/catalogs/agentPages.phone"
-import {BuilderIcon} from "@agenta/ui/agent-icon"
-import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {cn} from "@agenta/ui/styles"
-import {Button} from "@agenta/ui/ui"
 
 import {ConfigPane} from "../chat/ConfigPane"
 
 import {AccessTab} from "./AccessTab"
-import {AGENT_CONFIG_TABPANEL_ID, AgentConfigTabs, agentConfigTabId} from "./AgentConfigTabs"
+import {AGENT_CONFIG_TABPANEL_ID, agentConfigTabId} from "./AgentConfigTabs"
 import {useAgentPanel} from "./agentPanelContext"
 import type {ConfigTab} from "./agentPanelState"
 import {AutomationsTab} from "./AutomationsTab"
 import {ChannelsTab} from "./ChannelsTab"
 import type {ConfigurationContentProps} from "./ConfigurationContent"
+import {ConfigurationHeader} from "./ConfigurationHeader"
 import {PaneBackContext, type PaneBack} from "./paneBack"
-import {PanelCloseButton} from "./PanelCloseButton"
 import {shownConfigTab} from "./shownConfigTab"
-
-const TABS: {key: ConfigTab; label: "agent" | "automations" | "channels" | "access"}[] = [
-    {key: "agent", label: "agent"},
-    {key: "automations", label: "automations"},
-    {key: "channels", label: "channels"},
-    {key: "access", label: "access"},
-]
-
-// Channels is a page of its own on a phone (the agent sidebar opens it).
-const PHONE_TABS = TABS.filter((tab) => tab.key !== "channels")
 
 /**
  * The root of the Configuration content: the four tabs and the open tab's body. On a phone (M07)
@@ -51,9 +34,7 @@ export const ConfigurationRoot = ({
     phoneSection: PhoneSection | null
     onCloseSection: () => void
 }) => {
-    const t = useT(agentLayoutPanelCatalog, agentLayoutHeaderCatalog, agentPagesPhoneCatalog)
     const panel = useAgentPanel()
-    const tabs = panel.phone ? PHONE_TABS : TABS
     const configTab = shownConfigTab(panel)
     // The pane's own entry animates its first tab; only a tab switch animates the tab body.
     const [tabSwitched, setTabSwitched] = useState(false)
@@ -64,53 +45,15 @@ export const ConfigurationRoot = ({
         panel.setConfigTab(tab)
         setTabSwitched(true)
     }
-    const tabRow = (back: PaneBack | null, trailing?: ReactNode) => (
-        <AgentConfigTabs
-            tabs={tabs.map((tab) => ({key: tab.key, label: t(`agentLayout.panel.${tab.label}`)}))}
-            value={configTab}
-            onSelect={selectTab}
-            phone={panel.phone}
-            back={back}
-            trailing={trailing}
-        />
-    )
     return (
         <div className="ag-panel-raised flex h-full min-h-0 flex-col">
-            {panel.phone ? (
-                phoneSection ? (
-                    <PhoneScreenHeader
-                        title={phoneSection.title}
-                        backTitle={t("agentLayout.header.configuration")}
-                        onBack={onCloseSection}
-                    />
-                ) : (
-                    <>
-                        <PhoneScreenHeader
-                            title={t("agentLayout.header.configuration")}
-                            hideTitle
-                            backTitle={t("agentPages.phone.session")}
-                            onBack={() => void panel.close()}
-                            trailing={
-                                panel.available.builder ? (
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-compact"
-                                        aria-label={t("agentLayout.header.builder")}
-                                        onClick={() => void panel.toggle("builder")}
-                                    >
-                                        <BuilderIcon />
-                                    </Button>
-                                ) : null
-                            }
-                        />
-                        {/* The tabs; History lives in the More sheet on a phone. */}
-                        {tabRow(null)}
-                    </>
-                )
-            ) : (
-                // The pane header: the session bar's 48 px, the tab text on the pane's 16 px line.
-                tabRow(paneBack, <PanelCloseButton onClose={() => void panel.close()} />)
-            )}
+            <ConfigurationHeader
+                configTab={configTab}
+                onSelectTab={selectTab}
+                paneBack={paneBack}
+                phoneSection={phoneSection}
+                onCloseSection={onCloseSection}
+            />
             <PaneBackContext.Provider value={setPaneBack}>
                 <div
                     id={AGENT_CONFIG_TABPANEL_ID}
