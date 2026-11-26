@@ -8,6 +8,7 @@ import type {
     Visibility,
 } from "@agenta/entities/sharing"
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import sharingCatalog from "@agenta/i18n/catalogs/entityUi.sharing"
 import {
     PersonAvatar,
@@ -116,6 +117,58 @@ const OwnerRow = ({
     </div>
 )
 
+/** One choice of the visibility `ChoiceSwitch`: the label over its one-line note. */
+const ChoiceSkeleton = () => (
+    <div className="flex min-w-0 flex-1 flex-col gap-0.5 px-2.5 py-2">
+        <div className="flex h-5 items-center">
+            <SkeletonBlock className="h-3.5 w-16" />
+        </div>
+        <div className="flex h-4 items-center">
+            <SkeletonBlock className="h-3 w-4/5" />
+        </div>
+    </div>
+)
+
+/** The owner's view while it loads (STATE-02): who can see it, then the owner row. */
+const AgentPrivacySkeleton = () => {
+    const t = useT(commonCatalog)
+    return (
+        <div
+            role="status"
+            aria-busy
+            aria-label={t("common.loading")}
+            className="flex flex-col gap-4"
+        >
+            <section className="flex flex-col gap-2">
+                <div className="flex h-4.5 items-center">
+                    <SkeletonBlock className="h-3 w-32" />
+                </div>
+                <div className="flex gap-0.5 rounded-lg bg-secondary p-0.5">
+                    <ChoiceSkeleton />
+                    <ChoiceSkeleton />
+                </div>
+            </section>
+            <section className="flex flex-col gap-2">
+                <div className="flex h-4.5 items-center">
+                    <SkeletonBlock className="h-3 w-12" />
+                </div>
+                <div className="flex h-row-double items-center gap-2">
+                    <SkeletonBlock shape="mark" className="size-7 shrink-0" />
+                    <div className="flex min-w-0 flex-1 flex-col">
+                        <div className="flex h-4.5 items-center">
+                            <SkeletonBlock className="h-3.5 w-24" />
+                        </div>
+                        <div className="flex h-4 items-center">
+                            <SkeletonBlock className="h-3 w-32" />
+                        </div>
+                    </div>
+                    <SkeletonBlock className="h-7 w-36 shrink-0 rounded-md" />
+                </div>
+            </section>
+        </div>
+    )
+}
+
 export interface AgentPrivacyPanelProps extends AgentPrivacyProps {
     /**
      * The panel is on screen and may act. A confirmation acts only while it is true, and turning
@@ -212,12 +265,7 @@ export const AgentPrivacyPanel = ({
             />
         )
     } else if (!ready || !sharing) {
-        body = (
-            <div className="flex flex-col gap-2" aria-busy>
-                <SkeletonBlock className="h-[54px] w-full" />
-                <SkeletonBlock className="h-[54px] w-full" />
-            </div>
-        )
+        body = <AgentPrivacySkeleton />
     } else if (!ownerId) {
         body = (
             <>
@@ -405,7 +453,6 @@ export const AgentPrivacyPanel = ({
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-
         </>
     )
 }
