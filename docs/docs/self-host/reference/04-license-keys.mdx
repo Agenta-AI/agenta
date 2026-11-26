@@ -36,6 +36,8 @@ Set `AGENTA_LICENSE_KEY` on the `api`, `worker-queues` and `worker-streams` cont
   AGENTA_LICENSE_KEY=agenta_license_v1.eyJrZXlfaWQiOi...
   ```
 
+  Then run your `docker compose ... up -d` command again. It recreates the containers with the new value. `docker compose restart` keeps the old value.
+
 - Helm: the chart has no value for the key. Add it with `extraEnv`, for example from a Kubernetes secret:
 
   ```yaml

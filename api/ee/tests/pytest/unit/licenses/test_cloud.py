@@ -1,6 +1,10 @@
 """Cloud is a license key with plan `cloud` in AGENTA_LICENSE_KEY. Stripe is only billing."""
 
+import os
+import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -15,7 +19,7 @@ from ee.src.core.licenses.keys import parse_license_key
 from ee.src.core.licenses.service import LicensesService
 from ee.src.core.licenses.types import InvalidLicenseKey
 
-from .conftest import REGISTRATION, sign_key
+from .conftest import REGISTRATION, public_key_line, sign_key
 
 
 def _cloud_key(private_key, **fields) -> str:
@@ -120,3 +124,43 @@ async def test_a_cloud_key_cannot_be_added_in_the_app(self_hosted, signing_key):
 
     assert error.value.reason == "plan"
     dao.replace.assert_not_awaited()
+
+
+_FRESH_START = """
+import sys
+from ee.src.core.licenses import keys
+from oss.src.utils.env import env
+
+keys.SIGNING_KEYS["release-1"] = keys.SigningKey(public_key=sys.argv[1])
+env.license.key = sys.argv[2]
+
+from ee.src.core.access.controls import get_plans
+from ee.src.core.licenses.cloud import is_cloud
+
+assert "self_hosted_enterprise" in get_plans()
+assert is_cloud() is False
+"""
+
+
+def test_a_fresh_process_starts_with_a_self_hosted_key_in_the_environment(
+    signing_key,
+):
+    # The plan table is built at import and calls `is_cloud()`; only a new process
+    # shows an import cycle between the two.
+    api_dir = Path(__file__).resolve().parents[5]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            _FRESH_START,
+            public_key_line(signing_key),
+            sign_key(signing_key),
+        ],
+        cwd=api_dir,
+        env={**os.environ, "PYTHONPATH": str(api_dir)},
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+    assert result.returncode == 0, result.stderr
