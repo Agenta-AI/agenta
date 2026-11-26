@@ -12,10 +12,18 @@ from oss.src.apis.fastapi.licenses.models import (
     InstanceLicenseKey,
     InstanceLicenseResponse,
     InstanceLicenseUsage,
+    InstanceRegistrationRequest,
+    InstanceRegistrationResponse,
 )
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.dtos import PrincipalKind, RequestCredentialKind
 from oss.src.core.licenses.admins import count_users, is_instance_admin
+from oss.src.core.licenses.offers import (
+    dismiss_registration_offer,
+    is_registration_offer_dismissed,
+)
+from oss.src.core.licenses.registrations import create_registration
+from oss.src.core.licenses.types import RegistrationFailed
 from oss.src.utils.common import is_ee
 from oss.src.utils.exceptions import intercept_exceptions
 
@@ -74,6 +82,23 @@ class LicensesRouter:
             response_model=InstanceLicenseResponse,
         )
 
+        self.router.add_api_route(
+            "/license/registrations",
+            self.create_instance_registration,
+            methods=["POST"],
+            operation_id="create_instance_registration",
+            status_code=status.HTTP_202_ACCEPTED,
+            response_model=InstanceRegistrationResponse,
+        )
+
+        self.router.add_api_route(
+            "/license/registration-offer/dismiss",
+            self.dismiss_instance_registration_offer,
+            methods=["POST"],
+            operation_id="dismiss_instance_registration_offer",
+            status_code=status.HTTP_204_NO_CONTENT,
+        )
+
         if is_ee():
             self.router.add_api_route(
                 "/license",
@@ -94,6 +119,7 @@ class LicensesRouter:
             return InstanceLicenseResponse(
                 plan=COMMUNITY_PLAN,
                 usage=InstanceLicenseUsage(users=await count_users()),
+                registration_offer_dismissed=await is_registration_offer_dismissed(),
             )
 
         from ee.src.core.licenses.service import (  # noqa: PLC0415
@@ -114,6 +140,7 @@ class LicensesRouter:
         await require_instance_admin()
 
         from ee.src.core.licenses.service import (  # noqa: PLC0415
+            OTHER_INSTANCE,
             get_licenses_service,
         )
         from ee.src.core.licenses.types import (  # noqa: PLC0415
@@ -126,7 +153,15 @@ class LicensesRouter:
                 key=body.key,
                 user_id=get_request_access().principal.id,
             )
-        except InvalidLicenseKey:
+        except InvalidLicenseKey as e:
+            if e.reason == OTHER_INSTANCE:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": OTHER_INSTANCE,
+                        "message": "This free key was issued for another instance.",
+                    },
+                ) from None
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="This license key is not valid",
@@ -139,6 +174,42 @@ class LicensesRouter:
 
         return await _response(state)
 
+    @intercept_exceptions()
+    async def create_instance_registration(
+        self,
+        request: Request,
+        *,
+        body: InstanceRegistrationRequest,
+    ) -> InstanceRegistrationResponse:
+        if _is_cloud():
+            raise _not_available()
+        await require_instance_admin()
+
+        try:
+            await create_registration(
+                email=body.email,
+                user_id=get_request_access().principal.id,
+                product_updates=body.product_updates,
+                survey=(
+                    body.survey.model_dump(exclude_none=True) if body.survey else None
+                ),
+            )
+        except RegistrationFailed:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="We could not send your key. Try again later.",
+            ) from None
+
+        return InstanceRegistrationResponse(email=body.email)
+
+    @intercept_exceptions()
+    async def dismiss_instance_registration_offer(self, request: Request) -> None:
+        if _is_cloud():
+            raise _not_available()
+        await require_instance_admin()
+
+        await dismiss_registration_offer()
+
 
 async def _response(state) -> InstanceLicenseResponse:
     return InstanceLicenseResponse(
@@ -150,4 +221,5 @@ async def _response(state) -> InstanceLicenseResponse:
             else None
         ),
         usage=InstanceLicenseUsage(users=await count_users()),
+        registration_offer_dismissed=await is_registration_offer_dismissed(),
     )

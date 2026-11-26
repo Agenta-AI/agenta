@@ -1,6 +1,8 @@
 import {useProfile} from "@agenta/entities/profile"
 import {AuditLogPage, useEntitlements} from "@agenta/settings-ui"
+import {isBillingEnabled} from "@agenta/shared/api"
 
+import {LockedEnterpriseFeatures} from "./LockedEnterpriseFeatures"
 import {SeePlansButton} from "./SeePlansButton"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {useMobileSettingsAccess} from "./settingsTabs"
@@ -16,6 +18,12 @@ export const AuditLogTab = ({workspaceId, projectId}: SettingsTabProps) => {
         <AuditLogPage
             hasAudit={entitlements.hasAudit}
             entitlementsLoading={entitlements.isLoading}
+            upgradeNotice={
+                // Self-hosted gets the Enterprise box; cloud keeps the plan notice.
+                isBillingEnabled() ? undefined : (
+                    <LockedEnterpriseFeatures features={["audit"]} screen="auditLog" />
+                )
+            }
             members={org.data?.default_workspace?.members}
             currentUserId={user?.id}
             upgradeAction={<SeePlansButton workspaceId={workspaceId} projectId={projectId} />}
