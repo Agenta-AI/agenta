@@ -8,5 +8,7 @@
     "eventAutomation": "事件自动化",
     "onEvent": "事件触发",
     "firesOn": "在 {{eventKey}} 时触发",
-    "firesWhenEventArrives": "在事件到达时触发"
+    "firesWhenEventArrives": "在事件到达时触发",
+    "mcpCount_one": "{{count}} 个 MCP 服务器",
+    "mcpCount_other": "{{count}} 个 MCP 服务器"
 }
