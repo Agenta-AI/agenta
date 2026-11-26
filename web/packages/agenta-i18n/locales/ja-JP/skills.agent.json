@@ -2,12 +2,11 @@
     "manage": "管理",
     "newSkill": "新しいスキル",
     "addTitle": "スキルを追加",
-    "addDescription": "このエージェントに使うスキルをレジストリから選びます。",
+    "addedGroup": "追加済み",
+    "added": "追加済み",
+    "allSkills": "すべてのスキル",
     "addSkillToAgent": "{{name}} をエージェントに追加",
     "removeSkillFromAgent": "{{name}} をエージェントから削除",
-    "onAgent_one": "このエージェントのスキル: {{count}} 件",
-    "onAgent_other": "このエージェントのスキル: {{count}} 件",
-    "done": "完了",
     "chooseDescription": "始め方を選んでください。新しいスキルはレジストリに保存され、このエージェントに追加されます。",
     "writeTitle": "スキルを書く",
     "writeHint": "白紙から始めます。名前を付け、説明を書き、手順を書きます。",
@@ -19,6 +18,5 @@
     "createAndAdd": "作成して追加",
     "creating": "作成中…",
     "addSkills_one": "{{count}} 件のスキルを追加",
-    "addSkills_other": "{{count}} 件のスキルを追加",
-    "leavePicks": "追加・削除したスキルを保存しますか、それともこの変更を破棄しますか？"
+    "addSkills_other": "{{count}} 件のスキルを追加"
 }

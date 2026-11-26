@@ -442,6 +442,7 @@ export {
 } from "./SchemaControls/agentTemplate/ToolManagementList"
 export {CatalogListRow} from "./SchemaControls/agentTemplate/CatalogListRow"
 export type {CatalogListRowProps} from "./SchemaControls/agentTemplate/CatalogListRow"
+export {CatalogRowSkeleton} from "./SchemaControls/agentTemplate/CatalogRowSkeleton"
 export {AddSubagentList} from "./SchemaControls/agentTemplate/AddSubagentList"
 export type {SubagentOption} from "./SchemaControls/agentTemplate/AddSubagentList"
 export type {SubagentListProps} from "./SchemaControls/agentTemplate/ToolManagementList"

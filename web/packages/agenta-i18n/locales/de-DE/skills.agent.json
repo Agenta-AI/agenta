@@ -2,12 +2,11 @@
     "manage": "Verwalten",
     "newSkill": "Neuer Skill",
     "addTitle": "Skills hinzufügen",
-    "addDescription": "Wähle Skills aus der Registry für diesen Agent.",
+    "addedGroup": "Hinzugefügt",
+    "added": "Hinzugefügt",
+    "allSkills": "Alle Skills",
     "addSkillToAgent": "{{name}} zum Agent hinzufügen",
     "removeSkillFromAgent": "{{name}} aus dem Agent entfernen",
-    "onAgent_one": "{{count}} Skill in diesem Agent",
-    "onAgent_other": "{{count}} Skills in diesem Agent",
-    "done": "Fertig",
     "chooseDescription": "Wähle, wie du anfangen möchtest. Der neue Skill wird in der Registry gespeichert und diesem Agent hinzugefügt.",
     "writeTitle": "Skill schreiben",
     "writeHint": "Beginne mit einer leeren Seite. Gib ihm einen Namen, beschreibe ihn und schreibe die Schritte.",
@@ -19,6 +18,5 @@
     "createAndAdd": "Erstellen und hinzufügen",
     "creating": "Wird erstellt…",
     "addSkills_one": "{{count}} Skill hinzufügen",
-    "addSkills_other": "{{count}} Skills hinzufügen",
-    "leavePicks": "Die hinzugefügten und entfernten Skills speichern oder diese Änderungen verwerfen?"
+    "addSkills_other": "{{count}} Skills hinzufügen"
 }

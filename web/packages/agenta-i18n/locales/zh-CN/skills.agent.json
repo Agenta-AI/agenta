@@ -2,12 +2,11 @@
     "manage": "管理",
     "newSkill": "新建 Skill",
     "addTitle": "添加 Skill",
-    "addDescription": "从注册表中为此 Agent 选择 Skill。",
+    "addedGroup": "已添加",
+    "added": "已添加",
+    "allSkills": "所有 Skill",
     "addSkillToAgent": "将 {{name}} 添加到 Agent",
     "removeSkillFromAgent": "从 Agent 中移除 {{name}}",
-    "onAgent_one": "此 Agent 有 {{count}} 个 Skill",
-    "onAgent_other": "此 Agent 有 {{count}} 个 Skill",
-    "done": "完成",
     "chooseDescription": "选择开始的方式。新 Skill 会保存到注册表，并添加到此 Agent。",
     "writeTitle": "编写 Skill",
     "writeHint": "从空白页开始。为它命名、描述它，并写下步骤。",
@@ -19,6 +18,5 @@
     "createAndAdd": "创建并添加",
     "creating": "正在创建…",
     "addSkills_one": "添加 {{count}} 个 Skill",
-    "addSkills_other": "添加 {{count}} 个 Skill",
-    "leavePicks": "保存你添加和移除的 Skill，还是放弃这些更改？"
+    "addSkills_other": "添加 {{count}} 个 Skill"
 }

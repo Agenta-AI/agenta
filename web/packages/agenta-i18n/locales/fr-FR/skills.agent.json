@@ -2,12 +2,11 @@
     "manage": "Gérer",
     "newSkill": "Nouveau skill",
     "addTitle": "Ajouter des skills",
-    "addDescription": "Choisissez des skills du registre pour cet agent.",
+    "addedGroup": "Ajoutés",
+    "added": "Ajouté",
+    "allSkills": "Tous les skills",
     "addSkillToAgent": "Ajouter {{name}} à l’agent",
     "removeSkillFromAgent": "Retirer {{name}} de l’agent",
-    "onAgent_one": "{{count}} skill sur cet agent",
-    "onAgent_other": "{{count}} skills sur cet agent",
-    "done": "Terminé",
     "chooseDescription": "Choisissez comment commencer. Le nouveau skill est enregistré dans le registre et ajouté à cet agent.",
     "writeTitle": "Écrire un skill",
     "writeHint": "Partez d’une page blanche. Nommez-le, décrivez-le et écrivez les étapes.",
@@ -19,6 +18,5 @@
     "createAndAdd": "Créer et ajouter",
     "creating": "Création…",
     "addSkills_one": "Ajouter {{count}} skill",
-    "addSkills_other": "Ajouter {{count}} skills",
-    "leavePicks": "Enregistrer les skills ajoutés et retirés, ou abandonner ces modifications ?"
+    "addSkills_other": "Ajouter {{count}} skills"
 }
