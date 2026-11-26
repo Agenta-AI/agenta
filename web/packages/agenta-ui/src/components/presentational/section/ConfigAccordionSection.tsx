@@ -316,7 +316,8 @@ export function ConfigAccordionSection({
             style={{color: iconColor}}
         >
             {iconTile ? (
-                <IconTile size={24} style={{color: iconColor}}>
+                // A 28 px tile with a 16 px glyph: one step up from the item rows' Mark.
+                <IconTile size={24} className="size-7 [&_svg]:size-4" style={{color: iconColor}}>
                     {icon}
                 </IconTile>
             ) : (
@@ -387,7 +388,10 @@ export function ConfigAccordionSection({
                     canvas === "pane"
                         ? "h-[45px] px-4"
                         : canvas
-                          ? "-mx-2 h-row-single rounded-md px-2"
+                          ? iconTile
+                              ? // The tiled panel row: 40 px tall, a 10 px inset each side.
+                                "-mx-2.5 h-10 rounded-md px-2.5"
+                              : "-mx-2 h-row-single rounded-md px-2"
                           : "py-3",
                     canvas === "panel" &&
                         headerActs &&
