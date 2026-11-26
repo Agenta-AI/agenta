@@ -43,7 +43,6 @@
     "authKey": "API キー",
     "moreCount": "ほか {{count}} 件",
     "openApp": "{{name}} を開く",
-    "testConnection": "接続をテスト",
     "needsSignInAgain": "再サインインが必要",
     "whatAgentsCanDo": "エージェントができること"
 }

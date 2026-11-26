@@ -3,7 +3,6 @@ import {useCallback, useMemo, useState} from "react"
 import {
     invalidateToolConnections,
     makeDefaultToolConnection,
-    toolExecutionDrawerAtom,
     usePersonalToolConnections,
     useToolCatalogCategories,
     useToolConnectionActions,
@@ -14,7 +13,6 @@ import {
     categoryLabel,
     IntegrationCatalog,
     IntegrationConnectDialog,
-    ToolExecutionDrawer,
     type CategorySelection,
     type ConnectionAction,
     type IntegrationCatalogControls,
@@ -27,7 +25,7 @@ import settingsToolsCatalog from "@agenta/i18n/catalogs/settings.tools"
 import {message} from "@agenta/ui/app-message"
 import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
 import {SquaresFour, Tag} from "@phosphor-icons/react"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
 
 import type {ConfirmDestructive} from "../confirm"
 import {
@@ -42,12 +40,10 @@ import {YoursEmpty} from "../shared/YoursEmpty"
 
 /** Nouns for the page; a host that calls them something else passes its own. */
 export interface GatewayToolsSectionCopy {
-    run: string
     searchPlaceholder: string
 }
 
 const defaultCopy = (t: ReturnType<typeof useT>): GatewayToolsSectionCopy => ({
-    run: t("settings.tools.runTool"),
     searchPlaceholder: t("settings.tools.searchTools"),
 })
 
@@ -87,7 +83,6 @@ export default function GatewayToolsSection({
     // The switch alone decides the owners, so a pending list read never defaults to the project.
     const connectOwners = addAccountOwners(access, canEdit)
     const {handleDelete, handleRevoke} = useToolConnectionActions()
-    const setExecutionDrawer = useSetAtom(toolExecutionDrawerAtom)
     const [connectTarget, setConnectTarget] = useState<string | null>(null)
     const [query, setQuery] = useState("")
     const [category, setCategory] = useState<CategorySelection | null>(null)
@@ -130,21 +125,6 @@ export default function GatewayToolsSection({
             onClearSearch: () => setQuery(""),
         }),
         [category, ownerFilter, query],
-    )
-
-    const run = useMemo(
-        () => ({
-            label: copy.run,
-            onRun: (record: ToolConnection) => {
-                if (!record.id || !record.slug) return
-                setExecutionDrawer({
-                    connectionId: record.id,
-                    connectionSlug: record.slug,
-                    integrationKey: record.integration_key,
-                })
-            },
-        }),
-        [copy.run, setExecutionDrawer],
     )
 
     const confirmConnectionAction = useCallback(
@@ -239,7 +219,6 @@ export default function GatewayToolsSection({
                     layout="page"
                     searchPlaceholder={copy.searchPlaceholder}
                     yours={yours}
-                    run={run}
                     confirmConnectionAction={confirm ? confirmConnectionAction : undefined}
                     onConnect={(integrationKey) => setConnectTarget(integrationKey)}
                     controls={controls}
@@ -247,7 +226,6 @@ export default function GatewayToolsSection({
                 />
             </section>
 
-            <ToolExecutionDrawer />
             {connectTarget ? (
                 <IntegrationConnectDialog
                     integrationKey={connectTarget}

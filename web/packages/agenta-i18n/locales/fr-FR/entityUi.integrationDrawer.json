@@ -45,7 +45,6 @@
     "authKey": "Clé API",
     "moreCount": "+{{count}} de plus",
     "openApp": "Ouvrir {{name}}",
-    "testConnection": "Tester la connexion",
     "needsSignInAgain": "Reconnexion nécessaire",
     "whatAgentsCanDo": "Ce que les agents peuvent faire"
 }

@@ -4,7 +4,6 @@ import {
     connectionDrawerAtom,
     isConnectionActive,
     isConnectionValid,
-    toolExecutionDrawerAtom,
     useToolConnectionActions,
     useToolConnectionQuery,
     type ToolConnection,
@@ -23,8 +22,8 @@ import {
     SheetTitle,
     Spinner,
 } from "@agenta/ui/ui"
-import {ArrowClockwise, Play, Trash, XCircle} from "@phosphor-icons/react"
-import {useAtom, useSetAtom} from "jotai"
+import {ArrowClockwise, Trash, XCircle} from "@phosphor-icons/react"
+import {useAtom} from "jotai"
 
 import {consentPopupFeatures} from "../../shared/consentPopupFeatures"
 import ConnectionStatusBadge from "../components/ConnectionStatusBadge"
@@ -62,7 +61,6 @@ function DetailsTable({items}: {items: {key: string; label: string; children: Re
 export default function ConnectionManagerDrawer() {
     const t = useT(toolConnectionsCatalog)
     const [state, setState] = useAtom(connectionDrawerAtom)
-    const setExecution = useSetAtom(toolExecutionDrawerAtom)
     const open = !!state
     const {handleDelete, handleRefresh, handleRevoke} = useToolConnectionActions()
     const connectionId = state?.connectionId
@@ -188,15 +186,6 @@ export default function ConnectionManagerDrawer() {
         })
     }, [state?.connectionId, handleDelete, handleClose])
 
-    const onTest = useCallback(() => {
-        if (!connection?.id || !connection.slug) return
-        setExecution({
-            connectionId: connection.id,
-            connectionSlug: connection.slug,
-            integrationKey: connection.integration_key,
-        })
-    }, [connection, setExecution])
-
     const isActive = isConnectionActive(connection)
     const isValid = isConnectionValid(connection)
 
@@ -285,14 +274,6 @@ export default function ConnectionManagerDrawer() {
                                     {t("entityUi.toolConnections.actions")}
                                 </span>
                                 <div className="flex flex-col gap-2">
-                                    <LoadingButton
-                                        variant="outline"
-                                        onClick={onTest}
-                                        disabled={!isActive || !isValid}
-                                    >
-                                        <Play size={14} />
-                                        {t("entityUi.toolConnections.testConnection")}
-                                    </LoadingButton>
                                     <LoadingButton
                                         variant="outline"
                                         loading={actionLoading === "refresh"}

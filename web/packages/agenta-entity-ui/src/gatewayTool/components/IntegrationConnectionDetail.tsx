@@ -33,8 +33,6 @@ export interface IntegrationConnectionDetailProps {
     /** The app's name and logo, as the catalog row shows them. */
     name: string
     logo: string | null
-    /** Run one of the app's actions with this connection. */
-    onTest?: () => void
     /** Sign in again, for a connection that stopped working. */
     onReconnect?: () => void
     /** The dialog has closed: the host drops it. */
@@ -50,7 +48,6 @@ export const IntegrationConnectionDetail = ({
     connection,
     name,
     logo,
-    onTest,
     onReconnect,
     onClosed,
 }: IntegrationConnectionDetailProps) => {
@@ -151,20 +148,7 @@ export const IntegrationConnectionDetail = ({
         </div>
     )
 
-    const primary = works ? (
-        onTest ? (
-            <Button
-                variant="outline"
-                className={phone ? PHONE_BUTTON_CLASS : undefined}
-                onClick={() => {
-                    close()
-                    onTest()
-                }}
-            >
-                {t("entityUi.integrationDrawer.testConnection")}
-            </Button>
-        ) : null
-    ) : onReconnect ? (
+    const primary = works ? null : onReconnect ? (
         <Button
             className={phone ? PHONE_BUTTON_CLASS : undefined}
             onClick={() => {

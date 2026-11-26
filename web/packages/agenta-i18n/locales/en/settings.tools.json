@@ -11,6 +11,5 @@
     "revokeConnectionFailed": "Failed to revoke connection",
     "revokeConnectionMessage": "This will mark the connection as invalid. You can refresh it later to reactivate.",
     "revokeConnectionTitle": "Revoke {{name}}?",
-    "runTool": "Run tool",
     "searchTools": "Search tools"
 }

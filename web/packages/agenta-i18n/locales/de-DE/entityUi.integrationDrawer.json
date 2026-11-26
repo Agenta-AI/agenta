@@ -44,7 +44,6 @@
     "authKey": "API-Schlüssel",
     "moreCount": "+{{count}} weitere",
     "openApp": "{{name}} öffnen",
-    "testConnection": "Verbindung testen",
     "needsSignInAgain": "Erneute Anmeldung nötig",
     "whatAgentsCanDo": "Was Agenten tun können"
 }

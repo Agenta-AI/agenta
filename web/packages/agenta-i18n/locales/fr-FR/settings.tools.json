@@ -11,6 +11,5 @@
     "revokeConnectionFailed": "Impossible de révoquer la connexion",
     "revokeConnectionMessage": "La connexion sera marquée comme non valide. Vous pourrez l’actualiser plus tard pour la réactiver.",
     "revokeConnectionTitle": "Révoquer {{name}} ?",
-    "runTool": "Exécuter l’outil",
     "searchTools": "Rechercher des outils"
 }

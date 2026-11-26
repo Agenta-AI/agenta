@@ -3511,7 +3511,6 @@
         "authKey": "16f0ee47f993",
         "moreCount": "48380badf7a4",
         "openApp": "e0f8c156c3df",
-        "testConnection": "5bcf311b19d8",
         "needsSignInAgain": "3a7c211ddcf0",
         "whatAgentsCanDo": "b0e5bc245907"
     },
@@ -4693,39 +4692,7 @@
         "authenticated": "6ab694cfc6fa",
         "created": "d70b9e24bca2",
         "actions": "ff8059dc6752",
-        "testConnection": "c02977b07ec9",
         "refreshConnection": "b847c92d4231"
-    },
-    "entityUi.toolExecution": {
-        "executionFailed": "84ee4cb0a5c9",
-        "toolReturnedError": "2c235592d8ef",
-        "unknownToolError": "ac45e4378804",
-        "copiedToClipboard": "d37078fe6a1f",
-        "copyResult": "c467973d015e",
-        "readOnly": "72bb90897ab1",
-        "creates": "c65cd9c1d4c8",
-        "updates": "22e2bada8f1c",
-        "deletes": "076422424542",
-        "chooseAction": "b7bac2b52650",
-        "searchActions": "d16d1db09700",
-        "actionsCount_one": "ddf315676b36",
-        "actionsCount_many": "6b2fcb9abd35",
-        "actionsCount_other": "6b2fcb9abd35",
-        "noActionsMatch": "2d0e2a6ec927",
-        "noActionsMatchHint": "7a8f77f9590c",
-        "clearSearch": "3b7ea51793e9",
-        "noActionsAvailable": "565c8a0b760b",
-        "exposesNoActions": "e7e4429c6e38",
-        "invalidJsonInput": "4b889bd9a3ca",
-        "allActions": "83140cf1308a",
-        "loading": "ba3bbbe10d8b",
-        "connection": "639a40e82b9a",
-        "inputs": "7abc49dfa87b",
-        "output": "b2439bcb8dee",
-        "noOutputYet": "7b7658d702d8",
-        "fillInputsHint": "9cc39e2fcc09",
-        "runAction": "6df427955ff8",
-        "actionsLoadFailed": "770e81eed11a"
     },
     "entityUi.toolForm": {
         "connection": "639a40e82b9a",
@@ -6826,7 +6793,6 @@
         "value": "948df98a46b0"
     },
     "settings.integrations": {
-        "run": "6df427955ff8",
         "searchPlaceholder": "a0adfe9abe76"
     },
     "settings.invitedLinkDialog": {
@@ -7153,7 +7119,6 @@
         "revokeConnectionFailed": "62767ed8d65d",
         "revokeConnectionMessage": "48de01f4c32c",
         "revokeConnectionTitle": "b5cc83c75304",
-        "runTool": "2445ca0ac266",
         "searchTools": "fbd165231fa1"
     },
     "settings.webhookFormSheet": {

@@ -43,7 +43,6 @@
     "authKey": "API 密钥",
     "moreCount": "另外 {{count}} 项",
     "openApp": "打开 {{name}}",
-    "testConnection": "测试连接",
     "needsSignInAgain": "需要重新登录",
     "whatAgentsCanDo": "智能体可以执行的操作"
 }

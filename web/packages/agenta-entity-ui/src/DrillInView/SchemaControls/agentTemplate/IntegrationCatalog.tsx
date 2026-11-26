@@ -52,7 +52,7 @@ import {
     SearchInput,
     SimpleTooltip,
 } from "@agenta/ui/ui"
-import {CaretRight, Check, MagnifyingGlass, Play, Plus, Star} from "@phosphor-icons/react"
+import {CaretRight, Check, MagnifyingGlass, Plus, Star} from "@phosphor-icons/react"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -108,12 +108,6 @@ export interface IntegrationCatalogAdding {
     onAddPersonalIntegration: (target: GatewayConnectionTarget) => void
 }
 
-/** Run a project connection's tool (Settings): a row click and a menu item. */
-export interface IntegrationCatalogRun {
-    label: string
-    onRun: (connection: ToolConnection) => void
-}
-
 /** The person's own accounts, as a first group (Settings). */
 export interface IntegrationCatalogYours {
     label: string
@@ -149,7 +143,6 @@ export interface IntegrationCatalogProps {
      */
     projectHeading?: ReactNode
     yours?: IntegrationCatalogYours
-    run?: IntegrationCatalogRun
     /**
      * Takes over Revoke and Delete: the host asks in its own dialog AND runs the action. Absent,
      * the catalog asks and runs it.
@@ -241,9 +234,8 @@ export interface ConnectionRowHandlers {
     onOpen?: (connection: ToolConnection, name: string, logo: string | null) => void
 }
 
-/** The host's verbs on one connection: Run on a project row, Make default on the person's own. */
+/** The host's verbs on one connection: Make default on the person's own. */
 interface RowVerbs {
-    run?: IntegrationCatalogRun
     makeDefault?: IntegrationCatalogYours["makeDefault"]
     /** False: Revoke and Delete are not offered (a read-only member on project rows). */
     manage?: boolean
@@ -253,16 +245,6 @@ const works = (connection: ToolConnection) =>
     isConnectionActive(connection) && isConnectionValid(connection)
 
 const menuItems = (connection: ToolConnection, verbs: RowVerbs): ConnectionMenuItem[] => [
-    ...(verbs.run
-        ? [
-              {
-                  key: "run",
-                  label: verbs.run.label,
-                  icon: <Play size={14} />,
-                  onSelect: () => verbs.run?.onRun(connection),
-              },
-          ]
-        : []),
     ...(verbs.makeDefault && works(connection) && !isConnectionDefault(connection)
         ? [
               {
@@ -413,9 +395,7 @@ function ConnectedRow({
                           : // Settings: a connection opens to its detail.
                             !onAdd && handlers.onOpen
                             ? () => handlers.onOpen?.(single, name, logo)
-                            : !onAdd && verbs.run
-                              ? () => verbs.run?.onRun(single)
-                              : undefined
+                            : undefined
             }
             variant={canvas ? "canvas" : "default"}
             leading={<LogoTile logo={logo} />}
@@ -694,7 +674,6 @@ export function IntegrationCatalog({
     searchPlaceholder,
     projectHeading,
     yours,
-    run,
     confirmConnectionAction,
     controls,
     canManageProject = true,
@@ -757,8 +736,8 @@ export function IntegrationCatalog({
         [refreshConnection, confirmAction, page],
     )
     const projectVerbs = useMemo<RowVerbs>(
-        () => ({run, manage: canManageProject}),
-        [run, canManageProject],
+        () => ({manage: canManageProject}),
+        [canManageProject],
     )
     const yoursVerbs = useMemo<RowVerbs>(() => ({makeDefault: yours?.makeDefault}), [yours])
 
@@ -1184,11 +1163,6 @@ export function IntegrationCatalog({
                     connection={detail.connection}
                     name={detail.name}
                     logo={detail.logo}
-                    onTest={
-                        run && !detail.connection.user_id
-                            ? () => run.onRun(detail.connection)
-                            : undefined
-                    }
                     onReconnect={() => void refreshConnection(detail.connection)}
                     onClosed={() => setDetail(null)}
                 />

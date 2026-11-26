@@ -11,6 +11,5 @@
     "revokeConnectionFailed": "Falha ao revogar a conexão",
     "revokeConnectionMessage": "Isto marca a conexão como inválida. Você pode atualizá-la depois para reativá-la.",
     "revokeConnectionTitle": "Revogar {{name}}?",
-    "runTool": "Executar ferramenta",
     "searchTools": "Pesquisar ferramentas"
 }

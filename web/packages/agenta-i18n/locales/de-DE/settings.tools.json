@@ -11,6 +11,5 @@
     "revokeConnectionFailed": "Die Verbindung konnte nicht widerrufen werden",
     "revokeConnectionMessage": "Dadurch wird die Verbindung als ungültig markiert. Sie können sie später aktualisieren, um sie wieder zu aktivieren.",
     "revokeConnectionTitle": "{{name}} widerrufen?",
-    "runTool": "Werkzeug ausführen",
     "searchTools": "Werkzeuge durchsuchen"
 }

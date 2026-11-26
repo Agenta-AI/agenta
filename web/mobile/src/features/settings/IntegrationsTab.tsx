@@ -19,7 +19,6 @@ export const IntegrationsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     // The shared section's defaults still say "tool" for oss/ee.
     const copy = useMemo(
         () => ({
-            run: t("settings.integrations.run"),
             searchPlaceholder: t("settings.integrations.searchPlaceholder"),
         }),
         [t],

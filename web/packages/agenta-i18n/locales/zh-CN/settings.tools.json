@@ -11,6 +11,5 @@
     "revokeConnectionFailed": "撤销连接失败",
     "revokeConnectionMessage": "这会将连接标记为无效。你可以稍后刷新以重新激活。",
     "revokeConnectionTitle": "撤销 {{name}}？",
-    "runTool": "运行工具",
     "searchTools": "搜索工具"
 }

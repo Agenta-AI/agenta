@@ -11,6 +11,5 @@
     "revokeConnectionFailed": "接続を取り消せませんでした",
     "revokeConnectionMessage": "この接続を無効としてマークします。後で更新すると再び有効にできます。",
     "revokeConnectionTitle": "{{name}} を取り消しますか？",
-    "runTool": "ツールを実行",
     "searchTools": "ツールを検索"
 }

@@ -44,7 +44,6 @@
     "authKey": "API key",
     "moreCount": "+{{count}} more",
     "openApp": "Open {{name}}",
-    "testConnection": "Test connection",
     "needsSignInAgain": "Needs to sign in again",
     "whatAgentsCanDo": "What agents can do"
 }
