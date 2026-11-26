@@ -9,7 +9,7 @@ from functools import lru_cache
 from typing import Optional
 from uuid import UUID
 
-from oss.src.utils.caching import get_cache, set_cache
+from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -128,12 +128,18 @@ class LicensesService:
                 ttl=CACHE_TTL,
             )
 
-        await self.licenses_dao.replace(
-            key_id=license_key.key_id,
-            key=key.strip(),
-            created_by_id=user_id,
-            before_commit=publish,
-        )
+        try:
+            await self.licenses_dao.replace(
+                key_id=license_key.key_id,
+                key=key.strip(),
+                created_by_id=user_id,
+                before_commit=publish,
+            )
+        except BaseException:
+            # The commit failed after `publish`: the cache must not keep a key the
+            # database does not have.
+            await invalidate_cache(namespace=CACHE_NAMESPACE, key=CACHE_KEY)
+            raise
 
         log.info("[licenses] license key %s added", license_key.key_id)
 
