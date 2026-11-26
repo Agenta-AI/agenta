@@ -59,13 +59,14 @@ API, changed:
 
 - `api/oss/src/core/gateways/mcps/dtos.py` (`MCPEndpointCreate`, `MCPEndpoint`) and `types.py` (new exceptions).
 - `api/oss/src/dbs/postgres/gateways/mcps/dbas.py`, `dao.py` (`edit_endpoint`), `mappings.py` (`map_mcp_endpoint_create_to_dbe` writes the key, and `map_mcp_endpoint_dbe_to_dto` reads it).
-- `api/oss/src/apis/fastapi/gateways/mcps/router.py` (`create_endpoint`, constructor), `models.py`, and `api/oss/src/apis/fastapi/gateways/exceptions.py`.
-- `api/entrypoints/routers.py` (wiring), and the tests that build `MCPGatewayRouter`.
+- `api/oss/src/apis/fastapi/gateways/mcps/router.py` (`create_endpoint` skips its URL guard for a catalog create), `models.py`, and `api/oss/src/apis/fastapi/gateways/exceptions.py`.
+- `api/oss/src/core/gateways/mcps/service.py` (`MCPGatewayService`: a required `catalog_service` argument, and `create_endpoint` applies the entry and checks the applied URL).
+- `api/entrypoints/routers.py` (wiring), and the tests that build `MCPGatewayService`.
 - `api/oss/src/core/gateways/mcps/service.py` and `api/oss/src/core/agent_requirements/service.py` (the rule "is this `custom` row ready" becomes one pure function, which `_connection_state`, `_mcp_ready` and the discovery all call).
 - `api/oss/src/core/workflows/static_catalog.py` (the `request_connection` input schema and descriptions).
 - `api/oss/src/core/workflows/builder_agent.py` (`BUILDER_AGENT_TOOLS`, the connection rules, the field reference).
 
-The service and the DAO `create_endpoint` signatures do not change.
+The service method and the DAO `create_endpoint` signatures do not change. Only the service constructor gains an argument.
 
 SDK, changed:
 

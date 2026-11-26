@@ -32,11 +32,19 @@ The create route `POST /gateways/mcps/endpoints/` SHALL accept an optional `cata
 - **THEN** the system SHALL refuse with the existing code `mcp_connection_name_taken`, and the connect flow SHALL go back to the name screen with the refusal and ask for another name, as it does for a server added by URL
 
 ### Requirement: The guards run on the address that is stored
-The create route SHALL apply the entry to the request with one call to the catalog service, before it checks the URL. That call SHALL return the request unchanged when it has no `catalog_entry_key`. The URL guard that a custom server gets SHALL run on the entry's URL, not on the URL in the request. The applied endpoint SHALL be built by model validation from values that the reader validated at load, so that applying an entry does not fail a model rule. The catalog SHALL add no exemption to the outbound guard. The code that applies an entry SHALL be one pure function with no I/O.
+The MCP gateway service's create SHALL apply the entry to the endpoint with one call to the catalog service, before it checks the URL, for every caller and not only the create route. That call SHALL return the request unchanged when it has no `catalog_entry_key`. The URL guard that a custom server gets SHALL run on the entry's URL, not on the URL in the request. The applied endpoint SHALL be built by model validation from values that the reader validated at load, so that applying an entry does not fail a model rule. The catalog SHALL add no exemption to the outbound guard. The code that applies an entry SHALL be one pure function with no I/O.
 
 #### Scenario: Request URL is one the egress guard refuses
 - **WHEN** a create request has `catalog_entry_key` `linear` and a `base_url` that the egress guard refuses
 - **THEN** the system SHALL check the entry's URL, SHALL create the server with it, and SHALL NOT refuse because of the request's URL
+
+#### Scenario: A caller other than the route
+- **WHEN** code calls the MCP gateway service's create directly with `catalog_entry_key` `linear`
+- **THEN** the stored row SHALL have the entry's URL and binding, exactly as for a create through the route
+
+#### Scenario: Entry URL that the deployment refuses
+- **WHEN** a create has `catalog_entry_key` `linear` and the deployment's egress policy refuses the entry's URL
+- **THEN** the system SHALL answer `400` with the code `mcp_endpoint_url_refused` and SHALL write no row
 
 #### Scenario: Entry URL resolves to a blocked address
 - **WHEN** a catalog URL resolves to a blocked address range when a call is made
@@ -47,7 +55,7 @@ The create route SHALL apply the entry to the request with one call to the catal
 - **THEN** the reader SHALL refuse the entry at load, and a create with its key SHALL answer `404` with the code `mcp_catalog_entry_not_found`
 
 ### Requirement: Create refuses an entry it cannot use
-With `catalog_entry_key` set, the system SHALL refuse the create when no entry has the key (`404`, code `mcp_catalog_entry_not_found`), or when the request's `auth_mode` is not one that the entry offers (`400`, code `mcp_catalog_auth_mode_not_offered`). Each refusal SHALL use the gateway error envelope with `retryable` false and a `next_step`. A refused create SHALL write no row. The create route SHALL always have the catalog service, and SHALL have no mode that drops a key.
+With `catalog_entry_key` set, the system SHALL refuse the create when no entry has the key (`404`, code `mcp_catalog_entry_not_found`), or when the request's `auth_mode` is not one that the entry offers (`400`, code `mcp_catalog_auth_mode_not_offered`). Each refusal SHALL use the gateway error envelope with `retryable` false and a `next_step`. A refused create SHALL write no row. The MCP gateway service SHALL always have the catalog service, and SHALL have no mode that drops a key.
 
 #### Scenario: Unknown key
 - **WHEN** a create request has `catalog_entry_key` `nope`
