@@ -309,6 +309,26 @@ async def test_two_overlapping_activations_cache_the_key_that_committed_last(
 
 
 @pytest.mark.asyncio
+async def test_a_failed_commit_leaves_no_key_in_the_cache(
+    self_hosted, signing_key, shared_cache
+):
+    async def replace_then_fail(*, before_commit=None, **_):
+        await before_commit()
+        raise RuntimeError("commit failed")
+
+    service = _service()
+    service.licenses_dao.replace.side_effect = replace_then_fail
+
+    with pytest.raises(RuntimeError):
+        await service.activate(
+            key=sign_key(signing_key, plan=ENTERPRISE), user_id=uuid4()
+        )
+
+    assert not shared_cache
+    assert await service.instance_plan() == COMMUNITY
+
+
+@pytest.mark.asyncio
 async def test_a_cached_key_stops_unlocking_once_it_expires(
     self_hosted, signing_key, monkeypatch, shared_cache
 ):
