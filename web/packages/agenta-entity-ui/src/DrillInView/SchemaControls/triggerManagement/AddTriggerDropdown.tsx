@@ -1,5 +1,5 @@
 /** The Automations region's "Add automation" menu (F05 f2), and its phone form (M10, M11). */
-import {useCallback, useMemo, useRef, useState} from "react"
+import {useMemo, useState} from "react"
 
 import {
     triggerScheduleDrawerAtom,
@@ -7,10 +7,7 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {createT, textVersionAtom, useT} from "@agenta/i18n"
 import agentOperationsCatalog from "@agenta/i18n/catalogs/entityUi.agentOperations"
-import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
-import {composerPrefillRequestAtom} from "@agenta/shared/state"
-import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {BottomSheetMenu, PhonePrimaryAction} from "@agenta/ui/phone"
 import {
     Button,
@@ -82,10 +79,8 @@ function useManualAutomationItems(entityId: string | null, onAdd?: OnAddAutomati
 }
 
 /**
- * "Add automation" (F05 f2): the bordered button at the top right of the list, and its menu with
- * "App trigger", "Scheduled trigger" and "Create with AI". The kind is chosen here, so the form it
- * opens has no switch between the two kinds. A new automation is bound to the open agent.
- * "Create with AI" puts the starter "I want an automation that" in the composer and sends nothing.
+ * "Add automation" (F05 f2): a bordered button and its menu with "App trigger" and "Scheduled
+ * trigger". The kind is chosen here, so the form it opens has no switch between the two kinds.
  */
 export function AddTriggerDropdown({
     entityId,
@@ -94,26 +89,8 @@ export function AddTriggerDropdown({
     entityId: string | null
     onAdd?: OnAddAutomation
 }) {
-    const t = useT(triggersCatalog, agentOperationsCatalog, configItemsCatalog)
-    const manualItems = useManualAutomationItems(entityId, onAdd)
-    const requestPrefill = useSetAtom(composerPrefillRequestAtom)
-    const starter = t("entityUi.agentOperations.automationStarter")
-    // The menu gives focus back to its button as it closes; after "Create with AI" the composer
-    // keeps it, or the caret the starter just placed is lost.
-    const choseAI = useRef(false)
-    const items = [
-        ...manualItems,
-        {
-            key: "ai",
-            icon: <BuilderIcon size={14} />,
-            title: t("entityUi.configItems.createWithAi"),
-            hint: t("entityUi.triggers.createWithAiSubtitle"),
-            onSelect: () => {
-                choseAI.current = true
-                requestPrefill({id: Date.now(), text: starter})
-            },
-        },
-    ]
+    const t = useT(triggersCatalog, agentOperationsCatalog)
+    const items = useManualAutomationItems(entityId, onAdd)
 
     return (
         <DropdownMenu>
@@ -126,11 +103,6 @@ export function AddTriggerDropdown({
             <DropdownMenuContent
                 align="end"
                 className="w-[270px]"
-                onCloseAutoFocus={(event) => {
-                    if (!choseAI.current) return
-                    choseAI.current = false
-                    event.preventDefault()
-                }}
             >
                 {items.map((item) => (
                     // A plain icon and a hint that wraps to a second line rather than being cut.
@@ -158,7 +130,7 @@ export function AddTriggerDropdown({
 
 /**
  * "Add automation" on a phone (M10, M11): the full-width button at the bottom of the list, and
- * the bottom sheet with the same three entries and "Cancel". Render it as the last child of the
+ * the bottom sheet with the same two entries and "Cancel". Render it as the last child of the
  * list's scrolling column.
  */
 export function AddAutomationPhoneAction({
@@ -168,15 +140,9 @@ export function AddAutomationPhoneAction({
     entityId: string | null
     onAdd?: OnAddAutomation
 }) {
-    const t = useT(triggersCatalog, agentOperationsCatalog, configItemsCatalog)
+    const t = useT(triggersCatalog, agentOperationsCatalog)
     const manualItems = useManualAutomationItems(entityId, onAdd)
-    const requestPrefill = useSetAtom(composerPrefillRequestAtom)
     const [open, setOpen] = useState(false)
-    const starter = t("entityUi.agentOperations.automationStarter")
-    const createWithAI = useCallback(
-        () => requestPrefill({id: Date.now(), text: starter}),
-        [requestPrefill, starter],
-    )
     const label = t("entityUi.agentOperations.addAutomation")
 
     return (
@@ -188,22 +154,13 @@ export function AddAutomationPhoneAction({
                 open={open}
                 onOpenChange={setOpen}
                 title={label}
-                items={[
-                    ...manualItems.map((item) => ({
-                        key: item.key,
-                        icon: item.icon,
-                        label: item.title,
-                        description: item.hint,
-                        onSelect: item.onSelect,
-                    })),
-                    {
-                        key: "ai",
-                        icon: <BuilderIcon size={18} />,
-                        label: t("entityUi.configItems.createWithAi"),
-                        description: t("entityUi.triggers.createWithAiSubtitle"),
-                        onSelect: createWithAI,
-                    },
-                ]}
+                items={manualItems.map((item) => ({
+                    key: item.key,
+                    icon: item.icon,
+                    label: item.title,
+                    description: item.hint,
+                    onSelect: item.onSelect,
+                }))}
             />
         </>
     )
