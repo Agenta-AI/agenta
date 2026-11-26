@@ -1,6 +1,8 @@
-<!-- review-loop: design=1e719b67565c lenses=simplify,naming -->
+<!-- review-loop: design=3a4b51c34bb0 lenses=simplify,naming -->
 
 **Review loop result** for the one-image design at repo commit `ccd6deea04` (branch `feat/one-image-spec`), 2 rounds on 2026-11-25. The hash covers every Markdown file in this folder except this record, computed from the repo root with `find openspec/changes/self-hosted-limits -type f -name '*.md' ! -name review-loop.md | sort | xargs sha256sum | sha256sum`. The earlier record (design `3a864fd9c1ab`, 21 November) covered the design before the 2026-11-25 decisions.
+
+**Delta round on 2026-11-26** (design `3a4b51c34bb0`, repo commit `aebc55e15f`): one round, Codex on simplify and on naming, both Low with no findings. It covered two wording changes made after Devin review comments: the setup answers go with a registration only when the admin answered the setup survey, and the Helm upgrade path is `helm upgrade` to the new chart version, with a new "Helm upgrade" scenario.
 
 | Lens | Final rating |
 | --- | --- |

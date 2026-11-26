@@ -151,7 +151,7 @@ During sign-up, `create_accounts` SHALL skip the personal organization, without 
 
 ### Requirement: Registration step in onboarding
 
-`/m` SHALL show the registration as a full onboarding step right after the survey, with "Send me a free key" and "Skip". The updates box SHALL start ticked and SHALL be optional. The setup answers SHALL go with every registration.
+`/m` SHALL show the registration as a full onboarding step right after the survey, with "Send me a free key" and "Skip". The updates box SHALL start ticked and SHALL be optional. The setup answers SHALL go with every registration made after the setup survey; the one-time prompt for an upgraded install sends none.
 
 #### Scenario: Register with the box ticked
 

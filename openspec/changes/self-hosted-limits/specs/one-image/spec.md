@@ -78,12 +78,17 @@ Outside cloud, the API SHALL apply no throttles for a plan that has none, the SD
 
 ### Requirement: Old compose, Helm and Railway files keep working
 
-An install at v0.104.0 or later SHALL upgrade by pulling the new images under today's public names and restarting, with no edits to its compose file, Helm values or Railway template. An older install first upgrades to v0.129.x (Decision 4 in design.md).
+An install at v0.104.0 or later SHALL upgrade by pulling the new images under today's public names and restarting (for Helm: `helm upgrade` to the new chart version, whose app version sets the default image tag), with no edits to its compose file, Helm values or Railway template. A Helm install that pins `image.tag` in its values changes that tag, as it does for any upgrade today. An older install first upgrades to v0.129.x (Decision 4 in design.md).
 
 #### Scenario: Compose pull and restart
 
 - **WHEN** an open source compose install runs `docker compose pull` and `docker compose up -d` with its existing files
 - **THEN** every service starts, the migration job succeeds, and the existing data is there
+
+#### Scenario: Helm upgrade
+
+- **WHEN** an open source Helm install runs `helm upgrade` to the new chart version with its existing values and no pinned image tag
+- **THEN** the workloads restart on the new images, the migration job succeeds, and the existing data is there
 
 #### Scenario: Install older than v0.104.0
 
