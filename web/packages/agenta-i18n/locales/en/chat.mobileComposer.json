@@ -2,9 +2,9 @@
     "addProviderKey": "Add your model provider key to run this agent.",
     "attachment": "Attachment",
     "backToCommands": "← back to commands",
-    "changesDraft": "Changes this agent's draft config.",
     "connectModelPlaceholder": "Connect a model to start chatting…",
     "messageSubject": "Message",
+    "modelButton": "Model: {{model}}",
     "removeOneToAdd": "Remove one to add another ({{count}} max)",
     "searchModels": "Search models",
     "setUpProviders": "Set up model providers"

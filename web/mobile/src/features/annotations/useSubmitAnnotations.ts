@@ -74,7 +74,7 @@ export const useSubmitAnnotations = (
                 ? "Annotations saved successfully"
                 : isCompleted
                   ? "Updated feedback"
-                  : "Scenario completed",
+                  : "Item marked completed",
         )
         onSaved?.({scenarioId, replacedTraceIds})
     }, [store, submitAnnotations, scenarioId, queueId, runId, isCompleted, onSaved])

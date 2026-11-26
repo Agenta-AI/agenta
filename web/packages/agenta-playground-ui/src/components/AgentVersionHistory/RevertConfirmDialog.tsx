@@ -1,29 +1,27 @@
 import {useT} from "@agenta/i18n"
 import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
 } from "@agenta/ui/ui"
 
 export interface RevertConfirmDialogProps {
     open: boolean
-    /** The drawer panel: the dialog masks and centres inside it, not the page. */
-    container: HTMLElement | null
     selectedVersion: number | null
     latestVersion: number | null
     onCancel: () => void
     onConfirm: () => void
 }
 
-/** The revert confirmation, scoped to the version history drawer. */
+/** The revert confirmation: the app's confirmation dialog, centred on the window (canvas F06 f5). */
 export const RevertConfirmDialog = ({
     open,
-    container,
     selectedVersion,
     latestVersion,
     onCancel,
@@ -31,35 +29,29 @@ export const RevertConfirmDialog = ({
 }: RevertConfirmDialogProps) => {
     const t = useT(versionCatalog)
     return (
-        // Non-modal: the drawer already traps focus; a second modal layer would fight it.
-        <Dialog modal={false} open={open} onOpenChange={(next) => !next && onCancel()}>
-            <DialogContent
-                container={container}
-                contained
-                showCloseButton={false}
-                className="max-w-[400px]"
-            >
-                <DialogHeader>
-                    <DialogTitle>
+        <AlertDialog open={open} onOpenChange={(next) => !next && onCancel()}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>
                         {t("playground.versionHistory.revertTitle", {
                             version: selectedVersion ?? "",
                         })}
-                    </DialogTitle>
-                    <DialogDescription>
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
                         {t("playground.versionHistory.revertDescription", {
                             next: (latestVersion ?? 0) + 1,
                             version: selectedVersion ?? "",
                             latest: latestVersion ?? "",
                         })}
-                    </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                    <Button variant="outline" onClick={onCancel}>
-                        {t("playground.versionHistory.cancel")}
-                    </Button>
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    {/* The Radix Cancel: it takes focus when the dialog opens, and closing
+                        through it runs onOpenChange, which calls onCancel. */}
+                    <AlertDialogCancel>{t("playground.versionHistory.cancel")}</AlertDialogCancel>
                     <Button onClick={onConfirm}>{t("playground.versionHistory.revert")}</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     )
 }

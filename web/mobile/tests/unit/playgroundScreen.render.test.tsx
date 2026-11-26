@@ -23,6 +23,7 @@ const {fixture, router, routeHandlers} = vi.hoisted(() => {
             selection: {} as PlaygroundSelection,
             wide: true,
             dirty: false,
+            dirtyIds: new Set<string>(),
         },
         router: {
             query: {workspace_id: "ws-1", project_id: "proj-1", app_id: "app-1"},
@@ -60,6 +61,19 @@ vi.mock("@agenta/playground-ui/hooks", async (original) => ({
     ...(await original<object>()),
     useLocalDraftWarning: () => fixture.dirty,
 }))
+vi.mock("@agenta/entities/workflow", async (original) => {
+    const mod = await original<typeof import("@agenta/entities/workflow")>()
+    const {atom} = await import("jotai")
+    const isDirty = (id: string) =>
+        fixture.dirtyIds.has(id) ? atom(true) : mod.workflowMolecule.selectors.isDirty(id)
+    return {
+        ...mod,
+        workflowMolecule: {
+            ...mod.workflowMolecule,
+            selectors: {...mod.workflowMolecule.selectors, isDirty},
+        },
+    }
+})
 vi.mock("@agenta/playground-ui/panels/config", () => ({
     ConfigPanel: ({revisionId}: {revisionId: string}) => (
         <div data-testid="config-panel">{revisionId}</div>
@@ -134,6 +148,7 @@ beforeEach(() => {
     Element.prototype.scrollIntoView = vi.fn()
     fixture.wide = true
     fixture.dirty = false
+    fixture.dirtyIds = new Set()
     routeHandlers.clear()
     router.replace.mockClear()
     router.push.mockClear()
@@ -223,7 +238,22 @@ describe("PlaygroundScreen", () => {
         expect(document.body.textContent).not.toContain("Discard unsaved changes?")
     })
 
-    it("Leaving with a local draft copy asks first, since the copy would be lost", async () => {
+    it("Leaving with an untouched local draft copy goes straight through", async () => {
+        await render()
+        await act(async () =>
+            getDefaultStore().set(playgroundController.actions.addPrimaryNode, {
+                type: "workflow",
+                id: "local-copy-1",
+                label: "local-copy-1",
+            }),
+        )
+
+        expect(leave()).toBe("left")
+        expect(document.body.textContent).not.toContain("Discard unsaved changes?")
+    })
+
+    it("Leaving with an edited local draft copy asks first, since the copy would be lost", async () => {
+        fixture.dirtyIds = new Set(["local-copy-1"])
         await render()
         await act(async () =>
             getDefaultStore().set(playgroundController.actions.addPrimaryNode, {

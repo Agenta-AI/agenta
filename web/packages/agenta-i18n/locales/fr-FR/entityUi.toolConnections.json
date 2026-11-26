@@ -26,5 +26,6 @@
     "created": "Créée",
     "actions": "Actions",
     "testConnection": "Tester la connexion",
-    "refreshConnection": "Actualiser la connexion"
+    "refreshConnection": "Actualiser la connexion",
+    "apiKeyNeverVerified": "Sa clé API n'a jamais été vérifiée, les agents ne peuvent donc pas encore utiliser ses outils. Supprimez-la et reconnectez-vous avec une clé valide."
 }

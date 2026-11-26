@@ -39,10 +39,16 @@ from .models import (
     ReferenceToolConfig,
     ResolvedGatewayPolicy,
     ResolvedToolSet,
+    SESSION_WRITE_CALL_REFS,
+    CallbackToolSpec,
+    Permission,
     ToolCallback,
     ToolConfig,
     ToolSpec,
+    effective_permission,
+    stricter_permission,
 )
+from ..permission_rules import PermissionRule
 
 log = get_module_logger(__name__)
 
@@ -215,6 +221,87 @@ def _expand_agenta_tools(
     return added
 
 
+def _configured_permission(
+    spec: CallbackToolSpec,
+    *,
+    permission_default: PermissionMode,
+    permission_rules: Sequence[PermissionRule],
+) -> Permission:
+    """The permission the runner gives this tool when the gate does not change it, by the
+    runner's own order (``effectivePermission`` in ``services/runner/src/permission-plan.ts``):
+    the spec's permission, else the strictest authored rule that names the tool, else the
+    agent mode. A rule with an argument prefix (``name(prefix:*)``) only makes the result
+    stricter here, because the gate gives one permission to every call of the tool."""
+    if spec.permission is not None:
+        return spec.permission
+    named: Optional[Permission] = None
+    prefixed: List[Permission] = []
+    for rule in permission_rules:
+        pattern, permission = rule["pattern"], rule["permission"]
+        if pattern == spec.name:
+            named = (
+                permission if named is None else stricter_permission(named, permission)
+            )
+        elif pattern.endswith(":*)") and pattern.split("(", 1)[0] == spec.name:
+            prefixed.append(permission)
+    configured = (
+        named
+        if named is not None
+        else effective_permission(None, spec.read_only, permission_default)
+    )
+    for permission in prefixed:
+        configured = stricter_permission(configured, permission)
+    return configured
+
+
+def gate_session_writes(
+    tool_specs: Sequence[ToolSpec],
+    tool_configs: Sequence[ToolConfig],
+    *,
+    permission_default: PermissionMode,
+    permission_rules: Sequence[PermissionRule] = (),
+) -> List[ToolSpec]:
+    """Send the session writes to the runner as ``ask`` unless their own permission is
+    ``deny``, so that the runner's gate asks the server (``resolve_gate``, design D34).
+
+    Each of them carries ``configured_permission`` (the permission the runner would give
+    it without this change, authored rules included) and ``target_permissions`` (the
+    permission set on each Subagent entry, by the entry's slug; the stricter one when two
+    entries share a slug)."""
+    entry_permissions: Dict[str, Permission] = {}
+    for config in tool_configs:
+        if isinstance(config, ReferenceToolConfig) and config.permission is not None:
+            earlier = entry_permissions.get(config.slug)
+            entry_permissions[config.slug] = (
+                config.permission
+                if earlier is None
+                else stricter_permission(earlier, config.permission)
+            )
+    gated: List[ToolSpec] = []
+    for spec in tool_specs:
+        if (
+            not isinstance(spec, CallbackToolSpec)
+            or spec.call_ref not in SESSION_WRITE_CALL_REFS
+        ):
+            gated.append(spec)
+            continue
+        configured = _configured_permission(
+            spec,
+            permission_default=permission_default,
+            permission_rules=permission_rules,
+        )
+        gated.append(
+            spec.model_copy(
+                update={
+                    "permission": "deny" if configured == "deny" else "ask",
+                    "configured_permission": configured,
+                    "target_permissions": dict(entry_permissions),
+                }
+            )
+        )
+    return gated
+
+
 def _validate_unique_names(tool_specs: Sequence[ToolSpec]) -> None:
     seen: set[str] = set()
     for tool_spec in tool_specs:
@@ -265,6 +352,9 @@ class ToolResolver:
         # this one only keeps a resolver usable without an agent template.
         permission_default: PermissionMode = "allow_reads",
         session_id: Optional[str] = None,
+        # The authored ``harness.permissions`` rules as the runner gets them
+        # (``wire_author_permission_rules``). Only the session writes read them.
+        permission_rules: Sequence[PermissionRule] = (),
     ) -> ResolvedToolSet:
         tool_configs = _drop_duplicate_reserved_client_tools(tool_configs)
         _validate_declared_config_names(tool_configs)
@@ -448,6 +538,12 @@ class ToolResolver:
             gateway_policy = connection_resolution.gateway_policy
             warnings.extend(connection_resolution.warnings)
 
+        tool_specs = gate_session_writes(
+            tool_specs,
+            tool_configs,
+            permission_default=permission_default,
+            permission_rules=permission_rules,
+        )
         _validate_unique_names(tool_specs)
         return ResolvedToolSet(
             tool_specs=tool_specs,

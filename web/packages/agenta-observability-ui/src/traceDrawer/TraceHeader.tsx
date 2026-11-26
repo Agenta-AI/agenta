@@ -510,7 +510,7 @@ const TraceHeader = ({
                             panel rather than widening the row. */}
                         <Tag
                             className="min-w-0 font-mono bg-[var(--ag-c-0517290F)]"
-                            label={<span className="truncate">{`# ${displayTraceId || "-"}`}</span>}
+                            label={<span className="truncate">{`# ${displayTraceId || "—"}`}</span>}
                         />
                     </TooltipWithCopyAction>
                 </div>

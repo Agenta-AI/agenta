@@ -107,6 +107,7 @@ async def test_inputs_present_no_force_is_send(lock_engine):
     session_id = _session_id()
 
     result = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
@@ -128,6 +129,7 @@ async def test_inputs_present_and_force_is_steer(lock_engine):
 
     # Establish a holder first (a send), then steer over it.
     await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
@@ -139,6 +141,7 @@ async def test_inputs_present_and_force_is_steer(lock_engine):
     )
 
     result = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
@@ -159,6 +162,7 @@ async def test_no_inputs_no_force_is_cancel(lock_engine):
     session_id = _session_id()
 
     result = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
@@ -192,6 +196,7 @@ async def test_unfenced_cancel_before_new_turn_admission_ignores_the_parked_owne
 
     # Turn B was submitted by the browser but has not reached `_start_turn` yet.
     result = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(session_id=session_id),
@@ -227,6 +232,7 @@ async def test_unfenced_cancel_targets_the_turn_once_it_is_running(lock_engine):
     svc = _service(lock_engine, dao=dao)
     session_id = _session_id()
     started = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
@@ -237,6 +243,7 @@ async def test_unfenced_cancel_targets_the_turn_once_it_is_running(lock_engine):
     )
 
     result = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(session_id=session_id),
@@ -270,6 +277,7 @@ async def test_cancel_with_a_stale_execution_guard_touches_no_holder(lock_engine
     svc = _service(lock_engine)
     session_id = _session_id()
     started = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
@@ -281,6 +289,7 @@ async def test_cancel_with_a_stale_execution_guard_touches_no_holder(lock_engine
 
     with pytest.raises(SessionTurnMismatch):
         await svc.command(
+            envelope=None,
             project_id=_PROJECT,
             user_id=_USER,
             request=SessionStreamCommandRequest(
@@ -323,6 +332,7 @@ async def test_no_inputs_and_force_is_attach(lock_engine):
     session_id = _session_id()
 
     result = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
@@ -342,6 +352,7 @@ async def test_empty_inputs_dict_counts_as_no_inputs(lock_engine):
     session_id = _session_id()
 
     result = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
@@ -362,6 +373,7 @@ async def test_data_present_but_inputs_none_counts_as_no_inputs(lock_engine):
     session_id = _session_id()
 
     result = await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
@@ -381,6 +393,7 @@ async def test_send_with_inputs_409s_when_already_alive(lock_engine):
     session_id = _session_id()
 
     await svc.command(
+        envelope=None,
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(
@@ -393,6 +406,7 @@ async def test_send_with_inputs_409s_when_already_alive(lock_engine):
 
     with pytest.raises(SessionTurnInUse):
         await svc.command(
+            envelope=None,
             project_id=_PROJECT,
             user_id=_USER,
             request=SessionStreamCommandRequest(

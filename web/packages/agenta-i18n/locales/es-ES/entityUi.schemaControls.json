@@ -47,10 +47,8 @@
     "configCouldNotLoad": "No se pudo cargar la configuración del agente.",
     "valueLabel": "Valor",
     "objectWithProperties_one": "Objeto con {{count}} propiedad (haz clic para expandir)",
-    "objectWithProperties_many": "Objeto con {{count}} propiedades (haz clic para expandir)",
     "objectWithProperties_other": "Objeto con {{count}} propiedades (haz clic para expandir)",
     "arrayWithItems_one": "Array con {{count}} elemento (haz clic para expandir)",
-    "arrayWithItems_many": "Array con {{count}} elementos (haz clic para expandir)",
     "arrayWithItems_other": "Array con {{count}} elementos (haz clic para expandir)",
     "required": "obligatorio",
     "optional": "opcional",
@@ -61,5 +59,8 @@
     "detailedConfiguration": "Configuración detallada",
     "minLength": "Mín.: {{value}}",
     "maxLength": "Máx.: {{value}}",
-    "selectPlaceholder": "Seleccionar..."
+    "selectPlaceholder": "Seleccionar...",
+    "defaultValue": "Predeterminado",
+    "objectWithProperties_many": "Objeto con {{count}} propiedades (haz clic para expandir)",
+    "arrayWithItems_many": "Array con {{count}} elementos (haz clic para expandir)"
 }

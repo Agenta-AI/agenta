@@ -33,11 +33,13 @@ export const DrawerTitle = ({
             : workflowMolecule.selectors.variantLabel(revisionId),
     )
     const version = ephemeral ? null : (revision?.version ?? null)
-    // An unsaved one made from a template is new, as /w titles it: "New App" or "New Evaluator".
+    // An unsaved one made from a template is new: a new prompt, agent or evaluator.
     const kindLabel = ephemeral
         ? kind === "evaluator"
             ? t("playground.panels.newEvaluator")
-            : t("playground.panels.newApp")
+            : revision?.flags?.is_agent
+              ? t("playground.panels.newAgent")
+              : t("playground.panels.newPrompt")
         : t(KIND_LABELS[kind])
 
     return (

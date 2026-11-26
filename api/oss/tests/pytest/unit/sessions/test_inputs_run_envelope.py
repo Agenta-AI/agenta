@@ -50,6 +50,29 @@ async def test_queued_api_send_keeps_api_key(_allowing_access_service):
     assert kwargs["envelope"] == envelope and kwargs["run_id"] == "exec-1"
 
 
+async def test_a_queued_message_from_a_calling_session_keeps_the_sandbox_warm(
+    _allowing_access_service,
+):
+    """A child's queued message keeps its sandbox warm, as the same message
+    dispatched at once does; any other queued input keeps the default."""
+    relayed = make_envelope(origin="calling_session", origin_id="calling")
+    workflows = AsyncMock()
+    await deliver_continue_input(
+        run_admission=NoopRunAdmission(),
+        command=_command(relayed),
+        workflows_service=workflows,
+    )
+    assert workflows.invoke_workflow_detached.await_args.kwargs["keep_session_warm"]
+
+    other = AsyncMock()
+    await deliver_continue_input(
+        run_admission=NoopRunAdmission(),
+        command=_command(make_envelope()),
+        workflows_service=other,
+    )
+    assert not other.invoke_workflow_detached.await_args.kwargs["keep_session_warm"]
+
+
 async def test_command_without_envelope_raises_missing_envelope():
     workflows = AsyncMock()
     with pytest.raises(MissingEnvelope):

@@ -1,0 +1,7 @@
+{
+    "listTitle": "Annotation queues",
+    "queueName": "Queue name",
+    "emptyTitle": "This queue is empty",
+    "testcaseUnavailable": "Test case data not available",
+    "testcaseNoData": "No data available for this test case"
+}

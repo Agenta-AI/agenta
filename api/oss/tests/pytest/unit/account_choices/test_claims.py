@@ -87,6 +87,23 @@ def test_the_run_person_is_a_human_principal_only():
     assert run_person_id(None) is None
 
 
+def test_a_turn_sent_by_a_calling_session_keeps_its_run_person():
+    # A child session's turn runs with the calling turn's human authority, so a
+    # per-person account resolves there as in the calling session (unlike `child`).
+    person = uuid4()
+    envelope = make_envelope(
+        kind="human",
+        principal_id=person,
+        origin=RunOrigin.CALLING_SESSION,
+        origin_id="calling-session",
+    )
+    assert run_person_id(envelope) == person
+    assert (
+        run_person_id(make_envelope(kind="api_key", origin=RunOrigin.CALLING_SESSION))
+        is None
+    )
+
+
 def test_the_claim_lists_only_ready_accounts_and_round_trips(switch_on):
     ready = ItemAccount(
         item_key=GMAIL,

@@ -43,22 +43,9 @@ vi.mock("@agenta/ui/ui", async (importOriginal) => ({
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
-/** The mobile Preferences structure. The preview rows come from the developer view registry. */
+/** The mobile Preferences structure. */
 const EXPECTED_STRUCTURE = [
-    {
-        title: "Feature Flags",
-        // The seven developer views in preview follow the shared rows, in registry order.
-        rows: [
-            "Developer Mode",
-            "Archived apps",
-            "Endpoints",
-            "Filter by app",
-            "Annotation queues",
-            "Variants",
-            "Prompts",
-            "Evaluators",
-        ],
-    },
+    {title: "Feature Flags", rows: ["Developer Mode"]},
     {title: "Debugging", rows: ["Playground inspector", "Channel debug", "Agenta channel probe"]},
 ]
 

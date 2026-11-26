@@ -262,7 +262,7 @@ describe("the focus view", () => {
         handlers.submitAnnotations = async () => undefined
         await render()
         await act(async () => button("Mark completed")!.click())
-        expect(fixture.toast.success).toHaveBeenLastCalledWith("Scenario completed")
+        expect(fixture.toast.success).toHaveBeenLastCalledWith("Item marked completed")
 
         await act(async () =>
             patchSession({
@@ -296,9 +296,9 @@ describe("the focus view", () => {
     it("Add to Testset explains why it is off while a new annotation is unsaved", async () => {
         patchSession({hasPendingChanges: {"s-1": true}})
         await render()
-        expect(button("Add to Testset")?.disabled).toBe(true)
+        expect(button("Add to test set")?.disabled).toBe(true)
         await act(async () => patchSession({hasPendingChanges: {}}))
-        await act(async () => button("Add to Testset")!.click())
+        await act(async () => button("Add to test set")!.click())
         expect(callsOf("openAddToTestsetModal")).toEqual([{scope: "single", scenarioIds: ["s-1"]}])
     })
 
@@ -309,13 +309,13 @@ describe("the focus view", () => {
         })
         await render()
         expect(host.textContent).toContain("You're all caught up")
-        expect(host.textContent).toContain("Add more from Test Sets.")
-        expect(host.textContent).not.toContain("Go to observability")
-        await act(async () => button("Add to Testset")!.click())
+        expect(host.textContent).toContain("Add more from a test set.")
+        expect(host.textContent).not.toContain("Go to Observability")
+        await act(async () => button("Add to test set")!.click())
         expect(callsOf("openAddToTestsetModal")).toEqual([{scope: "complete"}])
 
         await act(async () => patchSession({queueKind: "traces"}))
-        expect(host.textContent).toContain("Go to observability")
+        expect(host.textContent).toContain("Go to Observability")
     })
 
     it("Every item hidden by the switches asks to adjust them", async () => {

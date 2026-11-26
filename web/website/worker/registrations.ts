@@ -523,20 +523,17 @@ async function register(
   const recorder =
     contactRecorder ??
     (env.LOOPS_API_KEY ? loopsContactRecorder(env.LOOPS_API_KEY) : null);
-  const followUp = (async () => {
-    if (recorder) {
-      try {
-        await recorder.record(registration, registeredAt);
-      } catch (cause) {
-        console.error("Loops contact update failed", cause);
-      }
-    }
-    try {
-      await analyticsRecorder.record(registration, registeredAt);
-    } catch (cause) {
-      console.error("PostHog registration event failed", cause);
-    }
-  })();
+  // Both start at once, so a slow contact update cannot use up the time PostHog needs.
+  const followUp = Promise.all([
+    recorder
+      ?.record(registration, registeredAt)
+      .catch((cause) => console.error("Loops contact update failed", cause)),
+    analyticsRecorder
+      .record(registration, registeredAt)
+      .catch((cause) =>
+        console.error("PostHog registration event failed", cause),
+      ),
+  ]);
   if (waitUntil) waitUntil(followUp);
   else await followUp;
 

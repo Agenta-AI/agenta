@@ -15,8 +15,12 @@
 import {PATH_KEYS} from "@agenta/entities/session"
 import {parseGatewayToolName} from "@agenta/entities/workflow/commitDiff"
 import {createT, getActiveLanguage} from "@agenta/i18n"
+import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
 import toolActivityCatalog from "@agenta/i18n/catalogs/chat.toolActivity"
 import {canonicalClientToolName} from "@agenta/shared/clientTools"
+
+import {agentCallTarget, summarizeAgentCall} from "../model/approvalDescribers/describeAgentChanges"
+import {toolOutputRecord} from "../model/changeCallState"
 
 import type {
     ActivityIcon,
@@ -132,21 +136,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const stringAt = (value: unknown): string | undefined =>
     typeof value === "string" && value ? value : undefined
 
-/** A tool result, which reaches the FE either parsed or still JSON-encoded. */
-const asRecord = (output: unknown): Record<string, unknown> | undefined => {
-    if (isRecord(output)) return output
-    if (typeof output !== "string" || !output.trim().startsWith("{")) return undefined
-    try {
-        const parsed: unknown = JSON.parse(output)
-        return isRecord(parsed) ? parsed : undefined
-    } catch {
-        return undefined
-    }
-}
-
 /** The first capability `discover_tools` resolved to a tool. */
 const firstCapability = (output: unknown): Record<string, unknown> | undefined => {
-    const capabilities = asRecord(output)?.capabilities
+    const capabilities = toolOutputRecord(output)?.capabilities
     if (!Array.isArray(capabilities)) return undefined
     return capabilities.find(
         (capability) =>
@@ -156,21 +148,9 @@ const firstCapability = (output: unknown): Record<string, unknown> | undefined =
     ) as Record<string, unknown> | undefined
 }
 
-/** A tool output as a record: the runtime pair returns its JSON as a string. */
-const outputRecord = (output: unknown): Record<string, unknown> | undefined => {
-    if (isRecord(output)) return output
-    if (typeof output !== "string" || !output.startsWith("{")) return undefined
-    try {
-        const parsed: unknown = JSON.parse(output)
-        return isRecord(parsed) ? parsed : undefined
-    } catch {
-        return undefined
-    }
-}
-
 /** The first hit of a `search_tools` call: `{results: [{integration, tool}]}`, best match first. */
 const firstResult = (output: unknown): {slug?: string; action?: string} => {
-    const results = outputRecord(output)?.results
+    const results = toolOutputRecord(output)?.results
     const hit = Array.isArray(results) ? results.find(isRecord) : undefined
     return hit ? {slug: stringAt(hit.integration), action: stringAt(hit.tool)} : {}
 }
@@ -192,15 +172,25 @@ const matchedTool = (output: unknown): {slug?: string; action?: string} => {
  * would rename THEIR nouns. A missing op still conjugates, so it costs plain wording, not wrong. */
 const PLATFORM_OPS = new Set([
     "annotate_trace",
+    "cancel_session",
+    "list_sessions",
+    "read_session",
+    "read_session_spans",
+    "send_session_message",
+    "start_session",
+    "wait_for_sessions",
     "list_channel_destinations",
     "read_channel_messages",
     "search_channel_messages",
     "send_channel_message",
     "commit_revision",
+    "create_agent",
     "create_schedule",
     "create_subscription",
     "discover_tools",
     "discover_triggers",
+    "edit_agent_config",
+    "list_agents",
     "list_connections",
     "run_tool",
     "search_tools",
@@ -211,6 +201,7 @@ const PLATFORM_OPS = new Set([
     "pause_subscription",
     "query_spans",
     "query_workflows",
+    "read_agent_config",
     "read_config",
     "remove_schedule",
     "remove_subscription",
@@ -322,10 +313,11 @@ const verbParts = (id: VerbId): {verb: ToolActivity; frame: ToolActivity} => ({
     frame: withObject(id, OBJECT_SLOT),
 })
 
-/** The frame of a verb a skin registered: the language's plain word order. */
-const plainFrame = (verb: ToolActivity): ToolActivity => ({
-    running: tNow("chat.toolActivity.withObjectRunning", {verb: verb.running, object: OBJECT_SLOT}),
-    done: tNow("chat.toolActivity.withObjectDone", {verb: verb.done, object: OBJECT_SLOT}),
+/** The frame of a verb a skin registered. The skin's sentence opens with that verb in every
+ * language, so the frame does too; the catalog's word order would not match the skin's words. */
+const registeredFrame = (verb: ToolActivity): ToolActivity => ({
+    running: `${verb.running} ${OBJECT_SLOT}`,
+    done: `${verb.done} ${OBJECT_SLOT}`,
 })
 
 /** A verb with nothing after it leads the row, so it starts with a capital ("Gelesen"). */
@@ -333,6 +325,9 @@ const capitalized = (text: string): string => text.charAt(0).toUpperCase() + tex
 
 type SentenceId =
     | "runCommand"
+    | "readAgent"
+    | "createAgent"
+    | "editAgent"
     | "testAgent"
     | "searchTools"
     | "connectApp"
@@ -353,6 +348,88 @@ const sentence = (id: SentenceId, values?: Record<string, string>): ToolActivity
     running: tNow(`chat.toolActivity.${id}Running`, values),
     done: tNow(`chat.toolActivity.${id}Done`, values),
 })
+
+const tActivity = createT(chatActivityCatalog)
+
+/** The agent's name in the first line of a session tool's marked result:
+ * `[Update from child session <id> (<agent>). ...` or `[Read of session <id> (<agent>). ...`. */
+const SESSION_RESULT_HEADER =
+    /^\[(?:Update from child session|Read of session) \S+ \(([^()\n]+)\)\./
+
+const sessionAgentName = (output: unknown): string | undefined =>
+    typeof output === "string" ? SESSION_RESULT_HEADER.exec(output)?.[1]?.trim() : undefined
+
+/** The other session as the row names it: by its agent once the result names one. */
+const sessionLabel = (output: unknown): string => {
+    const agent = sessionAgentName(output)
+    return agent
+        ? tNow("chat.toolActivity.sessionOfAgent", {agent})
+        : tNow("chat.toolActivity.aSession")
+}
+
+/** The session tools act on ANOTHER session, which the glossary's "this chat" would misname. A
+ * failed call reads as failed, never as a call still starting. */
+const withFailure = (activity: ToolActivity): ToolActivity => ({
+    ...activity,
+    failed: tActivity("chat.activity.actionFailed", {action: activity.running}),
+})
+
+/** The slug or id of the agent a `start_session` call names. */
+const startSessionAgentRef = (input: unknown): string | undefined => {
+    const agent = isRecord(input) ? input.agent : undefined
+    return typeof agent === "string" && agent.trim() ? agent.trim() : undefined
+}
+
+/** The call names its agent by a slug or an id, never by its name: the row shows the name the
+ * result gives, else the name the host looked up, else "an agent". A refusal names no agent. */
+const describeStartSession = (
+    _input: unknown,
+    output: unknown,
+    agentName?: string,
+): ToolActivity => {
+    const agent = sessionAgentName(output) ?? agentName ?? tNow("chat.toolActivity.termWorkflow")
+    return {
+        running: tNow("chat.toolActivity.startSessionRunning", {agent}),
+        done: tNow("chat.toolActivity.startSessionDone", {agent}),
+        failed: tNow("chat.toolActivity.startSessionFailed"),
+    }
+}
+
+const describeSendSessionMessage = (_input: unknown, output: unknown): ToolActivity => {
+    const session = sessionLabel(output)
+    return withFailure({
+        running: tNow("chat.toolActivity.sendSessionRunning", {session}),
+        done: tNow("chat.toolActivity.sendSessionDone", {session}),
+    })
+}
+
+const describeWaitForSessions = (input: unknown): ToolActivity => {
+    const ids = isRecord(input) && Array.isArray(input.session_ids) ? input.session_ids : []
+    const count = Math.max(ids.length, 1)
+    return withFailure({
+        running: tNow("chat.toolActivity.waitSessionsRunning", {count}),
+        done: tNow("chat.toolActivity.waitSessionsDone", {count}),
+    })
+}
+
+const describeCancelSession = (_input: unknown, output: unknown): ToolActivity => {
+    const session = sessionLabel(output)
+    const nothing = toolOutputRecord(output)?.cancel_requested === false
+    return withFailure({
+        running: tNow("chat.toolActivity.cancelSessionRunning", {session}),
+        done: nothing
+            ? tNow("chat.toolActivity.cancelSessionNothingDone", {session})
+            : tNow("chat.toolActivity.cancelSessionDone", {session}),
+    })
+}
+
+const describeReadSession = (_input: unknown, output: unknown): ToolActivity => {
+    const session = sessionLabel(output)
+    return withFailure({
+        running: tNow("chat.toolActivity.readSessionRunning", {session}),
+        done: tNow("chat.toolActivity.readSessionDone", {session}),
+    })
+}
 
 /** A built-in entry names its sentence and verb; the text is looked up when a row resolves, so it
  * is in the language the reader has chosen at that moment. */
@@ -380,6 +457,20 @@ const DEFAULT_TOOL_DISPLAY: Record<string, DefaultEntry> = {
             return typeof commit?.message === "string" && commit.message ? commit.message : null
         },
     },
+    // The agent tools act on ANOTHER agent, which the glossary's "the agent" would misname as
+    // this one. Each settled row names that agent.
+    read_agent_config: {
+        sentence: "readAgent",
+        verbId: "read",
+        summary: (input, output) => agentCallTarget(input, output) ?? null,
+    },
+    create_agent: {sentence: "createAgent", verbId: "create", summary: summarizeAgentCall},
+    edit_agent_config: {sentence: "editAgent", verbId: "commit", summary: summarizeAgentCall},
+    start_session: {icon: "agent", describe: describeStartSession, agentRef: startSessionAgentRef},
+    send_session_message: {describe: describeSendSessionMessage},
+    wait_for_sessions: {describe: describeWaitForSessions},
+    cancel_session: {describe: describeCancelSession},
+    read_session: {describe: describeReadSession},
     // "Tested a run" misses the point — the run IS the agent under test.
     test_run: {sentence: "testAgent", verbId: "test"},
     // A tool search reports which tool it landed on. That name is worth far more than the keywords
@@ -430,6 +521,10 @@ const DEFAULT_TOOL_DISPLAY: Record<string, DefaultEntry> = {
 const PLATFORM_ICONS: Record<string, ActivityIcon> = {
     annotate_trace: "annotation",
     commit_revision: "commit",
+    create_agent: "agent",
+    edit_agent_config: "commit",
+    list_agents: "agent",
+    read_agent_config: "config",
     discover_tools: "tool-search",
     search_tools: "tool-search",
     discover_triggers: "trigger",
@@ -469,22 +564,36 @@ export const resolveActivityIcon = (kind: ToolKind, canonical: string): Activity
  * so `agent` is "the agent", never "an agent". */
 const PLATFORM_TERMS = {
     agent: "chat.toolActivity.termAgent",
+    "channel destinations": "chat.toolActivity.termChannelDestinations",
+    "channel message": "chat.toolActivity.termChannelMessage",
+    "channel messages": "chat.toolActivity.termChannelMessages",
     config: "chat.toolActivity.termConfig",
+    connections: "chat.toolActivity.termConnections",
+    deliveries: "chat.toolActivity.termDeliveries",
     revision: "chat.toolActivity.termRevision",
+    schedule: "chat.toolActivity.termSchedule",
+    schedules: "chat.toolActivity.termSchedules",
     session: "chat.toolActivity.termSession",
     span: "chat.toolActivity.termSpan",
     spans: "chat.toolActivity.termSpans",
     subscription: "chat.toolActivity.termSubscription",
     subscriptions: "chat.toolActivity.termSubscriptions",
+    tool: "chat.toolActivity.termTool",
+    tools: "chat.toolActivity.termTools",
+    trace: "chat.toolActivity.termTrace",
+    // Only `discover_triggers` says it, after "search for": German puts it in the dative.
+    triggers: "chat.toolActivity.termTriggers",
     workflow: "chat.toolActivity.termWorkflow",
     workflows: "chat.toolActivity.termWorkflows",
 } as const
 
 /** The glossary term for an object word, or undefined. The word is data, so own keys only. */
-const platformTerm = (word: string): string | undefined =>
-    Object.hasOwn(PLATFORM_TERMS, word)
-        ? tNow(PLATFORM_TERMS[word as keyof typeof PLATFORM_TERMS])
-        : undefined
+const platformTerm = (word: string, afterSearchVerb: boolean): string | undefined => {
+    if (!Object.hasOwn(PLATFORM_TERMS, word)) return undefined
+    // German puts the term in the dative after "nach"; a direct object takes the plain form.
+    if (afterSearchVerb && word === "tools") return tNow("chat.toolActivity.termToolsSearch")
+    return tNow(PLATFORM_TERMS[word as keyof typeof PLATFORM_TERMS])
+}
 
 /** "a issue" → "an issue": English picks the article by the first word's vowel sound, near
  * enough for a one-word object. Other languages show the noun alone. */
@@ -614,9 +723,24 @@ const conjugate = (
             ? [appName, qualifierFor(asked, appName)].filter(Boolean).join(" ")
             : lent || PREPOSITION_VERBS.has(verbId)
               ? asked
-              : tNow("chat.toolActivity.forQuery", {query: asked})
+              : // German searches "nach" a query but finds or reads "für" it.
+                verbId === "search"
+                ? tNow("chat.toolActivity.forSearchQuery", {query: asked})
+                : tNow("chat.toolActivity.forQuery", {query: asked})
+        // A running find searches "nach" the query in German, and a done find has found it "für"
+        // the query, so the two tenses take different phrases.
+        const activity =
+            verbId === "find" && !appName && !lent
+                ? {
+                      running: withObject(
+                          verbId,
+                          tNow("chat.toolActivity.forSearchQuery", {query: asked}),
+                      ).running,
+                      done: withObject(verbId, phrase).done,
+                  }
+                : withObject(verbId, phrase)
         return {
-            activity: withObject(verbId, phrase),
+            activity,
             namedApp: Boolean(appName),
             ...verbParts(verbId),
         }
@@ -630,7 +754,7 @@ const conjugate = (
               }
     }
     // A glossary term brings its own article and never takes an app name: it is ours.
-    const term = ours ? platformTerm(object.toLowerCase()) : undefined
+    const term = ours ? platformTerm(object.toLowerCase(), SEARCH_VERBS.has(split.verb)) : undefined
     if (term) return {activity: say(term), namedApp: false, ...parts}
     // An article the action name already carries ("Create an issue") has to come off before the app
     // goes in front of the noun, or it lands mid-phrase ("Created GitHub an issue").
@@ -887,7 +1011,11 @@ const lookupToolDisplay = (canonical: string): LookedUpEntry | undefined => {
     if (!base) return registered
     if (!registered) return base
     // A registered verb brings no frame, so the built-in one must not outlive its verb.
-    return registered.verb ? {...base, ...registered, frame: undefined} : {...base, ...registered}
+    if (registered.verb) return {...base, ...registered, frame: undefined}
+    // A registered sentence without a verb drops the built-in verb and frame too: the frame would
+    // put the object in place of the skin's words. A summary-only entry keeps both.
+    if (registered.activity) return {...base, ...registered, verb: undefined, frame: undefined}
+    return {...base, ...registered}
 }
 
 /**
@@ -901,6 +1029,7 @@ export const resolveToolDisplay = (
     input?: unknown,
     appName?: string,
     output?: unknown,
+    agentName?: string,
 ): ResolvedToolDisplay => {
     // Canonical for the override lookup, raw for the shape: the same platform tool must get its
     // wording under every harness, while a third-party MCP tool still reads as an MCP tool.
@@ -923,7 +1052,10 @@ export const resolveToolDisplay = (
     // built-in defaults never set either; they word a call through `activity` instead.
     const label = override?.label ?? parsed.label
     // Whichever sentence wins answers "is the app already in it?", which decides the chip.
+    const described = override?.describe?.(input, output, agentName)
+    const agentRef = override?.agentRef?.(input)
     const built =
+        (described ? {activity: described, namedApp: false} : null) ??
         overrideActivity(override, ownApp) ??
         (own?.action && ownApp ? reportedActivity(own.action, ownApp, !!own.ran) : null) ??
         parsed.activity
@@ -941,8 +1073,9 @@ export const resolveToolDisplay = (
         detail: toolDetail(raw, input, output),
         summary: override?.summary,
         verb: built?.verb,
-        frame: built?.frame ?? (built?.verb ? plainFrame(built.verb) : undefined),
+        frame: built?.frame ?? (built?.verb ? registeredFrame(built.verb) : undefined),
         icon: override?.icon ?? resolveActivityIcon(kind, canonical),
+        ...(agentRef ? {agentRef} : {}),
     }
 }
 

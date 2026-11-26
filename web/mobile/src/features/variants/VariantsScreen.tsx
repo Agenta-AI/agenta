@@ -99,7 +99,7 @@ export const VariantsScreen = ({
 
     return (
         <>
-            <PageTitle title="Registry" />
+            <PageTitle title="Registry" context={app?.name ?? undefined} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={

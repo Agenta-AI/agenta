@@ -108,7 +108,9 @@ export const AgentOverviewScreen = ({
                         // the header's left edge stays on the body's.
                         <div className="border-border shrink-0 border-b pb-3 pt-2 lg:border-b-0 lg:pb-5 lg:pt-14">
                             <div
-                                className={`${pageContentWidthClass} flex items-start gap-2 px-4 lg:px-16`}
+                                // 10px on a phone: the agent icon's 44px tap area reaches 10px
+                                // past its 24px chip, and must not cover the sidebar button.
+                                className={`${pageContentWidthClass} flex items-start gap-2 px-4 max-md:gap-2.5 lg:px-16`}
                             >
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <AgentOverviewTitle
@@ -152,7 +154,7 @@ export const AgentOverviewScreen = ({
             </AppShell>
             {publish.panel}
             {/* Mounted at screen level so a drawer survives its row unmounting underneath it. */}
-            <SessionAutomationDrawers base={base} workspaceId={workspaceId} projectId={projectId} />
+            <SessionAutomationDrawers base={base} />
         </>
     )
 }

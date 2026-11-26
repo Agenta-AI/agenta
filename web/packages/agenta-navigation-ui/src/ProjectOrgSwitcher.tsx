@@ -88,7 +88,13 @@ const Row = ({
 )
 
 /** Theme picker as a hover fly-out row; the Preferences tab offers the same choices. */
-const ThemeFlyout = ({theme}: {theme: SwitcherThemeControl}) => {
+const ThemeFlyout = ({
+    theme,
+    container,
+}: {
+    theme: SwitcherThemeControl
+    container?: HTMLElement | null
+}) => {
     const t = useT(navigationCatalog)
     const current = theme.options.find(({mode}) => mode === theme.mode) ?? theme.options[0]
     if (!current) return null
@@ -102,7 +108,14 @@ const ThemeFlyout = ({theme}: {theme: SwitcherThemeControl}) => {
                     <CaretRight size={14} className="shrink-0 text-colorTextSecondary" />
                 </button>
             </PopoverTrigger>
-            <PopoverContent side="right" align="end" className="w-[190px] p-1">
+            {/* Same portal as the switcher: a body portal sits outside a drawer's focus trap,
+                so the keyboard could not reach the options. */}
+            <PopoverContent
+                container={container}
+                side="right"
+                align="end"
+                className="w-[190px] p-1"
+            >
                 {theme.options.map(({mode, label, icon}) => (
                     <Row key={mode} className={ITEM_ROW_CLASS} onClick={() => theme.onSelect(mode)}>
                         {icon}
@@ -200,7 +213,7 @@ export const ProjectOrgSwitcherView = ({
                         <span className="flex-1">{t("navigation.projectMenu.newProject")}</span>
                     </Row>
                 )}
-                {theme && <ThemeFlyout theme={theme} />}
+                {theme && <ThemeFlyout theme={theme} container={panelContainer} />}
                 {onLogout && (
                     <Row
                         className="!text-colorError"
@@ -215,7 +228,7 @@ export const ProjectOrgSwitcherView = ({
                 )}
             </div>
         ),
-        [close, onCreateProject, onLogout, orgLabel, projects, t, theme],
+        [close, onCreateProject, onLogout, orgLabel, panelContainer, projects, t, theme],
     )
 
     const orgPanel = useMemo(
@@ -268,7 +281,7 @@ export const ProjectOrgSwitcherView = ({
                         </span>
                     </Row>
                 )}
-                {theme && <ThemeFlyout theme={theme} />}
+                {theme && <ThemeFlyout theme={theme} container={panelContainer} />}
                 {onLogout && (
                     <Row
                         className="!text-colorError"
@@ -283,7 +296,7 @@ export const ProjectOrgSwitcherView = ({
                 )}
             </div>
         ),
-        [close, onCreateOrg, onLogout, onOrgSettings, orgs, t, theme],
+        [close, onCreateOrg, onLogout, onOrgSettings, orgs, panelContainer, t, theme],
     )
 
     return (
@@ -292,7 +305,7 @@ export const ProjectOrgSwitcherView = ({
                 // Same 300ms the rail itself uses (SidebarShell): without it this box jumps to its
                 // collapsed geometry on the first frame while the rail is still sliding, and the
                 // switcher reads as a separate, badly-timed element rather than part of the rail.
-                "flex gap-1 px-2 pb-1.5 transition-all duration-300",
+                "flex gap-1 px-2 pb-2 transition-all duration-300",
                 // No top pad: the bottom nav already ends with its own spacing above the switcher.
                 collapsed ? "flex-col items-center" : "w-full items-center",
             )}
@@ -313,17 +326,22 @@ export const ProjectOrgSwitcherView = ({
                             // pl-2.5 tucks the wider avatar 2px left of the nav rows' icon column.
                             collapsed
                                 ? "size-7 justify-center p-0"
-                                : "h-8 min-w-0 flex-1 gap-[10px] pl-2.5 pr-1",
+                                : "h-10 min-w-0 flex-1 gap-3 pl-2.5 pr-1",
                         )}
                         title={`${projectLabel} · ${orgLabel}`}
                     >
-                        <InitialsAvatar size="small" name={projectLabel} className="shrink-0" />
+                        {/* The design's workspace mark: radius 5, a 10 px semibold initial. */}
+                        <InitialsAvatar
+                            size="small"
+                            name={projectLabel}
+                            className="shrink-0 !rounded-[5px] !text-[10px] !font-semibold"
+                        />
                         {/* One line, not two: the org already names itself on the panel's
                             caption, and stacking it here made the rail's shortest row its
                             tallest. */}
                         {!collapsed && (
                             <>
-                                <span className="min-w-0 flex-1 truncate text-left text-[13px] leading-none text-colorText">
+                                <span className="min-w-0 flex-1 truncate text-left text-sm leading-5 text-colorText">
                                     {projectLabel}
                                 </span>
                                 {triggerMeta ? (
@@ -332,8 +350,8 @@ export const ProjectOrgSwitcherView = ({
                                     </span>
                                 ) : null}
                                 <CaretUpDown
-                                    size={12}
-                                    className="shrink-0 text-colorTextSecondary"
+                                    size={14}
+                                    className="shrink-0 text-[var(--ag-zinc-8)]"
                                 />
                             </>
                         )}

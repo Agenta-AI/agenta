@@ -554,13 +554,24 @@ async def test_bare_claude_alias_infers_anthropic_and_routes_through_the_gateway
     fake_http(
         connections, payload=[_provider_key("anthropic-prod", "anthropic", "sk-ant")]
     )
-    for alias in ("haiku", "sonnet", "opus[1m]"):
+    # `opus[1m]` is no longer listed, but agents saved with it still infer Anthropic.
+    for alias in ("haiku", "sonnet", "opus", "fable", "opus[1m]"):
         resolved = await VaultConnectionResolver(connection).resolve(
             model=ModelRef.coerce(alias),
             context=RuntimeAuthContext(harness="claude"),
         )
         assert resolved.provider == "anthropic", alias
         _assert_routed_through_gateway(resolved, namespace="standard", name="anthropic")
+
+
+def test_saved_context_hint_alias_infers_anthropic_without_the_gateway():
+    # Provider inference runs before any gateway routing, so an agent saved with `opus[1m]`
+    # must still infer Anthropic when the deployment turns the gateway off.
+    for alias in ("opus[1m]", "sonnet[1m]", "fable[1m]"):
+        assert connections.infer_provider_from(ModelRef.coerce(alias)) == "anthropic", (
+            alias
+        )
+    assert connections.infer_provider_from(ModelRef.coerce("nope[1m]")) is None
 
 
 async def test_bare_claude_dated_id_infers_anthropic_and_routes_through_the_gateway(

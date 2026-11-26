@@ -10,7 +10,7 @@ import type {StoryScope} from "../.storybook/decorators/withAgentaData"
 
 /**
  * Fixture builders for the agent config panel's **Integrations** surfaces — the integration rows
- * in `ToolManagementList`, `IntegrationPermissionDrawer`, and `AgentIntegrationDrawer`.
+ * in `ToolManagementList`, `IntegrationPermissionDrawer`, and `IntegrationCatalog`.
  *
  * `gatewayTool` carries no zod schemas of its own (its types come straight from the generated Fern
  * client), so drift protection here is the TYPE: every payload is annotated with the same

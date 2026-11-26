@@ -114,7 +114,7 @@ describe("add to testset", () => {
         await render()
         expect(modal().open).toBe(true)
         expect(modal().submitLabel).toBe("Add")
-        expect(modal().actionLabel).toBe("Add to Testset")
+        expect(modal().actionLabel).toBe("Add to test set")
         expect(modal().canSubmit({mode: "existing"})).toBe(false)
 
         await act(async () => patchSession({pendingTestsetSelection: "testset-1"}))
@@ -135,7 +135,7 @@ describe("add to testset", () => {
         )
         // The picker shows only for an existing testset.
         await act(async () => root.render(<>{modal().renderModeContent({mode: "existing"})}</>))
-        expect(host.textContent).toContain("Select testset")
+        expect(host.textContent).toContain("Select test set")
         expect(modal().renderModeContent({mode: "new"})).toBeNull()
     })
 
@@ -150,7 +150,7 @@ describe("add to testset", () => {
             entityName: "Replies",
             entitySlug: "replies",
         })
-        expect(result).toEqual({success: false, error: "Failed to start testset export"})
+        expect(result).toEqual({success: false, error: "Failed to start test set export"})
         expect(callsOf("addScenariosToTestset")).toEqual([
             {
                 targetMode: "new",
@@ -193,7 +193,7 @@ describe("add to testset", () => {
         await act(async () => patchSession({addToTestsetExportJob: job}))
         await act(async () => patchSession({isAddToTestsetModalOpen: false}))
         expect(fixture.toast.error).toHaveBeenCalledTimes(1)
-        expect(fixture.toast.error).toHaveBeenCalledWith("Couldn't add the items to the testset")
+        expect(fixture.toast.error).toHaveBeenCalledWith("Couldn't add the items to the test set")
         expect(fixture.toast.success).not.toHaveBeenCalled()
         consoleError.mockRestore()
     })

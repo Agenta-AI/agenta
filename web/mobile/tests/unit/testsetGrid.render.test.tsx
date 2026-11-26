@@ -213,7 +213,7 @@ describe("Test set grid", () => {
             mount(editor)
             await click(button("Select all"))
             expect(button("Delete selected")?.hasAttribute("disabled")).toBe(false)
-            const box = byLabel("Search testcases...") as HTMLInputElement
+            const box = byLabel("Search test cases...") as HTMLInputElement
             expect(box).not.toBeNull()
             await act(async () => {
                 const setValue = Object.getOwnPropertyDescriptor(
@@ -306,7 +306,7 @@ describe("Test set grid", () => {
         await click(item("Delete"))
 
         expect(editor.deleteRows).toHaveBeenCalledWith(["case-1"])
-        expect(toast.success).toHaveBeenCalledWith("Deleted testcase. Save to apply changes.")
+        expect(toast.success).toHaveBeenCalledWith("Deleted test case. Save to apply changes.")
     })
 
     it("Bulk delete reports the number of rows", async () => {
@@ -317,7 +317,7 @@ describe("Test set grid", () => {
         await click(button("Delete selected"))
 
         expect(editor.deleteRows).toHaveBeenCalledWith(["case-1", "new-1"])
-        expect(toast.success).toHaveBeenCalledWith("Deleted 2 testcase(s). Save to apply changes.")
+        expect(toast.success).toHaveBeenCalledWith("Deleted 2 test cases. Save to apply changes.")
     })
 
     it("Bulk delete takes only the selected rows the grid still shows", async () => {
@@ -330,7 +330,7 @@ describe("Test set grid", () => {
         await click(button("Delete selected"))
 
         expect(editor.deleteRows).toHaveBeenCalledWith(["case-1"])
-        expect(toast.success).toHaveBeenCalledWith("Deleted testcase. Save to apply changes.")
+        expect(toast.success).toHaveBeenCalledWith("Deleted test case. Save to apply changes.")
     })
 
     it("A reader without edit_testsets sees no column or row edit actions", async () => {
@@ -377,7 +377,7 @@ describe("Test set grid", () => {
                 />,
             ),
         )
-        const search = byLabel("Search testcases...")
+        const search = byLabel("Search test cases...")
         const commit = button("Commit")
         // The search box and the actions share one row.
         const row = search?.parentElement?.parentElement
@@ -393,7 +393,7 @@ describe("Test set grid", () => {
 
         await click(add)
 
-        expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Add Column")
+        expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Add column")
     })
 
     it("A queue action takes the selected saved rows, or else every saved row shown", async () => {
@@ -422,13 +422,13 @@ describe("Test set grid", () => {
     it("A saved row's menu offers Add annotation queue; a new row's does not", async () => {
         mount(fakeEditor())
         await press(document.querySelector('[data-row="case-1"] [aria-label="Actions"]'))
-        expect(item("Add annotation queue")).toBeDefined()
+        expect(item("Add to queue")).toBeDefined()
         await act(async () => (document.activeElement as HTMLElement | null)?.blur())
         act(() => root.unmount())
         root = createRoot(host)
         mount(fakeEditor())
         await press(document.querySelector('[data-row="new-1"] [aria-label="Actions"]'))
-        expect(item("Add annotation queue")).toBeUndefined()
+        expect(item("Add to queue")).toBeUndefined()
     })
 
     it("An editor gets the table settings, the cell popover and the edited-row marker", () => {

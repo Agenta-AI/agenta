@@ -33,7 +33,6 @@ vi.mock("@/features/context/useBindProjectContext", () => ({useBindProjectContex
 vi.mock("@/features/context/useProjectPermission", () => ({useProjectPermission: () => true}))
 vi.mock("@/components/PageTitle", () => ({PageTitle: () => null}))
 
-import {DEVELOPER_VIEWS} from "@/features/developer/developerViews"
 import ArchivedAppsPage from "@/pages/w/[workspace_id]/p/[project_id]/apps/archived"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -84,21 +83,20 @@ afterEach(() => {
 })
 
 describe("archived apps route", () => {
-    it("Archived apps route shows not found until the user turns the view on", async () => {
-        expect(DEVELOPER_VIEWS.find((view) => view.id === "archived-apps")?.stage).toBe("preview")
+    it("Archived apps route shows not found without beta developer mode", async () => {
         await mount()
         expect(document.querySelector('[data-testid="not-found"]')).not.toBeNull()
-        expect(host.textContent).not.toContain("Archived Apps")
+        expect(host.textContent).not.toContain("Archived prompts")
         expect(api.queryWorkflows).not.toHaveBeenCalled()
     })
 
-    it("A failed load shows Could not load archived apps with a retry", async () => {
+    it("A failed load shows Could not load archived prompts with a retry", async () => {
         // The view is hidden in the registry; the deployment override is how a view is forced on.
         vi.stubEnv("NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS", "archived-apps")
         api.queryWorkflows.mockRejectedValue(new Error("boom"))
         await mount()
-        expect(host.textContent).toContain("Could not load archived apps")
-        expect(host.textContent).not.toContain("No archived apps")
+        expect(host.textContent).toContain("Could not load archived prompts")
+        expect(host.textContent).not.toContain("No archived prompts")
         const retry = [...host.querySelectorAll("button")].find((b) =>
             /try again/i.test(b.textContent ?? ""),
         )

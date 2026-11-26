@@ -558,6 +558,30 @@ describe("Loops contact", () => {
     expect(pending).toHaveLength(1);
   });
 
+  it("starts the analytics update while the contact update still runs", async () => {
+    const { sender } = fakeSender();
+    const recorder: ContactRecorder = {
+      record: () => new Promise<void>(() => {}),
+    };
+    let analyticsStarted = false;
+    const analytics = {
+      async record() {
+        analyticsStarted = true;
+      },
+    };
+
+    await handleRegistration(
+      post(VALID),
+      withLimits({ LICENSE_SIGNING_KEY: privatePem }),
+      sender,
+      recorder,
+      analytics,
+      () => {},
+    );
+
+    expect(analyticsStarted).toBe(true);
+  });
+
   it("does not update the contact when the key email fails", async () => {
     const recorded: string[] = [];
     const recorder: ContactRecorder = {

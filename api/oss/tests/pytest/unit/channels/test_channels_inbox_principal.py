@@ -97,6 +97,8 @@ async def test_channel_answer_records_installation_approver():
     assert approval.principal.id == binding
     assert approval.user_id == linked
     assert approval.external_key == "slack:T1:U1"
+    # The channel answer is a person's, built by the shared builder.
+    assert approval.is_run_credential is False
 
 
 async def _admitted_turn(*, admission, monkeypatch):

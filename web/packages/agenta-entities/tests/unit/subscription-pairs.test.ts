@@ -9,6 +9,7 @@ import {describe, expect, it} from "vitest"
 
 import {
     mountedSubscriptionName,
+    subscriptionPairModelRows,
     subscriptionPairModels,
     subscriptionPairsFrom,
     subscriptionPlanName,
@@ -193,5 +194,34 @@ describe("subscriptionPairModels", () => {
         expect(
             subscriptionPairModels(capabilities, {harness: "claude", provider: "openai"}),
         ).toEqual({models: [], defaults: []})
+    })
+})
+
+describe("subscriptionPairModelRows", () => {
+    const models = ["default", "sonnet", "haiku", "opus", "fable"]
+    const defaults = ["opus", "sonnet"]
+
+    it("lists the recommended set first, then the rest in published order", () => {
+        expect(subscriptionPairModelRows({models, defaults, saved: undefined})).toEqual([
+            "sonnet",
+            "opus",
+            "default",
+            "haiku",
+            "fable",
+        ])
+    })
+
+    it("keeps a saved id the plan no longer runs, so it can be unticked", () => {
+        expect(
+            subscriptionPairModelRows({
+                models,
+                defaults,
+                saved: ["opus[1m]", "sonnet", "claude-fable-5-1"],
+            }),
+        ).toEqual(["sonnet", "opus", "default", "haiku", "fable", "opus[1m]", "claude-fable-5-1"])
+    })
+
+    it("adds no row for a saved id the plan still runs", () => {
+        expect(subscriptionPairModelRows({models, defaults, saved: ["haiku"]})).toHaveLength(5)
     })
 })

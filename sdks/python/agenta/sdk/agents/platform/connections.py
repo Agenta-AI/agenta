@@ -117,7 +117,9 @@ def infer_provider_from(model: ModelRef) -> Optional[str]:
     bare = (model.model or "").strip().lower()
     if not bare:
         return None
-    if bare in _CLAUDE_ALIASES or bare.startswith("claude-"):
+    # A saved ``opus[1m]`` (or ``sonnet[1m]``, ``fable[1m]``) names the tier with a context hint.
+    # The alias list no longer carries it, but it is still Anthropic.
+    if bare.removesuffix("[1m]") in _CLAUDE_ALIASES or bare.startswith("claude-"):
         return "anthropic"
     return _CATALOG_PROVIDER_INDEX.get(bare)
 
