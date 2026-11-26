@@ -23,7 +23,7 @@ const tabsListVariants = cva(
         variants: {
             variant: {
                 track: "rounded-control-lg bg-muted",
-                line: "gap-1 rounded-none bg-transparent",
+                line: "relative gap-1 rounded-none bg-transparent",
             },
         },
         defaultVariants: {variant: "line"},
@@ -47,8 +47,8 @@ const tabsTriggerVariants = cva(
             variant: {
                 // Raised on the surface while active, like the Segmented thumb.
                 track: "data-[state=active]:bg-background data-[state=active]:shadow-raised",
-                // A 2px underline at the bottom edge of the list, shown while active.
-                line: "after:absolute after:inset-x-0 after:-bottom-1 after:h-0.5 after:bg-foreground after:opacity-0 after:transition-opacity data-[state=active]:after:opacity-100",
+                // The underline is the list's one sliding indicator (TabsIndicator).
+                line: "",
             },
         },
         defaultVariants: {variant: "line"},
@@ -65,9 +65,61 @@ function Tabs({className, ...props}: React.ComponentProps<typeof TabsPrimitive.R
     )
 }
 
+/**
+ * The line variant's underline: one 2px bar at the list's bottom edge that slides to the active
+ * tab (MOTION-01), as the Segmented thumb does. It sits on whatever line the list's bottom meets.
+ */
+function TabsIndicator() {
+    const ref = React.useRef<HTMLSpanElement>(null)
+    const [box, setBox] = React.useState<{left: number; width: number} | null>(null)
+    const [ready, setReady] = React.useState(false)
+    React.useLayoutEffect(() => {
+        // Its own element finds the list: a child's layout effect runs before the list's ref is set.
+        const list = ref.current?.parentElement
+        if (!list) return undefined
+        const measure = () => {
+            const active = list.querySelector<HTMLElement>(
+                '[data-slot="tabs-trigger"][data-state="active"]',
+            )
+            setBox(active ? {left: active.offsetLeft, width: active.offsetWidth} : null)
+        }
+        measure()
+        const mutations = new MutationObserver(measure)
+        mutations.observe(list, {subtree: true, attributes: true, attributeFilter: ["data-state"]})
+        const sizes = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure)
+        sizes?.observe(list)
+        return () => {
+            mutations.disconnect()
+            sizes?.disconnect()
+        }
+    }, [])
+    // The first place is set without motion; only moves between tabs slide.
+    React.useEffect(() => {
+        if (box && !ready) requestAnimationFrame(() => setReady(true))
+    }, [box, ready])
+    return (
+        <span
+            ref={ref}
+            aria-hidden
+            data-slot="tabs-indicator"
+            className={cn(
+                "pointer-events-none absolute bottom-0 left-0 h-0.5 bg-foreground",
+                ready &&
+                    "motion-safe:transition-[transform,width] motion-safe:duration-[var(--duration-base)] motion-safe:ease-[var(--ease-in-out)]",
+            )}
+            style={
+                box
+                    ? {transform: `translateX(${box.left}px)`, width: box.width}
+                    : {display: "none"}
+            }
+        />
+    )
+}
+
 function TabsList({
     className,
     variant = "line",
+    children,
     ...props
 }: React.ComponentProps<typeof TabsPrimitive.List> & VariantProps<typeof tabsListVariants>) {
     const resolved = variant ?? "line"
@@ -78,7 +130,10 @@ function TabsList({
                 data-variant={resolved}
                 className={cn(tabsListVariants({variant: resolved}), className)}
                 {...props}
-            />
+            >
+                {children}
+                {resolved === "line" ? <TabsIndicator /> : null}
+            </TabsPrimitive.List>
         </TabsVariantContext.Provider>
     )
 }

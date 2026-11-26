@@ -73,6 +73,8 @@ export const ConfigurationRoot = ({
             className={cn(
                 // In the 320 px pane four tabs and Close do not fit: the row scrolls, never overlaps.
                 "ag-scroll-no-bar min-w-0 shrink justify-start overflow-x-auto",
+                // The full header height, so the underline sits on the header's bottom line.
+                "h-auto self-stretch",
             )}
         >
             {tabs.map((tab) => (
