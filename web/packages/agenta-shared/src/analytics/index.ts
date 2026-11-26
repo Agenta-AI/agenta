@@ -7,7 +7,84 @@ export const CLOUD_CONFIG = {
     },
 }
 
-export const OSS_CONFIG = {persistence: "localStorage+cookie" as const}
+/** Properties posthog-js adds that name the instance's address or the referrer. */
+const INSTANCE_URL_PROPERTIES = ["$current_url", "$host", "$referrer", "$referring_domain"]
+// `$initial_person_info` holds the first URL and referrer; PostHog expands it into
+// `$initial_current_url` and the rest. `$session_entry_*` repeats them per session.
+const INSTANCE_URL_PREFIXES = ["$initial_", "$session_entry_"]
+
+const isInstanceUrlProperty = (key: string) =>
+    INSTANCE_URL_PROPERTIES.includes(key) ||
+    INSTANCE_URL_PREFIXES.some((prefix) => key.startsWith(prefix))
+
+// Typed text, such as a survey answer, can hold an email address or a link with a
+// token in it. An internal address can have a domain with no dot, and a link can have
+// no scheme, such as `example.com/invite?token=...`, `10.0.0.5:8443/...` or
+// `localhost:3000/...`.
+const EMAIL_ADDRESS = /[^\s@]+@[^\s@]+/g
+const LINK = /\b[a-z][a-z0-9+.-]*:\/\/\S+/gi
+const LINK_WITHOUT_SCHEME = /\b(?:localhost|(?:[a-z0-9-]+\.)+[a-z0-9-]+)(?::\d+)?[/?#]\S*/gi
+
+const withoutEmails = (value: unknown): unknown => {
+    if (typeof value === "string") {
+        return value
+            .replace(LINK, "[link]")
+            .replace(EMAIL_ADDRESS, "[email]")
+            .replace(LINK_WITHOUT_SCHEME, "[link]")
+    }
+    if (Array.isArray(value)) return value.map(withoutEmails)
+    if (value && typeof value === "object") {
+        return Object.fromEntries(
+            Object.entries(value).map(([key, nested]) => [key, withoutEmails(nested)]),
+        )
+    }
+    return value
+}
+
+const withoutInstanceUrl = (properties: Record<string, unknown> | undefined) => {
+    if (!properties) return properties
+    const kept = {...properties}
+    for (const key of Object.keys(kept)) if (isInstanceUrlProperty(key)) delete kept[key]
+    for (const key of ["$set", "$set_once"]) {
+        const nested = kept[key]
+        if (nested && typeof nested === "object") {
+            kept[key] = withoutInstanceUrl(nested as Record<string, unknown>)
+        }
+    }
+    return withoutEmails(kept) as Record<string, unknown>
+}
+
+interface CapturedEvent {
+    properties: Record<string, unknown>
+    $set?: Record<string, unknown>
+    $set_once?: Record<string, unknown>
+}
+
+/** Self-hosted events carry no instance address, no email address and no GeoIP lookup. */
+export const stripInstanceUrl = <T extends CapturedEvent>(event: T | null): T | null =>
+    event && {
+        ...event,
+        properties: {...withoutInstanceUrl(event.properties), $geoip_disable: true},
+        $set: withoutInstanceUrl(event.$set),
+        $set_once: withoutInstanceUrl(event.$set_once),
+    }
+
+/** Self-hosted (both editions): only the named product events and page views; nothing recorded on its own. */
+export const SELF_HOSTED_CONFIG = {
+    persistence: "localStorage+cookie" as const,
+    autocapture: false,
+    capture_dead_clicks: false,
+    capture_heatmaps: false,
+    capture_performance: false,
+    disable_session_recording: true,
+    // Stack frames carry the instance address, and before_send does not clean them.
+    capture_exceptions: false,
+    save_referrer: false,
+    // Flag requests carry the first page address and referrer as person properties,
+    // which before_send never sees. This also stops the remote config request.
+    advanced_disable_flags: true,
+    before_send: stripInstanceUrl,
+}
 
 export const POSTHOG_CONFIG = {
     api_host: "https://alef.agenta.ai",
@@ -32,21 +109,89 @@ export const generateOrRetrieveDistinctId = (): string => {
     return (fallbackDistinctId ??= uuidv4())
 }
 
+/** `GET /instance/telemetry`: whether to send events, and the identity to send them under. */
+export interface InstanceTelemetry {
+    enabled: boolean
+    distinct_id: string | null
+    /** Set on self-hosted instances only. */
+    groups: {instance: string} | null
+    /** Added to every event. Self-hosted: `instance_kind`, so test instances can be filtered out. */
+    properties: Record<string, string> | null
+}
+
+const parseStringRecord = (value: unknown): Record<string, string> | null => {
+    if (!value || typeof value !== "object") return null
+    const entries = Object.entries(value).filter(
+        (entry): entry is [string, string] => typeof entry[1] === "string",
+    )
+    return entries.length ? Object.fromEntries(entries) : null
+}
+
+export const parseInstanceTelemetry = (data: unknown): InstanceTelemetry => {
+    const body = (data ?? {}) as {
+        enabled?: unknown
+        distinct_id?: unknown
+        groups?: unknown
+        properties?: unknown
+    }
+    const instance = (body.groups as {instance?: unknown} | null | undefined)?.instance
+    return {
+        enabled: body.enabled === true,
+        distinct_id: typeof body.distinct_id === "string" ? body.distinct_id : null,
+        groups: typeof instance === "string" ? {instance} : null,
+        properties: parseStringRecord(body.properties),
+    }
+}
+
+/** Cloud keeps its email identity and settings. Only known when telemetry is on: off, `groups` is null everywhere. */
+export const isCloudTelemetry = (telemetry: InstanceTelemetry) =>
+    telemetry.enabled && telemetry.groups === null
+
+interface IdentityClient {
+    get_distinct_id: () => string
+    reset: () => void
+    identify: (id: string) => void
+    group: (type: string, key: string) => void
+    register: (properties: Record<string, string>) => void
+}
+
+/**
+ * Self-hosted: identify with the API's id before the first event. A browser that holds
+ * another id (for example an email from before) starts over, so nothing stored under
+ * that id is sent again.
+ */
+export const adoptInstanceIdentity = (
+    client: IdentityClient,
+    telemetry: InstanceTelemetry | null,
+) => {
+    if (!telemetry?.distinct_id) return
+    if (client.get_distinct_id() !== telemetry.distinct_id) client.reset()
+    // Registered before identify, so the `$identify` event carries them too.
+    if (telemetry.properties) client.register(telemetry.properties)
+    client.identify(telemetry.distinct_id)
+    if (telemetry.groups) client.group("instance", telemetry.groups.instance)
+}
+
 export interface AnalyticsUser {
     email?: string | null
     username?: string | null
 }
 
+/**
+ * The id and person properties to identify with. `id` is the id the API gives the
+ * browser. Cloud identifies by email with email and username properties; self-hosted
+ * sends no email or username.
+ */
 export function analyticsIdentity(
     user: AnalyticsUser | null | undefined,
     cloud: boolean,
-    baseId: string,
+    id: string,
 ) {
     const properties: Record<string, unknown> = {}
-    if (user?.email) properties.email = user.email
-    if (user?.username) properties.username = user.username
+    if (cloud && user?.email) properties.email = user.email
+    if (cloud && user?.username) properties.username = user.username
     return {
-        id: cloud && user?.email ? user.email : baseId,
+        id: cloud && user?.email ? user.email : id,
         properties: Object.keys(properties).length ? properties : undefined,
     }
 }
