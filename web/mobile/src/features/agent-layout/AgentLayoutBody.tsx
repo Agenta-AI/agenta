@@ -324,9 +324,9 @@ export const AgentLayoutBody = ({
                                 scope={filesScope}
                                 sessionId={sessionId}
                                 onSelectionChange={driveLink.onSelectionChange}
-                                // The header icon closes it on desktop, the phone header on a
-                                // phone.
-                                closeControl="none"
+                                // An X like the other pane contents on desktop; the phone
+                                // header's back on a phone.
+                                closeControl={phone ? "none" : "panel"}
                                 // Expand is the panel's widen, as in a wide Configuration view.
                                 expanded={!phone && wide}
                                 // A phone has no wider pane.

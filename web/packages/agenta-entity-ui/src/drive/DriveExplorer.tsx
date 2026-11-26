@@ -169,7 +169,7 @@ export function DriveExplorer({
     initialShowTree?: boolean
     /** Remember the tree's shown/hidden state and width across opens under this key. */
     treePersistKey?: string
-    closeVariant?: "close" | "collapse"
+    closeVariant?: "close" | "collapse" | "panel"
     /** Open and download only: no upload, drop, paste, new item, rename, delete or edit (a phone). */
     readOnly?: boolean
     /** A touch screen (a phone): the header and the toolbar share one row. */

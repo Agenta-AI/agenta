@@ -65,7 +65,8 @@ export interface DriveHeaderProps {
     onToggleTree: () => void
     /** For hosts whose close lives in this row. */
     onClose?: () => void
-    closeVariant?: "close" | "collapse"
+    /** `panel`: the right-pane X at the row end, as the other pane contents draw it. */
+    closeVariant?: "close" | "collapse" | "panel"
     expanded?: boolean
     onToggleExpand?: () => void
     expandPlacement?: "leading" | "before-options"
@@ -253,6 +254,19 @@ export const DriveHeader = ({
                         className={ROW_ICON_BTN}
                     >
                         <CaretDoubleRight size={14} />
+                    </Button>
+                </Tooltip>
+            ) : null}
+            {onClose && closeVariant === "panel" ? (
+                <Tooltip title={t("entityUi.driveExplorer.close")}>
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t("entityUi.driveExplorer.close")}
+                        onClick={onClose}
+                        className={ROW_ICON_BTN}
+                    >
+                        <X size={14} />
                     </Button>
                 </Tooltip>
             ) : null}

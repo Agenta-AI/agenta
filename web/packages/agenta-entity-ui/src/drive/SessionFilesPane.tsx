@@ -96,7 +96,8 @@ export function SessionFilesPane({
     onSelectionChange?: (item: DriveLinkItem) => void
     /** Who closes the pane: row 1's "»" (the desktop), or the host (`"none"` — `/m`, where the
      * panel icon shows the open state and flips it, and a phone header has the back arrow). */
-    closeControl?: "collapse" | "none"
+    /** `panel`: an X that closes the right pane, like its other contents. */
+    closeControl?: "collapse" | "none" | "panel"
     expanded?: boolean
     onToggleExpand?: () => void
     /** Open and download only (a phone): the explorer offers no write. */
@@ -181,7 +182,7 @@ export function SessionFilesPane({
                 expanded={expanded}
                 onToggleExpand={onToggleExpand}
                 expandPlacement="before-options"
-                closeVariant="collapse"
+                closeVariant={closeControl === "panel" ? "panel" : "collapse"}
                 mirrored
                 // The rail starts closed: the grid + breadcrumb browse on their own, and the row-1
                 // toggle (or a search, which needs the rows) brings it in; the choice then sticks.
