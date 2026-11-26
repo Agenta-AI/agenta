@@ -2,6 +2,7 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button, IconTile, SkeletonBlock} from "@agenta/ui/ui"
 import {
     ArrowClockwiseIcon,
@@ -30,7 +31,9 @@ export const AutomationRunListSkeleton = ({
         {Array.from({length: groups}, (_, group) => (
             <div key={group} className="mb-1">
                 <div className="px-2.5 pb-1 pt-3">
-                    <SkeletonBlock active className="h-2.5 w-20" />
+                    <div className="flex h-4 items-center">
+                        <SkeletonBlock active className="h-2.5 w-20" />
+                    </div>
                 </div>
                 {Array.from({length: rows}, (_, row) => (
                     <div key={row} className="flex items-center gap-2 px-2.5 py-2">
@@ -43,6 +46,32 @@ export const AutomationRunListSkeleton = ({
         ))}
     </div>
 )
+
+/** The panel's run history while its view loads: the heading, the count line, then the list. */
+export const AutomationRunHistoryPanelSkeleton = () => {
+    const t = useT(commonCatalog)
+    return (
+        <div
+            role="status"
+            aria-busy
+            aria-label={t("common.loading")}
+            className="flex min-h-0 w-full flex-1 flex-col pb-6 pl-1.5 pr-4 pt-3"
+        >
+            <div className="flex items-center gap-2 pl-2.5">
+                <div className="flex h-5.5 flex-1 items-center">
+                    <SkeletonBlock active className="h-4 w-28" />
+                </div>
+                <span className="p-1">
+                    <SkeletonBlock active className="size-3.75" />
+                </span>
+            </div>
+            <div className="mb-2.5 mt-1 flex h-4.5 items-center pl-2.5">
+                <SkeletonBlock active className="h-3 w-24" />
+            </div>
+            <AutomationRunListSkeleton />
+        </div>
+    )
+}
 
 /**
  * Never run.

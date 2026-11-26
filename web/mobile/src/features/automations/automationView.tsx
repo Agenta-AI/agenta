@@ -1,6 +1,10 @@
-import type {AutomationKind} from "@agenta/automation-ui"
+import {AutomationPaneSkeleton, type AutomationKind} from "@agenta/automation-ui"
+import {useIsPhone} from "@agenta/ui/phone"
 import {defineView} from "@agenta/ui/view-stack"
 import dynamic from "next/dynamic"
+
+/** The body's own loading shape while its code loads, in the view's place (STATE-02). */
+const AutomationViewLoading = () => <AutomationPaneSkeleton phone={useIsPhone()} />
 
 export interface AutomationViewParams {
     automationId: string
@@ -24,7 +28,10 @@ export const automationView = defineView<AutomationViewParams>({
     id: "automations.automation",
     apply: "immediate",
     actionRow: false,
-    Component: dynamic(() => import("./AutomationViewBody"), {ssr: false}),
+    Component: dynamic(() => import("./AutomationViewBody"), {
+        ssr: false,
+        loading: AutomationViewLoading,
+    }),
 })
 
 export interface AutomationNewViewParams {

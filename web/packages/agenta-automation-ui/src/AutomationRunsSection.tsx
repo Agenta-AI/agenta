@@ -12,6 +12,7 @@ import {useAtomValue} from "jotai"
 import {type Automation} from "./automationModel"
 import {AutomationRunStatusBadge} from "./AutomationRunStatusBadge"
 import {runWhenLabel} from "./runModel"
+import {AutomationRunsRowSkeleton} from "./states/AutomationStates"
 import {useRecentAutomationRuns} from "./useAutomationRuns"
 
 const tNow = createT(automationsEditorCatalog)
@@ -88,7 +89,7 @@ export const AutomationRunsSection = ({
 }) => {
     const t = useT(automationsPanelCatalog, automationsEditorCatalog)
     const textVersion = useAtomValue(textVersionAtom)
-    const {runs} = useRecentAutomationRuns(automation)
+    const {runs, isLoading: runsLoading} = useRecentAutomationRuns(automation)
     const newest = runs[0]
     // "Next run" and its "in 14h" are read from the clock: a tick per minute keeps them true
     // while the view stays open, as the schedule row does.
@@ -137,6 +138,9 @@ export const AutomationRunsSection = ({
                         testId="automation-last-run"
                         onOpen={() => onOpenRunHistory(newest.id ?? undefined)}
                     />
+                ) : runsLoading ? (
+                    // The Last run card keeps its slot while the runs load, so nothing below moves.
+                    <AutomationRunsRowSkeleton />
                 ) : null}
                 <RunsRow
                     icon={<ClockCounterClockwise />}

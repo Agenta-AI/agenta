@@ -76,7 +76,7 @@ export const AutomationDetailSkeleton = () => (
 )
 
 /** One muted Runs card: the 28px white Mark and a bar for its label (STATE-02). */
-const RunsCardSkeleton = ({width}: {width: string}) => (
+export const AutomationRunsRowSkeleton = ({width = "w-14"}: {width?: string}) => (
     <div className="-mx-2.5 flex h-10 items-center gap-2 rounded-lg bg-muted px-2.5">
         <SkeletonBlock shape="mark" className="size-7 shrink-0 bg-background" />
         <SkeletonBlock className={`h-3.5 ${width}`} />
@@ -124,9 +124,9 @@ export const AutomationPaneSkeleton = ({phone = false}: {phone?: boolean}) => {
                             <SkeletonBlock className="h-7 w-24 rounded-control" />
                         </div>
                         <div className="flex flex-col gap-2">
-                            <RunsCardSkeleton width="w-16" />
-                            <RunsCardSkeleton width="w-14" />
-                            <RunsCardSkeleton width="w-14" />
+                            <AutomationRunsRowSkeleton width="w-16" />
+                            <AutomationRunsRowSkeleton />
+                            <AutomationRunsRowSkeleton />
                         </div>
                     </div>
                     <div className="flex flex-col gap-1">
