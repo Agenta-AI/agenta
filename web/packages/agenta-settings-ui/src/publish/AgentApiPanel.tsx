@@ -9,6 +9,7 @@ import {Input, LoadingButton, Segmented, Switch} from "@agenta/ui/ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 
 import {CodeBlock} from "../channels/CodeBlock"
+import {BLOCK_TITLE} from "../channels/helpers"
 
 import {AGENT_INVOKE_DOCS_URL, agentInvokeUrl} from "./snippets/request"
 import {buildAgentSnippets, type AgentSnippetLang} from "./snippets/snippets"
@@ -37,7 +38,7 @@ const SNIPPET_FILE: Record<AgentSnippetLang, string> = {
 }
 
 const FieldLabel = ({children, htmlFor}: {children: React.ReactNode; htmlFor?: string}) => (
-    <label htmlFor={htmlFor} className="text-label font-semibold text-foreground">
+    <label htmlFor={htmlFor} className={BLOCK_TITLE}>
         {children}
     </label>
 )

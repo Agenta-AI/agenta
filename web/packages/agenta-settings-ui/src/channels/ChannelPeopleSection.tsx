@@ -54,8 +54,9 @@ export interface ChannelPeopleSectionProps {
     workspaceName?: string | null
 }
 
-const ROW = "border-0 border-b border-solid border-border py-3"
-const PERSON_ROW = "flex items-center gap-2.5 border-0 border-b border-solid border-border py-2.5"
+const ROW = "border-0 border-b border-solid border-border-muted py-3"
+const PERSON_ROW =
+    "flex items-center gap-2.5 border-0 border-b border-solid border-border-muted py-2.5"
 const GROUP = "flex items-center justify-between pt-2 pb-1 text-label text-muted-foreground"
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 // How long the picker waits after the last key before it searches.
@@ -282,7 +283,7 @@ export const ChannelPeopleSection = ({
             className={`${ROW_BUTTON} w-full gap-2.5 px-1.5 py-1.5`}
             data-testid="channels-people-result"
         >
-            <span className="flex size-6 flex-none items-center justify-center rounded-md bg-secondary text-caption font-semibold text-muted-foreground">
+            <span className="flex size-6 flex-none items-center justify-center rounded-md bg-secondary text-caption font-medium text-muted-foreground">
                 {initials(person.name, person.id)}
             </span>
             <span className="flex min-w-0 flex-1 flex-col">
@@ -302,7 +303,7 @@ export const ChannelPeopleSection = ({
 
     const slackResults = (
         <div
-            className="flex flex-col rounded-lg border border-solid border-border p-1.5"
+            className="flex flex-col rounded-lg bg-muted p-1.5"
             data-testid="channels-people-results"
         >
             {searchError ? <Alert type="error" showIcon message={searchError} /> : null}
@@ -544,7 +545,7 @@ export const ChannelPeopleSection = ({
                             className={PERSON_ROW}
                             data-testid="channels-allowed-user"
                         >
-                            <span className="box-border flex size-6 flex-none items-center justify-center rounded-md bg-secondary text-caption font-semibold text-muted-foreground">
+                            <span className="box-border flex size-6 flex-none items-center justify-center rounded-md bg-secondary text-caption font-medium text-muted-foreground">
                                 {isSlack ? (
                                     initials(person.name, person.id)
                                 ) : (

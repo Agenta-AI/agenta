@@ -6,6 +6,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button, Input} from "@agenta/ui/ui"
 import {Check, Copy} from "@phosphor-icons/react"
 
+import {BLOCK_TITLE} from "./helpers"
 import type {ChannelConnection} from "./types"
 
 export const copyText = async (text: string): Promise<boolean> => {
@@ -36,7 +37,7 @@ export const CopyField = ({
     }, [copied])
     return (
         <label className="flex flex-col gap-1.5">
-            <span className="text-label font-medium text-foreground">{label}</span>
+            <span className={BLOCK_TITLE}>{label}</span>
             <span className="flex gap-2">
                 <Input readOnly value={value} className="text-code" data-testid={testId} />
                 <Button
@@ -47,7 +48,11 @@ export const CopyField = ({
                     })}
                     onClick={async () => setCopied(await copyText(value))}
                 >
-                    {copied ? <Check size={13} weight="bold" /> : <Copy size={13} />}
+                    {copied ? (
+                        <Check data-icon="inline-start" />
+                    ) : (
+                        <Copy data-icon="inline-start" />
+                    )}
                     {copied ? t("common.copied") : t("common.copy")}
                 </Button>
             </span>

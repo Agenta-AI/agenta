@@ -246,14 +246,17 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
             </p>
 
             {loadError ? (
-                <div
-                    role="alert"
-                    className={`flex items-center justify-between gap-3 rounded-lg border border-solid border-border px-3 py-2.5 text-label text-destructive ${phone ? "mx-4 mt-3" : ""}`}
-                >
-                    <span className="min-w-0">{loadError}</span>
-                    <Button variant="outline" size="sm" disabled={retrying} onClick={retry}>
-                        {retrying ? t("common.retrying") : t("common.tryAgain")}
-                    </Button>
+                <div className={phone ? "mx-4 mt-3" : undefined}>
+                    <Alert
+                        type="error"
+                        showIcon
+                        message={loadError}
+                        action={
+                            <Button variant="outline" size="sm" disabled={retrying} onClick={retry}>
+                                {retrying ? t("common.retrying") : t("common.tryAgain")}
+                            </Button>
+                        }
+                    />
                 </div>
             ) : loading ? (
                 <ChannelRowsSkeleton phone={phone} />
@@ -333,7 +336,7 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                     {api ? (
                         <ChannelRow
                             testId="agent-channels-api"
-                            icon={<PublishMark icon={<Code weight="bold" />} phone={phone} />}
+                            icon={<PublishMark icon={<Code />} phone={phone} />}
                             label="API"
                             sub={t("channels.hub.apiAlwaysOn")}
                             subClass="text-muted-foreground"

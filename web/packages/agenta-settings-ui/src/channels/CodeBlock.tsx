@@ -57,7 +57,7 @@ export const CodeBlock = ({
                     {actions}
                     <Button variant="ghost" size="xs" onClick={() => void copy()}>
                         {copied ? (
-                            <Check weight="bold" data-icon="inline-start" />
+                            <Check data-icon="inline-start" />
                         ) : (
                             <Copy data-icon="inline-start" />
                         )}

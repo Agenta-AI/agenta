@@ -6,7 +6,7 @@ import channelsAdvancedCatalog from "@agenta/i18n/catalogs/channels.advanced"
 import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Alert, Button, Checkbox, RadioGroup, RadioGroupItem, Spinner, Switch} from "@agenta/ui/ui"
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {CaretRight} from "@phosphor-icons/react"
 
 import {errorMessage} from "./helpers"
 import type {
@@ -140,7 +140,7 @@ export interface ChannelAdvancedSectionProps {
 
 type Choice = "all" | "only"
 
-const CARD = "overflow-hidden rounded-lg border border-solid border-border-muted"
+const CARD = "flex flex-col"
 const DIVIDED = "border-0 border-t border-solid border-border-muted"
 const HELP = "text-meta leading-normal text-muted-foreground"
 
@@ -208,7 +208,7 @@ const AnswersInRow = ({
 
     return (
         <div
-            className={`flex flex-col gap-2.5 px-3 py-3 ${DIVIDED}`}
+            className={`flex flex-col gap-2.5 py-3 ${DIVIDED}`}
             data-testid="channels-advanced-answers"
         >
             <span className="flex flex-col gap-0.5">
@@ -398,12 +398,17 @@ export const ChannelAdvancedSection = ({
                 aria-expanded={open}
                 data-testid="channels-advanced-toggle"
             >
-                {open ? <CaretDown size={12} /> : <CaretRight size={12} />}
+                <CaretRight
+                    size={12}
+                    className={`transition-transform duration-[var(--duration-fast)] motion-reduce:transition-none ${
+                        open ? "rotate-90" : ""
+                    }`}
+                />
                 {t("channels.advanced.advanced")}
             </Button>
 
             {open ? (
-                <div className="flex flex-col gap-2">
+                <div className="ag-view-enter flex flex-col gap-2">
                     {error ? <Alert type="error" showIcon message={error} /> : null}
                     {settings === null ? (
                         error ? null : (
@@ -413,7 +418,7 @@ export const ChannelAdvancedSection = ({
                         )
                     ) : (
                         <div className={CARD}>
-                            <div className="flex items-center gap-3 px-3 py-3">
+                            <div className="flex items-center gap-3 py-3">
                                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                                     <span className="text-label font-medium text-foreground">
                                         {t("channels.advanced.canPostOutside")}
@@ -432,7 +437,7 @@ export const ChannelAdvancedSection = ({
                                 />
                             </div>
 
-                            <div className={`flex flex-col gap-2.5 px-3 py-3 ${DIVIDED}`}>
+                            <div className={`flex flex-col gap-2.5 py-3 ${DIVIDED}`}>
                                 <span className="flex flex-col gap-0.5">
                                     <span className="text-label font-medium text-foreground">
                                         {t(keys.readTitle)}

@@ -5,11 +5,10 @@ import channelsTeamsCatalog from "@agenta/i18n/catalogs/channels.teams"
 import {Alert, Button, Spinner} from "@agenta/ui/ui"
 import {DownloadSimple} from "@phosphor-icons/react"
 
-import {downloadSetupDocument, errorMessage} from "./helpers"
+import {BLOCK_TITLE, downloadSetupDocument, errorMessage} from "./helpers"
 import type {ChannelConnection, ChannelsActions} from "./types"
 import {CopyField} from "./WhatsAppWebhook"
 
-const TITLE = "text-label font-medium text-foreground"
 const BODY = "m-0 text-meta leading-relaxed text-muted-foreground"
 
 /** The messaging endpoint and the app package download of a Teams connection. */
@@ -43,7 +42,7 @@ export const TeamsAppSetup = ({
     return (
         <div className="flex flex-col gap-5" data-testid="channels-teams-app">
             <div className="flex flex-col gap-2">
-                <span className={TITLE}>{t("channels.teams.endpointTitle")}</span>
+                <span className={BLOCK_TITLE}>{t("channels.teams.endpointTitle")}</span>
                 <p className={BODY}>{t("channels.teams.endpointBody")}</p>
                 <CopyField
                     label={t("channels.teams.endpointLabel")}
@@ -52,7 +51,7 @@ export const TeamsAppSetup = ({
                 />
             </div>
             <div className="flex flex-col gap-2">
-                <span className={TITLE}>{t("channels.teams.installTitle")}</span>
+                <span className={BLOCK_TITLE}>{t("channels.teams.installTitle")}</span>
                 <div>
                     <Button
                         variant="outline"

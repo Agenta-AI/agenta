@@ -12,8 +12,6 @@ import {
     Checkbox,
     Input,
     PasswordInput,
-    RadioGroup,
-    RadioGroupItem,
     SimpleTooltip,
     Spinner,
     Switch,
@@ -31,9 +29,12 @@ import {
 import {chatTypeOf, nameSpacesFrom} from "./actions"
 import {ChannelAdvancedSection} from "./ChannelAdvancedSection"
 import {ChannelPeopleSection} from "./ChannelPeopleSection"
+import {ChoiceCards} from "./ChoiceCards"
 import {
+    BLOCK_TITLE,
     NOOP_ACTIONS,
     ROW_BUTTON,
+    SECTION_LABEL,
     answeringAgentName,
     botHandle,
     connectionKindLabel,
@@ -177,8 +178,8 @@ const spaceIcon = (kind: ChannelSpaceKind, platform: ChannelPlatform) => {
     return type === "channel" ? <Hash size={15} /> : <UsersThree size={15} />
 }
 
-const SECTION_TITLE = "pb-1 text-label font-semibold text-foreground"
-const ROW = "border-0 border-b border-solid border-border py-3"
+const SECTION_TITLE = `pb-1 ${SECTION_LABEL}`
+const ROW = "border-0 border-b border-solid border-border-muted py-3"
 
 export const ChannelManagePanel = ({
     connection,
@@ -609,14 +610,14 @@ export const ChannelManagePanel = ({
 
     const tokenForm = tokenOpen ? (
         <div
-            className="flex flex-col gap-3 rounded-lg border border-solid border-border p-3"
+            className="flex flex-col gap-3 rounded-lg bg-muted p-3"
             data-testid="channels-token-form"
         >
             {tokenError ? <Alert type="error" showIcon message={tokenError} /> : null}
             {tokenFields ? (
                 tokenFields.map((field, index) => (
                     <label key={field.name} className="flex flex-col gap-1.5">
-                        <span className="text-label font-medium text-foreground">
+                        <span className={BLOCK_TITLE}>
                             {field.label}
                         </span>
                         {index > 0 ? (
@@ -696,18 +697,13 @@ export const ChannelManagePanel = ({
                 ) : null}
                 {canOwn ? (
                     <div className="flex flex-col gap-2">
-                        <span className="text-label font-semibold text-foreground">
+                        <span className={SECTION_LABEL}>
                             {t("channels.manage.howConnect", {agent: agentName})}
                         </span>
-                        <RadioGroup
-                            value={choice}
-                            onValueChange={(value) => setConflictChoice(value as "move" | "own")}
-                            className="gap-0 overflow-hidden rounded-lg border border-solid border-border"
-                            data-testid="channels-own-bot-offer"
-                        >
-                            {[
+                        <ChoiceCards
+                            options={[
                                 {
-                                    value: "move",
+                                    value: "move" as const,
                                     title: unassigned
                                         ? t("channels.manage.connectItHere")
                                         : t("channels.manage.moveItHere"),
@@ -722,7 +718,7 @@ export const ChannelManagePanel = ({
                                           }),
                                 },
                                 {
-                                    value: "own",
+                                    value: "own" as const,
                                     title: isSlack
                                         ? t("channels.manage.useOwnApp")
                                         : isWhatsApp
@@ -746,25 +742,11 @@ export const ChannelManagePanel = ({
                                               {other: otherAgent, title, agent: agentName},
                                           ),
                                 },
-                            ].map((option, i) => (
-                                <label
-                                    key={option.value}
-                                    className={`flex cursor-pointer gap-3 px-3.5 py-3 ${
-                                        i ? "border-0 border-t border-solid border-border" : ""
-                                    } ${choice === option.value ? "bg-muted" : "bg-background"}`}
-                                >
-                                    <RadioGroupItem value={option.value} className="mt-0.5" />
-                                    <span className="flex flex-col gap-0.5">
-                                        <span className="text-label text-foreground">
-                                            {option.title}
-                                        </span>
-                                        <span className="text-label text-muted-foreground">
-                                            {option.desc}
-                                        </span>
-                                    </span>
-                                </label>
-                            ))}
-                        </RadioGroup>
+                            ]}
+                            value={choice}
+                            onChange={setConflictChoice}
+                            testId="channels-own-bot-offer"
+                        />
                     </div>
                 ) : null}
                 <PanelFooter>
@@ -790,11 +772,11 @@ export const ChannelManagePanel = ({
     return (
         <div className="flex min-h-full flex-1 flex-col gap-6">
             {/* --- what is connected --- */}
-            <div className="flex items-center gap-3 border-0 border-b border-solid border-border pb-5">
-                <span className="relative box-border flex size-10 flex-none items-center justify-center rounded-lg border border-solid border-border">
+            <div className="flex items-center gap-3 border-0 border-b border-solid border-border-muted pb-5">
+                <span className="relative box-border flex size-10 flex-none items-center justify-center rounded-lg bg-secondary">
                     {platformLogo(connection.platform, 24)}
                     <span
-                        className={`absolute -right-0.5 -top-0.5 size-2 rounded-round border-[1.5px] border-solid border-background ${
+                        className={`absolute -right-0.5 -top-0.5 size-2 rounded-round border border-solid border-background ${
                             revoked ? "bg-destructive" : off ? "bg-border-strong" : "bg-success"
                         }`}
                     />
@@ -840,7 +822,7 @@ export const ChannelManagePanel = ({
 
             {revoked ? (
                 <div
-                    className="flex items-start gap-2.5 rounded-lg border border-solid border-destructive/40 bg-destructive/10 p-3"
+                    className="flex items-start gap-2.5 rounded-lg bg-destructive/10 p-3"
                     data-testid="channels-revoked"
                 >
                     <Warning size={16} className="mt-0.5 flex-none text-destructive" />
@@ -924,7 +906,7 @@ export const ChannelManagePanel = ({
                 {/* --- where it answers --- */}
                 <div className="flex flex-col pt-5">
                     <div className="flex items-center justify-between pb-1">
-                        <span className="text-label font-semibold text-foreground">
+                        <span className={SECTION_LABEL}>
                             {isTeams
                                 ? t("channels.manage.channelsAndGroupChats")
                                 : channels
@@ -941,7 +923,7 @@ export const ChannelManagePanel = ({
                                     rel="noreferrer"
                                     data-testid="channels-discord-invite-link"
                                 >
-                                    <Plus weight="bold" data-icon="inline-start" />
+                                    <Plus data-icon="inline-start" />
                                     {t("channels.manage.addToServer")}
                                 </a>
                             </Button>
@@ -962,7 +944,7 @@ export const ChannelManagePanel = ({
                                 onClick={() => void openPicker()}
                                 data-testid="channels-add-space"
                             >
-                                <Plus weight="bold" data-icon="inline-start" />
+                                <Plus data-icon="inline-start" />
                                 {t("channels.manage.addChannel")}
                             </Button>
                         ) : null}
@@ -1058,7 +1040,7 @@ export const ChannelManagePanel = ({
                                         </span>
                                     )
                                 return (
-                                    <div className="flex max-h-64 flex-col gap-1.5 overflow-y-auto">
+                                    <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
                                         {shown.map((candidate) => {
                                             // A private channel the bot is not in: only a Slack
                                             // member can invite it.
@@ -1067,10 +1049,10 @@ export const ChannelManagePanel = ({
                                             return (
                                                 <label
                                                     key={`${candidate.kind}-${candidate.displayName}`}
-                                                    className={`${ROW_BUTTON} flex items-center gap-2.5 rounded-md border border-solid border-border bg-background px-2.5 py-2 ${
+                                                    className={`${ROW_BUTTON} flex items-center gap-2.5 rounded-md px-2.5 py-2 transition-colors duration-[var(--duration-fast)] ${
                                                         blocked
                                                             ? "cursor-not-allowed opacity-70"
-                                                            : "cursor-pointer"
+                                                            : "cursor-pointer hover:bg-accent"
                                                     }`}
                                                     data-testid="channels-space-candidate"
                                                 >

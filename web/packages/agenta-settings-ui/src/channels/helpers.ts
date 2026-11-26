@@ -20,6 +20,12 @@ const t = createT(channelsLabelsCatalog, channelsStatusCatalog)
 /** A multi-line row built on Button: left-aligned, wrapping, sized by its content. */
 export const ROW_BUTTON = "h-auto justify-start whitespace-normal text-left"
 
+/** A group heading inside a channel view, the same as the list's group heading. */
+export const SECTION_LABEL = "text-label font-medium text-muted-foreground"
+
+/** A block or step title inside a channel view, the same as a kit Field label. */
+export const BLOCK_TITLE = "text-label font-medium text-foreground"
+
 /** Every platform, in the order the Channels card lists them. */
 export const CHANNEL_PLATFORMS: ChannelPlatform[] = [
     "slack",

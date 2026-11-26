@@ -1,9 +1,10 @@
 import {useT} from "@agenta/i18n"
 import channelsListCatalog from "@agenta/i18n/catalogs/channels.list"
+import channelsManageCatalog from "@agenta/i18n/catalogs/channels.manage"
 import {Button} from "@agenta/ui/ui"
 import {CaretRight, Plus} from "@phosphor-icons/react"
 
-import {ROW_BUTTON, connectionRowText} from "./helpers"
+import {ROW_BUTTON, SECTION_LABEL, connectionRowText} from "./helpers"
 import type {ChannelConnection, ChannelPlatform} from "./types"
 
 export interface ChannelConnectionListProps {
@@ -23,14 +24,14 @@ export const ChannelConnectionList = ({
     onSelect,
     onAdd,
 }: ChannelConnectionListProps) => {
-    const t = useT(channelsListCatalog)
+    const t = useT(channelsListCatalog, channelsManageCatalog)
     const isSlack = platform === "slack"
     const hostedHere = connections.some((c) => c.kind === "hosted")
     const empty = connections.length === 0
     return (
         <div className="flex flex-col gap-2.5" data-testid="channels-connection-list">
-            <div className="flex items-baseline justify-between px-0.5">
-                <span className="text-label font-semibold text-foreground">
+            <div className="flex items-baseline justify-between">
+                <span className={SECTION_LABEL}>
                     {isSlack
                         ? t("channels.list.workspaces")
                         : platform === "whatsapp"
@@ -54,7 +55,7 @@ export const ChannelConnectionList = ({
                             data-testid={`channels-connection-${id}`}
                             className={`${ROW_BUTTON} box-border min-h-row-double w-full gap-3 px-1 py-1`}
                         >
-                            <span className="flex size-8 flex-none items-center justify-center rounded-md bg-secondary text-label font-semibold text-muted-foreground">
+                            <span className="flex size-8 flex-none items-center justify-center rounded-md bg-secondary text-label font-medium text-muted-foreground">
                                 {title.replace(/^@/, "").charAt(0).toUpperCase()}
                             </span>
                             <span className="flex min-w-0 flex-1 flex-col gap-px">
@@ -63,13 +64,13 @@ export const ChannelConnectionList = ({
                                     {detail}
                                 </span>
                             </span>
-                            <span
-                                className={`size-1.5 flex-none rounded-round ${
-                                    connection.status === "revoked"
-                                        ? "bg-destructive"
-                                        : "bg-success"
-                                }`}
-                            />
+                            {/* A lost connection says so in words; a live one is quiet. */}
+                            {connection.status === "revoked" ? (
+                                <span className="flex flex-none items-center gap-1.5 text-meta text-destructive">
+                                    <span aria-hidden className="size-1.5 rounded-round bg-current" />
+                                    {t("channels.manage.notAnswering")}
+                                </span>
+                            ) : null}
                             <CaretRight size={12} className="flex-none text-muted-foreground" />
                         </Button>
                     )
@@ -80,10 +81,10 @@ export const ChannelConnectionList = ({
                     className={`${ROW_BUTTON} box-border min-h-row-double w-full gap-3 px-1 py-1 text-muted-foreground`}
                     data-testid="channels-connection-add"
                 >
-                    <span className="flex size-8 flex-none items-center justify-center rounded-md bg-muted">
+                    <span className="flex size-8 flex-none items-center justify-center rounded-md bg-secondary">
                         <Plus size={14} />
                     </span>
-                    <span className="text-body">
+                    <span className="text-label">
                         {isSlack
                             ? t(
                                   empty

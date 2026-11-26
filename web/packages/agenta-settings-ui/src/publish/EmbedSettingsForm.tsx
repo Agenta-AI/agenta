@@ -8,6 +8,7 @@ import {Alert, Button, Input, LoadingButton, Segmented, Textarea} from "@agenta/
 import {useMutation, useQuery, useQueryClient, type QueryKey} from "@tanstack/react-query"
 
 import {CodeBlock} from "../channels/CodeBlock"
+import {BLOCK_TITLE} from "../channels/helpers"
 import {PanelFooter} from "../channels/PanelFooter"
 
 import type {AgentEmbedPanelProps} from "./AgentEmbedPanel"
@@ -30,7 +31,7 @@ import {EmbedDomainsField} from "./EmbedDomainsField"
 import {EmbedSection} from "./EmbedSection"
 
 export const FieldLabel = ({children, htmlFor}: {children: React.ReactNode; htmlFor?: string}) => (
-    <label htmlFor={htmlFor} className="text-label font-semibold text-foreground">
+    <label htmlFor={htmlFor} className={BLOCK_TITLE}>
         {children}
     </label>
 )
@@ -325,8 +326,7 @@ export const EmbedSettingsForm = ({
                 ) : (
                     <div className="flex w-full items-center justify-between gap-2">
                         <Button
-                            variant="ghost"
-                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            variant="destructive-ghost"
                             onClick={() => setConfirming(true)}
                             data-testid="agent-embed-archive"
                         >

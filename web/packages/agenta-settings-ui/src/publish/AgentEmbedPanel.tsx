@@ -116,9 +116,9 @@ export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
                 {embeds.data.map((embed) => (
                     <Button
                         key={embed.id}
-                        variant="outline"
+                        variant="ghost"
                         onClick={() => onOpen(embed.id)}
-                        className="h-auto w-full justify-start gap-3 rounded-lg py-2.5 pl-3 pr-2.5 text-left"
+                        className="h-auto w-full justify-start gap-3 py-2.5 pl-3 pr-2.5 text-left"
                         data-testid={`agent-embed-${embed.id}`}
                     >
                         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
