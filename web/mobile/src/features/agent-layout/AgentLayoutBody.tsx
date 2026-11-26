@@ -207,6 +207,11 @@ export const AgentLayoutBody = ({
 
     // The panel takes the focus when it opens, so Escape reaches it.
     const panelRef = useRef<HTMLDivElement>(null)
+    // A view that opened with the panel keeps the focus it took.
+    const focusPanel = useCallback(() => {
+        const panel = panelRef.current
+        if (panel && !panel.contains(document.activeElement)) panel.focus({preventScroll: true})
+    }, [])
     const toggle = useCallback(
         async (clicked: PanelContent) => {
             // A content this screen cannot show (a hidden agent, no builder yet) is not offered.
@@ -214,10 +219,10 @@ export const AgentLayoutBody = ({
             const next = nextPanelContent(content, clicked)
             if (!(await confirmLeave(next ? "swap" : "close"))) return false
             setContent(next)
-            if (next) requestAnimationFrame(() => panelRef.current?.focus({preventScroll: true}))
+            if (next) requestAnimationFrame(focusPanel)
             return true
         },
-        [confirmLeave, content, setContent, available],
+        [confirmLeave, content, setContent, available, focusPanel],
     )
     const close = useCallback(async () => {
         if (!(await confirmLeave("close"))) return false
@@ -272,9 +277,18 @@ export const AgentLayoutBody = ({
             if (!ok) return
             setContent("configuration")
             setState({configTab: "agent"})
-            requestAnimationFrame(() => panelRef.current?.focus({preventScroll: true}))
+            requestAnimationFrame(focusPanel)
         })
-    }, [revealRequest, canConfigure, content, confirmLeave, setContent, setState, setRevealRequest])
+    }, [
+        revealRequest,
+        canConfigure,
+        content,
+        confirmLeave,
+        setContent,
+        setState,
+        setRevealRequest,
+        focusPanel,
+    ])
 
     // "Create with AI" fills the composer. On a phone the panel covers it, so hand the screen back.
     const prefillRequest = useAtomValue(composerPrefillRequestAtom)

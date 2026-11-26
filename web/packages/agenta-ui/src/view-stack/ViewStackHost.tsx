@@ -1,5 +1,6 @@
 import {
     useCallback,
+    useEffect,
     useMemo,
     useRef,
     useState,
@@ -32,6 +33,8 @@ interface Entry {
     view: ViewDef<unknown>
     params: unknown
     target: ViewTarget
+    /** What had focus when the view opened; it gets focus back when the view leaves. */
+    returnFocus: HTMLElement | null
 }
 
 /** How a dirty form was settled before an action: nothing to settle, dropped, or saved. */
@@ -41,12 +44,25 @@ const MENU_SELECTOR = '[role="dialog"],[role="alertdialog"],[role="menu"],[role=
 
 // Unique per open across hosts, so a reopened view mounts fresh. Never stored.
 let lastEntryKey = 0
-const newEntry = (view: ViewDef<unknown>, params: unknown, target: ViewTarget): Entry => ({
+const newEntry = (
+    view: ViewDef<unknown>,
+    params: unknown,
+    target: ViewTarget,
+    returnFocus: HTMLElement | null,
+): Entry => ({
     key: ++lastEntryKey,
     view,
     params,
     target,
+    returnFocus,
 })
+/** What opens a view: the focused element, or the trigger of the menu that holds it. */
+const focusedElement = (): HTMLElement | null => {
+    if (typeof document === "undefined") return null
+    const active = document.activeElement as HTMLElement | null
+    const triggerId = active?.closest?.('[role="menu"]')?.getAttribute("aria-labelledby")
+    return (triggerId && document.getElementById(triggerId)) || active
+}
 /** The same view under a new key: it mounts again from the saved data, with no local edits. */
 const remount = (entry: Entry): Entry => ({...entry, key: ++lastEntryKey})
 
@@ -97,6 +113,8 @@ export const ViewStackHost = ({
     // once that ends, if it is still on top.
     const deferredCancelRef = useRef<number | null>(null)
     const hostRef = useRef<HTMLDivElement>(null)
+    // Set when the top view leaves: where focus goes once the view below shows.
+    const pendingFocusRef = useRef<HTMLElement | null | undefined>(undefined)
 
     /** Navigation waits for a save in flight to resolve. */
     const waitForSave = useCallback(async () => {
@@ -150,6 +168,11 @@ export const ViewStackHost = ({
         }
         setForms(keep)
         setTitles(keep)
+        const prev = entriesRef.current
+        // Going back: focus returns to the opener of the lowest view that leaves.
+        if (next.length < prev.length && next.every((entry, index) => entry === prev[index])) {
+            pendingFocusRef.current = prev[next.length].returnFocus
+        }
         entriesRef.current = next
         setEntries(next)
         setFailedKey(null)
@@ -183,12 +206,14 @@ export const ViewStackHost = ({
     )
 
     const open = useCallback(
-        <P,>(view: ViewDef<P>, params: P, target: ViewTarget) =>
-            exclusive(async () => {
+        <P,>(view: ViewDef<P>, params: P, target: ViewTarget) => {
+            const opener = focusedElement()
+            return exclusive(async () => {
                 if (!(await settle(entriesRef.current))) return false
-                setStack([newEntry(view as ViewDef<unknown>, params, target)])
+                setStack([newEntry(view as ViewDef<unknown>, params, target, opener)])
                 return true
-            }),
+            })
+        },
         [exclusive, settle, setStack],
     )
 
@@ -243,15 +268,17 @@ export const ViewStackHost = ({
     )
 
     const push = useCallback(
-        <C,>(parentKey: number, view: ViewDef<C>, params: C, target: ViewTarget) =>
-            exclusive(async () => {
+        <C,>(parentKey: number, view: ViewDef<C>, params: C, target: ViewTarget) => {
+            const opener = focusedElement()
+            return exclusive(async () => {
                 const current = entriesRef.current
                 if (current.length !== 1 || current[0].key !== parentKey) return false
                 const parent = await parentForChild(current[0], view as ViewDef<unknown>)
                 if (!parent) return false
-                setStack([parent, newEntry(view as ViewDef<unknown>, params, target)])
+                setStack([parent, newEntry(view as ViewDef<unknown>, params, target, opener)])
                 return true
-            }),
+            })
+        },
         [exclusive, parentForChild, setStack],
     )
 
@@ -271,7 +298,9 @@ export const ViewStackHost = ({
                     if (!parent) return false
                     parents.push(parent)
                 }
-                setStack([...parents, newEntry(view as ViewDef<unknown>, params, target)])
+                // The new view takes the place, and the opener, of the one it replaces.
+                const opener = current.at(-1)?.returnFocus ?? null
+                setStack([...parents, newEntry(view as ViewDef<unknown>, params, target, opener)])
                 return true
             }),
         [exclusive, settle, parentForChild, setStack],
@@ -306,9 +335,23 @@ export const ViewStackHost = ({
         // Escape. A dialog or drawer that holds the whole host does not count.
         const layer = (event.target as HTMLElement | null)?.closest?.(MENU_SELECTOR)
         if (layer && !(hostRef.current && layer.contains(hostRef.current))) return
-        if (entriesRef.current.length > 0) {
+        const top = entriesRef.current.at(-1)
+        if (top) {
             event.preventDefault()
-            void back()
+            // Like the header: a step inside the view goes back first.
+            const stepBack = formsRef.current[top.key]?.back
+            if (!stepBack) {
+                void back()
+                return
+            }
+            stepBack()
+            // The step that had focus may be gone; the view keeps it so the next Escape works.
+            requestAnimationFrame(() => {
+                const host = hostRef.current
+                if (host && !host.contains(document.activeElement)) {
+                    host.querySelector<HTMLElement>("[data-view-top]")?.focus({preventScroll: true})
+                }
+            })
             return
         }
         if (onEscapeAtRoot) {
@@ -316,6 +359,17 @@ export const ViewStackHost = ({
             onEscapeAtRoot()
         }
     }
+
+    // After a back, focus returns to what opened the view that left, else to the view now on top.
+    useEffect(() => {
+        const target = pendingFocusRef.current
+        if (target === undefined) return
+        pendingFocusRef.current = undefined
+        const host = hostRef.current
+        if (target?.isConnected && host?.contains(target)) target.focus({preventScroll: true})
+        if (target && document.activeElement === target) return
+        host?.querySelector<HTMLElement>("[data-view-top]")?.focus({preventScroll: true})
+    }, [entries])
 
     const top = entries.at(-1)
     const topForm = top ? forms[top.key] : undefined
@@ -450,11 +504,23 @@ const MountedView = ({
         [depth, key, push, replace, back, cancel, save],
     )
     const Component = entry.view.Component
+    const ref = useRef<HTMLDivElement>(null)
+    const openedOnTop = useRef(isTop)
+    // A new view takes focus, so Escape works at once; a field that autofocused keeps it.
+    useEffect(() => {
+        const node = ref.current
+        if (openedOnTop.current && node && !node.contains(document.activeElement)) {
+            node.focus({preventScroll: true})
+        }
+    }, [])
     return (
         <div
+            ref={ref}
+            tabIndex={-1}
             data-testid={isTop ? "panel-view" : undefined}
+            data-view-top={isTop ? "" : undefined}
             // Fades and slides in when it opens and when a child gives it back its place (MOTION-01).
-            className="ag-view-enter flex min-h-0 min-w-0 flex-1 flex-col"
+            className="ag-view-enter flex min-h-0 min-w-0 flex-1 flex-col outline-none"
             style={isTop ? undefined : {display: "none"}}
             // While its Save runs the view takes no input: an edit made then would not be in the
             // request, and success closes the view.
