@@ -7,6 +7,7 @@ import channelsPageCatalog from "@agenta/i18n/catalogs/channels.page"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {PhoneScreenHeader, useIsPhone} from "@agenta/ui/phone"
 import {
+    Alert,
     Button,
     Sheet,
     SheetContent,
@@ -193,18 +194,19 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
         ]
         return (
             <div className="flex flex-col gap-5" data-testid="agent-channels">
+                {/* What failed and the fix (STATE-03); API and Embed below still work. */}
                 {loadError ? (
-                    <div
-                        role="alert"
-                        className="flex items-center justify-between gap-3 rounded-lg border border-solid border-border px-3 py-2.5 text-label text-destructive"
-                    >
-                        <span className="min-w-0">{loadError}</span>
-                        <Button variant="outline" size="sm" disabled={retrying} onClick={retry}>
-                            {retrying ? t("common.retrying") : t("common.tryAgain")}
-                        </Button>
-                    </div>
+                    <Alert
+                        type="error"
+                        showIcon
+                        message={loadError}
+                        action={
+                            <Button variant="outline" size="sm" disabled={retrying} onClick={retry}>
+                                {retrying ? t("common.retrying") : t("common.tryAgain")}
+                            </Button>
+                        }
+                    />
                 ) : null}
-                {loading ? <ChannelRowsSkeleton phone={false} /> : null}
                 {connectedItems.length ? (
                     <SettingsCatalogSection
                         group={{
@@ -215,12 +217,14 @@ export const AgentChannelsView = (props: AgentChannelsViewProps) => {
                         }}
                     />
                 ) : null}
-                {addItems.length ? (
+                {loading || addItems.length ? (
                     <SettingsCatalogSection
                         group={{
                             label: t("agentPages.channels.addChannel"),
                             description: t("agentPages.channels.intro", {agent: agentName}),
-                            items: addItems,
+                            // While loading, the loaded list's own rows as skeletons (STATE-02).
+                            items: loading ? [] : addItems,
+                            pendingRows: loading ? CHANNEL_PLATFORMS.length + 2 : 0,
                             list: true,
                             count: null,
                         }}

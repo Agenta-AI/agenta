@@ -180,7 +180,7 @@ export const SettingsCatalogSection = ({
                 // ROW-04: two-line rows 8 px apart, one-line rows 4 px.
                 className={
                     group.list
-                        ? group.items.some((item) => item.description)
+                        ? group.pendingRows || group.items.some((item) => item.description)
                             ? "flex flex-col gap-2"
                             : "flex flex-col gap-1"
                         : ROW_GRID
