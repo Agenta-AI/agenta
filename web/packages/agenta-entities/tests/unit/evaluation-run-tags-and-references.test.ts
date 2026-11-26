@@ -119,6 +119,26 @@ describe("buildRunEditBody with a slug-only revision reference", () => {
             /evaluator_revision/,
         )
     })
+
+    it("throws when the step has only a slug-only evaluator reference", () => {
+        const parsed = evaluationRunSchema.parse(
+            run({
+                data: {
+                    steps: [
+                        {
+                            key: "evaluator",
+                            type: "annotation",
+                            references: {evaluator: {slug: "exact-match"}},
+                        },
+                    ],
+                },
+            }),
+        )
+
+        expect(() => buildRunEditBody(parsed, {name: "Renamed", description: ""})).toThrow(
+            /evaluator id/,
+        )
+    })
 })
 
 describe("queue schemas tags", () => {
