@@ -404,7 +404,7 @@ git pull
 Download the newest version of all Agenta Docker images:
 
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml pull
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh pull
 ```
 
 ### 3. Restart Services
@@ -432,7 +432,7 @@ Install [docker rollout](https://github.com/wowu/docker-rollout) for rolling upd
 **1. Pull Latest Images**
 
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml pull
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh pull
 ```
 
 **2. Apply Database Migrations**
