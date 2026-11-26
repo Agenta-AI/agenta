@@ -9,6 +9,8 @@ import {
     type ReactNode,
 } from "react"
 
+import {cn} from "../components/ui/utils"
+
 import {
     ViewEntryContext,
     ViewFooterStartContext,
@@ -17,6 +19,7 @@ import {
 } from "./context"
 import {useReportOpenViewItem} from "./openItem"
 import {useSystemBack} from "./systemBack"
+import {viewEnterClass, type ViewDirection} from "./ViewStep"
 import type {
     ViewChromeProps,
     ViewDef,
@@ -100,6 +103,8 @@ export const ViewStackHost = ({
     // The root animates only when a view gives it back its place, not on the first paint.
     const [viewOpened, setViewOpened] = useState(false)
     if (entries.length > 0 && !viewOpened) setViewOpened(true)
+    // Which way the last navigation went: the view that shows enters from that side.
+    const [direction, setDirection] = useState<ViewDirection>("forward")
 
     // Refs mirror the state for the async actions, which must read the latest values.
     const entriesRef = useRef(entries)
@@ -170,9 +175,10 @@ export const ViewStackHost = ({
         setTitles(keep)
         const prev = entriesRef.current
         // Going back: focus returns to the opener of the lowest view that leaves.
-        if (next.length < prev.length && next.every((entry, index) => entry === prev[index])) {
-            pendingFocusRef.current = prev[next.length].returnFocus
-        }
+        const goingBack =
+            next.length < prev.length && next.every((entry, index) => entry === prev[index])
+        if (goingBack) pendingFocusRef.current = prev[next.length].returnFocus
+        setDirection(goingBack ? "back" : "forward")
         entriesRef.current = next
         setEntries(next)
         setFailedKey(null)
@@ -384,9 +390,9 @@ export const ViewStackHost = ({
     return (
         <ViewStackContext.Provider value={stack}>
             <div ref={hostRef} className="contents" onKeyDown={onKeyDown}>
-                {/* Back at the root, its content fades and slides in like any view (MOTION-01). */}
+                {/* Back at the root, its body enters from the left (MOTION-01). */}
                 <div
-                    className={viewOpened ? "ag-view-enter-children" : undefined}
+                    className={viewOpened ? "ag-view-root-back" : undefined}
                     style={{display: top ? "none" : "contents"}}
                 >
                     {children}
@@ -414,6 +420,7 @@ export const ViewStackHost = ({
                                 key={entry.key}
                                 entry={entry}
                                 isTop={entry === top}
+                                direction={direction}
                                 saving={saving}
                                 depth={(index + 1) as 1 | 2}
                                 readOnly={phone && Boolean(entry.view.readOnlyOnPhone)}
@@ -437,6 +444,7 @@ export const ViewStackHost = ({
 const MountedView = ({
     entry,
     isTop,
+    direction,
     saving,
     depth,
     readOnly,
@@ -451,6 +459,7 @@ const MountedView = ({
 }: {
     entry: Entry
     isTop: boolean
+    direction: ViewDirection
     saving: boolean
     depth: 1 | 2
     readOnly: boolean
@@ -518,8 +527,11 @@ const MountedView = ({
             tabIndex={-1}
             data-testid={isTop ? "panel-view" : undefined}
             data-view-top={isTop ? "" : undefined}
-            // Fades and slides in when it opens and when a child gives it back its place (MOTION-01).
-            className="ag-view-enter flex min-h-0 min-w-0 flex-1 flex-col outline-none"
+            // From the right when it opens; from the left when a child gives back its place.
+            className={cn(
+                isTop && viewEnterClass(direction),
+                "flex min-h-0 min-w-0 flex-1 flex-col outline-none",
+            )}
             style={isTop ? undefined : {display: "none"}}
             // While its Save runs the view takes no input: an edit made then would not be in the
             // request, and success closes the view.

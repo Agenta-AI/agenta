@@ -63,7 +63,18 @@ export const ConfigurationRoot = ({
                         id={AGENT_CONFIG_TABPANEL_ID}
                         role="tabpanel"
                         aria-labelledby={agentConfigTabId(configTab)}
+                        // The part that moves when a view gives the root back its place.
+                        data-view-body=""
                         className={cn("min-h-0 flex-1", tabSwitched && "ag-view-enter-children")}
+                        // Done once: a later display change (a view closing) must not replay it.
+                        onAnimationEnd={(event) => {
+                            const parent = (event.target as Element).parentElement
+                            if (
+                                parent === event.currentTarget &&
+                                event.animationName === "ag-view-in"
+                            )
+                                setTabSwitched(false)
+                        }}
                     >
                         {configTab === "agent" ? (
                             // Save status and History live in the session header's version pill.

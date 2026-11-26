@@ -78,6 +78,8 @@ function TabsIndicator() {
         const list = ref.current?.parentElement
         if (!list) return undefined
         const measure = () => {
+            // A hidden list measures 0: keep the last place, so showing it does not slide.
+            if (!list.getClientRects().length) return
             const active = list.querySelector<HTMLElement>(
                 '[data-slot="tabs-trigger"][data-state="active"]',
             )

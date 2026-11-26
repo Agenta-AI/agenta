@@ -11,7 +11,7 @@
  * Migrated from antd `Typography.Text type="secondary"` → a `<span>` on the same token
  * (`colorTextDescription`, which is what antd's `type="secondary"` resolves to).
  */
-import type {ReactNode} from "react"
+import {useState, type AnimationEvent, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
@@ -21,6 +21,8 @@ import {
     type SectionIndicatorTone,
 } from "@agenta/ui/components/presentational"
 import {PhonePrimaryAction} from "@agenta/ui/phone"
+import {cn} from "@agenta/ui/styles"
+import {viewEnterClass, type ViewDirection} from "@agenta/ui/view-stack"
 import {CaretRight} from "@phosphor-icons/react"
 
 import {usePhoneSections, type PhoneSectionsApi} from "./phoneSections"
@@ -222,13 +224,33 @@ const PhoneSectionList = ({
     phoneSections: PhoneSectionsApi
 }) => {
     const shown = sections.find((s) => s.key === phoneSections.shownKey && !s.onOpen)
+    // A section opens and closes with the view motion; the header the container draws stays still.
+    const shownKey = shown?.key ?? null
+    const [last, setLast] = useState<{key: string | null; dir: ViewDirection | null}>({
+        key: shownKey,
+        dir: null,
+    })
+    let dir = last.dir
+    if (last.key !== shownKey) {
+        dir = shownKey ? "forward" : "back"
+        setLast({key: shownKey, dir})
+    }
+    // Played once: a later display change (a view closing over it) must not replay it.
+    const settle = (event: AnimationEvent<HTMLDivElement>) => {
+        if (event.target === event.currentTarget) setLast((prev) => ({...prev, dir: null}))
+    }
     if (shown) {
         return (
             <div
                 data-config-section={shown.key}
                 // With a primary action the column fills its container's height (the phone
                 // container is a size container), so the action sits at the bottom of the screen.
-                className={`flex flex-col gap-3 pt-3 ${shown.phoneAction ? "min-h-[100cqh]" : "pb-6"}`}
+                className={cn(
+                    "flex flex-col gap-3 pt-3",
+                    shown.phoneAction ? "min-h-[100cqh]" : "pb-6",
+                    viewEnterClass(dir),
+                )}
+                onAnimationEnd={settle}
             >
                 {shown.extra && !shown.phoneAction && !shown.hideExtraOnPhone ? (
                     <div className="flex justify-end">{shown.extra}</div>
@@ -249,7 +271,11 @@ const PhoneSectionList = ({
     return (
         // Two-line rows 8 px apart, no dividers (ROW-04, SURF-01); each row hangs its hover fill
         // 8 px out, so its Mark stays on the screen's content line (ALIGN-01).
-        <div className="-mx-2 flex flex-col gap-2" data-testid="phone-section-list">
+        <div
+            className={cn("-mx-2 flex flex-col gap-2", viewEnterClass(dir))}
+            data-testid="phone-section-list"
+            onAnimationEnd={settle}
+        >
             {sections.map((s) => (
                 <button
                     key={s.key}

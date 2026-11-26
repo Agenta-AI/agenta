@@ -326,13 +326,26 @@
     }
 }
 
-/* MOTION-01: a view that takes the place of another (a drill-in view in a pane, or the root it
-   goes back to) fades in and slides 4px. Only the enter moves: the view it replaces is already
-   hidden. A view hidden with `display: none` plays this again when it shows. */
+/* MOTION-01: a view that takes the place of another fades in and slides 4px. Forward (a view
+   opens, a step goes on) it comes from the right; back (a view closes, a step goes back) it comes
+   from the left. Only the enter moves: the view it replaces is already hidden. A view hidden with
+   `display: none` plays this again when it shows. One element per level animates: the header
+   stays still and only the body moves.
+   - `ag-view-enter` / `ag-view-enter-back`: the element itself (`ViewStep` sets them).
+   - `ag-view-enter-children`: each child, for a tab body that swaps.
+   - `ag-view-root-back`: the stack's root as a view gives it back its place. The root's
+     `[data-view-body]` moves if it marks one, else each child. */
 @keyframes ag-view-in {
     from {
         opacity: 0;
         transform: translateX(4px);
+    }
+}
+
+@keyframes ag-view-in-back {
+    from {
+        opacity: 0;
+        transform: translateX(-4px);
     }
 }
 
@@ -341,9 +354,18 @@
     animation: ag-view-in var(--duration-base, 200ms) var(--ease-out, ease-out);
 }
 
+.ag-view-enter-back,
+.ag-view-root-back > :not(:has([data-view-body])),
+.ag-view-root-back [data-view-body] {
+    animation: ag-view-in-back var(--duration-base, 200ms) var(--ease-out, ease-out);
+}
+
 @media (prefers-reduced-motion: reduce) {
     .ag-view-enter,
-    .ag-view-enter-children > * {
+    .ag-view-enter-children > *,
+    .ag-view-enter-back,
+    .ag-view-root-back > :not(:has([data-view-body])),
+    .ag-view-root-back [data-view-body] {
         animation: none;
     }
 }
