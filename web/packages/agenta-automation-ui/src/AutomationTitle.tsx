@@ -4,7 +4,7 @@ import {createT, useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {useInlineRename} from "@agenta/sessions-ui"
 import {message} from "@agenta/ui/app-message"
-import {Input, type ItemViewTitleEditable} from "@agenta/ui/ui"
+import {Input, SimpleTooltip, type ItemViewTitleEditable} from "@agenta/ui/ui"
 import {PencilSimple} from "@phosphor-icons/react"
 
 const tNow = createT(automationsEditorCatalog)
@@ -94,28 +94,27 @@ export const AutomationTitle = ({
                     className="text-heading placeholder:font-medium placeholder:text-muted-foreground focus-visible:border-input focus-visible:ring-0"
                 />
             ) : (
-                <button
-                    ref={titleRef}
-                    type="button"
-                    onClick={rename.start}
-                    title={t("automations.editor.rename")}
-                    // No focus ring: the shared FOCUS_RING draws a hard near-black outline and
-                    // the softer ring still glowed around the title. Hover carries the affordance.
-                    className="group -ml-2 flex min-w-0 cursor-pointer items-center rounded-lg border-0 bg-transparent px-2 py-1 text-left text-foreground outline-none hover:bg-accent focus-visible:bg-accent"
-                >
-                    <h1
-                        className={`m-0 min-w-0 truncate text-heading ${name ? "" : "text-muted-foreground"}`}
+                <SimpleTooltip title={t("automations.editor.rename")}>
+                    <button
+                        ref={titleRef}
+                        type="button"
+                        onClick={rename.start}
+                        className="focus-ring group -ml-2 flex min-w-0 cursor-pointer items-center rounded-lg border-0 bg-transparent px-2 py-1 text-left text-foreground hover:bg-accent"
                     >
-                        {name || fallback || placeholder}
-                    </h1>
-                    {/* Only on hover or keyboard focus: the name is the control, and a pencil
-                        parked beside it permanently reads as part of the title. */}
-                    <PencilSimple
-                        aria-hidden
-                        size={14}
-                        className="ml-2 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100"
-                    />
-                </button>
+                        <h1
+                            className={`m-0 min-w-0 truncate text-heading ${name ? "" : "text-muted-foreground"}`}
+                        >
+                            {name || fallback || placeholder}
+                        </h1>
+                        {/* Only on hover or keyboard focus: the name is the control, and a pencil
+                            parked beside it permanently reads as part of the title. */}
+                        <PencilSimple
+                            aria-hidden
+                            size={14}
+                            className="ml-2 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100"
+                        />
+                    </button>
+                </SimpleTooltip>
             )}
             {description ? (
                 <p className="m-0 mt-1.5 text-body leading-snug text-muted-foreground">

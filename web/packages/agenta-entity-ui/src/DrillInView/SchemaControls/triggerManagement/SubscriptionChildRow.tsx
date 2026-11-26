@@ -114,7 +114,7 @@ export function SubscriptionChildRow({
                             open()
                         }
                     }}
-                    className={`flex min-w-0 flex-1 items-center ${phone ? "gap-3 self-stretch" : ROW_LEAD_GAP}`}
+                    className={`focus-ring flex min-w-0 flex-1 items-center rounded-sm ${phone ? "gap-3 self-stretch" : ROW_LEAD_GAP}`}
                 >
                     {/* The app's logo when the catalog has one; else a dark tile with a white
                         lightning glyph, as the canvas draws an app trigger. */}

@@ -5,7 +5,7 @@ import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
 import agentPagesPhoneCatalog from "@agenta/i18n/catalogs/agentPages.phone"
 import {BuilderIcon} from "@agenta/ui/agent-icon"
 import {PhoneScreenHeader} from "@agenta/ui/phone"
-import {Button} from "@agenta/ui/ui"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 
 import {AgentConfigTabs} from "./AgentConfigTabs"
 import {useAgentPanel} from "./agentPanelContext"
@@ -74,14 +74,16 @@ export const ConfigurationHeader = ({
                 onBack={() => void panel.close()}
                 trailing={
                     panel.available.builder ? (
-                        <Button
-                            variant="ghost"
-                            size="icon-compact"
-                            aria-label={t("agentLayout.header.builder")}
-                            onClick={() => void panel.toggle("builder")}
-                        >
-                            <BuilderIcon />
-                        </Button>
+                        <SimpleTooltip title={t("agentLayout.header.builder")}>
+                            <Button
+                                variant="ghost"
+                                size="icon-compact"
+                                aria-label={t("agentLayout.header.builder")}
+                                onClick={() => void panel.toggle("builder")}
+                            >
+                                <BuilderIcon />
+                            </Button>
+                        </SimpleTooltip>
                     ) : null
                 }
             />

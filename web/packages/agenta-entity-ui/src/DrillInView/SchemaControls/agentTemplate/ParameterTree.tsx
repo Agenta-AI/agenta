@@ -14,7 +14,7 @@ import {useEffect, useMemo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import parameterEditorCatalog from "@agenta/i18n/catalogs/entityUi.parameterEditor"
-import {Button} from "@agenta/ui/ui"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, Plus, Wrench} from "@phosphor-icons/react"
 
 
@@ -162,10 +162,13 @@ function TreeRow({
                     {name}
                 </span>
                 {required ? (
-                    <span
-                        className="h-1.5 w-1.5 shrink-0 rounded-round bg-destructive"
-                        title={t("entityUi.parameterEditor.required")}
-                    />
+                    <SimpleTooltip title={t("entityUi.parameterEditor.required")}>
+                        <span
+                            role="img"
+                            aria-label={t("entityUi.parameterEditor.required")}
+                            className="size-1.5 shrink-0 rounded-round bg-destructive"
+                        />
+                    </SimpleTooltip>
                 ) : null}
                 <span className={`ml-auto shrink-0 pl-2 text-meta ${TYPE_TINT}`}>
                     {typeLabel(def)}
@@ -345,7 +348,7 @@ export function ParameterTree({
                     onClick={onAddRoot}
                     disabled={disabled}
                 >
-                    <Plus size={13} />
+                    <Plus size={12} />
                     {t("entityUi.parameterEditor.add")}
                 </Button>
             </div>

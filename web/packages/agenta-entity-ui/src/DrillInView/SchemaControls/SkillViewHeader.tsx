@@ -23,6 +23,7 @@ import {
     Popover,
     PopoverContent,
     PopoverTrigger,
+    SimpleTooltip,
     type ItemViewTitleEditable,
 } from "@agenta/ui/ui"
 import {DotsThree, DownloadSimple} from "@phosphor-icons/react"
@@ -114,7 +115,7 @@ export function SkillViewHeader({
             disabled={busy}
             className="shrink-0"
         >
-            <DotsThree aria-hidden weight="bold" />
+            <DotsThree aria-hidden />
         </Button>
     )
     // A line before the first danger action (F07 f10: before Archive).
@@ -203,7 +204,11 @@ export function SkillViewHeader({
                     end || menu ? (
                         <>
                             {end}
-                            {menu}
+                            {menu ? (
+                                <SimpleTooltip title={menuLabel}>
+                                    <span className="inline-flex">{menu}</span>
+                                </SimpleTooltip>
+                            ) : null}
                         </>
                     ) : null
                 }

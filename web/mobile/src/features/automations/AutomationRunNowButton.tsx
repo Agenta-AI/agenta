@@ -1,7 +1,7 @@
 import type {Automation} from "@agenta/automation-ui"
 import {useT} from "@agenta/i18n"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
-import {Button} from "@agenta/ui/ui"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Play} from "@phosphor-icons/react"
 
 import {useAutomationRunNow} from "./useAutomationRunNow"
@@ -39,18 +39,19 @@ export const AutomationRunNowButton = ({
     return (
         // A disabled button takes no pointer events, so the reason has to hang off something that
         // does.
-        <span title={blockedText}>
-            <Button
-                type="button"
-                size="compact"
-                variant="outline"
-                disabled={blocked !== null || starting}
-                title={blockedText ?? t("automations.screens.runNowTitle")}
-                onClick={() => void run()}
-            >
-                <Play aria-hidden className="size-3.5" />
-                {t("automations.screens.runNow")}
-            </Button>
-        </span>
+        <SimpleTooltip title={blockedText ?? t("automations.screens.runNowTitle")}>
+            <span className="inline-flex">
+                <Button
+                    type="button"
+                    size="compact"
+                    variant="outline"
+                    disabled={blocked !== null || starting}
+                    onClick={() => void run()}
+                >
+                    <Play aria-hidden className="size-3.5" />
+                    {t("automations.screens.runNow")}
+                </Button>
+            </span>
+        </SimpleTooltip>
     )
 }

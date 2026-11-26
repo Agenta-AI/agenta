@@ -43,7 +43,10 @@ export const SectionPageRow = ({icon, title, summary, onClick, trailing}: Sectio
         return (
             <button
                 type="button"
-                className={cn(ROW, "cursor-pointer bg-transparent font-[inherit] hover:bg-accent")}
+                className={cn(
+                    ROW,
+                    "focus-ring cursor-pointer bg-transparent font-[inherit] hover:bg-accent",
+                )}
                 onClick={onClick}
             >
                 {body}

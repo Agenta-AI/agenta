@@ -3,7 +3,7 @@ import {useMemo, type ReactNode} from "react"
 import {harnessCapabilitiesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {createT, useT} from "@agenta/i18n"
 import agentIntroCatalog from "@agenta/i18n/catalogs/entityUi.agentIntro"
-import {IconTile} from "@agenta/ui/ui"
+import {IconTile, SimpleTooltip} from "@agenta/ui/ui"
 import {Compass, Cpu, HardDrives, Robot, Wrench} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -69,13 +69,12 @@ const agentCounts = (config: unknown) => {
 
 /** One fact about the agent: a 14px icon and a short label on a quiet chip. */
 const Chip = ({icon, children, title}: {icon: ReactNode; children: ReactNode; title?: string}) => (
-    <span
-        className="inline-flex h-6 items-center gap-1.5 rounded-md bg-secondary px-2 text-meta text-muted-foreground [&_svg]:size-3.5 [&_svg]:shrink-0"
-        title={title}
-    >
-        {icon}
-        {children}
-    </span>
+    <SimpleTooltip title={title}>
+        <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-secondary px-2 text-meta text-muted-foreground [&_svg]:size-3.5 [&_svg]:shrink-0">
+            {icon}
+            {children}
+        </span>
+    </SimpleTooltip>
 )
 
 const tNow = createT(agentIntroCatalog)
@@ -145,9 +144,7 @@ export const AgentIntroCard = ({entityId, className}: {entityId: string; classNa
         <div className={`flex flex-col items-center gap-3 text-center ${className ?? ""}`}>
             <AgentMark workflowId={workflowId} />
             <div className="flex flex-col items-center gap-1">
-                <span className="text-title text-foreground" title={label}>
-                    {label}
-                </span>
+                <span className="text-title text-foreground">{label}</span>
                 {summary ? (
                     <span className="max-w-[28rem] text-body text-muted-foreground">{summary}</span>
                 ) : null}
@@ -155,7 +152,10 @@ export const AgentIntroCard = ({entityId, className}: {entityId: string; classNa
             {model || counts.tools || counts.mcps || counts.skills ? (
                 <div className="flex flex-wrap items-center justify-center gap-1.5">
                     {model ? (
-                        <Chip icon={<Cpu />} title={model}>
+                        <Chip
+                            icon={<Cpu />}
+                            title={model !== modelLabel ? model : undefined}
+                        >
                             {modelLabel}
                         </Chip>
                     ) : null}

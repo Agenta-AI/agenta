@@ -9,7 +9,15 @@
 import {useT} from "@agenta/i18n"
 import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
 import {toEnvVarName} from "@agenta/shared/utils"
-import {Button, Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle} from "@agenta/ui/ui"
+import {
+    Button,
+    Sheet,
+    SheetContent,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
+    SimpleTooltip,
+} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 
 import {DrawerFooter} from "../drawers/shared/DrawerFooter"
@@ -73,15 +81,17 @@ export function CreateSecretDrawer({
                 {/* The header carries its own Back arrow, so the built-in close would duplicate it. */}
                 <SheetHeader showCloseButton={false}>
                     <div className="flex min-w-0 items-center gap-2">
-                        <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={t("entityUi.secretForm.back")}
-                            onClick={onClose}
-                            className="shrink-0"
-                        >
-                            <ArrowLeft size={14} />
-                        </Button>
+                        <SimpleTooltip title={t("entityUi.secretForm.back")}>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={t("entityUi.secretForm.back")}
+                                onClick={onClose}
+                                className="shrink-0"
+                            >
+                                <ArrowLeft size={14} />
+                            </Button>
+                        </SimpleTooltip>
                         <div className="min-w-0">
                             <SheetTitle className="truncate text-label font-medium">
                                 {t("entityUi.secretForm.createSecret")}

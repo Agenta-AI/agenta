@@ -1,5 +1,5 @@
 /**
- * The presentational rows for the agent-template config sections: a colored avatar, the generic
+ * The presentational rows for the agent-template config sections: a neutral Mark, the generic
  * tool/MCP/skill row, and the richer instructions-file row. All are dumb — they render an
  * {@link ItemDescriptor} and call back on open/remove; the section owners hold the state.
  */
@@ -119,9 +119,8 @@ function RowSubtitle({
 
 /**
  * The Mark at the start of a config-item row: the neutral `IconTile`, 24px in a one-line row and
- * 32px in a two-line row (`mark-md`, `mark-lg`; COLOR-05, CONS-01). `descriptor.color` no longer
- * paints it. An item that draws its own Mark (an MCP server, a skill, a subagent's agent Mark)
- * keeps its chip at the same size.
+ * 32px in a two-line row (`mark-md`, `mark-lg`; COLOR-05, CONS-01). An item that draws its own
+ * Mark (an MCP server, a skill, a subagent's agent Mark) keeps its chip at the same size.
  */
 export function ItemAvatar({
     descriptor,
@@ -237,7 +236,8 @@ export function ItemRow({
                         : undefined
                 }
                 className={cn(
-                    "flex min-w-0 flex-1 items-center transition-opacity",
+                    "flex min-w-0 flex-1 items-center rounded-sm transition-opacity",
+                    interactive && "focus-ring",
                     // 8 px to the panel's 28 px Mark; SPACE-04 for the page and the phone.
                     page || (twoLine && phone) ? "gap-3" : "gap-2",
                     inactive && "opacity-50",
@@ -344,7 +344,7 @@ export function ItemChildRow({
                         onEdit()
                     }
                 }}
-                className="min-w-0 flex-1"
+                className="focus-ring min-w-0 flex-1 rounded-sm"
             >
                 <div
                     className={`truncate text-label font-medium ${
@@ -426,7 +426,7 @@ export function InstructionsFileRow({
             className={cn(
                 // A plain row-double row with the hover fill, not a card (SURF-01/02). The clear
                 // border only shows a status tint.
-                "group box-border flex min-h-row-double cursor-pointer items-center rounded-md border border-solid border-transparent px-2 py-1.5 transition-colors hover:bg-accent",
+                "focus-ring group box-border flex min-h-row-double cursor-pointer items-center rounded-md border border-solid border-transparent px-2 py-1.5 transition-colors hover:bg-accent",
                 // 8 px to the panel's 28 px Mark; 12 px to the phone's 32 px one (SPACE-04).
                 phone ? "gap-3" : "gap-2",
             )}
@@ -486,7 +486,7 @@ function InstructionsPagePreview({
                 }
             }}
             data-page-row
-            className="flex cursor-pointer flex-col hover:bg-accent"
+            className="focus-ring-inset flex cursor-pointer flex-col hover:bg-accent"
         >
             <div className="flex items-center gap-2 border-0 border-b border-solid border-border-muted px-3.5 py-3">
                 <span className="truncate font-mono text-label">{filename}</span>

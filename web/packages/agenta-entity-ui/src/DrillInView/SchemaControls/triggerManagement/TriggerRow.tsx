@@ -66,7 +66,7 @@ export function TriggerRow({
                             open()
                         }
                     }}
-                    className={`flex min-w-0 flex-1 items-center ${phone ? "gap-3 self-stretch" : ROW_LEAD_GAP}`}
+                    className={`focus-ring flex min-w-0 flex-1 items-center rounded-sm ${phone ? "gap-3 self-stretch" : ROW_LEAD_GAP}`}
                 >
                     {tile}
                     <div className="min-w-0 flex-1">

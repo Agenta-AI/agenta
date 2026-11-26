@@ -41,7 +41,7 @@ import mcpPermissionsCatalog from "@agenta/i18n/catalogs/entityUi.mcpPermissions
 import {projectIdAtom} from "@agenta/shared/state"
 import {McpServerMark} from "@agenta/ui/agent-icon"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
-import {Alert, Button, InlineConfirm} from "@agenta/ui/ui"
+import {Alert, Button, InlineConfirm, SimpleTooltip} from "@agenta/ui/ui"
 import {ArrowClockwise, CaretLeft, Trash, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -222,15 +222,17 @@ function DrawerTitle({
         // w-full + min-w-0: the title slot will not shrink alone, pushing the health past the edge.
         <div className="flex w-full min-w-0 items-center gap-3">
             {onBack ? (
-                <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t("entityUi.mcpPermissions.backToServers")}
-                    onClick={onBack}
-                    className="-ml-1 -mr-1 shrink-0"
-                >
-                    <CaretLeft />
-                </Button>
+                <SimpleTooltip title={t("entityUi.mcpPermissions.backToServers")}>
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t("entityUi.mcpPermissions.backToServers")}
+                        onClick={onBack}
+                        className="-ml-1 -mr-1 shrink-0"
+                    >
+                        <CaretLeft />
+                    </Button>
+                </SimpleTooltip>
             ) : null}
             {/* One generic glyph for every server (decision 3); the tile color follows the name. */}
             <McpServerMark size={24} name={connectionName} />

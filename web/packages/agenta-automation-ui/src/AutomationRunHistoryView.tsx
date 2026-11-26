@@ -5,13 +5,13 @@ import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsRunHistoryCatalog from "@agenta/i18n/catalogs/automations.runHistory"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 
 import {type Automation} from "./automationModel"
 import {AutomationRunFilterMenu} from "./AutomationRunFilterMenu"
 import {AutomationRunList} from "./AutomationRunList"
 import {AutomationRunPane} from "./AutomationRunPane"
-import {ICON_LINK} from "./lib/interactive"
 import {useElementWidth} from "./lib/useElementWidth"
 import {cn} from "./lib/utils"
 import {
@@ -193,20 +193,23 @@ export const AutomationRunHistoryView = ({
                             {showFilters ? (
                                 <AutomationRunFilterMenu view={view} onChange={setView} />
                             ) : runHistoryHref && !panelEmpty ? (
-                                <a
-                                    href={runHistoryHref}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    aria-label={t("automations.runHistory.openInNewTab")}
-                                    title={t("automations.runHistory.openInNewTab")}
-                                    className={cn(
-                                        "flex shrink-0 items-center justify-center p-1 text-muted-foreground",
-                                        "",
-                                        ICON_LINK,
-                                    )}
-                                >
-                                    <ArrowSquareOut aria-hidden size={15} />
-                                </a>
+                                <SimpleTooltip title={t("automations.runHistory.openInNewTab")}>
+                                    <Button
+                                        asChild
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        className="shrink-0 text-muted-foreground"
+                                    >
+                                        <a
+                                            href={runHistoryHref}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            aria-label={t("automations.runHistory.openInNewTab")}
+                                        >
+                                            <ArrowSquareOut aria-hidden />
+                                        </a>
+                                    </Button>
+                                </SimpleTooltip>
                             ) : null}
                         </div>
                         {/* Empty until the deliveries land — the hook withholds the caption
