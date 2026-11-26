@@ -35,9 +35,9 @@ export interface BottomSheetMenuProps {
 
 /**
  * A menu of two to five entries that start something, as a bottom sheet on a phone: a grab bar,
- * the heading, the same MENU_ITEM row as every menu (ROW-02, nothing bigger on a phone: SIZE-02),
- * and "Cancel". A tap on "Cancel" or on the
- * dimmed page closes it and changes nothing. A select stays a menu under its field; this is for
+ * the heading and the same MENU_ITEM row as every menu (ROW-02, nothing bigger on a phone: SIZE-02).
+ * No "Cancel": a tap on an entry acts, and a swipe or a tap on the dimmed page closes it and
+ * changes nothing. A select stays a menu under its field; this is for
  * menus that start a form or an action.
  */
 export const BottomSheetMenu = ({
@@ -57,6 +57,7 @@ export const BottomSheetMenu = ({
             showTitle={showTitle}
             trigger={trigger}
             onCloseAutoFocus={onCloseAutoFocus}
+            hideClose
             data-testid="bottom-sheet-menu"
         >
             <div role="menu" aria-label={title} className="flex flex-col px-2">
