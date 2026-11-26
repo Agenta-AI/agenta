@@ -1,10 +1,24 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableColumnsMenu} from "@agenta/ui/list-table"
-import {Button, Spinner, PageToolbar} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    PageToolbar,
+    Spinner,
+} from "@agenta/ui/ui"
 import dynamic from "next/dynamic"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -86,6 +100,7 @@ export const EvaluationsScreen = ({
         enabled: panelOpen || REFERENCE_FILTERS.some((key) => panel.references[key].length > 0),
     })
     const actions = useRunRowActions({projectId, base: `/w/${workspaceId}/p/${projectId}`})
+    const t = useT(commonCatalog)
     const [revisionId] = useRevisionParam()
     const searchField = useDebouncedAtomSearch(filters.setSearch, 300, search)
     const filtered = search.trim() !== "" || countRunFilters(panel) > 0
@@ -276,7 +291,58 @@ export const EvaluationsScreen = ({
                     </div>
                 </ScreenScaffold>
             </AppShell>
-            {actions.modal}
+            <AlertDialog
+                open={Boolean(actions.confirmDialog.request)}
+                onOpenChange={(next) => {
+                    if (!next && !actions.confirmDialog.pending) actions.confirmDialog.close()
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {actions.confirmDialog.request?.title ?? ""}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {actions.confirmDialog.request?.message ?? ""}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {actions.confirmDialog.error ? (
+                        <p className="m-0 text-body text-destructive">
+                            {actions.confirmDialog.error}
+                        </p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={actions.confirmDialog.close}
+                                disabled={actions.confirmDialog.pending}
+                            >
+                                {actions.confirmDialog.request?.cancelText ?? t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant={
+                                    actions.confirmDialog.request?.danger === false
+                                        ? "default"
+                                        : "destructive"
+                                }
+                                disabled={actions.confirmDialog.pending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void actions.confirmDialog.runConfirm()
+                                }}
+                            >
+                                {actions.confirmDialog.pending
+                                    ? t("common.working")
+                                    : (actions.confirmDialog.request?.okText ??
+                                          t("common.confirm"))}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             {revisionId ? <RevisionDrawerHost kind="variant" /> : null}
         </>
     )

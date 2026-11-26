@@ -17,6 +17,15 @@ import {
 import {requirementForItem, type AgentRequirementItem} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import type {ConfigItemRef} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
@@ -25,7 +34,6 @@ import {describeMcp} from "./itemDescriptors"
 import {type ItemRowStatus} from "./ItemRow"
 import {customMcpEndpoints, findMcpIndex, mcpItemNeedsRepair, mcpItemRef} from "./mcpRail"
 import {needsSetupStatus} from "./needsSetup"
-import {RemoveFromAgentDialog} from "./RemoveFromAgentDialog"
 import {useAgentRequirements} from "./useAgentRequirements"
 
 export interface McpServersSectionBodyProps {
@@ -159,17 +167,38 @@ export function McpServersSectionBody({
                 statusFor={statusForRow}
             />
             {removing ? (
-                <RemoveFromAgentDialog
+                <AlertDialog
                     open
-                    name={removing.name}
-                    description={t("entityUi.integrationViews.connectionStays")}
-                    onRemove={() => {
-                        if (removing.item) removeServer(removing.item)
-                        else removeServerAt(removing.index)
-                        setRemoving(null)
-                    }}
-                    onClose={() => setRemoving(null)}
-                />
+                    onOpenChange={(next) => (next ? undefined : setRemoving(null))}
+                >
+                    <AlertDialogContent data-testid="remove-from-agent-dialog">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {t("entityUi.integrationViews.removeTitle", {
+                                    name: removing.name,
+                                })}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {t("entityUi.integrationViews.connectionStays")}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <Button variant="outline" onClick={() => setRemoving(null)}>
+                                {t("entityUi.integrationViews.cancel")}
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                onClick={() => {
+                                    if (removing.item) removeServer(removing.item)
+                                    else removeServerAt(removing.index)
+                                    setRemoving(null)
+                                }}
+                            >
+                                {t("entityUi.integrationViews.remove")}
+                            </Button>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             ) : null}
         </>
     )

@@ -36,7 +36,17 @@ import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens
 import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
-import {DropdownMenuItem} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    DropdownMenuItem,
+} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
     ClockCounterClockwise,
@@ -51,16 +61,16 @@ import {useSetAtom} from "jotai"
 import {SectionLoadError} from "../../agent/SectionLoadError"
 
 import {AppTriggerProviderGroups} from "./triggerManagement/AppTriggerProviderGroups"
-import {AutomationDeleteDialog} from "./triggerManagement/AutomationDeleteDialog"
 import {ScheduleTriggerRow} from "./triggerManagement/ScheduleTriggerRow"
 import {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
+import {useAutomationDelete} from "./triggerManagement/useAutomationDelete"
 
 const tNow = createT(triggersCatalog)
 const tScreens = createT(automationsScreensCatalog)
 
 export {AddAutomationPhoneAction, AddTriggerDropdown} from "./triggerManagement/AddTriggerDropdown"
-export {AutomationDeleteDialog} from "./triggerManagement/AutomationDeleteDialog"
 export {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
+export {useAutomationDelete} from "./triggerManagement/useAutomationDelete"
 
 /** Which automation a row action names: a schedule or an event subscription, by id. */
 export interface TriggerOwnerRef {
@@ -103,7 +113,7 @@ export function TriggerManagementSection({
     automationDrawer,
     phone,
 }: TriggerManagementSectionProps) {
-    const t = useT(triggersCatalog, automationsPanelCatalog)
+    const t = useT(triggersCatalog, automationsPanelCatalog, automationsScreensCatalog)
     const {scopedSubscriptions, scopedSchedules} = useAgentTriggers(entityId)
     // The same cached lists `useAgentTriggers` reads: a failed or pending read must not show
     // "No automations yet" for an agent that has some.
@@ -134,6 +144,12 @@ export function TriggerManagementSection({
         name: string
         remove: () => Promise<void>
     } | null>(null)
+    const deletion = useAutomationDelete({
+        onDelete: async () => {
+            await pendingDelete?.remove()
+        },
+        onClose: () => setDeleteOpen(false),
+    })
 
     // Deactivate and Activate act at once, for both kinds. No agent version is saved.
     const toggleAutomation = useCallback(
@@ -431,14 +447,41 @@ export function TriggerManagementSection({
             {/* Propless, atom-driven drawers, mounted once. A new automation created here is
                 bound to this agent. */}
             {automationDrawer}
-            <AutomationDeleteDialog
+            <AlertDialog
                 open={deleteOpen}
-                name={pendingDelete?.name ?? ""}
-                onDelete={async () => {
-                    await pendingDelete?.remove()
-                }}
-                onClose={() => setDeleteOpen(false)}
-            />
+                onOpenChange={(next) => (next ? undefined : deletion.close())}
+            >
+                <AlertDialogContent data-testid="automation-delete-dialog">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{t("automations.screens.deleteTitle")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("automations.screens.deleteMessage", {
+                                name: pendingDelete?.name ?? "",
+                            })}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {deletion.failed ? (
+                        <p role="alert" className="m-0 text-label text-destructive">
+                            {t("automations.panel.deleteFailed")}
+                        </p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        {/* Focus starts on Cancel when the dialog opens. */}
+                        <AlertDialogCancel asChild>
+                            <Button variant="outline" disabled={deletion.pending}>
+                                {t("automations.screens.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <Button
+                            variant="destructive"
+                            disabled={deletion.pending}
+                            onClick={() => void deletion.remove()}
+                        >
+                            {t("automations.screens.delete")}
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

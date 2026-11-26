@@ -6,7 +6,15 @@ import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {agentRequirementsAtomFamily, requirementForItem} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
-import {Button} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
@@ -24,7 +32,6 @@ import {
 } from "../IntegrationPermissionList"
 import {integrationTargetOf, removeIntegrationByRef} from "../itemKinds/tool"
 import {needsSetupReasonText, needsSetupLabel} from "../needsSetupText"
-import {IntegrationRemoveDialog} from "../sections/IntegrationsSection"
 import {useAgentConfigWriter} from "../useAgentConfigWriter"
 import {useAgentTools} from "../useAgentTools"
 
@@ -185,11 +192,31 @@ const IntegrationViewBody = ({params, target, nav}: ViewProps<IntegrationViewPar
             </div>
             {writer.readOnly ? null : <RemoveFromAgentFooter onClick={() => setConfirming(true)} />}
             {confirming ? (
-                <IntegrationRemoveDialog
-                    row={row}
-                    onRemove={remove}
-                    onClose={() => setConfirming(false)}
-                />
+                <AlertDialog
+                    open
+                    onOpenChange={(next) => (next ? undefined : setConfirming(false))}
+                >
+                    <AlertDialogContent data-testid="remove-from-agent-dialog">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {t("entityUi.integrationViews.removeTitle", {name})}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {eachPerson
+                                    ? t("entityUi.integrationViews.accountsStay")
+                                    : t("entityUi.integrationViews.connectionStays")}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <Button variant="outline" onClick={() => setConfirming(false)}>
+                                {t("entityUi.integrationViews.cancel")}
+                            </Button>
+                            <Button variant="destructive" onClick={remove}>
+                                {t("entityUi.integrationViews.remove")}
+                            </Button>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             ) : null}
         </div>
     )

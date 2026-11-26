@@ -2,14 +2,23 @@ import {useState} from "react"
 
 import {createT, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import type {ConfigItemRef} from "@agenta/ui/view-stack"
 import {Robot} from "@phosphor-icons/react"
 
 import {countSummary} from "../agentTemplateUtils"
 import {ConnectedSubagentList} from "../ConnectedSubagents"
 import {describeSubagent, toolReferenceSlug} from "../itemDescriptors"
-import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
 import {SectionAddButton} from "../SectionAddButton"
 import {SectionPageAction} from "../SectionPageAction"
 import {savedSubagentSlugs, SubagentCurrentName} from "../SubagentAgent"
@@ -116,6 +125,7 @@ const SubagentSectionBody = ({
     removeSubagent: (item: ConfigItemRef) => void
     removeSubagentAt: (index: number) => void
 }) => {
+    const t = useT(subagentViewsCatalog, integrationViewsCatalog)
     const [removing, setRemoving] = useState<{
         /** By slug when no other entry has it, so a write that drops a copied name keeps it. */
         item: ConfigItemRef | null
@@ -163,52 +173,46 @@ const SubagentSectionBody = ({
                 <SubagentList {...listProps} />
             )}
             {removing ? (
-                // The name the row shows: the agent's current name once it resolves.
-                workflowReference ? (
-                    <SubagentCurrentName
-                        bridge={workflowReference}
-                        slug={removing.slug}
-                        savedSlugs={savedSubagentSlugs(subagentItems)}
-                        fallback={removing.name}
-                    >
-                        {(name) => (
-                            <SubagentRemoveDialog
-                                name={name}
-                                onRemove={confirmRemove}
-                                onClose={() => setRemoving(null)}
-                            />
-                        )}
-                    </SubagentCurrentName>
-                ) : (
-                    <SubagentRemoveDialog
-                        name={removing.name}
-                        onRemove={confirmRemove}
-                        onClose={() => setRemoving(null)}
-                    />
-                )
+                <AlertDialog
+                    open
+                    onOpenChange={(next) => (next ? undefined : setRemoving(null))}
+                >
+                    <AlertDialogContent data-testid="remove-from-agent-dialog">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {/* The agent's current name once it resolves. */}
+                                {workflowReference ? (
+                                    <SubagentCurrentName
+                                        bridge={workflowReference}
+                                        slug={removing.slug}
+                                        savedSlugs={savedSubagentSlugs(subagentItems)}
+                                        fallback={removing.name}
+                                    >
+                                        {(name) =>
+                                            t("entityUi.integrationViews.removeTitle", {name})
+                                        }
+                                    </SubagentCurrentName>
+                                ) : (
+                                    t("entityUi.integrationViews.removeTitle", {
+                                        name: removing.name,
+                                    })
+                                )}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {t("entityUi.subagentViews.agentStays")}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <Button variant="outline" onClick={() => setRemoving(null)}>
+                                {t("entityUi.integrationViews.cancel")}
+                            </Button>
+                            <Button variant="destructive" onClick={confirmRemove}>
+                                {t("entityUi.integrationViews.remove")}
+                            </Button>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             ) : null}
         </>
-    )
-}
-
-/** "Remove {name} from this agent?" (F06 f2): the agent it calls stays in the project. */
-export const SubagentRemoveDialog = ({
-    name,
-    onRemove,
-    onClose,
-}: {
-    name: string
-    onRemove: () => void
-    onClose: () => void
-}) => {
-    const t = useT(subagentViewsCatalog)
-    return (
-        <RemoveFromAgentDialog
-            open
-            name={name}
-            description={t("entityUi.subagentViews.agentStays")}
-            onRemove={onRemove}
-            onClose={onClose}
-        />
     )
 }

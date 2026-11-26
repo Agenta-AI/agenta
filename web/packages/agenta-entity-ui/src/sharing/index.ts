@@ -17,11 +17,10 @@ export {useAgentSharingWrites, type AgentSharingNotice} from "./useAgentSharingW
 export {agentSharingCopy, joinNames, memberPickerCopy, shareDisclosureCopy} from "./copy"
 export {
     MemberPicker,
-    ShareDisclosureNotice,
     sharingWriteResultFromError,
     disclosureAccountNames,
+    useShareDisclosureText,
     type MemberPickerProps,
-    type ShareDisclosureNoticeProps,
     type ShareDisclosureTarget,
     type SharingPerson,
     type SharingWriteResult,

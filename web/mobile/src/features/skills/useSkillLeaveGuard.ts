@@ -6,10 +6,14 @@ import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
 import {useUnsavedGuard} from "../automations/useUnsavedGuard"
 import {useConfirmModal} from "../settings/useConfirmModal"
 
-/** Asks before leaving a skill with unsaved changes; `leave(url)` goes without asking. */
+/**
+ * Asks before leaving a skill with unsaved changes; `leave(url)` goes without asking. The screen
+ * draws the `AlertDialog` from `confirmDialog`.
+ */
 export const useSkillLeaveGuard = (dirty: boolean, message: string) => {
     const t = useT(skillsPageCatalog)
-    const {confirm, modal} = useConfirmModal()
+    const confirmDialog = useConfirmModal()
+    const {confirm} = confirmDialog
     const title = t("skills.page.discardTitle")
     const okText = t("skills.page.discard")
     const cancelText = t("skills.page.keepEditing")
@@ -35,5 +39,5 @@ export const useSkillLeaveGuard = (dirty: boolean, message: string) => {
         return () => window.removeEventListener("beforeunload", onBeforeUnload)
     }, [dirty])
 
-    return {leave, modal, discardThen}
+    return {leave, confirmDialog, discardThen}
 }

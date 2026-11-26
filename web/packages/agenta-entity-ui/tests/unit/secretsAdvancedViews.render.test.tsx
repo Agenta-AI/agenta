@@ -133,7 +133,6 @@ import {
     advancedView,
     executionView,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/views/advancedViews"
-import {SecretRemoveDialog} from "../../src/secret/SecretRemoveDialog"
 import {secretAttachView} from "../../src/secret/views/secretAttachView"
 import {secretFormView} from "../../src/secret/views/secretFormView"
 import {secretFormDirty} from "../../src/secret/views/SecretFormViewBody"
@@ -493,20 +492,31 @@ describe("The one secret form (Settings › Secrets)", () => {
 
 describe("Remove a secret attachment (F06 f3)", () => {
     it("a failure keeps the dialog open with the reason", async () => {
-        const onRemove = vi.fn(async () => {
-            throw new Error("conflict")
-        })
-        const onClose = vi.fn()
-        await mount(<SecretRemoveDialog onRemove={onRemove} onClose={onClose} />)
+        fx.commitError = "conflict"
+        await mount(
+            <SecretsSectionBody
+                revisionId="rev-1"
+                bindings={[
+                    {
+                        secret: {slug: "billing-prod"},
+                        binding: {type: "env" as const, name: "BILLING_API_KEY"},
+                    },
+                ]}
+                canEditSecrets
+                openAttach={() => undefined}
+            />,
+        )
+        await click(document.querySelector('button[aria-label="Remove"]'))
         expect(document.body.textContent).toContain("Remove this secret attachment?")
         expect(document.body.textContent).toContain(
             "The agent will lose access to this variable. The secret stays in the project vault.",
         )
         await click(saveButton("Remove"))
         await findByText("conflict")
-        expect(onClose).not.toHaveBeenCalled()
+        expect(document.body.textContent).toContain("Remove this secret attachment?")
+        expect(fx.commits).toHaveLength(0)
         await click(saveButton("Cancel"))
-        expect(onClose).toHaveBeenCalled()
+        await waitFor(() => expect(document.body.textContent).not.toContain("Remove this secret"))
     })
 })
 

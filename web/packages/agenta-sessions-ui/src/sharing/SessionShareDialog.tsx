@@ -34,8 +34,8 @@ import {MemberPicker} from "./MemberPicker"
 import {PersonAvatar, personName, type SharingPerson} from "./people"
 import type {SharingWriteResult} from "./result"
 import {ROLE_COLUMN_CLASS, SessionGrantRoleMenu} from "./SessionGrantRoleMenu"
-import {ShareDisclosureNotice, type ShareDisclosureTarget} from "./ShareDisclosureNotice"
 import {SharingSurface} from "./SharingSurface"
+import {type ShareDisclosureTarget, useShareDisclosureText} from "./useShareDisclosureText"
 
 export interface SessionShareDialogProps {
     open: boolean
@@ -205,6 +205,7 @@ export const SessionShareDialog = ({
                           ? [nameOf(widening.userId)]
                           : picked.map((p) => personName(p)),
               }
+    const disclosureText = useShareDisclosureText(disclosureTarget, disclosure, providerLabel)
 
     const changeVisibility = (next: Visibility) => {
         if (next === visibility) return
@@ -529,17 +530,37 @@ export const SessionShareDialog = ({
                 )}
             </SharingSurface>
 
-            <ShareDisclosureNotice
+            <AlertDialog
                 open={writable && widening !== null}
                 onOpenChange={(next) => {
                     if (!next && !saving) setWidening(null)
                 }}
-                target={disclosureTarget}
-                disclosure={disclosure}
-                providerLabel={providerLabel}
-                onConfirm={() => void confirmWidening()}
-                confirming={saving !== null}
-            />
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{disclosureText.title}</AlertDialogTitle>
+                        <AlertDialogDescription>{disclosureText.body}</AlertDialogDescription>
+                        {disclosureText.personalAccounts.length ? (
+                            <ul className="m-0 list-none p-0 text-body text-muted-foreground">
+                                {disclosureText.personalAccounts.map((line) => (
+                                    <li key={line}>{line}</li>
+                                ))}
+                            </ul>
+                        ) : null}
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={saving !== null}>
+                            {disclosureText.cancelLabel}
+                        </AlertDialogCancel>
+                        <LoadingButton
+                            loading={saving !== null}
+                            onClick={() => void confirmWidening()}
+                        >
+                            {disclosureText.confirmLabel}
+                        </LoadingButton>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <AlertDialog
                 open={writable && stopOpen}

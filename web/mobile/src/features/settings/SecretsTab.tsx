@@ -8,11 +8,21 @@ import settingsSecretsTabCatalog from "@agenta/i18n/catalogs/settings.secretsTab
 import {addAccountOwners, NamedSecretTable} from "@agenta/settings-ui"
 import type {LlmProvider} from "@agenta/shared/types"
 import {message} from "@agenta/ui/app-message"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
 import {useProjectPermission} from "../context/useProjectPermission"
 
-import {ConfirmModal} from "./ConfirmModal"
 import type {SettingsTabProps} from "./settingsTabProps"
 
 /**
@@ -42,12 +52,24 @@ export const SecretsTab = ({projectId}: SettingsTabProps) => {
                 ) : null
             }
             renderDeleteDialog={({selectedProvider, open, onClose}) => (
-                <ConfirmModal
+                <AlertDialog
                     open={open}
-                    title={t("settings.secretsTab.deleteTitle")}
-                    description={t("common.thisCannotBeUndone")}
-                    body={
-                        <>
+                    onOpenChange={(next) => {
+                        if (next || deleting) return
+                        setError(null)
+                        onClose()
+                    }}
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {t("settings.secretsTab.deleteTitle")}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {t("common.thisCannotBeUndone")}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <div className="text-body">
                             {richText(
                                 t("settings.secretsTab.deleteBody", {
                                     slug:
@@ -57,32 +79,54 @@ export const SecretsTab = ({projectId}: SettingsTabProps) => {
                                 }),
                                 {code: (text) => <span className="font-mono">{text}</span>},
                             )}
-                        </>
-                    }
-                    confirmLabel={t("settings.secretsTab.deleteTitle")}
-                    pending={deleting}
-                    error={error}
-                    onClose={() => {
-                        setError(null)
-                        onClose()
-                    }}
-                    onConfirm={async () => {
-                        if (!selectedProvider) return
-                        setDeleting(true)
-                        setError(null)
-                        try {
-                            await handleDeleteVaultSecret(selectedProvider as LlmProvider)
-                            message.success(t("settings.secretsTab.deleted"))
-                            onClose()
-                        } catch (cause) {
-                            setError(
-                                (cause as Error)?.message || t("settings.secretsTab.deleteFailed"),
-                            )
-                        } finally {
-                            setDeleting(false)
-                        }
-                    }}
-                />
+                        </div>
+                        {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
+                        <AlertDialogFooter>
+                            <AlertDialogCancel asChild>
+                                <Button
+                                    variant="outline"
+                                    disabled={deleting}
+                                    onClick={() => {
+                                        setError(null)
+                                        onClose()
+                                    }}
+                                >
+                                    {t("common.cancel")}
+                                </Button>
+                            </AlertDialogCancel>
+                            <AlertDialogAction asChild>
+                                <Button
+                                    variant="destructive"
+                                    disabled={deleting}
+                                    onClick={async (event) => {
+                                        event.preventDefault()
+                                        if (!selectedProvider) return
+                                        setDeleting(true)
+                                        setError(null)
+                                        try {
+                                            await handleDeleteVaultSecret(
+                                                selectedProvider as LlmProvider,
+                                            )
+                                            message.success(t("settings.secretsTab.deleted"))
+                                            onClose()
+                                        } catch (cause) {
+                                            setError(
+                                                (cause as Error)?.message ||
+                                                    t("settings.secretsTab.deleteFailed"),
+                                            )
+                                        } finally {
+                                            setDeleting(false)
+                                        }
+                                    }}
+                                >
+                                    {deleting
+                                        ? t("common.working")
+                                        : t("settings.secretsTab.deleteTitle")}
+                                </Button>
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             )}
         />
     )

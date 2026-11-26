@@ -1,16 +1,14 @@
 import {Fragment} from "react"
 
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
-import {createT, useT} from "@agenta/i18n"
+import {createT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import {humanizeActionKey} from "@agenta/shared/utils"
 import {AppWindow, Plus, Wrench} from "@phosphor-icons/react"
 
 import type {IntegrationRow} from "../../toolUtils"
 import {countSummary} from "../agentTemplateUtils"
 import {CreateWithAIAddMenu} from "../CreateWithAIAddMenu"
-import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
 import {SectionPageAction} from "../SectionPageAction"
 import {ToolManagementList, type ToolManagementListProps} from "../ToolManagementList"
 
@@ -31,7 +29,7 @@ export interface IntegrationsSectionParams {
     toolStatusFor: ToolManagementListProps["statusFor"]
     gatewayToolsEnabled: boolean
     openIntegrationRow: (row: IntegrationRow) => void
-    /** The row's bin: asks with {@link IntegrationRemoveDialog} before anything is removed. */
+    /** The row's bin: asks with the remove dialog before anything is removed. */
     askRemoveIntegration: (row: IntegrationRow) => void
 }
 
@@ -120,32 +118,4 @@ const IntegrationNames = ({rows}: {rows: IntegrationRow[]}) => (
 const IntegrationName = ({slug}: {slug: string}) => {
     const {integration} = useToolIntegrationDetail(slug)
     return <>{integration?.name || humanizeActionKey(slug)}</>
-}
-
-/** The row bin's question (F06 f2): removing from the agent keeps the project connection. */
-export const IntegrationRemoveDialog = ({
-    row,
-    onRemove,
-    onClose,
-}: {
-    row: IntegrationRow
-    onRemove: () => void
-    onClose: () => void
-}) => {
-    const t = useT(integrationViewsCatalog)
-    const {integration} = useToolIntegrationDetail(row.integration)
-    return (
-        <RemoveFromAgentDialog
-            open
-            name={integration?.name || row.integration}
-            description={
-                // An entry with each person's own account names no project connection.
-                row.entry?.accountSource === "user"
-                    ? t("entityUi.integrationViews.accountsStay")
-                    : t("entityUi.integrationViews.connectionStays")
-            }
-            onRemove={onRemove}
-            onClose={onClose}
-        />
-    )
 }

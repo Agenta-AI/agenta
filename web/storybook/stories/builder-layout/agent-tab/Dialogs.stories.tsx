@@ -1,17 +1,25 @@
-import {useState, type ComponentProps, type ReactNode} from "react"
+import type {ComponentProps, ReactNode} from "react"
 
 import {AutomationActionsMenu} from "@/features/automations/AutomationActionsMenu"
-import {SecretRemoveDialog} from "@agenta/entity-ui/secret"
 import {useT} from "@agenta/i18n"
+import agentSecretsCatalog from "@agenta/i18n/catalogs/entityUi.agentSecrets"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
-import {RevertConfirmDialog} from "@agenta/playground-ui/agent-version-history"
-import {UnsavedChangesDialog} from "@agenta/ui/view-stack"
+import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
+import viewStackCatalog from "@agenta/i18n/catalogs/ui.viewStack"
+import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {screen, userEvent, within} from "storybook/test"
 
-// Imported from source: the package barrel does not re-export these two.
-import {RemoveFromAgentDialog} from "../../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/RemoveFromAgentDialog"
 import type {StoryScope} from "../../../.storybook/decorators/withAgentaData"
 import {
     agentTabQueries,
@@ -31,14 +39,27 @@ const Frame = ({children}: {children?: ReactNode}) => (
 
 /** F06 f1: the generic dialog of the view stack, with the description an agent view gives. */
 const UnsavedChanges = () => {
-    const t = useT(configItemsCatalog)
+    const t = useT(configItemsCatalog, viewStackCatalog)
     return (
-        <UnsavedChangesDialog
-            open
-            description={t("entityUi.configItems.saveOrDiscardDraft")}
-            canSave
-            onAnswer={noop}
-        />
+        <AlertDialog open>
+            <AlertDialogContent data-testid="unsaved-changes-dialog">
+                <AlertDialogHeader>
+                    <AlertDialogTitle>{t("ui.viewStack.unsavedChanges")}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {t("entityUi.configItems.saveOrDiscardDraft")}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <Button variant="ghost" onClick={noop}>
+                        {t("ui.viewStack.keepEditing")}
+                    </Button>
+                    <Button variant="outline" onClick={noop}>
+                        {t("ui.viewStack.discard")}
+                    </Button>
+                    <Button onClick={noop}>{t("ui.viewStack.saveChanges")}</Button>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     )
 }
 
@@ -46,13 +67,53 @@ const UnsavedChanges = () => {
 const RemoveFromAgent = () => {
     const t = useT(integrationViewsCatalog)
     return (
-        <RemoveFromAgentDialog
-            open
-            name={REMOVED_INTEGRATION}
-            description={t("entityUi.integrationViews.connectionStays")}
-            onRemove={noop}
-            onClose={noop}
-        />
+        <AlertDialog open>
+            <AlertDialogContent data-testid="remove-from-agent-dialog">
+                <AlertDialogHeader>
+                    <AlertDialogTitle>
+                        {t("entityUi.integrationViews.removeTitle", {name: REMOVED_INTEGRATION})}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {t("entityUi.integrationViews.connectionStays")}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <Button variant="outline" onClick={noop}>
+                        {t("entityUi.integrationViews.cancel")}
+                    </Button>
+                    <Button variant="destructive" onClick={noop}>
+                        {t("entityUi.integrationViews.remove")}
+                    </Button>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    )
+}
+
+/** F06 f3: remove a secret attachment (the bin of a secret row). */
+const RemoveSecret = () => {
+    const t = useT(agentSecretsCatalog)
+    return (
+        <AlertDialog open>
+            <AlertDialogContent data-testid="secret-remove-dialog">
+                <AlertDialogHeader>
+                    <AlertDialogTitle>
+                        {t("entityUi.agentSecrets.removeAttachmentTitle")}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {t("entityUi.agentSecrets.removeAttachmentBody")}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <Button variant="outline" onClick={noop}>
+                        {t("entityUi.agentSecrets.cancel")}
+                    </Button>
+                    <Button variant="destructive" onClick={noop}>
+                        {t("entityUi.agentSecrets.remove")}
+                    </Button>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     )
 }
 
@@ -73,20 +134,32 @@ const AUTOMATION: Automation = {
     raw: {id: "automation-daily-summary", name: DELETED_AUTOMATION} as Automation["raw"],
 }
 
-/** F06 f5: revert from the version history; the dialog sits inside the history drawer. */
+/** F06 f5: revert from the version history. */
 const Revert = () => {
-    const [container, setContainer] = useState<HTMLDivElement | null>(null)
+    const t = useT(versionCatalog)
     return (
-        <div ref={setContainer} className="relative h-full w-full">
-            <RevertConfirmDialog
-                open
-                container={container}
-                selectedVersion={REVERT.selectedVersion}
-                latestVersion={REVERT.latestVersion}
-                onCancel={noop}
-                onConfirm={noop}
-            />
-        </div>
+        <AlertDialog open>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>
+                        {t("playground.versionHistory.revertTitle", {
+                            version: REVERT.selectedVersion,
+                        })}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {t("playground.versionHistory.revertDescription", {
+                            next: REVERT.latestVersion + 1,
+                            version: REVERT.selectedVersion,
+                            latest: REVERT.latestVersion,
+                        })}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>{t("playground.versionHistory.cancel")}</AlertDialogCancel>
+                    <Button onClick={noop}>{t("playground.versionHistory.revert")}</Button>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     )
 }
 
@@ -127,7 +200,7 @@ export const RemoveSecretStory: Story = {
     name: "Remove secret",
     render: () => (
         <Frame>
-            <SecretRemoveDialog onRemove={async () => undefined} onClose={noop} />
+            <RemoveSecret />
         </Frame>
     ),
     play: async () => {

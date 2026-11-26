@@ -25,12 +25,20 @@ import modelHarnessCatalog from "@agenta/i18n/catalogs/entityUi.modelHarness"
 import secretAttachmentCatalog from "@agenta/i18n/catalogs/entityUi.secretAttachment"
 import secretViewsCatalog from "@agenta/i18n/catalogs/entityUi.secretViews"
 import {cn} from "@agenta/ui/styles"
-import {Spinner} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    Spinner,
+} from "@agenta/ui/ui"
 import {LockSimple} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {ACCOUNT_COPY} from "../../../../accounts/copy"
-import {SecretRemoveDialog} from "../../../../secret/SecretRemoveDialog"
 import {ItemRow, type ItemRowStatus} from "../ItemRow"
 import {needsSetupLabel, needsSetupReasonText} from "../needsSetupText"
 import {SectionAddButton} from "../SectionAddButton"
@@ -175,6 +183,8 @@ export const SecretsSectionBody = ({
     const {dirty, committed, canChange} = useCanChange(revisionId, canEditSecrets, disabled)
     // The row the dialog is for, by its variable: a commit elsewhere can reorder the list.
     const [removing, setRemoving] = useState<string | null>(null)
+    const [removePending, setRemovePending] = useState(false)
+    const [removeError, setRemoveError] = useState<string | null>(null)
 
     const namesBySlug = useMemo(
         () =>
@@ -187,7 +197,7 @@ export const SecretsSectionBody = ({
     )
 
     // The agent can change while the dialog is open (a builder edit); the dialog then says why.
-    const remove = async () => {
+    const saveWithoutRemoved = async () => {
         if (removing === null) return
         // Already gone (removed elsewhere while the dialog was open): nothing to save.
         if (!bindings.some((binding) => binding.binding.name === removing)) {
@@ -201,6 +211,25 @@ export const SecretsSectionBody = ({
             bindings: bindings.filter((binding) => binding.binding.name !== removing),
         })
         onRevisionCommitted?.(result.revisionId)
+        setRemoving(null)
+    }
+    // The dialog stays open with the reason when the save fails.
+    const remove = async () => {
+        if (removePending) return
+        setRemovePending(true)
+        setRemoveError(null)
+        try {
+            await saveWithoutRemoved()
+        } catch (cause) {
+            setRemoveError(
+                cause instanceof Error ? cause.message : t("entityUi.agentSecrets.unableToRemove"),
+            )
+        } finally {
+            setRemovePending(false)
+        }
+    }
+    const closeRemove = () => {
+        setRemoveError(null)
         setRemoving(null)
     }
 
@@ -279,9 +308,42 @@ export const SecretsSectionBody = ({
                     )
                 })
             )}
-            {removing !== null ? (
-                <SecretRemoveDialog onRemove={remove} onClose={() => setRemoving(null)} />
-            ) : null}
+            <AlertDialog
+                open={removing !== null}
+                onOpenChange={(next) => {
+                    if (!next && !removePending) closeRemove()
+                }}
+            >
+                <AlertDialogContent data-testid="secret-remove-dialog">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("entityUi.agentSecrets.removeAttachmentTitle")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("entityUi.agentSecrets.removeAttachmentBody")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {removeError ? (
+                        <div role="alert" className="text-label text-destructive">
+                            {removeError}
+                        </div>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <Button variant="outline" disabled={removePending} onClick={closeRemove}>
+                            {t("entityUi.agentSecrets.cancel")}
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            disabled={removePending}
+                            onClick={() => void remove()}
+                        >
+                            {removePending
+                                ? t("entityUi.agentSecrets.removing")
+                                : t("entityUi.agentSecrets.remove")}
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

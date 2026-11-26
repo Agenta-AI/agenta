@@ -4,13 +4,23 @@ import {AgentPanelContext, type AgentPanelApi} from "@/features/agent-layout/age
 import {PanelViewChrome} from "@/features/agent-layout/PanelViewChrome"
 import type {AgentSecretBinding} from "@agenta/entities/secret"
 import {
-    SecretRemoveDialog,
     secretAttachView,
     secretFormView,
     type SecretAttachViewParams,
 } from "@agenta/entity-ui/secret"
+import {createT} from "@agenta/i18n"
+import agentSecretsCatalog from "@agenta/i18n/catalogs/entityUi.agentSecrets"
 import {userAtom} from "@agenta/shared/state"
 import {DrillInUIProvider} from "@agenta/ui/drill-in"
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {
     useViewStack,
     ViewDrawerHost,
@@ -79,6 +89,8 @@ const Open = <P,>({
     return null
 }
 
+const tSecrets = createT(agentSecretsCatalog)
+
 const PanelBox = ({children}: {children: React.ReactNode}) => (
     <AgentPanelContext.Provider value={panel}>
         <DrillInUIProvider components={drillInUI}>
@@ -130,7 +142,28 @@ const SecretsFrame = ({frame, revisionId}: {frame: Frame; revisionId: string}) =
         )
     }
     if (frame === "remove")
-        return <SecretRemoveDialog onRemove={async () => undefined} onClose={() => undefined} />
+        return (
+            <AlertDialog open>
+                <AlertDialogContent data-testid="secret-remove-dialog">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {tSecrets("entityUi.agentSecrets.removeAttachmentTitle")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {tSecrets("entityUi.agentSecrets.removeAttachmentBody")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <Button variant="outline">
+                            {tSecrets("entityUi.agentSecrets.cancel")}
+                        </Button>
+                        <Button variant="destructive">
+                            {tSecrets("entityUi.agentSecrets.remove")}
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        )
     if (frame === "permissions")
         return (
             <PanelBox>

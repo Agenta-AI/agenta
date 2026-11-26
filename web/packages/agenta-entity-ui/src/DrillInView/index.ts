@@ -382,7 +382,7 @@ export {
 export {
     TriggerManagementSection,
     AddTriggerDropdown,
-    AutomationDeleteDialog,
+    useAutomationDelete,
 } from "./SchemaControls/TriggerManagementSection"
 export type {
     TriggerManagementSectionProps,

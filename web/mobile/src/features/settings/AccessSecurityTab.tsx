@@ -20,14 +20,23 @@ import {
     useEntitlements,
 } from "@agenta/settings-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {Button} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 
 import {useProjectPermission} from "../context/useProjectPermission"
 
 import {plainAccessError} from "./accessErrors"
 import {AddDomainDialog} from "./AddDomainDialog"
-import {ConfirmModal} from "./ConfirmModal"
 import {DomainDnsInstructions} from "./DomainDnsInstructions"
 import {OrganizationSlugField} from "./OrganizationSlugField"
 import {SeePlansButton} from "./SeePlansButton"
@@ -122,6 +131,11 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
         }
     }
 
+    const closeDeleteDomain = () => {
+        setDeletingDomain(null)
+        setDomainError(null)
+    }
+
     const deleteDomain = async () => {
         if (!deletingDomain) return
         setDomainBusy("delete")
@@ -186,6 +200,11 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
         } finally {
             setProviderBusy(null)
         }
+    }
+
+    const closeDeleteProvider = () => {
+        setDeletingProvider(null)
+        setProviderError(null)
     }
 
     const deleteProvider = async () => {
@@ -371,22 +390,58 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
                 }}
             />
 
-            <ConfirmModal
+            <AlertDialog
                 open={Boolean(deletingDomain)}
-                title={t("settings.accessSecurityTab.deleteDomain")}
-                description={t("common.thisCannotBeUndone")}
-                body={t("settings.accessSecurityTab.deleteDomainBody", {
-                    name: deletingDomain?.slug ?? t("settings.accessSecurityTab.thisDomain"),
-                })}
-                confirmLabel={t("settings.accessSecurityTab.deleteDomain")}
-                pending={domainBusy === "delete"}
-                error={deletingDomain ? domainError : null}
-                onClose={() => {
-                    setDeletingDomain(null)
-                    setDomainError(null)
+                onOpenChange={(next) => {
+                    if (!next && domainBusy !== "delete") closeDeleteDomain()
                 }}
-                onConfirm={() => void deleteDomain()}
-            />
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("settings.accessSecurityTab.deleteDomain")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("common.thisCannotBeUndone")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="text-body">
+                        {t("settings.accessSecurityTab.deleteDomainBody", {
+                            name:
+                                deletingDomain?.slug ??
+                                t("settings.accessSecurityTab.thisDomain"),
+                        })}
+                    </div>
+                    {deletingDomain && domainError ? (
+                        <p className="m-0 text-body text-destructive">{domainError}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={closeDeleteDomain}
+                                disabled={domainBusy === "delete"}
+                            >
+                                {t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                disabled={domainBusy === "delete"}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void deleteDomain()
+                                }}
+                            >
+                                {domainBusy === "delete"
+                                    ? t("common.working")
+                                    : t("settings.accessSecurityTab.deleteDomain")}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <SsoProviderDialog
                 open={Boolean(providerDialog)}
@@ -395,22 +450,58 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
                 onSubmit={saveProvider}
             />
 
-            <ConfirmModal
+            <AlertDialog
                 open={Boolean(deletingProvider)}
-                title={t("settings.accessSecurityTab.deleteProviderTitle")}
-                description={t("common.thisCannotBeUndone")}
-                body={t("settings.accessSecurityTab.deleteProviderBody", {
-                    name: deletingProvider?.slug ?? t("settings.accessSecurityTab.thisProvider"),
-                })}
-                confirmLabel={t("settings.accessSecurityTab.deleteProvider")}
-                pending={providerBusy === "delete"}
-                error={deletingProvider ? providerError : null}
-                onClose={() => {
-                    setDeletingProvider(null)
-                    setProviderError(null)
+                onOpenChange={(next) => {
+                    if (!next && providerBusy !== "delete") closeDeleteProvider()
                 }}
-                onConfirm={() => void deleteProvider()}
-            />
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("settings.accessSecurityTab.deleteProviderTitle")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("common.thisCannotBeUndone")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="text-body">
+                        {t("settings.accessSecurityTab.deleteProviderBody", {
+                            name:
+                                deletingProvider?.slug ??
+                                t("settings.accessSecurityTab.thisProvider"),
+                        })}
+                    </div>
+                    {deletingProvider && providerError ? (
+                        <p className="m-0 text-body text-destructive">{providerError}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={closeDeleteProvider}
+                                disabled={providerBusy === "delete"}
+                            >
+                                {t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                disabled={providerBusy === "delete"}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void deleteProvider()
+                                }}
+                            >
+                                {providerBusy === "delete"
+                                    ? t("common.working")
+                                    : t("settings.accessSecurityTab.deleteProvider")}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

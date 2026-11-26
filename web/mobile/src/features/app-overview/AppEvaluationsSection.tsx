@@ -1,8 +1,20 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {Button} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -48,6 +60,7 @@ export const AppEvaluationsSection = ({
 }) => {
     const runs = useLatestAppRuns({projectId, appId, kind})
     const actions = useRunRowActions({projectId, base})
+    const t = useT(commonCatalog)
     const evaluationsEnabled = useDeveloperViewEnabled("evaluations") === true
     const title = TITLES[kind]
     const beta = useAtomValue(betaDeveloperModeActiveAtom)
@@ -94,7 +107,58 @@ export const AppEvaluationsSection = ({
                     empty={<EvaluationsEmpty kind={kind} />}
                 />
             )}
-            {actions.modal}
+            <AlertDialog
+                open={Boolean(actions.confirmDialog.request)}
+                onOpenChange={(next) => {
+                    if (!next && !actions.confirmDialog.pending) actions.confirmDialog.close()
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {actions.confirmDialog.request?.title ?? ""}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {actions.confirmDialog.request?.message ?? ""}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {actions.confirmDialog.error ? (
+                        <p className="m-0 text-body text-destructive">
+                            {actions.confirmDialog.error}
+                        </p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={actions.confirmDialog.close}
+                                disabled={actions.confirmDialog.pending}
+                            >
+                                {actions.confirmDialog.request?.cancelText ?? t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant={
+                                    actions.confirmDialog.request?.danger === false
+                                        ? "default"
+                                        : "destructive"
+                                }
+                                disabled={actions.confirmDialog.pending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void actions.confirmDialog.runConfirm()
+                                }}
+                            >
+                                {actions.confirmDialog.pending
+                                    ? t("common.working")
+                                    : (actions.confirmDialog.request?.okText ??
+                                          t("common.confirm"))}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             {creating ? (
                 <NewEvaluationSheet
                     kind={kind}

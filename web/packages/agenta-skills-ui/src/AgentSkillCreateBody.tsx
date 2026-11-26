@@ -8,13 +8,22 @@ import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
 import {projectIdAtom} from "@agenta/shared/state"
 import {buildSkillEmbedEntry} from "@agenta/skills"
 import type {NewSkillBodyProps} from "@agenta/ui/drill-in"
-import {Alert, Button, Spinner} from "@agenta/ui/ui"
+import {
+    Alert,
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    Spinner,
+} from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, ViewFooterStart} from "@agenta/ui/view-stack"
 import {useAtomValue} from "jotai"
 
 import {SkillCandidateList} from "./SkillCandidateList"
 import {SkillCreateWays} from "./SkillCreateWays"
-import {SkillDiscardDialog} from "./SkillDiscardDialog"
 import {SkillEditor} from "./SkillEditor"
 import {SkillGithubImport, type ImportedSkill} from "./SkillGithubImport"
 import {useSkillCreateFlow, type CreatedSkill} from "./useSkillCreateFlow"
@@ -204,15 +213,35 @@ export function AgentSkillCreateBody({onCreated, onDone}: NewSkillBodyProps) {
             className="flex min-h-0 flex-1 flex-col px-4 py-4 outline-none"
         >
             {body}
-            <SkillDiscardDialog
+            {/* Asks before a step back drops a skill that is not created yet. */}
+            <AlertDialog
                 open={asking !== null}
-                onKeep={() => setAsking(null)}
-                onDiscard={() => {
-                    const go = asking
-                    setAsking(null)
-                    go?.()
-                }}
-            />
+                onOpenChange={(next) => (next ? undefined : setAsking(null))}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{t("skills.page.discardTitle")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("skills.page.discardNewBody")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <Button variant="ghost" onClick={() => setAsking(null)}>
+                            {t("skills.page.keepEditing")}
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={() => {
+                                const go = asking
+                                setAsking(null)
+                                go?.()
+                            }}
+                        >
+                            {t("skills.page.discard")}
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

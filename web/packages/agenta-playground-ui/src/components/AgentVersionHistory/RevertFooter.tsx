@@ -1,6 +1,6 @@
 /**
  * The drawer's footer: the revert button and the revert's progress and outcome. The confirmation
- * itself is `RevertConfirmDialog`.
+ * itself is an `AlertDialog` in `AgentVersionHistoryDrawer`.
  */
 
 import {richText, useT} from "@agenta/i18n"

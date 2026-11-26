@@ -10,7 +10,6 @@ import {
     AlertDialogTitle,
 } from "../../src/components/ui/alert-dialog"
 import {Button} from "../../src/components/ui/button"
-import {UnsavedChangesDialog} from "../../src/view-stack/UnsavedChangesDialog"
 
 /**
  * How a Button picks its size on the canvas scale (design decision D1): a surface can give its
@@ -87,8 +86,12 @@ describe("Button size on the canvas scale", () => {
         expect(byName("Pick").className.split(" ")).not.toContain("text-muted-foreground")
     })
 
-    it("Keep editing in the unsaved changes dialog is a compact secondary ghost", () => {
-        render(<UnsavedChangesDialog open description="Save?" canSave onAnswer={() => undefined} />)
+    it("a ghost Keep editing in an alert footer is a compact secondary ghost", () => {
+        render(
+            <InDialog>
+                <Button variant="ghost">Keep editing</Button>
+            </InDialog>,
+        )
         const keep = byName("Keep editing")
         expect(keep.dataset.size).toBe("compact")
         expect(keep.className.split(" ")).toContain("text-muted-foreground")

@@ -5,12 +5,19 @@ import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import subagentViewsCatalog from "@agenta/i18n/catalogs/entityUi.subagentViews"
 import {useDrillInUI} from "@agenta/ui/drill-in"
-import {Button} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, type ConfigItemRef, type ViewProps} from "@agenta/ui/view-stack"
 
 import {ReferenceToolFormView} from "../../ReferenceToolFormView"
 import {describeSubagent, toolReferenceSlug} from "../itemDescriptors"
-import {SubagentRemoveDialog} from "../sections/SubagentsSection"
 import {savedSubagentSlugs, SubagentCurrentName, SubagentOpenAgentButton} from "../SubagentAgent"
 import {
     findSubagentIndex,
@@ -110,11 +117,29 @@ const SubagentViewBody = ({params, target, nav}: ViewProps<SubagentViewParams>) 
             </div>
             {writer.readOnly ? null : <RemoveFromAgentFooter onClick={() => setConfirming(true)} />}
             {confirming ? (
-                <SubagentRemoveDialog
-                    name={name}
-                    onRemove={remove}
-                    onClose={() => setConfirming(false)}
-                />
+                <AlertDialog
+                    open
+                    onOpenChange={(next) => (next ? undefined : setConfirming(false))}
+                >
+                    <AlertDialogContent data-testid="remove-from-agent-dialog">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {t("entityUi.integrationViews.removeTitle", {name})}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {t("entityUi.subagentViews.agentStays")}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <Button variant="outline" onClick={() => setConfirming(false)}>
+                                {t("entityUi.integrationViews.cancel")}
+                            </Button>
+                            <Button variant="destructive" onClick={remove}>
+                                {t("entityUi.integrationViews.remove")}
+                            </Button>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             ) : null}
         </div>
     )

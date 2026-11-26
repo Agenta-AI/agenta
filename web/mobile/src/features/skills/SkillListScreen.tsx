@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import type {SkillUploadScan} from "@agenta/entity-ui/drill-in"
 
-import {useT} from "@agenta/i18n"
+import {formatList, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {useDebounceInput} from "@agenta/shared/hooks"
@@ -19,7 +19,19 @@ import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {COMPACT_WINDOW_QUERY, useWindowMatch} from "@agenta/ui/hooks"
 import {ListTableSelectionToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
-import {Button, LoadingButton, PageToolbar} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    LoadingButton,
+    PageToolbar,
+} from "@agenta/ui/ui"
 import {Archive, ArrowUUpLeft, Plus} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -30,7 +42,6 @@ import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {PageLayout} from "../page-layout/PageLayout"
 
 import {pendingSkillUploadAtom} from "./pendingSkillUpload"
-import {SkillBulkArchiveDialog} from "./SkillBulkArchiveDialog"
 import {SkillFilterMenu} from "./SkillFilterMenu"
 import {SkillListTable} from "./SkillListTable"
 import {
@@ -45,6 +56,7 @@ import {
 import {skillCreateHref, skillPageHref} from "./skillRoutes"
 import {SkillsNoMatch} from "./states/SkillsNoMatch"
 import {useSkillActions} from "./useSkillActions"
+import {useSkillBulkArchiveAgents} from "./useSkillBulkArchiveAgents"
 
 const EMPTY_KEYS: ReadonlySet<string> = new Set()
 
@@ -135,6 +147,7 @@ export const SkillListScreen = ({
     const {archiveMany, restoreMany} = useSkillActions()
     const [archiveOpen, setArchiveOpen] = useState(false)
     const [bulkPending, setBulkPending] = useState(false)
+    const archiveAgents = useSkillBulkArchiveAgents(selectedRows, archiveOpen)
     const runBulk = useCallback(
         async (run: (ids: string[]) => Promise<void>) => {
             setBulkPending(true)
@@ -330,13 +343,73 @@ export const SkillListScreen = ({
             ) : (
                 body
             )}
-            <SkillBulkArchiveDialog
+            <AlertDialog
                 open={archiveOpen}
-                rows={selectedRows}
-                pending={bulkPending}
-                onConfirm={() => void runBulk(archiveMany)}
-                onClose={() => setArchiveOpen(false)}
-            />
+                onOpenChange={(next) => {
+                    if (!next && !bulkPending) setArchiveOpen(false)
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("skills.list.bulkArchiveTitle", {count: selectedRows.length})}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("skills.list.bulkArchiveMessage")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="flex flex-col gap-3 text-body">
+                        <div className="flex flex-col gap-1">
+                            <span className="text-label text-muted-foreground">
+                                {t("skills.list.bulkArchiveSkills")}
+                            </span>
+                            <span className="text-body text-foreground">
+                                {formatList(selectedRows.map((row) => row.title))}
+                            </span>
+                        </div>
+                        {/* The counts said some agent uses them, but the lookup found none. */}
+                        {archiveAgents.usedCount > 0 &&
+                        !archiveAgents.loading &&
+                        archiveAgents.agents.length === 0 ? null : (
+                            <div className="flex flex-col gap-1">
+                                <span className="text-label text-muted-foreground">
+                                    {t("skills.list.bulkArchiveAgents")}
+                                </span>
+                                <span className="text-body text-foreground">
+                                    {archiveAgents.usedCount === 0
+                                        ? t("skills.list.bulkArchiveNoAgents")
+                                        : archiveAgents.loading
+                                          ? t("skills.list.bulkArchiveCheckingAgents")
+                                          : formatList(archiveAgents.agents)}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={() => setArchiveOpen(false)}
+                                disabled={bulkPending}
+                            >
+                                {t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                disabled={bulkPending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void runBulk(archiveMany)
+                                }}
+                            >
+                                {bulkPending ? t("common.working") : t("skills.list.archive")}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </PageLayout>
     )
 }

@@ -6,12 +6,22 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsLlmProvidersTabCatalog from "@agenta/i18n/catalogs/settings.llmProvidersTab"
 import {AIProvidersPage, useEntitlements, type AIProvidersOrganization} from "@agenta/settings-ui"
 import {isEE} from "@agenta/shared/api"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {useOrganizationProjects} from "../nav/useOrganizationProjects"
 
-import {ConfirmModal} from "./ConfirmModal"
 import type {SettingsTabProps} from "./settingsTabProps"
 
 /**
@@ -63,20 +73,47 @@ export const LlmProvidersTab = ({workspaceId, projectId}: SettingsTabProps) => {
         <AIProvidersPage
             organization={organization ?? undefined}
             renderRemoveDialog={({connection, open, pending, error, onConfirm, onClose}) => (
-                <ConfirmModal
+                <AlertDialog
                     open={open}
-                    title={t("settings.llmProvidersTab.deleteTitle", {name: connection?.name ?? ""})}
-                    description={
-                        connection?.scope === "organization"
-                            ? t("settings.llmProvidersTab.deleteOrganizationDescription")
-                            : t("settings.llmProvidersTab.deleteProjectDescription")
-                    }
-                    confirmLabel={t("common.delete")}
-                    pending={pending}
-                    error={error}
-                    onConfirm={onConfirm}
-                    onClose={onClose}
-                />
+                    onOpenChange={(next) => {
+                        if (!next && !pending) onClose()
+                    }}
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {t("settings.llmProvidersTab.deleteTitle", {
+                                    name: connection?.name ?? "",
+                                })}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {connection?.scope === "organization"
+                                    ? t("settings.llmProvidersTab.deleteOrganizationDescription")
+                                    : t("settings.llmProvidersTab.deleteProjectDescription")}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        {error ? <p className="m-0 text-body text-destructive">{error}</p> : null}
+                        <AlertDialogFooter>
+                            <AlertDialogCancel asChild>
+                                <Button variant="outline" onClick={onClose} disabled={pending}>
+                                    {t("common.cancel")}
+                                </Button>
+                            </AlertDialogCancel>
+                            <AlertDialogAction asChild>
+                                <Button
+                                    variant="destructive"
+                                    disabled={pending}
+                                    onClick={(event) => {
+                                        event.preventDefault()
+                                        onConfirm()
+                                    }}
+                                >
+                                    {pending ? t("common.working") : t("common.delete")}
+                                </Button>
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             )}
         />
     )

@@ -1,8 +1,18 @@
 import {useState} from "react"
 
 import type {Workflow} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {message} from "@agenta/ui/app-message"
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
     DropdownMenu,
     DropdownMenuContent,
@@ -39,7 +49,9 @@ export const AppActionsMenu = ({
 }) => {
     const canEdit = useProjectPermission(projectId, "edit_workflows") && !evaluator
     const [renameOpen, setRenameOpen] = useState(false)
-    const {confirm, modal} = useConfirmModal()
+    const t = useT(commonCatalog)
+    const confirmDialog = useConfirmModal()
+    const {confirm} = confirmDialog
     const archive = useAppArchive({projectId, appId: app.id, base})
     const slug = app.slug ?? null
 
@@ -103,7 +115,53 @@ export const AppActionsMenu = ({
                     onClose={() => setRenameOpen(false)}
                 />
             ) : null}
-            {modal}
+            <AlertDialog
+                open={Boolean(confirmDialog.request)}
+                onOpenChange={(next) => {
+                    if (!next && !confirmDialog.pending) confirmDialog.close()
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{confirmDialog.request?.title ?? ""}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {confirmDialog.request?.message ?? ""}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {confirmDialog.error ? (
+                        <p className="m-0 text-body text-destructive">{confirmDialog.error}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={confirmDialog.close}
+                                disabled={confirmDialog.pending}
+                            >
+                                {confirmDialog.request?.cancelText ?? t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant={
+                                    confirmDialog.request?.danger === false
+                                        ? "default"
+                                        : "destructive"
+                                }
+                                disabled={confirmDialog.pending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void confirmDialog.runConfirm()
+                                }}
+                            >
+                                {confirmDialog.pending
+                                    ? t("common.working")
+                                    : (confirmDialog.request?.okText ?? t("common.confirm"))}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }

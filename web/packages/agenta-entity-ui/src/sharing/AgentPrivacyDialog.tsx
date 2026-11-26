@@ -11,9 +11,9 @@ import {useT} from "@agenta/i18n"
 import sharingCatalog from "@agenta/i18n/catalogs/entityUi.sharing"
 import {
     PersonAvatar,
-    ShareDisclosureNotice,
     SharingSurface,
     personName,
+    useShareDisclosureText,
     type SharingPerson,
     type SharingWriteResult,
 } from "@agenta/sessions-ui/sharing"
@@ -170,6 +170,11 @@ export const AgentPrivacyPanel = ({
         setConfirm(null)
         setTransferOpen(false)
     }, [active])
+    const disclosureText = useShareDisclosureText(
+        {kind: "agent", agentName, projectName},
+        disclosure,
+        providerLabel,
+    )
 
     const confirmVisibility = async () => {
         if (!confirm || !writable) return
@@ -371,15 +376,35 @@ export const AgentPrivacyPanel = ({
                 </AlertDialogContent>
             </AlertDialog>
 
-            <ShareDisclosureNotice
+            <AlertDialog
                 open={writable && confirm === "project"}
                 onOpenChange={(next) => !next && !writes.saving && setConfirm(null)}
-                target={{kind: "agent", agentName, projectName}}
-                disclosure={disclosure}
-                providerLabel={providerLabel}
-                onConfirm={() => void confirmVisibility()}
-                confirming={writes.saving === "visibility"}
-            />
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{disclosureText.title}</AlertDialogTitle>
+                        <AlertDialogDescription>{disclosureText.body}</AlertDialogDescription>
+                        {disclosureText.personalAccounts.length ? (
+                            <ul className="m-0 list-none p-0 text-body text-muted-foreground">
+                                {disclosureText.personalAccounts.map((line) => (
+                                    <li key={line}>{line}</li>
+                                ))}
+                            </ul>
+                        ) : null}
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={writes.saving === "visibility"}>
+                            {disclosureText.cancelLabel}
+                        </AlertDialogCancel>
+                        <LoadingButton
+                            loading={writes.saving === "visibility"}
+                            onClick={() => void confirmVisibility()}
+                        >
+                            {disclosureText.confirmLabel}
+                        </LoadingButton>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
         </>
     )

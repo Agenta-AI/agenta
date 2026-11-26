@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillsEditorCatalog from "@agenta/i18n/catalogs/skills.editor"
 import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
 import {
@@ -13,7 +14,20 @@ import {
     type CreatedSkill,
     type ImportedSkill,
 } from "@agenta/skills-ui"
-import {Alert, Button, IconTile, LoadingButton} from "@agenta/ui/ui"
+import {
+    Alert,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    IconTile,
+    LoadingButton,
+} from "@agenta/ui/ui"
 import {GithubLogo} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 import Link from "next/link"
@@ -35,7 +49,7 @@ export const SkillCreateScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
-    const t = useT(skillsPageCatalog, skillsEditorCatalog)
+    const t = useT(skillsPageCatalog, skillsEditorCatalog, commonCatalog)
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
     const listHref = skillsListHref(base)
@@ -59,7 +73,7 @@ export const SkillCreateScreen = ({
         [base, listHref],
     )
     const flow = useSkillCreateFlow({projectId, onCreated: showAdded})
-    const {leave, modal, discardThen} = useSkillLeaveGuard(
+    const {leave, confirmDialog, discardThen} = useSkillLeaveGuard(
         flow.dirty && !flow.busy,
         t("skills.page.discardNewBody"),
     )
@@ -272,7 +286,53 @@ export const SkillCreateScreen = ({
                     {body}
                 </div>
             </PageLayout>
-            {modal}
+            <AlertDialog
+                open={Boolean(confirmDialog.request)}
+                onOpenChange={(next) => {
+                    if (!next && !confirmDialog.pending) confirmDialog.close()
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{confirmDialog.request?.title ?? ""}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {confirmDialog.request?.message ?? ""}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {confirmDialog.error ? (
+                        <p className="m-0 text-body text-destructive">{confirmDialog.error}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={confirmDialog.close}
+                                disabled={confirmDialog.pending}
+                            >
+                                {confirmDialog.request?.cancelText ?? t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant={
+                                    confirmDialog.request?.danger === false
+                                        ? "default"
+                                        : "destructive"
+                                }
+                                disabled={confirmDialog.pending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void confirmDialog.runConfirm()
+                                }}
+                            >
+                                {confirmDialog.pending
+                                    ? t("common.working")
+                                    : (confirmDialog.request?.okText ?? t("common.confirm"))}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }

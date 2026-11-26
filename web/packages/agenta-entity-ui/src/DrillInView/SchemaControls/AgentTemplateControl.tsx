@@ -23,7 +23,11 @@
  */
 import {memo, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react"
 
-import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
+import {
+    toolActionAvailabilityKey,
+    useToolActionAvailability,
+    useToolIntegrationDetail,
+} from "@agenta/entities/gatewayTool"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {
     agentRequirementsAtomFamily,
@@ -35,11 +39,21 @@ import {
 import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
 import {createT, getActiveLanguage, useT, type CatalogKey} from "@agenta/i18n"
 import agentTemplateCatalog from "@agenta/i18n/catalogs/entityUi.agentTemplate"
+import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {
     useViewOpener,
     type ConfigItemRef,
@@ -78,10 +92,7 @@ import {
 import {advancedSection} from "./agentTemplate/sections/AdvancedSection"
 import {agentMcpSection} from "./agentTemplate/sections/AgentMcpSection"
 import {instructionsSection} from "./agentTemplate/sections/InstructionsSection"
-import {
-    IntegrationRemoveDialog,
-    integrationsSection,
-} from "./agentTemplate/sections/IntegrationsSection"
+import {integrationsSection} from "./agentTemplate/sections/IntegrationsSection"
 import {ModelHarnessSectionBody} from "./agentTemplate/sections/ModelHarnessSectionBody"
 import {modelSection} from "./agentTemplate/sections/ModelSection"
 import {permissionsSection} from "./agentTemplate/sections/PermissionsSection"
@@ -214,6 +225,10 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     }, [openView, viewTarget, disabled])
     // The integration whose remove dialog is open (F06 f2).
     const [removingIntegration, setRemovingIntegration] = useState<IntegrationRow | null>(null)
+    const tViews = useT(integrationViewsCatalog)
+    const {integration: removingDetail} = useToolIntegrationDetail(
+        removingIntegration?.integration ?? "",
+    )
     // Shared draft-then-save drawer for tools, MCP servers, and skills (writes via ITEM_KINDS).
     // Nothing is registered at save any more. An MCP item names a connection that already
     // exists, created by the connect journey, so committing one writes the reference and
@@ -1040,21 +1055,49 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             {/* A view in this drawer follows the revision on screen and the edit right. */}
             <AgentEditorContext.Provider value={editor}>{views.drawer}</AgentEditorContext.Provider>
             {removingIntegration ? (
-                <IntegrationRemoveDialog
-                    row={removingIntegration}
-                    onRemove={() => {
-                        const latest = configRef.current
-                        onChange({
-                            ...latest,
-                            tools: removeIntegrationByRef(
-                                Array.isArray(latest.tools) ? (latest.tools as unknown[]) : [],
-                                integrationItemRef(removingIntegration),
-                            ),
-                        })
-                        setRemovingIntegration(null)
-                    }}
-                    onClose={() => setRemovingIntegration(null)}
-                />
+                <AlertDialog
+                    open
+                    onOpenChange={(next) => (next ? undefined : setRemovingIntegration(null))}
+                >
+                    <AlertDialogContent data-testid="remove-from-agent-dialog">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {tViews("entityUi.integrationViews.removeTitle", {
+                                    name: removingDetail?.name || removingIntegration.integration,
+                                })}
+                            </AlertDialogTitle>
+                            {/* A per-person entry names no project connection. */}
+                            <AlertDialogDescription>
+                                {removingIntegration.entry?.accountSource === "user"
+                                    ? tViews("entityUi.integrationViews.accountsStay")
+                                    : tViews("entityUi.integrationViews.connectionStays")}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <Button variant="outline" onClick={() => setRemovingIntegration(null)}>
+                                {tViews("entityUi.integrationViews.cancel")}
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                onClick={() => {
+                                    const latest = configRef.current
+                                    onChange({
+                                        ...latest,
+                                        tools: removeIntegrationByRef(
+                                            Array.isArray(latest.tools)
+                                                ? (latest.tools as unknown[])
+                                                : [],
+                                            integrationItemRef(removingIntegration),
+                                        ),
+                                    })
+                                    setRemovingIntegration(null)
+                                }}
+                            >
+                                {tViews("entityUi.integrationViews.remove")}
+                            </Button>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             ) : null}
         </div>
     )

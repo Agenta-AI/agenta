@@ -23,12 +23,25 @@ import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import {buildVersionRows, revertAgentRevisionAtom} from "@agenta/playground/state"
 import {PhoneScreenHeader} from "@agenta/ui/phone"
 import {cn, textColors} from "@agenta/ui/styles"
-import {Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    Sheet,
+    SheetContent,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
+} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {ChangesPane} from "./ChangesPane"
-import {RevertConfirmDialog} from "./RevertConfirmDialog"
 import {RevertFooter} from "./RevertFooter"
 import type {RevertPhase} from "./RevertFooter"
 import {
@@ -249,13 +262,36 @@ export const AgentVersionHistoryDrawer = ({
                         phone && "flex flex-col rounded-t-[inherit]",
                     )}
                 >
-                    <RevertConfirmDialog
+                    <AlertDialog
                         open={phase === "confirm"}
-                        selectedVersion={selectedRow?.version ?? null}
-                        latestVersion={latestRow?.version ?? null}
-                        onCancel={() => setPhase("idle")}
-                        onConfirm={handleConfirm}
-                    />
+                        onOpenChange={(next) => !next && setPhase("idle")}
+                    >
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                    {t("playground.versionHistory.revertTitle", {
+                                        version: selectedRow?.version ?? "",
+                                    })}
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    {t("playground.versionHistory.revertDescription", {
+                                        next: (latestRow?.version ?? 0) + 1,
+                                        version: selectedRow?.version ?? "",
+                                        latest: latestRow?.version ?? "",
+                                    })}
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                {/* Cancel closes through onOpenChange: back to idle. */}
+                                <AlertDialogCancel>
+                                    {t("playground.versionHistory.cancel")}
+                                </AlertDialogCancel>
+                                <Button onClick={handleConfirm}>
+                                    {t("playground.versionHistory.revert")}
+                                </Button>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                     {phone ? (
                         <>
                             {/* The drawer has no header on a phone; this names the dialog. */}

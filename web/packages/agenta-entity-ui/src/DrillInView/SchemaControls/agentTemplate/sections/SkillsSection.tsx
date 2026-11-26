@@ -2,10 +2,20 @@ import {useState} from "react"
 
 import {createT, formatList, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import integrationViewsCatalog from "@agenta/i18n/catalogs/entityUi.integrationViews"
 import skillNewCatalog from "@agenta/i18n/catalogs/entityUi.skillNew"
 import skillTemplateCatalog from "@agenta/i18n/catalogs/entityUi.skillTemplate"
 import skillsAgentCatalog from "@agenta/i18n/catalogs/skills.agent"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    SimpleTooltip,
+} from "@agenta/ui/ui"
 import {Book, Compass, Plus, Trash} from "@phosphor-icons/react"
 
 import {countSummary} from "../agentTemplateUtils"
@@ -14,7 +24,6 @@ import {CreateWithAIAddMenu} from "../CreateWithAIAddMenu"
 import {describeSkill, isEmbedRefSkill, skillCommandName} from "../itemDescriptors"
 import {ITEM_KINDS} from "../itemKinds"
 import {ItemRow} from "../ItemRow"
-import {RemoveFromAgentDialog} from "../RemoveFromAgentDialog"
 import {SectionAddButton} from "../SectionAddButton"
 
 import type {AgentTemplateT, SectionIndicatorFor, SectionResult} from "./types"
@@ -147,7 +156,7 @@ const SkillsList = ({
     SkillsSectionParams,
     "skills" | "openSkillItem" | "removeItem" | "closeEditor" | "disabled" | "skillStatusFor"
 >) => {
-    const t = useT(skillNewCatalog, skillTemplateCatalog)
+    const t = useT(skillNewCatalog, skillTemplateCatalog, integrationViewsCatalog)
     const [removing, setRemoving] = useState<{index: number; entry: unknown} | null>(null)
     const entry = removing?.entry as Record<string, unknown> | undefined
     const name = entry ? describeSkill(entry).name : ""
@@ -195,24 +204,41 @@ const SkillsList = ({
                 })}
             </div>
             {removing ? (
-                <RemoveFromAgentDialog
+                <AlertDialog
                     open
-                    name={name}
-                    description={
-                        isEmbedRefSkill(entry)
-                            ? t("entityUi.skillNew.removeRegistryBody")
-                            : t("entityUi.skillNew.removeAgentOnlyBody")
-                    }
-                    onRemove={() => {
-                        // The list may have changed under the dialog: remove the same entry only.
-                        if (skills[removing.index] === removing.entry) {
-                            removeItem("skill", removing.index)
-                            closeEditor()
-                        }
-                        setRemoving(null)
-                    }}
-                    onClose={() => setRemoving(null)}
-                />
+                    onOpenChange={(next) => (next ? undefined : setRemoving(null))}
+                >
+                    <AlertDialogContent data-testid="remove-from-agent-dialog">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {t("entityUi.integrationViews.removeTitle", {name})}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {isEmbedRefSkill(entry)
+                                    ? t("entityUi.skillNew.removeRegistryBody")
+                                    : t("entityUi.skillNew.removeAgentOnlyBody")}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <Button variant="outline" onClick={() => setRemoving(null)}>
+                                {t("entityUi.integrationViews.cancel")}
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                onClick={() => {
+                                    // The list may have changed: remove the same entry only.
+                                    if (skills[removing.index] === removing.entry) {
+                                        removeItem("skill", removing.index)
+                                        closeEditor()
+                                    }
+                                    setRemoving(null)
+                                }}
+                            >
+                                {t("entityUi.integrationViews.remove")}
+                            </Button>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             ) : null}
         </>
     )

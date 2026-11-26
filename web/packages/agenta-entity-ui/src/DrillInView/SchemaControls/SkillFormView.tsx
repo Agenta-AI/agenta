@@ -830,7 +830,7 @@ export function SkillFormView({
                     if (!next) setDeleting(null)
                 }}
             >
-                <AlertDialogContent className="sm:max-w-[400px]">
+                <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>
                             {t("entityUi.skillView.deleteTitle", {name: deletingName})}

@@ -11,7 +11,19 @@ import {
 } from "@agenta/automation-ui"
 import {useT} from "@agenta/i18n"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {useIsPhone} from "@agenta/ui/phone"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -54,7 +66,7 @@ export const AutomationDetailScreen = ({
     automationId: string
 }) => {
     useBindProjectContext(projectId)
-    const t = useT(automationsScreensCatalog)
+    const t = useT(automationsScreensCatalog, commonCatalog)
     const phone = useIsPhone()
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
@@ -82,13 +94,62 @@ export const AutomationDetailScreen = ({
 
     // One modal for both questions this screen can ask (leave without saving, delete) would mean
     // one of them waiting on the other; the menu owns its own.
-    const {confirm, modal} = useConfirmModal()
+    const confirmDialog = useConfirmModal()
+    const {confirm} = confirmDialog
     const leave = useUnsavedGuard({
         dirty,
         confirm,
         title: t("automations.screens.leaveTitle"),
         message: t("automations.screens.leaveMessage"),
     })
+
+    const leaveAlert = (
+        <AlertDialog
+            open={Boolean(confirmDialog.request)}
+            onOpenChange={(next) => {
+                if (!next && !confirmDialog.pending) confirmDialog.close()
+            }}
+        >
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>{confirmDialog.request?.title ?? ""}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {confirmDialog.request?.message ?? ""}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                {confirmDialog.error ? (
+                    <p className="m-0 text-body text-destructive">{confirmDialog.error}</p>
+                ) : null}
+                <AlertDialogFooter>
+                    <AlertDialogCancel asChild>
+                        <Button
+                            variant="outline"
+                            onClick={confirmDialog.close}
+                            disabled={confirmDialog.pending}
+                        >
+                            {confirmDialog.request?.cancelText ?? t("common.cancel")}
+                        </Button>
+                    </AlertDialogCancel>
+                    <AlertDialogAction asChild>
+                        <Button
+                            variant={
+                                confirmDialog.request?.danger === false ? "default" : "destructive"
+                            }
+                            disabled={confirmDialog.pending}
+                            onClick={(event) => {
+                                event.preventDefault()
+                                void confirmDialog.runConfirm()
+                            }}
+                        >
+                            {confirmDialog.pending
+                                ? t("common.working")
+                                : (confirmDialog.request?.okText ?? t("common.confirm"))}
+                        </Button>
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    )
 
     // `?view=runs` opens straight on the history — a list row that promises runs should not
     // land the reader on the config to find them.
@@ -167,7 +228,7 @@ export const AutomationDetailScreen = ({
                     </ScreenScaffold>
                 </AppShell>
                 <AutomationTriggerDrawers />
-                {modal}
+                {leaveAlert}
             </>
         )
     }
@@ -246,7 +307,7 @@ export const AutomationDetailScreen = ({
                 ) : null}
             </PageLayout>
             <AutomationTriggerDrawers />
-            {modal}
+            {leaveAlert}
         </>
     )
 }

@@ -9,7 +9,6 @@ import {
     type ColumnDialogStep,
 } from "../../../mobile/src/features/testsets/detail/ColumnDialogs"
 import {CommitTestsetDialog} from "../../../mobile/src/features/testsets/detail/CommitTestsetDialog"
-import {LeavePrompt} from "../../../mobile/src/features/testsets/detail/LeavePrompt"
 import {
     TestsetHeader,
     type TestsetHeaderProps,
@@ -17,8 +16,8 @@ import {
 import type {RevisionsList} from "../../../mobile/src/features/testsets/detail/useRevisionsList"
 
 /**
- * The parts of the Test set detail page that hold no data layer: the header, the commit step and
- * the prompt for leaving with unsaved changes. Each story passes what the page would pass.
+ * The parts of the Test set detail page that hold no data layer: the header and the commit step.
+ * Each story passes what the page would pass.
  */
 const meta = {
     title: "@agenta/mobile/Developer/Testsets/Detail",
@@ -145,29 +144,6 @@ export const CommitDialogWithDiff: Story = {
             }}
         />
     ),
-}
-
-const LeavePromptStory = ({isNew}: {isNew: boolean}) => {
-    const [open, setOpen] = useState(true)
-    return (
-        <LeavePrompt
-            open={open}
-            isNew={isNew}
-            onSave={() => setOpen(false)}
-            onCancel={() => setOpen(false)}
-            onLeave={() => setOpen(false)}
-        />
-    )
-}
-
-export const LeavePromptSaved: Story = {
-    args: base,
-    render: () => <LeavePromptStory isNew={false} />,
-}
-
-export const LeavePromptNew: Story = {
-    args: base,
-    render: () => <LeavePromptStory isNew />,
 }
 
 const ColumnDialogStory = ({

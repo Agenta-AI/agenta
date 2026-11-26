@@ -8,6 +8,19 @@ import {
     type ReactNode,
 } from "react"
 
+import {useT} from "@agenta/i18n"
+import viewStackCatalog from "@agenta/i18n/catalogs/ui.viewStack"
+
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "../components/ui/alert-dialog"
+import {Button} from "../components/ui/button"
+
 import {
     ViewEntryContext,
     ViewFooterStartContext,
@@ -25,7 +38,8 @@ import type {
     ViewStack,
     ViewTarget,
 } from "./types"
-import {UnsavedChangesDialog, type LeaveAnswer} from "./UnsavedChangesDialog"
+
+export type LeaveAnswer = "keep" | "discard" | "save"
 
 interface Entry {
     /** Unique per open; a new key remounts the view, which drops its local form. */
@@ -95,6 +109,7 @@ export const ViewStackHost = ({
     const [saving, setSaving] = useState(false)
     const [failedKey, setFailedKey] = useState<number | null>(null)
     const [question, setQuestion] = useState<PendingQuestion | null>(null)
+    const t = useT(viewStackCatalog)
     // The root animates only when a view gives it back its place, not on the first paint.
     const [viewOpened, setViewOpened] = useState(false)
     if (entries.length > 0 && !viewOpened) setViewOpened(true)
@@ -430,15 +445,55 @@ export const ViewStackHost = ({
                     </Chrome>
                 ) : null}
             </div>
-            <UnsavedChangesDialog
+            {/* The generic unsaved-changes question; the dirty view gives the description. */}
+            <AlertDialog
                 open={question !== null}
-                title={question?.title}
-                offerSave={question?.offerSave ?? true}
-                description={question?.description ?? ""}
-                canSave={question?.canSave ?? false}
-                saveFailed={question?.saveFailed ?? false}
-                onAnswer={(answer) => question?.resolve(answer)}
-            />
+                onOpenChange={(next) => (next ? undefined : question?.resolve("keep"))}
+            >
+                <AlertDialogContent data-testid="unsaved-changes-dialog">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {question?.title ?? t("ui.viewStack.unsavedChanges")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {question?.description ?? ""}
+                        </AlertDialogDescription>
+                        {question?.saveFailed ? (
+                            <span role="alert" className="text-body text-destructive">
+                                {t("ui.viewStack.saveFailed")}
+                            </span>
+                        ) : null}
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <Button variant="ghost" onClick={() => question?.resolve("keep")}>
+                            {t("ui.viewStack.keepEditing")}
+                        </Button>
+                        {(question?.offerSave ?? true) ? (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => question?.resolve("discard")}
+                                >
+                                    {t("ui.viewStack.discard")}
+                                </Button>
+                                <Button
+                                    disabled={!question?.canSave}
+                                    onClick={() => question?.resolve("save")}
+                                >
+                                    {t("ui.viewStack.saveChanges")}
+                                </Button>
+                            </>
+                        ) : (
+                            <Button
+                                variant="destructive"
+                                onClick={() => question?.resolve("discard")}
+                            >
+                                {t("ui.viewStack.discard")}
+                            </Button>
+                        )}
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </ViewStackContext.Provider>
     )
 }

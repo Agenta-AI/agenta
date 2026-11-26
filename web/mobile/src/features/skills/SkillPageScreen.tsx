@@ -1,6 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {createT, formatList, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import skillsPageCatalog from "@agenta/i18n/catalogs/skills.page"
 import {extractApiErrorMessage, timeAgo} from "@agenta/shared/utils"
 import {
@@ -26,7 +27,19 @@ import {
     type SkillDraft,
 } from "@agenta/skills-ui"
 import {message} from "@agenta/ui/app-message"
-import {Alert, Button, SkeletonBlock} from "@agenta/ui/ui"
+import {
+    Alert,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    SkeletonBlock,
+} from "@agenta/ui/ui"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
@@ -56,7 +69,7 @@ export const SkillPageScreen = ({
     skillSlug: string
 }) => {
     useBindProjectContext(projectId)
-    const t = useT(skillsPageCatalog)
+    const t = useT(skillsPageCatalog, commonCatalog)
     const base = `/w/${workspaceId}/p/${projectId}`
     const listHref = skillsListHref(base)
     const queryClient = useQueryClient()
@@ -115,8 +128,9 @@ export const SkillPageScreen = ({
         [dirty, name, registry, workflowId],
     )
 
-    const {modal: leaveModal} = useSkillLeaveGuard(dirty, t("skills.page.discardBody"))
-    const {confirm, modal} = useConfirmModal()
+    const {confirmDialog: leaveDialog} = useSkillLeaveGuard(dirty, t("skills.page.discardBody"))
+    const confirmDialog = useConfirmModal()
+    const {confirm} = confirmDialog
     const {archive, restore, download} = useSkillActions()
     const updates = useSkillUpdates()
     const updateStatus = useSkillUpdateStatus(workflowId)
@@ -402,8 +416,100 @@ export const SkillPageScreen = ({
             >
                 {body}
             </PageLayout>
-            {modal}
-            {leaveModal}
+            <AlertDialog
+                open={Boolean(confirmDialog.request)}
+                onOpenChange={(next) => {
+                    if (!next && !confirmDialog.pending) confirmDialog.close()
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{confirmDialog.request?.title ?? ""}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {confirmDialog.request?.message ?? ""}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {confirmDialog.error ? (
+                        <p className="m-0 text-body text-destructive">{confirmDialog.error}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={confirmDialog.close}
+                                disabled={confirmDialog.pending}
+                            >
+                                {confirmDialog.request?.cancelText ?? t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant={
+                                    confirmDialog.request?.danger === false
+                                        ? "default"
+                                        : "destructive"
+                                }
+                                disabled={confirmDialog.pending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void confirmDialog.runConfirm()
+                                }}
+                            >
+                                {confirmDialog.pending
+                                    ? t("common.working")
+                                    : (confirmDialog.request?.okText ?? t("common.confirm"))}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            <AlertDialog
+                open={Boolean(leaveDialog.request)}
+                onOpenChange={(next) => {
+                    if (!next && !leaveDialog.pending) leaveDialog.close()
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{leaveDialog.request?.title ?? ""}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {leaveDialog.request?.message ?? ""}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {leaveDialog.error ? (
+                        <p className="m-0 text-body text-destructive">{leaveDialog.error}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={leaveDialog.close}
+                                disabled={leaveDialog.pending}
+                            >
+                                {leaveDialog.request?.cancelText ?? t("common.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant={
+                                    leaveDialog.request?.danger === false
+                                        ? "default"
+                                        : "destructive"
+                                }
+                                disabled={leaveDialog.pending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void leaveDialog.runConfirm()
+                                }}
+                            >
+                                {leaveDialog.pending
+                                    ? t("common.working")
+                                    : (leaveDialog.request?.okText ?? t("common.confirm"))}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }

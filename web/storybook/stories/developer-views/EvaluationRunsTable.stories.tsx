@@ -52,7 +52,14 @@ const makeActions = (canEdit: boolean): RunRowActions => ({
     viewTestset: noop,
     remove: noop,
     isBusy: () => false,
-    modal: <></>,
+    confirmDialog: {
+        request: null,
+        pending: false,
+        error: null,
+        confirm: noop,
+        close: noop,
+        runConfirm: async () => undefined,
+    },
 })
 
 type StepKind = "auto" | "human" | "custom"

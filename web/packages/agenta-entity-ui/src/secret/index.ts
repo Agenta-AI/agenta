@@ -30,7 +30,6 @@ export {
 } from "../accounts/OwnerField"
 export {OwnerChip} from "../accounts/OwnerChip"
 
-export {SecretRemoveDialog} from "./SecretRemoveDialog"
 export {secretAttachView, type SecretAttachViewParams} from "./views/secretAttachView"
 export {secretFormView, type SecretFormViewParams} from "./views/secretFormView"
 export {SecretFormDialog, type SecretFormDialogProps} from "./SecretFormDialog"

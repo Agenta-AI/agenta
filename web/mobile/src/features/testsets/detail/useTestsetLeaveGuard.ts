@@ -2,8 +2,6 @@ import {useCallback, useEffect, useState} from "react"
 
 import {useUnsavedGuard} from "../../automations/useUnsavedGuard"
 
-import {LeavePrompt} from "./LeavePrompt"
-
 /**
  * Stops a route change or a tab close while the test set has unsaved changes.
  *
@@ -13,16 +11,15 @@ import {LeavePrompt} from "./LeavePrompt"
  * `onDiscard` and goes on.
  *
  * `leave(url)` goes to a page with no prompt, for the moves that are not a question: after a
- * commit or an archive there is nothing left to save. Render `prompt` once on the page.
+ * commit or an archive there is nothing left to save. The page draws the prompt's `AlertDialog`
+ * from `promptOpen`, `cancelLeave`, `saveInstead` and `discardAndLeave`.
  */
 export function useTestsetLeaveGuard({
     dirty,
-    isNew,
     onSave,
     onDiscard,
 }: {
     dirty: boolean
-    isNew: boolean
     onSave: () => void
     onDiscard: () => void
 }) {
@@ -34,7 +31,7 @@ export function useTestsetLeaveGuard({
             setProceed({go: () => void request.onOk()}),
         [],
     )
-    // `LeavePrompt` asks its own question, so the guard's title and message are not shown here.
+    // The page's prompt asks its own question, so the guard's title and message are not shown.
     const leave = useUnsavedGuard({
         dirty,
         confirm: askBeforeLeaving,
@@ -52,23 +49,17 @@ export function useTestsetLeaveGuard({
         return () => window.removeEventListener("beforeunload", onBeforeUnload)
     }, [dirty])
 
-    const prompt = (
-        <LeavePrompt
-            open={proceed !== null}
-            isNew={isNew}
-            onCancel={() => setProceed(null)}
-            onSave={() => {
-                setProceed(null)
-                onSave()
-            }}
-            onLeave={() => {
-                const way = proceed
-                setProceed(null)
-                onDiscard()
-                way?.go()
-            }}
-        />
-    )
+    const cancelLeave = useCallback(() => setProceed(null), [])
+    const saveInstead = useCallback(() => {
+        setProceed(null)
+        onSave()
+    }, [onSave])
+    const discardAndLeave = useCallback(() => {
+        const way = proceed
+        setProceed(null)
+        onDiscard()
+        way?.go()
+    }, [onDiscard, proceed])
 
-    return {leave, prompt}
+    return {leave, promptOpen: proceed !== null, cancelLeave, saveInstead, discardAndLeave}
 }

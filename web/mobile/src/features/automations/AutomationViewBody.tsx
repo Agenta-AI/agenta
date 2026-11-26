@@ -6,13 +6,23 @@ import {
     useAutomation,
     useAutomationEditor,
 } from "@agenta/automation-ui"
-import {AutomationDeleteDialog} from "@agenta/entity-ui/drill-in"
+import {useAutomationDelete} from "@agenta/entity-ui/drill-in"
 import {createT, useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import automationsPanelCatalog from "@agenta/i18n/catalogs/automations.panel"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {message} from "@agenta/ui/app-message"
 import {useIsPhone} from "@agenta/ui/phone"
-import {Button} from "@agenta/ui/ui"
+import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
 import {Trash} from "@phosphor-icons/react"
 
@@ -24,7 +34,7 @@ const tNow = createT(automationsScreensCatalog)
 
 /** The body of the automation view: the shared body in a panel column, with this app's Run now. */
 const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParams>) => {
-    const t = useT(automationsScreensCatalog)
+    const t = useT(automationsScreensCatalog, automationsPanelCatalog)
     const tEditor = useT(automationsEditorCatalog)
     const phone = useIsPhone()
     const editor = useAutomationEditor(params.automationId)
@@ -75,6 +85,7 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
         message.success(tNow("automations.screens.deleted"))
         nav.cancel()
     }, [nav, params.automationId, remove])
+    const deletion = useAutomationDelete({onDelete, onClose: () => setConfirmDelete(false)})
 
     if (editor.loading) return <AutomationDetailSkeleton />
     if (!editor.automation || !editor.preview)
@@ -153,12 +164,39 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
                     </Button>
                 </span>
             </div>
-            <AutomationDeleteDialog
+            <AlertDialog
                 open={confirmDelete}
-                name={editor.automation.name}
-                onDelete={onDelete}
-                onClose={() => setConfirmDelete(false)}
-            />
+                onOpenChange={(next) => (next ? undefined : deletion.close())}
+            >
+                <AlertDialogContent data-testid="automation-delete-dialog">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{t("automations.screens.deleteTitle")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("automations.screens.deleteMessage", {name: editor.automation.name})}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {deletion.failed ? (
+                        <p role="alert" className="m-0 text-label text-destructive">
+                            {t("automations.panel.deleteFailed")}
+                        </p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        {/* Focus starts on Cancel when the dialog opens. */}
+                        <AlertDialogCancel asChild>
+                            <Button variant="outline" disabled={deletion.pending}>
+                                {t("automations.screens.cancel")}
+                            </Button>
+                        </AlertDialogCancel>
+                        <Button
+                            variant="destructive"
+                            disabled={deletion.pending}
+                            onClick={() => void deletion.remove()}
+                        >
+                            {t("automations.screens.delete")}
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

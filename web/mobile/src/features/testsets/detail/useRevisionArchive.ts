@@ -4,8 +4,6 @@ import {archiveRevision, invalidateRevisionsListCache} from "@agenta/entities/te
 import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
 
-import {ConfirmModal} from "../../settings/ConfirmModal"
-
 import {testsetRevisionPath} from "./testsetRouteId"
 import type {RevisionsList} from "./useRevisionsList"
 
@@ -24,15 +22,11 @@ export const archiveDisabledReason = (
 /**
  * Archives the revision on screen after a confirm, then opens the newest other revision, or
  * the list when there is none. The only saved revision stays, as in the old app.
- *
- * Render `modal` next to the menu that calls `request`.
  */
 export function useRevisionArchive({
     projectId,
     testsetId,
     revisionId,
-    name,
-    version,
     list,
     base,
     leave,
@@ -40,8 +34,6 @@ export function useRevisionArchive({
     projectId: string
     testsetId: string | undefined
     revisionId: string | null
-    name: string
-    version: number | undefined
     list: Pick<RevisionsList, "status" | "revisions">
     base: string
     /** Goes to a page without the unsaved-changes prompt: after an archive there is none to save. */
@@ -84,26 +76,5 @@ export function useRevisionArchive({
         }
     }, [base, leave, list.revisions, projectId, queryClient, revisionId, testsetId])
 
-    const modal = (
-        <ConfirmModal
-            open={open}
-            title="Are you sure?"
-            description="Are you sure you want to archive the following?"
-            body={
-                <div className="flex flex-col gap-0.5">
-                    <span className="text-meta text-muted-foreground">Revisions only</span>
-                    <span className="font-medium">
-                        {name} v{version ?? "#"}
-                    </span>
-                </div>
-            }
-            confirmLabel="Archive"
-            pending={pending}
-            error={error}
-            onClose={close}
-            onConfirm={() => void confirmArchive()}
-        />
-    )
-
-    return {request, modal, disabledReason}
+    return {request, open, close, pending, error, confirmArchive, disabledReason}
 }
