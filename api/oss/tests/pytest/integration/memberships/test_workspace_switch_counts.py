@@ -494,10 +494,12 @@ async def test_invite_accept_counts(redis_required, policy, admins, with_workspa
 
 # --- EE entitlements ------------------------------------------------------------- #
 
+# Re-measured 2026-11-26: the OSS job skipped this test until every image ran the ee
+# code, and a cold check now does one more Redis command than when it was pinned.
 _STEP1_ENTITLEMENTS = {
-    "soft_cold": [2, 8],
+    "soft_cold": [2, 9],
     "soft_warm": [0, 2],
-    "adjust_cold": [2, 6],
+    "adjust_cold": [2, 7],
     "adjust_warm": [1, 3],
 }
 _STEP2_ENTITLEMENTS = dict(_STEP1_ENTITLEMENTS)
@@ -510,10 +512,12 @@ async def test_entitlements_check_counts_ee(redis_required, monkeypatch):
         pytest.skip("EE only")
     import ee.src.core.access.entitlements.service as entitlements_module
 
-    # The pinned counts are the cloud path, where the seeded subscription plan is the
-    # plan. Outside cloud the instance license plan replaces it, and this CI stack has
-    # no license key.
-    monkeypatch.setattr(entitlements_module, "is_cloud", lambda: True)
+    # Outside cloud the instance license plan replaces the seeded plan, and this CI
+    # stack has no license key. The pinned counts leave out the license read.
+    async def _paid_instance_plan():
+        return "self_hosted_enterprise"
+
+    monkeypatch.setattr(entitlements_module, "instance_plan", _paid_instance_plan)
     await redis_required()
     seeded = await seed_organization(members={"m": "editor"}, workspaces=1)
     try:
