@@ -3,5 +3,6 @@
     "close": "Fermer",
     "save": "Enregistrer",
     "saveFailed": "Impossible d’enregistrer la modification. Réessayez.",
-    "saving": "Enregistrement…"
+    "saving": "Enregistrement…",
+    "widen": "Élargir le panneau"
 }

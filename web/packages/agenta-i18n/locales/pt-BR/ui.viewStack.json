@@ -3,5 +3,6 @@
     "close": "Fechar",
     "save": "Salvar",
     "saveFailed": "Não foi possível salvar a alteração. Tente novamente.",
-    "saving": "Salvando…"
+    "saving": "Salvando…",
+    "widen": "Alargar o painel"
 }

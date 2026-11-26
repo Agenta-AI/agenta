@@ -15,6 +15,7 @@ import {
     Spinner,
     Textarea,
 } from "@agenta/ui/ui"
+import {PaneFooter} from "@agenta/ui/view-stack"
 import {
     ArrowLeft,
     ArrowSquareOut,
@@ -50,7 +51,6 @@ import {
     unescapeUnicode,
 } from "./helpers"
 import {platformLogo} from "./icons"
-import {PanelFooter} from "./PanelFooter"
 import {QrCode} from "./qr"
 import {TeamsAppSetup} from "./TeamsAppSetup"
 import type {
@@ -855,7 +855,7 @@ export const ChannelConnectFlow = ({
                         </div>
                     ) : null}
 
-                    <PanelFooter>
+                    <PaneFooter>
                         <div className="flex gap-2">
                             <Button variant="outline" onClick={goBack}>
                                 <ArrowLeft data-icon="inline-start" />
@@ -885,7 +885,7 @@ export const ChannelConnectFlow = ({
                                 </Button>
                             )}
                         </div>
-                    </PanelFooter>
+                    </PaneFooter>
                 </div>
             </ViewTransition>
         )
@@ -1650,7 +1650,7 @@ export const ChannelConnectFlow = ({
                     ) : null}
                 </div>
 
-                {cta ? <PanelFooter>{cta}</PanelFooter> : null}
+                {cta ? <PaneFooter>{cta}</PaneFooter> : null}
             </div>
         </ViewTransition>
     )

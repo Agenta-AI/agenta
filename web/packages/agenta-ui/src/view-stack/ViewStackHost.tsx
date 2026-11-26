@@ -400,7 +400,6 @@ export const ViewStackHost = ({
                             top.view.actionRow === false ||
                             topForm?.actionRow === false
                         }
-                        showWiden={top.view.widenButton !== false}
                         showBack={Boolean(topForm?.back)}
                         form={
                             topForm ? {...topForm, saving, saveFailed: failedKey === top.key} : null

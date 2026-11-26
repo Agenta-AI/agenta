@@ -8,7 +8,6 @@ export type SkillNewViewParams = Record<string, never>
 export const skillNewView = defineView<SkillNewViewParams>({
     id: "agent.skill.new",
     apply: "on_save",
-    widenButton: false,
     wide: true,
     Component: lazyView(() => import("./SkillNewViewBody")),
 })

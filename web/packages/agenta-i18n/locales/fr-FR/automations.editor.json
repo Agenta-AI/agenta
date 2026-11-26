@@ -58,7 +58,6 @@
     "noConversationBody": "Cette exécution n’est pas allée assez loin pour en démarrer une, il n’y a donc aucune transcription à lire.",
     "conversationUnavailable": "Impossible d’ouvrir cette conversation",
     "conversationUnavailableBody": "L’agent qui l’a exécutée n’est plus disponible, la transcription ne peut donc pas être chargée.",
-    "backToRunList": "Retour à la liste des exécutions",
     "took": "a pris {{duration}}",
     "runRowAria": "{{label}} — {{outcome}}",
     "runRowAriaTime": "{{label}} — {{outcome}}, {{time}}",

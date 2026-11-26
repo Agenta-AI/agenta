@@ -1,5 +1,3 @@
-import type {ReactNode} from "react"
-
 import type {PhoneSection} from "@agenta/entity-ui/drill-in"
 import {useT} from "@agenta/i18n"
 import agentLayoutHeaderCatalog from "@agenta/i18n/catalogs/agentLayout.header"
@@ -13,7 +11,6 @@ import {AgentConfigTabs} from "./AgentConfigTabs"
 import {useAgentPanel} from "./agentPanelContext"
 import type {ConfigTab} from "./agentPanelState"
 import type {PaneBack} from "./paneBack"
-import {PanelCloseButton} from "./PanelCloseButton"
 
 const TABS: {key: ConfigTab; label: "agent" | "automations" | "channels" | "access"}[] = [
     {key: "agent", label: "agent"},
@@ -47,19 +44,19 @@ export const ConfigurationHeader = ({
     const t = useT(agentLayoutPanelCatalog, agentLayoutHeaderCatalog, agentPagesPhoneCatalog)
     const panel = useAgentPanel()
     const tabs = panel.phone ? PHONE_TABS : TABS
-    const tabRow = (back: PaneBack | null, trailing?: ReactNode) => (
+    const tabRow = (back: PaneBack | null, onClose?: () => void) => (
         <AgentConfigTabs
             tabs={tabs.map((tab) => ({key: tab.key, label: t(`agentLayout.panel.${tab.label}`)}))}
             value={configTab}
             onSelect={onSelectTab}
             phone={panel.phone}
             back={back}
-            trailing={trailing}
+            onClose={onClose}
         />
     )
     if (!panel.phone)
         // The pane header: the session bar's 48 px, the tab text on the pane's 16 px line.
-        return tabRow(paneBack, <PanelCloseButton onClose={() => void panel.close()} />)
+        return tabRow(paneBack, () => void panel.close())
     if (phoneSection)
         return (
             <PhoneScreenHeader

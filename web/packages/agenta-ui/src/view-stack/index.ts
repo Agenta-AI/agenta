@@ -3,6 +3,13 @@ export {DrawerViewChrome} from "./DrawerViewChrome"
 export {defineView, useViewForm, useViewTitle, ViewFooterStart} from "./hooks"
 export {PhoneViewChrome, PhoneViewHeader} from "./PhoneViewChrome"
 export {ViewFormActions} from "./ViewFormActions"
+export {
+    PANE_FOOTER_CLASS,
+    PaneFooter,
+    PaneFooterSlotContext,
+    PaneHeader,
+    type PaneHeaderProps,
+} from "./PaneHeader"
 export {ViewDrawerHost, type ViewRequest} from "./ViewDrawerHost"
 export {ViewStackHost} from "./ViewStackHost"
 export {restartSystemBack, useSystemBack, type SystemBackRank} from "./systemBack"

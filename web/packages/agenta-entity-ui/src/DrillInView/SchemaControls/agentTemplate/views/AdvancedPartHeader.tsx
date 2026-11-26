@@ -3,14 +3,14 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {IconTile, SkeletonBlock} from "@agenta/ui/ui"
+import {IconTile, ItemViewTitle, ItemViewTitleSkeleton, SkeletonBlock} from "@agenta/ui/ui"
 
 import {ToolPermissionsSkeleton} from "../../DrawerSkeletons"
 
 /** The body's padding, as the permission list draws it: the quiet 6 px bar plus 10 px is 16 px. */
 export const PART_BODY_CLASS = "ag-scroll-quiet py-4 pl-4 pr-2.5 max-md:pr-4"
 
-/** The pane header shows only Back, so the view names its part, as the integration view does. */
+/** The part's name and one line under it, as every item view's title. */
 export function AdvancedPartHeader({
     icon,
     title,
@@ -21,32 +21,14 @@ export function AdvancedPartHeader({
     description: ReactNode
 }) {
     return (
-        <div className="flex shrink-0 flex-col gap-1.5 px-4 pt-4">
-            {/* A 24 px Mark, 8 px to the name, as every item view's title (CONS-01, SPACE-04). */}
-            <div className="flex min-w-0 items-center gap-2">
-                <IconTile size={24} aria-hidden>
-                    {icon}
-                </IconTile>
-                <span className="truncate text-label font-semibold leading-5">{title}</span>
-            </div>
-            <span className="text-meta text-muted-foreground">{description}</span>
-        </div>
+        <ItemViewTitle
+            className="shrink-0 px-4 pt-4"
+            mark={<IconTile size={24}>{icon}</IconTile>}
+            title={title}
+            description={description}
+        />
     )
 }
-
-const HeaderSkeleton = () => (
-    <div className="flex shrink-0 flex-col gap-1.5 px-4 pt-4">
-        <div className="flex items-center gap-2">
-            <SkeletonBlock shape="mark" className="size-6 shrink-0" />
-            <div className="flex h-5 min-w-0 flex-1 items-center">
-                <SkeletonBlock className="h-3.5 w-24" />
-            </div>
-        </div>
-        <div className="flex h-4 items-center">
-            <SkeletonBlock className="h-3 w-3/5" />
-        </div>
-    </div>
-)
 
 /** The loading shape of a part view (STATE-02): the header over the part's own body. */
 export function AdvancedPartSkeleton({body}: {body: "permissions" | "field"}) {
@@ -58,7 +40,7 @@ export function AdvancedPartSkeleton({body}: {body: "permissions" | "field"}) {
             aria-label={t("common.loading")}
             className="flex min-h-0 flex-1 flex-col"
         >
-            <HeaderSkeleton />
+            <ItemViewTitleSkeleton className="shrink-0 px-4 pt-4" />
             {body === "permissions" ? (
                 <ToolPermissionsSkeleton account="none" />
             ) : (

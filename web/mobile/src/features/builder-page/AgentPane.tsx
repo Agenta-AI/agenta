@@ -16,6 +16,7 @@ import agentLayoutPanelCatalog from "@agenta/i18n/catalogs/agentLayout.panel"
 import builderPageCatalog from "@agenta/i18n/catalogs/builder.page"
 import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {LoadError} from "@agenta/ui/components/presentational"
+import {PANE_FOOTER_CLASS, PaneFooterSlotContext} from "@agenta/ui/view-stack"
 import {useSetAtom} from "jotai"
 
 import {AccessTab} from "../agent-layout/AccessTab"
@@ -93,6 +94,7 @@ export const AgentPane = ({
     const [agentDot, setAgentDot] = useState(false)
     // A view open inside a tab (a channel's manage view) puts its back link in the header.
     const [paneBack, setPaneBack] = useState<PaneBack | null>(null)
+    const [footerSlot, setFooterSlot] = useState<HTMLDivElement | null>(null)
     // The open pane tab's views: an open form with edits asks before a switch.
     const openTab = async (next: PaneTab) => {
         if (next === tab) return
@@ -234,7 +236,10 @@ export const AgentPane = ({
                 guardRef={guardRef}
             >
                 {() => (
-                    <div className="ag-panel-raised flex h-full min-h-0 flex-col">
+                    <div
+                        data-pane=""
+                        className="ag-panel-raised flex h-full min-h-0 flex-col"
+                    >
                         <AgentConfigTabs
                             tabs={PANE_TABS.map((key) => ({
                                 key,
@@ -259,15 +264,18 @@ export const AgentPane = ({
                         />
                         {tab === "sessions" ? <PaneSessionBar pick={sessionPick} /> : null}
                         <PaneBackContext.Provider value={setPaneBack}>
-                            <div
-                                id={AGENT_CONFIG_TABPANEL_ID}
-                                role="tabpanel"
-                                aria-labelledby={agentConfigTabId(tab)}
-                                className="min-h-0 flex-1"
-                            >
-                                {body}
-                            </div>
+                            <PaneFooterSlotContext.Provider value={footerSlot}>
+                                <div
+                                    id={AGENT_CONFIG_TABPANEL_ID}
+                                    role="tabpanel"
+                                    aria-labelledby={agentConfigTabId(tab)}
+                                    className="min-h-0 flex-1"
+                                >
+                                    {body}
+                                </div>
+                            </PaneFooterSlotContext.Provider>
                         </PaneBackContext.Provider>
+                        <div ref={setFooterSlot} className={PANE_FOOTER_CLASS} />
                     </div>
                 )}
             </AgentConfigHost>

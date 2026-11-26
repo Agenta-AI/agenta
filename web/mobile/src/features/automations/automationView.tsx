@@ -1,10 +1,9 @@
 import {AutomationPaneSkeleton, type AutomationKind} from "@agenta/automation-ui"
-import {useIsPhone} from "@agenta/ui/phone"
 import {defineView} from "@agenta/ui/view-stack"
 import dynamic from "next/dynamic"
 
 /** The body's own loading shape while its code loads, in the view's place (STATE-02). */
-const AutomationViewLoading = () => <AutomationPaneSkeleton phone={useIsPhone()} />
+const AutomationViewLoading = () => <AutomationPaneSkeleton />
 
 export interface AutomationViewParams {
     automationId: string
@@ -21,13 +20,12 @@ export interface AutomationViewParams {
 /**
  * One automation as a view (F05 f5): the name with its switch, "Runs" and "Settings". The switch
  * and "Save" in "Settings" write the automation at once (target "project"); no agent version is
- * saved. Leaving with unsaved settings asks first: the view registers its form with the stack.
- * The body draws its own footer (Delete, Discard, Save), so the chrome draws no action row.
+ * saved. Leaving with unsaved settings asks first. The chrome draws the action row: Delete at its
+ * start (`ViewFooterStart`), then Cancel and Save.
  */
 export const automationView = defineView<AutomationViewParams>({
     id: "automations.automation",
-    apply: "immediate",
-    actionRow: false,
+    apply: "on_save",
     Component: dynamic(() => import("./AutomationViewBody"), {
         ssr: false,
         loading: AutomationViewLoading,

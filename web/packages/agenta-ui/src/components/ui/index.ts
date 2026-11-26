@@ -255,3 +255,9 @@ export {
     ChartStyle,
     type ChartConfig,
 } from "./chart"
+export {
+    ItemViewTitle,
+    ItemViewTitleSkeleton,
+    type ItemViewTitleEditable,
+    type ItemViewTitleProps,
+} from "./item-view-title"

@@ -1,9 +1,11 @@
-import type {ReactNode} from "react"
+import {useContext, type ReactNode} from "react"
 
 import {cn} from "@agenta/ui/styles"
-import {BackLink, Tabs, TabsList, TabsTrigger} from "@agenta/ui/ui"
+import {Tabs, TabsList, TabsTrigger} from "@agenta/ui/ui"
+import {PaneHeader} from "@agenta/ui/view-stack"
 
 import type {PaneBack} from "./paneBack"
+import {PanelChromeContext} from "./PanelViewChrome"
 
 /** The id of the panel the agent pane's tabs control. */
 export const AGENT_CONFIG_TABPANEL_ID = "agent-config-tabpanel"
@@ -18,9 +20,9 @@ export interface AgentConfigTab<K extends string> {
 }
 
 /**
- * The agent pane's tab row: the kit Tabs in the pane header (48 px), or under the phone header
+ * The agent pane's tab row: the kit Tabs in `PaneHeader` (48 px), or under the phone header
  * (40 px). Selection runs on click, so the arrow keys move focus and Enter or Space selects.
- * While a view inside a tab is open (`back`), the header is its back link instead.
+ * While a view inside a tab is open (`back`), the header is its back link and title instead.
  */
 export const AgentConfigTabs = <K extends string>({
     tabs,
@@ -28,41 +30,38 @@ export const AgentConfigTabs = <K extends string>({
     onSelect,
     phone = false,
     back = null,
-    trailing,
+    onClose,
 }: {
     tabs: AgentConfigTab<K>[]
     value: K
     onSelect: (key: K) => void
     phone?: boolean
     back?: PaneBack | null
-    /** At the end of the row: Close. */
-    trailing?: ReactNode
+    /** Close at the end of the header. */
+    onClose?: () => void
 }) => {
+    const {widen} = useContext(PanelChromeContext)
     if (back)
         return (
-            // The same header as a Configuration view: the way back, then Close.
-            <div className="flex h-12 shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted pl-2.5 pr-3">
-                <div className="flex min-w-0 flex-1 items-center pl-1.5">
-                    <BackLink
-                        size="bar"
-                        title={back.title}
-                        onClick={back.onBack}
-                        className="max-w-full"
-                    >
-                        <span className="truncate">{back.title}</span>
-                    </BackLink>
-                </div>
-                {trailing}
-            </div>
+            <PaneHeader
+                back={{title: back.title, onBack: back.onBack}}
+                title={back.current}
+                onWiden={
+                    widen ? {wide: widen.wide, onToggle: () => widen.setWide(!widen.wide)} : undefined
+                }
+                onClose={onClose}
+            />
         )
-    return (
+    const tabRow = (
         <Tabs
             value={value}
             activationMode="manual"
             className={cn(
-                "box-border shrink-0 flex-row items-center justify-between border-0 border-b border-solid border-border-muted",
+                "box-border min-w-0 shrink-0 flex-row items-center justify-between gap-0",
                 // The tab text on the pane's 16 px line; the trigger's fill hangs out by its padding.
-                phone ? "h-10 gap-1 pl-1.25 pr-4" : "h-12 gap-2 pl-1.25 pr-3",
+                phone
+                    ? "h-10 gap-1 border-0 border-b border-solid border-border-muted pl-1.25 pr-4"
+                    : "-ml-2.75 self-stretch",
             )}
         >
             <TabsList
@@ -87,7 +86,8 @@ export const AgentConfigTabs = <K extends string>({
                     </TabsTrigger>
                 ))}
             </TabsList>
-            {trailing}
         </Tabs>
     )
+    if (phone) return tabRow
+    return <PaneHeader onClose={onClose}>{tabRow}</PaneHeader>
 }

@@ -37,11 +37,6 @@ export interface ViewDef<P> {
      * keeps the row.
      */
     actionRow?: false
-    /**
-     * False: a panel container draws no "Widen the panel" button for this view (a short form, such
-     * as Connect or Attach a secret). Absent keeps the button.
-     */
-    widenButton?: false
     /** The body. Use a `next/dynamic` component so the code loads on first open. */
     Component: ComponentType<ViewProps<P>>
 }
@@ -165,8 +160,6 @@ export interface ViewChromeProps {
      * (`ViewDef.actionRow: false`).
      */
     hideActionRow: boolean
-    /** The container may offer to widen itself for the top view (`ViewDef.widenButton`). */
-    showWiden: boolean
     /** The top view is on a step after its first (`ViewForm.back`): the header shows Back. */
     showBack?: boolean
     form: ViewChromeForm | null

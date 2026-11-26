@@ -4,7 +4,7 @@ import {createT, useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {useInlineRename} from "@agenta/sessions-ui"
 import {message} from "@agenta/ui/app-message"
-import {Input} from "@agenta/ui/ui"
+import {Input, type ItemViewTitleEditable} from "@agenta/ui/ui"
 import {PencilSimple} from "@phosphor-icons/react"
 
 const tNow = createT(automationsEditorCatalog)
@@ -23,7 +23,6 @@ export const AutomationTitle = ({
     autoEdit = false,
     placeholder,
     fallback,
-    compact = false,
 }: {
     name: string
     description: string
@@ -34,8 +33,6 @@ export const AutomationTitle = ({
     placeholder?: string
     /** Shown as the heading while the name is empty — the name this would be saved under. */
     fallback?: string
-    /** The pane's item title (13/600, beside a 24px Mark); renaming keeps that look. */
-    compact?: boolean
 }) => {
     const t = useT(automationsEditorCatalog)
     const rename = useInlineRename({
@@ -94,11 +91,7 @@ export const AutomationTitle = ({
                     }}
                     // A notch under the heading while editing, and a medium placeholder: a bold
                     // hint reads as a name already typed.
-                    className={
-                        compact
-                            ? "h-auto border-transparent bg-transparent px-0 py-0 text-label font-semibold leading-5 shadow-none placeholder:font-medium placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0"
-                            : "text-heading placeholder:font-medium placeholder:text-muted-foreground focus-visible:border-input focus-visible:ring-0"
-                    }
+                    className="text-heading placeholder:font-medium placeholder:text-muted-foreground focus-visible:border-input focus-visible:ring-0"
                 />
             ) : (
                 <button
@@ -108,12 +101,10 @@ export const AutomationTitle = ({
                     title={t("automations.editor.rename")}
                     // No focus ring: the shared FOCUS_RING draws a hard near-black outline and
                     // the softer ring still glowed around the title. Hover carries the affordance.
-                    className={`group flex min-w-0 cursor-pointer items-center border-0 bg-transparent text-left text-foreground outline-none hover:bg-accent focus-visible:bg-accent ${
-                        compact ? "-mx-1 rounded-sm px-1" : "-ml-2 rounded-lg px-2 py-1"
-                    }`}
+                    className="group -ml-2 flex min-w-0 cursor-pointer items-center rounded-lg border-0 bg-transparent px-2 py-1 text-left text-foreground outline-none hover:bg-accent focus-visible:bg-accent"
                 >
                     <h1
-                        className={`m-0 min-w-0 truncate ${compact ? "text-label font-semibold leading-5" : "text-heading"} ${name ? "" : "text-muted-foreground"}`}
+                        className={`m-0 min-w-0 truncate text-heading ${name ? "" : "text-muted-foreground"}`}
                     >
                         {name || fallback || placeholder}
                     </h1>
@@ -133,4 +124,67 @@ export const AutomationTitle = ({
             ) : null}
         </div>
     )
+}
+
+/** The pane's automation name as `ItemViewTitle` edits it: Enter and blur commit; Escape undoes the rename only. */
+export const useAutomationTitleEditable = ({
+    name,
+    onRename,
+    autoEdit = false,
+    placeholder,
+}: {
+    name: string
+    onRename: (next: string) => Promise<boolean>
+    autoEdit?: boolean
+    /** Shown while the name is empty: the name it would be saved under. */
+    placeholder?: string
+}): ItemViewTitleEditable => {
+    const t = useT(automationsEditorCatalog)
+    const rename = useInlineRename({
+        current: name,
+        onCommit: async (next) => {
+            try {
+                const ok = await onRename(next)
+                if (!ok) message.error(tNow("automations.editor.renameFailed"))
+            } catch {
+                message.error(tNow("automations.editor.renameFailed"))
+            }
+            return true
+        },
+    })
+    const started = useRef(false)
+    const {start} = rename
+    useEffect(() => {
+        if (!autoEdit || started.current) return
+        started.current = true
+        start()
+    }, [autoEdit, start])
+    return {
+        value: rename.renaming ? rename.draft : name,
+        onChange: (next) => {
+            if (!rename.renaming) rename.start()
+            rename.setDraft(next)
+        },
+        onFocus: () => {
+            if (!rename.renaming) rename.start()
+        },
+        onBlur: () => void rename.commit(),
+        onKeyDown: (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault()
+                event.stopPropagation()
+                void rename.commit()
+                return
+            }
+            // A rename in progress takes Escape; with none, Escape steps the view back.
+            if (event.key !== "Escape" || !rename.renaming) return
+            event.preventDefault()
+            event.stopPropagation()
+            rename.cancel()
+        },
+        autoFocus: autoEdit,
+        placeholder,
+        "aria-label": t("automations.editor.namePlaceholder"),
+        title: t("automations.editor.rename"),
+    }
 }

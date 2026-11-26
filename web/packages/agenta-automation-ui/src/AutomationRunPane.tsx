@@ -5,8 +5,9 @@ import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 import automationsRunHistoryCatalog from "@agenta/i18n/catalogs/automations.runHistory"
-import {Button, IconTile, SimpleTooltip} from "@agenta/ui/ui"
-import {ArrowSquareOut, CaretLeft, Play} from "@phosphor-icons/react"
+import {Button, IconTile, ItemViewTitle, SimpleTooltip} from "@agenta/ui/ui"
+import {PaneHeader} from "@agenta/ui/view-stack"
+import {ArrowSquareOut, Play} from "@phosphor-icons/react"
 
 import {AutomationRunStatusBadge} from "./AutomationRunStatusBadge"
 import {runDuration, runError, runLabel, runSessionId, runWhenLabel} from "./runModel"
@@ -54,55 +55,51 @@ export const AutomationRunPane = ({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {/* Narrow, with no host back: the pane header leads back to the list. */}
+            {onBack ? (
+                <PaneHeader back={{title: t("automations.editor.runHistory"), onBack}} />
+            ) : null}
             {/* One line: the run's Mark and name, its status, when and how long, and open. */}
-            <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-muted px-4 pb-3 pt-4">
-                {onBack ? (
-                    <SimpleTooltip title={t("automations.editor.backToRunList")}>
-                        <Button
-                            variant="ghost"
-                            size="icon-compact"
-                            className="-ml-1.5"
-                            onClick={onBack}
-                            aria-label={t("automations.editor.backToRunList")}
-                        >
-                            <CaretLeft aria-hidden />
-                        </Button>
-                    </SimpleTooltip>
-                ) : null}
-                <IconTile size={24} aria-hidden>
-                    <Play />
-                </IconTile>
-                <span className="shrink-0 truncate text-label font-semibold leading-5 text-foreground">
-                    {label}
-                </span>
-                <AutomationRunStatusBadge delivery={delivery} />
-                {meta ? (
-                    <span className="min-w-0 flex-1 truncate text-meta tabular-nums text-muted-foreground">
-                        {meta}
-                    </span>
-                ) : (
-                    <span className="flex-1" />
-                )}
-                {sessionId && sessionHref ? (
-                    <SimpleTooltip title={t("automations.runHistory.openRunInNewTab")}>
-                        <Button
-                            asChild
-                            variant="ghost"
-                            size="icon-compact"
-                            className="-mr-1.5"
-                            aria-label={t("automations.runHistory.openRunInNewTab")}
-                        >
-                            <a
-                                href={sessionHref(sessionId)}
-                                target="_blank"
-                                rel="noopener noreferrer"
+            <ItemViewTitle
+                className="shrink-0 border-0 border-b border-solid border-border-muted px-4 pb-3 pt-4"
+                mark={
+                    <IconTile size={24}>
+                        <Play />
+                    </IconTile>
+                }
+                title={label}
+                status={
+                    <>
+                        <AutomationRunStatusBadge delivery={delivery} />
+                        {meta ? (
+                            <span className="min-w-0 shrink truncate text-meta tabular-nums text-muted-foreground">
+                                {meta}
+                            </span>
+                        ) : null}
+                    </>
+                }
+                actions={
+                    sessionId && sessionHref ? (
+                        <SimpleTooltip title={t("automations.runHistory.openRunInNewTab")}>
+                            <Button
+                                asChild
+                                variant="ghost"
+                                size="icon-compact"
+                                className="-mr-1.5"
+                                aria-label={t("automations.runHistory.openRunInNewTab")}
                             >
-                                <ArrowSquareOut aria-hidden />
-                            </a>
-                        </Button>
-                    </SimpleTooltip>
-                ) : null}
-            </div>
+                                <a
+                                    href={sessionHref(sessionId)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    <ArrowSquareOut aria-hidden />
+                                </a>
+                            </Button>
+                        </SimpleTooltip>
+                    ) : null
+                }
+            />
             <div className="flex min-h-0 flex-1 flex-col">
                 {sessionId ? (
                     renderConversation(sessionId)

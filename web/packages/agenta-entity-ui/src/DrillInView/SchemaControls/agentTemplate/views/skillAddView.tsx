@@ -26,7 +26,6 @@ export const skillAddView = defineView<SkillAddViewParams>({
 export const skillAddNewView = defineView<SkillAddViewParams>({
     id: "agent.skill.add.new",
     apply: "on_save",
-    widenButton: false,
     wide: true,
     Component: lazyView(() =>
         import("./SkillAddViewBody").then((m) => ({default: m.StagedSkillNewViewBody})),

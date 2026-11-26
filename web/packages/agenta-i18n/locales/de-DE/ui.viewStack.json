@@ -3,5 +3,6 @@
     "close": "Schließen",
     "save": "Speichern",
     "saveFailed": "Die Änderung konnte nicht gespeichert werden. Versuchen Sie es erneut.",
-    "saving": "Speichern…"
+    "saving": "Speichern…",
+    "widen": "Bereich verbreitern"
 }

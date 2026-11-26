@@ -25,6 +25,7 @@ import {
     EmptyMedia,
     EmptyTitle,
     IconTile,
+    ItemViewTitle,
     SearchInput,
     SkeletonRows,
 } from "@agenta/ui/ui"
@@ -830,32 +831,33 @@ export function IntegrationTitle({
     const healthy = connection && isConnectionActive(connection) && isConnectionValid(connection)
 
     return (
-        // w-full + min-w-0: the title slot will not shrink alone, pushing the badge past the edge.
-        // A 24px tile, 8px to the name, as every item view's title (CONS-01, SPACE-04).
-        <div className="flex w-full min-w-0 items-center gap-2">
-            <IconTile size={24} aria-hidden>
-                <ProviderLogo logo={integration?.logo ?? null} size={14} />
-            </IconTile>
-            {/* The name alone: the key and the connection slug are internal ids. */}
-            <div className="flex min-w-0 flex-1 items-baseline">
-                <span className="truncate text-label font-semibold leading-5">{displayName}</span>
-            </div>
-            {notConnected || missing ? (
-                // The kit's neutral tone, no restyle (KIT-01).
-                <Badge variant="default" className="shrink-0">
-                    {tCommon("common.notConnected")}
-                </Badge>
-            ) : attention !== undefined ? (
-                attention ? (
-                    <Badge variant="warning" className="shrink-0">
-                        {attention}
+        <ItemViewTitle
+            className="w-full"
+            mark={
+                <IconTile size={24}>
+                    <ProviderLogo logo={integration?.logo ?? null} size={14} />
+                </IconTile>
+            }
+            // The name alone: the key and the connection slug are internal ids.
+            title={displayName}
+            status={
+                notConnected || missing ? (
+                    // The kit's neutral tone, no restyle (KIT-01).
+                    <Badge variant="default" className="shrink-0">
+                        {tCommon("common.notConnected")}
                     </Badge>
+                ) : attention !== undefined ? (
+                    attention ? (
+                        <Badge variant="warning" className="shrink-0">
+                            {attention}
+                        </Badge>
+                    ) : null
+                ) : connection && !healthy ? (
+                    <span className="shrink-0 text-meta font-normal">
+                        <ConnectionStatusBadge connection={connection} />
+                    </span>
                 ) : null
-            ) : connection && !healthy ? (
-                <span className="shrink-0 text-meta font-normal">
-                    <ConnectionStatusBadge connection={connection} />
-                </span>
-            ) : null}
-        </div>
+            }
+        />
     )
 }

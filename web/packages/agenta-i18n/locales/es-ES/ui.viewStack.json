@@ -3,5 +3,6 @@
     "close": "Cerrar",
     "save": "Guardar",
     "saveFailed": "No se pudo guardar el cambio. Vuelve a intentarlo.",
-    "saving": "Guardando…"
+    "saving": "Guardando…",
+    "widen": "Ensanchar el panel"
 }

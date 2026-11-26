@@ -67,9 +67,8 @@ import Link from "next/link"
 import {useRouter} from "next/router"
 
 import {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
-import {toSkillContent, toSkillDraft, type SkillDraft} from "./skillDraft"
+import {skillNameProblem, toSkillContent, toSkillDraft, type SkillDraft} from "./skillDraft"
 import {SkillEditor} from "./SkillEditor"
-import {SkillNameTitle} from "./SkillNameTitle"
 import {skillTitle} from "./skillTitle"
 import {useRegistrySkill} from "./useRegistrySkill"
 import type {SkillListItem, SkillUsageRef} from "./types"
@@ -395,23 +394,27 @@ const RegistrySkillEditor = ({
     return (
         <div ref={setEditorRoot} className="flex min-h-0 flex-1 flex-col">
             <SkillViewHeader
-                compact
                 // The name is the view's title, edited in place, as on the skill page.
-                title={
-                    <div className="flex min-w-0 items-center gap-2">
-                        <div className="min-w-0 flex-1">
-                            <SkillNameTitle
-                                value={toSkillDraft(value).name}
-                                onChange={(name) => setDraft({...value, name})}
-                                readOnly={readOnly}
-                                invalid={dirty && !valid && !toSkillDraft(value).name.trim()}
-                                error={t("skills.editor.nameMissing")}
-                            />
-                        </div>
-                        {skill.archived ? (
-                            <Badge className="shrink-0">{t("skills.gallery.archived")}</Badge>
-                        ) : null}
-                    </div>
+                editable={
+                    readOnly
+                        ? undefined
+                        : {
+                              value: toSkillDraft(value).name,
+                              onChange: (name) => setDraft({...value, name}),
+                              "aria-label": t("skills.editor.name"),
+                              placeholder: t("skills.editor.namePlaceholder"),
+                              error:
+                                  skillNameProblem(toSkillDraft(value).name) === "invalid"
+                                      ? t("skills.editor.nameInvalid")
+                                      : dirty && !valid && !toSkillDraft(value).name.trim()
+                                        ? t("skills.editor.nameMissing")
+                                        : undefined,
+                          }
+                }
+                extra={
+                    skill.archived ? (
+                        <Badge className="shrink-0">{t("skills.gallery.archived")}</Badge>
+                    ) : null
                 }
                 end={<div ref={setFilesSlot} className="flex empty:hidden" />}
                 name={skillTitle(skill)}

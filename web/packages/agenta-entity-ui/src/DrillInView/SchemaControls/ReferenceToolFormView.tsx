@@ -11,7 +11,14 @@ import type {SubagentDetail, WorkflowReferenceBridge} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {Alert, AutosizeTextarea, Button, IconTile, SkeletonBlock} from "@agenta/ui/ui"
+import {
+    Alert,
+    AutosizeTextarea,
+    Button,
+    IconTile,
+    ItemViewTitle,
+    SkeletonBlock,
+} from "@agenta/ui/ui"
 import {CaretDown, Compass, Cpu, Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -210,23 +217,23 @@ function SubagentDetailPanel({
     return (
         <div className="flex flex-col gap-4 p-4">
             {name ? (
-                // The sibling item views' title: a 24px Mark, 8px to the name (CONS-02).
-                <div className="flex items-center gap-2">
-                    <span
-                        aria-hidden
-                        className={cn(
-                            "flex size-6 shrink-0 items-center justify-center rounded-md [&_svg]:size-3.5",
-                            agentChrome.className,
-                        )}
-                        style={agentChrome.style}
-                    >
-                        {agentChrome.glyph}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-label font-semibold leading-5">
-                        {name}
-                    </span>
-                    {configurationAction}
-                </div>
+                // Stays on screen while the form scrolls under it.
+                <ItemViewTitle
+                    className="sticky top-0 z-10 -mx-4 -mt-4 bg-background px-4 pb-2 pt-4"
+                    mark={
+                        <span
+                            className={cn(
+                                "flex size-6 items-center justify-center rounded-md [&_svg]:size-3.5",
+                                agentChrome.className,
+                            )}
+                            style={agentChrome.style}
+                        >
+                            {agentChrome.glyph}
+                        </span>
+                    }
+                    title={name}
+                    actions={configurationAction}
+                />
             ) : null}
             <div className="flex flex-col gap-1.5">
                 <FieldHeading

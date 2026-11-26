@@ -5,11 +5,11 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import publishCatalog from "@agenta/i18n/catalogs/publish"
 import {CopyButton, getInitials} from "@agenta/ui/components/presentational"
 import {Alert, Button, Input, LoadingButton, Segmented, Textarea} from "@agenta/ui/ui"
+import {PaneFooter} from "@agenta/ui/view-stack"
 import {useMutation, useQuery, useQueryClient, type QueryKey} from "@tanstack/react-query"
 
 import {CodeBlock} from "../channels/CodeBlock"
 import {BLOCK_TITLE} from "../channels/helpers"
-import {PanelFooter} from "../channels/PanelFooter"
 
 import type {AgentEmbedPanelProps} from "./AgentEmbedPanel"
 import {
@@ -299,7 +299,7 @@ export const EmbedSettingsForm = ({
 
             {error ? <Alert type="error" showIcon message={error} /> : null}
 
-            <PanelFooter>
+            <PaneFooter>
                 {confirming ? (
                     <div className="flex w-full flex-col gap-2.5">
                         <span className="text-label text-foreground">
@@ -342,7 +342,7 @@ export const EmbedSettingsForm = ({
                         </LoadingButton>
                     </div>
                 )}
-            </PanelFooter>
+            </PaneFooter>
         </div>
     )
 }

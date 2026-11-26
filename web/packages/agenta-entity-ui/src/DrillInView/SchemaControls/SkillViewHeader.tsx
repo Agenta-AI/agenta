@@ -18,10 +18,12 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
+    ItemViewTitle,
     MENU_ITEM,
     Popover,
     PopoverContent,
     PopoverTrigger,
+    type ItemViewTitleEditable,
 } from "@agenta/ui/ui"
 import {DotsThree, DownloadSimple} from "@phosphor-icons/react"
 
@@ -76,12 +78,10 @@ export interface SkillViewHeaderProps {
     /** The open state of the menu, for a host whose rows open a flyout. */
     menuOpen?: boolean
     onMenuOpenChange?: (open: boolean) => void
-    /** One small row: the status, `end`, then the menu. For a host that already names the skill. */
-    compact?: boolean
-    /** Controls before the menu in a compact header (the Files toggle). */
+    /** Controls before the menu (the Files toggle). */
     end?: ReactNode
-    /** The compact header's title (the editable name), in place of the status. */
-    title?: ReactNode
+    /** The name is edited in place. */
+    editable?: ItemViewTitleEditable
 }
 
 export function SkillViewHeader({
@@ -94,9 +94,8 @@ export function SkillViewHeader({
     error,
     menuOpen,
     onMenuOpenChange,
-    compact = false,
     end,
-    title,
+    editable,
 }: SkillViewHeaderProps) {
     const t = useT(skillsGalleryCatalog)
     const [ownOpen, setOwnOpen] = useState(false)
@@ -146,7 +145,6 @@ export function SkillViewHeader({
             open={open}
             onOpenChange={setOpen}
             title={menuLabel}
-            showTitle={false}
             trigger={trigger}
         >
             <div className="flex flex-col px-2">
@@ -193,44 +191,23 @@ export function SkillViewHeader({
             </DropdownMenuContent>
         </DropdownMenu>
     )
-    if (compact)
-        return (
-            <div ref={setHeaderRoot} className="flex shrink-0 flex-col gap-1 px-4 py-2">
-                <div className="flex min-h-control-sm min-w-0 items-center gap-1">
-                    {title ? (
-                        <div className="min-w-0 flex-1">{title}</div>
-                    ) : (
-                        <span className="min-w-0 flex-1 truncate text-meta text-muted-foreground">
-                            {status}
-                        </span>
-                    )}
-                    {extra}
-                    {end}
-                    {menu}
-                </div>
-                {error ? <span className="text-meta text-destructive">{error}</span> : null}
-            </div>
-        )
     return (
-        <div ref={setHeaderRoot} className="flex shrink-0 flex-col gap-1 px-4 py-3">
-            <div className="flex min-w-0 items-center gap-2">
-                <SkillMark size={24} />
-                <div className="flex min-w-0 flex-1 flex-col">
-                    <div className="flex min-w-0 items-center gap-2">
-                        <span
-                            title={name}
-                            className="min-w-0 truncate text-label font-semibold leading-5 text-foreground"
-                        >
-                            {name}
-                        </span>
-                        {extra}
-                    </div>
-                    {status ? (
-                        <span className="text-meta text-muted-foreground">{status}</span>
-                    ) : null}
-                </div>
-                {menu}
-            </div>
+        <div ref={setHeaderRoot} className="flex shrink-0 flex-col gap-1 px-4 pb-2 pt-4">
+            <ItemViewTitle
+                mark={<SkillMark size={24} />}
+                title={name}
+                editable={editable}
+                status={extra}
+                description={status}
+                actions={
+                    end || menu ? (
+                        <>
+                            {end}
+                            {menu}
+                        </>
+                    ) : null
+                }
+            />
             {error ? <span className="text-meta text-destructive">{error}</span> : null}
         </div>
     )

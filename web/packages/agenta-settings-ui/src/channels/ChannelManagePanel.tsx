@@ -11,11 +11,13 @@ import {
     Button,
     Checkbox,
     Input,
+    ItemViewTitle,
     PasswordInput,
     SimpleTooltip,
     Spinner,
     Switch,
 } from "@agenta/ui/ui"
+import {PaneFooter} from "@agenta/ui/view-stack"
 import {
     ArrowSquareOut,
     ArrowsLeftRight,
@@ -49,7 +51,6 @@ import {
     slackInviteHandle,
 } from "./helpers"
 import {platformLogo} from "./icons"
-import {PanelFooter} from "./PanelFooter"
 import {channelSharingCopy} from "./sharingCopy"
 import {TeamsAppSetup} from "./TeamsAppSetup"
 import type {
@@ -752,7 +753,7 @@ export const ChannelManagePanel = ({
                         />
                     </div>
                 ) : null}
-                <PanelFooter>
+                <PaneFooter>
                     <Button
                         disabled={busy !== null}
                         onClick={() => {
@@ -767,7 +768,7 @@ export const ChannelManagePanel = ({
                               ? t("channels.manage.connectAgent", {agent: agentName})
                               : t("channels.manage.moveItHere")}
                     </Button>
-                </PanelFooter>
+                </PaneFooter>
             </div>
         )
     }
@@ -775,18 +776,21 @@ export const ChannelManagePanel = ({
     return (
         <div className="flex min-h-full flex-1 flex-col gap-6">
             {/* --- what is connected --- */}
-            <div className="flex items-center gap-3 border-0 border-b border-solid border-border-muted pb-5">
-                <span className="relative box-border flex size-10 flex-none items-center justify-center rounded-lg bg-secondary">
-                    {platformLogo(connection.platform, 24)}
-                    <span
-                        className={`absolute -right-0.5 -top-0.5 size-2 rounded-round border border-solid border-background ${
-                            revoked ? "bg-destructive" : off ? "bg-border-strong" : "bg-success"
-                        }`}
-                    />
-                </span>
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="truncate text-title text-foreground">{title}</span>
-                    <span className="truncate text-label text-muted-foreground">
+            <ItemViewTitle
+                className="border-0 border-b border-solid border-border-muted pb-5"
+                mark={
+                    <span className="relative box-border flex size-6 items-center justify-center rounded-md bg-secondary">
+                        {platformLogo(connection.platform, 14)}
+                        <span
+                            className={`absolute -right-0.5 -top-0.5 size-2 rounded-round border border-solid border-background ${
+                                revoked ? "bg-destructive" : off ? "bg-border-strong" : "bg-success"
+                            }`}
+                        />
+                    </span>
+                }
+                title={title}
+                description={
+                    <span className="block truncate">
                         <span
                             className={
                                 revoked
@@ -806,22 +810,24 @@ export const ChannelManagePanel = ({
                         {isSlack && connection.handle ? ` · ${connection.handle}` : ""}
                         {connectedOn ? ` · ${t("channels.manage.since", {date: connectedOn})}` : ""}
                     </span>
-                </div>
-                {telegramUrl ? (
-                    <SimpleTooltip title={t("channels.manage.openInTelegram")}>
-                        <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            asChild
-                            aria-label={t("channels.manage.openInTelegram")}
-                        >
-                            <a href={telegramUrl} target="_blank" rel="noreferrer">
-                                <ArrowSquareOut />
-                            </a>
-                        </Button>
-                    </SimpleTooltip>
-                ) : null}
-            </div>
+                }
+                actions={
+                    telegramUrl ? (
+                        <SimpleTooltip title={t("channels.manage.openInTelegram")}>
+                            <Button
+                                variant="ghost"
+                                size="icon-compact"
+                                asChild
+                                aria-label={t("channels.manage.openInTelegram")}
+                            >
+                                <a href={telegramUrl} target="_blank" rel="noreferrer">
+                                    <ArrowSquareOut />
+                                </a>
+                            </Button>
+                        </SimpleTooltip>
+                    ) : null
+                }
+            />
 
             {revoked ? (
                 <div
@@ -1232,7 +1238,7 @@ export const ChannelManagePanel = ({
                 />
             ) : null}
 
-            <PanelFooter>
+            <PaneFooter>
                 {error?.kind === "disconnect" ? (
                     <Alert type="error" showIcon message={error.message} className="w-full" />
                 ) : null}
@@ -1266,9 +1272,11 @@ export const ChannelManagePanel = ({
                         </div>
                     </div>
                 ) : (
-                    <div className="flex w-full items-center justify-end">
+                    // The quiet destructive start action, as "Remove from agent".
+                    <div className="flex w-full items-center">
                         <Button
                             variant="destructive-ghost"
+                            className="-ml-2"
                             disabled={busy !== null}
                             onClick={() => setConfirming(true)}
                             data-testid="channels-disconnect"
@@ -1277,7 +1285,7 @@ export const ChannelManagePanel = ({
                         </Button>
                     </div>
                 )}
-            </PanelFooter>
+            </PaneFooter>
         </div>
     )
 }

@@ -45,6 +45,7 @@ export const ChannelsTab = ({
                                       title: view.onBack
                                           ? view.title
                                           : t("agentLayout.panel.channels"),
+                                      current: view.onBack ? undefined : view.title,
                                       onBack: view.onBack ?? view.onClose,
                                   }}
                               >

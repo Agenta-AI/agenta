@@ -3,5 +3,6 @@
     "close": "关闭",
     "save": "保存",
     "saveFailed": "无法保存更改。请重试。",
-    "saving": "正在保存…"
+    "saving": "正在保存…",
+    "widen": "加宽面板"
 }

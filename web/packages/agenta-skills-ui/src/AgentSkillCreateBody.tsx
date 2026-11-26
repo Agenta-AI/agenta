@@ -26,10 +26,9 @@ import {useAtomValue} from "jotai"
 
 import {SkillCandidateList} from "./SkillCandidateList"
 import {SkillCreateWays} from "./SkillCreateWays"
-import {draftSkillName} from "./skillDraft"
+import {draftSkillName, skillNameProblem} from "./skillDraft"
 import {SkillEditor} from "./SkillEditor"
 import {SkillGithubImport, type ImportedSkill} from "./SkillGithubImport"
-import {SkillNameTitle} from "./SkillNameTitle"
 import {useSkillCreateFlow, type CreatedSkill} from "./useSkillCreateFlow"
 
 type Made = CreatedSkill | ImportedSkill
@@ -93,7 +92,8 @@ export function AgentSkillCreateBody({onCreated, onDone}: NewSkillBodyProps) {
 
     useViewForm({
         dirty: flow.dirty,
-        valid: step === "upload" ? flow.picked.size > 0 : true,
+        valid: step === "upload" ? flow.picked.size > 0 : Boolean(flow.draft.name.trim()),
+        ...(step === "write" ? {invalidReason: t("skills.editor.nameMissing")} : {}),
         save,
         saveLabel:
             step === "upload"
@@ -124,17 +124,20 @@ export function AgentSkillCreateBody({onCreated, onDone}: NewSkillBodyProps) {
         body = (
             <>
                 <SkillViewHeader
-                    compact
                     name={draft.name}
-                    title={
-                        <SkillNameTitle
-                            value={draft.name}
-                            onChange={(name) => flow.setDraft({...draft, name})}
-                            autoFocus={!draft.name}
-                            invalid={flow.attempted && !savedAs}
-                            error={t("skills.editor.nameMissing")}
-                        />
-                    }
+                    editable={{
+                        value: draft.name,
+                        onChange: (name) => flow.setDraft({...draft, name}),
+                        autoFocus: !draft.name,
+                        "aria-label": t("skills.editor.name"),
+                        placeholder: t("skills.editor.namePlaceholder"),
+                        error:
+                            skillNameProblem(draft.name) === "invalid"
+                                ? t("skills.editor.nameInvalid")
+                                : flow.attempted && !savedAs
+                                  ? t("skills.editor.nameMissing")
+                                  : undefined,
+                    }}
                     end={<div ref={setFilesSlot} className="flex empty:hidden" />}
                     actions={[]}
                 />

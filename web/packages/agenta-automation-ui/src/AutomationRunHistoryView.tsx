@@ -174,10 +174,22 @@ export const AutomationRunHistoryView = ({
                             frame === "page" && !showPane && "max-w-content-md",
                         )}
                     >
-                        <div className="flex shrink-0 items-center gap-2 pl-2.5">
-                            <h1 className="m-0 min-w-0 flex-1 truncate text-title text-foreground">
-                                {t("automations.editor.runHistory")}
-                            </h1>
+                        <div
+                            className={cn(
+                                "flex shrink-0 items-center gap-2 pl-2.5",
+                                frame === "panel" && "mb-2.5",
+                            )}
+                        >
+                            {/* In a panel the pane header names the view; the caption takes its place. */}
+                            {frame === "panel" ? (
+                                <p className="m-0 min-h-4.5 min-w-0 flex-1 truncate text-label text-muted-foreground">
+                                    {panelEmpty ? null : caption}
+                                </p>
+                            ) : (
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-title text-foreground">
+                                    {t("automations.editor.runHistory")}
+                                </h1>
+                            )}
                             {showFilters ? (
                                 <AutomationRunFilterMenu view={view} onChange={setView} />
                             ) : runHistoryHref && !panelEmpty ? (
@@ -200,7 +212,7 @@ export const AutomationRunHistoryView = ({
                         {/* Empty until the deliveries land — the hook withholds the caption
                             rather than claiming "0 runs" off a query that has not run. The line
                             keeps its height so the list does not jump. */}
-                        {panelEmpty ? null : (
+                        {panelEmpty || frame === "panel" ? null : (
                             <p className="m-0 mb-2.5 mt-1 min-h-4.5 pl-2.5 text-label text-muted-foreground">
                                 {caption}
                             </p>

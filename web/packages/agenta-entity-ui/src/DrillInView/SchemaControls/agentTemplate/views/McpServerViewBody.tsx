@@ -28,6 +28,7 @@ import {
     AlertDialogTitle,
     Badge,
     Button,
+    ItemViewTitle,
 } from "@agenta/ui/ui"
 import {useViewTitle, type ConfigItemRef, type ViewNav, type ViewProps} from "@agenta/ui/view-stack"
 import {ArrowClockwise} from "@phosphor-icons/react"
@@ -83,26 +84,26 @@ const ServerTitle = ({
 }) => {
     const t = useT(mcpPermissionsCatalog)
     return (
-        // The sibling item views' title: a 24px Mark, 8px to the name.
-        <div className="flex min-w-0 items-center gap-2 px-4 pt-4">
-            <McpServerMark size={24} name={name} />
-            <span className="min-w-0 flex-1 truncate text-label font-semibold leading-5">
-                {name}
-            </span>
-            {status && status !== "connected" ? (
-                <>
+        <ItemViewTitle
+            className="px-4 pt-4"
+            mark={<McpServerMark size={24} name={name} />}
+            title={name}
+            status={
+                status && status !== "connected" ? (
                     <Badge variant="warning" className="shrink-0">
                         {getMcpConnectionStatusLabel(status)}
                     </Badge>
-                    {onReconnect ? (
-                        <Button variant="outline" size="compact" onClick={onReconnect}>
-                            <ArrowClockwise data-icon="inline-start" />
-                            {t("entityUi.mcpPermissions.reconnect")}
-                        </Button>
-                    ) : null}
-                </>
-            ) : null}
-        </div>
+                ) : null
+            }
+            actions={
+                status && status !== "connected" && onReconnect ? (
+                    <Button variant="outline" size="compact" onClick={onReconnect}>
+                        <ArrowClockwise data-icon="inline-start" />
+                        {t("entityUi.mcpPermissions.reconnect")}
+                    </Button>
+                ) : null
+            }
+        />
     )
 }
 

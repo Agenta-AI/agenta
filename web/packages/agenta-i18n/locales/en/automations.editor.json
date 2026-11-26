@@ -57,7 +57,6 @@
     "noConversationBody": "This run didn't get far enough to start one, so there is no transcript to read.",
     "conversationUnavailable": "This conversation can't be opened",
     "conversationUnavailableBody": "The agent that ran it is no longer available, so its transcript can't be loaded.",
-    "backToRunList": "Back to the run list",
     "took": "took {{duration}}",
     "runRowAria": "{{label}} — {{outcome}}",
     "runRowAriaTime": "{{label}} — {{outcome}}, {{time}}",

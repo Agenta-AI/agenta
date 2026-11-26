@@ -12,7 +12,6 @@ import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import automationsPanelCatalog from "@agenta/i18n/catalogs/automations.panel"
 import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {message} from "@agenta/ui/app-message"
-import {useIsPhone} from "@agenta/ui/phone"
 import {
     Alert,
     AlertDialog,
@@ -25,7 +24,12 @@ import {
     Button,
     EmptyState,
 } from "@agenta/ui/ui"
-import {useViewForm, useViewTitle, type ViewProps} from "@agenta/ui/view-stack"
+import {
+    useViewForm,
+    useViewTitle,
+    ViewFooterStart,
+    type ViewProps,
+} from "@agenta/ui/view-stack"
 import {Lightning, Trash} from "@phosphor-icons/react"
 
 import {automationRunHistoryView} from "./automationRunHistoryView"
@@ -38,7 +42,6 @@ const tNow = createT(automationsScreensCatalog)
 const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParams>) => {
     const t = useT(automationsScreensCatalog, automationsPanelCatalog)
     const tEditor = useT(automationsEditorCatalog)
-    const phone = useIsPhone()
     const editor = useAutomationEditor(params.automationId)
     const {remove} = useAutomation(params.automationId, params.kind)
     const base = `/w/${params.workspaceId}/p/${params.projectId}`
@@ -48,7 +51,11 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
     useViewForm({
         dirty: editor.dirty,
         valid: true,
-        save: editor.save,
+        // The automation stays open after Save; a failed save says so itself.
+        save: async () => {
+            await editor.save()
+            return "stay"
+        },
     })
 
     const openRuns = useCallback(
@@ -88,7 +95,7 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
     }, [nav, params.automationId, remove])
     const deletion = useAutomationDelete({onDelete, onClose: () => setConfirmDelete(false)})
 
-    if (editor.loading) return <AutomationPaneSkeleton phone={phone} />
+    if (editor.loading) return <AutomationPaneSkeleton />
     if (editor.loadFailed)
         return (
             <div className="p-4">
@@ -155,10 +162,8 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
                     }
                 />
             </div>
-            {/* The pane's action row, as the chrome draws it: Delete left, Discard and Save right. */}
-            <div
-                className={`flex shrink-0 items-center justify-between gap-2 px-4 ${phone ? "border-0 border-t border-solid border-border-muted pb-6 pt-3" : "bg-muted py-2.5"}`}
-            >
+            {/* The chrome's action row: Delete at its start, quiet, as "Remove from agent". */}
+            <ViewFooterStart>
                 <Button
                     type="button"
                     variant="destructive-ghost"
@@ -169,28 +174,7 @@ const AutomationViewBody = ({params, target, nav}: ViewProps<AutomationViewParam
                     <Trash data-icon="inline-start" />
                     {t("automations.screens.delete")}
                 </Button>
-                <span className="flex items-center gap-2">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="compact"
-                        disabled={editor.saving || !editor.dirty}
-                        onClick={editor.discard}
-                    >
-                        {tEditor("automations.editor.discard")}
-                    </Button>
-                    <Button
-                        type="button"
-                        size="compact"
-                        disabled={editor.saving || !editor.dirty}
-                        onClick={() => void editor.save()}
-                    >
-                        {editor.saving
-                            ? tEditor("automations.editor.saving")
-                            : tEditor("automations.editor.save")}
-                    </Button>
-                </span>
-            </div>
+            </ViewFooterStart>
             <AlertDialog
                 open={confirmDelete}
                 onOpenChange={(next) => (next ? undefined : deletion.close())}

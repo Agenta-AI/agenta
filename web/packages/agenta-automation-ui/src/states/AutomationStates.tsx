@@ -1,7 +1,7 @@
 import {useT} from "@agenta/i18n"
 import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import {Button, IconTile, SkeletonBlock} from "@agenta/ui/ui"
+import {Button, IconTile, ItemViewTitleSkeleton, SkeletonBlock} from "@agenta/ui/ui"
 import {Funnel, MagnifyingGlass} from "@phosphor-icons/react"
 
 /**
@@ -93,8 +93,8 @@ const FieldSkeleton = ({label, control}: {label: string; control: string}) => (
     </div>
 )
 
-/** The pane's automation view while it loads, at the loaded view's measurements. */
-export const AutomationPaneSkeleton = ({phone = false}: {phone?: boolean}) => {
+/** The pane's automation view while it loads; the chrome draws its action row. */
+export const AutomationPaneSkeleton = () => {
     const t = useT(commonCatalog)
     return (
         <div
@@ -104,19 +104,14 @@ export const AutomationPaneSkeleton = ({phone = false}: {phone?: boolean}) => {
             className="flex h-full min-h-0 flex-col"
         >
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-6 pt-4">
-                <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center gap-2">
-                        <SkeletonBlock shape="mark" className="size-6 shrink-0" />
-                        <div className="flex h-5 min-w-0 flex-1 items-center">
-                            <SkeletonBlock className="h-3.5 w-40" />
-                        </div>
-                        <SkeletonBlock className="h-3 w-4" />
-                        <SkeletonBlock shape="mark" className="h-4 w-7 rounded-round" />
-                    </div>
-                    <div className="flex h-4 items-center">
-                        <SkeletonBlock className="h-3 w-3/5" />
-                    </div>
-                </div>
+                <ItemViewTitleSkeleton
+                    actions={
+                        <>
+                            <SkeletonBlock className="h-3 w-4" />
+                            <SkeletonBlock shape="mark" className="h-4 w-7 rounded-round" />
+                        </>
+                    }
+                />
                 <div className="mt-4 flex flex-col gap-4">
                     <div className="flex flex-col gap-1">
                         <div className="flex h-7 items-center justify-between">
@@ -138,15 +133,6 @@ export const AutomationPaneSkeleton = ({phone = false}: {phone?: boolean}) => {
                             <FieldSkeleton label="w-16" control="h-19.5" />
                         </div>
                     </div>
-                </div>
-            </div>
-            <div
-                className={`flex shrink-0 items-center justify-between px-4 ${phone ? "border-0 border-t border-solid border-border-muted pb-6 pt-3" : "bg-muted py-2.5"}`}
-            >
-                <SkeletonBlock className="-ml-2 h-7 w-20.5 rounded-control" />
-                <div className="flex gap-2">
-                    <SkeletonBlock className="h-7 w-17 rounded-control" />
-                    <SkeletonBlock className="h-7 w-13 rounded-control" />
                 </div>
             </div>
         </div>
