@@ -175,8 +175,8 @@ function IntegrationListRow({
                 monoName: false,
                 mono: "",
                 color: "transparent",
-                // A 16 px logo on the neutral tile, so the tile shows around it like other rows.
-                icon: <ProviderLogo logo={integration?.logo ?? null} size={16} />,
+                // An 18 px logo on the neutral tile, so the tile shows around it like other rows.
+                icon: <ProviderLogo logo={integration?.logo ?? null} size={18} />,
                 tags: row.legacyIndices.length > 0 ? [t("entityUi.configItems.oldFormatTag")] : [],
                 typeLabel: t("entityUi.itemDescriptors.integrationType"),
                 subtitle: t("entityUi.configItems.integrationRowSubtitle", {

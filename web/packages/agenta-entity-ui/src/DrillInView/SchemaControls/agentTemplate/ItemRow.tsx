@@ -120,7 +120,15 @@ function RowSubtitle({
  * paints it. An item that draws its own Mark (an MCP server, a skill, a subagent's agent Mark)
  * keeps its chip at the same size.
  */
-export function ItemAvatar({descriptor, size = 24}: {descriptor: ItemDescriptor; size?: 24 | 32}) {
+export function ItemAvatar({
+    descriptor,
+    size = 24,
+    className,
+}: {
+    descriptor: ItemDescriptor
+    size?: 24 | 32
+    className?: string
+}) {
     if (descriptor.avatarClassName) {
         return (
             <span
@@ -130,6 +138,7 @@ export function ItemAvatar({descriptor, size = 24}: {descriptor: ItemDescriptor;
                         ? "size-8 [&_img]:size-5 [&_svg]:size-4"
                         : "size-6 [&_svg]:size-3.5",
                     descriptor.avatarClassName,
+                    className,
                 )}
                 style={descriptor.avatarStyle}
             >
@@ -138,7 +147,7 @@ export function ItemAvatar({descriptor, size = 24}: {descriptor: ItemDescriptor;
         )
     }
     return (
-        <IconTile size={size} tone="neutral" aria-hidden>
+        <IconTile size={size} tone="neutral" aria-hidden className={className}>
             {descriptor.icon ?? descriptor.mono}
         </IconTile>
     )
@@ -228,7 +237,12 @@ export function ItemRow({
                     inactive && "opacity-50",
                 )}
             >
-                <ItemAvatar descriptor={descriptor} size={twoLine && !page ? 32 : 24} />
+                <ItemAvatar
+                    descriptor={descriptor}
+                    size={twoLine && !page ? 32 : 24}
+                    // A one-line pane row's Mark is 28 px, the size of its section's tile.
+                    className={!page && !twoLine ? "size-7 [&_svg]:size-4" : undefined}
+                />
                 <div className="min-w-0 flex-1">
                     <div
                         className={cn(
