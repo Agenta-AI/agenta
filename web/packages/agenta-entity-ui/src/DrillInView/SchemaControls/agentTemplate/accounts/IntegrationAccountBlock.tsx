@@ -16,6 +16,7 @@ import {Button, ChoiceSwitch} from "@agenta/ui/ui"
 import {AppWindow, Users, Warning} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
+import {useOwnerWord} from "../../../../accounts/OwnerField"
 import {personalConnectionsFor} from "../../../../accounts/personalAccounts"
 import {useAccountChoice} from "../../../../accounts/useAccountChoice"
 import {
@@ -61,6 +62,8 @@ export function IntegrationAccountBlock({
     disabled,
 }: IntegrationAccountBlockProps) {
     const t = useT(accountSwitchCatalog, accountsCatalog)
+    // The Settings Owner words, so "whose account" reads the same everywhere.
+    const ownerWord = useOwnerWord()
     const {integration} = useToolIntegrationDetail(target.integration)
     const name = integration?.name || target.integration
     const {connections} = useToolConnectionsQuery()
@@ -100,12 +103,12 @@ export function IntegrationAccountBlock({
                         choices={[
                             {
                                 value: USER_ACCOUNT_SOURCE,
-                                label: t("entityUi.accountSwitch.eachPersonsOwn"),
+                                label: ownerWord("user"),
                                 note: t("entityUi.accountSwitch.eachPersonsOwnNote", {name}),
                             },
                             {
                                 value: "agent",
-                                label: t("entityUi.accountSwitch.oneShared"),
+                                label: ownerWord("project"),
                                 note: t("entityUi.accountSwitch.oneSharedNote"),
                             },
                         ]}
