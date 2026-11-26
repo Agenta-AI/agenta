@@ -15,6 +15,7 @@ from uuid import uuid4
 import pytest
 
 from oss.src.utils.common import is_ee
+from oss.tests.pytest.utils.plans import project_limit, skip_if_plan_offers
 from oss.tests.pytest.utils.membership_accounts import (
     add_project_member,
     create_project,
@@ -244,6 +245,8 @@ def test_member_cannot_invite_or_change_roles(admin_api, team):
 
 
 def test_roles_offered_without_rbac(admin_api, team):
+    if is_ee():
+        skip_if_plan_offers(admin_api, plan=_OWNER_PLAN, flag="rbac")
     resp = admin_api(
         "GET",
         "/access/roles",
@@ -267,6 +270,8 @@ def test_roles_offered_without_rbac(admin_api, team):
 
 
 def test_invite_takes_the_floor_role_and_refuses_owner(admin_api, team):
+    if is_ee():
+        skip_if_plan_offers(admin_api, plan=_OWNER_PLAN, flag="rbac")
     invite = f"/organizations/{team['organization_id']}/workspaces/{team['workspace_id']}/invite"
     for roles in (["owner"], ["viewer"]):
         refused = admin_api(
@@ -339,7 +344,7 @@ def test_member_creates_and_renames_a_project_but_cannot_delete_or_make_default(
         headers=team["headers"]["member"],
         json={"name": f"member-{uuid4().hex[:8]}"},
     )
-    if is_ee():
+    if is_ee() and project_limit(admin_api, plan=_OWNER_PLAN) == 1:
         assert created.status_code == 403, created.text
         assert created.json()["detail"]["code"] == "project_limit_reached"
     else:

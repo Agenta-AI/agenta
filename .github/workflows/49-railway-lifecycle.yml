@@ -58,6 +58,10 @@ jobs:
           # preview-clone-create.sh points the preview's telemetry at the "Agenta Test
           # Traffic" PostHog project with this public ingestion token.
           POSTHOG_API_KEY: phc_rCKHKJj7ea3r5t7frogShC8MUsuFzSD6FFTJe7YniDV9
+          # A test license key for the "ci-previews" customer. When set,
+          # preview-clone-create.sh gives it to the services that run API code, so
+          # the plan-gated tests run. When unset, the preview stays on the community plan.
+          AGENTA_PREVIEW_LICENSE_KEY: ${{ secrets.AGENTA_PREVIEW_LICENSE_KEY }}
           RAILWAY_TEMPLATE_PROJECT: ${{ vars.RAILWAY_TEMPLATE_PROJECT || 'agenta-oss-clone-spike' }}
           RAILWAY_TEMPLATE_ENV: ${{ vars.RAILWAY_TEMPLATE_ENV || 'pr-template' }}
           RAILWAY_MANUAL_PREVIEW_MINUTES: ${{ vars.RAILWAY_MANUAL_PREVIEW_MINUTES || '60' }}
