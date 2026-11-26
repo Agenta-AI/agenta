@@ -1,6 +1,7 @@
 import asyncio
 import json
 import warnings
+from uuid import UUID
 
 import httpx
 import pytest
@@ -13,7 +14,10 @@ from oss.src.core.releases.service import (
     MAX_FEED_BYTES,
     ReleasesService,
 )
+from oss.src.core.instances.types import InstanceMissing
 from oss.src.utils.env import ReleasesConfig, _parse_instance_kind, env
+
+INSTANCE_ID = UUID("0193b2c4-5d6e-7f80-9a1b-2c3d4e5f6a7b")
 
 FEED = {
     "releases": [
@@ -80,6 +84,11 @@ def requests(monkeypatch):
 
     monkeypatch.setattr(releases_service.httpx, "AsyncClient", client)
     monkeypatch.setattr(releases_service, "get_agenta_version", lambda: "v0.128.11")
+
+    async def instance_id():
+        return INSTANCE_ID
+
+    monkeypatch.setattr(releases_service, "get_instance_id", instance_id)
     monkeypatch.setattr(env.releases, "update_check_enabled", True)
     # No override, not CI and a public web URL: the detected kind is "production".
     monkeypatch.setattr(env.telemetry, "instance_kind", None)
@@ -99,16 +108,23 @@ async def test_returns_the_feed_and_the_running_version(cache, requests):
     assert cache.writes[0]["key"] == "https://agenta.ai/releases.json"
 
 
-async def test_request_carries_only_the_version_and_the_kind(cache, requests):
+async def test_request_carries_only_the_version_the_kind_and_the_instance_id(
+    cache, requests
+):
     await ReleasesService().fetch_instance_releases()
 
     assert len(requests) == 1
     request = requests[0]
     assert request.method == "GET"
-    assert (
-        str(request.url) == f"{env.releases.feed_url}?version=v0.128.11&kind=production"
+    assert str(request.url) == (
+        f"{env.releases.feed_url}?version=v0.128.11&kind=production"
+        f"&instance_id={INSTANCE_ID}"
     )
-    assert dict(request.url.params) == {"version": "v0.128.11", "kind": "production"}
+    assert dict(request.url.params) == {
+        "version": "v0.128.11",
+        "kind": "production",
+        "instance_id": str(INSTANCE_ID),
+    }
     assert request.content == b""
     sent = json.dumps(dict(request.headers)).lower()
     assert "0.128.11" not in sent
@@ -138,7 +154,7 @@ async def test_download_uses_the_configured_feed_url(cache, requests, monkeypatc
     result = await ReleasesService().fetch_instance_releases()
 
     assert [str(request.url) for request in requests] == [
-        f"{preview}?version=v0.128.11&kind=production"
+        f"{preview}?version=v0.128.11&kind=production&instance_id={INSTANCE_ID}"
     ]
     assert result.releases == FEED["releases"]
 
@@ -171,6 +187,23 @@ async def test_request_carries_the_instance_kind_override(
     assert requests[0].url.params["kind"] == kind
 
 
+async def test_missing_instance_id_still_checks_without_it(
+    cache, requests, monkeypatch
+):
+    async def missing():
+        raise InstanceMissing()
+
+    monkeypatch.setattr(releases_service, "get_instance_id", missing)
+
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert dict(requests[0].url.params) == {
+        "version": "v0.128.11",
+        "kind": "production",
+    }
+    assert result.releases == FEED["releases"]
+
+
 @pytest.mark.parametrize(
     ("value", "expected"),
     [("test", "test"), (" TEST ", "test"), ("", None), ("staging", None)],
@@ -194,6 +227,11 @@ async def test_returns_the_deployment_method(cache, requests, monkeypatch, metho
 
 async def test_update_check_off_makes_no_request(cache, requests, monkeypatch):
     monkeypatch.setattr(env.releases, "update_check_enabled", False)
+
+    async def unexpected():
+        raise AssertionError("the instance id is read only for the update check")
+
+    monkeypatch.setattr(releases_service, "get_instance_id", unexpected)
 
     result = await ReleasesService().fetch_instance_releases()
 

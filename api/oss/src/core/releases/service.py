@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 import httpx
 
-from oss.src.core.instances.service import get_instance_kind
+from oss.src.core.instances.service import get_instance_id, get_instance_kind
 from oss.src.core.releases.dtos import InstanceReleases, ReleaseFeed
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env
@@ -35,16 +35,28 @@ def _parse_feed(payload: Any) -> Optional[ReleaseFeed]:
     )
 
 
+async def _feed_params() -> dict[str, str]:
+    # The running version, as other self-hosted products send with their update check,
+    # the instance kind, so Agenta's own test stacks can be filtered out, and the
+    # instance id, so each check counts once per instance.
+    # AGENTA_UPDATE_CHECK_ENABLED=false stops the request.
+    params = {"version": get_agenta_version(), "kind": get_instance_kind()}
+    try:
+        params["instance_id"] = str(await get_instance_id())
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        # Without the id, the check still runs and agenta.ai records it as anonymous.
+        log.warning("[releases] instance id is unavailable", error=str(e) or repr(e))
+    return params
+
+
 async def _read_feed_body() -> bytes:
+    params = await _feed_params()
     body = bytearray()
     async with httpx.AsyncClient(timeout=FETCH_TIMEOUT_SECONDS) as client:
         async with client.stream(
             "GET",
             env.releases.feed_url,
-            # The running version, as other self-hosted products send with their update
-            # check, and the instance kind, so Agenta's own test stacks can be filtered
-            # out. AGENTA_UPDATE_CHECK_ENABLED=false stops the request.
-            params={"version": get_agenta_version(), "kind": get_instance_kind()},
+            params=params,
         ) as response:
             response.raise_for_status()
             async for chunk in response.aiter_bytes():
