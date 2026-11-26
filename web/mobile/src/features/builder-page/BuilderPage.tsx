@@ -234,7 +234,7 @@ export const BuilderPage = ({
                         userId={userId}
                     />
                 ) : (
-                    <span className="min-w-0 flex-1 truncate text-title text-foreground">
+                    <span className="min-w-0 flex-1 truncate text-btn-sm font-medium text-foreground">
                         {title}
                     </span>
                 )}
