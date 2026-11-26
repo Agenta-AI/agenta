@@ -1,5 +1,4 @@
 {
-    "add": "Hinzufügen",
     "addProviderOrSubscription": "Anbieter oder Abonnement hinzufügen",
     "agenta": "Agenta",
     "apiKeys": "API-Schlüssel",
@@ -9,7 +8,5 @@
     "providedByAgenta": "Von Agenta bereitgestellt",
     "saveConnection": "Verbindung speichern",
     "signInNeeded": "Anmeldung erforderlich",
-    "subscriptions": "Abonnements",
-    "useApiKey": "API-Schlüssel verwenden",
-    "useSubscription": "Abonnement verwenden"
+    "subscriptions": "Abonnements"
 }

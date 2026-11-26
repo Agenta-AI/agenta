@@ -16,7 +16,7 @@
  *
  * Design: docs/design/provider-connections-models/experience.md ("Model picker in the playground").
  */
-import {useCallback, useContext, useMemo, useRef, useState, type ReactNode} from "react"
+import {useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {subscriptionPairModelsAtom, type AgentConnectionNamespace} from "@agenta/entities/secret"
 import {
@@ -35,13 +35,16 @@ import {
     ModelPickerList,
     SelectLLMProviderBase,
 } from "@agenta/ui/select-llm-provider"
-import {useOptionalViewStack} from "@agenta/ui/view-stack"
+import {useOptionalViewStack, type ViewDef} from "@agenta/ui/view-stack"
 import {Plus} from "@phosphor-icons/react"
 import {useAtomValue, useStore} from "jotai"
 
 import ProviderDrawer from "../../../secretProvider/ProviderDrawer"
+import {ProviderCatalogBody} from "../../../secretProvider/views/ProviderCatalogBody"
+import {ProviderAddBar} from "../../../secretProvider/views/ProviderListBody"
 import {providerSaveFollowUpAtom} from "../../../secretProvider/views/providerSaveFollowUp"
-import {providerListView} from "../../../secretProvider/views/providerViews"
+import {providerAddView, providerListView} from "../../../secretProvider/views/providerViews"
+import {subscriptionViewOf} from "../../../secretProvider/views/subscriptionViews"
 import {
     buildConnectionPickerRows,
     displayedModelRow,
@@ -53,7 +56,7 @@ import {
 import type {ConnectionMode, HarnessCapabilitiesMap} from "../connectionUtils"
 import {buildPickerGroupsWithSections} from "../pickerSections"
 
-import {listPickerGroups, ModelPickerLayoutContext} from "./modelPickerLayout"
+import {listPickerGroups, ModelPickerLayoutContext, ModelViewContext} from "./modelPickerLayout"
 import {rowsOfConnection} from "./rowsOfConnection"
 
 export interface ModelPickerControlProps {
@@ -225,6 +228,26 @@ const ModelPickerControl = ({
         setDrawerOpen(true)
     }, [connections, providerSaved, stack, store])
 
+    // In the Model view a provider view opens one level down, so its Save comes back here.
+    const modelView = useContext(ModelViewContext)
+    const openInModelView = useCallback(
+        <P,>(view: ViewDef<P>, params: P) => {
+            if (!modelView) return
+            drawerConnectionKeysRef.current = connections.map((connection) => connection.id)
+            if (stack) store.set(providerSaveFollowUpAtom, {host: stack.open, run: providerSaved})
+            void (modelView.nav.push ?? modelView.nav.replace)(view, params, {kind: "project"})
+        },
+        [connections, modelView, providerSaved, stack, store],
+    )
+    const stackOpen = stack?.open
+    useEffect(
+        () => () => {
+            if (modelView && store.get(providerSaveFollowUpAtom)?.host === stackOpen)
+                store.set(providerSaveFollowUpAtom, null)
+        },
+        [modelView, stackOpen, store],
+    )
+
     const drawer = (
         <ProviderDrawer
             open={drawerOpen}
@@ -249,9 +272,10 @@ const ModelPickerControl = ({
         )
     }
 
-    // Nothing connected: the menu would be empty, so the pill IS the call to action. A project
-    // already running on a subscription keeps its menu — it has models without a stored key.
+    // Nothing connected: the Model view opens on the provider catalog, elsewhere a set-up pill.
+    // A project already running on a subscription keeps its menu: it has models without a key.
     if (allSourcesResolved && rows.every((row) => row.models.length === 0)) {
+        if (layout === "list" && modelView) return <ProviderCatalogBody open={openInModelView} />
         return gutter(
             <>
                 <button
@@ -274,8 +298,15 @@ const ModelPickerControl = ({
         onSelect(pickerSelectionFrom(value, metadata))
 
     if (layout === "list") {
+        const reSignIn = (key: string | undefined) => {
+            const connection = connections.find((candidate) => candidate.id === key)
+            if (!connection) return openModelProviders()
+            const {view, params} = subscriptionViewOf(connection)
+            openInModelView(view, params)
+        }
         return (
             <>
+                {modelView?.notice ? gutter(modelView.notice) : null}
                 <ModelPickerList
                     options={groups}
                     value={displayed.modelId ?? undefined}
@@ -285,9 +316,15 @@ const ModelPickerControl = ({
                     disabled={disabled}
                     disabledGroupAction={{
                         label: t("common.signIn"),
-                        onClick: openModelProviders,
+                        onClick: (group) =>
+                            modelView ? reSignIn(group.key) : openModelProviders(),
                     }}
                     onManageProviders={openModelProviders}
+                    footer={
+                        modelView ? (
+                            <ProviderAddBar onAdd={() => openInModelView(providerAddView, {})} />
+                        ) : undefined
+                    }
                 />
                 {drawer}
             </>

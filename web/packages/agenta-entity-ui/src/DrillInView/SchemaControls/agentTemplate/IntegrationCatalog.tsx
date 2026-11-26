@@ -67,6 +67,7 @@ import {useRefreshToolConnection} from "../../../gatewayTool/hooks/useRefreshToo
 import {ProviderLogo, SubSectionHeader} from "../sectionGroups"
 import type {GatewayConnectionTarget, IntegrationRow} from "../toolUtils"
 
+import {CanvasGroupHeader} from "./CanvasGroupHeader"
 import {CatalogListRow} from "./CatalogListRow"
 import {CatalogRowSkeleton} from "./CatalogRowSkeleton"
 import {CategoryChips} from "./CategoryChips"
@@ -482,15 +483,6 @@ function CatalogRow({
                 </span>
             ) : null}
         </CatalogListRow>
-    )
-}
-
-/** The agent panel's group header (canvas F02 f4): `text-subtitle`, space above, no line (SURF-01). */
-function CanvasGroupHeader({label}: {label: ReactNode}) {
-    return (
-        <div className="flex items-center pt-3 text-subtitle text-foreground">
-            {label}
-        </div>
     )
 }
 

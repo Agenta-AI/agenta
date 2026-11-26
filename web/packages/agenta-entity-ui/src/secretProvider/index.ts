@@ -82,6 +82,15 @@ export {
 /** Provider and subscription text in the active language, for the Settings rows. */
 export {credentialSummaryText} from "./providerCardText"
 export {subscriptionStatusLine} from "./subscriptionText"
+export {
+    CLOUD_PLATFORMS,
+    MODEL_PROVIDERS,
+    providerCatalogDescription,
+    providerCatalogTitle,
+    SUBSCRIPTION_HINT,
+    SUBSCRIPTION_PRODUCTS,
+    type SubscriptionProduct,
+} from "./providerCatalogText"
 /**
  * The model providers views (target `project`): the list, "Add a provider or subscription", one
  * connection's form, the built-in models card and the subscription sign-ins. `ProviderListBody`

@@ -108,6 +108,24 @@ const Row = ({
     </li>
 )
 
+/** "Add a provider or subscription", fixed at the bottom of the view; the phone draws its own. */
+export const ProviderAddBar = ({onAdd}: {onAdd: () => void}) => {
+    const t = useT(providerListCatalog)
+    const phone = useIsPhone()
+    return phone ? (
+        <PhonePrimaryAction icon={<Plus size={14} />} onClick={onAdd}>
+            {t("entityUi.providerList.addProviderOrSubscription")}
+        </PhonePrimaryAction>
+    ) : (
+        <div className="shrink-0 border-0 border-t border-solid border-border-muted p-3">
+            <Button className="h-control w-full rounded-md text-label" onClick={onAdd}>
+                <Plus size={14} />
+                {t("entityUi.providerList.addProviderOrSubscription")}
+            </Button>
+        </div>
+    )
+}
+
 export const ProviderListBody = ({
     onAdd,
     onOpenConnection,
@@ -116,8 +134,6 @@ export const ProviderListBody = ({
     rowMenu,
 }: ProviderListBodyProps) => {
     const t = useT(providerListCatalog, settingsProvidersCatalog, commonCatalog)
-    // The phone draws its own primary action at the bottom of the screen.
-    const phone = useIsPhone()
     const connections = useAtomValue(providerConnectionsAtom)
     const vault = useAtomValue(vaultSecretsQueryAtom)
     const builtinEndpoints = useAtomValue(builtinModelEndpointsQueryAtom).data
@@ -209,18 +225,7 @@ export const ProviderListBody = ({
                     </div>
                 )}
             </div>
-            {phone ? (
-                <PhonePrimaryAction icon={<Plus size={14} />} onClick={onAdd}>
-                    {t("entityUi.providerList.addProviderOrSubscription")}
-                </PhonePrimaryAction>
-            ) : (
-                <div className="shrink-0 border-0 border-t border-solid border-border-muted p-3">
-                    <Button className="h-control w-full rounded-md text-label" onClick={onAdd}>
-                        <Plus size={14} />
-                        {t("entityUi.providerList.addProviderOrSubscription")}
-                    </Button>
-                </div>
-            )}
+            <ProviderAddBar onAdd={onAdd} />
         </div>
     )
 }

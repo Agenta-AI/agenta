@@ -44,6 +44,8 @@ export interface ModelPickerListProps {
     disabledGroupAction?: {label: string; onClick: (group: ProviderGroup) => void}
     /** Shows "Manage model providers" fixed under the list. */
     onManageProviders?: () => void
+    /** Fixed under the list in place of "Manage model providers" (the Model view's add action). */
+    footer?: ReactNode
     /** Right-aligned in the search field (the `/model` command that opened the list). */
     searchSuffix?: ReactNode
     /** Put the caret in the search field on mount (a list that opens over a composer). */
@@ -96,6 +98,7 @@ const ModelPickerList = ({
     disabled,
     disabledGroupAction,
     onManageProviders,
+    footer,
     searchSuffix,
     autoFocusSearch,
     layout = "panel",
@@ -297,11 +300,12 @@ const ModelPickerList = ({
                     </p>
                 )}
             </div>
-            {onManageProviders ? (
-                <div className={clsx("mt-1.5", !popover && "px-3")}>
-                    <ManageProvidersRow onClick={onManageProviders} />
-                </div>
-            ) : null}
+            {footer ??
+                (onManageProviders ? (
+                    <div className={clsx("mt-1.5", !popover && "px-3")}>
+                        <ManageProvidersRow onClick={onManageProviders} />
+                    </div>
+                ) : null)}
         </div>
     )
 }

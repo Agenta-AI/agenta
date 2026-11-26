@@ -2,8 +2,6 @@ import {createElement, Fragment, type ReactNode, useCallback, useMemo, useState}
 
 import {
     builtinModelsOf,
-    PROVIDER_CATALOG,
-    SecretKind,
     subscriptionConnectionFor,
     subscriptionIsReady,
     subscriptionProviderFamily,
@@ -15,16 +13,21 @@ import {builtinModelEndpointsQueryAtom} from "@agenta/entities/workflow"
 import {OwnerChip} from "@agenta/entity-ui/secret"
 import {
     BuiltinModelsSheet,
+    CLOUD_PLATFORMS,
+    MODEL_PROVIDERS,
+    providerCatalogDescription,
     ProviderDrawer,
     providerIconFor,
     ProviderOwnerChoiceContext,
+    SUBSCRIPTION_HINT,
+    SUBSCRIPTION_PRODUCTS,
     SubscriptionSheet,
     type OrganizationConnectionScope,
     type ProviderOwnerChoice,
     type SubscriptionSheetOwner,
     type SubscriptionViewParams,
 } from "@agenta/entity-ui/secretProvider"
-import {useT, type CatalogKey} from "@agenta/i18n"
+import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import providerListCatalog from "@agenta/i18n/catalogs/entityUi.providerList"
 import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
@@ -108,48 +111,9 @@ export const providerTitle = (kind: string, title: string, t: ReturnType<typeof 
 export const ProviderLogo = ({kind}: {kind: string}) =>
     createElement(providerIconFor(kind), {className: "size-4"})
 
-/** What a credential-set kind's form asks for, read off its fields in `providerFields.ts`. */
-const FORM_FIELDS_BY_KIND: Record<
-    string,
-    CatalogKey<typeof commonCatalog | typeof settingsProvidersCatalog>
-> = {
-    bedrock: "settings.providers.bedrockFields",
-    azure: "settings.providers.azureFields",
-    vertex_ai: "settings.providers.vertexFields",
-}
-
-const MODEL_PROVIDERS = PROVIDER_CATALOG.filter(
-    (entry) => entry.secretKind === SecretKind.ProviderKey,
-)
-const CLOUD_PLATFORMS = PROVIDER_CATALOG.filter(
-    (entry) => entry.secretKind === SecretKind.CustomProvider,
-)
-
-const catalogDescription = (
-    entry: ProviderCatalogEntry,
-    t: ReturnType<typeof useT>,
-): string | undefined => {
-    if (entry.kind === "custom") return t("settings.providers.customEndpointHint")
-    if (entry.subtitle) return entry.subtitle
-    if (entry.secretKind === SecretKind.ProviderKey) return t("settings.providers.apiKey")
-    const fields = FORM_FIELDS_BY_KIND[entry.kind]
-    return fields ? t(fields) : undefined
-}
-
-const SUBSCRIPTION_PROVIDERS: SubscriptionProvider[] = ["chatgpt", "claude"]
-
 /** A subscription whose sign-in never finished (a cancelled Connect): still one to start, not held. */
 const neverSignedIn = (connection: ProviderConnection) =>
     !!connection.subscription && connection.subscription.loginState === "pending_login"
-/** The line of a sign-in not made yet. */
-const SUBSCRIPTION_HINT: Record<
-    SubscriptionProvider,
-    CatalogKey<typeof commonCatalog | typeof settingsProvidersCatalog>
-> = {
-    chatgpt: "settings.providers.chatgptHint",
-    claude: "settings.providers.claudeHint",
-}
-
 /** The AI providers list: every owner's rows in one Connected list, sign-ins, the catalog. */
 export const ProvidersPanel = ({
     groups: ownerGroups,
@@ -322,7 +286,7 @@ export const ProvidersPanel = ({
             // Offered once the list is in, so a held sign-in never shows as one to connect.
             const offered =
                 source.offersSubscriptions && !source.loading
-                    ? SUBSCRIPTION_PROVIDERS.filter((provider) => {
+                    ? SUBSCRIPTION_PRODUCTS.filter((provider) => {
                           const existing = subscriptionConnectionFor(source.connections, provider)
                           return !existing || neverSignedIn(existing)
                       })
@@ -372,7 +336,7 @@ export const ProvidersPanel = ({
             key: "subscriptions",
             label: t("settings.providers.subscriptions"),
             // One row per provider; its dialog asks which owner when more than one may start it.
-            items: SUBSCRIPTION_PROVIDERS.flatMap<SettingsCatalogItem>((provider) => {
+            items: SUBSCRIPTION_PRODUCTS.flatMap<SettingsCatalogItem>((provider) => {
                 const groupKeys = owned
                     .filter((group) => group.offered.includes(provider))
                     .map((group) => group.key)
@@ -398,7 +362,7 @@ export const ProvidersPanel = ({
             key: entry.kind,
             logo: <ProviderLogo kind={entry.kind} />,
             name: providerTitle(entry.kind, entry.title, t),
-            description: catalogDescription(entry, t),
+            description: providerCatalogDescription(entry, (key) => t(key)),
             status: "available",
             statusLabel: t("settings.providers.connectName", {
                 name: providerTitle(entry.kind, entry.title, t),
