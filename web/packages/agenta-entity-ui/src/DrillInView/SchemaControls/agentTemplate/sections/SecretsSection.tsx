@@ -33,13 +33,12 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     Button,
-    Spinner,
 } from "@agenta/ui/ui"
 import {LockSimple} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {ACCOUNT_COPY} from "../../../../accounts/copy"
-import {ItemRow, type ItemRowStatus} from "../ItemRow"
+import {ItemRow, ItemRowSkeleton, type ItemRowStatus} from "../ItemRow"
 import {needsSetupLabel, needsSetupReasonText} from "../needsSetupText"
 import {SectionAddButton} from "../SectionAddButton"
 import {SectionEmpty} from "../SectionEmpty"
@@ -261,8 +260,13 @@ export const SecretsSectionBody = ({
                 </div>
             ) : null}
             {loading ? (
-                <div className="flex items-center gap-2 py-3 text-meta text-muted-foreground">
-                    <Spinner size="small" /> {t("entityUi.agentSecrets.loadingSecrets")}
+                <div
+                    role="status"
+                    aria-busy
+                    aria-label={t("entityUi.agentSecrets.loadingSecrets")}
+                    className="flex flex-col gap-2"
+                >
+                    <ItemRowSkeleton />
                 </div>
             ) : bindings.length === 0 ? (
                 <SectionEmpty actionDisabled={!canChange}>

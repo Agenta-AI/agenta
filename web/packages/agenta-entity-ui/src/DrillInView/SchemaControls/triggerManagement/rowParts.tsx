@@ -82,7 +82,7 @@ export function RowSkeleton() {
     return (
         <div aria-hidden className={cn(FLAT_ROW, "gap-2.5")}>
             <div className={cn("flex min-w-0 flex-1 items-center", ROW_LEAD_GAP)}>
-                <SkeletonBlock active className="size-7 shrink-0 rounded-md" />
+                <SkeletonBlock active className="size-8 shrink-0 rounded-md" />
                 <div className="flex min-w-0 flex-1 flex-col">
                     <div className="flex h-4.5 items-center">
                         <SkeletonBlock active className="h-3.5 w-36 max-w-full" />

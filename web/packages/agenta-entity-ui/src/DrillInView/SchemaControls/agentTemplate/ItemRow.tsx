@@ -13,6 +13,7 @@ import {
     Button,
     IconTile,
     SimpleTooltip,
+    SkeletonBlock,
     Tooltip,
     TooltipContent,
     TooltipProvider,
@@ -528,4 +529,42 @@ function InstructionsPagePreview({
             </div>
         </div>
     )
+}
+
+/** Loading rows in a two-line ItemRow's shape for the host's layout: pane, phone, page (STATE-02). */
+export function ItemRowSkeleton({count = 2}: {count?: number}) {
+    const page = useSectionListLayout() === "page"
+    const phone = usePhoneSections() !== null
+    return Array.from({length: count}).map((_, i) => (
+        <div
+            key={i}
+            aria-hidden
+            className={cn(
+                "flex items-center",
+                page
+                    ? PAGE_ROW
+                    : cn(
+                          "box-border min-h-row-double gap-2 rounded-md border border-solid border-transparent px-2 py-1",
+                          phone && "-mx-2.25",
+                      ),
+            )}
+        >
+            <div
+                className={cn("flex min-w-0 flex-1 items-center", page || phone ? "gap-3" : "gap-2")}
+            >
+                <SkeletonBlock
+                    shape="mark"
+                    className={cn("shrink-0", page ? "size-6" : phone ? "size-8" : "size-7")}
+                />
+                <div className="min-w-0 flex-1">
+                    <div className="flex h-5 items-center">
+                        <SkeletonBlock className="h-3.5 w-32" />
+                    </div>
+                    <div className="flex h-4 items-center">
+                        <SkeletonBlock className="h-3 w-48" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    ))
 }
