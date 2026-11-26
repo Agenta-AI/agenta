@@ -22,7 +22,6 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
-    DropdownMenuShortcut,
     DropdownMenuTrigger,
     SimpleTooltip as Tooltip,
     Spinner,
@@ -35,6 +34,7 @@ import {
     ChatCircleText,
     Clock,
     Code,
+    Copy,
     DotsThree,
     DownloadSimple,
     HardDrive,
@@ -44,13 +44,11 @@ import {
     MarkdownLogo,
     PencilSimple,
     Play,
-    SlidersHorizontalIcon,
     SquaresFour,
     TextAa,
     TextAlignLeft,
     Trash,
 } from "@phosphor-icons/react"
-// The design's sort glyph: three rails with offset knobs (Phosphor's has two).
 
 import {type DriveFolderActions, driveFolderMenuEntries} from "./DriveFolderMenu"
 import {ROW_ICON_BTN, ROW_ICON_BTN_ON} from "./DriveHeader"
@@ -61,23 +59,13 @@ import {isCommentableKind, usePreviewCommentMode} from "./previewCommentMode"
 
 /** Row 2's text buttons: the kit's ghost sm, muted until hover. */
 const ROW_TEXT_BTN = "px-2 text-muted-foreground hover:text-foreground"
-/** `mr-1` leaves the last segment room for its tap area before the Sort button. */
-const PHONE_PILL = "mr-1 h-9 rounded-md p-0.5"
-/**
- * Each segment is 34 x 32 px with its 1 px border, as drawn, and grows its own hit area to 44 x 44 px (one over the
- * whole list would take the taps): up and down, and out at the pill's outer edge only, so a tap
- * near the edge between Grid and List picks the segment under it. Insets count from inside the
- * border: 7 px reaches 6 px past the drawn edge, 11 px reaches 10 px.
- */
-const PHONE_PILL_TRIGGER =
-    "relative h-full rounded-sm px-[9px] py-0 after:absolute after:inset-x-0 after:-inset-y-[7px] first:after:-left-[11px] last:after:-right-[11px] after:content-['']"
-const PHONE_TEXT_BTN = `gap-1.5 rounded-md px-2 text-label text-muted-foreground hover:text-foreground`
 
 /**
- * A phone's one 52 px row: the crumb at the left, then the row's controls and its ⋯ menu.
+ * A phone's one row, 40 px like the agent pane's phone tab row: the crumb at the left, then the
+ * row's controls and its ⋯ menu. The crumb's first icon sits on the 16 px line.
  */
 const PhoneRow = ({crumb, children}: {crumb: ReactNode; children: ReactNode}) => (
-    <div className="box-border flex h-13 shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted pl-3 pr-1">
+    <div className="box-border flex h-10 shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted pl-2.5 pr-2.5">
         <div className="flex min-w-0 flex-1 items-center">{crumb}</div>
         {children}
     </div>
@@ -122,29 +110,49 @@ interface ToolbarMode {
     onChange: (value: string) => void
 }
 
-/** An icon-only pill at the row's control-sm height (icons carry `size-3.5`, the trigger's default is 16px). */
-const IconPill = ({value, options, onChange, phone}: ToolbarMode & {phone?: boolean}) => {
+/** An icon-only pill at the row's control-sm height on every window (icons carry `size-3.5`). */
+const IconPill = ({value, options, onChange}: ToolbarMode) => {
     const t = useT(driveExplorerCatalog, driveBrowserCatalog)
     return (
         <Tabs value={value} onValueChange={onChange}>
             <TabsList
                 variant="track"
                 aria-label={t("entityUi.driveBrowser.view")}
-                className={phone ? PHONE_PILL : "h-control-sm rounded-md p-0.5"}
+                className="h-control-sm rounded-md p-0.5"
             >
                 {options.map((o) => (
-                    <TabsTrigger
-                        key={o.value}
-                        value={o.value}
-                        aria-label={o.label}
-                        title={o.label}
-                        className={phone ? PHONE_PILL_TRIGGER : "h-full rounded-sm px-1.5 py-0"}
-                    >
-                        {o.icon}
-                    </TabsTrigger>
+                    // A span holds the tooltip: its trigger's data-state would hide the tab's.
+                    <Tooltip key={o.value} title={o.label}>
+                        <span className="inline-flex h-full">
+                            <TabsTrigger
+                                value={o.value}
+                                aria-label={o.label}
+                                className="h-full rounded-sm px-1.5 py-0"
+                            >
+                                {o.icon}
+                            </TabsTrigger>
+                        </span>
+                    </Tooltip>
                 ))}
             </TabsList>
         </Tabs>
+    )
+}
+
+/** Row 2's ⋯ trigger, with its tooltip around the menu trigger. */
+const MoreTrigger = () => {
+    const t = useT(driveExplorerCatalog, driveBrowserCatalog)
+    return (
+        <DropdownMenuTrigger asChild>
+            <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("entityUi.driveBrowser.moreActions")}
+                className={ROW_ICON_BTN}
+            >
+                <DotsThree size={14} />
+            </Button>
+        </DropdownMenuTrigger>
     )
 }
 
@@ -270,17 +278,11 @@ const FileActionsMenu = ({
     const t = useT(driveExplorerCatalog, driveBrowserCatalog)
     return (
         <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t("entityUi.driveBrowser.moreActions")}
-                    title={t("entityUi.driveBrowser.more")}
-                    className={ROW_ICON_BTN}
-                >
-                    <DotsThree size={14} />
-                </Button>
-            </DropdownMenuTrigger>
+            <Tooltip title={t("entityUi.driveBrowser.moreActions")}>
+                <span className="inline-flex">
+                    <MoreTrigger />
+                </span>
+            </Tooltip>
             <DropdownMenuContent
                 align="end"
                 className="min-w-45"
@@ -316,7 +318,7 @@ const FileActionsMenu = ({
                     {t("entityUi.driveExplorer.download")}
                 </DropdownMenuItem>
                 <DropdownMenuItem disabled={!onCopyPath} onSelect={onCopyPath}>
-                    <LinkSimple />
+                    <Copy />
                     {t("entityUi.driveExplorer.copyPath")}
                 </DropdownMenuItem>
                 {onCopyLink ? (
@@ -334,9 +336,9 @@ const FileActionsMenu = ({
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
+                            variant="destructive"
                             disabled={!actions}
                             onSelect={actions?.onDelete}
-                            className="text-destructive focus:text-destructive"
                         >
                             <Trash />
                             {t("entityUi.driveExplorer.delete")}
@@ -393,15 +395,22 @@ const CommentToggle = () => {
                 onClick={() => setEnabled(!enabled)}
                 className={enabled ? ROW_ICON_BTN_ON : ROW_ICON_BTN}
             >
-                <ChatCircleText size={16} weight={enabled ? "fill" : "regular"} />
+                <ChatCircleText size={14} weight={enabled ? "fill" : "regular"} />
             </Button>
         </Tooltip>
     )
 }
 
-/** The 36px row frame with the hairline the rail's search header shares. */
-const Row = ({children}: {children: ReactNode}) => (
-    <div className="flex h-9 shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted px-2.5">
+/**
+ * The 36px row frame with the hairline the rail's search header shares. `lead` puts the first
+ * thing's visible edge on the pane's 16 px line: a bordered control, a ghost icon, or a name.
+ */
+const Row = ({children, lead = "edge"}: {children: ReactNode; lead?: "edge" | "icon" | "name"}) => (
+    <div
+        className={`flex h-9 shrink-0 items-center gap-1 border-0 border-b border-solid border-border-muted pr-2.5 ${
+            lead === "icon" ? "pl-2.25" : lead === "name" ? "pl-3" : "pl-4"
+        }`}
+    >
         {children}
     </div>
 )
@@ -426,7 +435,6 @@ export function DriveToolbar(props: DriveToolbarProps) {
         const controls = (
             <>
                 <IconPill
-                    phone={Boolean(phone)}
                     value={view}
                     onChange={(v) => setView(v as DriveViewMode)}
                     options={[
@@ -448,11 +456,10 @@ export function DriveToolbar(props: DriveToolbarProps) {
                             variant="ghost"
                             size="sm"
                             aria-label={t("entityUi.driveBrowser.sort")}
-                            className={phone ? PHONE_TEXT_BTN : ROW_TEXT_BTN}
+                            className={ROW_TEXT_BTN}
                         >
-                            <SlidersHorizontalIcon className="size-3.5" />
                             {t(SORT_LABELS[sort])}
-                            <CaretDown className="size-3" />
+                            <CaretDown data-icon="inline-end" className="ag-caret size-3.5" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="min-w-45">
@@ -469,17 +476,11 @@ export function DriveToolbar(props: DriveToolbarProps) {
         )
         const more = (
             <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={t("entityUi.driveBrowser.moreActions")}
-                        title={t("entityUi.driveBrowser.more")}
-                        className={ROW_ICON_BTN}
-                    >
-                        <DotsThree size={14} />
-                    </Button>
-                </DropdownMenuTrigger>
+                <Tooltip title={t("entityUi.driveBrowser.moreActions")}>
+                    <span className="inline-flex">
+                        <MoreTrigger />
+                    </span>
+                </Tooltip>
                 <DropdownMenuContent
                     align="end"
                     className="min-w-45"
@@ -511,9 +512,6 @@ export function DriveToolbar(props: DriveToolbarProps) {
                             >
                                 {entry.icon}
                                 {entry.label}
-                                {entry.shortcut ? (
-                                    <DropdownMenuShortcut>{entry.shortcut}</DropdownMenuShortcut>
-                                ) : null}
                             </DropdownMenuItem>
                         ),
                     )}
@@ -551,7 +549,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
         } = props
         const rendered = mode === "rendered"
         return (
-            <Row>
+            <Row lead={rendered ? "icon" : "name"}>
                 {/* The portal slot stays mounted in source mode so its target never flips. */}
                 <div
                     ref={toolbarRef}
@@ -631,7 +629,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
             </PhoneRow>
         )
     return (
-        <Row>
+        <Row lead="name">
             <DriveInlineName
                 path={path}
                 validate={actions?.validateName}

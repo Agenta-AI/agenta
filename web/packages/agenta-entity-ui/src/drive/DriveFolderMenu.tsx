@@ -15,7 +15,14 @@ import {
     ContextMenuSeparator,
     ContextMenuTrigger,
 } from "@agenta/ui/ui"
-import {DownloadSimple, FilePlus, FolderPlus, LinkSimple, UploadSimple} from "@phosphor-icons/react"
+import {
+    Copy,
+    DownloadSimple,
+    FilePlus,
+    FolderPlus,
+    LinkSimple,
+    UploadSimple,
+} from "@phosphor-icons/react"
 
 // The entries are built by a plain function that menus call while rendering.
 const tNow = createT(driveExplorerCatalog, driveBrowserCatalog)
@@ -49,8 +56,6 @@ export type DriveFolderMenuEntry =
           label: string
           disabled: boolean
           onSelect?: () => void
-          /** A muted hint at the row's end (the zip badge). */
-          shortcut?: string
       }
 
 /** New folder, New file and Upload, then a separator; disabled on a read-only mount. */
@@ -91,13 +96,18 @@ export const driveFolderMenuEntries = ({
     readOnly,
 }: DriveFolderMenuProps): DriveFolderMenuEntry[] => [
     ...(readOnly ? [] : driveFolderWriteEntries(actions)),
-    {
-        key: "copy-path",
-        icon: <LinkSimple />,
-        label: tNow("entityUi.driveExplorer.copyPath"),
-        disabled: !onCopyPath,
-        onSelect: onCopyPath,
-    },
+    // The root has no path to copy: the entry is left out.
+    ...(onCopyPath
+        ? [
+              {
+                  key: "copy-path",
+                  icon: <Copy />,
+                  label: tNow("entityUi.driveExplorer.copyPath"),
+                  disabled: false,
+                  onSelect: onCopyPath,
+              },
+          ]
+        : []),
     ...(onCopyLink
         ? [
               {
@@ -117,7 +127,6 @@ export const driveFolderMenuEntries = ({
             : tNow("entityUi.driveBrowser.downloadAll"),
         disabled: !onDownloadAll || Boolean(downloadingAll),
         onSelect: onDownloadAll,
-        shortcut: ".zip",
     },
 ]
 
@@ -181,11 +190,6 @@ export const DriveFolderContextMenu = ({
                         >
                             {entry.icon}
                             {entry.label}
-                            {entry.shortcut ? (
-                                <span className="ml-auto pl-3 text-caption tracking-widest text-muted-foreground">
-                                    {entry.shortcut}
-                                </span>
-                            ) : null}
                         </ContextMenuItem>
                     ),
                 )}
